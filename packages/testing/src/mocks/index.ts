@@ -83,4 +83,4 @@ export { clearStorageMocks, createMockStorage, setupGlobalStorageMocks } from '.
 // Telemetry mocks
 export { telemetryMock } from './telemetry.mock'
 // UUID mocks
-export { mockCryptoUuid, mockUuid } from './uuid.mock'
+export { mockGenerateId, mockUuid } from './uuid.mock'

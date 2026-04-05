@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import JSON5 from 'json5'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { generateId } from '@/lib/core/utils/uuid'
 import { normalizeName } from '@/executor/constants'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import type { Variable, VariablesStore } from '@/stores/variables/types'
@@ -66,7 +67,7 @@ export const useVariablesStore = create<VariablesStore>()(
     isEditing: null,
 
     addVariable: (variable, providedId?: string) => {
-      const id = providedId || crypto.randomUUID()
+      const id = providedId || generateId()
 
       const workflowVariables = get().getVariablesByWorkflowId(variable.workflowId)
 
@@ -194,7 +195,7 @@ export const useVariablesStore = create<VariablesStore>()(
 
               for (const { blockId, subBlockId, value } of changedSubBlocks) {
                 operationQueue.addToQueue({
-                  id: crypto.randomUUID(),
+                  id: generateId(),
                   operation: {
                     operation: 'subblock-update',
                     target: 'subblock',

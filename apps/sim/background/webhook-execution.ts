@@ -3,10 +3,10 @@ import { account, webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { IdempotencyService, webhookIdempotency } from '@/lib/core/idempotency'
+import { generateId } from '@/lib/core/utils/uuid'
 import { processExecutionFiles } from '@/lib/execution/files'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -32,7 +32,7 @@ const logger = createLogger('TriggerWebhookExecution')
 export function buildWebhookCorrelation(
   payload: WebhookExecutionPayload
 ): AsyncExecutionCorrelation {
-  const executionId = payload.executionId || uuidv4()
+  const executionId = payload.executionId || generateId()
   const requestId = payload.requestId || payload.correlation?.requestId || executionId.slice(0, 8)
 
   return {

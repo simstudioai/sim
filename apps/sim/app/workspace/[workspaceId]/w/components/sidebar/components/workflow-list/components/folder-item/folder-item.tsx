@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { ChevronRight, Folder, FolderOpen, MoreHorizontal } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
@@ -139,7 +140,7 @@ export function FolderItem({
   const handleCreateWorkflowInFolder = useCallback(() => {
     const name = generateCreativeWorkflowName()
     const color = getNextWorkflowColor()
-    const id = crypto.randomUUID()
+    const id = generateId()
 
     createWorkflowMutation.mutate({
       workspaceId,
@@ -161,7 +162,7 @@ export function FolderItem({
         workspaceId,
         name: 'New Folder',
         parentId: folder.id,
-        id: crypto.randomUUID(),
+        id: generateId(),
       })
       if (result.id) {
         expandFolder()

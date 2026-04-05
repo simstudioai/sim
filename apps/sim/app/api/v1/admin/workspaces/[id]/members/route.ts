@@ -30,11 +30,11 @@
  * Response: AdminSingleResponse<{ removed: true }>
  */
 
-import crypto from 'crypto'
 import { db } from '@sim/db'
 import { permissions, user, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq } from 'drizzle-orm'
+import { generateId } from '@/lib/core/utils/uuid'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
@@ -209,7 +209,7 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
     }
 
     const now = new Date()
-    const permissionId = crypto.randomUUID()
+    const permissionId = generateId()
 
     await db.insert(permissions).values({
       id: permissionId,

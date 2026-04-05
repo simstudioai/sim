@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('ShopifyAuthorize')
 
@@ -161,7 +162,7 @@ export async function GET(request: NextRequest) {
     const baseUrl = getBaseUrl()
     const redirectUri = `${baseUrl}/api/auth/oauth2/callback/shopify`
 
-    const state = crypto.randomUUID()
+    const state = generateId()
 
     const oauthUrl =
       `https://${cleanShop}/admin/oauth/authorize?` +

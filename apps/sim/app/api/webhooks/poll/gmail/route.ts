@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
-import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
+import { generateShortId } from '@/lib/core/utils/uuid'
 import { pollGmailWebhooks } from '@/lib/webhooks/gmail-polling-service'
 
 const logger = createLogger('GmailPollingAPI')
@@ -14,7 +14,7 @@ const LOCK_KEY = 'gmail-polling-lock'
 const LOCK_TTL_SECONDS = 180 // Same as maxDuration (3 min)
 
 export async function GET(request: NextRequest) {
-  const requestId = nanoid()
+  const requestId = generateShortId()
   logger.info(`Gmail webhook polling triggered (${requestId})`)
 
   let lockValue: string | undefined

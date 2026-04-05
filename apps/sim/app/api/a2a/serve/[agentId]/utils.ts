@@ -1,7 +1,7 @@
 import type { Artifact, Message, PushNotificationConfig, Task, TaskState } from '@a2a-js/sdk'
-import { v4 as uuidv4 } from 'uuid'
 import { generateInternalToken } from '@/lib/auth/internal'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 
 /** A2A v0.3 JSON-RPC method names */
 export const A2A_METHODS = {
@@ -85,7 +85,7 @@ export function isJSONRPCRequest(obj: unknown): obj is JSONRPCRequest {
 }
 
 export function generateTaskId(): string {
-  return uuidv4()
+  return generateId()
 }
 
 export function createTaskStatus(state: TaskState): { state: TaskState; timestamp: string } {

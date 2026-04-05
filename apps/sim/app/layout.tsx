@@ -31,24 +31,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang='en' suppressHydrationWarning>
       <head>
-        {/* Polyfill crypto.randomUUID for non-secure contexts (HTTP on non-localhost) */}
-        <script
-          id='crypto-randomuuid-polyfill'
-          dangerouslySetInnerHTML={{
-            __html: `
-              if (typeof crypto !== 'undefined' && typeof crypto.randomUUID !== 'function' && typeof crypto.getRandomValues === 'function') {
-                crypto.randomUUID = function() {
-                  var a = new Uint8Array(16);
-                  crypto.getRandomValues(a);
-                  a[6] = (a[6] & 0x0f) | 0x40;
-                  a[8] = (a[8] & 0x3f) | 0x80;
-                  var h = Array.prototype.map.call(a, function(b) { return ('0' + b.toString(16)).slice(-2); }).join('');
-                  return h.slice(0,8) + '-' + h.slice(8,12) + '-' + h.slice(12,16) + '-' + h.slice(16,20) + '-' + h.slice(20);
-                };
-              }
-            `,
-          }}
-        />
         {isReactScanEnabled && (
           <Script
             src='https://unpkg.com/react-scan/dist/auto.global.js'

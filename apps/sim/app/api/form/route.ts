@@ -3,13 +3,13 @@ import { form } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { isDev } from '@/lib/core/config/feature-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getEmailDomain } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 import { deployWorkflow } from '@/lib/workflows/persistence/utils'
 import {
   checkWorkflowAccessForFormCreation,
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
         encryptedPassword = encrypted
       }
 
-      const id = uuidv4()
+      const id = generateId()
 
       logger.info('Creating form deployment with values:', {
         workflowId,

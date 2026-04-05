@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isValidUuid } from '@/lib/core/utils/uuid'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 
 /** Selector subblock types that can be validated */
@@ -17,8 +18,8 @@ export const SELECTOR_TYPES = new Set([
 
 const validationLogger = createLogger('EditWorkflowValidation')
 
-/** UUID v4 regex pattern for validation */
-export const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+/** @deprecated Use `isValidUuid` from `@/lib/core/utils/uuid` directly. */
+export const UUID_REGEX = { test: (v: string) => isValidUuid(v) }
 
 /**
  * Validation error for a specific field

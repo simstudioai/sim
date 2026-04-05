@@ -1,6 +1,7 @@
 import { db, workflowSchedule } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { generateId } from '@/lib/core/utils/uuid'
 import type { DbOrTx } from '@/lib/db/types'
 import { cleanupWebhooksForWorkflow } from '@/lib/webhooks/deploy'
 import type { BlockState } from '@/lib/workflows/schedules/utils'
@@ -100,7 +101,7 @@ export async function createSchedulesForDeploy(
 
       for (const validated of validatedBlocks) {
         const { blockId, cronExpression, nextRunAt, timezone } = validated
-        const scheduleId = crypto.randomUUID()
+        const scheduleId = generateId()
         const now = new Date()
 
         const values = {

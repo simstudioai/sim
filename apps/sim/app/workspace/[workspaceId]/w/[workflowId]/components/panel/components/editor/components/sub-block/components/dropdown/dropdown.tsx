@@ -3,6 +3,7 @@ import { isEqual } from 'es-toolkit'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { Badge } from '@/components/emcn'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
+import { generateId } from '@/lib/core/utils/uuid'
 import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { getBlock } from '@/blocks/registry'
@@ -271,7 +272,7 @@ export const Dropdown = memo(function Dropdown({
             fieldType === 'object' || fieldType === 'array' ? JSON.stringify(value, null, 2) : value
 
           return {
-            id: crypto.randomUUID(),
+            id: generateId(),
             name: key,
             type: fieldType,
             value: fieldValue,

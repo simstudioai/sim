@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { generateId } from '@/lib/core/utils/uuid'
 import {
   McpDnsResolutionError,
   McpDomainNotAllowedError,
@@ -102,7 +103,7 @@ export const POST = withMcpAuth('write')(
         throw e
       }
 
-      const serverId = body.url ? generateMcpServerId(workspaceId, body.url) : crypto.randomUUID()
+      const serverId = body.url ? generateMcpServerId(workspaceId, body.url) : generateId()
 
       const [existingServer] = await db
         .select({ id: mcpServers.id, deletedAt: mcpServers.deletedAt })

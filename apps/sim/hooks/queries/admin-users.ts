@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { client } from '@/lib/auth/auth-client'
+import { isValidUuid } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('AdminUsersQuery')
 
@@ -25,8 +26,6 @@ interface AdminUsersResponse {
   total: number
 }
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
 function mapUser(u: {
   id: string
   name: string
@@ -50,7 +49,7 @@ async function fetchAdminUsers(
   limit: number,
   searchQuery: string
 ): Promise<AdminUsersResponse> {
-  if (UUID_REGEX.test(searchQuery.trim())) {
+  if (isValidUuid(searchQuery.trim())) {
     const { data, error } = await client.admin.getUser({ query: { id: searchQuery.trim() } })
     if (error) throw new Error(error.message ?? 'Failed to fetch user')
     if (!data) return { users: [], total: 0 }

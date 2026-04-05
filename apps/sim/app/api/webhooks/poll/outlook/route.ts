@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
-import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
+import { generateShortId } from '@/lib/core/utils/uuid'
 import { pollOutlookWebhooks } from '@/lib/webhooks/outlook-polling-service'
 
 const logger = createLogger('OutlookPollingAPI')
@@ -14,7 +14,7 @@ const LOCK_KEY = 'outlook-polling-lock'
 const LOCK_TTL_SECONDS = 180 // Same as maxDuration (3 min)
 
 export async function GET(request: NextRequest) {
-  const requestId = nanoid()
+  const requestId = generateShortId()
   logger.info(`Outlook webhook polling triggered (${requestId})`)
 
   let lockValue: string | undefined

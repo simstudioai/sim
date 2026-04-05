@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useDuplicateWorkflowMutation } from '@/hooks/queries/workflows'
@@ -77,7 +78,7 @@ export function useDuplicateWorkflow({ workspaceId, onSuccess }: UseDuplicateWor
             description: sourceWorkflow.description,
             color: getNextWorkflowColor(),
             folderId: sourceWorkflow.folderId,
-            newId: crypto.randomUUID(),
+            newId: generateId(),
           })
 
           duplicatedIds.push(result.id)

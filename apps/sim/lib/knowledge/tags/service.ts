@@ -1,8 +1,8 @@
-import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBaseTagDefinitions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { generateId } from '@/lib/core/utils/uuid'
 import type { DbOrTx } from '@/lib/db/types'
 import { getSlotsForFieldType, SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
 import type { BulkTagDefinitionsData, DocumentTagDefinition } from '@/lib/knowledge/tags/types'
@@ -237,7 +237,7 @@ export async function createOrUpdateTagDefinitionsBulk(
           continue
         }
 
-        const id = randomUUID()
+        const id = generateId()
         const now = new Date()
 
         const newDefinition = {
@@ -534,7 +534,7 @@ export async function createTagDefinition(
   txDb?: DbOrTx
 ): Promise<TagDefinition> {
   const dbInstance = txDb ?? db
-  const tagDefinitionId = randomUUID()
+  const tagDefinitionId = generateId()
   const now = new Date()
 
   const newDefinition = {

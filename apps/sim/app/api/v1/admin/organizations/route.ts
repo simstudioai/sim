@@ -21,11 +21,11 @@
  * Response: AdminSingleResponse<AdminOrganization & { memberId: string }>
  */
 
-import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { member, organization, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { count, eq } from 'drizzle-orm'
+import { generateId } from '@/lib/core/utils/uuid'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -108,8 +108,8 @@ export const POST = withAdminAuth(async (request) => {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '')
 
-    const organizationId = randomUUID()
-    const memberId = randomUUID()
+    const organizationId = generateId()
+    const memberId = generateId()
     const now = new Date()
 
     await db.transaction(async (tx) => {

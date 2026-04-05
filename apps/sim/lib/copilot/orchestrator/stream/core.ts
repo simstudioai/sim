@@ -20,6 +20,7 @@ import type {
   StreamingContext,
   ToolCallSummary,
 } from '@/lib/copilot/orchestrator/types'
+import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('CopilotStreamCore')
 
@@ -42,7 +43,7 @@ export function createStreamingContext(overrides?: Partial<StreamingContext>): S
     chatId: undefined,
     executionId: undefined,
     runId: undefined,
-    messageId: crypto.randomUUID(),
+    messageId: generateId(),
     accumulatedContent: '',
     contentBlocks: [],
     toolCalls: new Map(),

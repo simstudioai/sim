@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import { db } from '@sim/db'
 import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -6,6 +5,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 import { performFullDeploy } from '@/lib/workflows/orchestration/deploy'
 
 const logger = createLogger('ChatDeployOrchestration')
@@ -101,7 +101,7 @@ export async function performChatDeploy(
       })
       .where(eq(chat.id, chatId))
   } else {
-    chatId = crypto.randomUUID()
+    chatId = generateId()
     await db.insert(chat).values({
       id: chatId,
       workflowId,

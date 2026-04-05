@@ -22,6 +22,7 @@ import {
   persistChatResources,
   removeChatResources,
 } from '@/lib/copilot/resources'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getTableById } from '@/lib/table/service'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
@@ -381,7 +382,7 @@ async function maybeWriteOutputToTable(
         }
         const chunk = rows.slice(i, i + BATCH_CHUNK_SIZE)
         const values = chunk.map((rowData, j) => ({
-          id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
+          id: `row_${generateId().replace(/-/g, '')}`,
           tableId: outputTable,
           workspaceId: context.workspaceId!,
           data: rowData,
@@ -502,7 +503,7 @@ async function maybeWriteReadCsvToTable(
         }
         const chunk = rows.slice(i, i + BATCH_CHUNK_SIZE)
         const values = chunk.map((rowData, j) => ({
-          id: `row_${crypto.randomUUID().replace(/-/g, '')}`,
+          id: `row_${generateId().replace(/-/g, '')}`,
           tableId: outputTable,
           workspaceId: context.workspaceId!,
           data: rowData,

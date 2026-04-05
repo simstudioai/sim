@@ -9,11 +9,11 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, ilike, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId } from '@/lib/core/utils/uuid'
 import { canAccessTemplate, verifyEffectiveSuperUser } from '@/lib/templates/permissions'
 import {
   extractRequiredCredentials,
@@ -267,7 +267,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: permissionError || 'Access denied' }, { status: 403 })
     }
 
-    const templateId = uuidv4()
+    const templateId = generateId()
     const now = new Date()
 
     // Get the active deployment version for the workflow to copy its state

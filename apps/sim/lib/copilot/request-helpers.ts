@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId } from '@/lib/core/utils/uuid'
 
 export type { NotificationStatus } from '@/lib/copilot/types'
 
@@ -26,7 +27,7 @@ export function createInternalServerErrorResponse(message: string): NextResponse
 }
 
 export function createRequestId(): string {
-  return crypto.randomUUID()
+  return generateId()
 }
 
 export function createShortRequestId(): string {

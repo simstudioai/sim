@@ -27,7 +27,6 @@ import { db } from '@sim/db'
 import { organization, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { addCredits } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
@@ -36,6 +35,7 @@ import {
   ENTITLED_SUBSCRIPTION_STATUSES,
   getEffectiveSeats,
 } from '@/lib/billing/subscriptions/utils'
+import { generateShortId } from '@/lib/core/utils/uuid'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -148,7 +148,7 @@ export const POST = withAdminAuth(async (request) => {
 
       if (!existingStats) {
         await db.insert(userStats).values({
-          id: nanoid(),
+          id: generateShortId(),
           userId: entityId,
         })
       }

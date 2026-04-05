@@ -1,4 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { generateId } from '@/lib/core/utils/uuid'
 import type { InboxTaskStatus } from '@/lib/mothership/inbox/types'
 
 export const inboxKeys = {
@@ -219,7 +220,7 @@ export function useAddInboxSender() {
           senders: [
             ...previous.senders,
             {
-              id: `optimistic-${crypto.randomUUID()}`,
+              id: `optimistic-${generateId()}`,
               email,
               label: label || null,
               createdAt: new Date().toISOString(),

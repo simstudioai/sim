@@ -1,5 +1,5 @@
 import type { Edge } from 'reactflow'
-import { v4 as uuidv4 } from 'uuid'
+import { generateId } from '@/lib/core/utils/uuid'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
@@ -153,7 +153,7 @@ export function prepareBlockState(options: PrepareBlockStateOptions): BlockState
       } else if (subBlock.type === 'input-format' || subBlock.type === 'response-format') {
         initialValue = [
           {
-            id: crypto.randomUUID(),
+            id: generateId(),
             name: '',
             type: 'string',
             value: '',
@@ -347,7 +347,7 @@ export function regenerateWorkflowIds(
 
   // First pass: generate new IDs and remap condition/router IDs in subBlocks
   Object.entries(workflowState.blocks).forEach(([oldId, block]) => {
-    const newId = uuidv4()
+    const newId = generateId()
     blockIdMap.set(oldId, newId)
     const oldNormalizedName = normalizeName(block.name)
     nameMap.set(oldNormalizedName, oldNormalizedName)
@@ -378,7 +378,7 @@ export function regenerateWorkflowIds(
 
     return {
       ...edge,
-      id: uuidv4(),
+      id: generateId(),
       source: newSource,
       target: blockIdMap.get(edge.target) || edge.target,
       sourceHandle: newSourceHandle,
@@ -473,7 +473,7 @@ export function regenerateBlockIds(
 
   // First pass: generate new IDs and names for all blocks
   Object.entries(blocks).forEach(([oldId, block]) => {
-    const newId = uuidv4()
+    const newId = generateId()
     blockIdMap.set(oldId, newId)
 
     const oldNormalizedName = normalizeName(block.name)
@@ -579,7 +579,7 @@ export function regenerateBlockIds(
 
     return {
       ...edge,
-      id: uuidv4(),
+      id: generateId(),
       source: newSource,
       target: blockIdMap.get(edge.target) || edge.target,
       sourceHandle: newSourceHandle,

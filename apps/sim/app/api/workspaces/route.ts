@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { generateId } from '@/lib/core/utils/uuid'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -140,8 +141,8 @@ async function createWorkspace(
   skipDefaultWorkflow = false,
   explicitColor?: string
 ) {
-  const workspaceId = crypto.randomUUID()
-  const workflowId = crypto.randomUUID()
+  const workspaceId = generateId()
+  const workflowId = generateId()
   const now = new Date()
   const color = explicitColor || getRandomWorkspaceColor()
 
@@ -159,7 +160,7 @@ async function createWorkspace(
       })
 
       await tx.insert(permissions).values({
-        id: crypto.randomUUID(),
+        id: generateId(),
         entityType: 'workspace' as const,
         entityId: workspaceId,
         userId: userId,

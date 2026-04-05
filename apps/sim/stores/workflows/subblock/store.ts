@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import { populateTriggerFieldsFromConfig } from '@/hooks/use-trigger-config-aggregation'
@@ -42,13 +43,13 @@ export const useSubBlockStore = create<SubBlockStore>()(
             if (!row || typeof row !== 'object') {
               logger.warn('Fixing malformed table row', { blockId, subBlockId, row })
               return {
-                id: crypto.randomUUID(),
+                id: generateId(),
                 cells: { Key: '', Value: '' },
               }
             }
 
             if (!row.id) {
-              row.id = crypto.randomUUID()
+              row.id = generateId()
             }
 
             if (!row.cells || typeof row.cells !== 'object') {

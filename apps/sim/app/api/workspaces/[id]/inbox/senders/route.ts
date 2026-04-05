@@ -2,10 +2,10 @@ import { db, mothershipInboxAllowedSender, permissions, user } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { hasInboxAccess } from '@/lib/billing/core/subscription'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('InboxSendersAPI')
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const [sender] = await db
       .insert(mothershipInboxAllowedSender)
       .values({
-        id: uuidv4(),
+        id: generateId(),
         workspaceId,
         email: normalizedEmail,
         label: label || null,

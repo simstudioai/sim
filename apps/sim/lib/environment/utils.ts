@@ -1,9 +1,9 @@
-import crypto from 'crypto'
 import { db } from '@sim/db'
 import { environment, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, inArray } from 'drizzle-orm'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
+import { generateId } from '@/lib/core/utils/uuid'
 import {
   getAccessibleEnvCredentials,
   syncPersonalEnvCredentialsForUser,
@@ -236,7 +236,7 @@ export async function upsertPersonalEnvVars(
   await db
     .insert(environment)
     .values({
-      id: crypto.randomUUID(),
+      id: generateId(),
       userId,
       variables: finalEncrypted,
       updatedAt: new Date(),
@@ -281,7 +281,7 @@ export async function upsertWorkspaceEnvVars(
   await db
     .insert(workspaceEnvironment)
     .values({
-      id: crypto.randomUUID(),
+      id: generateId(),
       workspaceId,
       variables: merged,
       createdAt: new Date(),

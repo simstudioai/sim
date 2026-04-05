@@ -5,6 +5,7 @@ import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId } from '@/lib/core/utils/uuid'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { validateCronExpression } from '@/lib/workflows/schedules/utils'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
@@ -249,7 +250,7 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date()
-    const id = crypto.randomUUID()
+    const id = generateId()
 
     await db.insert(workflowSchedule).values({
       id,

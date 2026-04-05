@@ -3,6 +3,7 @@ import { usageLog, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, gte, lte, type SQL, sql } from 'drizzle-orm'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('UsageLog')
 
@@ -104,7 +105,7 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
     if (validEntries.length > 0) {
       await tx.insert(usageLog).values(
         validEntries.map((entry) => ({
-          id: crypto.randomUUID(),
+          id: generateId(),
           userId,
           category: entry.category,
           source: entry.source,

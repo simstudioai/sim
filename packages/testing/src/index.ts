@@ -73,7 +73,6 @@ export {
   mockAuth,
   mockCommonSchemas,
   mockConsoleLogger,
-  mockCryptoUuid,
   mockDrizzleOrm,
   mockHybridAuth,
   mockKnowledgeSchemas,

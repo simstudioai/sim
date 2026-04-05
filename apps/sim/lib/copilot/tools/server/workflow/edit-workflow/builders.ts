@@ -1,5 +1,5 @@
-import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@/lib/core/utils/uuid'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import {
@@ -160,15 +160,15 @@ export function createBlockFromParams(
       id: 'conditions',
       type: 'condition-input',
       value: JSON.stringify([
-        { id: crypto.randomUUID(), title: 'If', value: '' },
-        { id: crypto.randomUUID(), title: 'Else', value: '' },
+        { id: generateId(), title: 'If', value: '' },
+        { id: generateId(), title: 'Else', value: '' },
       ]),
     }
   } else if (params.type === 'router_v2' && !blockState.subBlocks.routes?.value) {
     blockState.subBlocks.routes = {
       id: 'routes',
       type: 'router-input',
-      value: JSON.stringify([{ id: crypto.randomUUID(), title: 'Route 1', value: '' }]),
+      value: JSON.stringify([{ id: generateId(), title: 'Route 1', value: '' }]),
     }
   }
 
@@ -304,7 +304,7 @@ export function normalizeArrayWithIds(value: unknown): any[] {
 
     const hasValidUUID = typeof item.id === 'string' && UUID_REGEX.test(item.id)
     if (!hasValidUUID) {
-      return { ...item, id: crypto.randomUUID() }
+      return { ...item, id: generateId() }
     }
 
     return item
@@ -514,7 +514,7 @@ export function createValidatedEdge(
   const finalSourceHandle = sourceValidation.normalizedHandle || sourceHandle
 
   modifiedState.edges.push({
-    id: crypto.randomUUID(),
+    id: generateId(),
     source: sourceBlockId,
     sourceHandle: finalSourceHandle,
     target: targetBlockId,
@@ -670,7 +670,7 @@ export function normalizeBlockIdsInOperations(operations: EditWorkflowOperation[
   for (const op of operations) {
     if (op.operation_type === 'add' || op.operation_type === 'insert_into_subflow') {
       if (op.block_id && !UUID_REGEX.test(op.block_id)) {
-        const newId = crypto.randomUUID()
+        const newId = generateId()
         idMapping.set(op.block_id, newId)
         logger.debug('Normalizing block ID', { oldId: op.block_id, newId })
       }

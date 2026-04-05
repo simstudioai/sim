@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { BLOB_CONFIG } from '@/lib/uploads/config'
+import { generateId } from '@/lib/core/utils/uuid'
 import type {
   AzureMultipartPart,
   AzureMultipartUploadInit,
@@ -402,10 +403,9 @@ export async function initiateMultipartUpload(
   }
 
   const safeFileName = sanitizeFileName(fileName)
-  const { v4: uuidv4 } = await import('uuid')
-  const uniqueKey = `kb/${uuidv4()}-${safeFileName}`
+  const uniqueKey = `kb/${generateId()}-${safeFileName}`
 
-  const uploadId = uuidv4()
+  const uploadId = generateId()
 
   const containerClient = blobServiceClient.getContainerClient(containerName)
   const blockBlobClient = containerClient.getBlockBlobClient(uniqueKey)

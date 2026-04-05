@@ -1,8 +1,9 @@
-import { createHash, randomUUID } from 'crypto'
+import { createHash } from 'crypto'
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm'
+import { generateId } from '@/lib/core/utils/uuid'
 import type {
   BatchOperationResult,
   ChunkData,
@@ -115,7 +116,7 @@ export async function createChunk(
   // Calculate accurate token count
   const tokenCount = estimateTokenCount(chunkData.content, 'openai')
 
-  const chunkId = randomUUID()
+  const chunkId = generateId()
   const now = new Date()
 
   // Use transaction to atomically get next index and insert chunk

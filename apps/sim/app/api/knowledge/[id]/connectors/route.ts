@@ -9,6 +9,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { hasLiveSyncAccess } from '@/lib/billing/core/subscription'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId } from '@/lib/core/utils/uuid'
 import { dispatchSync } from '@/lib/knowledge/connectors/sync-engine'
 import { allocateTagSlots } from '@/lib/knowledge/constants'
 import { createTagDefinition } from '@/lib/knowledge/tags/service'
@@ -211,7 +212,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const now = new Date()
-    const connectorId = crypto.randomUUID()
+    const connectorId = generateId()
     const nextSyncAt =
       syncIntervalMinutes > 0 ? new Date(now.getTime() + syncIntervalMinutes * 60 * 1000) : null
 

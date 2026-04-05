@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@/lib/core/utils/uuid'
 import type { WorkspaceDispatchStorageAdapter } from '@/lib/core/workspace-dispatch/adapter'
 import {
   WORKSPACE_DISPATCH_CLAIM_RESULTS,
@@ -139,7 +140,7 @@ export class MemoryWorkspaceDispatchStorage implements WorkspaceDispatchStorageA
   async enqueueWorkspaceDispatchJob(
     input: WorkspaceDispatchEnqueueInput
   ): Promise<WorkspaceDispatchJobRecord> {
-    const id = input.id ?? `dispatch_${crypto.randomUUID().replace(/-/g, '').slice(0, 20)}`
+    const id = input.id ?? `dispatch_${generateId().replace(/-/g, '').slice(0, 20)}`
     const createdAt = Date.now()
 
     const record: WorkspaceDispatchJobRecord = {
