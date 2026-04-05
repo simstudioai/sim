@@ -1,7 +1,8 @@
-import { isAzureConfigured, isHosted } from '@/lib/core/config/feature-flags'
+import { isAzureConfigured, isHosted, isOllamaConfigured } from '@/lib/core/config/feature-flags'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/blocks/types'
 import {
+  getBaseModelProviders,
   getHostedModels,
   getProviderFromModel,
   getProviderIcon,
@@ -100,11 +101,15 @@ export function resolveOutputType(
   return resolvedOutputs
 }
 
-/**
- * Helper to get current Ollama models from store
- */
-const getCurrentOllamaModels = () => {
-  return useProvidersStore.getState().providers.ollama.models
+function getProviderFromStore(model: string): string | null {
+  const { providers } = useProvidersStore.getState()
+  const normalized = model.toLowerCase()
+  for (const [key, state] of Object.entries(providers)) {
+    if (state.models.some((m: string) => m.toLowerCase() === normalized)) {
+      return key
+    }
+  }
+  return null
 }
 
 function buildModelVisibilityCondition(model: string, shouldShow: boolean) {
@@ -119,16 +124,14 @@ function shouldRequireApiKeyForModel(model: string): boolean {
   const normalizedModel = model.trim().toLowerCase()
   if (!normalizedModel) return false
 
-  const hostedModels = getHostedModels()
-  const isHostedModel = hostedModels.some(
-    (hostedModel) => hostedModel.toLowerCase() === normalizedModel
-  )
-  if (isHosted && isHostedModel) return false
+  if (isHosted) {
+    const hostedModels = getHostedModels()
+    if (hostedModels.some((m) => m.toLowerCase() === normalizedModel)) return false
+  }
 
   if (normalizedModel.startsWith('vertex/') || normalizedModel.startsWith('bedrock/')) {
     return false
   }
-
   if (
     isAzureConfigured &&
     (normalizedModel.startsWith('azure/') ||
@@ -138,30 +141,25 @@ function shouldRequireApiKeyForModel(model: string): boolean {
   ) {
     return false
   }
-
   if (normalizedModel.startsWith('vllm/')) {
     return false
   }
 
-  const currentOllamaModels = getCurrentOllamaModels()
-  if (currentOllamaModels.some((ollamaModel) => ollamaModel.toLowerCase() === normalizedModel)) {
+  const storeProvider = getProviderFromStore(normalizedModel)
+  if (storeProvider === 'ollama') return false
+  if (storeProvider) return true
+
+  if (isOllamaConfigured) {
+    if (normalizedModel.includes('/')) return true
+    if (normalizedModel in getBaseModelProviders()) return true
     return false
   }
 
   if (!isHosted) {
     try {
       const providerId = getProviderFromModel(model)
-      if (
-        providerId === 'ollama' ||
-        providerId === 'vllm' ||
-        providerId === 'vertex' ||
-        providerId === 'bedrock'
-      ) {
-        return false
-      }
-    } catch {
-      // If model resolution fails, fall through and require an API key.
-    }
+      if (['ollama', 'vllm', 'vertex', 'bedrock'].includes(providerId)) return false
+    } catch {}
   }
 
   return true
