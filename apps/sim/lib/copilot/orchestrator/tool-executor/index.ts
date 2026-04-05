@@ -12,6 +12,7 @@ import type {
 import { routeExecution } from '@/lib/copilot/tools/server/router'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { getKnowledgeBaseById } from '@/lib/knowledge/service'
 import { validateMcpDomain } from '@/lib/mcp/domain-check'
@@ -929,7 +930,7 @@ async function generateOAuthLink(
   await db
     .insert(pendingCredentialDraft)
     .values({
-      id: crypto.randomUUID(),
+      id: generateId(),
       userId,
       workspaceId,
       providerId,

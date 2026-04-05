@@ -2,11 +2,11 @@ import { db } from '@sim/db'
 import { settings } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateShortId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('UserSettingsAPI')
 
@@ -108,7 +108,7 @@ export async function PATCH(request: Request) {
       await db
         .insert(settings)
         .values({
-          id: nanoid(),
+          id: generateShortId(),
           userId,
           ...validatedData,
           updatedAt: new Date(),

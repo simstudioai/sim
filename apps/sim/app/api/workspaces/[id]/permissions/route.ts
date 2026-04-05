@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import { db } from '@sim/db'
 import { permissions, user, workspace, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -7,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
+import { generateId } from '@/lib/core/utils/uuid'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
@@ -161,7 +161,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           )
 
         await tx.insert(permissions).values({
-          id: crypto.randomUUID(),
+          id: generateId(),
           userId: update.userId,
           entityType: 'workspace' as const,
           entityId: workspaceId,

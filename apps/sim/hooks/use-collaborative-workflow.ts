@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '@/lib/auth/auth-client'
+import { generateId } from '@/lib/core/utils/uuid'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { normalizeName, RESERVED_BLOCK_NAMES } from '@/executor/constants'
@@ -688,7 +689,7 @@ export function useCollaborativeWorkflow() {
         return
       }
 
-      const operationId = crypto.randomUUID()
+      const operationId = generateId()
 
       addToQueue({
         id: operationId,
@@ -724,7 +725,7 @@ export function useCollaborativeWorkflow() {
 
       if (updates.length === 0) return
 
-      const operationId = crypto.randomUUID()
+      const operationId = generateId()
 
       addToQueue({
         id: operationId,
@@ -845,7 +846,7 @@ export function useCollaborativeWorkflow() {
                 subBlockId: string
                 newValue: any
               }) => {
-                const operationId = crypto.randomUUID()
+                const operationId = generateId()
                 addToQueue({
                   id: operationId,
                   operation: {
@@ -901,7 +902,7 @@ export function useCollaborativeWorkflow() {
 
       if (validIds.length === 0) return
 
-      const operationId = crypto.randomUUID()
+      const operationId = generateId()
 
       addToQueue({
         id: operationId,
@@ -959,7 +960,7 @@ export function useCollaborativeWorkflow() {
       // Collect all edge IDs to remove
       const edgeIdsToRemove = updates.flatMap((u) => u.affectedEdges.map((e) => e.id))
       if (edgeIdsToRemove.length > 0) {
-        const edgeOperationId = crypto.randomUUID()
+        const edgeOperationId = generateId()
         addToQueue({
           id: edgeOperationId,
           operation: {
@@ -984,7 +985,7 @@ export function useCollaborativeWorkflow() {
 
       undoRedo.recordBatchUpdateParent(batchUpdates)
 
-      const operationId = crypto.randomUUID()
+      const operationId = generateId()
       addToQueue({
         id: operationId,
         operation: {
@@ -1034,7 +1035,7 @@ export function useCollaborativeWorkflow() {
         return
       }
 
-      const operationId = crypto.randomUUID()
+      const operationId = generateId()
       addToQueue({
         id: operationId,
         operation: {
@@ -1072,7 +1073,7 @@ export function useCollaborativeWorkflow() {
 
       if (validIds.length === 0) return
 
-      const operationId = crypto.randomUUID()
+      const operationId = generateId()
 
       addToQueue({
         id: operationId,
@@ -1120,7 +1121,7 @@ export function useCollaborativeWorkflow() {
 
       if (validIds.length === 0) return
 
-      const operationId = crypto.randomUUID()
+      const operationId = generateId()
 
       addToQueue({
         id: operationId,
@@ -1159,7 +1160,7 @@ export function useCollaborativeWorkflow() {
       const newEdges = filterNewEdges(validEdges, currentEdges)
       if (newEdges.length === 0) return false
 
-      const operationId = crypto.randomUUID()
+      const operationId = generateId()
 
       addToQueue({
         id: operationId,
@@ -1216,7 +1217,7 @@ export function useCollaborativeWorkflow() {
         return false
       }
 
-      const operationId = crypto.randomUUID()
+      const operationId = generateId()
 
       addToQueue({
         id: operationId,
@@ -1255,7 +1256,7 @@ export function useCollaborativeWorkflow() {
       useWorkflowStore.getState().syncDynamicHandleSubblockValue(blockId, subblockId, value)
 
       if (activeWorkflowId) {
-        const operationId = crypto.randomUUID()
+        const operationId = generateId()
 
         addToQueue({
           id: operationId,
@@ -1318,7 +1319,7 @@ export function useCollaborativeWorkflow() {
       useSubBlockStore.getState().setValue(blockId, subblockId, value)
 
       // Use the operation queue but with immediate processing (no debouncing)
-      const operationId = crypto.randomUUID()
+      const operationId = generateId()
 
       addToQueue({
         id: operationId,
@@ -1565,7 +1566,7 @@ export function useCollaborativeWorkflow() {
 
   const collaborativeAddVariable = useCallback(
     (variableData: { name: string; type: any; value: any; workflowId: string }) => {
-      const id = crypto.randomUUID()
+      const id = generateId()
 
       // Optimistically add to local store first
       useVariablesStore.getState().addVariable(variableData, id)
@@ -1649,7 +1650,7 @@ export function useCollaborativeWorkflow() {
         filteredEdges: edges.length - validEdges.length,
       })
 
-      const operationId = crypto.randomUUID()
+      const operationId = generateId()
 
       addToQueue({
         id: operationId,
@@ -1740,7 +1741,7 @@ export function useCollaborativeWorkflow() {
         totalCount: allBlocksToRemove.size,
       })
 
-      const operationId = crypto.randomUUID()
+      const operationId = generateId()
 
       addToQueue({
         id: operationId,

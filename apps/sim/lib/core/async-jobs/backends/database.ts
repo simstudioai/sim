@@ -10,6 +10,7 @@ import {
   type JobStatus,
   type JobType,
 } from '@/lib/core/async-jobs/types'
+import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('DatabaseJobQueue')
 
@@ -38,7 +39,7 @@ export class DatabaseJobQueue implements JobQueueBackend {
     payload: TPayload,
     options?: EnqueueOptions
   ): Promise<string> {
-    const jobId = `run_${crypto.randomUUID().replace(/-/g, '').slice(0, 20)}`
+    const jobId = `run_${generateId().replace(/-/g, '').slice(0, 20)}`
     const now = new Date()
 
     await db.insert(asyncJobs).values({

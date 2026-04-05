@@ -16,7 +16,9 @@ import { CredentialsSkeleton } from '@/app/workspace/[workspaceId]/settings/comp
 import { CustomToolsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tool-skeleton'
 import { GeneralSkeleton } from '@/app/workspace/[workspaceId]/settings/components/general/general-skeleton'
 import { InboxSkeleton } from '@/app/workspace/[workspaceId]/settings/components/inbox/inbox-skeleton'
+import { IntegrationsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/integrations/integrations-skeleton'
 import { McpSkeleton } from '@/app/workspace/[workspaceId]/settings/components/mcp/mcp-skeleton'
+import { RecentlyDeletedSkeleton } from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted-skeleton'
 import { SkillsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/skills/skill-skeleton'
 import { WorkflowMcpServersSkeleton } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/workflow-mcp-servers-skeleton'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
@@ -52,7 +54,7 @@ const Integrations = dynamic(
     import('@/app/workspace/[workspaceId]/settings/components/integrations/integrations').then(
       (m) => m.Integrations
     ),
-  { loading: () => <CredentialsSkeleton /> }
+  { loading: () => <IntegrationsSkeleton /> }
 )
 const Credentials = dynamic(
   () =>
@@ -145,7 +147,7 @@ const RecentlyDeleted = dynamic(
     import(
       '@/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted'
     ).then((m) => m.RecentlyDeleted),
-  { loading: () => <SettingsSectionSkeleton /> }
+  { loading: () => <RecentlyDeletedSkeleton /> }
 )
 const AccessControl = dynamic(
   () => import('@/ee/access-control/components/access-control').then((m) => m.AccessControl),

@@ -3,7 +3,7 @@
  */
 
 import { useCallback, useMemo } from 'react'
-import { nanoid } from 'nanoid'
+import { generateShortId } from '@/lib/core/utils/uuid'
 import type { ColumnOption } from '../types'
 import {
   COMPARISON_OPERATORS,
@@ -39,7 +39,7 @@ export function useFilterBuilder({
 
   const createDefaultRule = useCallback((): FilterRule => {
     return {
-      id: nanoid(),
+      id: generateShortId(),
       logicalOperator: 'and',
       column: columns[0]?.value || '',
       operator: 'eq',
@@ -92,7 +92,7 @@ export function useSortBuilder({
 
   const addSort = useCallback(() => {
     setSortRule({
-      id: nanoid(),
+      id: generateShortId(),
       column: columns[0]?.value || '',
       direction: 'asc',
     })

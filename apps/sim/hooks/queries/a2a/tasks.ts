@@ -7,6 +7,7 @@
 import type { Artifact, Message, TaskState } from '@a2a-js/sdk'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { isTerminalState } from '@/lib/a2a/utils'
+import { generateId } from '@/lib/core/utils/uuid'
 
 /** A2A v0.3 JSON-RPC method names */
 const A2A_METHODS = {
@@ -70,7 +71,7 @@ export interface SendA2ATaskResponse {
 async function sendA2ATask(params: SendA2ATaskParams): Promise<SendA2ATaskResponse> {
   const userMessage: Message = {
     kind: 'message',
-    messageId: crypto.randomUUID(),
+    messageId: generateId(),
     role: 'user',
     parts: [{ kind: 'text', text: params.message }],
     ...(params.taskId && { taskId: params.taskId }),
@@ -85,7 +86,7 @@ async function sendA2ATask(params: SendA2ATaskParams): Promise<SendA2ATaskRespon
     },
     body: JSON.stringify({
       jsonrpc: '2.0',
-      id: crypto.randomUUID(),
+      id: generateId(),
       method: A2A_METHODS.MESSAGE_SEND,
       params: {
         message: userMessage,
@@ -162,7 +163,7 @@ async function fetchA2ATask(params: GetA2ATaskParams, signal?: AbortSignal): Pro
     },
     body: JSON.stringify({
       jsonrpc: '2.0',
-      id: crypto.randomUUID(),
+      id: generateId(),
       method: A2A_METHODS.TASKS_GET,
       params: {
         id: params.taskId,
@@ -225,7 +226,7 @@ async function cancelA2ATask(params: CancelA2ATaskParams): Promise<A2ATask> {
     },
     body: JSON.stringify({
       jsonrpc: '2.0',
-      id: crypto.randomUUID(),
+      id: generateId(),
       method: A2A_METHODS.TASKS_CANCEL,
       params: {
         id: params.taskId,

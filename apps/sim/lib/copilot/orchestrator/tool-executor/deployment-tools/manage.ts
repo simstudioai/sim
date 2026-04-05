@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import { db } from '@sim/db'
 import {
   chat,
@@ -10,6 +9,7 @@ import {
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
+import { generateId } from '@/lib/core/utils/uuid'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
@@ -198,7 +198,7 @@ export async function executeCreateWorkspaceMcpServer(
       return { success: false, error: 'name is required' }
     }
 
-    const serverId = crypto.randomUUID()
+    const serverId = generateId()
     const [server] = await db
       .insert(workflowMcpServer)
       .values({
@@ -230,7 +230,7 @@ export async function executeCreateWorkspaceMcpServer(
         const toolName = sanitizeToolName(wf.name || `workflow_${wf.id}`)
         const parameterSchema = await generateParameterSchemaForWorkflow(wf.id)
         await db.insert(workflowMcpTool).values({
-          id: crypto.randomUUID(),
+          id: generateId(),
           serverId,
           workflowId: wf.id,
           toolName,

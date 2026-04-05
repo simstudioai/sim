@@ -132,8 +132,12 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('uuid', () => ({
-  v4: vi.fn().mockReturnValue('schedule-execution-1'),
+vi.mock('@/lib/core/utils/uuid', () => ({
+  generateId: vi.fn(() => 'schedule-execution-1'),
+  generateShortId: vi.fn(() => 'mock-short-id'),
+  isValidUuid: vi.fn((v: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
+  ),
 }))
 
 import { GET } from './route'

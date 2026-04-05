@@ -9,6 +9,7 @@ import type {
   ToolCallSummary,
 } from '@/lib/copilot/orchestrator/types'
 import { env } from '@/lib/core/config/env'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { buildToolCallSummaries, createStreamingContext, runStreamLoop } from './stream/core'
 
@@ -46,7 +47,7 @@ export async function orchestrateSubagentStream(
 
   const msgId = requestPayload?.messageId
   const context = createStreamingContext({
-    messageId: typeof msgId === 'string' ? msgId : crypto.randomUUID(),
+    messageId: typeof msgId === 'string' ? msgId : generateId(),
   })
 
   let structuredResult: SubagentOrchestratorResult['structuredResult']

@@ -10,6 +10,7 @@ import {
 } from '@/lib/copilot/tools/server/base-tool'
 import type { KnowledgeBaseArgs, KnowledgeBaseResult } from '@/lib/copilot/tools/shared/schemas'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 import {
   createSingleDocument,
   deleteDocument,
@@ -82,7 +83,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const requestId = crypto.randomUUID().slice(0, 8)
+          const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const newKnowledgeBase = await createKnowledgeBase(
             {
@@ -268,7 +269,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             5 * 60
           )
 
-          const requestId = crypto.randomUUID().slice(0, 8)
+          const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const doc = await createSingleDocument(
             {
@@ -344,7 +345,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const requestId = crypto.randomUUID().slice(0, 8)
+          const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const updatedKb = await updateKnowledgeBase(args.knowledgeBaseId, updates, requestId)
 
@@ -383,7 +384,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const requestId = crypto.randomUUID().slice(0, 8)
+          const requestId = generateId().slice(0, 8)
           assertNotAborted()
           await deleteKnowledgeBase(args.knowledgeBaseId, requestId)
 
@@ -410,7 +411,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           if (!args.documentId) {
             return { success: false, message: 'documentId is required for delete_document' }
           }
-          const requestId = crypto.randomUUID().slice(0, 8)
+          const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const result = await deleteDocument(args.documentId, requestId)
           return {
@@ -440,7 +441,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               message: 'At least one of filename or enabled is required for update_document',
             }
           }
-          const requestId = crypto.randomUUID().slice(0, 8)
+          const requestId = generateId().slice(0, 8)
           assertNotAborted()
           await updateDocument(args.documentId, updateData, requestId)
           return {
@@ -506,7 +507,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const requestId = crypto.randomUUID().slice(0, 8)
+          const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const newTag = await createTagDefinition(
             {
@@ -565,7 +566,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const requestId = crypto.randomUUID().slice(0, 8)
+          const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const updatedTag = await updateTagDefinition(args.tagDefinitionId, updateData, requestId)
 
@@ -602,7 +603,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const requestId = crypto.randomUUID().slice(0, 8)
+          const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const deleted = await deleteTagDefinition(
             args.knowledgeBaseId,
@@ -636,7 +637,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const requestId = crypto.randomUUID().slice(0, 8)
+          const requestId = generateId().slice(0, 8)
           const stats = await getTagUsageStats(args.knowledgeBaseId, requestId)
 
           return {

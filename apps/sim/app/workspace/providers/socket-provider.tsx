@@ -14,6 +14,7 @@ import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import type { Socket } from 'socket.io-client'
 import { getEnv } from '@/lib/core/config/env'
+import { generateId } from '@/lib/core/utils/uuid'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import { useWorkflowRegistry as useWorkflowRegistryStore } from '@/stores/workflows/registry/store'
 
@@ -26,7 +27,7 @@ function getTabSessionId(): string {
 
   let tabSessionId = sessionStorage.getItem(TAB_SESSION_ID_KEY)
   if (!tabSessionId) {
-    tabSessionId = crypto.randomUUID()
+    tabSessionId = generateId()
     sessionStorage.setItem(TAB_SESSION_ID_KEY, tabSessionId)
   }
   return tabSessionId

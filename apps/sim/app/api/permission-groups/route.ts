@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasAccessControlAccess } from '@/lib/billing'
+import { generateId } from '@/lib/core/utils/uuid'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
@@ -181,7 +182,7 @@ export async function POST(req: Request) {
 
     const now = new Date()
     const newGroup = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       organizationId,
       name,
       description: description || null,

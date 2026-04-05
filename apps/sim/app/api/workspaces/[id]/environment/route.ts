@@ -8,6 +8,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId } from '@/lib/core/utils/uuid'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
@@ -114,7 +115,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     await db
       .insert(workspaceEnvironment)
       .values({
-        id: crypto.randomUUID(),
+        id: generateId(),
         workspaceId,
         variables: merged,
         createdAt: new Date(),
@@ -199,7 +200,7 @@ export async function DELETE(
     await db
       .insert(workspaceEnvironment)
       .values({
-        id: wsRows[0]?.id || crypto.randomUUID(),
+        id: wsRows[0]?.id || generateId(),
         workspaceId,
         variables: current,
         createdAt: wsRows[0]?.createdAt || new Date(),

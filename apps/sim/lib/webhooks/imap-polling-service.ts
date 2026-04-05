@@ -5,10 +5,10 @@ import type { InferSelectModel } from 'drizzle-orm'
 import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import type { FetchMessageObject, MailboxLockObject } from 'imapflow'
 import { ImapFlow } from 'imapflow'
-import { nanoid } from 'nanoid'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { generateShortId } from '@/lib/core/utils/uuid'
 import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
 const logger = createLogger('ImapPollingService')
@@ -160,7 +160,7 @@ export async function pollImapWebhooks() {
 
     const enqueue = async (webhookData: (typeof activeWebhooks)[number]) => {
       const webhookId = webhookData.id
-      const requestId = nanoid()
+      const requestId = generateShortId()
 
       try {
         const config = webhookData.providerConfig as unknown as ImapWebhookConfig

@@ -1,8 +1,8 @@
-import { randomUUID } from 'node:crypto'
 import { db } from '@sim/db'
 import { oauthApplication } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
+import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('cimd')
 
@@ -138,7 +138,7 @@ export async function upsertCimdClient(metadata: ClientMetadataDocument): Promis
   await db
     .insert(oauthApplication)
     .values({
-      id: randomUUID(),
+      id: generateId(),
       clientId: metadata.client_id,
       name: metadata.client_name,
       icon: metadata.logo_uri ?? null,

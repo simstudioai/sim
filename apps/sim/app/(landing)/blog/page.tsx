@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { Badge } from '@/components/emcn'
 import { getAllPostMeta } from '@/lib/blog/registry'
-import { PostGrid } from '@/app/(landing)/blog/post-grid'
 
 export const metadata: Metadata = {
   title: 'Blog',
@@ -34,8 +34,9 @@ export default async function BlogIndex({
   const totalPages = Math.max(1, Math.ceil(sorted.length / perPage))
   const start = (pageNum - 1) * perPage
   const posts = sorted.slice(start, start + perPage)
-  // Tag filter chips are intentionally disabled for now.
-  // const tags = await getAllTags()
+  const featured = pageNum === 1 ? posts.slice(0, 3) : []
+  const remaining = pageNum === 1 ? posts.slice(3) : posts
+
   const blogJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Blog',
@@ -45,54 +46,154 @@ export default async function BlogIndex({
   }
 
   return (
-    <main className='mx-auto max-w-[1200px] px-6 py-12 sm:px-8 md:px-12'>
+    <section className='bg-[var(--landing-bg)]'>
       <script
         type='application/ld+json'
         dangerouslySetInnerHTML={{ __html: JSON.stringify(blogJsonLd) }}
       />
-      <h1 className='mb-3 text-balance font-[500] text-[40px] text-[var(--landing-text)] leading-tight sm:text-[56px]'>
-        Blog
-      </h1>
-      <p className='mb-10 text-[var(--landing-text-muted)] text-lg'>
-        Announcements, insights, and guides for building AI agent workflows.
-      </p>
 
-      {/* Tag filter chips hidden until we have more posts */}
-      {/* <div className='mb-10 flex flex-wrap gap-3'>
-        <Link href='/blog' className={`rounded-full border px-3 py-1 text-sm ${!tag ? 'border-black bg-black text-white' : 'border-gray-300'}`}>All</Link>
-        {tags.map((t) => (
-          <Link key={t.tag} href={`/blog?tag=${encodeURIComponent(t.tag)}`} className={`rounded-full border px-3 py-1 text-sm ${tag === t.tag ? 'border-black bg-black text-white' : 'border-gray-300'}`}>
-            {t.tag} ({t.count})
-          </Link>
-        ))}
-      </div> */}
+      {/* Section header */}
+      <div className='px-5 pt-[60px] lg:px-16 lg:pt-[100px]'>
+        <Badge
+          variant='blue'
+          size='md'
+          dot
+          className='mb-5 bg-white/10 font-season text-white uppercase tracking-[0.02em]'
+        >
+          Blog
+        </Badge>
 
-      {/* Grid layout for consistent rows */}
-      <PostGrid posts={posts} />
-
-      {totalPages > 1 && (
-        <div className='mt-10 flex items-center justify-center gap-3'>
-          {pageNum > 1 && (
-            <Link
-              href={`/blog?page=${pageNum - 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
-              className='rounded-[5px] border border-[var(--landing-border-strong)] px-3 py-1 text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--landing-bg-elevated)]'
-            >
-              Previous
-            </Link>
-          )}
-          <span className='text-[var(--landing-text-muted)] text-sm'>
-            Page {pageNum} of {totalPages}
-          </span>
-          {pageNum < totalPages && (
-            <Link
-              href={`/blog?page=${pageNum + 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
-              className='rounded-[5px] border border-[var(--landing-border-strong)] px-3 py-1 text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--landing-bg-elevated)]'
-            >
-              Next
-            </Link>
-          )}
+        <div className='flex flex-col gap-4 md:flex-row md:items-end md:justify-between'>
+          <h1 className='text-balance font-[430] font-season text-[28px] text-white leading-[100%] tracking-[-0.02em] lg:text-[40px]'>
+            Latest from Sim
+          </h1>
+          <p className='max-w-[360px] font-[430] font-season text-[#F6F6F0]/50 text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
+            Announcements, insights, and guides for building AI agent workflows.
+          </p>
         </div>
-      )}
-    </main>
+      </div>
+
+      {/* Full-width top line */}
+      <div className='mt-8 h-px w-full bg-[var(--landing-bg-elevated)]' />
+
+      {/* Content area with vertical border rails */}
+      <div className='mx-5 border-[var(--landing-bg-elevated)] border-x lg:mx-16'>
+        {/* Featured posts */}
+        {featured.length > 0 && (
+          <>
+            <div className='flex'>
+              {featured.map((p, index) => (
+                <Link
+                  key={p.slug}
+                  href={`/blog/${p.slug}`}
+                  className='group flex flex-1 flex-col gap-4 border-[var(--landing-bg-elevated)] p-6 transition-colors hover:bg-[var(--landing-bg-elevated)] md:border-l md:first:border-l-0'
+                >
+                  <div className='relative aspect-video w-full overflow-hidden rounded-[5px]'>
+                    <img
+                      src={p.ogImage}
+                      alt={p.title}
+                      className='h-full w-full object-cover'
+                      loading={index < 3 ? 'eager' : 'lazy'}
+                    />
+                  </div>
+                  <div className='flex flex-col gap-2'>
+                    <span className='font-martian-mono text-[var(--landing-text-subtle)] text-xs uppercase tracking-[0.1em]'>
+                      {new Date(p.date).toLocaleDateString('en-US', {
+                        month: 'short',
+                        year: '2-digit',
+                      })}
+                    </span>
+                    <h3 className='font-[430] font-season text-lg text-white leading-tight tracking-[-0.01em]'>
+                      {p.title}
+                    </h3>
+                    <p className='line-clamp-2 text-[#F6F6F0]/50 text-sm leading-[150%]'>
+                      {p.description}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+          </>
+        )}
+
+        {remaining.map((p) => (
+          <div key={p.slug}>
+            <Link
+              href={`/blog/${p.slug}`}
+              className='group flex items-start gap-6 px-6 py-6 transition-colors hover:bg-[var(--landing-bg-elevated)] md:items-center'
+            >
+              {/* Date */}
+              <span className='hidden w-[120px] shrink-0 pt-1 font-martian-mono text-[var(--landing-text-subtle)] text-xs uppercase tracking-[0.1em] md:block'>
+                {new Date(p.date).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })}
+              </span>
+
+              {/* Title + description */}
+              <div className='flex min-w-0 flex-1 flex-col gap-1'>
+                <span className='font-martian-mono text-[var(--landing-text-subtle)] text-xs uppercase tracking-[0.1em] md:hidden'>
+                  {new Date(p.date).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
+                </span>
+                <h3 className='font-[430] font-season text-base text-white leading-tight tracking-[-0.01em] lg:text-lg'>
+                  {p.title}
+                </h3>
+                <p className='line-clamp-2 text-[#F6F6F0]/40 text-sm leading-[150%]'>
+                  {p.description}
+                </p>
+              </div>
+
+              {/* Image */}
+              <div className='hidden h-[80px] w-[140px] shrink-0 overflow-hidden rounded-[5px] sm:block'>
+                <img
+                  src={p.ogImage}
+                  alt={p.title}
+                  className='h-full w-full object-cover'
+                  loading='lazy'
+                />
+              </div>
+            </Link>
+            <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+          </div>
+        ))}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className='px-6 py-8'>
+            <div className='flex items-center justify-center gap-3'>
+              {pageNum > 1 && (
+                <Link
+                  href={`/blog?page=${pageNum - 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
+                  className='rounded-[5px] border border-[var(--landing-border-strong)] px-3 py-1 text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--landing-bg-elevated)]'
+                >
+                  Previous
+                </Link>
+              )}
+              <span className='text-[var(--landing-text-muted)] text-sm'>
+                Page {pageNum} of {totalPages}
+              </span>
+              {pageNum < totalPages && (
+                <Link
+                  href={`/blog?page=${pageNum + 1}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`}
+                  className='rounded-[5px] border border-[var(--landing-border-strong)] px-3 py-1 text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--landing-bg-elevated)]'
+                >
+                  Next
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Full-width bottom line — overlaps last inner divider to avoid double border */}
+      <div className='-mt-px h-px w-full bg-[var(--landing-bg-elevated)]' />
+    </section>
   )
 }

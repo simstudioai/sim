@@ -3,10 +3,10 @@ import { templates, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 import { canAccessTemplate, verifyTemplateOwnership } from '@/lib/templates/permissions'
 import {
   type RegenerateStateInput,
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const templateData = template[0]
 
     // Create a new workflow ID
-    const newWorkflowId = uuidv4()
+    const newWorkflowId = generateId()
     const now = new Date()
 
     // Extract variables from the template state and remap to the new workflow
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (!templateVariables || typeof templateVariables !== 'object') return {}
       const mapped: Record<string, any> = {}
       for (const [, variable] of Object.entries(templateVariables)) {
-        const newVarId = uuidv4()
+        const newVarId = generateId()
         mapped[newVarId] = { ...variable, id: newVarId, workflowId: newWorkflowId }
       }
       return mapped
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
         // Create a deployment version for the new workflow
         if (templateData.state) {
-          const newDeploymentVersionId = uuidv4()
+          const newDeploymentVersionId = generateId()
           await tx.insert(workflowDeploymentVersion).values({
             id: newDeploymentVersionId,
             workflowId: newWorkflowId,

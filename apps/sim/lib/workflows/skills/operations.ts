@@ -2,8 +2,8 @@ import { db } from '@sim/db'
 import { skill } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, ne } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateShortId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('SkillsOperations')
 
@@ -111,7 +111,7 @@ export async function upsertSkills(params: {
       }
 
       await tx.insert(skill).values({
-        id: nanoid(),
+        id: generateShortId(),
         workspaceId,
         userId,
         name: s.name,

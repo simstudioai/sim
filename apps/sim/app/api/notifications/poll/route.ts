@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
-import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
+import { generateShortId } from '@/lib/core/utils/uuid'
 import { pollInactivityAlerts } from '@/lib/notifications/inactivity-polling'
 
 const logger = createLogger('InactivityAlertPoll')
@@ -13,7 +13,7 @@ const LOCK_KEY = 'inactivity-alert-polling-lock'
 const LOCK_TTL_SECONDS = 120
 
 export async function GET(request: NextRequest) {
-  const requestId = nanoid()
+  const requestId = generateShortId()
   logger.info(`Inactivity alert polling triggered (${requestId})`)
 
   let lockAcquired = false

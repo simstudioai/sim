@@ -3,7 +3,6 @@ import { db, workflowDeploymentVersion } from '@sim/db'
 import { account, webhook, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, or } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { safeCompare } from '@/lib/core/security/encryption'
 import {
@@ -12,6 +11,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
+import { generateShortId } from '@/lib/core/utils/uuid'
 import type { DbOrTx } from '@/lib/db/types'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
@@ -2391,7 +2391,7 @@ export async function syncWebhooksForCredentialSet(params: {
         )
       } else {
         // Create new webhook for this credential
-        const webhookId = nanoid()
+        const webhookId = generateShortId()
         const webhookPath = useUniquePaths
           ? `${basePath}-${cred.credentialId.slice(0, 8)}`
           : basePath

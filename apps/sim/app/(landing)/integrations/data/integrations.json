@@ -2327,9 +2327,17 @@
       {
         "name": "Delete Agent",
         "description": "Permanently delete a cloud agent. This action cannot be undone."
+      },
+      {
+        "name": "List Artifacts",
+        "description": "List generated artifact files for a cloud agent."
+      },
+      {
+        "name": "Download Artifact",
+        "description": "Download a generated artifact file from a cloud agent."
       }
     ],
-    "operationCount": 7,
+    "operationCount": 9,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",

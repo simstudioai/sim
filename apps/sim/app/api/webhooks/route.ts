@@ -2,12 +2,12 @@ import { db } from '@sim/db'
 import { permissions, webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId, generateShortId } from '@/lib/core/utils/uuid'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
@@ -247,7 +247,7 @@ export async function POST(request: NextRequest) {
 
         // If still no path, generate a new dummy path (first-time save)
         if (!finalPath || finalPath.trim() === '') {
-          finalPath = `${provider}-${crypto.randomUUID()}`
+          finalPath = `${provider}-${generateId()}`
           logger.info(`[${requestId}] Generated webhook path for ${provider} trigger: ${finalPath}`)
         }
       } else {
@@ -492,7 +492,7 @@ export async function POST(request: NextRequest) {
 
     let externalSubscriptionCreated = false
     const createTempWebhookData = (providerConfigOverride = resolvedProviderConfig) => ({
-      id: targetWebhookId || nanoid(),
+      id: targetWebhookId || generateShortId(),
       path: finalPath,
       provider,
       providerConfig: providerConfigOverride,
@@ -579,7 +579,7 @@ export async function POST(request: NextRequest) {
         })
       } else {
         // Create a new webhook
-        const webhookId = nanoid()
+        const webhookId = generateShortId()
         logger.info(`[${requestId}] Creating new webhook with ID: ${webhookId}`)
         const newResult = await db
           .insert(webhook)

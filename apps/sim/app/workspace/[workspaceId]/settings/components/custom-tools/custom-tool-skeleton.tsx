@@ -7,11 +7,11 @@ export function CustomToolSkeleton() {
   return (
     <div className='flex items-center justify-between gap-3'>
       <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-        <Skeleton className='h-[14px] w-[100px]' />
-        <Skeleton className='h-[13px] w-[200px]' />
+        <Skeleton className='h-4 w-[100px]' />
+        <Skeleton className='h-3.5 w-[200px]' />
       </div>
       <div className='flex flex-shrink-0 items-center gap-2'>
-        <Skeleton className='h-[30px] w-[40px] rounded-sm' />
+        <Skeleton className='h-[30px] w-[52px] rounded-sm' />
         <Skeleton className='h-[30px] w-[54px] rounded-sm' />
       </div>
     </div>

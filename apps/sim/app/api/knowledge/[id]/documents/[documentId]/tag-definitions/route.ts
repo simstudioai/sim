@@ -1,8 +1,8 @@
-import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { generateId } from '@/lib/core/utils/uuid'
 import { SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
 import {
   cleanupUnusedTagDefinitions,
@@ -34,7 +34,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string }> }
 ) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   const { id: knowledgeBaseId, documentId } = await params
 
   try {
@@ -79,7 +79,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string }> }
 ) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   const { id: knowledgeBaseId, documentId } = await params
 
   try {
@@ -160,7 +160,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string }> }
 ) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   const { id: knowledgeBaseId, documentId } = await params
   const { searchParams } = new URL(req.url)
   const action = searchParams.get('action') // 'cleanup' or 'all'

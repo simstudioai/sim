@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { generateId } from '@/lib/core/utils/uuid'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import {
   getDynamicHandleSubblockType,
@@ -84,7 +85,7 @@ function resolveInitialSubblockValue(config: SubBlockConfig): unknown {
   if (config.type === 'input-format') {
     return [
       {
-        id: crypto.randomUUID(),
+        id: generateId(),
         name: '',
         type: 'string',
         value: '',
@@ -251,7 +252,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
           for (const edge of validEdges) {
             if (!existingEdgeIds.has(edge.id)) {
               newEdges.push({
-                id: edge.id || crypto.randomUUID(),
+                id: edge.id || generateId(),
                 source: edge.source,
                 target: edge.target,
                 sourceHandle: edge.sourceHandle,
@@ -471,7 +472,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
         for (const edge of filtered) {
           if (wouldCreateCycle([...newEdges], edge.source, edge.target)) continue
           newEdges.push({
-            id: edge.id || crypto.randomUUID(),
+            id: edge.id || generateId(),
             source: edge.source,
             target: edge.target,
             sourceHandle: edge.sourceHandle,
@@ -605,7 +606,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
         const block = get().blocks[id]
         if (!block) return
 
-        const newId = crypto.randomUUID()
+        const newId = generateId()
 
         // Check if block is inside a locked container - if so, place duplicate outside
         const parentId = block.data?.parentId

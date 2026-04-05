@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
+import { generateId } from '@/lib/core/utils/uuid'
 import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import {
   buildCanonicalIndex,
@@ -565,7 +566,7 @@ export class Serializer {
     // Deserialize connections
     workflow.connections.forEach((connection) => {
       edges.push({
-        id: crypto.randomUUID(),
+        id: generateId(),
         source: connection.source,
         target: connection.target,
         sourceHandle: connection.sourceHandle,

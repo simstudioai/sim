@@ -1,10 +1,10 @@
-import crypto from 'crypto'
 import { db } from '@sim/db'
 import { permissions, userStats, workflowFolder, workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, eq, inArray, isNull, max, min, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getActiveWorkflowContext } from '@/lib/workflows/active-context'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
@@ -100,7 +100,7 @@ export async function deduplicateWorkflowName(
     }
   }
 
-  return `${name} (${crypto.randomUUID().slice(0, 6)})`
+  return `${name} (${generateId().slice(0, 6)})`
 }
 
 export async function resolveWorkflowIdForUser(
@@ -437,7 +437,7 @@ export async function createWorkflowRecord(params: CreateWorkflowInput) {
     color = getNextWorkflowColor(),
     folderId = null,
   } = params
-  const workflowId = crypto.randomUUID()
+  const workflowId = generateId()
   const now = new Date()
 
   const duplicateConditions = [
@@ -567,7 +567,7 @@ export async function createFolderRecord(params: CreateFolderInput) {
     )
   const sortOrder = (maxResult?.maxOrder ?? 0) + 1
 
-  const folderId = crypto.randomUUID()
+  const folderId = generateId()
   await db.insert(workflowFolder).values({
     id: folderId,
     userId,

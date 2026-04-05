@@ -13,6 +13,7 @@ import {
 import { X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/core/utils/cn'
+import { generateId } from '@/lib/core/utils/uuid'
 
 const AUTO_DISMISS_MS = 5000
 const EXIT_ANIMATION_MS = 200
@@ -236,7 +237,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   }, [])
 
   const addToast = useCallback((input: ToastInput): string => {
-    const id = crypto.randomUUID()
+    const id = generateId()
     const data: ToastData = {
       id,
       message: input.message,

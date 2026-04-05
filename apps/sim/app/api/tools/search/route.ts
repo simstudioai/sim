@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { SEARCH_TOOL_COST } from '@/lib/billing/constants'
 import { env } from '@/lib/core/config/env'
+import { generateId } from '@/lib/core/utils/uuid'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('search')
@@ -16,7 +17,7 @@ export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
-  const requestId = crypto.randomUUID()
+  const requestId = generateId()
 
   try {
     const { searchParams: urlParams } = new URL(request.url)

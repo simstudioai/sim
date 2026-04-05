@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 import { StorageService } from '@/lib/uploads'
 import type {
   AzureTtsParams,
@@ -83,7 +84,7 @@ interface TtsUnifiedRequestBody {
 }
 
 export async function POST(request: NextRequest) {
-  const requestId = crypto.randomUUID()
+  const requestId = generateId()
   logger.info(`[${requestId}] TTS unified request started`)
 
   try {

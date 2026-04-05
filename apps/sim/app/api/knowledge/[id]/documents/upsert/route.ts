@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { document } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -7,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { generateId } from '@/lib/core/utils/uuid'
 import {
   createDocumentRecords,
   deleteDocument,
@@ -35,7 +35,7 @@ const UpsertDocumentSchema = z.object({
 })
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   const { id: knowledgeBaseId } = await params
 
   try {

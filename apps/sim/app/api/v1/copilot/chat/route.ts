@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
 
@@ -80,9 +81,9 @@ export async function POST(req: NextRequest) {
     const transportMode = effectiveMode === 'build' ? 'agent' : effectiveMode
 
     // Always generate a chatId - required for artifacts system to work with subagents
-    const chatId = parsed.chatId || crypto.randomUUID()
+    const chatId = parsed.chatId || generateId()
 
-    messageId = crypto.randomUUID()
+    messageId = generateId()
     const reqLogger = logger.withMetadata({ messageId })
     reqLogger.info('Received headless copilot chat start request', {
       workflowId: resolved.workflowId,
@@ -102,8 +103,8 @@ export async function POST(req: NextRequest) {
       chatId,
     }
 
-    const executionId = crypto.randomUUID()
-    const runId = crypto.randomUUID()
+    const executionId = generateId()
+    const runId = generateId()
 
     await createRunSegment({
       id: runId,

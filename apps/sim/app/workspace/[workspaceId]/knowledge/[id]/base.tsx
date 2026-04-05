@@ -25,6 +25,7 @@ import {
 import { Database, DatabaseX } from '@/components/emcn/icons'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import { cn } from '@/lib/core/utils/cn'
+import { generateId } from '@/lib/core/utils/uuid'
 import { ADD_CONNECTOR_SEARCH_PARAM } from '@/lib/credentials/client-state'
 import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowledge/constants'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
@@ -1407,7 +1408,7 @@ interface TagFilterEntry {
 }
 
 const createEmptyEntry = (): TagFilterEntry => ({
-  id: crypto.randomUUID(),
+  id: generateId(),
   tagName: '',
   tagSlot: '',
   fieldType: 'text',

@@ -1,4 +1,4 @@
-import crypto, { randomUUID } from 'crypto'
+import crypto from 'crypto'
 import { db } from '@sim/db'
 import {
   document,
@@ -30,6 +30,7 @@ import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { generateId } from '@/lib/core/utils/uuid'
 import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
@@ -565,7 +566,7 @@ export async function processDocumentAsync(
         logger.info(`[${documentId}] Creating embedding records with tags`)
 
         const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => ({
-          id: crypto.randomUUID(),
+          id: generateId(),
           knowledgeBaseId,
           documentId,
           chunkIndex,
@@ -815,7 +816,7 @@ export async function createDocumentRecords(
     const returnData: DocumentData[] = []
 
     for (const docData of documents) {
-      const documentId = randomUUID()
+      const documentId = generateId()
 
       let processedTags: Partial<ProcessedDocumentTags> = {}
 
@@ -1315,7 +1316,7 @@ export async function createSingleDocument(
   tag6: string | null
   tag7: string | null
 }> {
-  const documentId = randomUUID()
+  const documentId = generateId()
   const now = new Date()
 
   let processedTags: ProcessedDocumentTags = {

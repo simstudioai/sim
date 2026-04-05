@@ -2,7 +2,7 @@
  * Converters for transforming between UI builder state and API filter/sort objects.
  */
 
-import { nanoid } from 'nanoid'
+import { generateShortId } from '@/lib/core/utils/uuid'
 import type { Filter, FilterRule, JsonValue, Sort, SortDirection, SortRule } from '../types'
 
 /** Converts UI filter rules to a Filter object for API queries. */
@@ -70,7 +70,7 @@ export function sortToRules(sort: Sort | null): SortRule[] {
   if (!sort) return []
 
   return Object.entries(sort).map(([column, direction]) => ({
-    id: nanoid(),
+    id: generateShortId(),
     column,
     direction: normalizeSortDirection(direction),
   }))
@@ -132,7 +132,7 @@ function parseFilterGroup(group: Filter): FilterRule[] {
       for (const [op, opValue] of Object.entries(value)) {
         if (op.startsWith('$')) {
           rules.push({
-            id: nanoid(),
+            id: generateShortId(),
             logicalOperator: 'and',
             column,
             operator: op.substring(1),
@@ -144,7 +144,7 @@ function parseFilterGroup(group: Filter): FilterRule[] {
     }
 
     rules.push({
-      id: nanoid(),
+      id: generateShortId(),
       logicalOperator: 'and',
       column,
       operator: 'eq',

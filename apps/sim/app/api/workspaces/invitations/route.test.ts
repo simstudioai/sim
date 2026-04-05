@@ -58,8 +58,12 @@ const {
   }
 })
 
-vi.mock('crypto', () => ({
-  randomUUID: mockRandomUUID,
+vi.mock('@/lib/core/utils/uuid', () => ({
+  generateId: mockRandomUUID,
+  generateShortId: vi.fn(() => 'mock-short-id'),
+  isValidUuid: vi.fn((v: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
+  ),
 }))
 
 vi.mock('@/lib/auth', () => ({

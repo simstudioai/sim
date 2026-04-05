@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
-import { v4 as uuidv4 } from 'uuid'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getTargetedLayoutImpact } from '@/lib/workflows/autolayout'
 import type { BlockWithDiff } from '@/lib/workflows/diff/types'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
@@ -384,7 +384,7 @@ export class WorkflowDiffEngine {
           idMap[proposedId] = proposedId
         } else {
           // New block with a non-UUID ID (e.g., from YAML parsing) — mint a UUID
-          idMap[proposedId] = uuidv4()
+          idMap[proposedId] = generateId()
         }
       }
 
@@ -470,7 +470,7 @@ export class WorkflowDiffEngine {
         if (!edgeMap.has(edgeKey)) {
           edgeMap.set(edgeKey, {
             ...edge,
-            id: uuidv4(), // Use UUID for unique edge IDs
+            id: generateId(), // Use UUID for unique edge IDs
             source,
             target,
             sourceHandle,

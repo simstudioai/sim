@@ -1,9 +1,9 @@
-import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import type { Client, FileEntry, SFTPWrapper } from 'ssh2'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { generateId } from '@/lib/core/utils/uuid'
 import {
   createSSHConnection,
   getFileType,
@@ -58,7 +58,7 @@ async function listDir(sftp: SFTPWrapper, dirPath: string): Promise<FileEntry[]>
 }
 
 export async function POST(request: NextRequest) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
 
   try {
     const auth = await checkInternalAuth(request)

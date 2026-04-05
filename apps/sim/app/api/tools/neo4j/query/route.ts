@@ -1,8 +1,8 @@
-import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { generateId } from '@/lib/core/utils/uuid'
 import {
   convertNeo4jTypesToJSON,
   createNeo4jDriver,
@@ -23,7 +23,7 @@ const QuerySchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   let driver = null
   let session = null
 

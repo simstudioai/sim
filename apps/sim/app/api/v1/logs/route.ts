@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { generateId } from '@/lib/core/utils/uuid'
 import { buildLogFilters, getOrderBy } from '@/app/api/v1/logs/filters'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
@@ -53,7 +54,7 @@ function decodeCursor(cursor: string): CursorData | null {
 }
 
 export async function GET(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
 
   try {
     const rateLimit = await checkRateLimit(request, 'logs')

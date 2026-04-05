@@ -1,8 +1,8 @@
-import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { generateId } from '@/lib/core/utils/uuid'
 import { SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
 import { createTagDefinition, getTagDefinitions } from '@/lib/knowledge/tags/service'
 import { checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
@@ -13,7 +13,7 @@ const logger = createLogger('KnowledgeBaseTagDefinitionsAPI')
 
 // GET /api/knowledge/[id]/tag-definitions - Get all tag definitions for a knowledge base
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   const { id: knowledgeBaseId } = await params
 
   try {
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
 // POST /api/knowledge/[id]/tag-definitions - Create a new tag definition
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   const { id: knowledgeBaseId } = await params
 
   try {

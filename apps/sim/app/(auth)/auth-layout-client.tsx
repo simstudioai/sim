@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import AuthBackground from '@/app/(auth)/components/auth-background'
-import Navbar from '@/app/(home)/components/navbar/navbar'
+import Navbar from '@/app/(landing)/components/navbar/navbar'
 
 export default function AuthLayoutClient({ children }: { children: React.ReactNode }) {
   useEffect(() => {

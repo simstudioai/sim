@@ -1,9 +1,9 @@
-import { randomUUID } from 'crypto'
 import type { Item } from '@1password/sdk'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { generateId } from '@/lib/core/utils/uuid'
 import {
   connectRequest,
   createOnePasswordClient,
@@ -26,7 +26,7 @@ const ReplaceItemSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
 
   const auth = await checkInternalAuth(request)
   if (!auth.success || !auth.userId) {
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
         vaultId: params.vaultId,
         fields: itemData.fields
           ? (itemData.fields as Array<Record<string, any>>).map((f) => ({
-              id: f.id || randomUUID().slice(0, 8),
+              id: f.id || generateId().slice(0, 8),
               title: f.label || f.title || '',
               fieldType: toSdkFieldType(f.type || 'STRING'),
               value: f.value || '',

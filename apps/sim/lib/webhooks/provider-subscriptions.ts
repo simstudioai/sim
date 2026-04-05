@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { validateAirtableId, validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 import {
   getOAuthToken,
   refreshAccessTokenIfNeeded,
@@ -2221,7 +2222,7 @@ export async function createAshbyWebhookSubscription(
       webhookId: webhookData.id,
     })
 
-    const secretToken = crypto.randomUUID()
+    const secretToken = generateId()
 
     const requestBody: Record<string, unknown> = {
       requestUrl: notificationUrl,

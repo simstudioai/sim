@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import Navbar from '@/app/(home)/components/navbar/navbar'
+import Navbar from '@/app/(landing)/components/navbar/navbar'
 import { useBrandConfig } from '@/ee/whitelabeling'
 import type { ResumeStatus } from '@/executor/types'
 

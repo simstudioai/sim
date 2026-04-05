@@ -45,6 +45,7 @@ List all cloud agents for the authenticated user with optional pagination. Retur
 | `apiKey` | string | Yes | Cursor API key |
 | `limit` | number | No | Number of agents to return \(default: 20, max: 100\) |
 | `cursor` | string | No | Pagination cursor from previous response |
+| `prUrl` | string | No | Filter agents by pull request URL |
 
 #### Output
 
@@ -172,5 +173,42 @@ Permanently delete a cloud agent. Returns API-aligned fields only.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | string | Agent ID |
+
+### `cursor_list_artifacts`
+
+List generated artifact files for a cloud agent. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Cursor API key |
+| `agentId` | string | Yes | Unique identifier for the cloud agent \(e.g., bc_abc123\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `artifacts` | array | List of artifact files |
+|   ↳ `path` | string | Artifact file path |
+|   ↳ `size` | number | File size in bytes |
+
+### `cursor_download_artifact`
+
+Download a generated artifact file from a cloud agent. Returns the file for execution storage.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Cursor API key |
+| `agentId` | string | Yes | Unique identifier for the cloud agent \(e.g., bc_abc123\) |
+| `path` | string | Yes | Absolute path of the artifact to download \(e.g., /src/index.ts\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded artifact file stored in execution files |
 
 

@@ -9,11 +9,11 @@ import { a2aAgent, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
 import { generateSkillsFromWorkflow } from '@/lib/a2a/agent-card'
 import { A2A_DEFAULT_CAPABILITIES } from '@/lib/a2a/constants'
 import { sanitizeAgentName } from '@/lib/a2a/utils'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { generateId } from '@/lib/core/utils/uuid'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { hasValidStartBlockInState } from '@/lib/workflows/triggers/trigger-utils'
@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
       skillTags
     )
 
-    const agentId = uuidv4()
+    const agentId = generateId()
     const agentName = name || sanitizeAgentName(wf.name)
 
     const [agent] = await db

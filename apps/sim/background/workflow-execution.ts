@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
-import { v4 as uuidv4 } from 'uuid'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
+import { generateId } from '@/lib/core/utils/uuid'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -21,7 +21,7 @@ const logger = createLogger('TriggerWorkflowExecution')
 export function buildWorkflowCorrelation(
   payload: WorkflowExecutionPayload
 ): AsyncExecutionCorrelation {
-  const executionId = payload.executionId || uuidv4()
+  const executionId = payload.executionId || generateId()
   const requestId = payload.requestId || payload.correlation?.requestId || executionId.slice(0, 8)
 
   return {

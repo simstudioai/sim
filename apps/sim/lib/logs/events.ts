@@ -2,8 +2,8 @@ import { db } from '@sim/db'
 import { workspaceNotificationDelivery, workspaceNotificationSubscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, or, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { generateId } from '@/lib/core/utils/uuid'
 import type { WorkflowExecutionLog } from '@/lib/logs/types'
 import {
   type AlertCheckContext,
@@ -115,7 +115,7 @@ export async function emitWorkflowExecutionCompleted(log: WorkflowExecutionLog):
         })
       }
 
-      const deliveryId = uuidv4()
+      const deliveryId = generateId()
 
       await db.insert(workspaceNotificationDelivery).values({
         id: deliveryId,

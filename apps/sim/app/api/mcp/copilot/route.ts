@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import {
@@ -30,6 +29,7 @@ import { DIRECT_TOOL_DEFS, SUBAGENT_TOOL_DEFS } from '@/lib/copilot/tools/mcp/de
 import { env } from '@/lib/core/config/env'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 import {
   authorizeWorkflowByWorkspacePermission,
   resolveWorkflowIdForUser,
@@ -638,7 +638,7 @@ async function handleDirectToolCall(
     )
 
     const toolCall = {
-      id: randomUUID(),
+      id: generateId(),
       name: toolDef.toolId,
       status: 'pending' as const,
       params: args as Record<string, any>,
@@ -715,7 +715,7 @@ async function handleBuildToolCall(
       }
     }
 
-    const chatId = randomUUID()
+    const chatId = generateId()
 
     const requestPayload = {
       message: requestText,
@@ -724,12 +724,12 @@ async function handleBuildToolCall(
       model: DEFAULT_COPILOT_MODEL,
       mode: 'agent',
       commands: ['fast'],
-      messageId: randomUUID(),
+      messageId: generateId(),
       chatId,
     }
 
-    const executionId = crypto.randomUUID()
-    const runId = crypto.randomUUID()
+    const executionId = generateId()
+    const runId = generateId()
     const messageId = requestPayload.messageId as string
 
     await createRunSegment({

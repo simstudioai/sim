@@ -18,7 +18,7 @@ const getConversationBase = {
   },
   request: {
     url: (params: GetConversationParams) =>
-      `https://api.cursor.com/v0/agents/${params.agentId}/conversation`,
+      `https://api.cursor.com/v0/agents/${params.agentId.trim()}/conversation`,
     method: 'GET',
     headers: (params: GetConversationParams) => ({
       Authorization: `Basic ${Buffer.from(`${params.apiKey}:`).toString('base64')}`,

@@ -6,6 +6,7 @@ import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat-payload'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
+import { generateId } from '@/lib/core/utils/uuid'
 import {
   assertActiveWorkspaceAccess,
   getUserEntityPermissions,
@@ -50,8 +51,8 @@ export async function POST(req: NextRequest) {
 
     await assertActiveWorkspaceAccess(workspaceId, userId)
 
-    const effectiveChatId = chatId || crypto.randomUUID()
-    messageId = crypto.randomUUID()
+    const effectiveChatId = chatId || generateId()
+    messageId = generateId()
     const reqLogger = logger.withMetadata({ messageId })
     const [workspaceContext, integrationTools, userPermission] = await Promise.all([
       generateWorkspaceContext(workspaceId, userId),
@@ -72,8 +73,8 @@ export async function POST(req: NextRequest) {
       ...(userPermission ? { userPermission } : {}),
     }
 
-    const executionId = crypto.randomUUID()
-    const runId = crypto.randomUUID()
+    const executionId = generateId()
+    const runId = generateId()
 
     await createRunSegment({
       id: runId,

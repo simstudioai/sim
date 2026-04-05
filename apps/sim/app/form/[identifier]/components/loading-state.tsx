@@ -1,6 +1,6 @@
 import { Skeleton } from '@/components/emcn'
 import AuthBackground from '@/app/(auth)/components/auth-background'
-import Navbar from '@/app/(home)/components/navbar/navbar'
+import Navbar from '@/app/(landing)/components/navbar/navbar'
 
 export function FormLoadingState() {
   return (

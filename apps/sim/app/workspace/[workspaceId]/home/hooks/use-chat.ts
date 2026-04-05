@@ -20,6 +20,7 @@ import {
 } from '@/lib/copilot/resource-extraction'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resource-types'
 import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
@@ -908,7 +909,7 @@ export function useChat(
       streamingBlocksRef.current = []
       clientExecutionStartedRef.current = extractToolCallIdsFromSnapshot(snapshot)
 
-      const assistantId = crypto.randomUUID()
+      const assistantId = generateId()
 
       const reconnect = async () => {
         const succeeded = await retryReconnectRef.current({
@@ -1886,7 +1887,7 @@ export function useChat(
 
       if (sendingRef.current) {
         const queued: QueuedMessage = {
-          id: crypto.randomUUID(),
+          id: generateId(),
           content: message,
           fileAttachments,
           contexts,
@@ -1901,8 +1902,8 @@ export function useChat(
       setIsSending(true)
       sendingRef.current = true
 
-      const userMessageId = crypto.randomUUID()
-      const assistantId = crypto.randomUUID()
+      const userMessageId = generateId()
+      const assistantId = generateId()
 
       pendingUserMsgRef.current = { id: userMessageId, content: message }
       streamIdRef.current = userMessageId
@@ -2038,7 +2039,7 @@ export function useChat(
           }
           setMessages(previousMessages)
           const queuedMessage: QueuedMessage = {
-            id: crypto.randomUUID(),
+            id: generateId(),
             content: message,
             fileAttachments,
             contexts,

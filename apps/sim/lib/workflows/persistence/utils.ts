@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import {
   db,
   workflow,
@@ -12,7 +11,7 @@ import { createLogger } from '@sim/logger'
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
-import { v4 as uuidv4 } from 'uuid'
+import { generateId } from '@/lib/core/utils/uuid'
 import type { DbOrTx } from '@/lib/db/types'
 import { getActiveWorkflowContext } from '@/lib/workflows/active-context'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
@@ -691,7 +690,7 @@ export async function deployWorkflow(params: {
         .where(eq(workflowDeploymentVersion.workflowId, workflowId))
 
       const nextVersion = Number(maxVersion) + 1
-      const deploymentVersionId = uuidv4()
+      const deploymentVersionId = generateId()
 
       // Deactivate all existing versions
       await tx
@@ -803,23 +802,23 @@ export function regenerateWorkflowStateIds(state: RegenerateStateInput): Regener
   // First pass: Create all ID mappings
   // Map block IDs
   Object.keys(state.blocks || {}).forEach((oldId) => {
-    blockIdMapping.set(oldId, crypto.randomUUID())
+    blockIdMapping.set(oldId, generateId())
   })
 
   // Map edge IDs
 
   ;(state.edges || []).forEach((edge: Edge) => {
-    edgeIdMapping.set(edge.id, crypto.randomUUID())
+    edgeIdMapping.set(edge.id, generateId())
   })
 
   // Map loop IDs
   Object.keys(state.loops || {}).forEach((oldId) => {
-    loopIdMapping.set(oldId, crypto.randomUUID())
+    loopIdMapping.set(oldId, generateId())
   })
 
   // Map parallel IDs
   Object.keys(state.parallels || {}).forEach((oldId) => {
-    parallelIdMapping.set(oldId, crypto.randomUUID())
+    parallelIdMapping.set(oldId, generateId())
   })
 
   // Second pass: Create new state with regenerated IDs and updated references

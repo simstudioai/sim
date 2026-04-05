@@ -27,6 +27,7 @@ import {
   type ToolCallState,
 } from '@/lib/copilot/orchestrator/types'
 import { env } from '@/lib/core/config/env'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { buildToolCallSummaries, createStreamingContext, runStreamLoop } from './stream/core'
 
@@ -118,7 +119,7 @@ export async function orchestrateCopilotStream(
   execContext.userStopSignal = options.userStopSignal
 
   const payloadMsgId = requestPayload?.messageId
-  const messageId = typeof payloadMsgId === 'string' ? payloadMsgId : crypto.randomUUID()
+  const messageId = typeof payloadMsgId === 'string' ? payloadMsgId : generateId()
   execContext.messageId = messageId
   const context = createStreamingContext({
     chatId,
@@ -126,7 +127,7 @@ export async function orchestrateCopilotStream(
     runId,
     messageId,
   })
-  const continuationWorkerId = `sim-resume:${crypto.randomUUID()}`
+  const continuationWorkerId = `sim-resume:${generateId()}`
   const reqLogger = logger.withMetadata({ requestId: context.requestId, messageId })
   let claimedToolCallIds: string[] = []
   let claimedByWorkerId: string | null = null
