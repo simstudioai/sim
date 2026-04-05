@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
-import { SUPPORTED_CODE_EXTENSIONS } from '@/lib/uploads/utils/validation-constants'
+import { SUPPORTED_CODE_EXTENSIONS } from '@/lib/uploads/utils/validation'
 import {
   useUpdateWorkspaceFileContent,
   useWorkspaceFileBinary,

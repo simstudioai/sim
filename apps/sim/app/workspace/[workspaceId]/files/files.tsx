@@ -36,10 +36,10 @@ import {
   isAudioFileType,
   isVideoFileType,
 } from '@/lib/uploads/utils/file-utils'
-import { SUPPORTED_CODE_EXTENSIONS } from '@/lib/uploads/utils/validation-constants'
 import {
   isSupportedExtension,
   SUPPORTED_AUDIO_EXTENSIONS,
+  SUPPORTED_CODE_EXTENSIONS,
   SUPPORTED_DOCUMENT_EXTENSIONS,
   SUPPORTED_VIDEO_EXTENSIONS,
 } from '@/lib/uploads/utils/validation'
