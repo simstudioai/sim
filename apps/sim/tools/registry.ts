@@ -276,6 +276,15 @@ import {
   cloudflareUpdateZoneSettingTool,
 } from '@/tools/cloudflare'
 import {
+  cloudformationDescribeStackDriftDetectionStatusTool,
+  cloudformationDescribeStackEventsTool,
+  cloudformationDescribeStacksTool,
+  cloudformationDetectStackDriftTool,
+  cloudformationGetTemplateTool,
+  cloudformationListStackResourcesTool,
+  cloudformationValidateTemplateTool,
+} from '@/tools/cloudformation'
+import {
   cloudwatchDescribeAlarmsTool,
   cloudwatchDescribeLogGroupsTool,
   cloudwatchDescribeLogStreamsTool,
@@ -3385,6 +3394,14 @@ export const tools: Record<string, ToolConfig> = {
   rds_delete: rdsDeleteTool,
   rds_execute: rdsExecuteTool,
   rds_introspect: rdsIntrospectTool,
+  cloudformation_describe_stacks: cloudformationDescribeStacksTool,
+  cloudformation_list_stack_resources: cloudformationListStackResourcesTool,
+  cloudformation_detect_stack_drift: cloudformationDetectStackDriftTool,
+  cloudformation_describe_stack_drift_detection_status:
+    cloudformationDescribeStackDriftDetectionStatusTool,
+  cloudformation_describe_stack_events: cloudformationDescribeStackEventsTool,
+  cloudformation_get_template: cloudformationGetTemplateTool,
+  cloudformation_validate_template: cloudformationValidateTemplateTool,
   cloudwatch_query_logs: cloudwatchQueryLogsTool,
   cloudwatch_describe_log_groups: cloudwatchDescribeLogGroupsTool,
   cloudwatch_describe_alarms: cloudwatchDescribeAlarmsTool,

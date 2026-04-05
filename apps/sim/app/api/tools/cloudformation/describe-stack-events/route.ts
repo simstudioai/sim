@@ -1,18 +1,16 @@
-import { CloudWatchClient, ListMetricsCommand } from '@aws-sdk/client-cloudwatch'
+import { CloudFormationClient, DescribeStackEventsCommand } from '@aws-sdk/client-cloudformation'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 
-const logger = createLogger('CloudWatchListMetrics')
+const logger = createLogger('CloudFormationDescribeStackEvents')
 
-const ListMetricsSchema = z.object({
+const DescribeStackEventsSchema = z.object({
   region: z.string().min(1, 'AWS region is required'),
   accessKeyId: z.string().min(1, 'AWS access key ID is required'),
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  namespace: z.string().optional(),
-  metricName: z.string().optional(),
-  recentlyActive: z.boolean().optional(),
+  stackName: z.string().min(1, 'Stack name is required'),
   limit: z.preprocess(
     (v) => (v === '' || v === undefined || v === null ? undefined : v),
     z.number({ coerce: true }).int().positive().optional()
@@ -27,9 +25,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const validatedData = ListMetricsSchema.parse(body)
+    const validatedData = DescribeStackEventsSchema.parse(body)
 
-    const client = new CloudWatchClient({
+    const client = new CloudFormationClient({
       region: validatedData.region,
       credentials: {
         accessKeyId: validatedData.accessKeyId,
@@ -37,34 +35,34 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const limit = validatedData.limit ?? 500
-
-    const command = new ListMetricsCommand({
-      ...(validatedData.namespace && { Namespace: validatedData.namespace }),
-      ...(validatedData.metricName && { MetricName: validatedData.metricName }),
-      ...(validatedData.recentlyActive && { RecentlyActive: 'PT3H' }),
-      ...(limit <= 500 && { MaxResults: limit }),
+    const command = new DescribeStackEventsCommand({
+      StackName: validatedData.stackName,
     })
+
+    const limit = validatedData.limit ?? 50
 
     const response = await client.send(command)
 
-    const metrics = (response.Metrics ?? []).slice(0, limit).map((m) => ({
-      namespace: m.Namespace ?? '',
-      metricName: m.MetricName ?? '',
-      dimensions: (m.Dimensions ?? []).map((d) => ({
-        name: d.Name ?? '',
-        value: d.Value ?? '',
-      })),
+    const events = (response.StackEvents ?? []).slice(0, limit).map((e) => ({
+      stackId: e.StackId ?? '',
+      eventId: e.EventId ?? '',
+      stackName: e.StackName ?? '',
+      logicalResourceId: e.LogicalResourceId,
+      physicalResourceId: e.PhysicalResourceId,
+      resourceType: e.ResourceType,
+      resourceStatus: e.ResourceStatus,
+      resourceStatusReason: e.ResourceStatusReason,
+      timestamp: e.Timestamp?.getTime(),
     }))
 
     return NextResponse.json({
       success: true,
-      output: { metrics },
+      output: { events },
     })
   } catch (error) {
     const errorMessage =
-      error instanceof Error ? error.message : 'Failed to list CloudWatch metrics'
-    logger.error('ListMetrics failed', { error: errorMessage })
+      error instanceof Error ? error.message : 'Failed to describe CloudFormation stack events'
+    logger.error('DescribeStackEvents failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
