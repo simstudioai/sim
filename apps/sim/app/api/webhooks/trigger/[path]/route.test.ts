@@ -156,7 +156,6 @@ vi.mock('@/background/logs-webhook-delivery', () => ({
 vi.mock('@/lib/webhooks/utils', () => ({
   handleWhatsAppVerification: handleWhatsAppVerificationMock,
   handleSlackChallenge: handleSlackChallengeMock,
-  verifyProviderWebhook: vi.fn().mockReturnValue(null),
   processWhatsAppDeduplication: processWhatsAppDeduplicationMock,
   processGenericDeduplication: processGenericDeduplicationMock,
   fetchAndProcessAirtablePayloads: fetchAndProcessAirtablePayloadsMock,

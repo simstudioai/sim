@@ -87,7 +87,7 @@ async function handleWebhookPost(
   if (webhooksForPath.length === 0) {
     const verificationResponse = await handlePreLookupWebhookVerification(
       request.method,
-      body,
+      body as Record<string, unknown> | undefined,
       requestId,
       path
     )

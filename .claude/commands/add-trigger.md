@@ -552,6 +552,115 @@ All fields automatically have:
 - `mode: 'trigger'` - Only shown in trigger mode
 - `condition: { field: 'selectedTriggerId', value: triggerId }` - Only shown when this trigger is selected
 
+## Webhook Provider Handler (Optional)
+
+If the service requires **custom webhook auth** (HMAC signatures, token validation), **event matching** (filtering by trigger type), or **idempotency dedup**, create a provider handler in the webhook provider registry.
+
+### Directory
+
+```
+apps/sim/lib/webhooks/providers/
+├── types.ts          # WebhookProviderHandler interface
+├── utils.ts          # Shared helpers (createHmacVerifier, verifyTokenAuth, skipByEventTypes)
+├── registry.ts       # Handler map + default handler
+├── index.ts          # Barrel export
+└── {service}.ts      # Your provider handler
+```
+
+### When to Create a Handler
+
+| Behavior | Method to implement | Example providers |
+|---|---|---|
+| HMAC signature auth | `verifyAuth` via `createHmacVerifier` | Ashby, Jira, Linear, Typeform |
+| Custom token auth | `verifyAuth` via `verifyTokenAuth` | Generic, Google Forms |
+| Event type filtering | `matchEvent` | GitHub, Jira, Confluence, Attio, HubSpot |
+| Event skip by type list | `shouldSkipEvent` via `skipByEventTypes` | Stripe, Grain |
+| Idempotency dedup | `extractIdempotencyId` | Slack, Stripe, Linear, Jira |
+| Custom success response | `formatSuccessResponse` | Slack, Twilio Voice, Microsoft Teams |
+| Custom error format | `formatErrorResponse` | Microsoft Teams |
+
+If none of these apply, you do NOT need a handler file. The default handler provides bearer token auth for providers that set `providerConfig.token`.
+
+### Simple Example: HMAC Auth Only
+
+```typescript
+import type { WebhookProviderHandler } from '@/lib/webhooks/providers/types'
+import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
+import { validate{Service}Signature } from '@/lib/webhooks/utils.server'
+
+export const {service}Handler: WebhookProviderHandler = {
+  verifyAuth: createHmacVerifier({
+    configKey: 'webhookSecret',
+    headerName: 'X-{Service}-Signature',
+    validateFn: validate{Service}Signature,
+    providerLabel: '{Service}',
+  }),
+}
+```
+
+### Example: Auth + Event Matching + Idempotency
+
+```typescript
+import { createLogger } from '@sim/logger'
+import type { EventMatchContext, WebhookProviderHandler } from '@/lib/webhooks/providers/types'
+import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
+import { validate{Service}Signature } from '@/lib/webhooks/utils.server'
+
+const logger = createLogger('WebhookProvider:{Service}')
+
+export const {service}Handler: WebhookProviderHandler = {
+  verifyAuth: createHmacVerifier({
+    configKey: 'webhookSecret',
+    headerName: 'X-{Service}-Signature',
+    validateFn: validate{Service}Signature,
+    providerLabel: '{Service}',
+  }),
+
+  async matchEvent({ webhook, workflow, body, requestId, providerConfig }: EventMatchContext) {
+    const triggerId = providerConfig.triggerId as string | undefined
+    const obj = body as Record<string, unknown>
+
+    if (triggerId && triggerId !== '{service}_webhook') {
+      const { is{Service}EventMatch } = await import('@/triggers/{service}/utils')
+      if (!is{Service}EventMatch(triggerId, obj)) {
+        logger.debug(
+          `[${requestId}] {Service} event mismatch for trigger ${triggerId}. Skipping.`,
+          { webhookId: webhook.id, workflowId: workflow.id, triggerId }
+        )
+        return false
+      }
+    }
+
+    return true
+  },
+
+  extractIdempotencyId(body: unknown) {
+    const obj = body as Record<string, unknown>
+    if (obj.id && obj.type) {
+      return `${obj.type}:${obj.id}`
+    }
+    return null
+  },
+}
+```
+
+### Registering the Handler
+
+In `apps/sim/lib/webhooks/providers/registry.ts`:
+
+```typescript
+import { {service}Handler } from '@/lib/webhooks/providers/{service}'
+
+const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
+  // ... existing providers (alphabetical) ...
+  {service}: {service}Handler,
+}
+```
+
+### Adding a Signature Validator
+
+If the service uses HMAC signatures, add a `validate{Service}Signature` function in `apps/sim/lib/webhooks/utils.server.ts` alongside the existing validators. Then reference it from your handler via `createHmacVerifier`.
+
 ## Trigger Outputs & Webhook Input Formatting
 
 ### Important: Two Sources of Truth
@@ -695,6 +804,14 @@ export const {service}WebhookTrigger: TriggerConfig = {
 - [ ] Added `create{Service}WebhookSubscription` helper function
 - [ ] Added `delete{Service}Webhook` function to `provider-subscriptions.ts`
 - [ ] Added provider to `cleanupExternalWebhook` function
+
+### Webhook Provider Handler (if needed)
+- [ ] Created `apps/sim/lib/webhooks/providers/{service}.ts` handler file
+- [ ] Registered handler in `apps/sim/lib/webhooks/providers/registry.ts` (alphabetical)
+- [ ] Used `createHmacVerifier` from `providers/utils` for HMAC-based auth
+- [ ] Used `verifyTokenAuth` from `providers/utils` for token-based auth
+- [ ] Added `validate{Service}Signature` in `utils.server.ts` (if HMAC auth needed)
+- [ ] Event matching uses dynamic `await import()` for trigger utils
 
 ### Webhook Input Formatting
 - [ ] Added handler in `apps/sim/lib/webhooks/utils.server.ts` (if custom formatting needed)
