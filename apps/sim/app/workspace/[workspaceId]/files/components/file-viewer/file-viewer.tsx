@@ -935,7 +935,7 @@ h1, h2, h3, h4, h5, h6 { margin: 16px 0 8px; }
 </style></head><body>${html}</body></html>`
 }
 
-const XLSX_MAX_ROWS = 10_000
+const XLSX_MAX_ROWS = 1_000
 
 interface XlsxSheet {
   name: string
@@ -961,7 +961,7 @@ const XlsxPreview = memo(function XlsxPreview({
   const [activeSheet, setActiveSheet] = useState(0)
   const [currentSheet, setCurrentSheet] = useState<XlsxSheet | null>(null)
   const [renderError, setRenderError] = useState<string | null>(null)
-  const workbookRef = useRef<unknown>(null)
+  const workbookRef = useRef<import('xlsx').WorkBook | null>(null)
 
   useEffect(() => {
     if (!fileData) return
@@ -1002,7 +1002,7 @@ const XlsxPreview = memo(function XlsxPreview({
     async function parseSheet() {
       try {
         const XLSX = await import('xlsx')
-        const workbook = workbookRef.current as ReturnType<typeof XLSX.read>
+        const workbook = workbookRef.current!
         const name = sheetNames[activeSheet]
         const sheet = workbook.Sheets[name]
         const allRows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 })
