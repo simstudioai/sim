@@ -25,7 +25,6 @@ export function InboxTaskSkeleton() {
 export function InboxSkeleton() {
   return (
     <div className='flex h-full flex-col gap-4.5'>
-      {/* InboxEnableToggle: label + description on left, switch on right */}
       <div className='flex items-center justify-between'>
         <div className='flex flex-col gap-0.5'>
           <Skeleton className='h-[14px] w-[140px]' />
@@ -34,12 +33,9 @@ export function InboxSkeleton() {
         <Skeleton className='h-[20px] w-[36px] rounded-full' />
       </div>
 
-      {/* Border separator */}
       <div className='border-[var(--border)] border-t' />
 
-      {/* InboxSettingsTab: two sections with gap-6 */}
       <div className='flex flex-col gap-6'>
-        {/* Sim's email section */}
         <div className='flex flex-col gap-1.5'>
           <Skeleton className='h-[14px] w-[90px]' />
           <div className='flex items-center justify-between'>
@@ -52,7 +48,6 @@ export function InboxSkeleton() {
           <Skeleton className='h-9 w-full rounded-md' />
         </div>
 
-        {/* Allowed senders section */}
         <div className='flex flex-col gap-1.5'>
           <Skeleton className='h-[14px] w-[110px]' />
           <Skeleton className='h-[13px] w-[260px]' />
@@ -68,13 +63,11 @@ export function InboxSkeleton() {
         </div>
       </div>
 
-      {/* Border separator with Inbox heading */}
       <div className='border-[var(--border)] border-t pt-4'>
         <Skeleton className='h-[14px] w-[40px]' />
         <Skeleton className='mt-0.5 h-[13px] w-[220px]' />
       </div>
 
-      {/* InboxTaskList: search bar + status filter */}
       <div className='flex flex-col gap-3'>
         <div className='flex items-center gap-2'>
           <Skeleton className='h-[32px] flex-1 rounded-lg' />

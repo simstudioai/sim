@@ -45,25 +45,20 @@ function CredentialRowSkeleton() {
 export function CredentialsSkeleton() {
   return (
     <div className='flex h-full flex-col gap-4'>
-      {/* Search bar + Save button */}
       <div className='flex items-center gap-2'>
         <Skeleton className='h-[30px] flex-1 rounded-lg' />
         <Skeleton className='h-[30px] w-[50px] rounded-md' />
       </div>
 
-      {/* Scrollable content area */}
       <div className='min-h-0 flex-1 overflow-y-auto'>
         <div className='flex flex-col gap-4'>
           <div className={`${GRID_COLS} gap-y-2`}>
-            {/* Workspace section header */}
             <Skeleton className={`${COL_SPAN_ALL} h-5 w-[70px]`} />
             <CredentialRowSkeleton />
             <CredentialRowSkeleton />
 
-            {/* Spacer matching the real component */}
             <div className={`${COL_SPAN_ALL} h-[8px]`} />
 
-            {/* Personal section header */}
             <Skeleton className={`${COL_SPAN_ALL} h-5 w-[55px]`} />
             <CredentialRowSkeleton />
             <CredentialRowSkeleton />

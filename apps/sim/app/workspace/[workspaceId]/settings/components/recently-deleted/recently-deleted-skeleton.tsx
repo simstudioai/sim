@@ -8,13 +8,11 @@ import { DeletedItemSkeleton } from '@/app/workspace/[workspaceId]/settings/comp
 export function RecentlyDeletedSkeleton() {
   return (
     <div className='flex h-full flex-col gap-4.5'>
-      {/* Search bar + sort dropdown row */}
       <div className='flex items-center gap-2'>
         <Skeleton className='h-[30px] flex-1 rounded-lg' />
         <Skeleton className='h-[30px] w-[190px] shrink-0 rounded-lg' />
       </div>
 
-      {/* Tabs bar */}
       <div className='relative flex gap-4 border-[var(--border)] border-b px-4'>
         <Skeleton className='mb-2 h-[20px] w-[32px] rounded-sm' />
         <Skeleton className='mb-2 h-[20px] w-[72px] rounded-sm' />
@@ -23,7 +21,6 @@ export function RecentlyDeletedSkeleton() {
         <Skeleton className='mb-2 h-[20px] w-[40px] rounded-sm' />
       </div>
 
-      {/* Item list */}
       <div className='min-h-0 flex-1 overflow-y-auto'>
         <div className='flex flex-col gap-2'>
           <DeletedItemSkeleton />
