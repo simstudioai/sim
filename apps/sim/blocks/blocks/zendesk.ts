@@ -496,6 +496,7 @@ Return ONLY the search query - no explanations.`,
       condition: {
         field: 'operation',
         value: [
+          'get_tickets',
           'get_users',
           'get_organizations',
           'search_users',
@@ -533,6 +534,7 @@ Return ONLY the search query - no explanations.`,
   tools: {
     access: [
       'zendesk_get_tickets',
+      'zendesk_get_tickets_v2',
       'zendesk_get_ticket',
       'zendesk_create_ticket',
       'zendesk_create_tickets_bulk',
@@ -563,7 +565,7 @@ Return ONLY the search query - no explanations.`,
       tool: (params) => {
         switch (params.operation) {
           case 'get_tickets':
-            return 'zendesk_get_tickets'
+            return 'zendesk_get_tickets_v2'
           case 'get_ticket':
             return 'zendesk_get_ticket'
           case 'create_ticket':

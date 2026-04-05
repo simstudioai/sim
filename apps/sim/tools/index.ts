@@ -620,10 +620,6 @@ async function maybeAutoPaginate(
   ) {
     return finalResult
   }
-  const nextToken = tool.pagination.getNextPageToken(finalResult.output)
-  if (nextToken === null) {
-    return finalResult
-  }
   return autoPaginate({
     initialResult: finalResult,
     params: contextParams,
@@ -925,7 +921,7 @@ export async function executeTool(
       finalResult,
       contextParams,
       normalizedToolId,
-      skipPostProcess,
+      skipAutoPaginate,
       executionContext
     )
 

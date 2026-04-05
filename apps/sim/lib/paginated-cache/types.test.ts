@@ -2,7 +2,6 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-
 import { isPaginatedCacheReference } from '@/lib/paginated-cache/types'
 
 describe('isPaginatedCacheReference', () => {

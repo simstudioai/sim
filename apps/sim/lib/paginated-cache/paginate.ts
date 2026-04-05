@@ -50,9 +50,8 @@ export async function autoPaginate(options: AutoPaginateOptions): Promise<ToolRe
 
   let totalItems = 0
   let pageIndex = 0
-  let lastOutput = initialResult.output
 
-  const initialItems = config.getItems(initialResult.output)
+  const initialItems = config.getItems(initialResult.output) ?? []
   await cache.storePage(cacheId, pageIndex, initialItems)
   totalItems += initialItems.length
   pageIndex++
@@ -68,10 +67,9 @@ export async function autoPaginate(options: AutoPaginateOptions): Promise<ToolRe
       )
     }
 
-    const pageItems = config.getItems(pageResult.output)
+    const pageItems = config.getItems(pageResult.output) ?? []
     await cache.storePage(cacheId, pageIndex, pageItems)
     totalItems += pageItems.length
-    lastOutput = pageResult.output
     pageIndex++
 
     nextToken = config.getNextPageToken(pageResult.output)
@@ -94,7 +92,6 @@ export async function autoPaginate(options: AutoPaginateOptions): Promise<ToolRe
   return {
     ...initialResult,
     output: {
-      ...lastOutput,
       [config.pageField]: reference,
     },
   }

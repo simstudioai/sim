@@ -9,7 +9,7 @@ const logger = createLogger('RedisPaginatedCache')
 const REDIS_KEY_PREFIX = 'pagcache:'
 
 /** Safety-net TTL: 2× the max async execution timeout. Explicit cleanup is the primary mechanism. */
-const DEFAULT_TTL_MS = Number(env.EXECUTION_TIMEOUT_ASYNC_ENTERPRISE) * 1000 * 2
+const DEFAULT_TTL_MS = (Number(env.EXECUTION_TIMEOUT_ASYNC_ENTERPRISE) || 5400) * 1000 * 2
 
 export class RedisPaginatedCache implements PaginatedCacheStorageAdapter {
   constructor(

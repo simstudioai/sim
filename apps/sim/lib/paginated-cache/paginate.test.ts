@@ -126,8 +126,9 @@ describe('autoPaginate', () => {
     expect(result.output.tickets).toEqual(
       expect.objectContaining({ _type: 'paginated_cache_ref', totalPages: 3, totalItems: 3 })
     )
-    expect(result.output.paging).toEqual({ has_more: false, after_cursor: null })
-    expect(result.output.metadata).toEqual({ total_returned: 1, has_more: false })
+    expect(result.output.paging).toBeUndefined()
+    expect(result.output.metadata).toBeUndefined()
+    expect(Object.keys(result.output)).toEqual(['tickets'])
   })
 
   it('respects maxPages', async () => {
@@ -235,10 +236,7 @@ describe('autoPaginate', () => {
     })
 
     const outputKeys = Object.keys(result.output)
-    expect(outputKeys).toContain('items')
-    expect(outputKeys).toContain('cursor')
-    expect(outputKeys).not.toContain('metadata')
-    expect(outputKeys).not.toContain('paging')
+    expect(outputKeys).toEqual(['items'])
   })
 })
 
