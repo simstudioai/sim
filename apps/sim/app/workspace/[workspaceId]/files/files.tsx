@@ -39,6 +39,7 @@ import {
 import {
   isSupportedExtension,
   SUPPORTED_AUDIO_EXTENSIONS,
+  SUPPORTED_CODE_EXTENSIONS,
   SUPPORTED_DOCUMENT_EXTENSIONS,
   SUPPORTED_VIDEO_EXTENSIONS,
 } from '@/lib/uploads/utils/validation'
@@ -83,6 +84,7 @@ const logger = createLogger('Files')
 
 const SUPPORTED_EXTENSIONS = [
   ...SUPPORTED_DOCUMENT_EXTENSIONS,
+  ...SUPPORTED_CODE_EXTENSIONS,
   ...SUPPORTED_AUDIO_EXTENSIONS,
   ...SUPPORTED_VIDEO_EXTENSIONS,
 ] as const

@@ -8,6 +8,7 @@ import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/works
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 import {
   SUPPORTED_AUDIO_EXTENSIONS,
+  SUPPORTED_CODE_EXTENSIONS,
   SUPPORTED_DOCUMENT_EXTENSIONS,
   SUPPORTED_VIDEO_EXTENSIONS,
   validateFileType,
@@ -23,6 +24,7 @@ const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] as const
 
 const ALLOWED_EXTENSIONS = new Set<string>([
   ...SUPPORTED_DOCUMENT_EXTENSIONS,
+  ...SUPPORTED_CODE_EXTENSIONS,
   ...IMAGE_EXTENSIONS,
   ...SUPPORTED_AUDIO_EXTENSIONS,
   ...SUPPORTED_VIDEO_EXTENSIONS,

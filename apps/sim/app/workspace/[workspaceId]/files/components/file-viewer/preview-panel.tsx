@@ -12,6 +12,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import { useStreamingReveal } from '@/hooks/use-streaming-reveal'
+import { DataTable } from './data-table'
 
 type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | null
 
@@ -486,33 +487,7 @@ const CsvPreview = memo(function CsvPreview({ content }: { content: string }) {
 
   return (
     <div className='h-full overflow-auto p-6'>
-      <div className='overflow-x-auto rounded-md border border-[var(--border)]'>
-        <table className='w-full border-collapse text-[13px]'>
-          <thead className='bg-[var(--surface-2)]'>
-            <tr>
-              {headers.map((header, i) => (
-                <th
-                  key={i}
-                  className='whitespace-nowrap px-3 py-2 text-left font-semibold text-[12px] text-[var(--text-primary)]'
-                >
-                  {header}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, ri) => (
-              <tr key={ri} className='border-[var(--border)] border-t'>
-                {headers.map((_, ci) => (
-                  <td key={ci} className='whitespace-nowrap px-3 py-2 text-[var(--text-secondary)]'>
-                    {row[ci] ?? ''}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable headers={headers} rows={rows} />
     </div>
   )
 })

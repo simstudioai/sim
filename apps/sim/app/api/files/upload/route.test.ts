@@ -458,10 +458,10 @@ describe('File Upload Security Tests', () => {
       expect(response.status).toBe(200)
     })
 
-    it('should reject JavaScript files', async () => {
+    it('should reject unsupported file types', async () => {
       const formData = new FormData()
-      const maliciousJs = 'alert("XSS")'
-      const file = new File([maliciousJs], 'malicious.js', { type: 'application/javascript' })
+      const content = 'binary data'
+      const file = new File([content], 'archive.exe', { type: 'application/octet-stream' })
       formData.append('file', file)
       formData.append('context', 'workspace')
       formData.append('workspaceId', 'test-workspace-id')
@@ -475,7 +475,7 @@ describe('File Upload Security Tests', () => {
 
       expect(response.status).toBe(400)
       const data = await response.json()
-      expect(data.message).toContain("File type 'js' is not allowed")
+      expect(data.message).toContain("File type 'exe' is not allowed")
     })
 
     it('should reject files without extensions', async () => {
