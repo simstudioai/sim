@@ -69,7 +69,7 @@ async function processTriggerFileOutputs(
     return input
   }
 
-  const processed: Record<string, unknown> = {}
+  const processed: Record<string, unknown> | unknown[] = Array.isArray(input) ? [] : {}
 
   for (const [key, value] of Object.entries(input)) {
     const currentPath = path ? `${path}.${key}` : key
