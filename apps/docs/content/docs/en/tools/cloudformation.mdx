@@ -1,0 +1,183 @@
+---
+title: CloudFormation
+description: Manage and inspect AWS CloudFormation stacks, resources, and drift
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="cloudformation"
+  color="linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[AWS CloudFormation](https://aws.amazon.com/cloudformation/) is an infrastructure-as-code service that lets you model, provision, and manage AWS resources by treating infrastructure as code. CloudFormation uses templates to describe the resources you need and their dependencies, so you can launch and configure them together as a stack.
+
+With the CloudFormation integration, you can:
+
+- **Describe Stacks**: List all stacks in a region or get detailed information about a specific stack, including its status, outputs, tags, and drift information
+- **List Stack Resources**: Enumerate every resource in a stack with its logical ID, physical ID, type, status, and drift status
+- **Describe Stack Events**: View the full event history for a stack to understand what happened during create, update, or delete operations
+- **Detect Stack Drift**: Initiate drift detection to check whether any resources in a stack have been modified outside of CloudFormation
+- **Drift Detection Status**: Poll the results of a drift detection operation to see which resources have drifted and how many
+- **Get Template**: Retrieve the original template body (JSON or YAML) used to create or update a stack
+- **Validate Template**: Check a CloudFormation template for syntax errors, required capabilities, parameters, and declared transforms before deploying
+
+In Sim, the CloudFormation integration enables your agents to monitor infrastructure state, detect configuration drift, audit stack resources, and validate templates as part of automated SRE and DevOps workflows. This is especially powerful when combined with CloudWatch for observability and SNS for alerting, creating end-to-end infrastructure monitoring pipelines.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate AWS CloudFormation into workflows. Describe stacks, list resources, detect drift, view stack events, retrieve templates, and validate templates. Requires AWS access key and secret access key.
+
+
+
+## Tools
+
+### `cloudformation_describe_stacks`
+
+List and describe CloudFormation stacks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `stackName` | string | No | Stack name or ID to describe \(omit to list all stacks\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stacks` | array | List of CloudFormation stacks with status, outputs, and tags |
+
+### `cloudformation_list_stack_resources`
+
+List all resources in a CloudFormation stack
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `stackName` | string | Yes | Stack name or ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `resources` | array | List of stack resources with type, status, and drift information |
+
+### `cloudformation_detect_stack_drift`
+
+Initiate drift detection on a CloudFormation stack
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `stackName` | string | Yes | Stack name or ID to detect drift on |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stackDriftDetectionId` | string | ID to use with Describe Stack Drift Detection Status to check results |
+
+### `cloudformation_describe_stack_drift_detection_status`
+
+Check the status of a stack drift detection operation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `stackDriftDetectionId` | string | Yes | The drift detection ID returned by Detect Stack Drift |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `stackId` | string | The stack ID |
+| `stackDriftDetectionId` | string | The drift detection ID |
+| `stackDriftStatus` | string | Drift status \(DRIFTED, IN_SYNC, NOT_CHECKED\) |
+| `detectionStatus` | string | Detection status \(DETECTION_IN_PROGRESS, DETECTION_COMPLETE, DETECTION_FAILED\) |
+| `detectionStatusReason` | string | Reason if detection failed |
+| `driftedStackResourceCount` | number | Number of resources that have drifted |
+| `timestamp` | number | Timestamp of the detection |
+
+### `cloudformation_describe_stack_events`
+
+Get the event history for a CloudFormation stack
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `stackName` | string | Yes | Stack name or ID |
+| `limit` | number | No | Maximum number of events to return \(default: 50\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | List of stack events with resource status and timestamps |
+
+### `cloudformation_get_template`
+
+Retrieve the template body for a CloudFormation stack
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `stackName` | string | Yes | Stack name or ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `templateBody` | string | The template body as a JSON or YAML string |
+| `stagesAvailable` | array | Available template stages |
+
+### `cloudformation_validate_template`
+
+Validate a CloudFormation template for syntax and structural correctness
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `templateBody` | string | Yes | The CloudFormation template body \(JSON or YAML\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `description` | string | Template description |
+| `parameters` | array | Template parameters with defaults and descriptions |
+| `capabilities` | array | Required capabilities \(e.g., CAPABILITY_IAM\) |
+| `capabilitiesReason` | string | Reason capabilities are required |
+| `declaredTransforms` | array | Transforms used in the template \(e.g., AWS::Serverless-2016-10-31\) |
+
+

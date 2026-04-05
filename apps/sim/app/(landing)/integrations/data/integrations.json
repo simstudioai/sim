@@ -1913,6 +1913,100 @@
     "tags": ["cloud", "monitoring"]
   },
   {
+    "type": "cloudformation",
+    "slug": "cloudformation",
+    "name": "CloudFormation",
+    "description": "Manage and inspect AWS CloudFormation stacks, resources, and drift",
+    "longDescription": "Integrate AWS CloudFormation into workflows. Describe stacks, list resources, detect drift, view stack events, retrieve templates, and validate templates. Requires AWS access key and secret access key.",
+    "bgColor": "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)",
+    "iconName": "CloudFormationIcon",
+    "docsUrl": "https://docs.sim.ai/tools/cloudformation",
+    "operations": [
+      {
+        "name": "Describe Stacks",
+        "description": "List and describe CloudFormation stacks"
+      },
+      {
+        "name": "List Stack Resources",
+        "description": "List all resources in a CloudFormation stack"
+      },
+      {
+        "name": "Describe Stack Events",
+        "description": "Get the event history for a CloudFormation stack"
+      },
+      {
+        "name": "Detect Stack Drift",
+        "description": "Initiate drift detection on a CloudFormation stack"
+      },
+      {
+        "name": "Drift Detection Status",
+        "description": "Check the status of a stack drift detection operation"
+      },
+      {
+        "name": "Get Template",
+        "description": "Retrieve the template body for a CloudFormation stack"
+      },
+      {
+        "name": "Validate Template",
+        "description": "Validate a CloudFormation template for syntax and structural correctness"
+      }
+    ],
+    "operationCount": 7,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationType": "developer-tools",
+    "tags": ["cloud"]
+  },
+  {
+    "type": "cloudwatch",
+    "slug": "cloudwatch",
+    "name": "CloudWatch",
+    "description": "Query and monitor AWS CloudWatch logs, metrics, and alarms",
+    "longDescription": "Integrate AWS CloudWatch into workflows. Run Log Insights queries, list log groups, retrieve log events, list and get metrics, and monitor alarms. Requires AWS access key and secret access key.",
+    "bgColor": "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)",
+    "iconName": "CloudWatchIcon",
+    "docsUrl": "https://docs.sim.ai/tools/cloudwatch",
+    "operations": [
+      {
+        "name": "Query Logs (Insights)",
+        "description": "Run a CloudWatch Log Insights query against one or more log groups"
+      },
+      {
+        "name": "Describe Log Groups",
+        "description": "List available CloudWatch log groups"
+      },
+      {
+        "name": "Get Log Events",
+        "description": "Retrieve log events from a specific CloudWatch log stream"
+      },
+      {
+        "name": "Describe Log Streams",
+        "description": "List log streams within a CloudWatch log group"
+      },
+      {
+        "name": "List Metrics",
+        "description": "List available CloudWatch metrics"
+      },
+      {
+        "name": "Get Metric Statistics",
+        "description": "Get statistics for a CloudWatch metric over a time range"
+      },
+      {
+        "name": "Describe Alarms",
+        "description": "List and filter CloudWatch alarms"
+      }
+    ],
+    "operationCount": 7,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationType": "analytics",
+    "tags": ["cloud", "monitoring"]
+  },
+  {
     "type": "confluence_v2",
     "slug": "confluence",
     "name": "Confluence",

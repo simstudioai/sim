@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     const datapoints = (response.Datapoints ?? [])
       .sort((a, b) => (a.Timestamp?.getTime() ?? 0) - (b.Timestamp?.getTime() ?? 0))
       .map((dp) => ({
-        timestamp: dp.Timestamp ? Math.floor(dp.Timestamp.getTime() / 1000) : 0,
+        timestamp: dp.Timestamp ? dp.Timestamp.getTime() : 0,
         average: dp.Average,
         sum: dp.Sum,
         minimum: dp.Minimum,

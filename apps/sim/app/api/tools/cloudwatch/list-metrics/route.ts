@@ -37,15 +37,18 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    const limit = validatedData.limit ?? 500
+
     const command = new ListMetricsCommand({
       ...(validatedData.namespace && { Namespace: validatedData.namespace }),
       ...(validatedData.metricName && { MetricName: validatedData.metricName }),
       ...(validatedData.recentlyActive && { RecentlyActive: 'PT3H' }),
+      ...(limit <= 500 && { MaxResults: limit }),
     })
 
     const response = await client.send(command)
 
-    const metrics = (response.Metrics ?? []).slice(0, validatedData.limit ?? 500).map((m) => ({
+    const metrics = (response.Metrics ?? []).slice(0, limit).map((m) => ({
       namespace: m.Namespace ?? '',
       metricName: m.MetricName ?? '',
       dimensions: (m.Dimensions ?? []).map((d) => ({
