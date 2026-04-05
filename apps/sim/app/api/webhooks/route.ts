@@ -344,7 +344,6 @@ export async function POST(request: NextRequest) {
       workflowRecord.workspaceId || undefined
     )
 
-    // --- Credential Set Handling ---
     // For credential sets, we fan out to create one webhook per credential at save time.
     // This applies to all OAuth-based triggers, not just polling ones.
     // Check for credentialSetId directly (frontend may already extract it) or credential set value in credential fields
@@ -483,8 +482,6 @@ export async function POST(request: NextRequest) {
         }
       }
     }
-    // --- End Credential Set Handling ---
-
     let externalSubscriptionCreated = false
     const createTempWebhookData = (providerConfigOverride = resolvedProviderConfig) => ({
       id: targetWebhookId || generateShortId(),
@@ -624,7 +621,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // --- Polling provider setup (Gmail, Outlook, RSS, IMAP, etc.) ---
     if (savedWebhook) {
       const pollingHandler = getProviderHandler(provider)
       if (pollingHandler.configurePolling) {
@@ -668,7 +664,6 @@ export async function POST(request: NextRequest) {
         }
       }
     }
-    // --- End polling provider setup ---
 
     if (!targetWebhookId && savedWebhook) {
       try {

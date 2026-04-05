@@ -323,43 +323,44 @@ export const attioHandler: WebhookProviderHandler = {
       extractAttioGenericData,
     } = await import('@/triggers/attio/utils')
 
+    const b = body as Record<string, unknown>
     const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
     const triggerId = providerConfig.triggerId as string | undefined
 
     if (triggerId === 'attio_record_updated') {
-      return { input: extractAttioRecordUpdatedData(body) }
+      return { input: extractAttioRecordUpdatedData(b) }
     }
     if (triggerId === 'attio_record_merged') {
-      return { input: extractAttioRecordMergedData(body) }
+      return { input: extractAttioRecordMergedData(b) }
     }
     if (triggerId === 'attio_record_created' || triggerId === 'attio_record_deleted') {
-      return { input: extractAttioRecordData(body) }
+      return { input: extractAttioRecordData(b) }
     }
     if (triggerId?.startsWith('attio_note_')) {
-      return { input: extractAttioNoteData(body) }
+      return { input: extractAttioNoteData(b) }
     }
     if (triggerId?.startsWith('attio_task_')) {
-      return { input: extractAttioTaskData(body) }
+      return { input: extractAttioTaskData(b) }
     }
     if (triggerId?.startsWith('attio_comment_')) {
-      return { input: extractAttioCommentData(body) }
+      return { input: extractAttioCommentData(b) }
     }
     if (triggerId === 'attio_list_entry_updated') {
-      return { input: extractAttioListEntryUpdatedData(body) }
+      return { input: extractAttioListEntryUpdatedData(b) }
     }
     if (triggerId === 'attio_list_entry_created' || triggerId === 'attio_list_entry_deleted') {
-      return { input: extractAttioListEntryData(body) }
+      return { input: extractAttioListEntryData(b) }
     }
     if (
       triggerId === 'attio_list_created' ||
       triggerId === 'attio_list_updated' ||
       triggerId === 'attio_list_deleted'
     ) {
-      return { input: extractAttioListData(body) }
+      return { input: extractAttioListData(b) }
     }
     if (triggerId === 'attio_workspace_member_created') {
-      return { input: extractAttioWorkspaceMemberData(body) }
+      return { input: extractAttioWorkspaceMemberData(b) }
     }
-    return { input: extractAttioGenericData(body) }
+    return { input: extractAttioGenericData(b) }
   },
 }

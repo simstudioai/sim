@@ -54,7 +54,6 @@ async function fetchAndProcessAirtablePayloads(
   }
 
   try {
-    // --- Essential IDs & Config from localProviderConfig ---
     const baseId = localProviderConfig.baseId
     const airtableWebhookId = localProviderConfig.externalId
 
@@ -164,7 +163,6 @@ async function fetchAndProcessAirtablePayloads(
 
     const airtableApiBase = 'https://api.airtable.com/v0'
 
-    // --- Polling Loop ---
     while (mightHaveMore) {
       apiCallCount++
       // Safety break
@@ -212,7 +210,6 @@ async function fetchAndProcessAirtablePayloads(
 
         const receivedPayloads = responseBody.payloads || []
 
-        // --- Process and Consolidate Changes ---
         if (receivedPayloads.length > 0) {
           payloadsFetched += receivedPayloads.length
           // Keep the raw payloads for later exposure to the workflow
@@ -350,15 +347,12 @@ async function fetchAndProcessAirtablePayloads(
         break
       }
     }
-    // --- End Polling Loop ---
-
     // Convert map values to array for final processing
     const finalConsolidatedChanges = Array.from(consolidatedChangesMap.values())
     logger.info(
       `[${requestId}] Consolidated ${finalConsolidatedChanges.length} Airtable changes across ${apiCallCount} API calls`
     )
 
-    // --- Execute Workflow if we have changes (simplified - no lock check) ---
     if (finalConsolidatedChanges.length > 0 || allPayloads.length > 0) {
       try {
         // Build input exposing raw payloads and consolidated changes
