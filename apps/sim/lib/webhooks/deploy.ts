@@ -447,6 +447,18 @@ export async function saveTriggerWebhooksForDeploy({
       }
     }
 
+    if (providerConfig.requireAuth && !providerConfig.token) {
+      await restorePreviousSubscriptions()
+      return {
+        success: false,
+        error: {
+          message:
+            'Authentication is enabled but no token is configured. Please set an authentication token or disable authentication.',
+          status: 400,
+        },
+      }
+    }
+
     webhookConfigs.set(block.id, { provider, providerConfig, triggerPath, triggerDef })
 
     if (providerConfig.credentialSetId) {
