@@ -9,19 +9,13 @@ const { mockIsHosted, mockIsAzureConfigured, mockIsOllamaConfigured } = vi.hoist
   mockIsOllamaConfigured: { value: false },
 }))
 
-const {
-  mockGetHostedModels,
-  mockGetProviderModels,
-  mockGetProviderIcon,
-  mockGetProviderFromModel,
-  mockGetBaseModelProviders,
-} = vi.hoisted(() => ({
-  mockGetHostedModels: vi.fn(() => []),
-  mockGetProviderModels: vi.fn(() => []),
-  mockGetProviderIcon: vi.fn(() => null),
-  mockGetProviderFromModel: vi.fn(() => 'ollama'),
-  mockGetBaseModelProviders: vi.fn(() => ({})),
-}))
+const { mockGetHostedModels, mockGetProviderModels, mockGetProviderIcon, mockGetBaseModelProviders } =
+  vi.hoisted(() => ({
+    mockGetHostedModels: vi.fn(() => []),
+    mockGetProviderModels: vi.fn(() => []),
+    mockGetProviderIcon: vi.fn(() => null),
+    mockGetBaseModelProviders: vi.fn(() => ({})),
+  }))
 
 const { mockProviders } = vi.hoisted(() => ({
   mockProviders: {
@@ -51,7 +45,6 @@ vi.mock('@/providers/models', () => ({
   getHostedModels: mockGetHostedModels,
   getProviderModels: mockGetProviderModels,
   getProviderIcon: mockGetProviderIcon,
-  getProviderFromModel: mockGetProviderFromModel,
   getBaseModelProviders: mockGetBaseModelProviders,
 }))
 
@@ -70,30 +63,6 @@ vi.mock('@/lib/oauth/utils', () => ({
 }))
 
 import { getApiKeyCondition } from '@/blocks/utils'
-
-/**
- * Simulates getProviderFromModel behavior: checks known prefix patterns,
- * defaults to 'ollama' for unrecognized models (matching real implementation).
- */
-function simulateGetProviderFromModel(model: string): string {
-  const m = model.toLowerCase()
-  if (m.startsWith('fireworks/')) return 'fireworks'
-  if (m.startsWith('openrouter/')) return 'openrouter'
-  if (m.startsWith('vllm/')) return 'vllm'
-  if (m.startsWith('vertex/')) return 'vertex'
-  if (m.startsWith('bedrock/')) return 'bedrock'
-  if (m.startsWith('azure/')) return 'azure-openai'
-  if (m.startsWith('azure-openai/')) return 'azure-openai'
-  if (m.startsWith('azure-anthropic/')) return 'azure-anthropic'
-  if (m.startsWith('groq/')) return 'groq'
-  if (m.startsWith('cerebras/')) return 'cerebras'
-  if (/^gpt/.test(m) || /^o\d/.test(m)) return 'openai'
-  if (/^claude/.test(m)) return 'anthropic'
-  if (/^gemini/.test(m)) return 'google'
-  if (/^grok/.test(m)) return 'xai'
-  if (/^mistral/.test(m) || /^magistral/.test(m)) return 'mistral'
-  return 'ollama'
-}
 
 const BASE_CLOUD_MODELS: Record<string, string> = {
   'gpt-4o': 'openai',
@@ -125,7 +94,6 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
     }
     mockGetHostedModels.mockReturnValue([])
     mockGetProviderModels.mockReturnValue([])
-    mockGetProviderFromModel.mockImplementation(simulateGetProviderFromModel)
     mockGetBaseModelProviders.mockReturnValue({})
   })
 
@@ -278,26 +246,13 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
     })
   })
 
-  describe('self-hosted getProviderFromModel fallback', () => {
-    it('does not require API key when getProviderFromModel defaults to ollama', () => {
+  describe('self-hosted without OLLAMA_URL', () => {
+    it('requires API key for any model (Ollama models cannot appear without OLLAMA_URL)', () => {
       mockIsHosted.value = false
       mockIsOllamaConfigured.value = false
-      expect(evaluateCondition('llama3:latest')).toBe(false)
-      expect(evaluateCondition('phi3:latest')).toBe(false)
-    })
-
-    it('requires API key when getProviderFromModel returns a cloud provider', () => {
-      mockIsHosted.value = false
-      mockIsOllamaConfigured.value = false
-      expect(evaluateCondition('mistral:latest')).toBe(true)
-      expect(evaluateCondition('gpt2')).toBe(true)
-    })
-
-    it('does not run getProviderFromModel fallback on hosted platform', () => {
-      mockIsHosted.value = true
-      mockGetHostedModels.mockReturnValue([])
       expect(evaluateCondition('llama3:latest')).toBe(true)
-      expect(mockGetProviderFromModel).not.toHaveBeenCalled()
+      expect(evaluateCondition('mistral:latest')).toBe(true)
+      expect(evaluateCondition('gpt-4o')).toBe(true)
     })
   })
 })

@@ -4,7 +4,6 @@ import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/block
 import {
   getBaseModelProviders,
   getHostedModels,
-  getProviderFromModel,
   getProviderIcon,
   getProviderModels,
 } from '@/providers/models'
@@ -153,13 +152,6 @@ function shouldRequireApiKeyForModel(model: string): boolean {
     if (normalizedModel.includes('/')) return true
     if (normalizedModel in getBaseModelProviders()) return true
     return false
-  }
-
-  if (!isHosted) {
-    try {
-      const providerId = getProviderFromModel(model)
-      if (['ollama', 'vllm', 'vertex', 'bedrock'].includes(providerId)) return false
-    } catch {}
   }
 
   return true
