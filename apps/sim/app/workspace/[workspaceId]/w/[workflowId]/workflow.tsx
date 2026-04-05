@@ -3807,9 +3807,17 @@ const WorkflowContent = React.memo(
           (targetNode?.zIndex ?? 21) + 1
         )
 
+        // Edges inside subflows need a z-index above the container's body area
+        // (which has pointer-events: auto) so they're directly clickable.
+        // Derive from the container's depth-based zIndex (+1) so the edge sits
+        // just above its parent container but below canvas blocks (z-21+) and
+        // child blocks (z-1000).
+        const containerNode = parentLoopId ? nodeMap.get(parentLoopId) : null
+        const baseZIndex = containerNode ? (containerNode.zIndex ?? 0) + 1 : 0
+
         return {
           ...edge,
-          zIndex: connectedToElevated ? elevatedZIndex : 0,
+          zIndex: connectedToElevated ? elevatedZIndex : baseZIndex,
           data: {
             ...edge.data,
             isSelected: selectedEdges.has(edgeContextId),
