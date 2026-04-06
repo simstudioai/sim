@@ -596,7 +596,7 @@ if (foundWebhook.provider === '{service}') {
 
 Run the alignment checker:
 ```bash
-bunx scripts/check-trigger-alignment.ts {service}
+bun run apps/sim/scripts/check-trigger-alignment.ts {service}
 ```
 
 ## Trigger Outputs
@@ -699,7 +699,7 @@ export const {service}WebhookTrigger: TriggerConfig = {
 ### Webhook Input Formatting
 - [ ] Added handler in `apps/sim/lib/webhooks/utils.server.ts` (if custom formatting needed)
 - [ ] Handler returns fields matching trigger `outputs` exactly
-- [ ] Run `bunx scripts/check-trigger-alignment.ts {service}` to verify alignment
+- [ ] Run `bun run apps/sim/scripts/check-trigger-alignment.ts {service}` to verify alignment
 
 ### Testing
 - [ ] Run `bun run type-check` to verify no TypeScript errors

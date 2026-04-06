@@ -708,9 +708,9 @@ export const {service}Handler: WebhookProviderHandler = {
 
 ### Verify Alignment
 
-Run the alignment checker:
+Run the alignment checker (from the `sim` git root). Supported providers have a check in `apps/sim/scripts/check-trigger-alignment.ts` (`PROVIDER_CHECKS`); others exit 0 with a note to add a handler-only entry or verify manually.
 ```bash
-bunx scripts/check-trigger-alignment.ts {service}
+bun run apps/sim/scripts/check-trigger-alignment.ts {service}
 ```
 
 ## Trigger Outputs
@@ -820,7 +820,7 @@ export const {service}WebhookTrigger: TriggerConfig = {
 
 ### Testing
 - [ ] Run `bun run type-check` to verify no TypeScript errors
-- [ ] Run `bunx scripts/check-trigger-alignment.ts {service}` to verify output alignment
+- [ ] Run `bun run apps/sim/scripts/check-trigger-alignment.ts {service}` to verify output alignment
 - [ ] Restart dev server to pick up new triggers
 - [ ] Test trigger UI shows correctly in the block
 - [ ] Test automatic webhook creation works (if applicable)
