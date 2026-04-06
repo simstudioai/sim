@@ -28,6 +28,7 @@ export function notionSetupInstructions(eventType: string): string {
     'Paste the <strong>Webhook URL</strong> above into the URL field.',
     `Select the <strong>${eventType}</strong> event type(s).`,
     'Notion will send a verification request. Copy the <strong>verification_token</strong> from the payload and paste it into the Notion UI to complete verification.',
+    'Paste the same <strong>verification_token</strong> into the <strong>Webhook Secret</strong> field above to enable signature verification on incoming events.',
     'Ensure the integration has access to the pages/databases you want to monitor (share them with the integration).',
   ]
 
@@ -48,9 +49,9 @@ export function buildNotionExtraFields(triggerId: string): SubBlockConfig[] {
       id: 'webhookSecret',
       title: 'Webhook Secret',
       type: 'short-input',
-      placeholder: 'Enter your Notion webhook signing secret',
+      placeholder: 'Enter your Notion verification_token',
       description:
-        'The signing secret from your Notion integration settings page, used to verify X-Notion-Signature headers. This is separate from the verification_token used during initial setup.',
+        'The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries.',
       password: true,
       required: false,
       mode: 'trigger',

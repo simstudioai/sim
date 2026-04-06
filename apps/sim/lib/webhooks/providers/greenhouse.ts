@@ -1,6 +1,5 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
 import { safeCompare } from '@/lib/core/security/encryption'
 import type {
   EventMatchContext,
@@ -53,7 +52,7 @@ export const greenhouseHandler: WebhookProviderHandler = {
     }
   },
 
-  async matchEvent({ webhook, body, requestId, providerConfig }: EventMatchContext) {
+  async matchEvent({ webhook, workflow, body, requestId, providerConfig }: EventMatchContext) {
     const triggerId = providerConfig.triggerId as string | undefined
     const b = body as Record<string, unknown>
     const action = b.action as string | undefined
@@ -64,14 +63,13 @@ export const greenhouseHandler: WebhookProviderHandler = {
           `[${requestId}] Greenhouse event mismatch for trigger ${triggerId}. Action: ${action}. Skipping execution.`,
           {
             webhookId: webhook.id,
+            workflowId: workflow.id,
             triggerId,
             receivedAction: action,
           }
         )
 
-        return NextResponse.json({
-          message: 'Event type does not match trigger configuration. Ignoring.',
-        })
+        return false
       }
     }
 
