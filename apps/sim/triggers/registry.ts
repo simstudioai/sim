@@ -102,6 +102,16 @@ import {
   grainWebhookTrigger,
 } from '@/triggers/grain'
 import {
+  greenhouseCandidateHiredTrigger,
+  greenhouseCandidateRejectedTrigger,
+  greenhouseCandidateStageChangeTrigger,
+  greenhouseJobCreatedTrigger,
+  greenhouseJobUpdatedTrigger,
+  greenhouseNewApplicationTrigger,
+  greenhouseOfferCreatedTrigger,
+  greenhouseWebhookTrigger,
+} from '@/triggers/greenhouse'
+import {
   hubspotCompanyCreatedTrigger,
   hubspotCompanyDeletedTrigger,
   hubspotCompanyMergedTrigger,
@@ -274,6 +284,14 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   confluence_label_added: confluenceLabelAddedTrigger,
   confluence_label_removed: confluenceLabelRemovedTrigger,
   generic_webhook: genericWebhookTrigger,
+  greenhouse_candidate_hired: greenhouseCandidateHiredTrigger,
+  greenhouse_new_application: greenhouseNewApplicationTrigger,
+  greenhouse_candidate_stage_change: greenhouseCandidateStageChangeTrigger,
+  greenhouse_candidate_rejected: greenhouseCandidateRejectedTrigger,
+  greenhouse_offer_created: greenhouseOfferCreatedTrigger,
+  greenhouse_job_created: greenhouseJobCreatedTrigger,
+  greenhouse_job_updated: greenhouseJobUpdatedTrigger,
+  greenhouse_webhook: greenhouseWebhookTrigger,
   github_webhook: githubWebhookTrigger,
   github_issue_opened: githubIssueOpenedTrigger,
   github_issue_closed: githubIssueClosedTrigger,
