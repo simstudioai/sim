@@ -35,11 +35,25 @@ const JSON_YAML_CHUNKING_CONFIG = {
 export class JsonYamlChunker {
   private chunkSize: number // in tokens
   private minCharactersPerChunk: number // in characters
+  private readonly embeddingModel?: string
 
   constructor(options: ChunkerOptions = {}) {
     this.chunkSize = options.chunkSize ?? JSON_YAML_CHUNKING_CONFIG.TARGET_CHUNK_SIZE
     this.minCharactersPerChunk =
       options.minCharactersPerChunk ?? JSON_YAML_CHUNKING_CONFIG.MIN_CHARACTERS_PER_CHUNK
+    this.embeddingModel = options.embeddingModel
+  }
+
+  /**
+   * Estimate token count for a given text, adjusted for the embedding provider.
+   * Ollama uses a conservative character-based ratio (3 chars/token).
+   * OpenAI uses tiktoken for accurate counting.
+   */
+  private getTokenEstimate(text: string): number {
+    if (this.embeddingModel?.startsWith('ollama/')) {
+      return Math.ceil(text.length / 3)
+    }
+    return getTokenCount(text)
   }
 
   /**
@@ -103,7 +117,7 @@ export class JsonYamlChunker {
     }
 
     const content = JSON.stringify(data, null, 2)
-    const tokenCount = getTokenCount(content)
+    const tokenCount = this.getTokenEstimate(content)
 
     // Filter tiny fragments using character count
     if (content.length >= this.minCharactersPerChunk) {
@@ -133,14 +147,14 @@ export class JsonYamlChunker {
     for (let i = 0; i < arr.length; i++) {
       const item = arr[i]
       const itemStr = JSON.stringify(item, null, 2)
-      const itemTokens = getTokenCount(itemStr)
+      const itemTokens = this.getTokenEstimate(itemStr)
 
       if (itemTokens > this.chunkSize) {
         if (currentBatch.length > 0) {
           const batchContent = contextHeader + JSON.stringify(currentBatch, null, 2)
           chunks.push({
             text: batchContent,
-            tokenCount: getTokenCount(batchContent),
+            tokenCount: this.getTokenEstimate(batchContent),
             metadata: {
               startIndex: i - currentBatch.length,
               endIndex: i - 1,
@@ -167,7 +181,7 @@ export class JsonYamlChunker {
         const batchContent = contextHeader + JSON.stringify(currentBatch, null, 2)
         chunks.push({
           text: batchContent,
-          tokenCount: getTokenCount(batchContent),
+          tokenCount: this.getTokenEstimate(batchContent),
           metadata: {
             startIndex: i - currentBatch.length,
             endIndex: i - 1,
@@ -185,7 +199,7 @@ export class JsonYamlChunker {
       const batchContent = contextHeader + JSON.stringify(currentBatch, null, 2)
       chunks.push({
         text: batchContent,
-        tokenCount: getTokenCount(batchContent),
+        tokenCount: this.getTokenEstimate(batchContent),
         metadata: {
           startIndex: arr.length - currentBatch.length,
           endIndex: arr.length - 1,
@@ -204,7 +218,7 @@ export class JsonYamlChunker {
     const entries = Object.entries(obj)
 
     const fullContent = JSON.stringify(obj, null, 2)
-    const fullTokens = getTokenCount(fullContent)
+    const fullTokens = this.getTokenEstimate(fullContent)
 
     if (fullTokens <= this.chunkSize) {
       chunks.push({
@@ -224,14 +238,14 @@ export class JsonYamlChunker {
 
     for (const [key, value] of entries) {
       const valueStr = JSON.stringify({ [key]: value }, null, 2)
-      const valueTokens = getTokenCount(valueStr)
+      const valueTokens = this.getTokenEstimate(valueStr)
 
       if (valueTokens > this.chunkSize) {
         if (Object.keys(currentObj).length > 0) {
           const objContent = JSON.stringify(currentObj, null, 2)
           chunks.push({
             text: objContent,
-            tokenCount: getTokenCount(objContent),
+            tokenCount: this.getTokenEstimate(objContent),
             metadata: {
               startIndex: 0,
               endIndex: objContent.length,
@@ -262,7 +276,7 @@ export class JsonYamlChunker {
         const objContent = JSON.stringify(currentObj, null, 2)
         chunks.push({
           text: objContent,
-          tokenCount: getTokenCount(objContent),
+          tokenCount: this.getTokenEstimate(objContent),
           metadata: {
             startIndex: 0,
             endIndex: objContent.length,
@@ -282,7 +296,7 @@ export class JsonYamlChunker {
       const objContent = JSON.stringify(currentObj, null, 2)
       chunks.push({
         text: objContent,
-        tokenCount: getTokenCount(objContent),
+        tokenCount: this.getTokenEstimate(objContent),
         metadata: {
           startIndex: 0,
           endIndex: objContent.length,
@@ -304,7 +318,7 @@ export class JsonYamlChunker {
     let startIndex = 0
 
     for (const line of lines) {
-      const lineTokens = getTokenCount(line)
+      const lineTokens = this.getTokenEstimate(line)
 
       if (currentTokens + lineTokens > this.chunkSize && currentChunk) {
         chunks.push({

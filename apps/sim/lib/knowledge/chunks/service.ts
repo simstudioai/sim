@@ -53,7 +53,9 @@ export async function queryChunks(
     .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
     .limit(1)
 
-  const { provider } = parseEmbeddingModel(kbRows[0]?.embeddingModel)
+  if (kbRows.length === 0) throw new Error(`Knowledge base not found: ${knowledgeBaseId}`)
+
+  const { provider } = parseEmbeddingModel(kbRows[0].embeddingModel)
 
   if (provider === 'ollama') {
     const { rows, total } = await queryKBChunks(knowledgeBaseId, documentId, {
@@ -359,7 +361,9 @@ export async function batchChunkOperation(
     .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
     .limit(1)
 
-  const { provider } = parseEmbeddingModel(kbRows[0]?.embeddingModel)
+  if (kbRows.length === 0) throw new Error(`Knowledge base not found: ${knowledgeBaseId}`)
+
+  const { provider } = parseEmbeddingModel(kbRows[0].embeddingModel)
   const isOllama = provider === 'ollama'
 
   const errors: string[] = []
@@ -723,7 +727,9 @@ export async function deleteChunk(
     .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
     .limit(1)
 
-  const { provider } = parseEmbeddingModel(kbRows[0]?.embeddingModel)
+  if (kbRows.length === 0) throw new Error(`Knowledge base not found: ${knowledgeBaseId}`)
+
+  const { provider } = parseEmbeddingModel(kbRows[0].embeddingModel)
   const isOllama = provider === 'ollama'
 
   await db.transaction(async (tx) => {
