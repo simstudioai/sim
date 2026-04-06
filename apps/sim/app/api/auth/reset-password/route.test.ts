@@ -68,7 +68,7 @@ describe('Reset Password API Route', () => {
 
   it('should handle missing token', async () => {
     const req = createMockRequest('POST', {
-      newPassword: 'newSecurePassword123',
+      newPassword: 'newSecurePassword123!',
     })
 
     const response = await POST(req)
@@ -97,7 +97,7 @@ describe('Reset Password API Route', () => {
   it('should handle empty token', async () => {
     const req = createMockRequest('POST', {
       token: '',
-      newPassword: 'newSecurePassword123',
+      newPassword: 'newSecurePassword123!',
     })
 
     const response = await POST(req)
@@ -119,7 +119,11 @@ describe('Reset Password API Route', () => {
     const data = await response.json()
 
     expect(response.status).toBe(400)
-    expect(data.message).toBe('Password must be at least 8 characters long')
+    expect(data.message).toContain('Password must be at least 8 characters long')
+    expect(data.message).toContain('Password must contain at least one uppercase letter')
+    expect(data.message).toContain('Password must contain at least one lowercase letter')
+    expect(data.message).toContain('Password must contain at least one number')
+    expect(data.message).toContain('Password must contain at least one special character')
 
     expect(mockResetPassword).not.toHaveBeenCalled()
   })
