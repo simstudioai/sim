@@ -472,7 +472,7 @@ export async function processDocumentAsync(
       overlap: rawConfig?.overlap ?? 200,
       ollamaBaseUrl: rawConfig?.ollamaBaseUrl,
     }
-    const { provider: embeddingProvider, modelName: embeddingModelName } = parseEmbeddingModel(
+    const { provider: embeddingProvider, modelName: kbModelName } = parseEmbeddingModel(
       kb[0].embeddingModel
     )
 
@@ -486,14 +486,14 @@ export async function processDocumentAsync(
     let ollamaContextLength: number | undefined
     if (embeddingProvider === 'ollama') {
       ollamaContextLength = await getOllamaModelContextLength(
-        embeddingModelName,
+        kbModelName,
         kbConfig.ollamaBaseUrl
       )
       const safeChunkSize = Math.floor(ollamaContextLength * 0.3)
       if (effectiveChunkSize > safeChunkSize) {
         logger.info(
           `[${documentId}] Capping chunk size from ${effectiveChunkSize} to ${safeChunkSize} tokens ` +
-            `(Ollama model ${embeddingModelName} context length: ${ollamaContextLength})`
+            `(Ollama model ${kbModelName} context length: ${ollamaContextLength})`
         )
         effectiveChunkSize = safeChunkSize
       }
