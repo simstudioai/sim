@@ -83,9 +83,10 @@ const CreateKnowledgeBaseSchema = z.object({
             }
             return false
           }
-          // Allow Docker service hostnames (no dots = not a public domain)
-          // e.g. "ollama", "host.docker.internal"
-          if (!hostname.includes('.') || hostname.endsWith('.internal')) {
+          // Allow Docker service hostnames (no dots = not a public domain, e.g. "ollama")
+          // or the well-known Docker Desktop host alias. Do NOT allow all *.internal domains —
+          // they are not universally restricted and could be DNS-resolved to cloud metadata IPs.
+          if (!hostname.includes('.') || hostname === 'host.docker.internal') {
             return true
           }
           return false
