@@ -127,14 +127,19 @@ export const vercelHandler: WebhookProviderHandler = {
         throw new Error(userFriendlyMessage)
       }
 
+      const externalId = responseBody.id as string | undefined
+      if (!externalId) {
+        throw new Error('Vercel webhook creation succeeded but no webhook ID was returned')
+      }
+
       logger.info(
         `[${requestId}] Successfully created webhook in Vercel for webhook ${webhook.id}.`,
-        { vercelWebhookId: responseBody.id }
+        { vercelWebhookId: externalId }
       )
 
       return {
         providerConfigUpdates: {
-          externalId: responseBody.id,
+          externalId,
           webhookSecret: (responseBody.secret as string) || '',
         },
       }
