@@ -163,7 +163,7 @@ function getBlockNameFromSnapshot(
   }
 }
 
-function renderStructuredValuePreview(value: any) {
+function renderStructuredValuePreview(value: unknown) {
   if (value === null || value === undefined) {
     return <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>—</span>
   }
