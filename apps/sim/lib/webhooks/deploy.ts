@@ -285,7 +285,7 @@ async function syncCredentialSetWebhooks(params: {
     basePath: triggerPath,
     credentialSetId,
     oauthProviderId,
-    providerConfig: baseConfig as Record<string, any>,
+    providerConfig: baseConfig as Record<string, unknown>,
     requestId,
     deploymentVersionId,
   })
@@ -558,13 +558,13 @@ export async function saveTriggerWebhooksForDeploy({
         await restorePreviousSubscriptions()
         return { success: false, error: syncResult.error, warnings: collectedWarnings }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(`[${requestId}] Failed to create webhook for ${block.id}`, error)
       await restorePreviousSubscriptions()
       return {
         success: false,
         error: {
-          message: error?.message || 'Failed to save trigger configuration',
+          message: (error as Error)?.message || 'Failed to save trigger configuration',
           status: 500,
         },
         warnings: collectedWarnings,
@@ -621,7 +621,7 @@ export async function saveTriggerWebhooksForDeploy({
         updatedProviderConfig: result.updatedProviderConfig as Record<string, unknown>,
         externalSubscriptionCreated: result.externalSubscriptionCreated,
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(`[${requestId}] Failed to create external subscription for ${block.id}`, error)
       await pendingVerificationTracker.clearAll()
       for (const sub of createdSubscriptions) {
@@ -649,7 +649,7 @@ export async function saveTriggerWebhooksForDeploy({
       return {
         success: false,
         error: {
-          message: error?.message || 'Failed to create external subscription',
+          message: (error as Error)?.message || 'Failed to create external subscription',
           status: 500,
         },
       }
@@ -722,7 +722,7 @@ export async function saveTriggerWebhooksForDeploy({
         return { success: false, error: pollingError }
       }
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     await pendingVerificationTracker.clearAll()
     logger.error(`[${requestId}] Failed to insert webhook records`, error)
     for (const sub of createdSubscriptions) {
@@ -750,7 +750,7 @@ export async function saveTriggerWebhooksForDeploy({
     return {
       success: false,
       error: {
-        message: error?.message || 'Failed to save webhook records',
+        message: (error as Error)?.message || 'Failed to save webhook records',
         status: 500,
       },
     }
