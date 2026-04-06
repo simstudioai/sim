@@ -90,15 +90,27 @@ export const hubspotTicketTriggerOptions = [
 ]
 
 /**
+ * Derives the required OAuth scope from a HubSpot event type
+ */
+function getScopeForEventType(eventType: string): string {
+  if (eventType.startsWith('company')) return 'crm.objects.companies.read'
+  if (eventType.startsWith('deal')) return 'crm.objects.deals.read'
+  if (eventType.startsWith('ticket')) return 'tickets'
+  if (eventType === 'All Events') return 'crm.objects.contacts.read, crm.objects.companies.read, crm.objects.deals.read, tickets'
+  return 'crm.objects.contacts.read'
+}
+
+/**
  * Generate setup instructions for a specific HubSpot event type
  */
 export function hubspotSetupInstructions(eventType: string, additionalNotes?: string): string {
+  const scope = getScopeForEventType(eventType)
   const instructions = [
     '<strong>Step 1: Create a HubSpot Developer Account</strong><br/>Sign up for a free developer account at <a href="https://developers.hubspot.com" target="_blank">developers.hubspot.com</a> if you don\'t have one.',
     '<strong>Step 2: Create a Public App via CLI</strong><br/><strong>Note:</strong> HubSpot has deprecated the web UI for creating apps. You must use the HubSpot CLI to create and manage apps. Install the CLI with <code>npm install -g @hubspot/cli</code> and run <code>hs project create</code> to create a new app. See <a href="https://developers.hubspot.com/docs/platform/create-an-app" target="_blank">HubSpot\'s documentation</a> for details.',
     '<strong>Step 3: Configure OAuth Settings</strong><br/>After creating your app via CLI, configure it to add the OAuth Redirect URL: <code>https://www.sim.ai/api/auth/oauth2/callback/hubspot</code>. Then retrieve your <strong>Client ID</strong> and <strong>Client Secret</strong> from your app configuration and enter them in the fields above.',
     "<strong>Step 4: Get App ID and Developer API Key</strong><br/>In your HubSpot developer account, find your <strong>App ID</strong> (shown below your app name) and your <strong>Developer API Key</strong> (in app settings). You'll need both for the next steps.",
-    '<strong>Step 5: Set Required Scopes</strong><br/>Configure your app to include the required OAuth scope: <code>crm.objects.contacts.read</code>',
+    `<strong>Step 5: Set Required Scopes</strong><br/>Configure your app to include the required OAuth scope(s): <code>${scope}</code>`,
     '<strong>Step 6: Configure Webhook in HubSpot via API</strong><br/>After saving above, copy the <strong>Webhook URL</strong> and run the two curl commands below (replace <code>{YOUR_APP_ID}</code>, <code>{YOUR_DEVELOPER_API_KEY}</code>, and <code>{YOUR_WEBHOOK_URL_FROM_ABOVE}</code> with your actual values).',
     "<strong>Step 7: Test Your Webhook</strong><br/>Create or modify a contact in HubSpot to trigger the webhook. Check your workflow execution logs in Sim to verify it's working.",
   ]
