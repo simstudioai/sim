@@ -875,9 +875,9 @@ export class PauseResumeManager {
             childWorkflowBlockId: childWorkflowContext.parentBlockId,
             childWorkflowName: childWorkflowContext.workflowName,
           }),
-          ...(callbackData.childWorkflowInstanceId && {
-            childWorkflowInstanceId: callbackData.childWorkflowInstanceId,
-          }),
+          ...(callbackData.childWorkflowInstanceId
+            ? { childWorkflowInstanceId: callbackData.childWorkflowInstanceId }
+            : {}),
         }
 
         writeBufferedEvent({
@@ -911,7 +911,8 @@ export class PauseResumeManager {
         } as ExecutionEvent)
       },
       onStream: async (streamingExec: StreamingExecution) => {
-        const blockId = (streamingExec.execution as Record<string, unknown>).blockId as string
+        const blockId = (streamingExec.execution as unknown as Record<string, unknown>)
+          .blockId as string
         const reader = streamingExec.stream.getReader()
         const decoder = new TextDecoder()
         try {
