@@ -1,4 +1,8 @@
-import type { FormatInputContext, FormatInputResult, WebhookProviderHandler } from '@/lib/webhooks/providers/types'
+import type {
+  FormatInputContext,
+  FormatInputResult,
+  WebhookProviderHandler,
+} from '@/lib/webhooks/providers/types'
 
 export const gongHandler: WebhookProviderHandler = {
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {

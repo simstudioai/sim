@@ -1,7 +1,7 @@
 import { GongIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
-import { getTrigger } from '@/triggers'
 import type { GongResponse } from '@/tools/gong/types'
+import { getTrigger } from '@/triggers'
 
 export const GongBlock: BlockConfig<GongResponse> = {
   type: 'gong',
