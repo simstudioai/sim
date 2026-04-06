@@ -148,6 +148,7 @@ export async function POST(
 
       return NextResponse.json({
         success: result.success,
+        status: result.status ?? (result.success ? 'completed' : 'failed'),
         executionId: enqueueResult.resumeExecutionId,
         output: result.output,
         error: result.error,
