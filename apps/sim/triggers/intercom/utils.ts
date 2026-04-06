@@ -72,16 +72,17 @@ export const INTERCOM_TRIGGER_TOPIC_MAP: Record<string, string[]> = {
  */
 export function isIntercomEventMatch(triggerId: string, topic: string): boolean {
   const allowedTopics = INTERCOM_TRIGGER_TOPIC_MAP[triggerId]
-  if (!allowedTopics || allowedTopics.length === 0) {
+  if (allowedTopics === undefined) return false
+  if (allowedTopics.length === 0) {
     return true
   }
   return allowedTopics.includes(topic)
 }
 
 /**
- * Build outputs for Intercom conversation triggers.
+ * Shared base outputs for all Intercom webhook triggers.
  */
-export function buildIntercomConversationOutputs(): Record<string, TriggerOutput> {
+function buildIntercomBaseOutputs(dataDescription: string): Record<string, TriggerOutput> {
   return {
     topic: { type: 'string', description: 'The webhook topic (e.g., conversation.user.created)' },
     id: { type: 'string', description: 'Unique notification ID' },
@@ -95,64 +96,33 @@ export function buildIntercomConversationOutputs(): Record<string, TriggerOutput
       type: 'number',
       description: 'Unix timestamp of first delivery attempt',
     },
-    data: {
-      type: 'json',
-      description:
-        'Event data containing the conversation object. Access via data.item for conversation details including id, state, open, assignee, contacts, conversation_parts, tags, and source',
-    },
+    data: { type: 'json', description: dataDescription },
   } as Record<string, TriggerOutput>
+}
+
+/**
+ * Build outputs for Intercom conversation triggers.
+ */
+export function buildIntercomConversationOutputs(): Record<string, TriggerOutput> {
+  return buildIntercomBaseOutputs(
+    'Event data containing the conversation object. Access via data.item for conversation details including id, state, open, assignee, contacts, conversation_parts, tags, and source'
+  )
 }
 
 /**
  * Build outputs for Intercom contact triggers.
  */
 export function buildIntercomContactOutputs(): Record<string, TriggerOutput> {
-  return {
-    topic: { type: 'string', description: 'The webhook topic (e.g., contact.created)' },
-    id: { type: 'string', description: 'Unique notification ID' },
-    app_id: { type: 'string', description: 'Your Intercom app ID' },
-    created_at: { type: 'number', description: 'Unix timestamp when the event occurred' },
-    delivery_attempts: {
-      type: 'number',
-      description: 'Number of delivery attempts for this notification',
-    },
-    first_sent_at: {
-      type: 'number',
-      description: 'Unix timestamp of first delivery attempt',
-    },
-    data: {
-      type: 'json',
-      description:
-        'Event data containing the contact object. Access via data.item for contact details including id, role, email, name, phone, external_id, custom_attributes, location, avatar, tags, companies, and timestamps',
-    },
-  } as Record<string, TriggerOutput>
+  return buildIntercomBaseOutputs(
+    'Event data containing the contact object. Access via data.item for contact details including id, role, email, name, phone, external_id, custom_attributes, location, avatar, tags, companies, and timestamps'
+  )
 }
 
 /**
  * Build outputs for the generic Intercom webhook trigger.
  */
 export function buildIntercomGenericOutputs(): Record<string, TriggerOutput> {
-  return {
-    topic: {
-      type: 'string',
-      description:
-        'The webhook topic (e.g., conversation.user.created, contact.created, company.created, ticket.created)',
-    },
-    id: { type: 'string', description: 'Unique notification ID' },
-    app_id: { type: 'string', description: 'Your Intercom app ID' },
-    created_at: { type: 'number', description: 'Unix timestamp when the event occurred' },
-    delivery_attempts: {
-      type: 'number',
-      description: 'Number of delivery attempts for this notification',
-    },
-    first_sent_at: {
-      type: 'number',
-      description: 'Unix timestamp of first delivery attempt',
-    },
-    data: {
-      type: 'json',
-      description:
-        'Event data containing the affected object. Access via data.item for the resource (conversation, contact, company, ticket, etc.)',
-    },
-  } as Record<string, TriggerOutput>
+  return buildIntercomBaseOutputs(
+    'Event data containing the affected object. Access via data.item for the resource (conversation, contact, company, ticket, etc.)'
+  )
 }
