@@ -89,12 +89,12 @@ export const sixtyfourEnrichCompanyTool: ToolConfig<
       } catch {
         throw new Error('struct must be valid JSON')
       }
-      let leadStruct: unknown
+      let leadStruct: Record<string, unknown> | undefined
       try {
         leadStruct =
           params.leadStruct && typeof params.leadStruct === 'string'
-            ? JSON.parse(params.leadStruct)
-            : params.leadStruct
+            ? (JSON.parse(params.leadStruct) as Record<string, unknown>)
+            : (params.leadStruct as Record<string, unknown> | undefined)
       } catch {
         throw new Error('leadStruct must be valid JSON')
       }
