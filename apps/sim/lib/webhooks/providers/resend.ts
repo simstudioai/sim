@@ -49,6 +49,12 @@ function verifySvixSignature(
   rawBody: string
 ): boolean {
   try {
+    const ts = parseInt(timestamp, 10)
+    const now = Math.floor(Date.now() / 1000)
+    if (isNaN(ts) || Math.abs(now - ts) > 5 * 60) {
+      return false
+    }
+
     const secretBytes = Buffer.from(secret.replace(/^whsec_/, ''), 'base64')
     const toSign = `${msgId}.${timestamp}.${rawBody}`
     const expectedSignature = crypto
