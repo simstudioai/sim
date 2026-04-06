@@ -25,10 +25,12 @@ export function isAllowedOllamaUrl(url: string): boolean {
   try {
     const parsed = new URL(url)
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
-    const hostname = parsed.hostname.toLowerCase()
+    const raw = parsed.hostname.toLowerCase()
+    // WHATWG URL may return IPv6 with brackets ([::1]) or without (::1); normalize to bare address
+    const hostname = raw.startsWith('[') && raw.endsWith(']') ? raw.slice(1, -1) : raw
     if (hostname === '169.254.169.254' || hostname === 'metadata.google.internal') return false
-    if (hostname.startsWith('[') && hostname !== '[::1]') return false
-    if (hostname === 'localhost' || hostname === '[::1]') return true
+    if (hostname === 'localhost' || hostname === '::1') return true
+    if (hostname.includes(':')) return false // block all non-loopback IPv6
     const ipv4 = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/
     if (ipv4.test(hostname)) {
       if (hostname.startsWith('127.') || hostname.startsWith('10.') || hostname.startsWith('192.168.')) return true

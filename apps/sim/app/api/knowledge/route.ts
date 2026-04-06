@@ -126,6 +126,14 @@ export async function POST(req: NextRequest) {
       let effectiveDimension = validatedData.embeddingDimension
       if (provider === 'ollama') {
         const ollamaBaseUrl = getOllamaBaseUrl(validatedData.ollamaBaseUrl)
+        if (!isAllowedOllamaUrl(ollamaBaseUrl)) {
+          return NextResponse.json(
+            {
+              error: `Ollama base URL "${ollamaBaseUrl}" is not allowed. Must point to localhost, a private IP address, or host.docker.internal.`,
+            },
+            { status: 400 }
+          )
+        }
         try {
           const modelInfo = await validateOllamaModel(modelName, ollamaBaseUrl)
 
