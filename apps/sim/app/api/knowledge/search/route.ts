@@ -329,12 +329,11 @@ export async function POST(request: NextRequest) {
           const config = kbConfigMap.get(kbId)!
           const cfg = (config.chunkingConfig ?? {}) as ExtendedChunkingConfig
           const { modelName } = parseEmbeddingModel(config.embeddingModel)
-          // Re-validate stored URL against SSRF allowlist before making outbound requests
-          if (cfg.ollamaBaseUrl && !isAllowedOllamaUrl(cfg.ollamaBaseUrl)) {
-            logger.warn(`[${requestId}] Blocked disallowed Ollama URL for KB ${kbId}: ${cfg.ollamaBaseUrl}`)
+          const baseUrl = getOllamaBaseUrl(cfg.ollamaBaseUrl)
+          if (!isAllowedOllamaUrl(baseUrl)) {
+            logger.warn(`[${requestId}] Blocked disallowed Ollama URL for KB ${kbId}: ${baseUrl}`)
             continue
           }
-          const baseUrl = getOllamaBaseUrl(cfg.ollamaBaseUrl)
           uniquePairs.set(`${modelName}:${baseUrl}`, { modelName, ollamaBaseUrl: baseUrl })
         }
         await Promise.all(

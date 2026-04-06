@@ -23,7 +23,7 @@ import {
   setKBChunksEnabled,
   updateKBChunkFields,
 } from '@/lib/knowledge/dynamic-tables'
-import { generateEmbeddings, isAllowedOllamaUrl } from '@/lib/knowledge/embeddings'
+import { generateEmbeddings, getOllamaBaseUrl, isAllowedOllamaUrl } from '@/lib/knowledge/embeddings'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 
 const logger = createLogger('ChunksService')
@@ -167,8 +167,9 @@ export async function createChunk(
   const rawKbCfg = kbRows[0].chunkingConfig as { ollamaBaseUrl?: string } | null
   const kbOllamaBaseUrl = rawKbCfg?.ollamaBaseUrl
 
-  if (kbOllamaBaseUrl && !isAllowedOllamaUrl(kbOllamaBaseUrl)) {
-    throw new Error(`Knowledge base has a disallowed Ollama URL: ${kbOllamaBaseUrl}`)
+  const resolvedCreateUrl = getOllamaBaseUrl(kbOllamaBaseUrl)
+  if (!isAllowedOllamaUrl(resolvedCreateUrl)) {
+    throw new Error(`Knowledge base has a disallowed Ollama URL: ${resolvedCreateUrl}`)
   }
 
   const { provider } = parseEmbeddingModel(kbEmbeddingModel)
@@ -477,8 +478,9 @@ export async function updateChunk(
   const rawCfg = kbRows[0].chunkingConfig as { ollamaBaseUrl?: string } | null
   const kbOllamaBaseUrl = rawCfg?.ollamaBaseUrl
 
-  if (kbOllamaBaseUrl && !isAllowedOllamaUrl(kbOllamaBaseUrl)) {
-    throw new Error(`Knowledge base has a disallowed Ollama URL: ${kbOllamaBaseUrl}`)
+  const resolvedUpdateUrl = getOllamaBaseUrl(kbOllamaBaseUrl)
+  if (!isAllowedOllamaUrl(resolvedUpdateUrl)) {
+    throw new Error(`Knowledge base has a disallowed Ollama URL: ${resolvedUpdateUrl}`)
   }
 
   const { provider } = parseEmbeddingModel(kbEmbeddingModel)
