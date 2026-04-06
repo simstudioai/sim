@@ -49,6 +49,7 @@ export function buildVercelExtraFields(triggerId: string): SubBlockConfig[] {
       description: 'Required to create the webhook in Vercel.',
       password: true,
       required: true,
+      paramVisibility: 'user-only',
       mode: 'trigger' as const,
       condition: { field: 'selectedTriggerId', value: triggerId },
     },
