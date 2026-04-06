@@ -8180,8 +8180,54 @@
     "docsUrl": "https://docs.sim.ai/tools/notion",
     "operations": [],
     "operationCount": 0,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "notion_page_created",
+        "name": "Notion Page Created",
+        "description": "Trigger workflow when a new page is created in Notion"
+      },
+      {
+        "id": "notion_page_properties_updated",
+        "name": "Notion Page Properties Updated",
+        "description": "Trigger workflow when page properties are modified in Notion"
+      },
+      {
+        "id": "notion_page_content_updated",
+        "name": "Notion Page Content Updated",
+        "description": "Trigger workflow when page content is changed in Notion"
+      },
+      {
+        "id": "notion_page_deleted",
+        "name": "Notion Page Deleted",
+        "description": "Trigger workflow when a page is deleted in Notion"
+      },
+      {
+        "id": "notion_database_created",
+        "name": "Notion Database Created",
+        "description": "Trigger workflow when a new database is created in Notion"
+      },
+      {
+        "id": "notion_database_schema_updated",
+        "name": "Notion Database Schema Updated",
+        "description": "Trigger workflow when a database schema is modified in Notion"
+      },
+      {
+        "id": "notion_database_deleted",
+        "name": "Notion Database Deleted",
+        "description": "Trigger workflow when a database is deleted in Notion"
+      },
+      {
+        "id": "notion_comment_created",
+        "name": "Notion Comment Created",
+        "description": "Trigger workflow when a comment or suggested edit is added in Notion"
+      },
+      {
+        "id": "notion_webhook",
+        "name": "Notion Webhook (All Events)",
+        "description": "Trigger workflow on any Notion webhook event"
+      }
+    ],
+    "triggerCount": 9,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "documents",

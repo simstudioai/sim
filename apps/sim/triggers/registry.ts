@@ -189,6 +189,17 @@ import {
   microsoftTeamsChatSubscriptionTrigger,
   microsoftTeamsWebhookTrigger,
 } from '@/triggers/microsoftteams'
+import {
+  notionCommentCreatedTrigger,
+  notionDatabaseCreatedTrigger,
+  notionDatabaseDeletedTrigger,
+  notionDatabaseSchemaUpdatedTrigger,
+  notionPageContentUpdatedTrigger,
+  notionPageCreatedTrigger,
+  notionPageDeletedTrigger,
+  notionPagePropertiesUpdatedTrigger,
+  notionWebhookTrigger,
+} from '@/triggers/notion'
 import { outlookPollingTrigger } from '@/triggers/outlook'
 import {
   resendEmailBouncedTrigger,
@@ -353,6 +364,15 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   linear_customer_request_updated: linearCustomerRequestUpdatedTrigger,
   microsoftteams_webhook: microsoftTeamsWebhookTrigger,
   microsoftteams_chat_subscription: microsoftTeamsChatSubscriptionTrigger,
+  notion_page_created: notionPageCreatedTrigger,
+  notion_page_properties_updated: notionPagePropertiesUpdatedTrigger,
+  notion_page_content_updated: notionPageContentUpdatedTrigger,
+  notion_page_deleted: notionPageDeletedTrigger,
+  notion_database_created: notionDatabaseCreatedTrigger,
+  notion_database_schema_updated: notionDatabaseSchemaUpdatedTrigger,
+  notion_database_deleted: notionDatabaseDeletedTrigger,
+  notion_comment_created: notionCommentCreatedTrigger,
+  notion_webhook: notionWebhookTrigger,
   outlook_poller: outlookPollingTrigger,
   resend_email_sent: resendEmailSentTrigger,
   resend_email_delivered: resendEmailDeliveredTrigger,
