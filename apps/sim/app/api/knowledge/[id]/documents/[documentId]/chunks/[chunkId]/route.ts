@@ -111,6 +111,7 @@ export async function PUT(
       const validatedData = UpdateChunkSchema.parse(body)
 
       const updatedChunk = await updateChunk(
+        knowledgeBaseId,
         chunkId,
         validatedData,
         requestId,
@@ -187,7 +188,7 @@ export async function DELETE(
       )
     }
 
-    await deleteChunk(chunkId, documentId, requestId)
+    await deleteChunk(knowledgeBaseId, chunkId, documentId, requestId)
 
     logger.info(
       `[${requestId}] Chunk deleted: ${chunkId} from document ${documentId} in knowledge base ${knowledgeBaseId}`

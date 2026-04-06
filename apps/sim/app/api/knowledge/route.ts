@@ -47,7 +47,7 @@ const CreateKnowledgeBaseSchema = z.object({
     .url('Ollama base URL must be a valid URL')
     .refine(isAllowedOllamaUrl, {
       message:
-        'Ollama base URL must point to localhost, a private network address, or a Docker service hostname',
+        'Ollama base URL must point to localhost, a private IP address, or host.docker.internal',
     })
     .optional(),
   chunkingConfig: z

@@ -94,7 +94,7 @@ export async function GET(
       sortOrder: searchParams.get('sortOrder') || undefined,
     })
 
-    const result = await queryChunks(documentId, queryParams, requestId)
+    const result = await queryChunks(knowledgeBaseId, documentId, queryParams, requestId)
 
     return NextResponse.json({
       success: true,
@@ -313,7 +313,7 @@ export async function PATCH(
       const validatedData = BatchOperationSchema.parse(body)
       const { operation, chunkIds } = validatedData
 
-      const result = await batchChunkOperation(documentId, operation, chunkIds, requestId)
+      const result = await batchChunkOperation(knowledgeBaseId, documentId, operation, chunkIds, requestId)
 
       return NextResponse.json({
         success: true,

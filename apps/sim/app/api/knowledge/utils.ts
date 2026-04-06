@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
+import { getKBChunk, parseEmbeddingModel } from '@/lib/knowledge/dynamic-tables'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 export interface KnowledgeBaseData {
@@ -404,6 +405,28 @@ export async function checkChunkAccess(
     return {
       hasAccess: false,
       reason: `Document is not ready for access (status: ${docData.processingStatus})`,
+    }
+  }
+
+  // Determine which table stores the chunk based on the KB's embedding provider
+  const kbConfig = await db
+    .select({ embeddingModel: knowledgeBase.embeddingModel })
+    .from(knowledgeBase)
+    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+    .limit(1)
+
+  const { provider } = parseEmbeddingModel(kbConfig[0]?.embeddingModel)
+
+  if (provider === 'ollama') {
+    const chunkRow = await getKBChunk(knowledgeBaseId, chunkId, documentId)
+    if (!chunkRow) {
+      return { hasAccess: false, notFound: true, reason: 'Chunk not found' }
+    }
+    return {
+      hasAccess: true,
+      chunk: chunkRow as EmbeddingData,
+      document: docData,
+      knowledgeBase: kbAccess.knowledgeBase!,
     }
   }
 

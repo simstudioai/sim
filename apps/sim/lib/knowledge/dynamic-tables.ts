@@ -299,6 +299,235 @@ export async function searchKBTable(
   return result as unknown as SearchResult[]
 }
 
+// ─── Per-KB chunk management helpers ────────────────────────────────────────
+
+/**
+ * Query chunks from a per-KB table with filtering and pagination.
+ * Returns rows without the embedding vector column.
+ */
+export async function queryKBChunks(
+  kbId: string,
+  documentId: string,
+  filters: {
+    search?: string
+    enabled?: string
+    limit: number
+    offset: number
+    sortBy: string
+    sortOrder: string
+  }
+): Promise<{ rows: unknown[]; total: number }> {
+  const { search, enabled = 'all', limit, offset, sortBy = 'chunkIndex', sortOrder = 'asc' } = filters
+  const table = kbTableName(kbId)
+
+  const conditions: ReturnType<typeof sql>[] = [sql`document_id = ${documentId}`]
+  if (enabled === 'true') conditions.push(sql`enabled = TRUE`)
+  else if (enabled === 'false') conditions.push(sql`enabled = FALSE`)
+  if (search) conditions.push(sql`content ILIKE ${'%' + search + '%'}`)
+
+  const colMap: Record<string, string> = {
+    chunkIndex: 'chunk_index',
+    tokenCount: 'token_count',
+    enabled: 'enabled',
+  }
+  const sortCol = colMap[sortBy] ?? 'chunk_index'
+  const dir = sortOrder === 'desc' ? 'DESC' : 'ASC'
+  const whereClause = sql.join(conditions, sql` AND `)
+
+  const rows = await db.execute(sql`
+    SELECT
+      id::text, chunk_index AS "chunkIndex", content,
+      content_length AS "contentLength", token_count AS "tokenCount",
+      enabled, start_offset AS "startOffset", end_offset AS "endOffset",
+      tag1, tag2, tag3, tag4, tag5, tag6, tag7,
+      created_at AS "createdAt", updated_at AS "updatedAt"
+    FROM ${sql.raw(`"${table}"`)}
+    WHERE ${whereClause}
+    ORDER BY ${sql.raw(sortCol)} ${sql.raw(dir)}
+    LIMIT ${limit} OFFSET ${offset}
+  `)
+
+  const countRows = await db.execute(sql`
+    SELECT COUNT(*)::int AS count FROM ${sql.raw(`"${table}"`)} WHERE ${whereClause}
+  `)
+
+  return { rows, total: Number((countRows[0] as Record<string, unknown>)?.count ?? 0) }
+}
+
+/**
+ * Fetch a single chunk row from a per-KB table for access checks.
+ * Excludes the embedding vector column.
+ */
+export async function getKBChunk(
+  kbId: string,
+  chunkId: string,
+  documentId: string
+): Promise<unknown | null> {
+  const table = kbTableName(kbId)
+  const rows = await db.execute(sql`
+    SELECT
+      id::text, knowledge_base_id AS "knowledgeBaseId", document_id AS "documentId",
+      chunk_index AS "chunkIndex", chunk_hash AS "chunkHash", content,
+      content_length AS "contentLength", token_count AS "tokenCount",
+      embedding_model AS "embeddingModel",
+      start_offset AS "startOffset", end_offset AS "endOffset",
+      tag1, tag2, tag3, tag4, tag5, tag6, tag7,
+      number1::float8, number2::float8, number3::float8, number4::float8, number5::float8,
+      date1, date2, boolean1, boolean2, boolean3,
+      enabled, created_at AS "createdAt", updated_at AS "updatedAt"
+    FROM ${sql.raw(`"${table}"`)}
+    WHERE id = ${chunkId} AND document_id = ${documentId}
+    LIMIT 1
+  `)
+  return rows[0] ?? null
+}
+
+/**
+ * Get tokenCount and contentLength for specific chunks in a per-KB table.
+ * Used to compute document statistic deltas before deletion.
+ */
+export async function getKBChunksStats(
+  kbId: string,
+  documentId: string,
+  chunkIds: string[],
+  txOrDb: Pick<typeof db, 'execute'> = db
+): Promise<Array<{ tokenCount: number; contentLength: number }>> {
+  if (chunkIds.length === 0) return []
+  const table = kbTableName(kbId)
+  const idsFragment = sql.join(
+    chunkIds.map((id) => sql`${id}`),
+    sql`, `
+  )
+  const rows = await txOrDb.execute(sql`
+    SELECT token_count AS "tokenCount", content_length AS "contentLength"
+    FROM ${sql.raw(`"${table}"`)}
+    WHERE document_id = ${documentId} AND id IN (${idsFragment})
+  `)
+  return rows as unknown as Array<{ tokenCount: number; contentLength: number }>
+}
+
+/**
+ * Get a single chunk's stats from a per-KB table.
+ * Used to compute document statistic deltas before single-chunk deletion.
+ */
+export async function getKBChunkForDelete(
+  kbId: string,
+  chunkId: string,
+  documentId: string,
+  txOrDb: Pick<typeof db, 'execute'> = db
+): Promise<{ tokenCount: number; contentLength: number } | null> {
+  const table = kbTableName(kbId)
+  const rows = await txOrDb.execute(sql`
+    SELECT token_count AS "tokenCount", content_length AS "contentLength"
+    FROM ${sql.raw(`"${table}"`)}
+    WHERE id = ${chunkId} AND document_id = ${documentId}
+    LIMIT 1
+  `)
+  if (rows.length === 0) return null
+  return rows[0] as { tokenCount: number; contentLength: number }
+}
+
+/**
+ * Delete specific chunks from a per-KB table.
+ */
+export async function deleteKBChunksByIds(
+  kbId: string,
+  documentId: string,
+  chunkIds: string[],
+  txOrDb: Pick<typeof db, 'execute'> = db
+): Promise<void> {
+  if (chunkIds.length === 0) return
+  const table = kbTableName(kbId)
+  const idsFragment = sql.join(
+    chunkIds.map((id) => sql`${id}`),
+    sql`, `
+  )
+  await txOrDb.execute(sql`
+    DELETE FROM ${sql.raw(`"${table}"`)}
+    WHERE document_id = ${documentId} AND id IN (${idsFragment})
+  `)
+}
+
+/**
+ * Delete a single chunk from a per-KB table.
+ */
+export async function deleteKBChunkById(
+  kbId: string,
+  chunkId: string,
+  txOrDb: Pick<typeof db, 'execute'> = db
+): Promise<void> {
+  const table = kbTableName(kbId)
+  await txOrDb.execute(sql`
+    DELETE FROM ${sql.raw(`"${table}"`)} WHERE id = ${chunkId}
+  `)
+}
+
+/**
+ * Enable or disable specific chunks in a per-KB table.
+ */
+export async function setKBChunksEnabled(
+  kbId: string,
+  documentId: string,
+  chunkIds: string[],
+  enabled: boolean,
+  txOrDb: Pick<typeof db, 'execute'> = db
+): Promise<void> {
+  if (chunkIds.length === 0) return
+  const table = kbTableName(kbId)
+  const idsFragment = sql.join(
+    chunkIds.map((id) => sql`${id}`),
+    sql`, `
+  )
+  await txOrDb.execute(sql`
+    UPDATE ${sql.raw(`"${table}"`)}
+    SET enabled = ${enabled}, updated_at = NOW()
+    WHERE document_id = ${documentId} AND id IN (${idsFragment})
+  `)
+}
+
+/**
+ * Update mutable fields of a single chunk in a per-KB table.
+ * Pass an `embedding` array to also update the stored vector via a string cast,
+ * which avoids the need to know the table's declared dimension.
+ */
+export async function updateKBChunkFields(
+  kbId: string,
+  chunkId: string,
+  fields: {
+    content?: string
+    contentLength?: number
+    tokenCount?: number
+    chunkHash?: string
+    embedding?: number[]
+    enabled?: boolean
+  },
+  txOrDb: Pick<typeof db, 'execute'> = db
+): Promise<void> {
+  const table = kbTableName(kbId)
+  const sets: ReturnType<typeof sql>[] = [sql`updated_at = NOW()`]
+
+  if (fields.content !== undefined) sets.push(sql`content = ${fields.content}`)
+  if (fields.contentLength !== undefined) sets.push(sql`content_length = ${fields.contentLength}`)
+  if (fields.tokenCount !== undefined) sets.push(sql`token_count = ${fields.tokenCount}`)
+  if (fields.chunkHash !== undefined) sets.push(sql`chunk_hash = ${fields.chunkHash}`)
+  if (fields.enabled !== undefined) sets.push(sql`enabled = ${fields.enabled}`)
+  if (fields.embedding !== undefined) {
+    for (let i = 0; i < fields.embedding.length; i++) {
+      if (!Number.isFinite(fields.embedding[i])) {
+        throw new Error(`Invalid embedding value at dimension ${i}: ${fields.embedding[i]}`)
+      }
+    }
+    const vectorStr = `[${fields.embedding.join(',')}]`
+    sets.push(sql`embedding = ${vectorStr}::vector`)
+  }
+
+  await txOrDb.execute(sql`
+    UPDATE ${sql.raw(`"${table}"`)}
+    SET ${sql.join(sets, sql`, `)}
+    WHERE id = ${chunkId}
+  `)
+}
+
 /** Tag-only search against a per-KB table (no vector similarity) */
 export async function searchKBTableTagOnly(
   kbId: string,

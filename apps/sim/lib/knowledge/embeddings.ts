@@ -38,7 +38,7 @@ export function isAllowedOllamaUrl(url: string): boolean {
       }
       return false
     }
-    if (!hostname.includes('.') || hostname === 'host.docker.internal') return true
+    if (hostname === 'host.docker.internal') return true
     return false
   } catch {
     return false
