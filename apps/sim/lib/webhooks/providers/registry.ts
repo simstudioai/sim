@@ -35,6 +35,7 @@ import type { WebhookProviderHandler } from '@/lib/webhooks/providers/types'
 import { verifyTokenAuth } from '@/lib/webhooks/providers/utils'
 import { webflowHandler } from '@/lib/webhooks/providers/webflow'
 import { whatsappHandler } from '@/lib/webhooks/providers/whatsapp'
+import { zoomHandler } from '@/lib/webhooks/providers/zoom'
 
 const logger = createLogger('WebhookProviderRegistry')
 
@@ -72,6 +73,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   typeform: typeformHandler,
   webflow: webflowHandler,
   whatsapp: whatsappHandler,
+  zoom: zoomHandler,
 }
 
 /**

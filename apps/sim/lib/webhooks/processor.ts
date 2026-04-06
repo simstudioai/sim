@@ -117,7 +117,7 @@ export async function parseWebhookBody(
 }
 
 /** Providers that implement challenge/verification handling, checked before webhook lookup. */
-const CHALLENGE_PROVIDERS = ['slack', 'microsoft-teams', 'whatsapp'] as const
+const CHALLENGE_PROVIDERS = ['slack', 'microsoft-teams', 'whatsapp', 'zoom'] as const
 
 export async function handleProviderChallenges(
   body: unknown,
