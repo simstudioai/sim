@@ -143,12 +143,14 @@ export const zoomHandler: WebhookProviderHandler = {
     // Verify the challenge request's signature to prevent HMAC oracle attacks
     const signature = request.headers.get('x-zm-signature')
     const timestamp = request.headers.get('x-zm-request-timestamp')
-    if (signature && timestamp) {
-      const rawBody = JSON.stringify(body)
-      if (!validateZoomSignature(secretToken, signature, timestamp, rawBody)) {
-        logger.warn(`[${requestId}] Zoom challenge request failed signature verification`)
-        return null
-      }
+    if (!signature || !timestamp) {
+      logger.warn(`[${requestId}] Zoom challenge request missing signature headers — rejecting`)
+      return null
+    }
+    const rawBody = JSON.stringify(body)
+    if (!validateZoomSignature(secretToken, signature, timestamp, rawBody)) {
+      logger.warn(`[${requestId}] Zoom challenge request failed signature verification`)
+      return null
     }
 
     const hashForValidate = crypto
