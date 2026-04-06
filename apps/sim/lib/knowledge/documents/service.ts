@@ -492,7 +492,7 @@ export async function processDocumentAsync(
       if (kbConfig.ollamaBaseUrl && !isAllowedOllamaUrl(kbConfig.ollamaBaseUrl)) {
         throw new Error(
           `Knowledge base has a disallowed Ollama URL: ${kbConfig.ollamaBaseUrl}. ` +
-            'The URL must point to localhost, a private network address, or a Docker service hostname.'
+            'The URL must point to localhost, a private IP address, or host.docker.internal.'
         )
       }
       ollamaContextLength = await getOllamaModelContextLength(
@@ -697,7 +697,7 @@ export async function processDocumentAsync(
               await insertKBEmbeddings(
                 knowledgeBaseId,
                 embeddingRecords,
-                kb[0].embeddingDimension,
+                kb[0].embeddingDimension ?? 768,
                 tx
               )
             } else {
