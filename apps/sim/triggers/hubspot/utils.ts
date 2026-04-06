@@ -190,6 +190,76 @@ function buildBaseHubSpotOutputs(): Record<string, TriggerOutput> {
 }
 
 /**
+ * Merge-specific webhook outputs that include mergedObjectIds
+ */
+function buildMergeHubSpotOutputs(): Record<string, TriggerOutput> {
+  return {
+    payload: {
+      type: 'array',
+      description: 'Full webhook payload array from HubSpot containing merge event details',
+      items: {
+        type: 'object',
+        properties: {
+          objectId: { type: 'number', description: 'HubSpot object ID (winning/primary record)' },
+          subscriptionType: { type: 'string', description: 'Type of subscription event' },
+          portalId: { type: 'number', description: 'HubSpot portal ID' },
+          occurredAt: { type: 'number', description: 'Timestamp when event occurred (ms)' },
+          attemptNumber: { type: 'number', description: 'Webhook delivery attempt number' },
+          eventId: { type: 'number', description: 'Event ID' },
+          changeSource: { type: 'string', description: 'Source of the change' },
+          mergedObjectIds: {
+            type: 'array',
+            description: 'IDs of the objects that were merged into the primary record',
+          },
+        },
+      },
+    },
+    provider: {
+      type: 'string',
+      description: 'Provider name (hubspot)',
+    },
+    providerConfig: {
+      type: 'object',
+      description: 'Provider configuration',
+      properties: {
+        appId: {
+          type: 'string',
+          description: 'HubSpot App ID',
+        },
+        clientId: {
+          type: 'string',
+          description: 'HubSpot Client ID',
+        },
+        triggerId: {
+          type: 'string',
+          description: 'Trigger ID (e.g., hubspot_contact_merged)',
+        },
+        clientSecret: {
+          type: 'string',
+          description: 'HubSpot Client Secret',
+        },
+        developerApiKey: {
+          type: 'string',
+          description: 'HubSpot Developer API Key',
+        },
+        curlSetWebhookUrl: {
+          type: 'string',
+          description: 'curl command to set webhook URL',
+        },
+        curlCreateSubscription: {
+          type: 'string',
+          description: 'curl command to create subscription',
+        },
+        webhookUrlDisplay: {
+          type: 'string',
+          description: 'Webhook URL display value',
+        },
+      },
+    },
+  } as any
+}
+
+/**
  * Build output schema for contact creation events
  */
 export function buildContactCreatedOutputs(): Record<string, TriggerOutput> {
@@ -221,7 +291,7 @@ export function buildContactPropertyChangedOutputs(): Record<string, TriggerOutp
  * Build output schema for contact merge events
  */
 export function buildContactMergedOutputs(): Record<string, TriggerOutput> {
-  return buildBaseHubSpotOutputs()
+  return buildMergeHubSpotOutputs()
 }
 
 /**
@@ -256,7 +326,7 @@ export function buildCompanyPropertyChangedOutputs(): Record<string, TriggerOutp
  * Build output schema for company merge events
  */
 export function buildCompanyMergedOutputs(): Record<string, TriggerOutput> {
-  return buildBaseHubSpotOutputs()
+  return buildMergeHubSpotOutputs()
 }
 
 /**
@@ -326,7 +396,7 @@ export function buildDealPropertyChangedOutputs(): Record<string, TriggerOutput>
  * Build output schema for deal merge events
  */
 export function buildDealMergedOutputs(): Record<string, TriggerOutput> {
-  return buildBaseHubSpotOutputs()
+  return buildMergeHubSpotOutputs()
 }
 
 /**
@@ -361,7 +431,7 @@ export function buildTicketPropertyChangedOutputs(): Record<string, TriggerOutpu
  * Build output schema for ticket merge events
  */
 export function buildTicketMergedOutputs(): Record<string, TriggerOutput> {
-  return buildBaseHubSpotOutputs()
+  return buildMergeHubSpotOutputs()
 }
 
 /**
