@@ -6,11 +6,15 @@ import type { TriggerOutput } from '@/triggers/types'
 export const hubspotAllTriggerOptions = [
   { label: 'Contact Created', id: 'hubspot_contact_created' },
   { label: 'Contact Deleted', id: 'hubspot_contact_deleted' },
+  { label: 'Contact Merged', id: 'hubspot_contact_merged' },
   { label: 'Contact Privacy Deleted', id: 'hubspot_contact_privacy_deleted' },
   { label: 'Contact Property Changed', id: 'hubspot_contact_property_changed' },
+  { label: 'Contact Restored', id: 'hubspot_contact_restored' },
   { label: 'Company Created', id: 'hubspot_company_created' },
   { label: 'Company Deleted', id: 'hubspot_company_deleted' },
+  { label: 'Company Merged', id: 'hubspot_company_merged' },
   { label: 'Company Property Changed', id: 'hubspot_company_property_changed' },
+  { label: 'Company Restored', id: 'hubspot_company_restored' },
   { label: 'Conversation Creation', id: 'hubspot_conversation_creation' },
   { label: 'Conversation Deletion', id: 'hubspot_conversation_deletion' },
   { label: 'Conversation New Message', id: 'hubspot_conversation_new_message' },
@@ -18,10 +22,15 @@ export const hubspotAllTriggerOptions = [
   { label: 'Conversation Property Changed', id: 'hubspot_conversation_property_changed' },
   { label: 'Deal Created', id: 'hubspot_deal_created' },
   { label: 'Deal Deleted', id: 'hubspot_deal_deleted' },
+  { label: 'Deal Merged', id: 'hubspot_deal_merged' },
   { label: 'Deal Property Changed', id: 'hubspot_deal_property_changed' },
+  { label: 'Deal Restored', id: 'hubspot_deal_restored' },
   { label: 'Ticket Created', id: 'hubspot_ticket_created' },
   { label: 'Ticket Deleted', id: 'hubspot_ticket_deleted' },
+  { label: 'Ticket Merged', id: 'hubspot_ticket_merged' },
   { label: 'Ticket Property Changed', id: 'hubspot_ticket_property_changed' },
+  { label: 'Ticket Restored', id: 'hubspot_ticket_restored' },
+  { label: 'Generic Webhook (All Events)', id: 'hubspot_webhook' },
 ]
 
 /**
@@ -30,8 +39,10 @@ export const hubspotAllTriggerOptions = [
 export const hubspotContactTriggerOptions = [
   { label: 'Contact Created', id: 'hubspot_contact_created' },
   { label: 'Contact Deleted', id: 'hubspot_contact_deleted' },
+  { label: 'Contact Merged', id: 'hubspot_contact_merged' },
   { label: 'Contact Privacy Deleted', id: 'hubspot_contact_privacy_deleted' },
   { label: 'Contact Property Changed', id: 'hubspot_contact_property_changed' },
+  { label: 'Contact Restored', id: 'hubspot_contact_restored' },
 ]
 
 /**
@@ -40,7 +51,9 @@ export const hubspotContactTriggerOptions = [
 export const hubspotCompanyTriggerOptions = [
   { label: 'Company Created', id: 'hubspot_company_created' },
   { label: 'Company Deleted', id: 'hubspot_company_deleted' },
+  { label: 'Company Merged', id: 'hubspot_company_merged' },
   { label: 'Company Property Changed', id: 'hubspot_company_property_changed' },
+  { label: 'Company Restored', id: 'hubspot_company_restored' },
 ]
 
 /**
@@ -60,7 +73,9 @@ export const hubspotConversationTriggerOptions = [
 export const hubspotDealTriggerOptions = [
   { label: 'Deal Created', id: 'hubspot_deal_created' },
   { label: 'Deal Deleted', id: 'hubspot_deal_deleted' },
+  { label: 'Deal Merged', id: 'hubspot_deal_merged' },
   { label: 'Deal Property Changed', id: 'hubspot_deal_property_changed' },
+  { label: 'Deal Restored', id: 'hubspot_deal_restored' },
 ]
 
 /**
@@ -69,7 +84,9 @@ export const hubspotDealTriggerOptions = [
 export const hubspotTicketTriggerOptions = [
   { label: 'Ticket Created', id: 'hubspot_ticket_created' },
   { label: 'Ticket Deleted', id: 'hubspot_ticket_deleted' },
+  { label: 'Ticket Merged', id: 'hubspot_ticket_merged' },
   { label: 'Ticket Property Changed', id: 'hubspot_ticket_property_changed' },
+  { label: 'Ticket Restored', id: 'hubspot_ticket_restored' },
 ]
 
 /**
@@ -201,6 +218,20 @@ export function buildContactPropertyChangedOutputs(): Record<string, TriggerOutp
 }
 
 /**
+ * Build output schema for contact merge events
+ */
+export function buildContactMergedOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for contact restore events
+ */
+export function buildContactRestoredOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
  * Build output schema for company creation events
  */
 export function buildCompanyCreatedOutputs(): Record<string, TriggerOutput> {
@@ -218,6 +249,20 @@ export function buildCompanyDeletedOutputs(): Record<string, TriggerOutput> {
  * Build output schema for company property change events
  */
 export function buildCompanyPropertyChangedOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for company merge events
+ */
+export function buildCompanyMergedOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for company restore events
+ */
+export function buildCompanyRestoredOutputs(): Record<string, TriggerOutput> {
   return buildBaseHubSpotOutputs()
 }
 
@@ -278,6 +323,20 @@ export function buildDealPropertyChangedOutputs(): Record<string, TriggerOutput>
 }
 
 /**
+ * Build output schema for deal merge events
+ */
+export function buildDealMergedOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for deal restore events
+ */
+export function buildDealRestoredOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
  * Build output schema for ticket creation events
  */
 export function buildTicketCreatedOutputs(): Record<string, TriggerOutput> {
@@ -299,17 +358,42 @@ export function buildTicketPropertyChangedOutputs(): Record<string, TriggerOutpu
 }
 
 /**
+ * Build output schema for ticket merge events
+ */
+export function buildTicketMergedOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for ticket restore events
+ */
+export function buildTicketRestoredOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for generic webhook events
+ */
+export function buildWebhookOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
  * Check if a HubSpot event matches the expected trigger configuration
  */
 export function isHubSpotContactEventMatch(triggerId: string, eventType: string): boolean {
   const eventMap: Record<string, string> = {
     hubspot_contact_created: 'contact.creation',
     hubspot_contact_deleted: 'contact.deletion',
+    hubspot_contact_merged: 'contact.merge',
     hubspot_contact_privacy_deleted: 'contact.privacyDeletion',
     hubspot_contact_property_changed: 'contact.propertyChange',
+    hubspot_contact_restored: 'contact.restore',
     hubspot_company_created: 'company.creation',
     hubspot_company_deleted: 'company.deletion',
+    hubspot_company_merged: 'company.merge',
     hubspot_company_property_changed: 'company.propertyChange',
+    hubspot_company_restored: 'company.restore',
     hubspot_conversation_creation: 'conversation.creation',
     hubspot_conversation_deletion: 'conversation.deletion',
     hubspot_conversation_new_message: 'conversation.newMessage',
@@ -317,10 +401,14 @@ export function isHubSpotContactEventMatch(triggerId: string, eventType: string)
     hubspot_conversation_property_changed: 'conversation.propertyChange',
     hubspot_deal_created: 'deal.creation',
     hubspot_deal_deleted: 'deal.deletion',
+    hubspot_deal_merged: 'deal.merge',
     hubspot_deal_property_changed: 'deal.propertyChange',
+    hubspot_deal_restored: 'deal.restore',
     hubspot_ticket_created: 'ticket.creation',
     hubspot_ticket_deleted: 'ticket.deletion',
+    hubspot_ticket_merged: 'ticket.merge',
     hubspot_ticket_property_changed: 'ticket.propertyChange',
+    hubspot_ticket_restored: 'ticket.restore',
   }
 
   const expectedEventType = eventMap[triggerId]
