@@ -6,11 +6,15 @@ import type { TriggerOutput } from '@/triggers/types'
 export const hubspotAllTriggerOptions = [
   { label: 'Contact Created', id: 'hubspot_contact_created' },
   { label: 'Contact Deleted', id: 'hubspot_contact_deleted' },
+  { label: 'Contact Merged', id: 'hubspot_contact_merged' },
   { label: 'Contact Privacy Deleted', id: 'hubspot_contact_privacy_deleted' },
   { label: 'Contact Property Changed', id: 'hubspot_contact_property_changed' },
+  { label: 'Contact Restored', id: 'hubspot_contact_restored' },
   { label: 'Company Created', id: 'hubspot_company_created' },
   { label: 'Company Deleted', id: 'hubspot_company_deleted' },
+  { label: 'Company Merged', id: 'hubspot_company_merged' },
   { label: 'Company Property Changed', id: 'hubspot_company_property_changed' },
+  { label: 'Company Restored', id: 'hubspot_company_restored' },
   { label: 'Conversation Creation', id: 'hubspot_conversation_creation' },
   { label: 'Conversation Deletion', id: 'hubspot_conversation_deletion' },
   { label: 'Conversation New Message', id: 'hubspot_conversation_new_message' },
@@ -18,10 +22,15 @@ export const hubspotAllTriggerOptions = [
   { label: 'Conversation Property Changed', id: 'hubspot_conversation_property_changed' },
   { label: 'Deal Created', id: 'hubspot_deal_created' },
   { label: 'Deal Deleted', id: 'hubspot_deal_deleted' },
+  { label: 'Deal Merged', id: 'hubspot_deal_merged' },
   { label: 'Deal Property Changed', id: 'hubspot_deal_property_changed' },
+  { label: 'Deal Restored', id: 'hubspot_deal_restored' },
   { label: 'Ticket Created', id: 'hubspot_ticket_created' },
   { label: 'Ticket Deleted', id: 'hubspot_ticket_deleted' },
+  { label: 'Ticket Merged', id: 'hubspot_ticket_merged' },
   { label: 'Ticket Property Changed', id: 'hubspot_ticket_property_changed' },
+  { label: 'Ticket Restored', id: 'hubspot_ticket_restored' },
+  { label: 'Generic Webhook (All Events)', id: 'hubspot_webhook' },
 ]
 
 /**
@@ -30,8 +39,10 @@ export const hubspotAllTriggerOptions = [
 export const hubspotContactTriggerOptions = [
   { label: 'Contact Created', id: 'hubspot_contact_created' },
   { label: 'Contact Deleted', id: 'hubspot_contact_deleted' },
+  { label: 'Contact Merged', id: 'hubspot_contact_merged' },
   { label: 'Contact Privacy Deleted', id: 'hubspot_contact_privacy_deleted' },
   { label: 'Contact Property Changed', id: 'hubspot_contact_property_changed' },
+  { label: 'Contact Restored', id: 'hubspot_contact_restored' },
 ]
 
 /**
@@ -40,7 +51,9 @@ export const hubspotContactTriggerOptions = [
 export const hubspotCompanyTriggerOptions = [
   { label: 'Company Created', id: 'hubspot_company_created' },
   { label: 'Company Deleted', id: 'hubspot_company_deleted' },
+  { label: 'Company Merged', id: 'hubspot_company_merged' },
   { label: 'Company Property Changed', id: 'hubspot_company_property_changed' },
+  { label: 'Company Restored', id: 'hubspot_company_restored' },
 ]
 
 /**
@@ -60,7 +73,9 @@ export const hubspotConversationTriggerOptions = [
 export const hubspotDealTriggerOptions = [
   { label: 'Deal Created', id: 'hubspot_deal_created' },
   { label: 'Deal Deleted', id: 'hubspot_deal_deleted' },
+  { label: 'Deal Merged', id: 'hubspot_deal_merged' },
   { label: 'Deal Property Changed', id: 'hubspot_deal_property_changed' },
+  { label: 'Deal Restored', id: 'hubspot_deal_restored' },
 ]
 
 /**
@@ -69,19 +84,34 @@ export const hubspotDealTriggerOptions = [
 export const hubspotTicketTriggerOptions = [
   { label: 'Ticket Created', id: 'hubspot_ticket_created' },
   { label: 'Ticket Deleted', id: 'hubspot_ticket_deleted' },
+  { label: 'Ticket Merged', id: 'hubspot_ticket_merged' },
   { label: 'Ticket Property Changed', id: 'hubspot_ticket_property_changed' },
+  { label: 'Ticket Restored', id: 'hubspot_ticket_restored' },
 ]
+
+/**
+ * Derives the required OAuth scope from a HubSpot event type
+ */
+function getScopeForEventType(eventType: string): string {
+  if (eventType.startsWith('company')) return 'crm.objects.companies.read'
+  if (eventType.startsWith('deal')) return 'crm.objects.deals.read'
+  if (eventType.startsWith('ticket')) return 'tickets'
+  if (eventType === 'All Events')
+    return 'crm.objects.contacts.read, crm.objects.companies.read, crm.objects.deals.read, tickets'
+  return 'crm.objects.contacts.read'
+}
 
 /**
  * Generate setup instructions for a specific HubSpot event type
  */
 export function hubspotSetupInstructions(eventType: string, additionalNotes?: string): string {
+  const scope = getScopeForEventType(eventType)
   const instructions = [
     '<strong>Step 1: Create a HubSpot Developer Account</strong><br/>Sign up for a free developer account at <a href="https://developers.hubspot.com" target="_blank">developers.hubspot.com</a> if you don\'t have one.',
     '<strong>Step 2: Create a Public App via CLI</strong><br/><strong>Note:</strong> HubSpot has deprecated the web UI for creating apps. You must use the HubSpot CLI to create and manage apps. Install the CLI with <code>npm install -g @hubspot/cli</code> and run <code>hs project create</code> to create a new app. See <a href="https://developers.hubspot.com/docs/platform/create-an-app" target="_blank">HubSpot\'s documentation</a> for details.',
     '<strong>Step 3: Configure OAuth Settings</strong><br/>After creating your app via CLI, configure it to add the OAuth Redirect URL: <code>https://www.sim.ai/api/auth/oauth2/callback/hubspot</code>. Then retrieve your <strong>Client ID</strong> and <strong>Client Secret</strong> from your app configuration and enter them in the fields above.',
     "<strong>Step 4: Get App ID and Developer API Key</strong><br/>In your HubSpot developer account, find your <strong>App ID</strong> (shown below your app name) and your <strong>Developer API Key</strong> (in app settings). You'll need both for the next steps.",
-    '<strong>Step 5: Set Required Scopes</strong><br/>Configure your app to include the required OAuth scope: <code>crm.objects.contacts.read</code>',
+    `<strong>Step 5: Set Required Scopes</strong><br/>Configure your app to include the required OAuth scope(s): <code>${scope}</code>`,
     '<strong>Step 6: Configure Webhook in HubSpot via API</strong><br/>After saving above, copy the <strong>Webhook URL</strong> and run the two curl commands below (replace <code>{YOUR_APP_ID}</code>, <code>{YOUR_DEVELOPER_API_KEY}</code>, and <code>{YOUR_WEBHOOK_URL_FROM_ABOVE}</code> with your actual values).',
     "<strong>Step 7: Test Your Webhook</strong><br/>Create or modify a contact in HubSpot to trigger the webhook. Check your workflow execution logs in Sim to verify it's working.",
   ]
@@ -173,6 +203,76 @@ function buildBaseHubSpotOutputs(): Record<string, TriggerOutput> {
 }
 
 /**
+ * Merge-specific webhook outputs that include mergedObjectIds
+ */
+function buildMergeHubSpotOutputs(): Record<string, TriggerOutput> {
+  return {
+    payload: {
+      type: 'array',
+      description: 'Full webhook payload array from HubSpot containing merge event details',
+      items: {
+        type: 'object',
+        properties: {
+          objectId: { type: 'number', description: 'HubSpot object ID (winning/primary record)' },
+          subscriptionType: { type: 'string', description: 'Type of subscription event' },
+          portalId: { type: 'number', description: 'HubSpot portal ID' },
+          occurredAt: { type: 'number', description: 'Timestamp when event occurred (ms)' },
+          attemptNumber: { type: 'number', description: 'Webhook delivery attempt number' },
+          eventId: { type: 'number', description: 'Event ID' },
+          changeSource: { type: 'string', description: 'Source of the change' },
+          mergedObjectIds: {
+            type: 'array',
+            description: 'IDs of the objects that were merged into the primary record',
+          },
+        },
+      },
+    },
+    provider: {
+      type: 'string',
+      description: 'Provider name (hubspot)',
+    },
+    providerConfig: {
+      type: 'object',
+      description: 'Provider configuration',
+      properties: {
+        appId: {
+          type: 'string',
+          description: 'HubSpot App ID',
+        },
+        clientId: {
+          type: 'string',
+          description: 'HubSpot Client ID',
+        },
+        triggerId: {
+          type: 'string',
+          description: 'Trigger ID (e.g., hubspot_contact_merged)',
+        },
+        clientSecret: {
+          type: 'string',
+          description: 'HubSpot Client Secret',
+        },
+        developerApiKey: {
+          type: 'string',
+          description: 'HubSpot Developer API Key',
+        },
+        curlSetWebhookUrl: {
+          type: 'string',
+          description: 'curl command to set webhook URL',
+        },
+        curlCreateSubscription: {
+          type: 'string',
+          description: 'curl command to create subscription',
+        },
+        webhookUrlDisplay: {
+          type: 'string',
+          description: 'Webhook URL display value',
+        },
+      },
+    },
+  } as any
+}
+
+/**
  * Build output schema for contact creation events
  */
 export function buildContactCreatedOutputs(): Record<string, TriggerOutput> {
@@ -201,6 +301,20 @@ export function buildContactPropertyChangedOutputs(): Record<string, TriggerOutp
 }
 
 /**
+ * Build output schema for contact merge events
+ */
+export function buildContactMergedOutputs(): Record<string, TriggerOutput> {
+  return buildMergeHubSpotOutputs()
+}
+
+/**
+ * Build output schema for contact restore events
+ */
+export function buildContactRestoredOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
  * Build output schema for company creation events
  */
 export function buildCompanyCreatedOutputs(): Record<string, TriggerOutput> {
@@ -218,6 +332,20 @@ export function buildCompanyDeletedOutputs(): Record<string, TriggerOutput> {
  * Build output schema for company property change events
  */
 export function buildCompanyPropertyChangedOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for company merge events
+ */
+export function buildCompanyMergedOutputs(): Record<string, TriggerOutput> {
+  return buildMergeHubSpotOutputs()
+}
+
+/**
+ * Build output schema for company restore events
+ */
+export function buildCompanyRestoredOutputs(): Record<string, TriggerOutput> {
   return buildBaseHubSpotOutputs()
 }
 
@@ -278,6 +406,20 @@ export function buildDealPropertyChangedOutputs(): Record<string, TriggerOutput>
 }
 
 /**
+ * Build output schema for deal merge events
+ */
+export function buildDealMergedOutputs(): Record<string, TriggerOutput> {
+  return buildMergeHubSpotOutputs()
+}
+
+/**
+ * Build output schema for deal restore events
+ */
+export function buildDealRestoredOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
  * Build output schema for ticket creation events
  */
 export function buildTicketCreatedOutputs(): Record<string, TriggerOutput> {
@@ -299,17 +441,42 @@ export function buildTicketPropertyChangedOutputs(): Record<string, TriggerOutpu
 }
 
 /**
+ * Build output schema for ticket merge events
+ */
+export function buildTicketMergedOutputs(): Record<string, TriggerOutput> {
+  return buildMergeHubSpotOutputs()
+}
+
+/**
+ * Build output schema for ticket restore events
+ */
+export function buildTicketRestoredOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
+ * Build output schema for generic webhook events
+ */
+export function buildWebhookOutputs(): Record<string, TriggerOutput> {
+  return buildBaseHubSpotOutputs()
+}
+
+/**
  * Check if a HubSpot event matches the expected trigger configuration
  */
 export function isHubSpotContactEventMatch(triggerId: string, eventType: string): boolean {
   const eventMap: Record<string, string> = {
     hubspot_contact_created: 'contact.creation',
     hubspot_contact_deleted: 'contact.deletion',
+    hubspot_contact_merged: 'contact.merge',
     hubspot_contact_privacy_deleted: 'contact.privacyDeletion',
     hubspot_contact_property_changed: 'contact.propertyChange',
+    hubspot_contact_restored: 'contact.restore',
     hubspot_company_created: 'company.creation',
     hubspot_company_deleted: 'company.deletion',
+    hubspot_company_merged: 'company.merge',
     hubspot_company_property_changed: 'company.propertyChange',
+    hubspot_company_restored: 'company.restore',
     hubspot_conversation_creation: 'conversation.creation',
     hubspot_conversation_deletion: 'conversation.deletion',
     hubspot_conversation_new_message: 'conversation.newMessage',
@@ -317,10 +484,14 @@ export function isHubSpotContactEventMatch(triggerId: string, eventType: string)
     hubspot_conversation_property_changed: 'conversation.propertyChange',
     hubspot_deal_created: 'deal.creation',
     hubspot_deal_deleted: 'deal.deletion',
+    hubspot_deal_merged: 'deal.merge',
     hubspot_deal_property_changed: 'deal.propertyChange',
+    hubspot_deal_restored: 'deal.restore',
     hubspot_ticket_created: 'ticket.creation',
     hubspot_ticket_deleted: 'ticket.deletion',
+    hubspot_ticket_merged: 'ticket.merge',
     hubspot_ticket_property_changed: 'ticket.propertyChange',
+    hubspot_ticket_restored: 'ticket.restore',
   }
 
   const expectedEventType = eventMap[triggerId]
