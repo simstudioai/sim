@@ -35,6 +35,7 @@ import { twilioVoiceHandler } from '@/lib/webhooks/providers/twilio-voice'
 import { typeformHandler } from '@/lib/webhooks/providers/typeform'
 import type { WebhookProviderHandler } from '@/lib/webhooks/providers/types'
 import { verifyTokenAuth } from '@/lib/webhooks/providers/utils'
+import { vercelHandler } from '@/lib/webhooks/providers/vercel'
 import { webflowHandler } from '@/lib/webhooks/providers/webflow'
 import { whatsappHandler } from '@/lib/webhooks/providers/whatsapp'
 
@@ -74,6 +75,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   twilio: twilioHandler,
   twilio_voice: twilioVoiceHandler,
   typeform: typeformHandler,
+  vercel: vercelHandler,
   webflow: webflowHandler,
   whatsapp: whatsappHandler,
 }

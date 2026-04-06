@@ -227,6 +227,16 @@ import { twilioVoiceWebhookTrigger } from '@/triggers/twilio_voice'
 import { typeformWebhookTrigger } from '@/triggers/typeform'
 import type { TriggerRegistry } from '@/triggers/types'
 import {
+  vercelDeploymentCanceledTrigger,
+  vercelDeploymentCreatedTrigger,
+  vercelDeploymentErrorTrigger,
+  vercelDeploymentReadyTrigger,
+  vercelDomainCreatedTrigger,
+  vercelProjectCreatedTrigger,
+  vercelProjectRemovedTrigger,
+  vercelWebhookTrigger,
+} from '@/triggers/vercel'
+import {
   webflowCollectionItemChangedTrigger,
   webflowCollectionItemCreatedTrigger,
   webflowCollectionItemDeletedTrigger,
@@ -395,6 +405,14 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   whatsapp_webhook: whatsappWebhookTrigger,
   google_forms_webhook: googleFormsWebhookTrigger,
   twilio_voice_webhook: twilioVoiceWebhookTrigger,
+  vercel_deployment_created: vercelDeploymentCreatedTrigger,
+  vercel_deployment_ready: vercelDeploymentReadyTrigger,
+  vercel_deployment_error: vercelDeploymentErrorTrigger,
+  vercel_deployment_canceled: vercelDeploymentCanceledTrigger,
+  vercel_project_created: vercelProjectCreatedTrigger,
+  vercel_project_removed: vercelProjectRemovedTrigger,
+  vercel_domain_created: vercelDomainCreatedTrigger,
+  vercel_webhook: vercelWebhookTrigger,
   webflow_collection_item_created: webflowCollectionItemCreatedTrigger,
   webflow_collection_item_changed: webflowCollectionItemChangedTrigger,
   webflow_collection_item_deleted: webflowCollectionItemDeletedTrigger,
