@@ -243,6 +243,14 @@ import {
   webflowFormSubmissionTrigger,
 } from '@/triggers/webflow'
 import { whatsappWebhookTrigger } from '@/triggers/whatsapp'
+import {
+  zoomMeetingEndedTrigger,
+  zoomMeetingStartedTrigger,
+  zoomParticipantJoinedTrigger,
+  zoomParticipantLeftTrigger,
+  zoomRecordingCompletedTrigger,
+  zoomWebhookTrigger,
+} from '@/triggers/zoom'
 
 export const TRIGGER_REGISTRY: TriggerRegistry = {
   slack_webhook: slackWebhookTrigger,
@@ -451,4 +459,10 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   intercom_contact_created: intercomContactCreatedTrigger,
   intercom_user_created: intercomUserCreatedTrigger,
   intercom_webhook: intercomWebhookTrigger,
+  zoom_meeting_started: zoomMeetingStartedTrigger,
+  zoom_meeting_ended: zoomMeetingEndedTrigger,
+  zoom_participant_joined: zoomParticipantJoinedTrigger,
+  zoom_participant_left: zoomParticipantLeftTrigger,
+  zoom_recording_completed: zoomRecordingCompletedTrigger,
+  zoom_webhook: zoomWebhookTrigger,
 }

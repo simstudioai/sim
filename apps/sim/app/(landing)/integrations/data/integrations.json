@@ -5529,6 +5529,11 @@
         "description": "Trigger workflow when a contact is deleted in HubSpot"
       },
       {
+        "id": "hubspot_contact_merged",
+        "name": "HubSpot Contact Merged",
+        "description": "Trigger workflow when contacts are merged in HubSpot"
+      },
+      {
         "id": "hubspot_contact_privacy_deleted",
         "name": "HubSpot Contact Privacy Deleted",
         "description": "Trigger workflow when a contact is deleted for privacy compliance (GDPR, CCPA, etc.) in HubSpot"
@@ -5537,6 +5542,11 @@
         "id": "hubspot_contact_property_changed",
         "name": "HubSpot Contact Property Changed",
         "description": "Trigger workflow when any property of a contact is updated in HubSpot"
+      },
+      {
+        "id": "hubspot_contact_restored",
+        "name": "HubSpot Contact Restored",
+        "description": "Trigger workflow when a deleted contact is restored in HubSpot"
       },
       {
         "id": "hubspot_company_created",
@@ -5549,9 +5559,19 @@
         "description": "Trigger workflow when a company is deleted in HubSpot"
       },
       {
+        "id": "hubspot_company_merged",
+        "name": "HubSpot Company Merged",
+        "description": "Trigger workflow when companies are merged in HubSpot"
+      },
+      {
         "id": "hubspot_company_property_changed",
         "name": "HubSpot Company Property Changed",
         "description": "Trigger workflow when any property of a company is updated in HubSpot"
+      },
+      {
+        "id": "hubspot_company_restored",
+        "name": "HubSpot Company Restored",
+        "description": "Trigger workflow when a deleted company is restored in HubSpot"
       },
       {
         "id": "hubspot_conversation_creation",
@@ -5589,9 +5609,19 @@
         "description": "Trigger workflow when a deal is deleted in HubSpot"
       },
       {
+        "id": "hubspot_deal_merged",
+        "name": "HubSpot Deal Merged",
+        "description": "Trigger workflow when deals are merged in HubSpot"
+      },
+      {
         "id": "hubspot_deal_property_changed",
         "name": "HubSpot Deal Property Changed",
         "description": "Trigger workflow when any property of a deal is updated in HubSpot"
+      },
+      {
+        "id": "hubspot_deal_restored",
+        "name": "HubSpot Deal Restored",
+        "description": "Trigger workflow when a deleted deal is restored in HubSpot"
       },
       {
         "id": "hubspot_ticket_created",
@@ -5604,12 +5634,27 @@
         "description": "Trigger workflow when a ticket is deleted in HubSpot"
       },
       {
+        "id": "hubspot_ticket_merged",
+        "name": "HubSpot Ticket Merged",
+        "description": "Trigger workflow when tickets are merged in HubSpot"
+      },
+      {
         "id": "hubspot_ticket_property_changed",
         "name": "HubSpot Ticket Property Changed",
         "description": "Trigger workflow when any property of a ticket is updated in HubSpot"
+      },
+      {
+        "id": "hubspot_ticket_restored",
+        "name": "HubSpot Ticket Restored",
+        "description": "Trigger workflow when a deleted ticket is restored in HubSpot"
+      },
+      {
+        "id": "hubspot_webhook",
+        "name": "HubSpot Webhook (All Events)",
+        "description": "Trigger workflow on any HubSpot webhook event"
       }
     ],
-    "triggerCount": 18,
+    "triggerCount": 27,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "crm",
@@ -10263,8 +10308,39 @@
       }
     ],
     "operationCount": 35,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "salesforce_record_created",
+        "name": "Salesforce Record Created",
+        "description": "Trigger workflow when a Salesforce record is created"
+      },
+      {
+        "id": "salesforce_record_updated",
+        "name": "Salesforce Record Updated",
+        "description": "Trigger workflow when a Salesforce record is updated"
+      },
+      {
+        "id": "salesforce_record_deleted",
+        "name": "Salesforce Record Deleted",
+        "description": "Trigger workflow when a Salesforce record is deleted"
+      },
+      {
+        "id": "salesforce_opportunity_stage_changed",
+        "name": "Salesforce Opportunity Stage Changed",
+        "description": "Trigger workflow when an opportunity stage changes"
+      },
+      {
+        "id": "salesforce_case_status_changed",
+        "name": "Salesforce Case Status Changed",
+        "description": "Trigger workflow when a case status changes"
+      },
+      {
+        "id": "salesforce_webhook",
+        "name": "Salesforce Webhook (All Events)",
+        "description": "Trigger workflow on any Salesforce webhook event"
+      }
+    ],
+    "triggerCount": 6,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "crm",
@@ -12856,8 +12932,39 @@
       }
     ],
     "operationCount": 10,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "zoom_meeting_started",
+        "name": "Meeting Started",
+        "description": "Triggered when a Zoom meeting starts"
+      },
+      {
+        "id": "zoom_meeting_ended",
+        "name": "Meeting Ended",
+        "description": "Triggered when a Zoom meeting ends"
+      },
+      {
+        "id": "zoom_participant_joined",
+        "name": "Participant Joined",
+        "description": "Triggered when a participant joins a Zoom meeting"
+      },
+      {
+        "id": "zoom_participant_left",
+        "name": "Participant Left",
+        "description": "Triggered when a participant leaves a Zoom meeting"
+      },
+      {
+        "id": "zoom_recording_completed",
+        "name": "Recording Completed",
+        "description": "Triggered when a Zoom cloud recording is completed"
+      },
+      {
+        "id": "zoom_webhook",
+        "name": "Generic Webhook",
+        "description": "Triggered on any Zoom webhook event"
+      }
+    ],
+    "triggerCount": 6,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "communication",
