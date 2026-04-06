@@ -4106,8 +4106,19 @@
       }
     ],
     "operationCount": 18,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "gong_webhook",
+        "name": "Gong Webhook",
+        "description": "Generic webhook trigger for all Gong events"
+      },
+      {
+        "id": "gong_call_completed",
+        "name": "Gong Call Completed",
+        "description": "Trigger workflow when a call is completed and processed in Gong"
+      }
+    ],
+    "triggerCount": 2,
     "authType": "none",
     "category": "tools",
     "integrationType": "sales-intelligence",

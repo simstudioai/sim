@@ -89,6 +89,7 @@ import {
   githubWorkflowRunTrigger,
 } from '@/triggers/github'
 import { gmailPollingTrigger } from '@/triggers/gmail'
+import { gongCallCompletedTrigger, gongWebhookTrigger } from '@/triggers/gong'
 import { googleFormsWebhookTrigger } from '@/triggers/googleforms'
 import {
   grainHighlightCreatedTrigger,
@@ -281,6 +282,8 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   fathom_new_meeting: fathomNewMeetingTrigger,
   fathom_webhook: fathomWebhookTrigger,
   gmail_poller: gmailPollingTrigger,
+  gong_call_completed: gongCallCompletedTrigger,
+  gong_webhook: gongWebhookTrigger,
   grain_webhook: grainWebhookTrigger,
   grain_item_added: grainItemAddedTrigger,
   grain_item_updated: grainItemUpdatedTrigger,

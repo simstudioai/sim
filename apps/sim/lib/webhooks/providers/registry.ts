@@ -12,6 +12,7 @@ import { firefliesHandler } from '@/lib/webhooks/providers/fireflies'
 import { genericHandler } from '@/lib/webhooks/providers/generic'
 import { githubHandler } from '@/lib/webhooks/providers/github'
 import { gmailHandler } from '@/lib/webhooks/providers/gmail'
+import { gongHandler } from '@/lib/webhooks/providers/gong'
 import { googleFormsHandler } from '@/lib/webhooks/providers/google-forms'
 import { grainHandler } from '@/lib/webhooks/providers/grain'
 import { hubspotHandler } from '@/lib/webhooks/providers/hubspot'
@@ -48,6 +49,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   generic: genericHandler,
   gmail: gmailHandler,
   github: githubHandler,
+  gong: gongHandler,
   google_forms: googleFormsHandler,
   fathom: fathomHandler,
   grain: grainHandler,
