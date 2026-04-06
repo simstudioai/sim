@@ -400,6 +400,11 @@ export async function generateEmbeddings(
   if (embeddingModel.startsWith('ollama/')) {
     const modelName = embeddingModel.slice(7)
     const baseUrl = getOllamaBaseUrl(ollamaBaseUrl)
+    if (!isAllowedOllamaUrl(baseUrl)) {
+      throw new Error(
+        `Ollama base URL "${baseUrl}" is not allowed. Must point to localhost, a private IP address, or host.docker.internal.`
+      )
+    }
     logger.info(`Using Ollama (${baseUrl}) for embedding generation with model ${modelName}`)
 
     // Use pre-queried context length if provided, otherwise query it
@@ -509,6 +514,11 @@ export async function generateSearchEmbedding(
   if (embeddingModel.startsWith('ollama/')) {
     const modelName = embeddingModel.slice(7)
     const baseUrl = getOllamaBaseUrl(ollamaBaseUrl)
+    if (!isAllowedOllamaUrl(baseUrl)) {
+      throw new Error(
+        `Ollama base URL "${baseUrl}" is not allowed. Must point to localhost, a private IP address, or host.docker.internal.`
+      )
+    }
     logger.info(`Using Ollama (${baseUrl}) for search embedding with model ${modelName}`)
     const embeddings = await retryWithExponentialBackoff(
       () => callOllamaEmbeddingAPI([query], modelName, baseUrl),
