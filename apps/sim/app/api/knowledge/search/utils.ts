@@ -73,9 +73,6 @@ export interface SearchParams {
   distanceThreshold?: number
 }
 
-// Use shared embedding utility
-export { generateSearchEmbedding } from '@/lib/knowledge/embeddings'
-
 function isTagSlotKey(key: string): key is AllTagSlot {
   return (ALL_TAG_SLOTS as readonly string[]).includes(key)
 }
