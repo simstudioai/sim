@@ -171,6 +171,16 @@ import {
   microsoftTeamsWebhookTrigger,
 } from '@/triggers/microsoftteams'
 import { outlookPollingTrigger } from '@/triggers/outlook'
+import {
+  resendEmailBouncedTrigger,
+  resendEmailClickedTrigger,
+  resendEmailComplainedTrigger,
+  resendEmailDeliveredTrigger,
+  resendEmailFailedTrigger,
+  resendEmailOpenedTrigger,
+  resendEmailSentTrigger,
+  resendWebhookTrigger,
+} from '@/triggers/resend'
 import { rssPollingTrigger } from '@/triggers/rss'
 import {
   salesforceCaseStatusChangedTrigger,
@@ -315,6 +325,14 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   microsoftteams_webhook: microsoftTeamsWebhookTrigger,
   microsoftteams_chat_subscription: microsoftTeamsChatSubscriptionTrigger,
   outlook_poller: outlookPollingTrigger,
+  resend_email_sent: resendEmailSentTrigger,
+  resend_email_delivered: resendEmailDeliveredTrigger,
+  resend_email_bounced: resendEmailBouncedTrigger,
+  resend_email_complained: resendEmailComplainedTrigger,
+  resend_email_opened: resendEmailOpenedTrigger,
+  resend_email_clicked: resendEmailClickedTrigger,
+  resend_email_failed: resendEmailFailedTrigger,
+  resend_webhook: resendWebhookTrigger,
   rss_poller: rssPollingTrigger,
   salesforce_record_created: salesforceRecordCreatedTrigger,
   salesforce_record_updated: salesforceRecordUpdatedTrigger,

@@ -23,6 +23,8 @@ const SYSTEM_MANAGED_FIELDS = new Set([
   'eventTypes',
   'webhookTag',
   'webhookSecret',
+  'signingSecret',
+  'secretToken',
   'historyId',
   'lastCheckedTimestamp',
   'setupCompleted',
