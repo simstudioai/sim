@@ -18,6 +18,7 @@ import {
   type DemoRequestPayload,
   demoRequestSchema,
 } from '@/app/(landing)/components/demo-request/consts'
+import { captureClientEvent } from '@/lib/posthog/client'
 
 interface DemoRequestModalProps {
   children: React.ReactNode
@@ -163,6 +164,9 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
         }
 
         setSubmitSuccess(true)
+        captureClientEvent('landing_demo_request_submitted', {
+          company_size: parsed.data.companySize,
+        })
       } catch (error) {
         setSubmitError(
           error instanceof Error

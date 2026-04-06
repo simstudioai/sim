@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { Blimp, BubbleChatPreview, ChevronDown, MoreHorizontal, Play } from '@/components/emcn'
 import { AgentIcon, HubspotIcon, OpenAIIcon, SalesforceIcon } from '@/components/icons'
+import { captureClientEvent } from '@/lib/posthog/client'
 import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
 import {
   EASE_OUT,
@@ -147,6 +148,7 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel({
 
   const handleSubmit = useCallback(() => {
     if (isEmpty) return
+    captureClientEvent('landing_prompt_submitted', {})
     landingSubmit(inputValue)
   }, [isEmpty, inputValue, landingSubmit])
 
