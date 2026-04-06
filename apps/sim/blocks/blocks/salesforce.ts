@@ -523,7 +523,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         ],
       },
     },
-    // Trigger subBlocks
     ...getTrigger('salesforce_record_created').subBlocks,
     ...getTrigger('salesforce_record_updated').subBlocks,
     ...getTrigger('salesforce_record_deleted').subBlocks,

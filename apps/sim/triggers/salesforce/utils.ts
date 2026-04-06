@@ -19,16 +19,29 @@ export const salesforceTriggerOptions = [
  * Flow HTTP Callouts or Outbound Messages manually.
  */
 export function salesforceSetupInstructions(eventType: string): string {
-  const instructions = [
-    'Copy the <strong>Webhook URL</strong> above.',
-    'In Salesforce, go to <strong>Setup → Flows</strong> and click <strong>New Flow</strong>.',
-    `Select <strong>Record-Triggered Flow</strong> and choose the object and <strong>${eventType}</strong> trigger condition.`,
-    'Add an <strong>HTTP Callout</strong> action — set the method to <strong>POST</strong> and paste the webhook URL.',
-    'In the request body, include the record fields you want sent as <strong>JSON</strong> (e.g., Id, Name, and any relevant fields).',
-    'Save and <strong>Activate</strong> the Flow.',
-    'Click <strong>"Save"</strong> above to activate your trigger.',
-    '<em>Alternative: You can also use <strong>Setup → Outbound Messages</strong> with a Workflow Rule, but this sends SOAP/XML instead of JSON.</em>',
-  ]
+  const isGeneric = eventType === 'All Events'
+
+  const instructions = isGeneric
+    ? [
+        'Copy the <strong>Webhook URL</strong> above.',
+        'In Salesforce, go to <strong>Setup → Flows</strong> and click <strong>New Flow</strong>.',
+        'Select <strong>Record-Triggered Flow</strong> and choose the object(s) you want to monitor.',
+        'Add an <strong>HTTP Callout</strong> action — set the method to <strong>POST</strong> and paste the webhook URL.',
+        'In the request body, include the record fields you want sent as <strong>JSON</strong> (e.g., Id, Name, and any relevant fields).',
+        'Repeat for each object type you want to send events for.',
+        'Save and <strong>Activate</strong> the Flow(s).',
+        'Click <strong>"Save"</strong> above to activate your trigger.',
+      ]
+    : [
+        'Copy the <strong>Webhook URL</strong> above.',
+        'In Salesforce, go to <strong>Setup → Flows</strong> and click <strong>New Flow</strong>.',
+        `Select <strong>Record-Triggered Flow</strong> and choose the object and <strong>${eventType}</strong> trigger condition.`,
+        'Add an <strong>HTTP Callout</strong> action — set the method to <strong>POST</strong> and paste the webhook URL.',
+        'In the request body, include the record fields you want sent as <strong>JSON</strong> (e.g., Id, Name, and any relevant fields).',
+        'Save and <strong>Activate</strong> the Flow.',
+        'Click <strong>"Save"</strong> above to activate your trigger.',
+        '<em>Alternative: You can also use <strong>Setup → Outbound Messages</strong> with a Workflow Rule, but this sends SOAP/XML instead of JSON.</em>',
+      ]
 
   return instructions
     .map(
