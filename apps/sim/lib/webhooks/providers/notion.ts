@@ -53,21 +53,59 @@ export const notionHandler: WebhookProviderHandler = {
     providerLabel: 'Notion',
   }),
 
+  handleReachabilityTest(body: unknown, requestId: string) {
+    const obj = body as Record<string, unknown> | null
+    const verificationToken = obj?.verification_token
+
+    if (typeof verificationToken === 'string' && verificationToken.length > 0) {
+      logger.info(`[${requestId}] Notion verification request detected - returning 200`)
+      return NextResponse.json({
+        status: 'ok',
+        message: 'Webhook endpoint verified',
+      })
+    }
+
+    return null
+  },
+
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
+    const rawEntity =
+      b.entity && typeof b.entity === 'object' ? (b.entity as Record<string, unknown>) : {}
+    const rawData = b.data && typeof b.data === 'object' ? (b.data as Record<string, unknown>) : {}
+    const rawParent =
+      rawData.parent && typeof rawData.parent === 'object'
+        ? (rawData.parent as Record<string, unknown>)
+        : null
+
     return {
       input: {
         id: b.id,
         type: b.type,
         timestamp: b.timestamp,
+        api_version: b.api_version,
         workspace_id: b.workspace_id,
         workspace_name: b.workspace_name,
         subscription_id: b.subscription_id,
         integration_id: b.integration_id,
         attempt_number: b.attempt_number,
         authors: b.authors || [],
-        entity: b.entity || {},
-        data: b.data || {},
+        accessible_by: b.accessible_by || [],
+        entity: {
+          ...rawEntity,
+          entity_type: rawEntity.type,
+        },
+        data: {
+          ...rawData,
+          ...(rawParent
+            ? {
+                parent: {
+                  ...rawParent,
+                  parent_type: rawParent.type,
+                },
+              }
+            : {}),
+        },
       },
     }
   },
