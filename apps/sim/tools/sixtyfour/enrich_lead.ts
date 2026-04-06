@@ -51,9 +51,19 @@ export const sixtyfourEnrichLeadTool: ToolConfig<
       'x-api-key': params.apiKey,
     }),
     body: (params) => {
-      const leadInfo =
-        typeof params.leadInfo === 'string' ? JSON.parse(params.leadInfo) : params.leadInfo
-      const struct = typeof params.struct === 'string' ? JSON.parse(params.struct) : params.struct
+      let leadInfo: unknown
+      try {
+        leadInfo =
+          typeof params.leadInfo === 'string' ? JSON.parse(params.leadInfo) : params.leadInfo
+      } catch {
+        throw new Error('leadInfo must be valid JSON')
+      }
+      let struct: unknown
+      try {
+        struct = typeof params.struct === 'string' ? JSON.parse(params.struct) : params.struct
+      } catch {
+        throw new Error('struct must be valid JSON')
+      }
       return {
         lead_info: leadInfo,
         struct,
@@ -64,6 +74,9 @@ export const sixtyfourEnrichLeadTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error || data.message || data.detail || `API error: ${response.status}`)
+    }
 
     return {
       success: true,

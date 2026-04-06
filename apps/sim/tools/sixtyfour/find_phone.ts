@@ -69,6 +69,9 @@ export const sixtyfourFindPhoneTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error || data.message || data.detail || `API error: ${response.status}`)
+    }
 
     let phone: string | null = null
     if (typeof data.phone === 'string') {

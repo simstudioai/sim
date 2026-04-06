@@ -74,15 +74,30 @@ export const sixtyfourEnrichCompanyTool: ToolConfig<
       'x-api-key': params.apiKey,
     }),
     body: (params) => {
-      const targetCompany =
-        typeof params.targetCompany === 'string'
-          ? JSON.parse(params.targetCompany)
-          : params.targetCompany
-      const struct = typeof params.struct === 'string' ? JSON.parse(params.struct) : params.struct
-      const leadStruct =
-        params.leadStruct && typeof params.leadStruct === 'string'
-          ? JSON.parse(params.leadStruct)
-          : params.leadStruct
+      let targetCompany: unknown
+      try {
+        targetCompany =
+          typeof params.targetCompany === 'string'
+            ? JSON.parse(params.targetCompany)
+            : params.targetCompany
+      } catch {
+        throw new Error('targetCompany must be valid JSON')
+      }
+      let struct: unknown
+      try {
+        struct = typeof params.struct === 'string' ? JSON.parse(params.struct) : params.struct
+      } catch {
+        throw new Error('struct must be valid JSON')
+      }
+      let leadStruct: unknown
+      try {
+        leadStruct =
+          params.leadStruct && typeof params.leadStruct === 'string'
+            ? JSON.parse(params.leadStruct)
+            : params.leadStruct
+      } catch {
+        throw new Error('leadStruct must be valid JSON')
+      }
       return {
         target_company: targetCompany,
         struct,
@@ -97,6 +112,9 @@ export const sixtyfourEnrichCompanyTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error || data.message || data.detail || `API error: ${response.status}`)
+    }
 
     return {
       success: true,
