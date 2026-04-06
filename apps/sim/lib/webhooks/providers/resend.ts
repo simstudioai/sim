@@ -49,9 +49,9 @@ function verifySvixSignature(
   rawBody: string
 ): boolean {
   try {
-    const ts = parseInt(timestamp, 10)
+    const ts = Number.parseInt(timestamp, 10)
     const now = Math.floor(Date.now() / 1000)
-    if (isNaN(ts) || Math.abs(now - ts) > 5 * 60) {
+    if (Number.isNaN(ts) || Math.abs(now - ts) > 5 * 60) {
       return false
     }
 
