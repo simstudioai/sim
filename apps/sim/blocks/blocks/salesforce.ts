@@ -3,6 +3,7 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { SalesforceResponse } from '@/tools/salesforce/types'
+import { getTrigger } from '@/triggers'
 
 export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
   type: 'salesforce',
@@ -17,6 +18,17 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
   tags: ['sales-engagement', 'customer-support'],
   bgColor: '#E0E0E0',
   icon: SalesforceIcon,
+  triggers: {
+    enabled: true,
+    available: [
+      'salesforce_record_created',
+      'salesforce_record_updated',
+      'salesforce_record_deleted',
+      'salesforce_opportunity_stage_changed',
+      'salesforce_case_status_changed',
+      'salesforce_webhook',
+    ],
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -511,6 +523,12 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         ],
       },
     },
+    ...getTrigger('salesforce_record_created').subBlocks,
+    ...getTrigger('salesforce_record_updated').subBlocks,
+    ...getTrigger('salesforce_record_deleted').subBlocks,
+    ...getTrigger('salesforce_opportunity_stage_changed').subBlocks,
+    ...getTrigger('salesforce_case_status_changed').subBlocks,
+    ...getTrigger('salesforce_webhook').subBlocks,
   ],
   tools: {
     access: [

@@ -163,6 +163,14 @@ import {
 } from '@/triggers/microsoftteams'
 import { outlookPollingTrigger } from '@/triggers/outlook'
 import { rssPollingTrigger } from '@/triggers/rss'
+import {
+  salesforceCaseStatusChangedTrigger,
+  salesforceOpportunityStageChangedTrigger,
+  salesforceRecordCreatedTrigger,
+  salesforceRecordDeletedTrigger,
+  salesforceRecordUpdatedTrigger,
+  salesforceWebhookTrigger,
+} from '@/triggers/salesforce'
 import { slackWebhookTrigger } from '@/triggers/slack'
 import { stripeWebhookTrigger } from '@/triggers/stripe'
 import { telegramWebhookTrigger } from '@/triggers/telegram'
@@ -299,6 +307,12 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   microsoftteams_chat_subscription: microsoftTeamsChatSubscriptionTrigger,
   outlook_poller: outlookPollingTrigger,
   rss_poller: rssPollingTrigger,
+  salesforce_record_created: salesforceRecordCreatedTrigger,
+  salesforce_record_updated: salesforceRecordUpdatedTrigger,
+  salesforce_record_deleted: salesforceRecordDeletedTrigger,
+  salesforce_opportunity_stage_changed: salesforceOpportunityStageChangedTrigger,
+  salesforce_case_status_changed: salesforceCaseStatusChangedTrigger,
+  salesforce_webhook: salesforceWebhookTrigger,
   stripe_webhook: stripeWebhookTrigger,
   telegram_webhook: telegramWebhookTrigger,
   typeform_webhook: typeformWebhookTrigger,
