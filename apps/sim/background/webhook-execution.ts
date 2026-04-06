@@ -16,7 +16,7 @@ import {
   executeWorkflowCore,
   wasExecutionFinalizedByCore,
 } from '@/lib/workflows/executor/execution-core'
-import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
+import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 import { getBlock } from '@/blocks'
@@ -205,33 +205,13 @@ async function handleExecutionResult(
       timeoutMs: ctx.timeoutController.timeoutMs,
     })
     await ctx.loggingSession.markAsFailed(timeoutErrorMessage)
-  } else if (executionResult.status === 'paused') {
-    if (!executionResult.snapshotSeed) {
-      logger.error(`[${ctx.requestId}] Missing snapshot seed for paused execution`, {
-        executionId: ctx.executionId,
-      })
-      await ctx.loggingSession.markAsFailed('Missing snapshot seed for paused execution')
-    } else {
-      try {
-        await PauseResumeManager.persistPauseResult({
-          workflowId: ctx.workflowId,
-          executionId: ctx.executionId,
-          pausePoints: executionResult.pausePoints || [],
-          snapshotSeed: executionResult.snapshotSeed,
-          executorUserId: executionResult.metadata?.userId,
-        })
-      } catch (pauseError) {
-        logger.error(`[${ctx.requestId}] Failed to persist pause result`, {
-          executionId: ctx.executionId,
-          error: pauseError instanceof Error ? pauseError.message : String(pauseError),
-        })
-        await ctx.loggingSession.markAsFailed(
-          `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
-        )
-      }
-    }
   } else {
-    await PauseResumeManager.processQueuedResumes(ctx.executionId)
+    await handlePostExecutionPauseState({
+      result: executionResult,
+      workflowId: ctx.workflowId,
+      executionId: ctx.executionId,
+      loggingSession: ctx.loggingSession,
+    })
   }
 
   await ctx.loggingSession.waitForPostExecution()
