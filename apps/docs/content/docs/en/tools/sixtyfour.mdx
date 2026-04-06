@@ -10,26 +10,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#000000"
 />
 
-## Description
-
-[Sixtyfour AI](https://sixtyfour.ai) is an AI-powered sales intelligence platform that helps GTM teams find contact information and enrich lead and company data. The Sixtyfour block connects your workflows to Sixtyfour's enrichment APIs, enabling automated prospecting and CRM enrichment.
-
-### Key capabilities
-
-- **Find Phone** — Discover phone numbers for a lead given their name, company, LinkedIn URL, or other identifiers.
-- **Find Email** — Find professional or personal email addresses for a lead. Supports `PROFESSIONAL` (company emails) and `PERSONAL` (personal emails like Gmail) modes. Returns email validation status (`OK` or `UNKNOWN`) and type (`COMPANY` or `PERSONAL`).
-- **Enrich Lead** — Turn partial lead records into full contact profiles. Provide a `struct` defining exactly which fields you want back (email, phone, title, social profiles, etc.) and Sixtyfour's research agent will find them.
-- **Enrich Company** — Enrich company data and optionally find associated people. Supports `find_people` to discover employees, `full_org_chart` for comprehensive coverage, and `people_focus_prompt` to target specific roles.
-
-### Authentication
-
-Sixtyfour uses API key authentication. Pass your API key from the [Sixtyfour dashboard](https://app.sixtyfour.ai) into the **API Key** field.
-
-### Notes
-
-- The **Enrich Lead** and **Enrich Company** endpoints are long-running operations. Typical response times are 1–5 minutes, and can reach 10 minutes for complex lookups.
-- The `struct` and `lead_struct` fields accept JSON objects where keys are the field names you want returned and values are plain-English descriptions guiding the research agent.
-
 ## Usage Instructions
 
 Find emails, phone numbers, and enrich lead or company data with contact information, social profiles, and detailed research using Sixtyfour AI.
