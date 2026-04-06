@@ -30,8 +30,8 @@ function validateZoomSignature(
     }
 
     const nowSeconds = Math.floor(Date.now() / 1000)
-    const requestSeconds = parseInt(timestamp, 10)
-    if (isNaN(requestSeconds) || Math.abs(nowSeconds - requestSeconds) > 30) {
+    const requestSeconds = Number.parseInt(timestamp, 10)
+    if (Number.isNaN(requestSeconds) || Math.abs(nowSeconds - requestSeconds) > 30) {
       return false
     }
 
@@ -129,7 +129,9 @@ export const zoomHandler: WebhookProviderHandler = {
     }
 
     if (!secretToken) {
-      logger.warn(`[${requestId}] No secret token configured for Zoom URL validation on path: ${path}`)
+      logger.warn(
+        `[${requestId}] No secret token configured for Zoom URL validation on path: ${path}`
+      )
       return null
     }
 
