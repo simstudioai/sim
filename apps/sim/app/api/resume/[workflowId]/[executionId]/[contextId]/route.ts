@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { AuthType } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateId } from '@/lib/core/utils/uuid'
+import { setExecutionMeta } from '@/lib/execution/event-buffer'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
@@ -124,6 +125,12 @@ export async function POST(
         message: 'Resume queued. It will run after current resumes finish.',
       })
     }
+
+    await setExecutionMeta(enqueueResult.resumeExecutionId, {
+      status: 'active',
+      userId,
+      workflowId,
+    })
 
     PauseResumeManager.startResumeExecution({
       resumeEntryId: enqueueResult.resumeEntryId,
