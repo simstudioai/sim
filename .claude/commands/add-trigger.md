@@ -275,13 +275,15 @@ export const {Service}Block: BlockConfig = {
 
 If the service's API supports programmatic webhook creation, implement automatic webhook registration instead of requiring users to manually configure webhooks. This provides a much better user experience.
 
+All subscription lifecycle logic lives on the provider handler — **no code touches `route.ts` or `provider-subscriptions.ts`**.
+
 ### When to Use Automatic Registration
 
 Check the service's API documentation for endpoints like:
 - `POST /webhooks` or `POST /hooks` - Create webhook
 - `DELETE /webhooks/{id}` - Delete webhook
 
-Services that support this pattern include: Grain, Lemlist, Calendly, Airtable, Webflow, Typeform, etc.
+Services that support this pattern include: Grain, Lemlist, Calendly, Airtable, Webflow, Typeform, Ashby, Attio, etc.
 
 ### Implementation Steps
 
@@ -337,188 +339,145 @@ export function {service}SetupInstructions(eventType: string): string {
 }
 ```
 
-#### 3. Add Webhook Creation to API Route
+#### 3. Add `createSubscription` and `deleteSubscription` to the Provider Handler
 
-In `apps/sim/app/api/webhooks/route.ts`, add provider-specific logic after the database save:
+In `apps/sim/lib/webhooks/providers/{service}.ts`, add both lifecycle methods to your handler. The orchestration layer (`provider-subscriptions.ts`, `deploy.ts`, `route.ts`) calls these automatically — you never touch those files.
 
 ```typescript
-// --- {Service} specific logic ---
-if (savedWebhook && provider === '{service}') {
-  logger.info(`[${requestId}] {Service} provider detected. Creating webhook subscription.`)
-  try {
-    const result = await create{Service}WebhookSubscription(
-      {
-        id: savedWebhook.id,
-        path: savedWebhook.path,
-        providerConfig: savedWebhook.providerConfig,
-      },
-      requestId
-    )
+import { createLogger } from '@sim/logger'
+import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/providers/subscription-utils'
+import type {
+  DeleteSubscriptionContext,
+  SubscriptionContext,
+  SubscriptionResult,
+  WebhookProviderHandler,
+} from '@/lib/webhooks/providers/types'
 
-    if (result) {
-      // Update the webhook record with the external webhook ID
-      const updatedConfig = {
-        ...(savedWebhook.providerConfig as Record<string, any>),
-        externalId: result.id,
+const logger = createLogger('WebhookProvider:{Service}')
+
+export const {service}Handler: WebhookProviderHandler = {
+  // ... other methods (verifyAuth, formatInput, etc.) ...
+
+  async createSubscription(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined> {
+    try {
+      const providerConfig = getProviderConfig(ctx.webhook)
+      const apiKey = providerConfig.apiKey as string | undefined
+      const triggerId = providerConfig.triggerId as string | undefined
+
+      if (!apiKey) {
+        throw new Error('{Service} API Key is required.')
       }
-      await db
-        .update(webhook)
-        .set({
-          providerConfig: updatedConfig,
-          updatedAt: new Date(),
-        })
-        .where(eq(webhook.id, savedWebhook.id))
 
-      savedWebhook.providerConfig = updatedConfig
-      logger.info(`[${requestId}] Successfully created {Service} webhook`, {
-        externalHookId: result.id,
-        webhookId: savedWebhook.id,
+      // Map trigger IDs to service event types
+      const eventTypeMap: Record<string, string | undefined> = {
+        {service}_event_a: 'eventA',
+        {service}_event_b: 'eventB',
+        {service}_webhook: undefined, // Generic - no filter
+      }
+
+      const eventType = eventTypeMap[triggerId ?? '']
+      const notificationUrl = getNotificationUrl(ctx.webhook)
+
+      const requestBody: Record<string, unknown> = {
+        url: notificationUrl,
+      }
+      if (eventType) {
+        requestBody.eventType = eventType
+      }
+
+      const response = await fetch('https://api.{service}.com/webhooks', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
       })
-    }
-  } catch (err) {
-    logger.error(
-      `[${requestId}] Error creating {Service} webhook subscription, rolling back webhook`,
-      err
-    )
-    await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
-    return NextResponse.json(
-      {
-        error: 'Failed to create webhook in {Service}',
-        details: err instanceof Error ? err.message : 'Unknown error',
-      },
-      { status: 500 }
-    )
-  }
-}
-// --- End {Service} specific logic ---
-```
 
-Then add the helper function at the end of the file:
+      const responseBody = (await response.json()) as Record<string, unknown>
 
-```typescript
-async function create{Service}WebhookSubscription(
-  webhookData: any,
-  requestId: string
-): Promise<{ id: string } | undefined> {
-  try {
-    const { path, providerConfig } = webhookData
-    const { apiKey, triggerId, projectId } = providerConfig || {}
-
-    if (!apiKey) {
-      throw new Error('{Service} API Key is required.')
-    }
-
-    // Map trigger IDs to service event types
-    const eventTypeMap: Record<string, string | undefined> = {
-      {service}_event_a: 'eventA',
-      {service}_event_b: 'eventB',
-      {service}_webhook: undefined, // Generic - no filter
-    }
-
-    const eventType = eventTypeMap[triggerId]
-    const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
-
-    const requestBody: Record<string, any> = {
-      url: notificationUrl,
-    }
-
-    if (eventType) {
-      requestBody.eventType = eventType
-    }
-
-    if (projectId) {
-      requestBody.projectId = projectId
-    }
-
-    const response = await fetch('https://api.{service}.com/webhooks', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    })
-
-    const responseBody = await response.json()
-
-    if (!response.ok) {
-      const errorMessage = responseBody.message || 'Unknown API error'
-      let userFriendlyMessage = 'Failed to create webhook in {Service}'
-
-      if (response.status === 401) {
-        userFriendlyMessage = 'Invalid API Key. Please verify and try again.'
-      } else if (errorMessage) {
-        userFriendlyMessage = `{Service} error: ${errorMessage}`
+      if (!response.ok) {
+        const errorMessage = (responseBody.message as string) || 'Unknown API error'
+        let userFriendlyMessage = 'Failed to create webhook in {Service}'
+        if (response.status === 401) {
+          userFriendlyMessage = 'Invalid API Key. Please verify and try again.'
+        } else if (errorMessage) {
+          userFriendlyMessage = `{Service} error: ${errorMessage}`
+        }
+        throw new Error(userFriendlyMessage)
       }
 
-      throw new Error(userFriendlyMessage)
-    }
+      const externalId = responseBody.id as string | undefined
+      if (!externalId) {
+        throw new Error('{Service} webhook created but no ID was returned.')
+      }
 
-    return { id: responseBody.id }
-  } catch (error: any) {
-    logger.error(`Exception during {Service} webhook creation`, { error: error.message })
-    throw error
-  }
+      logger.info(`[${ctx.requestId}] Created {Service} webhook ${externalId}`)
+      return { providerConfigUpdates: { externalId } }
+    } catch (error: unknown) {
+      const err = error as Error
+      logger.error(`[${ctx.requestId}] {Service} webhook creation failed`, {
+        message: err.message,
+      })
+      throw error
+    }
+  },
+
+  async deleteSubscription(ctx: DeleteSubscriptionContext): Promise<void> {
+    try {
+      const config = getProviderConfig(ctx.webhook)
+      const apiKey = config.apiKey as string | undefined
+      const externalId = config.externalId as string | undefined
+
+      if (!apiKey || !externalId) {
+        logger.warn(`[${ctx.requestId}] Missing apiKey or externalId, skipping cleanup`)
+        return
+      }
+
+      const response = await fetch(`https://api.{service}.com/webhooks/${externalId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${apiKey}` },
+      })
+
+      if (!response.ok && response.status !== 404) {
+        logger.warn(
+          `[${ctx.requestId}] Failed to delete {Service} webhook (non-fatal): ${response.status}`
+        )
+      } else {
+        logger.info(`[${ctx.requestId}] Successfully deleted {Service} webhook ${externalId}`)
+      }
+    } catch (error) {
+      logger.warn(`[${ctx.requestId}] Error deleting {Service} webhook (non-fatal)`, error)
+    }
+  },
 }
 ```
 
-#### 4. Add Webhook Deletion to Provider Subscriptions
+#### How It Works
 
-In `apps/sim/lib/webhooks/provider-subscriptions.ts`:
+The orchestration layer handles everything automatically:
 
-1. Add a logger:
-```typescript
-const {service}Logger = createLogger('{Service}Webhook')
-```
+1. **Creation**: `provider-subscriptions.ts` → `createExternalWebhookSubscription()` calls `handler.createSubscription()` → merges `providerConfigUpdates` into the saved webhook record.
+2. **Deletion**: `provider-subscriptions.ts` → `cleanupExternalWebhook()` calls `handler.deleteSubscription()` → errors are caught and logged non-fatally.
+3. **Polling config**: `deploy.ts` → `configurePollingIfNeeded()` calls `handler.configurePolling()` for credential-based providers (Gmail, Outlook, RSS, IMAP).
 
-2. Add the delete function:
-```typescript
-export async function delete{Service}Webhook(webhook: any, requestId: string): Promise<void> {
-  try {
-    const config = getProviderConfig(webhook)
-    const apiKey = config.apiKey as string | undefined
-    const externalId = config.externalId as string | undefined
+You do NOT need to modify any orchestration files. Just implement the methods on your handler.
 
-    if (!apiKey || !externalId) {
-      {service}Logger.warn(`[${requestId}] Missing apiKey or externalId, skipping cleanup`)
-      return
-    }
+#### Shared Utilities for Subscriptions
 
-    const response = await fetch(`https://api.{service}.com/webhooks/${externalId}`, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-      },
-    })
+Import from `@/lib/webhooks/providers/subscription-utils`:
 
-    if (!response.ok && response.status !== 404) {
-      {service}Logger.warn(`[${requestId}] Failed to delete webhook (non-fatal): ${response.status}`)
-    } else {
-      {service}Logger.info(`[${requestId}] Successfully deleted webhook ${externalId}`)
-    }
-  } catch (error) {
-    {service}Logger.warn(`[${requestId}] Error deleting webhook (non-fatal)`, error)
-  }
-}
-```
-
-3. Add to `cleanupExternalWebhook`:
-```typescript
-export async function cleanupExternalWebhook(...): Promise<void> {
-  // ... existing providers ...
-  } else if (webhook.provider === '{service}') {
-    await delete{Service}Webhook(webhook, requestId)
-  }
-}
-```
+- `getProviderConfig(webhook)` — safely extract `providerConfig` as `Record<string, unknown>`
+- `getNotificationUrl(webhook)` — build the full callback URL: `{baseUrl}/api/webhooks/trigger/{path}`
+- `getCredentialOwner(credentialId, requestId)` — resolve OAuth credential to `{ userId, accountId }` (for OAuth-based providers like Airtable, Attio)
 
 ### Key Points for Automatic Registration
 
 - **API Key visibility**: Always use `password: true` for API key fields
-- **Error handling**: Roll back the database webhook if external creation fails
-- **External ID storage**: Save the external webhook ID in `providerConfig.externalId`
-- **Graceful cleanup**: Don't fail webhook deletion if cleanup fails (use non-fatal logging)
-- **User-friendly errors**: Map HTTP status codes to helpful error messages
+- **Error handling**: Throw from `createSubscription` — the orchestration layer catches it, rolls back the DB webhook, and returns a 500
+- **External ID storage**: Return `{ providerConfigUpdates: { externalId } }` — the orchestration layer merges it into `providerConfig`
+- **Graceful cleanup**: In `deleteSubscription`, catch errors and log non-fatally (never throw)
+- **User-friendly errors**: Map HTTP status codes to helpful error messages in `createSubscription`
 
 ## The buildTriggerSubBlocks Helper
 
@@ -552,6 +511,148 @@ All fields automatically have:
 - `mode: 'trigger'` - Only shown in trigger mode
 - `condition: { field: 'selectedTriggerId', value: triggerId }` - Only shown when this trigger is selected
 
+## Webhook Provider Handler (Optional)
+
+If the service requires **custom webhook auth** (HMAC signatures, token validation), **event matching** (filtering by trigger type), **idempotency dedup**, **custom input formatting**, or **subscription lifecycle** — all of this lives in a single provider handler file.
+
+### Directory
+
+```
+apps/sim/lib/webhooks/providers/
+├── types.ts              # WebhookProviderHandler interface (16 optional methods)
+├── utils.ts              # Shared helpers (createHmacVerifier, verifyTokenAuth, skipByEventTypes)
+├── subscription-utils.ts # Shared subscription helpers (getProviderConfig, getNotificationUrl, getCredentialOwner)
+├── registry.ts           # Handler map + default handler
+├── index.ts              # Barrel export
+└── {service}.ts          # Your provider handler (ALL provider-specific logic here)
+```
+
+### When to Create a Handler
+
+| Behavior | Method to implement | Example providers |
+|---|---|---|
+| HMAC signature auth | `verifyAuth` via `createHmacVerifier` | Ashby, Jira, Linear, Typeform |
+| Custom token auth | `verifyAuth` via `verifyTokenAuth` | Generic, Google Forms |
+| Event type filtering | `matchEvent` | GitHub, Jira, Confluence, Attio, HubSpot |
+| Event skip by type list | `shouldSkipEvent` via `skipByEventTypes` | Stripe, Grain |
+| Idempotency dedup | `extractIdempotencyId` | Slack, Stripe, Linear, Jira |
+| Custom success response | `formatSuccessResponse` | Slack, Twilio Voice, Microsoft Teams |
+| Custom error format | `formatErrorResponse` | Microsoft Teams |
+| Custom input formatting | `formatInput` | Slack, Teams, Attio, Ashby, Gmail, Outlook |
+| Auto webhook creation | `createSubscription` | Ashby, Grain, Calendly, Airtable, Typeform |
+| Auto webhook deletion | `deleteSubscription` | Ashby, Grain, Calendly, Airtable, Typeform |
+| Polling setup | `configurePolling` | Gmail, Outlook, RSS, IMAP |
+| Challenge/verification | `handleChallenge` | Slack, WhatsApp, Microsoft Teams |
+
+If none of these apply, you do NOT need a handler file. The default handler provides bearer token auth for providers that set `providerConfig.token`.
+
+### Simple Example: HMAC Auth Only
+
+Signature validators are defined as private functions **inside the handler file** (not in a shared utils file):
+
+```typescript
+import crypto from 'crypto'
+import { createLogger } from '@sim/logger'
+import { safeCompare } from '@/lib/core/security/encryption'
+import type { WebhookProviderHandler } from '@/lib/webhooks/providers/types'
+import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
+
+const logger = createLogger('WebhookProvider:{Service}')
+
+function validate{Service}Signature(secret: string, signature: string, body: string): boolean {
+  try {
+    if (!secret || !signature || !body) return false
+    if (!signature.startsWith('sha256=')) return false
+    const provided = signature.substring(7)
+    const computed = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
+    return safeCompare(computed, provided)
+  } catch (error) {
+    logger.error('Error validating {Service} signature:', error)
+    return false
+  }
+}
+
+export const {service}Handler: WebhookProviderHandler = {
+  verifyAuth: createHmacVerifier({
+    configKey: 'webhookSecret',
+    headerName: 'X-{Service}-Signature',
+    validateFn: validate{Service}Signature,
+    providerLabel: '{Service}',
+  }),
+}
+```
+
+### Example: Auth + Event Matching + Idempotency
+
+```typescript
+import crypto from 'crypto'
+import { createLogger } from '@sim/logger'
+import { safeCompare } from '@/lib/core/security/encryption'
+import type { EventMatchContext, WebhookProviderHandler } from '@/lib/webhooks/providers/types'
+import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
+
+const logger = createLogger('WebhookProvider:{Service}')
+
+function validate{Service}Signature(secret: string, signature: string, body: string): boolean {
+  try {
+    if (!secret || !signature || !body) return false
+    const computed = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('hex')
+    return safeCompare(computed, signature)
+  } catch (error) {
+    logger.error('Error validating {Service} signature:', error)
+    return false
+  }
+}
+
+export const {service}Handler: WebhookProviderHandler = {
+  verifyAuth: createHmacVerifier({
+    configKey: 'webhookSecret',
+    headerName: 'X-{Service}-Signature',
+    validateFn: validate{Service}Signature,
+    providerLabel: '{Service}',
+  }),
+
+  async matchEvent({ webhook, workflow, body, requestId, providerConfig }: EventMatchContext) {
+    const triggerId = providerConfig.triggerId as string | undefined
+    const obj = body as Record<string, unknown>
+
+    if (triggerId && triggerId !== '{service}_webhook') {
+      const { is{Service}EventMatch } = await import('@/triggers/{service}/utils')
+      if (!is{Service}EventMatch(triggerId, obj)) {
+        logger.debug(
+          `[${requestId}] {Service} event mismatch for trigger ${triggerId}. Skipping.`,
+          { webhookId: webhook.id, workflowId: workflow.id, triggerId }
+        )
+        return false
+      }
+    }
+
+    return true
+  },
+
+  extractIdempotencyId(body: unknown) {
+    const obj = body as Record<string, unknown>
+    if (obj.id && obj.type) {
+      return `${obj.type}:${obj.id}`
+    }
+    return null
+  },
+}
+```
+
+### Registering the Handler
+
+In `apps/sim/lib/webhooks/providers/registry.ts`:
+
+```typescript
+import { {service}Handler } from '@/lib/webhooks/providers/{service}'
+
+const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
+  // ... existing providers (alphabetical) ...
+  {service}: {service}Handler,
+}
+```
+
 ## Trigger Outputs & Webhook Input Formatting
 
 ### Important: Two Sources of Truth
@@ -559,35 +660,48 @@ All fields automatically have:
 There are two related but separate concerns:
 
 1. **Trigger `outputs`** - Schema/contract defining what fields SHOULD be available. Used by UI for tag dropdown.
-2. **`formatWebhookInput`** - Implementation that transforms raw webhook payload into actual data. Located in `apps/sim/lib/webhooks/utils.server.ts`.
+2. **`formatInput` on the handler** - Implementation that transforms raw webhook payload into actual data. Defined in `apps/sim/lib/webhooks/providers/{service}.ts`.
 
-**These MUST be aligned.** The fields returned by `formatWebhookInput` should match what's defined in trigger `outputs`. If they differ:
+**These MUST be aligned.** The fields returned by `formatInput` should match what's defined in trigger `outputs`. If they differ:
 - Tag dropdown shows fields that don't exist (broken variable resolution)
 - Or actual data has fields not shown in dropdown (users can't discover them)
 
-### When to Add a formatWebhookInput Handler
+### When to Add `formatInput`
 
-- **Simple providers**: If the raw webhook payload structure already matches your outputs, you don't need a handler. The generic fallback returns `body` directly.
-- **Complex providers**: If you need to transform, flatten, extract nested data, compute fields, or handle conditional logic, add a handler.
+- **Simple providers**: If the raw webhook payload structure already matches your outputs, you don't need it. The fallback passes through the raw body directly.
+- **Complex providers**: If you need to transform, flatten, extract nested data, compute fields, or handle conditional logic, add `formatInput` to your handler.
 
-### Adding a Handler
+### Adding `formatInput` to Your Handler
 
-In `apps/sim/lib/webhooks/utils.server.ts`, add a handler block:
+In `apps/sim/lib/webhooks/providers/{service}.ts`:
 
 ```typescript
-if (foundWebhook.provider === '{service}') {
-  // Transform raw webhook body to match trigger outputs
-  return {
-    eventType: body.type,
-    resourceId: body.data?.id || '',
-    timestamp: body.created_at,
-    resource: body.data,
-  }
+import type {
+  FormatInputContext,
+  FormatInputResult,
+  WebhookProviderHandler,
+} from '@/lib/webhooks/providers/types'
+
+export const {service}Handler: WebhookProviderHandler = {
+  // ... other methods ...
+
+  async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
+    const b = body as Record<string, unknown>
+    return {
+      input: {
+        eventType: b.type,
+        resourceId: (b.data as Record<string, unknown>)?.id || '',
+        timestamp: b.created_at,
+        resource: b.data,
+      },
+    }
+  },
 }
 ```
 
 **Key rules:**
-- Return fields that match your trigger `outputs` definition exactly
+- Return `{ input: { ... } }` where the inner object matches your trigger `outputs` definition exactly
+- Return `{ input: ..., skip: { message: '...' } }` to skip execution for this event
 - No wrapper objects like `webhook: { data: ... }` or `{service}: { ... }`
 - No duplication (don't spread body AND add individual fields)
 - Use `null` for missing optional data, not empty objects with empty strings
@@ -688,21 +802,25 @@ export const {service}WebhookTrigger: TriggerConfig = {
 - [ ] Block has all trigger IDs in `triggers.available`
 - [ ] Block spreads all trigger subBlocks: `...getTrigger('id').subBlocks`
 
+### Webhook Provider Handler (`providers/{service}.ts`)
+- [ ] Created handler file in `apps/sim/lib/webhooks/providers/{service}.ts`
+- [ ] Registered handler in `apps/sim/lib/webhooks/providers/registry.ts` (alphabetical)
+- [ ] Signature validator defined as private function inside handler file (not in a shared file)
+- [ ] Used `createHmacVerifier` from `providers/utils` for HMAC-based auth
+- [ ] Used `verifyTokenAuth` from `providers/utils` for token-based auth
+- [ ] Event matching uses dynamic `await import()` for trigger utils
+- [ ] Added `formatInput` if webhook payload needs transformation (returns `{ input: ... }`)
+
 ### Automatic Webhook Registration (if supported)
 - [ ] Added API key field to `build{Service}ExtraFields` with `password: true`
 - [ ] Updated setup instructions for automatic webhook creation
-- [ ] Added provider-specific logic to `apps/sim/app/api/webhooks/route.ts`
-- [ ] Added `create{Service}WebhookSubscription` helper function
-- [ ] Added `delete{Service}Webhook` function to `provider-subscriptions.ts`
-- [ ] Added provider to `cleanupExternalWebhook` function
-
-### Webhook Input Formatting
-- [ ] Added handler in `apps/sim/lib/webhooks/utils.server.ts` (if custom formatting needed)
-- [ ] Handler returns fields matching trigger `outputs` exactly
-- [ ] Run `bunx scripts/check-trigger-alignment.ts {service}` to verify alignment
+- [ ] Added `createSubscription` method to handler (uses `getNotificationUrl`, `getProviderConfig` from `subscription-utils`)
+- [ ] Added `deleteSubscription` method to handler (catches errors, logs non-fatally)
+- [ ] NO changes needed to `route.ts`, `provider-subscriptions.ts`, or `deploy.ts`
 
 ### Testing
 - [ ] Run `bun run type-check` to verify no TypeScript errors
+- [ ] Run `bunx scripts/check-trigger-alignment.ts {service}` to verify output alignment
 - [ ] Restart dev server to pick up new triggers
 - [ ] Test trigger UI shows correctly in the block
 - [ ] Test automatic webhook creation works (if applicable)

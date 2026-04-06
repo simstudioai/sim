@@ -7,12 +7,11 @@ import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { IdempotencyService, webhookIdempotency } from '@/lib/core/idempotency'
 import { generateId } from '@/lib/core/utils/uuid'
-import { processExecutionFiles } from '@/lib/execution/files'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { WebhookAttachmentProcessor } from '@/lib/webhooks/attachment-processor'
-import { fetchAndProcessAirtablePayloads, formatWebhookInput } from '@/lib/webhooks/utils.server'
+import { getProviderHandler } from '@/lib/webhooks/providers'
 import {
   executeWorkflowCore,
   wasExecutionFinalizedByCore,
@@ -23,6 +22,7 @@ import { resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 import { getBlock } from '@/blocks'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
+import type { ExecutionResult } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import { safeAssign } from '@/tools/safe-assign'
 import { getTrigger, isTriggerValid } from '@/triggers'
@@ -48,12 +48,12 @@ export function buildWebhookCorrelation(
 }
 
 /**
- * Process trigger outputs based on their schema definitions
- * Finds outputs marked as 'file' or 'file[]' and uploads them to execution storage
+ * Process trigger outputs based on their schema definitions.
+ * Finds outputs marked as 'file' or 'file[]' and uploads them to execution storage.
  */
 async function processTriggerFileOutputs(
-  input: any,
-  triggerOutputs: Record<string, any>,
+  input: unknown,
+  triggerOutputs: Record<string, unknown>,
   context: {
     workspaceId: string
     workflowId: string
@@ -62,29 +62,31 @@ async function processTriggerFileOutputs(
     userId?: string
   },
   path = ''
-): Promise<any> {
+): Promise<unknown> {
   if (!input || typeof input !== 'object') {
     return input
   }
 
-  const processed: any = Array.isArray(input) ? [] : {}
+  const processed = (Array.isArray(input) ? [] : {}) as Record<string, unknown>
 
   for (const [key, value] of Object.entries(input)) {
     const currentPath = path ? `${path}.${key}` : key
-    const outputDef = triggerOutputs[key]
-    const val: any = value
+    const outputDef = triggerOutputs[key] as Record<string, unknown> | undefined
+    const val = value as Record<string, unknown>
 
-    // If this field is marked as file or file[], process it
     if (outputDef?.type === 'file[]' && Array.isArray(val)) {
       try {
-        processed[key] = await WebhookAttachmentProcessor.processAttachments(val as any, context)
+        processed[key] = await WebhookAttachmentProcessor.processAttachments(
+          val as unknown as Parameters<typeof WebhookAttachmentProcessor.processAttachments>[0],
+          context
+        )
       } catch (error) {
         processed[key] = []
       }
     } else if (outputDef?.type === 'file' && val) {
       try {
         const [processedFile] = await WebhookAttachmentProcessor.processAttachments(
-          [val as any],
+          [val] as unknown as Parameters<typeof WebhookAttachmentProcessor.processAttachments>[0],
           context
         )
         processed[key] = processedFile
@@ -98,18 +100,20 @@ async function processTriggerFileOutputs(
       (outputDef.type === 'object' || outputDef.type === 'json') &&
       outputDef.properties
     ) {
-      // Explicit object schema with properties - recurse into properties
       processed[key] = await processTriggerFileOutputs(
         val,
-        outputDef.properties,
+        outputDef.properties as Record<string, unknown>,
         context,
         currentPath
       )
     } else if (outputDef && typeof outputDef === 'object' && !outputDef.type) {
-      // Nested object in schema (flat pattern) - recurse with the nested schema
-      processed[key] = await processTriggerFileOutputs(val, outputDef, context, currentPath)
+      processed[key] = await processTriggerFileOutputs(
+        val,
+        outputDef as Record<string, unknown>,
+        context,
+        currentPath
+      )
     } else {
-      // Not a file output - keep as is
       processed[key] = val
     }
   }
@@ -125,7 +129,7 @@ export type WebhookExecutionPayload = {
   requestId?: string
   correlation?: AsyncExecutionCorrelation
   provider: string
-  body: any
+  body: unknown
   headers: Record<string, string>
   path: string
   blockId?: string
@@ -164,9 +168,6 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
   )
 }
 
-/**
- * Resolve the account userId for a credential
- */
 async function resolveCredentialAccountUserId(credentialId: string): Promise<string | undefined> {
   const resolved = await resolveOAuthAccountId(credentialId)
   if (!resolved) {
@@ -178,6 +179,62 @@ async function resolveCredentialAccountUserId(credentialId: string): Promise<str
     .where(eq(account.id, resolved.accountId))
     .limit(1)
   return credentialRecord?.userId
+}
+
+/**
+ * Handle execution result status (timeout, pause, resume).
+ * Shared between all provider paths to eliminate duplication.
+ */
+async function handleExecutionResult(
+  executionResult: ExecutionResult,
+  ctx: {
+    loggingSession: LoggingSession
+    timeoutController: ReturnType<typeof createTimeoutAbortController>
+    requestId: string
+    executionId: string
+    workflowId: string
+  }
+) {
+  if (
+    executionResult.status === 'cancelled' &&
+    ctx.timeoutController.isTimedOut() &&
+    ctx.timeoutController.timeoutMs
+  ) {
+    const timeoutErrorMessage = getTimeoutErrorMessage(null, ctx.timeoutController.timeoutMs)
+    logger.info(`[${ctx.requestId}] Webhook execution timed out`, {
+      timeoutMs: ctx.timeoutController.timeoutMs,
+    })
+    await ctx.loggingSession.markAsFailed(timeoutErrorMessage)
+  } else if (executionResult.status === 'paused') {
+    if (!executionResult.snapshotSeed) {
+      logger.error(`[${ctx.requestId}] Missing snapshot seed for paused execution`, {
+        executionId: ctx.executionId,
+      })
+      await ctx.loggingSession.markAsFailed('Missing snapshot seed for paused execution')
+    } else {
+      try {
+        await PauseResumeManager.persistPauseResult({
+          workflowId: ctx.workflowId,
+          executionId: ctx.executionId,
+          pausePoints: executionResult.pausePoints || [],
+          snapshotSeed: executionResult.snapshotSeed,
+          executorUserId: executionResult.metadata?.userId,
+        })
+      } catch (pauseError) {
+        logger.error(`[${ctx.requestId}] Failed to persist pause result`, {
+          executionId: ctx.executionId,
+          error: pauseError instanceof Error ? pauseError.message : String(pauseError),
+        })
+        await ctx.loggingSession.markAsFailed(
+          `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
+        )
+      }
+    }
+  } else {
+    await PauseResumeManager.processQueuedResumes(ctx.executionId)
+  }
+
+  await ctx.loggingSession.waitForPostExecution()
 }
 
 async function executeWebhookJobInternal(
@@ -192,7 +249,6 @@ async function executeWebhookJobInternal(
     requestId
   )
 
-  // Resolve workflow record, billing actor, subscription, and timeout
   const preprocessResult = await preprocessExecution({
     workflowId: payload.workflowId,
     userId: payload.userId,
@@ -221,14 +277,13 @@ async function executeWebhookJobInternal(
     throw new Error(`Workflow ${payload.workflowId} has no associated workspace`)
   }
 
-  const workflowVariables = (workflowRecord.variables as Record<string, any>) || {}
+  const workflowVariables = (workflowRecord.variables as Record<string, unknown>) || {}
   const asyncTimeout = executionTimeout?.async ?? 120_000
   const timeoutController = createTimeoutAbortController(asyncTimeout)
 
   let deploymentVersionId: string | undefined
 
   try {
-    // Parallelize workflow state, webhook record, and credential resolution
     const [workflowData, webhookRows, resolvedCredentialUserId] = await Promise.all([
       loadDeployedWorkflowState(payload.workflowId, workspaceId),
       db.select().from(webhook).where(eq(webhook.id, payload.webhookId)).limit(1),
@@ -255,134 +310,38 @@ async function executeWebhookJobInternal(
         ? (workflowData.deploymentVersionId as string)
         : undefined
 
-    // Handle special Airtable case
-    if (payload.provider === 'airtable') {
-      logger.info(`[${requestId}] Processing Airtable webhook via fetchAndProcessAirtablePayloads`)
+    const handler = getProviderHandler(payload.provider)
 
-      const webhookRecord = webhookRows[0]
-      if (!webhookRecord) {
-        throw new Error(`Webhook record not found: ${payload.webhookId}`)
+    let input: Record<string, unknown> | null = null
+    let skipMessage: string | undefined
+
+    const webhookRecord = webhookRows[0]
+    if (!webhookRecord) {
+      throw new Error(`Webhook record not found: ${payload.webhookId}`)
+    }
+
+    if (handler.formatInput) {
+      const result = await handler.formatInput({
+        webhook: webhookRecord,
+        workflow: { id: payload.workflowId, userId: payload.userId },
+        body: payload.body,
+        headers: payload.headers,
+        requestId,
+      })
+      input = result.input as Record<string, unknown> | null
+      skipMessage = result.skip?.message
+    } else {
+      input = payload.body as Record<string, unknown> | null
+    }
+
+    if (!input && handler.handleEmptyInput) {
+      const skipResult = handler.handleEmptyInput(requestId)
+      if (skipResult) {
+        skipMessage = skipResult.message
       }
+    }
 
-      const webhookData = {
-        id: payload.webhookId,
-        provider: payload.provider,
-        providerConfig: webhookRecord.providerConfig,
-      }
-
-      const mockWorkflow = {
-        id: payload.workflowId,
-        userId: payload.userId,
-      }
-
-      const airtableInput = await fetchAndProcessAirtablePayloads(
-        webhookData,
-        mockWorkflow,
-        requestId
-      )
-
-      if (airtableInput) {
-        logger.info(`[${requestId}] Executing workflow with Airtable changes`)
-
-        const metadata: ExecutionMetadata = {
-          requestId,
-          executionId,
-          workflowId: payload.workflowId,
-          workspaceId,
-          userId: payload.userId,
-          sessionUserId: undefined,
-          workflowUserId: workflowRecord.userId,
-          triggerType: payload.provider || 'webhook',
-          triggerBlockId: payload.blockId,
-          useDraftState: false,
-          startTime: new Date().toISOString(),
-          isClientSession: false,
-          credentialAccountUserId,
-          correlation,
-          workflowStateOverride: {
-            blocks,
-            edges,
-            loops: loops || {},
-            parallels: parallels || {},
-            deploymentVersionId,
-          },
-        }
-
-        const snapshot = new ExecutionSnapshot(
-          metadata,
-          workflowRecord,
-          airtableInput,
-          workflowVariables,
-          []
-        )
-
-        const executionResult = await executeWorkflowCore({
-          snapshot,
-          callbacks: {},
-          loggingSession,
-          includeFileBase64: true,
-          base64MaxBytes: undefined,
-          abortSignal: timeoutController.signal,
-        })
-
-        if (
-          executionResult.status === 'cancelled' &&
-          timeoutController.isTimedOut() &&
-          timeoutController.timeoutMs
-        ) {
-          const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
-          logger.info(`[${requestId}] Airtable webhook execution timed out`, {
-            timeoutMs: timeoutController.timeoutMs,
-          })
-          await loggingSession.markAsFailed(timeoutErrorMessage)
-        } else if (executionResult.status === 'paused') {
-          if (!executionResult.snapshotSeed) {
-            logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
-              executionId,
-            })
-            await loggingSession.markAsFailed('Missing snapshot seed for paused execution')
-          } else {
-            try {
-              await PauseResumeManager.persistPauseResult({
-                workflowId: payload.workflowId,
-                executionId,
-                pausePoints: executionResult.pausePoints || [],
-                snapshotSeed: executionResult.snapshotSeed,
-                executorUserId: executionResult.metadata?.userId,
-              })
-            } catch (pauseError) {
-              logger.error(`[${requestId}] Failed to persist pause result`, {
-                executionId,
-                error: pauseError instanceof Error ? pauseError.message : String(pauseError),
-              })
-              await loggingSession.markAsFailed(
-                `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
-              )
-            }
-          }
-        } else {
-          await PauseResumeManager.processQueuedResumes(executionId)
-        }
-
-        await loggingSession.waitForPostExecution()
-
-        logger.info(`[${requestId}] Airtable webhook execution completed`, {
-          success: executionResult.success,
-          workflowId: payload.workflowId,
-        })
-
-        return {
-          success: executionResult.success,
-          workflowId: payload.workflowId,
-          executionId,
-          output: executionResult.output,
-          executedAt: new Date().toISOString(),
-          provider: payload.provider,
-        }
-      }
-      // No changes to process
-      logger.info(`[${requestId}] No Airtable changes to process`)
-
+    if (skipMessage) {
       await loggingSession.safeStart({
         userId: payload.userId,
         workspaceId,
@@ -397,7 +356,7 @@ async function executeWebhookJobInternal(
       await loggingSession.safeComplete({
         endedAt: new Date().toISOString(),
         totalDurationMs: 0,
-        finalOutput: { message: 'No Airtable changes to process' },
+        finalOutput: { message: skipMessage },
         traceSpans: [],
       })
 
@@ -405,61 +364,11 @@ async function executeWebhookJobInternal(
         success: true,
         workflowId: payload.workflowId,
         executionId,
-        output: { message: 'No Airtable changes to process' },
+        output: { message: skipMessage },
         executedAt: new Date().toISOString(),
       }
     }
 
-    // Format input for standard webhooks
-    const actualWebhook =
-      webhookRows.length > 0
-        ? webhookRows[0]
-        : {
-            provider: payload.provider,
-            blockId: payload.blockId,
-            providerConfig: {},
-          }
-
-    const mockWorkflow = {
-      id: payload.workflowId,
-      userId: payload.userId,
-    }
-    const mockRequest = {
-      headers: new Map(Object.entries(payload.headers)),
-    } as any
-
-    const input = await formatWebhookInput(actualWebhook, mockWorkflow, payload.body, mockRequest)
-
-    if (!input && payload.provider === 'whatsapp') {
-      logger.info(`[${requestId}] No messages in WhatsApp payload, skipping execution`)
-
-      await loggingSession.safeStart({
-        userId: payload.userId,
-        workspaceId,
-        variables: {},
-        triggerData: {
-          isTest: false,
-          correlation,
-        },
-        deploymentVersionId,
-      })
-
-      await loggingSession.safeComplete({
-        endedAt: new Date().toISOString(),
-        totalDurationMs: 0,
-        finalOutput: { message: 'No messages in WhatsApp payload' },
-        traceSpans: [],
-      })
-      return {
-        success: true,
-        workflowId: payload.workflowId,
-        executionId,
-        output: { message: 'No messages in WhatsApp payload' },
-        executedAt: new Date().toISOString(),
-      }
-    }
-
-    // Process trigger file outputs based on schema
     if (input && payload.blockId && blocks[payload.blockId]) {
       try {
         const triggerBlock = blocks[payload.blockId]
@@ -502,49 +411,20 @@ async function executeWebhookJobInternal(
       }
     }
 
-    // Process generic webhook files based on inputFormat
-    if (input && payload.provider === 'generic' && payload.blockId && blocks[payload.blockId]) {
+    if (input && handler.processInputFiles && payload.blockId && blocks[payload.blockId]) {
       try {
-        const triggerBlock = blocks[payload.blockId]
-
-        if (triggerBlock?.subBlocks?.inputFormat?.value) {
-          const inputFormat = triggerBlock.subBlocks.inputFormat.value as unknown as Array<{
-            name: string
-            type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'file[]'
-          }>
-
-          const fileFields = inputFormat.filter((field) => field.type === 'file[]')
-
-          if (fileFields.length > 0 && typeof input === 'object' && input !== null) {
-            const executionContext = {
-              workspaceId,
-              workflowId: payload.workflowId,
-              executionId,
-            }
-
-            for (const fileField of fileFields) {
-              const fieldValue = input[fileField.name]
-
-              if (fieldValue && typeof fieldValue === 'object') {
-                const uploadedFiles = await processExecutionFiles(
-                  fieldValue,
-                  executionContext,
-                  requestId,
-                  payload.userId
-                )
-
-                if (uploadedFiles.length > 0) {
-                  input[fileField.name] = uploadedFiles
-                  logger.info(
-                    `[${requestId}] Successfully processed ${uploadedFiles.length} file(s) for field: ${fileField.name}`
-                  )
-                }
-              }
-            }
-          }
-        }
+        await handler.processInputFiles({
+          input,
+          blocks,
+          blockId: payload.blockId,
+          workspaceId,
+          workflowId: payload.workflowId,
+          executionId,
+          requestId,
+          userId: payload.userId,
+        })
       } catch (error) {
-        logger.error(`[${requestId}] Error processing generic webhook files:`, error)
+        logger.error(`[${requestId}] Error processing provider-specific files:`, error)
       }
     }
 
@@ -589,49 +469,17 @@ async function executeWebhookJobInternal(
       callbacks: {},
       loggingSession,
       includeFileBase64: true,
+      base64MaxBytes: undefined,
       abortSignal: timeoutController.signal,
     })
 
-    if (
-      executionResult.status === 'cancelled' &&
-      timeoutController.isTimedOut() &&
-      timeoutController.timeoutMs
-    ) {
-      const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
-      logger.info(`[${requestId}] Webhook execution timed out`, {
-        timeoutMs: timeoutController.timeoutMs,
-      })
-      await loggingSession.markAsFailed(timeoutErrorMessage)
-    } else if (executionResult.status === 'paused') {
-      if (!executionResult.snapshotSeed) {
-        logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
-          executionId,
-        })
-        await loggingSession.markAsFailed('Missing snapshot seed for paused execution')
-      } else {
-        try {
-          await PauseResumeManager.persistPauseResult({
-            workflowId: payload.workflowId,
-            executionId,
-            pausePoints: executionResult.pausePoints || [],
-            snapshotSeed: executionResult.snapshotSeed,
-            executorUserId: executionResult.metadata?.userId,
-          })
-        } catch (pauseError) {
-          logger.error(`[${requestId}] Failed to persist pause result`, {
-            executionId,
-            error: pauseError instanceof Error ? pauseError.message : String(pauseError),
-          })
-          await loggingSession.markAsFailed(
-            `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
-          )
-        }
-      }
-    } else {
-      await PauseResumeManager.processQueuedResumes(executionId)
-    }
-
-    await loggingSession.waitForPostExecution()
+    await handleExecutionResult(executionResult, {
+      loggingSession,
+      timeoutController,
+      requestId,
+      executionId,
+      workflowId: payload.workflowId,
+    })
 
     logger.info(`[${requestId}] Webhook execution completed`, {
       success: executionResult.success,

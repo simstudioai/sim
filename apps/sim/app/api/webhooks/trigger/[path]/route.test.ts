@@ -97,7 +97,6 @@ const {
   handleSlackChallengeMock,
   processWhatsAppDeduplicationMock,
   processGenericDeduplicationMock,
-  fetchAndProcessAirtablePayloadsMock,
   processWebhookMock,
   executeMock,
   getWorkspaceBilledAccountUserIdMock,
@@ -109,7 +108,6 @@ const {
   handleSlackChallengeMock: vi.fn().mockReturnValue(null),
   processWhatsAppDeduplicationMock: vi.fn().mockResolvedValue(null),
   processGenericDeduplicationMock: vi.fn().mockResolvedValue(null),
-  fetchAndProcessAirtablePayloadsMock: vi.fn().mockResolvedValue(undefined),
   processWebhookMock: vi.fn().mockResolvedValue(new Response('Webhook processed', { status: 200 })),
   executeMock: vi.fn().mockResolvedValue({
     success: true,
@@ -156,10 +154,8 @@ vi.mock('@/background/logs-webhook-delivery', () => ({
 vi.mock('@/lib/webhooks/utils', () => ({
   handleWhatsAppVerification: handleWhatsAppVerificationMock,
   handleSlackChallenge: handleSlackChallengeMock,
-  verifyProviderWebhook: vi.fn().mockReturnValue(null),
   processWhatsAppDeduplication: processWhatsAppDeduplicationMock,
   processGenericDeduplication: processGenericDeduplicationMock,
-  fetchAndProcessAirtablePayloads: fetchAndProcessAirtablePayloadsMock,
   processWebhook: processWebhookMock,
 }))
 

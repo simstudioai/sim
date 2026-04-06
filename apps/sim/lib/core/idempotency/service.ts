@@ -6,7 +6,7 @@ import { getRedisClient } from '@/lib/core/config/redis'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getStorageMethod, type StorageMethod } from '@/lib/core/storage'
 import { generateId } from '@/lib/core/utils/uuid'
-import { extractProviderIdentifierFromBody } from '@/lib/webhooks/provider-utils'
+import { extractProviderIdentifierFromBody } from '@/lib/webhooks/providers'
 
 const logger = createLogger('IdempotencyService')
 
