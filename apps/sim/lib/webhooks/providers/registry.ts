@@ -17,6 +17,7 @@ import { googleFormsHandler } from '@/lib/webhooks/providers/google-forms'
 import { grainHandler } from '@/lib/webhooks/providers/grain'
 import { hubspotHandler } from '@/lib/webhooks/providers/hubspot'
 import { imapHandler } from '@/lib/webhooks/providers/imap'
+import { intercomHandler } from '@/lib/webhooks/providers/intercom'
 import { jiraHandler } from '@/lib/webhooks/providers/jira'
 import { lemlistHandler } from '@/lib/webhooks/providers/lemlist'
 import { linearHandler } from '@/lib/webhooks/providers/linear'
@@ -55,6 +56,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   grain: grainHandler,
   hubspot: hubspotHandler,
   imap: imapHandler,
+  intercom: intercomHandler,
   jira: jiraHandler,
   lemlist: lemlistHandler,
   linear: linearHandler,

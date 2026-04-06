@@ -132,6 +132,14 @@ import {
 } from '@/triggers/hubspot'
 import { imapPollingTrigger } from '@/triggers/imap'
 import {
+  intercomContactCreatedTrigger,
+  intercomConversationClosedTrigger,
+  intercomConversationCreatedTrigger,
+  intercomConversationReplyTrigger,
+  intercomUserCreatedTrigger,
+  intercomWebhookTrigger,
+} from '@/triggers/intercom'
+import {
   jiraIssueCommentedTrigger,
   jiraIssueCreatedTrigger,
   jiraIssueDeletedTrigger,
@@ -381,4 +389,10 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   hubspot_ticket_restored: hubspotTicketRestoredTrigger,
   hubspot_webhook: hubspotWebhookTrigger,
   imap_poller: imapPollingTrigger,
+  intercom_conversation_created: intercomConversationCreatedTrigger,
+  intercom_conversation_reply: intercomConversationReplyTrigger,
+  intercom_conversation_closed: intercomConversationClosedTrigger,
+  intercom_contact_created: intercomContactCreatedTrigger,
+  intercom_user_created: intercomUserCreatedTrigger,
+  intercom_webhook: intercomWebhookTrigger,
 }

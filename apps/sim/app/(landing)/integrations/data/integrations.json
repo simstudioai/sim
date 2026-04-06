@@ -6088,8 +6088,39 @@
       }
     ],
     "operationCount": 31,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "intercom_conversation_created",
+        "name": "Intercom Conversation Created",
+        "description": "Trigger workflow when a new conversation is created in Intercom"
+      },
+      {
+        "id": "intercom_conversation_reply",
+        "name": "Intercom Conversation Reply",
+        "description": "Trigger workflow when someone replies to an Intercom conversation"
+      },
+      {
+        "id": "intercom_conversation_closed",
+        "name": "Intercom Conversation Closed",
+        "description": "Trigger workflow when a conversation is closed in Intercom"
+      },
+      {
+        "id": "intercom_contact_created",
+        "name": "Intercom Contact Created",
+        "description": "Trigger workflow when a new lead is created in Intercom"
+      },
+      {
+        "id": "intercom_user_created",
+        "name": "Intercom User Created",
+        "description": "Trigger workflow when a new user is created in Intercom"
+      },
+      {
+        "id": "intercom_webhook",
+        "name": "Intercom Webhook (All Events)",
+        "description": "Trigger workflow on any Intercom webhook event"
+      }
+    ],
+    "triggerCount": 6,
     "authType": "api-key",
     "category": "tools",
     "integrationType": "customer-support",
