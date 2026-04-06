@@ -883,9 +883,7 @@ export class PauseResumeManager {
           timestamp: new Date().toISOString(),
           executionId: resumeExecutionId,
           workflowId,
-          data: hasError
-            ? { ...sharedData, error: output?.error }
-            : { ...sharedData, output },
+          data: hasError ? { ...sharedData, error: output?.error } : { ...sharedData, output },
         } as ExecutionEvent)
       },
       onChildWorkflowInstanceReady: (
