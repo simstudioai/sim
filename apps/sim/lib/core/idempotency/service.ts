@@ -421,7 +421,8 @@ export class IdempotencyService {
       normalizedHeaders?.['x-event-id'] ||
       normalizedHeaders?.['x-teams-notification-id'] ||
       normalizedHeaders?.['svix-id'] ||
-      normalizedHeaders?.['linear-delivery']
+      normalizedHeaders?.['linear-delivery'] ||
+      normalizedHeaders?.['greenhouse-event-id']
 
     if (webhookIdHeader) {
       return `${webhookId}:${webhookIdHeader}`

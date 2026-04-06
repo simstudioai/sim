@@ -9,22 +9,22 @@ import {
 import type { TriggerConfig } from '@/triggers/types'
 
 /**
- * Greenhouse Generic Webhook Trigger
- *
- * Accepts all Greenhouse webhook events without filtering.
+ * Greenhouse generic webhook trigger.
+ * Event filtering is determined by which events you enable on the Greenhouse webhook endpoint.
  */
 export const greenhouseWebhookTrigger: TriggerConfig = {
   id: 'greenhouse_webhook',
-  name: 'Greenhouse Webhook (All Events)',
+  name: 'Greenhouse Webhook (Endpoint Events)',
   provider: 'greenhouse',
-  description: 'Trigger workflow on any Greenhouse webhook event',
+  description:
+    'Trigger on whichever event types you select for this URL in Greenhouse. Sim does not filter deliveries for this trigger.',
   version: '1.0.0',
   icon: GreenhouseIcon,
 
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'greenhouse_webhook',
     triggerOptions: greenhouseTriggerOptions,
-    setupInstructions: greenhouseSetupInstructions('All Events'),
+    setupInstructions: greenhouseSetupInstructions('Greenhouse event types for this URL'),
     extraFields: buildGreenhouseExtraFields('greenhouse_webhook'),
   }),
 

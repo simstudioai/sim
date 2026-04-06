@@ -12,7 +12,7 @@ export const greenhouseTriggerOptions = [
   { label: 'Offer Created', id: 'greenhouse_offer_created' },
   { label: 'Job Created', id: 'greenhouse_job_created' },
   { label: 'Job Updated', id: 'greenhouse_job_updated' },
-  { label: 'Generic Webhook (All Events)', id: 'greenhouse_webhook' },
+  { label: 'All configured Greenhouse events', id: 'greenhouse_webhook' },
 ]
 
 /**
@@ -34,8 +34,8 @@ export const GREENHOUSE_EVENT_MAP: Record<string, string> = {
  */
 export function isGreenhouseEventMatch(triggerId: string, action: string): boolean {
   const expectedAction = GREENHOUSE_EVENT_MAP[triggerId]
-  if (!expectedAction) {
-    return true
+  if (expectedAction === undefined) {
+    return false
   }
   return action === expectedAction
 }
@@ -51,7 +51,8 @@ export function buildGreenhouseExtraFields(triggerId: string): SubBlockConfig[] 
       title: 'Secret Key (Optional)',
       type: 'short-input',
       placeholder: 'Enter the same secret key configured in Greenhouse',
-      description: 'Used to verify webhook signatures via HMAC-SHA256.',
+      description:
+        'When set, requests must include a valid Signature header (HMAC-SHA256). If left empty, the endpoint does not verify signatures—only use on a private URL you fully control.',
       password: true,
       mode: 'trigger',
       condition: { field: 'selectedTriggerId', value: triggerId },
@@ -69,8 +70,8 @@ export function greenhouseSetupInstructions(eventType: string): string {
     'In Greenhouse, go to <strong>Configure &gt; Dev Center &gt; Webhooks</strong>.',
     'Click <strong>Create New Webhook</strong>.',
     'Paste the Webhook URL into the <strong>Endpoint URL</strong> field.',
-    'Enter a <strong>Secret Key</strong> for signature verification (optional).',
-    `Under <strong>When</strong>, select the <strong>${eventType}</strong> event.`,
+    'Enter a <strong>Secret Key</strong> for HMAC signature verification (recommended). Leave empty only if you accept unauthenticated POSTs to this URL.',
+    `Under <strong>When</strong>, select the appropriate <strong>${eventType}</strong>.`,
     'Click <strong>Create Webhook</strong> to save.',
     'Click "Save" above to activate your trigger.',
   ]

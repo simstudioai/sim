@@ -1,29 +1,79 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { NextResponse } from 'next/server'
 import { safeCompare } from '@/lib/core/security/encryption'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/providers/subscription-utils'
 import type {
+  AuthContext,
   DeleteSubscriptionContext,
+  EventMatchContext,
   FormatInputContext,
   FormatInputResult,
   SubscriptionContext,
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Vercel')
 
+function verifyVercelSignature(secret: string, signature: string, rawBody: string): boolean {
+  const hash = crypto.createHmac('sha1', secret).update(rawBody, 'utf8').digest('hex')
+  return safeCompare(hash, signature)
+}
+
 export const vercelHandler: WebhookProviderHandler = {
-  verifyAuth: createHmacVerifier({
-    configKey: 'webhookSecret',
-    headerName: 'x-vercel-signature',
-    validateFn: (secret, signature, body) => {
-      const hash = crypto.createHmac('sha1', secret).update(body, 'utf8').digest('hex')
-      return safeCompare(hash, signature)
-    },
-    providerLabel: 'Vercel',
-  }),
+  verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext): NextResponse | null {
+    const secret = (providerConfig.webhookSecret as string | undefined)?.trim()
+    if (!secret) {
+      logger.warn(`[${requestId}] Vercel webhook secret missing; rejecting delivery`)
+      return new NextResponse(
+        'Unauthorized - Vercel webhook signing secret is not configured. Re-save the trigger so a webhook can be registered.',
+        { status: 401 }
+      )
+    }
+
+    const signature = request.headers.get('x-vercel-signature')
+    if (!signature) {
+      logger.warn(`[${requestId}] Vercel webhook missing x-vercel-signature header`)
+      return new NextResponse('Unauthorized - Missing Vercel signature', { status: 401 })
+    }
+
+    if (!verifyVercelSignature(secret, signature, rawBody)) {
+      logger.warn(`[${requestId}] Vercel signature verification failed`)
+      return new NextResponse('Unauthorized - Invalid Vercel signature', { status: 401 })
+    }
+
+    return null
+  },
+
+  async matchEvent({ webhook, workflow, body, requestId, providerConfig }: EventMatchContext) {
+    const triggerId = providerConfig.triggerId as string | undefined
+    const obj = body as Record<string, unknown>
+    const eventType = obj.type as string | undefined
+
+    if (triggerId && triggerId !== 'vercel_webhook') {
+      const { isVercelEventMatch } = await import('@/triggers/vercel/utils')
+      if (!isVercelEventMatch(triggerId, eventType)) {
+        logger.debug(`[${requestId}] Vercel event mismatch for trigger ${triggerId}. Skipping.`, {
+          webhookId: webhook.id,
+          workflowId: workflow.id,
+          triggerId,
+          eventType,
+        })
+        return false
+      }
+    }
+
+    return true
+  },
+
+  extractIdempotencyId(body: unknown) {
+    const id = (body as Record<string, unknown>)?.id
+    if (id === undefined || id === null || id === '') {
+      return null
+    }
+    return `vercel:${String(id)}`
+  },
 
   async createSubscription(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined> {
     const { webhook, requestId } = ctx
@@ -52,9 +102,8 @@ export const vercelHandler: WebhookProviderHandler = {
       }
 
       if (triggerId && !(triggerId in eventTypeMap)) {
-        logger.warn(
-          `[${requestId}] Unknown triggerId for Vercel: ${triggerId}, defaulting to all events`,
-          { triggerId, webhookId: webhook.id }
+        throw new Error(
+          `Unknown Vercel trigger "${triggerId}". Remove and re-add the Vercel trigger, then save again.`
         )
       }
 
@@ -147,10 +196,17 @@ export const vercelHandler: WebhookProviderHandler = {
         { vercelWebhookId: externalId }
       )
 
+      const signingSecret = responseBody.secret as string | undefined
+      if (!signingSecret) {
+        throw new Error(
+          'Vercel webhook was created but no signing secret was returned. Delete the webhook in Vercel and save this trigger again.'
+        )
+      }
+
       return {
         providerConfigUpdates: {
           externalId,
-          webhookSecret: (responseBody.secret as string) || '',
+          webhookSecret: signingSecret,
         },
       }
     } catch (error: unknown) {
@@ -206,20 +262,77 @@ export const vercelHandler: WebhookProviderHandler = {
     const body = ctx.body as Record<string, unknown>
     const payload = (body.payload || {}) as Record<string, unknown>
 
+    const deployment = payload.deployment ?? null
+    const project = payload.project ?? null
+    const team = payload.team ?? null
+    const user = payload.user ?? null
+    const domain = payload.domain ?? null
+
     return {
       input: {
-        type: body.type || '',
-        id: body.id || '',
-        createdAt: body.createdAt || 0,
-        region: body.region || null,
+        type: body.type ?? '',
+        id: body.id != null ? String(body.id) : '',
+        createdAt: (() => {
+          const v = body.createdAt
+          if (typeof v === 'number' && !Number.isNaN(v)) {
+            return v
+          }
+          if (typeof v === 'string') {
+            const parsed = Date.parse(v)
+            return Number.isNaN(parsed) ? 0 : parsed
+          }
+          const n = Number(v)
+          return Number.isNaN(n) ? 0 : n
+        })(),
+        region: body.region != null ? String(body.region) : null,
         payload,
-        deployment: payload.deployment || null,
-        project: payload.project || null,
-        team: payload.team || null,
-        user: payload.user || null,
-        target: payload.target || null,
-        plan: payload.plan || null,
-        domain: payload.domain || null,
+        deployment:
+          deployment && typeof deployment === 'object'
+            ? {
+                id:
+                  (deployment as Record<string, unknown>).id != null
+                    ? String((deployment as Record<string, unknown>).id)
+                    : '',
+                url: ((deployment as Record<string, unknown>).url as string) ?? '',
+                name: ((deployment as Record<string, unknown>).name as string) ?? '',
+              }
+            : null,
+        project:
+          project && typeof project === 'object'
+            ? {
+                id:
+                  (project as Record<string, unknown>).id != null
+                    ? String((project as Record<string, unknown>).id)
+                    : '',
+                name: ((project as Record<string, unknown>).name as string) ?? '',
+              }
+            : null,
+        team:
+          team && typeof team === 'object'
+            ? {
+                id:
+                  (team as Record<string, unknown>).id != null
+                    ? String((team as Record<string, unknown>).id)
+                    : '',
+              }
+            : null,
+        user:
+          user && typeof user === 'object'
+            ? {
+                id:
+                  (user as Record<string, unknown>).id != null
+                    ? String((user as Record<string, unknown>).id)
+                    : '',
+              }
+            : null,
+        target: payload.target != null ? String(payload.target) : null,
+        plan: payload.plan != null ? String(payload.plan) : null,
+        domain:
+          domain && typeof domain === 'object'
+            ? {
+                name: ((domain as Record<string, unknown>).name as string) ?? '',
+              }
+            : null,
       },
     }
   },

@@ -12,8 +12,34 @@ export const vercelTriggerOptions = [
   { label: 'Project Created', id: 'vercel_project_created' },
   { label: 'Project Removed', id: 'vercel_project_removed' },
   { label: 'Domain Created', id: 'vercel_domain_created' },
-  { label: 'Generic Webhook (All Events)', id: 'vercel_webhook' },
+  { label: 'Common events (curated list)', id: 'vercel_webhook' },
 ]
+
+/** Maps Sim trigger IDs to Vercel webhook `type` strings (see Vercel Webhooks API). */
+export const VERCEL_TRIGGER_EVENT_TYPES: Record<string, string> = {
+  vercel_deployment_created: 'deployment.created',
+  vercel_deployment_ready: 'deployment.ready',
+  vercel_deployment_error: 'deployment.error',
+  vercel_deployment_canceled: 'deployment.canceled',
+  vercel_project_created: 'project.created',
+  vercel_project_removed: 'project.removed',
+  vercel_domain_created: 'domain.created',
+}
+
+/**
+ * Returns whether the incoming Vercel event matches the configured trigger.
+ * `vercel_webhook` is handled only at subscription time; deliveries are not filtered here.
+ */
+export function isVercelEventMatch(triggerId: string, eventType: string | undefined): boolean {
+  if (triggerId === 'vercel_webhook') {
+    return true
+  }
+  const expected = VERCEL_TRIGGER_EVENT_TYPES[triggerId]
+  if (!expected) {
+    return false
+  }
+  return eventType === expected
+}
 
 /**
  * Generates setup instructions for Vercel webhooks.
@@ -84,7 +110,7 @@ const coreOutputs = {
   },
   id: {
     type: 'string',
-    description: 'Unique webhook delivery ID',
+    description: 'Unique webhook delivery ID (string)',
   },
   createdAt: {
     type: 'number',
@@ -94,6 +120,11 @@ const coreOutputs = {
     type: 'string',
     description: 'Region where the event occurred',
   },
+} as const
+
+/** Raw `payload` object from the Vercel webhook body (event-specific shape). */
+const payloadOutput = {
+  payload: { type: 'json' as const, description: 'Raw event payload from Vercel' },
 } as const
 
 /**
@@ -165,6 +196,7 @@ const domainOutputs = {
 export function buildDeploymentOutputs(): Record<string, TriggerOutput> {
   return {
     ...coreOutputs,
+    ...payloadOutput,
     ...deploymentOutputs,
   } as Record<string, TriggerOutput>
 }
@@ -175,6 +207,7 @@ export function buildDeploymentOutputs(): Record<string, TriggerOutput> {
 export function buildProjectOutputs(): Record<string, TriggerOutput> {
   return {
     ...coreOutputs,
+    ...payloadOutput,
     ...projectOutputs,
   } as Record<string, TriggerOutput>
 }
@@ -185,6 +218,7 @@ export function buildProjectOutputs(): Record<string, TriggerOutput> {
 export function buildDomainOutputs(): Record<string, TriggerOutput> {
   return {
     ...coreOutputs,
+    ...payloadOutput,
     ...domainOutputs,
   } as Record<string, TriggerOutput>
 }
