@@ -354,8 +354,7 @@ function transformBlockMetadata(metadata: CopilotBlockMetadata): any {
         )
         if (serviceAccountProviderId) {
           transformed.requiredCredentials.serviceAccountType = serviceAccountProviderId
-          transformed.requiredCredentials.description =
-            `OAuth or service account authentication supported for ${metadata.name}`
+          transformed.requiredCredentials.description = `OAuth or service account authentication supported for ${metadata.name}`
         }
       }
     } else if (metadata.authType === 'API Key') {
