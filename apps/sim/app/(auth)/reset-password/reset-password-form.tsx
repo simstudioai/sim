@@ -97,7 +97,7 @@ export function SetNewPasswordForm({
 }: SetNewPasswordFormProps) {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [validationMessage, setValidationMessage] = useState('')
+  const [validationMessages, setValidationMessages] = useState<string[]>([])
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
@@ -135,11 +135,11 @@ export function SetNewPasswordForm({
     }
 
     if (errors.length > 0) {
-      setValidationMessage(errors.join(' '))
+      setValidationMessages(errors)
       return
     }
 
-    setValidationMessage('')
+    setValidationMessages([])
     onSubmit(password)
   }
 
@@ -162,7 +162,10 @@ export function SetNewPasswordForm({
               onChange={(e) => setPassword(e.target.value)}
               required
               placeholder='Enter new password'
-              className={cn('pr-10', validationMessage && 'border-red-500 focus:border-red-500')}
+              className={cn(
+                'pr-10',
+                validationMessages.length > 0 && 'border-red-500 focus:border-red-500'
+              )}
             />
             <button
               type='button'
@@ -190,7 +193,10 @@ export function SetNewPasswordForm({
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               placeholder='Confirm new password'
-              className={cn('pr-10', validationMessage && 'border-red-500 focus:border-red-500')}
+              className={cn(
+                'pr-10',
+                validationMessages.length > 0 && 'border-red-500 focus:border-red-500'
+              )}
             />
             <button
               type='button'
@@ -203,9 +209,11 @@ export function SetNewPasswordForm({
           </div>
         </div>
 
-        {validationMessage && (
+        {validationMessages.length > 0 && (
           <div className='mt-1 space-y-1 text-red-400 text-xs'>
-            <p>{validationMessage}</p>
+            {validationMessages.map((error, index) => (
+              <p key={index}>{error}</p>
+            ))}
           </div>
         )}
 
