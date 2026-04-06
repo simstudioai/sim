@@ -1,6 +1,43 @@
 import type { TriggerOutput } from '@/triggers/types'
 
 /**
+ * Maps Sim Resend trigger IDs to a single Resend webhook event type.
+ * Kept in sync with subscription registration in `resend` webhook provider.
+ */
+export const RESEND_TRIGGER_TO_EVENT_TYPE: Record<string, string> = {
+  resend_email_sent: 'email.sent',
+  resend_email_delivered: 'email.delivered',
+  resend_email_bounced: 'email.bounced',
+  resend_email_complained: 'email.complained',
+  resend_email_opened: 'email.opened',
+  resend_email_clicked: 'email.clicked',
+  resend_email_failed: 'email.failed',
+}
+
+/**
+ * Event types registered for the catch-all `resend_webhook` trigger (API + matchEvent).
+ */
+export const RESEND_ALL_WEBHOOK_EVENT_TYPES: string[] = [
+  'email.sent',
+  'email.delivered',
+  'email.delivery_delayed',
+  'email.bounced',
+  'email.complained',
+  'email.opened',
+  'email.clicked',
+  'email.failed',
+  'email.received',
+  'email.scheduled',
+  'email.suppressed',
+  'contact.created',
+  'contact.updated',
+  'contact.deleted',
+  'domain.created',
+  'domain.updated',
+  'domain.deleted',
+]
+
+/**
  * Shared trigger dropdown options for all Resend triggers
  */
 export const resendTriggerOptions = [
@@ -92,6 +129,14 @@ const recipientOutputs = {
   },
 } as const
 
+const resendEventDataOutput: Record<string, TriggerOutput> = {
+  data: {
+    type: 'json',
+    description:
+      'Raw event `data` from Resend (shape varies by event type: email, contact, domain, etc.)',
+  },
+}
+
 /**
  * Build outputs for email sent events
  */
@@ -99,6 +144,7 @@ export function buildEmailSentOutputs(): Record<string, TriggerOutput> {
   return {
     ...commonEmailOutputs,
     ...recipientOutputs,
+    ...resendEventDataOutput,
   } as Record<string, TriggerOutput>
 }
 
@@ -109,6 +155,7 @@ export function buildEmailDeliveredOutputs(): Record<string, TriggerOutput> {
   return {
     ...commonEmailOutputs,
     ...recipientOutputs,
+    ...resendEventDataOutput,
   } as Record<string, TriggerOutput>
 }
 
@@ -119,6 +166,7 @@ export function buildEmailBouncedOutputs(): Record<string, TriggerOutput> {
   return {
     ...commonEmailOutputs,
     ...recipientOutputs,
+    ...resendEventDataOutput,
     bounceType: { type: 'string', description: 'Bounce type (e.g., Permanent)' },
     bounceSubType: { type: 'string', description: 'Bounce sub-type (e.g., Suppressed)' },
     bounceMessage: { type: 'string', description: 'Bounce error message' },
@@ -132,6 +180,7 @@ export function buildEmailComplainedOutputs(): Record<string, TriggerOutput> {
   return {
     ...commonEmailOutputs,
     ...recipientOutputs,
+    ...resendEventDataOutput,
   } as Record<string, TriggerOutput>
 }
 
@@ -142,6 +191,7 @@ export function buildEmailOpenedOutputs(): Record<string, TriggerOutput> {
   return {
     ...commonEmailOutputs,
     ...recipientOutputs,
+    ...resendEventDataOutput,
   } as Record<string, TriggerOutput>
 }
 
@@ -152,6 +202,7 @@ export function buildEmailClickedOutputs(): Record<string, TriggerOutput> {
   return {
     ...commonEmailOutputs,
     ...recipientOutputs,
+    ...resendEventDataOutput,
     clickIpAddress: { type: 'string', description: 'IP address of the click' },
     clickLink: { type: 'string', description: 'URL that was clicked' },
     clickTimestamp: { type: 'string', description: 'Click timestamp (ISO 8601)' },
@@ -166,6 +217,7 @@ export function buildEmailFailedOutputs(): Record<string, TriggerOutput> {
   return {
     ...commonEmailOutputs,
     ...recipientOutputs,
+    ...resendEventDataOutput,
   } as Record<string, TriggerOutput>
 }
 
@@ -177,6 +229,7 @@ export function buildResendOutputs(): Record<string, TriggerOutput> {
   return {
     ...commonEmailOutputs,
     ...recipientOutputs,
+    ...resendEventDataOutput,
     bounceType: { type: 'string', description: 'Bounce type (e.g., Permanent)' },
     bounceSubType: { type: 'string', description: 'Bounce sub-type (e.g., Suppressed)' },
     bounceMessage: { type: 'string', description: 'Bounce error message' },

@@ -206,9 +206,10 @@ export const userOutputs = {
     type: 'string',
     description: 'User display name',
   },
-  user_type: {
+  /** Linear sends this as `actor.type`; exposed as `actorType` here (TriggerOutput reserves `type`). */
+  actorType: {
     type: 'string',
-    description: 'Actor type (user, bot, etc.)',
+    description: 'Actor type from Linear (e.g. user, OauthClient, Integration)',
   },
 } as const
 
@@ -296,6 +297,10 @@ export function buildIssueOutputs(): Record<string, TriggerOutput> {
     createdAt: {
       type: 'string',
       description: 'Event creation timestamp',
+    },
+    url: {
+      type: 'string',
+      description: 'URL of the subject entity in Linear (top-level webhook payload)',
     },
     actor: userOutputs,
     data: {
@@ -476,6 +481,10 @@ export function buildCommentOutputs(): Record<string, TriggerOutput> {
       type: 'string',
       description: 'Event creation timestamp',
     },
+    url: {
+      type: 'string',
+      description: 'URL of the subject entity in Linear (top-level webhook payload)',
+    },
     actor: userOutputs,
     data: {
       id: {
@@ -562,6 +571,10 @@ export function buildProjectOutputs(): Record<string, TriggerOutput> {
     createdAt: {
       type: 'string',
       description: 'Event creation timestamp',
+    },
+    url: {
+      type: 'string',
+      description: 'URL of the subject entity in Linear (top-level webhook payload)',
     },
     actor: userOutputs,
     data: {
@@ -706,6 +719,10 @@ export function buildCycleOutputs(): Record<string, TriggerOutput> {
       type: 'string',
       description: 'Event creation timestamp',
     },
+    url: {
+      type: 'string',
+      description: 'URL of the subject entity in Linear (top-level webhook payload)',
+    },
     actor: userOutputs,
     data: {
       id: {
@@ -809,6 +826,10 @@ export function buildLabelOutputs(): Record<string, TriggerOutput> {
       type: 'string',
       description: 'Event creation timestamp',
     },
+    url: {
+      type: 'string',
+      description: 'URL of the subject entity in Linear (top-level webhook payload)',
+    },
     actor: userOutputs,
     data: {
       id: {
@@ -896,6 +917,10 @@ export function buildProjectUpdateOutputs(): Record<string, TriggerOutput> {
       type: 'string',
       description: 'Event creation timestamp',
     },
+    url: {
+      type: 'string',
+      description: 'URL of the subject entity in Linear (top-level webhook payload)',
+    },
     actor: userOutputs,
     data: {
       id: {
@@ -970,6 +995,10 @@ export function buildCustomerRequestOutputs(): Record<string, TriggerOutput> {
     createdAt: {
       type: 'string',
       description: 'Event creation timestamp',
+    },
+    url: {
+      type: 'string',
+      description: 'URL of the subject entity in Linear (top-level webhook payload)',
     },
     actor: userOutputs,
     data: {
@@ -1049,7 +1078,7 @@ export function isLinearEventMatch(triggerId: string, eventType: string, action?
   const normalizedId = triggerId.replace(/_v2$/, '')
   const config = eventMap[normalizedId]
   if (!config) {
-    return true // Unknown trigger, allow through
+    return false
   }
 
   // Check event type

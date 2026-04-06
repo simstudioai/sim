@@ -6,7 +6,8 @@ export const linearWebhookV2Trigger: TriggerConfig = {
   id: 'linear_webhook_v2',
   name: 'Linear Webhook',
   provider: 'linear',
-  description: 'Trigger workflow from any Linear webhook event',
+  description:
+    'Trigger workflow from Linear data-change events included in this webhook subscription (Issues, Comments, Projects, etc.—not every Linear model).',
   version: '2.0.0',
   icon: LinearIcon,
 
@@ -14,7 +15,7 @@ export const linearWebhookV2Trigger: TriggerConfig = {
     triggerId: 'linear_webhook_v2',
     eventType: 'All Events',
     additionalNotes:
-      'This webhook will receive all Linear events. Use the <code>type</code> and <code>action</code> fields in the payload to filter and handle different event types.',
+      'Sim registers this webhook for Issues, Comments, Projects, Cycles, Issue labels, Project updates, and Customer requests—matching what the Linear API allows in one subscription. It does not include every model Linear documents separately (e.g. Documents, Reactions). Use <code>type</code> and <code>action</code> in the payload to filter.',
   }),
 
   outputs: {
@@ -42,6 +43,10 @@ export const linearWebhookV2Trigger: TriggerConfig = {
       type: 'string',
       description: 'Event creation timestamp',
     },
+    url: {
+      type: 'string',
+      description: 'URL of the subject entity in Linear (top-level webhook payload)',
+    },
     actor: userOutputs,
     data: {
       type: 'object',
@@ -58,8 +63,8 @@ export const linearWebhookV2Trigger: TriggerConfig = {
     headers: {
       'Content-Type': 'application/json',
       'Linear-Event': 'Issue',
-      'Linear-Delivery': 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
-      'Linear-Signature': 'sha256...',
+      'Linear-Delivery': '234d1a4e-b617-4388-90fe-adc3633d6b72',
+      'Linear-Signature': '766e1d90a96e2f5ecec342a99c5552999dd95d49250171b902d703fd674f5086',
       'User-Agent': 'Linear-Webhook',
     },
   },

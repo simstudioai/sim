@@ -6,7 +6,8 @@ export const linearWebhookTrigger: TriggerConfig = {
   id: 'linear_webhook',
   name: 'Linear Webhook',
   provider: 'linear',
-  description: 'Trigger workflow from any Linear webhook event',
+  description:
+    'Trigger workflow from Linear events you select when creating the webhook in Linear (not guaranteed to be every model or event type).',
   version: '1.0.0',
   icon: LinearIcon,
 
@@ -58,7 +59,7 @@ export const linearWebhookTrigger: TriggerConfig = {
       type: 'text',
       defaultValue: linearSetupInstructions(
         'all events',
-        'This webhook will receive all Linear events. Use the <code>type</code> and <code>action</code> fields in the payload to filter and handle different event types.'
+        'When you select resource types in Linear, you receive those data-change events only (see <a href="https://linear.app/developers/webhooks" target="_blank" rel="noopener noreferrer">Linear webhooks</a> for supported models). This is not every possible Linear event. Use the <code>type</code> and <code>action</code> fields in the payload to filter further.'
       ),
       mode: 'trigger',
       condition: {
@@ -93,6 +94,10 @@ export const linearWebhookTrigger: TriggerConfig = {
       type: 'string',
       description: 'Event creation timestamp',
     },
+    url: {
+      type: 'string',
+      description: 'URL of the subject entity in Linear (top-level webhook payload)',
+    },
     actor: userOutputs,
     data: {
       type: 'object',
@@ -109,8 +114,8 @@ export const linearWebhookTrigger: TriggerConfig = {
     headers: {
       'Content-Type': 'application/json',
       'Linear-Event': 'Issue',
-      'Linear-Delivery': 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
-      'Linear-Signature': 'sha256...',
+      'Linear-Delivery': '234d1a4e-b617-4388-90fe-adc3633d6b72',
+      'Linear-Signature': '766e1d90a96e2f5ecec342a99c5552999dd95d49250171b902d703fd674f5086',
       'User-Agent': 'Linear-Webhook',
     },
   },
