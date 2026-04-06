@@ -128,7 +128,10 @@ export function buildMeetingOutputs(): Record<string, TriggerOutput> {
           id: { type: 'number', description: 'Meeting ID' },
           uuid: { type: 'string', description: 'Meeting UUID' },
           topic: { type: 'string', description: 'Meeting topic' },
-          meeting_type: { type: 'number', description: 'Meeting type (1=instant, 2=scheduled, etc.)' },
+          meeting_type: {
+            type: 'number',
+            description: 'Meeting type (1=instant, 2=scheduled, etc.)',
+          },
           host_id: { type: 'string', description: 'Host user ID' },
           start_time: { type: 'string', description: 'Meeting start time (ISO 8601)' },
           end_time: {
