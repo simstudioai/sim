@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { Badge } from '@/components/emcn'
 import { DemoRequestModal } from '@/app/(landing)/components/demo-request/demo-request-modal'
+import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 
 interface PricingTier {
   id: string
@@ -150,6 +151,13 @@ function PricingCard({ tier }: PricingCardProps) {
                 <button
                   type='button'
                   className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--landing-border-light)] bg-transparent px-2.5 font-[430] font-season text-[14px] text-[var(--landing-text-dark)] transition-colors hover:bg-[var(--landing-bg-hover)]'
+                  onClick={() =>
+                    trackLandingCta({
+                      label: tier.cta.label,
+                      section: 'pricing',
+                      destination: 'demo_modal',
+                    })
+                  }
                 >
                   {tier.cta.label}
                 </button>
@@ -158,6 +166,13 @@ function PricingCard({ tier }: PricingCardProps) {
               <Link
                 href={tier.cta.href || '/signup'}
                 className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[#1D1D1D] bg-[#1D1D1D] px-2.5 font-[430] font-season text-[14px] text-white transition-colors hover:border-[var(--landing-border)] hover:bg-[var(--landing-bg-elevated)]'
+                onClick={() =>
+                  trackLandingCta({
+                    label: tier.cta.label,
+                    section: 'pricing',
+                    destination: tier.cta.href || '/signup',
+                  })
+                }
               >
                 {tier.cta.label}
               </Link>
@@ -165,6 +180,13 @@ function PricingCard({ tier }: PricingCardProps) {
               <Link
                 href={tier.cta.href || '/signup'}
                 className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--landing-border-light)] px-2.5 font-[430] font-season text-[14px] text-[var(--landing-text-dark)] transition-colors hover:bg-[var(--landing-bg-hover)]'
+                onClick={() =>
+                  trackLandingCta({
+                    label: tier.cta.label,
+                    section: 'pricing',
+                    destination: tier.cta.href || '/signup',
+                  })
+                }
               >
                 {tier.cta.label}
               </Link>
