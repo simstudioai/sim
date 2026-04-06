@@ -324,7 +324,7 @@
     "longDescription": "Search across your synced data sources using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results.",
     "bgColor": "#6366F1",
     "iconName": "AirweaveIcon",
-    "docsUrl": "https://docs.airweave.ai",
+    "docsUrl": "https://docs.sim.ai/tools/airweave",
     "operations": [],
     "operationCount": 0,
     "triggers": [],
