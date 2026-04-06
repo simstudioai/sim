@@ -18,8 +18,8 @@ export const GongBlock: BlockConfig<GongResponse> = {
   icon: GongIcon,
   triggerAllowed: true,
   subBlocks: [
-    ...getTrigger('gong_call_completed').subBlocks,
     ...getTrigger('gong_webhook').subBlocks,
+    ...getTrigger('gong_call_completed').subBlocks,
     {
       id: 'operation',
       title: 'Operation',
@@ -574,6 +574,6 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
   },
   triggers: {
     enabled: true,
-    available: ['gong_call_completed', 'gong_webhook'],
+    available: ['gong_webhook', 'gong_call_completed'],
   },
 }

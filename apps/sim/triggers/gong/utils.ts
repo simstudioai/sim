@@ -4,8 +4,8 @@ import type { TriggerOutput } from '@/triggers/types'
  * Shared trigger dropdown options for all Gong triggers
  */
 export const gongTriggerOptions = [
-  { label: 'Call Completed', id: 'gong_call_completed' },
   { label: 'General Webhook (All Events)', id: 'gong_webhook' },
+  { label: 'Call Completed', id: 'gong_call_completed' },
 ]
 
 /**
