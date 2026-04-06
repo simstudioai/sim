@@ -425,6 +425,9 @@ export async function POST(request: NextRequest) {
       // returned unchanged to preserve the original score semantics.
       const isMixedProviders = openaiKbIds.length > 0 && ollamaKbIds.length > 0
       const normalizeByProvider = (items: SearchResult[]): SearchResult[] => {
+        const openaiGroup = items.filter((r) => openaiKbIds.includes(r.knowledgeBaseId))
+        const ollamaGroup = items.filter((r) => ollamaKbIds.includes(r.knowledgeBaseId))
+        if (openaiGroup.length === 0 || ollamaGroup.length === 0) return items
         const normalizeGroup = (group: SearchResult[]): SearchResult[] => {
           if (group.length <= 1) return group
           const min = Math.min(...group.map((r) => r.distance))
@@ -432,8 +435,6 @@ export async function POST(request: NextRequest) {
           const range = max - min || 1
           return group.map((r) => ({ ...r, distance: (r.distance - min) / range }))
         }
-        const openaiGroup = items.filter((r) => openaiKbIds.includes(r.knowledgeBaseId))
-        const ollamaGroup = items.filter((r) => ollamaKbIds.includes(r.knowledgeBaseId))
         return [...normalizeGroup(openaiGroup), ...normalizeGroup(ollamaGroup)]
       }
 

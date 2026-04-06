@@ -167,13 +167,15 @@ export async function createChunk(
   const rawKbCfg = kbRows[0].chunkingConfig as { ollamaBaseUrl?: string } | null
   const kbOllamaBaseUrl = rawKbCfg?.ollamaBaseUrl
 
-  const resolvedCreateUrl = getOllamaBaseUrl(kbOllamaBaseUrl)
-  if (!isAllowedOllamaUrl(resolvedCreateUrl)) {
-    throw new Error(`Knowledge base has a disallowed Ollama URL: ${resolvedCreateUrl}`)
-  }
-
   const { provider } = parseEmbeddingModel(kbEmbeddingModel)
   const isOllama = provider === 'ollama'
+
+  if (isOllama) {
+    const resolvedCreateUrl = getOllamaBaseUrl(kbOllamaBaseUrl)
+    if (!isAllowedOllamaUrl(resolvedCreateUrl)) {
+      throw new Error(`Knowledge base has a disallowed Ollama URL: ${resolvedCreateUrl}`)
+    }
+  }
 
   logger.info(`[${requestId}] Generating embedding for manual chunk`)
   const { embeddings, modelName: usedModel } = await generateEmbeddings(
@@ -478,14 +480,16 @@ export async function updateChunk(
   const rawCfg = kbRows[0].chunkingConfig as { ollamaBaseUrl?: string } | null
   const kbOllamaBaseUrl = rawCfg?.ollamaBaseUrl
 
-  const resolvedUpdateUrl = getOllamaBaseUrl(kbOllamaBaseUrl)
-  if (!isAllowedOllamaUrl(resolvedUpdateUrl)) {
-    throw new Error(`Knowledge base has a disallowed Ollama URL: ${resolvedUpdateUrl}`)
-  }
-
   const { provider } = parseEmbeddingModel(kbEmbeddingModel)
   const isOllama = provider === 'ollama'
   const tableName = isOllama ? kbTableName(knowledgeBaseId) : null
+
+  if (isOllama) {
+    const resolvedUpdateUrl = getOllamaBaseUrl(kbOllamaBaseUrl)
+    if (!isAllowedOllamaUrl(resolvedUpdateUrl)) {
+      throw new Error(`Knowledge base has a disallowed Ollama URL: ${resolvedUpdateUrl}`)
+    }
+  }
 
   // Content update path — needs a transaction for atomic stat updates
   if (updateData.content !== undefined && typeof updateData.content === 'string') {
