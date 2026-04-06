@@ -1,5 +1,6 @@
 import { GongIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { getTrigger } from '@/triggers'
 import type { GongResponse } from '@/tools/gong/types'
 
 export const GongBlock: BlockConfig<GongResponse> = {
@@ -15,7 +16,10 @@ export const GongBlock: BlockConfig<GongResponse> = {
   tags: ['meeting', 'sales-engagement', 'speech-to-text'],
   bgColor: '#8039DF',
   icon: GongIcon,
+  triggerAllowed: true,
   subBlocks: [
+    ...getTrigger('gong_call_completed').subBlocks,
+    ...getTrigger('gong_webhook').subBlocks,
     {
       id: 'operation',
       title: 'Operation',
@@ -567,5 +571,9 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
       type: 'json',
       description: 'Gong API response data',
     },
+  },
+  triggers: {
+    enabled: true,
+    available: ['gong_call_completed', 'gong_webhook'],
   },
 }
