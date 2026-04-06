@@ -23,7 +23,7 @@ export function isZoomEventMatch(triggerId: string, event: string): boolean {
 
   const allowedEvents = ZOOM_TRIGGER_EVENT_MAP[triggerId]
   if (!allowedEvents) {
-    return true
+    return false
   }
 
   return allowedEvents.includes(event)

@@ -12886,8 +12886,33 @@
       }
     ],
     "operationCount": 10,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "name": "Meeting Started",
+        "description": "Triggered when a Zoom meeting starts"
+      },
+      {
+        "name": "Meeting Ended",
+        "description": "Triggered when a Zoom meeting ends"
+      },
+      {
+        "name": "Participant Joined",
+        "description": "Triggered when a participant joins a Zoom meeting"
+      },
+      {
+        "name": "Participant Left",
+        "description": "Triggered when a participant leaves a Zoom meeting"
+      },
+      {
+        "name": "Recording Completed",
+        "description": "Triggered when a Zoom cloud recording is completed"
+      },
+      {
+        "name": "Generic Webhook",
+        "description": "Triggered on any Zoom webhook event"
+      }
+    ],
+    "triggerCount": 6,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "communication",
