@@ -96,7 +96,8 @@ function getScopeForEventType(eventType: string): string {
   if (eventType.startsWith('company')) return 'crm.objects.companies.read'
   if (eventType.startsWith('deal')) return 'crm.objects.deals.read'
   if (eventType.startsWith('ticket')) return 'tickets'
-  if (eventType === 'All Events') return 'crm.objects.contacts.read, crm.objects.companies.read, crm.objects.deals.read, tickets'
+  if (eventType === 'All Events')
+    return 'crm.objects.contacts.read, crm.objects.companies.read, crm.objects.deals.read, tickets'
   return 'crm.objects.contacts.read'
 }
 
