@@ -434,7 +434,7 @@ export function buildIssueOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Previous values for changed fields (only present on update)',
     },
-  } as any
+  } as unknown as Record<string, TriggerOutput>
 }
 
 /**
@@ -521,7 +521,7 @@ export function buildCommentOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Previous values for changed fields (only present on update)',
     },
-  } as any
+  } as unknown as Record<string, TriggerOutput>
 }
 
 /**
@@ -664,7 +664,7 @@ export function buildProjectOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Previous values for changed fields (only present on update)',
     },
-  } as any
+  } as unknown as Record<string, TriggerOutput>
 }
 
 /**
@@ -767,7 +767,7 @@ export function buildCycleOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Previous values for changed fields (only present on update)',
     },
-  } as any
+  } as unknown as Record<string, TriggerOutput>
 }
 
 /**
@@ -854,7 +854,7 @@ export function buildLabelOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Previous values for changed fields (only present on update)',
     },
-  } as any
+  } as unknown as Record<string, TriggerOutput>
 }
 
 /**
@@ -929,7 +929,7 @@ export function buildProjectUpdateOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Previous values for changed fields (only present on update)',
     },
-  } as any
+  } as unknown as Record<string, TriggerOutput>
 }
 
 /**
@@ -1012,7 +1012,7 @@ export function buildCustomerRequestOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Previous values for changed fields (only present on update)',
     },
-  } as any
+  } as unknown as Record<string, TriggerOutput>
 }
 
 /**

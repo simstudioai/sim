@@ -134,6 +134,12 @@ export const linearHandler: WebhookProviderHandler = {
         }),
       })
 
+      if (!response.ok) {
+        throw new Error(
+          `Linear API returned HTTP ${response.status}. Please verify your API key and try again.`
+        )
+      }
+
       const data = await response.json()
       const result = data?.data?.webhookCreate
 
@@ -191,6 +197,13 @@ export const linearHandler: WebhookProviderHandler = {
           variables: { id: externalId },
         }),
       })
+
+      if (!response.ok) {
+        logger.warn(
+          `[${ctx.requestId}] Linear API returned HTTP ${response.status} during webhook deletion for ${externalId}`
+        )
+        return
+      }
 
       const data = await response.json()
       if (data?.data?.webhookDelete?.success) {
