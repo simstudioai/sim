@@ -2,6 +2,7 @@ import { GoogleGroupsIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 
 export const GoogleGroupsBlock: BlockConfig = {
   type: 'google_groups',
@@ -61,6 +62,7 @@ export const GoogleGroupsBlock: BlockConfig = {
       placeholder: 'Enter credential ID',
       required: true,
     },
+    ...SERVICE_ACCOUNT_SUBBLOCKS,
 
     {
       id: 'customer',

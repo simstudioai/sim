@@ -117,25 +117,71 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     id: 'openai',
     name: 'OpenAI',
     description: "OpenAI's models",
-    defaultModel: 'gpt-4o',
+    defaultModel: 'gpt-4.1',
     modelPatterns: [/^gpt/, /^o\d/, /^text-embedding/],
     icon: OpenAIIcon,
     capabilities: {
       toolUsageControl: true,
     },
     models: [
+      // GPT-4.1 family
       {
-        id: 'gpt-4o',
+        id: 'gpt-4.1',
         pricing: {
-          input: 2.5,
-          cachedInput: 1.25,
-          output: 10.0,
+          input: 2.0,
+          cachedInput: 0.5,
+          output: 8.0,
           updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          maxOutputTokens: 32768,
         },
-        contextWindow: 128000,
+        contextWindow: 1047576,
+      },
+      {
+        id: 'gpt-4.1-mini',
+        pricing: {
+          input: 0.4,
+          cachedInput: 0.1,
+          output: 1.6,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          maxOutputTokens: 32768,
+        },
+        contextWindow: 1047576,
+      },
+      {
+        id: 'gpt-4.1-nano',
+        pricing: {
+          input: 0.1,
+          cachedInput: 0.025,
+          output: 0.4,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+          maxOutputTokens: 32768,
+        },
+        contextWindow: 1047576,
+      },
+      // GPT-5.4 family
+      {
+        id: 'gpt-5.4-pro',
+        pricing: {
+          input: 30.0,
+          output: 180.0,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['medium', 'high', 'xhigh'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 1050000,
       },
       {
         id: 'gpt-5.4',
@@ -155,51 +201,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           maxOutputTokens: 128000,
         },
         contextWindow: 1050000,
-      },
-      {
-        id: 'gpt-5.4-pro',
-        pricing: {
-          input: 30.0,
-          output: 180.0,
-          updatedAt: '2026-04-01',
-        },
-        capabilities: {
-          reasoningEffort: {
-            values: ['medium', 'high', 'xhigh'],
-          },
-          maxOutputTokens: 128000,
-        },
-        contextWindow: 1050000,
-      },
-      {
-        id: 'gpt-5.2-pro',
-        pricing: {
-          input: 21.0,
-          output: 168.0,
-          updatedAt: '2026-04-01',
-        },
-        capabilities: {
-          reasoningEffort: {
-            values: ['medium', 'high', 'xhigh'],
-          },
-          maxOutputTokens: 128000,
-        },
-        contextWindow: 400000,
-      },
-      {
-        id: 'gpt-5-pro',
-        pricing: {
-          input: 15.0,
-          output: 120.0,
-          updatedAt: '2026-04-01',
-        },
-        capabilities: {
-          reasoningEffort: {
-            values: ['high'],
-          },
-          maxOutputTokens: 272000,
-        },
-        contextWindow: 400000,
       },
       {
         id: 'gpt-5.4-mini',
@@ -239,6 +240,22 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 400000,
       },
+      // GPT-5.2 family
+      {
+        id: 'gpt-5.2-pro',
+        pricing: {
+          input: 21.0,
+          output: 168.0,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['medium', 'high', 'xhigh'],
+          },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 400000,
+      },
       {
         id: 'gpt-5.2',
         pricing: {
@@ -254,9 +271,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
         },
         contextWindow: 400000,
       },
+      // GPT-5.1 family
       {
         id: 'gpt-5.1',
         pricing: {
@@ -272,6 +291,23 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
+        },
+        contextWindow: 400000,
+      },
+      // GPT-5 family
+      {
+        id: 'gpt-5-pro',
+        pricing: {
+          input: 15.0,
+          output: 120.0,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          reasoningEffort: {
+            values: ['high'],
+          },
+          maxOutputTokens: 272000,
         },
         contextWindow: 400000,
       },
@@ -290,6 +326,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
         },
         contextWindow: 400000,
       },
@@ -308,6 +345,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
         },
         contextWindow: 400000,
       },
@@ -326,6 +364,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
         },
         contextWindow: 400000,
       },
@@ -339,21 +378,36 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          maxOutputTokens: 16384,
         },
         contextWindow: 128000,
       },
+      // o-series reasoning models
       {
-        id: 'o1',
+        id: 'o4-mini',
         pricing: {
-          input: 15.0,
-          cachedInput: 7.5,
-          output: 60,
+          input: 1.1,
+          cachedInput: 0.275,
+          output: 4.4,
           updatedAt: '2026-04-01',
         },
         capabilities: {
           reasoningEffort: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 100000,
+        },
+        contextWindow: 200000,
+      },
+      {
+        id: 'o3-pro',
+        pricing: {
+          input: 20.0,
+          output: 80.0,
+          updatedAt: '2026-04-01',
+        },
+        capabilities: {
+          maxOutputTokens: 100000,
         },
         contextWindow: 200000,
       },
@@ -390,23 +444,11 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         contextWindow: 200000,
       },
       {
-        id: 'o3-pro',
+        id: 'o1',
         pricing: {
-          input: 20.0,
-          output: 80.0,
-          updatedAt: '2026-04-01',
-        },
-        capabilities: {
-          maxOutputTokens: 100000,
-        },
-        contextWindow: 200000,
-      },
-      {
-        id: 'o4-mini',
-        pricing: {
-          input: 1.1,
-          cachedInput: 0.275,
-          output: 4.4,
+          input: 15.0,
+          cachedInput: 7.5,
+          output: 60,
           updatedAt: '2026-04-01',
         },
         capabilities: {
@@ -417,47 +459,20 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
       },
+      // Legacy
       {
-        id: 'gpt-4.1',
+        id: 'gpt-4o',
         pricing: {
-          input: 2.0,
-          cachedInput: 0.5,
-          output: 8.0,
+          input: 2.5,
+          cachedInput: 1.25,
+          output: 10.0,
           updatedAt: '2026-04-01',
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
-          maxOutputTokens: 32768,
+          maxOutputTokens: 16384,
         },
-        contextWindow: 1047576,
-      },
-      {
-        id: 'gpt-4.1-nano',
-        pricing: {
-          input: 0.1,
-          cachedInput: 0.025,
-          output: 0.4,
-          updatedAt: '2026-04-01',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 2 },
-          maxOutputTokens: 32768,
-        },
-        contextWindow: 1047576,
-      },
-      {
-        id: 'gpt-4.1-mini',
-        pricing: {
-          input: 0.4,
-          cachedInput: 0.1,
-          output: 1.6,
-          updatedAt: '2026-04-01',
-        },
-        capabilities: {
-          temperature: { min: 0, max: 2 },
-          maxOutputTokens: 32768,
-        },
-        contextWindow: 1047576,
+        contextWindow: 128000,
       },
     ],
   },
@@ -465,7 +480,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     id: 'anthropic',
     name: 'Anthropic',
     description: "Anthropic's Claude models",
-    defaultModel: 'claude-sonnet-4-5',
+    defaultModel: 'claude-sonnet-4-6',
     modelPatterns: [/^claude/],
     icon: AnthropicIcon,
     capabilities: {
@@ -502,7 +517,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
-          maxOutputTokens: 128000,
+          maxOutputTokens: 64000,
           thinking: {
             levels: ['low', 'medium', 'high', 'max'],
             default: 'high',
@@ -734,6 +749,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
         },
         contextWindow: 400000,
       },
@@ -752,6 +768,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
         },
         contextWindow: 400000,
       },
@@ -770,6 +787,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
         },
         contextWindow: 400000,
       },
@@ -788,6 +806,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
         },
         contextWindow: 400000,
       },
@@ -806,6 +825,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
         },
         contextWindow: 400000,
       },
@@ -824,6 +844,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           verbosity: {
             values: ['low', 'medium', 'high'],
           },
+          maxOutputTokens: 128000,
         },
         contextWindow: 400000,
       },
@@ -1060,6 +1081,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
             levels: ['minimal', 'low', 'medium', 'high'],
             default: 'high',
           },
+          maxOutputTokens: 65536,
         },
         contextWindow: 1048576,
       },
@@ -1077,6 +1099,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
             levels: ['minimal', 'low', 'medium', 'high'],
             default: 'minimal',
           },
+          maxOutputTokens: 65536,
         },
         contextWindow: 1048576,
       },
@@ -1094,6 +1117,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
             levels: ['minimal', 'low', 'medium', 'high'],
             default: 'high',
           },
+          maxOutputTokens: 65536,
         },
         contextWindow: 1000000,
       },
@@ -1107,6 +1131,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          maxOutputTokens: 65536,
         },
         contextWindow: 1048576,
       },
@@ -1120,6 +1145,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          maxOutputTokens: 65536,
         },
         contextWindow: 1048576,
       },
@@ -1133,6 +1159,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          maxOutputTokens: 65536,
         },
         contextWindow: 1048576,
       },
@@ -1146,6 +1173,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          maxOutputTokens: 8192,
         },
         contextWindow: 1048576,
       },
@@ -1158,6 +1186,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 2 },
+          maxOutputTokens: 8192,
         },
         contextWindow: 1048576,
       },
@@ -1171,6 +1200,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           deepResearch: true,
           memory: false,
+          maxOutputTokens: 65536,
         },
         contextWindow: 1000000,
       },
@@ -2087,6 +2117,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
+          maxOutputTokens: 64000,
         },
         contextWindow: 200000,
       },
@@ -2100,6 +2131,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
+          maxOutputTokens: 64000,
         },
         contextWindow: 200000,
       },
@@ -2113,6 +2145,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
+          maxOutputTokens: 64000,
         },
         contextWindow: 200000,
       },
@@ -2126,6 +2159,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1 },
           nativeStructuredOutputs: true,
+          maxOutputTokens: 64000,
         },
         contextWindow: 200000,
       },
@@ -2330,6 +2364,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          maxOutputTokens: 32768,
         },
         contextWindow: 128000,
       },
@@ -2366,6 +2401,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          maxOutputTokens: 16384,
         },
         contextWindow: 128000,
       },
@@ -2378,6 +2414,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          maxOutputTokens: 40000,
         },
         contextWindow: 128000,
       },
@@ -2390,6 +2427,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          maxOutputTokens: 8192,
         },
         contextWindow: 128000,
       },
@@ -2402,6 +2440,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          maxOutputTokens: 8192,
         },
         contextWindow: 128000,
       },
@@ -2414,6 +2453,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {
           temperature: { min: 0, max: 1 },
+          maxOutputTokens: 8192,
         },
         contextWindow: 128000,
       },
@@ -2856,13 +2896,17 @@ export function getModelsWithoutMemory(): string[] {
 export function getMaxOutputTokensForModel(modelId: string): number {
   const normalizedModelId = modelId.toLowerCase()
   const STANDARD_MAX_OUTPUT_TOKENS = 4096
+  const allModels = Object.values(PROVIDER_DEFINITIONS).flatMap((provider) => provider.models)
 
-  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
-    for (const model of provider.models) {
-      const baseModelId = model.id.toLowerCase()
-      if (normalizedModelId === baseModelId || normalizedModelId.startsWith(`${baseModelId}-`)) {
-        return model.capabilities.maxOutputTokens || STANDARD_MAX_OUTPUT_TOKENS
-      }
+  const exactMatch = allModels.find((model) => model.id.toLowerCase() === normalizedModelId)
+  if (exactMatch) {
+    return exactMatch.capabilities.maxOutputTokens || STANDARD_MAX_OUTPUT_TOKENS
+  }
+
+  for (const model of allModels) {
+    const baseModelId = model.id.toLowerCase()
+    if (normalizedModelId.startsWith(`${baseModelId}-`)) {
+      return model.capabilities.maxOutputTokens || STANDARD_MAX_OUTPUT_TOKENS
     }
   }
 

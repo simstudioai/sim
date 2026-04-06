@@ -2,11 +2,11 @@ import { db, workflowDeploymentVersion, workflowSchedule } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, lt, lte, ne, not, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId } from '@/lib/core/utils/uuid'
 import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import {
   executeJobInline,
@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
 
     const schedulePromises = dueSchedules.map(async (schedule) => {
       const queueTime = schedule.lastQueuedAt ?? queuedAt
-      const executionId = uuidv4()
+      const executionId = generateId()
       const correlation = {
         executionId,
         requestId,

@@ -17,7 +17,7 @@ const deleteAgentBase = {
     },
   },
   request: {
-    url: (params: DeleteAgentParams) => `https://api.cursor.com/v0/agents/${params.agentId}`,
+    url: (params: DeleteAgentParams) => `https://api.cursor.com/v0/agents/${params.agentId.trim()}`,
     method: 'DELETE',
     headers: (params: DeleteAgentParams) => ({
       Authorization: `Basic ${Buffer.from(`${params.apiKey}:`).toString('base64')}`,

@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto'
 import { render } from '@react-email/render'
 import { db } from '@sim/db'
 import {
@@ -16,6 +15,7 @@ import { WorkspaceInvitationEmail } from '@/components/emails'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
@@ -147,7 +147,7 @@ export async function GET(
 
       await db.transaction(async (tx) => {
         await tx.insert(permissions).values({
-          id: randomUUID(),
+          id: generateId(),
           entityType: 'workspace' as const,
           entityId: invitation.workspaceId,
           userId: session.user.id,
@@ -325,7 +325,7 @@ export async function POST(
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
     }
 
-    const newToken = randomUUID()
+    const newToken = generateId()
     const newExpiresAt = new Date()
     newExpiresAt.setDate(newExpiresAt.getDate() + 7)
 

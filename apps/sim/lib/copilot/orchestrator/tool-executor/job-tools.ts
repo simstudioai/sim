@@ -2,9 +2,9 @@ import { db } from '@sim/db'
 import { copilotChats, workflowSchedule } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
+import { generateId } from '@/lib/core/utils/uuid'
 import { parseCronToHumanReadable, validateCronExpression } from '@/lib/workflows/schedules/utils'
 
 const logger = createLogger('JobTools')
@@ -117,7 +117,7 @@ export async function executeCreateJob(
     return { success: false, error: 'Could not determine next run time' }
   }
 
-  const jobId = uuidv4()
+  const jobId = generateId()
   const now = new Date()
 
   try {

@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react'
 import { Plus } from 'lucide-react'
 import { Trash } from '@/components/emcn/icons/trash'
+import { generateId } from '@/lib/core/utils/uuid'
 import 'prismjs/components/prism-json'
 import Editor from 'react-simple-code-editor'
 import {
@@ -74,7 +75,7 @@ const BOOLEAN_OPTIONS: ComboboxOption[] = [
  * Creates a new field with default values
  */
 const createDefaultField = (): Field => ({
-  id: crypto.randomUUID(),
+  id: generateId(),
   name: '',
   type: 'string',
   value: '',

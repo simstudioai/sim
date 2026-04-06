@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasAccessControlAccess } from '@/lib/billing'
+import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('PermissionGroupMembers')
 
@@ -137,7 +138,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
 
       const memberData = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         permissionGroupId: id,
         userId,
         assignedBy: session.user.id,

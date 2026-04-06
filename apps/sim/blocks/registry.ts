@@ -1,5 +1,6 @@
 import { A2ABlock } from '@/blocks/blocks/a2a'
 import { AgentBlock } from '@/blocks/blocks/agent'
+import { AgentMailBlock } from '@/blocks/blocks/agentmail'
 import { AhrefsBlock } from '@/blocks/blocks/ahrefs'
 import { AirtableBlock } from '@/blocks/blocks/airtable'
 import { AirweaveBlock } from '@/blocks/blocks/airweave'
@@ -23,8 +24,11 @@ import { CirclebackBlock } from '@/blocks/blocks/circleback'
 import { ClayBlock } from '@/blocks/blocks/clay'
 import { ClerkBlock } from '@/blocks/blocks/clerk'
 import { CloudflareBlock } from '@/blocks/blocks/cloudflare'
+import { CloudFormationBlock } from '@/blocks/blocks/cloudformation'
+import { CloudWatchBlock } from '@/blocks/blocks/cloudwatch'
 import { ConditionBlock } from '@/blocks/blocks/condition'
 import { ConfluenceBlock, ConfluenceV2Block } from '@/blocks/blocks/confluence'
+import { CredentialBlock } from '@/blocks/blocks/credential'
 import { CursorBlock, CursorV2Block } from '@/blocks/blocks/cursor'
 import { DatabricksBlock } from '@/blocks/blocks/databricks'
 import { DatadogBlock } from '@/blocks/blocks/datadog'
@@ -151,6 +155,7 @@ import { ResendBlock } from '@/blocks/blocks/resend'
 import { ResponseBlock } from '@/blocks/blocks/response'
 import { RevenueCatBlock } from '@/blocks/blocks/revenuecat'
 import { RipplingBlock } from '@/blocks/blocks/rippling'
+import { RootlyBlock } from '@/blocks/blocks/rootly'
 import { RouterBlock, RouterV2Block } from '@/blocks/blocks/router'
 import { RssBlock } from '@/blocks/blocks/rss'
 import { S3Block } from '@/blocks/blocks/s3'
@@ -216,6 +221,7 @@ import type { BlockConfig } from '@/blocks/types'
 export const registry: Record<string, BlockConfig> = {
   a2a: A2ABlock,
   agent: AgentBlock,
+  agentmail: AgentMailBlock,
   ahrefs: AhrefsBlock,
   airtable: AirtableBlock,
   airweave: AirweaveBlock,
@@ -237,9 +243,12 @@ export const registry: Record<string, BlockConfig> = {
   chat_trigger: ChatTriggerBlock,
   circleback: CirclebackBlock,
   cloudflare: CloudflareBlock,
+  cloudformation: CloudFormationBlock,
+  cloudwatch: CloudWatchBlock,
   clay: ClayBlock,
   clerk: ClerkBlock,
   condition: ConditionBlock,
+  credential: CredentialBlock,
   confluence: ConfluenceBlock,
   confluence_v2: ConfluenceV2Block,
   cursor: CursorBlock,
@@ -382,6 +391,7 @@ export const registry: Record<string, BlockConfig> = {
   response: ResponseBlock,
   revenuecat: RevenueCatBlock,
   rippling: RipplingBlock,
+  rootly: RootlyBlock,
   router: RouterBlock,
   router_v2: RouterV2Block,
   rss: RssBlock,

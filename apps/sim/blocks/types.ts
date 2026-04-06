@@ -358,6 +358,18 @@ export interface SubBlockConfig {
           not?: boolean
         }
       })
+  /**
+   * Credential-type visibility gate. The first non-empty string value from
+   * `watchFields` is treated as a credential ID and fetched via the credentials
+   * API. The subblock is hidden unless `credential.type` matches `requiredType`.
+   *
+   * Only one subblock per block may use this. The serializer ignores it —
+   * the field is always serialized when it has a value.
+   */
+  reactiveCondition?: {
+    watchFields: string[]
+    requiredType: 'oauth' | 'service_account'
+  }
   // Props specific to 'code' sub-block type
   language?: 'javascript' | 'json' | 'python'
   generationType?: GenerationType
@@ -409,15 +421,11 @@ export interface SubBlockConfig {
   triggerId?: string
   // Dropdown/Combobox: Function to fetch options dynamically
   // Works with both 'dropdown' (select-only) and 'combobox' (editable with expression support)
-  fetchOptions?: (
-    blockId: string,
-    subBlockId: string
-  ) => Promise<Array<{ label: string; id: string }>>
+  fetchOptions?: (blockId: string) => Promise<Array<{ label: string; id: string }>>
   // Dropdown/Combobox: Function to fetch a single option's label by ID (for hydration)
   // Called when component mounts with a stored value to display the correct label before options load
   fetchOptionById?: (
     blockId: string,
-    subBlockId: string,
     optionId: string
   ) => Promise<{ label: string; id: string } | null>
 }

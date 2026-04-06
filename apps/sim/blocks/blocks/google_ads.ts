@@ -52,7 +52,6 @@ export const GoogleAdsBlock: BlockConfig = {
       placeholder: 'Enter credential ID',
       required: true,
     },
-
     {
       id: 'developerToken',
       title: 'Developer Token',

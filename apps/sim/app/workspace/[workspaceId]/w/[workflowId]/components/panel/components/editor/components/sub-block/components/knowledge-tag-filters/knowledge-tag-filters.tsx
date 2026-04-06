@@ -12,6 +12,7 @@ import {
   Trash,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { generateId } from '@/lib/core/utils/uuid'
 import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -48,7 +49,7 @@ interface KnowledgeTagFiltersProps {
  * Creates a new filter with default values
  */
 const createDefaultFilter = (): TagFilter => ({
-  id: crypto.randomUUID(),
+  id: generateId(),
   tagName: '',
   fieldType: 'text',
   operator: 'eq',

@@ -1,16 +1,18 @@
 'use client'
 
-import { Suspense, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
 import { Input, Label } from '@/components/emcn'
 import { client, useSession } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import { captureEvent } from '@/lib/posthog/client'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
@@ -81,7 +83,12 @@ function SignupFormContent({
   const router = useRouter()
   const searchParams = useSearchParams()
   const { refetch: refetchSession } = useSession()
+  const posthog = usePostHog()
   const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    captureEvent(posthog, 'signup_page_viewed', {})
+  }, [posthog])
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
@@ -92,8 +99,6 @@ function SignupFormContent({
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const turnstileRef = useRef<TurnstileInstance>(null)
-  const captchaResolveRef = useRef<((token: string) => void) | null>(null)
-  const captchaRejectRef = useRef<((reason: Error) => void) | null>(null)
   const turnstileSiteKey = useMemo(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'), [])
   const redirectUrl = useMemo(
     () => searchParams.get('redirect') || searchParams.get('callbackUrl') || '',
@@ -251,27 +256,14 @@ function SignupFormContent({
       let token: string | undefined
       const widget = turnstileRef.current
       if (turnstileSiteKey && widget) {
-        let timeoutId: ReturnType<typeof setTimeout> | undefined
         try {
           widget.reset()
-          token = await Promise.race([
-            new Promise<string>((resolve, reject) => {
-              captchaResolveRef.current = resolve
-              captchaRejectRef.current = reject
-              widget.execute()
-            }),
-            new Promise<string>((_, reject) => {
-              timeoutId = setTimeout(() => reject(new Error('Captcha timed out')), 15_000)
-            }),
-          ])
+          widget.execute()
+          token = await widget.getResponsePromise()
         } catch {
           setFormError('Captcha verification failed. Please try again.')
           setIsLoading(false)
           return
-        } finally {
-          clearTimeout(timeoutId)
-          captchaResolveRef.current = null
-          captchaRejectRef.current = null
         }
       }
 
@@ -528,10 +520,7 @@ function SignupFormContent({
             <Turnstile
               ref={turnstileRef}
               siteKey={turnstileSiteKey}
-              onSuccess={(token) => captchaResolveRef.current?.(token)}
-              onError={() => captchaRejectRef.current?.(new Error('Captcha verification failed'))}
-              onExpire={() => captchaRejectRef.current?.(new Error('Captcha token expired'))}
-              options={{ execution: 'execute' }}
+              options={{ execution: 'execute', appearance: 'execute' }}
             />
           )}
 

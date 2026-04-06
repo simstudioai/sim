@@ -2,7 +2,6 @@ import { useMemo } from 'react'
 import type { Edge } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
-import type { DeploymentStatus } from '@/stores/workflows/registry/types'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -16,8 +15,6 @@ export interface CurrentWorkflow {
   loops: Record<string, Loop>
   parallels: Record<string, Parallel>
   lastSaved?: number
-  deploymentStatuses?: Record<string, DeploymentStatus>
-  needsRedeployment?: boolean
 
   // Mode information
   isDiffMode: boolean
@@ -48,8 +45,6 @@ export function useCurrentWorkflow(): CurrentWorkflow {
       loops: state.loops,
       parallels: state.parallels,
       lastSaved: state.lastSaved,
-      deploymentStatuses: state.deploymentStatuses,
-      needsRedeployment: state.needsRedeployment,
     }))
   )
 
@@ -78,8 +73,6 @@ export function useCurrentWorkflow(): CurrentWorkflow {
       loops: activeWorkflow.loops || {},
       parallels: activeWorkflow.parallels || {},
       lastSaved: activeWorkflow.lastSaved,
-      deploymentStatuses: activeWorkflow.deploymentStatuses,
-      needsRedeployment: activeWorkflow.needsRedeployment,
 
       // Mode information - update to reflect ready state
       isDiffMode: hasActiveDiff && isShowingDiff,

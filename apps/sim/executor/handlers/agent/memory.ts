@@ -1,8 +1,8 @@
-import { randomUUID } from 'node:crypto'
 import { db } from '@sim/db'
 import { memory } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getAccurateTokenCount } from '@/lib/tokenization/estimators'
 import { MEMORY } from '@/executor/constants'
 import type { AgentInputs, Message } from '@/executor/handlers/agent/types'
@@ -221,7 +221,7 @@ export class Memory {
     await db
       .insert(memory)
       .values({
-        id: randomUUID(),
+        id: generateId(),
         workspaceId,
         key,
         data: messages,
@@ -237,7 +237,7 @@ export class Memory {
     await db
       .insert(memory)
       .values({
-        id: randomUUID(),
+        id: generateId(),
         workspaceId,
         key,
         data: [message],

@@ -1,8 +1,9 @@
-import { createHash, randomUUID } from 'crypto'
+import { createHash } from 'crypto'
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm'
+import { generateId } from '@/lib/core/utils/uuid'
 import type {
   BatchOperationResult,
   ChunkData,
@@ -110,12 +111,12 @@ export async function createChunk(
   workspaceId?: string | null
 ): Promise<ChunkData> {
   logger.info(`[${requestId}] Generating embedding for manual chunk`)
-  const embeddings = await generateEmbeddings([chunkData.content], undefined, workspaceId)
+  const { embeddings } = await generateEmbeddings([chunkData.content], undefined, workspaceId)
 
   // Calculate accurate token count
   const tokenCount = estimateTokenCount(chunkData.content, 'openai')
 
-  const chunkId = randomUUID()
+  const chunkId = generateId()
   const now = new Date()
 
   // Use transaction to atomically get next index and insert chunk
@@ -359,7 +360,7 @@ export async function updateChunk(
       if (content !== currentChunk[0].content) {
         logger.info(`[${requestId}] Content changed, regenerating embedding for chunk ${chunkId}`)
 
-        const embeddings = await generateEmbeddings([content], undefined, workspaceId)
+        const { embeddings } = await generateEmbeddings([content], undefined, workspaceId)
 
         // Calculate accurate token count
         const tokenCount = estimateTokenCount(content, 'openai')

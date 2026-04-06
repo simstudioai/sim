@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import { academyCertificate, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getCourseById } from '@/lib/academy/content'
@@ -10,6 +9,7 @@ import type { CertificateMetadata } from '@/lib/academy/types'
 import { getSession } from '@/lib/auth'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
+import { generateShortId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('AcademyCertificatesAPI')
 
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
     const [certificate] = await db
       .insert(academyCertificate)
       .values({
-        id: nanoid(),
+        id: generateShortId(),
         userId: session.user.id,
         courseId,
         status: 'active',
@@ -211,5 +211,5 @@ export async function GET(req: NextRequest) {
 /** Generates a human-readable certificate number, e.g. SIM-2026-A3K9XZ2P */
 function generateCertificateNumber(): string {
   const year = new Date().getFullYear()
-  return `SIM-${year}-${nanoid(8).toUpperCase()}`
+  return `SIM-${year}-${generateShortId(8).toUpperCase()}`
 }

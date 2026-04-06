@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { useShallow } from 'zustand/react/shallow'
 import { redactApiKeys } from '@/lib/core/security/redaction'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getQueryClient } from '@/app/_shell/providers/query-provider'
 import type { NormalizedBlockOutput } from '@/executor/types'
 import { type GeneralSettings, generalSettingsKeys } from '@/hooks/queries/general-settings'
@@ -291,7 +292,7 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
 
       const createdEntry: ConsoleEntry = {
         ...redactedEntry,
-        id: crypto.randomUUID(),
+        id: generateId(),
         timestamp: new Date().toISOString(),
         input: normalizeConsoleInput(redactedEntry.input),
         output: normalizeConsoleOutput(redactedEntry.output),

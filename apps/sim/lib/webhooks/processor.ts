@@ -3,13 +3,13 @@ import { credentialSet } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
 import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing/core/subscription'
 import { getInlineJobQueue, getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import { isProd } from '@/lib/core/config/feature-flags'
 import { safeCompare } from '@/lib/core/security/encryption'
+import { generateId } from '@/lib/core/utils/uuid'
 import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
@@ -951,7 +951,7 @@ export async function checkWebhookPreprocessing(
   requestId: string
 ): Promise<WebhookPreprocessingResult> {
   try {
-    const executionId = uuidv4()
+    const executionId = generateId()
     const correlation = {
       executionId,
       requestId,
@@ -1233,7 +1233,7 @@ export async function queueWebhookExecution(
       return NextResponse.json({ error: 'Unable to resolve billing account' }, { status: 500 })
     }
 
-    const executionId = options.executionId ?? uuidv4()
+    const executionId = options.executionId ?? generateId()
     const correlation =
       options.correlation ??
       ({

@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { format } from 'date-fns'
 import { AlertCircle, Loader2, Pencil, Plus, Tag, X } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
 import {
   Badge,
   Button,
@@ -24,10 +25,13 @@ import {
 import { Database, DatabaseX } from '@/components/emcn/icons'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import { cn } from '@/lib/core/utils/cn'
+import { generateId } from '@/lib/core/utils/uuid'
+import { ADD_CONNECTOR_SEARCH_PARAM } from '@/lib/credentials/client-state'
 import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowledge/constants'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import type { DocumentData } from '@/lib/knowledge/types'
+import { captureEvent } from '@/lib/posthog/client'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
 import type {
   BreadcrumbItem,
@@ -190,6 +194,19 @@ export function KnowledgeBase({
 }: KnowledgeBaseProps) {
   const params = useParams()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const pathname = usePathname()
+  const addConnectorParam = searchParams.get(ADD_CONNECTOR_SEARCH_PARAM)
+  const posthog = usePostHog()
+
+  useEffect(() => {
+    captureEvent(posthog, 'knowledge_base_opened', {
+      knowledge_base_id: id,
+      knowledge_base_name: passedKnowledgeBaseName ?? 'Unknown',
+    })
+  }, [id, passedKnowledgeBaseName, posthog])
+
   useOAuthReturnForKBConnectors(id)
   const { removeKnowledgeBase } = useKnowledgeBasesList(workspaceId, { enabled: false })
   const userPermissions = useUserPermissionsContext()
@@ -267,7 +284,29 @@ export function KnowledgeBase({
   const [contextMenuDocument, setContextMenuDocument] = useState<DocumentData | null>(null)
   const [showRenameModal, setShowRenameModal] = useState(false)
   const [documentToRename, setDocumentToRename] = useState<DocumentData | null>(null)
-  const [showAddConnectorModal, setShowAddConnectorModal] = useState(false)
+  const showAddConnectorModal = addConnectorParam != null
+  const searchParamsRef = useRef(searchParams)
+  searchParamsRef.current = searchParams
+  const updateAddConnectorParam = useCallback(
+    (value: string | null) => {
+      const current = searchParamsRef.current
+      const currentValue = current.get(ADD_CONNECTOR_SEARCH_PARAM)
+      if (value === currentValue || (value === null && currentValue === null)) return
+      const next = new URLSearchParams(current.toString())
+      if (value === null) {
+        next.delete(ADD_CONNECTOR_SEARCH_PARAM)
+      } else {
+        next.set(ADD_CONNECTOR_SEARCH_PARAM, value)
+      }
+      const qs = next.toString()
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+    },
+    [pathname, router]
+  )
+  const setShowAddConnectorModal = useCallback(
+    (open: boolean) => updateAddConnectorParam(open ? '' : null),
+    [updateAddConnectorParam]
+  )
 
   const {
     isOpen: isContextMenuOpen,
@@ -328,8 +367,6 @@ export function KnowledgeBase({
     }
     prevHadSyncingRef.current = hasSyncingConnectors
   }, [hasSyncingConnectors, refreshKnowledgeBase, refreshDocuments])
-
-  const router = useRouter()
 
   const knowledgeBaseName = knowledgeBase?.name || passedKnowledgeBaseName || 'Knowledge Base'
   const error = knowledgeBaseError || documentsError
@@ -1243,7 +1280,13 @@ export function KnowledgeBase({
       />
 
       {showAddConnectorModal && (
-        <AddConnectorModal open onOpenChange={setShowAddConnectorModal} knowledgeBaseId={id} />
+        <AddConnectorModal
+          open
+          onOpenChange={setShowAddConnectorModal}
+          onConnectorTypeChange={updateAddConnectorParam}
+          knowledgeBaseId={id}
+          initialConnectorType={addConnectorParam || undefined}
+        />
       )}
 
       {documentToRename && (
@@ -1365,7 +1408,7 @@ interface TagFilterEntry {
 }
 
 const createEmptyEntry = (): TagFilterEntry => ({
-  id: crypto.randomUUID(),
+  id: generateId(),
   tagName: '',
   tagSlot: '',
   fieldType: 'text',

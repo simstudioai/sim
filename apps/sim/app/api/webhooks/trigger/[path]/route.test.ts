@@ -414,12 +414,6 @@ describe('Webhook Trigger API Route', () => {
     handleWhatsAppVerificationMock.mockResolvedValue(null)
     processGenericDeduplicationMock.mockResolvedValue(null)
     processWebhookMock.mockResolvedValue(new Response('Webhook processed', { status: 200 }))
-
-    if ((global as any).crypto?.randomUUID) {
-      vi.spyOn(crypto, 'randomUUID').mockRestore()
-    }
-
-    vi.spyOn(crypto, 'randomUUID').mockReturnValue('mock-uuid-12345')
   })
 
   afterEach(() => {

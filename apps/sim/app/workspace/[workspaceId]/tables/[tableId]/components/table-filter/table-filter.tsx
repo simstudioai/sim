@@ -2,7 +2,6 @@
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
-import { nanoid } from 'nanoid'
 import {
   Button,
   DropdownMenu,
@@ -11,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import { ChevronDown, Plus } from '@/components/emcn/icons'
+import { generateShortId } from '@/lib/core/utils/uuid'
 import type { Filter, FilterRule } from '@/lib/table'
 import { COMPARISON_OPERATORS } from '@/lib/table/query-builder/constants'
 import { filterRulesToFilter, filterToRules } from '@/lib/table/query-builder/converters'
@@ -220,7 +220,7 @@ const FilterRuleRow = memo(function FilterRuleRow({
 
 function createRule(columns: Array<{ name: string }>): FilterRule {
   return {
-    id: nanoid(),
+    id: generateShortId(),
     logicalOperator: 'and',
     column: columns[0]?.name ?? '',
     operator: 'eq',

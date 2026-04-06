@@ -5,6 +5,7 @@ import { and, eq, lt } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { generateId } from '@/lib/core/utils/uuid'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CredentialDraftAPI')
@@ -75,7 +76,7 @@ export async function POST(request: Request) {
     await db
       .insert(pendingCredentialDraft)
       .values({
-        id: crypto.randomUUID(),
+        id: generateId(),
         userId,
         workspaceId,
         providerId,

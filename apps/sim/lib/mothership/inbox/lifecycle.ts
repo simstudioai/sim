@@ -1,8 +1,8 @@
 import { db, mothershipInboxWebhook, workspace } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import type { InboxConfig } from '@/lib/mothership/inbox/types'
 
@@ -39,7 +39,7 @@ export async function enableInbox(
     })
 
     await db.insert(mothershipInboxWebhook).values({
-      id: uuidv4(),
+      id: generateId(),
       workspaceId,
       webhookId: webhook.webhook_id,
       secret: webhook.secret,

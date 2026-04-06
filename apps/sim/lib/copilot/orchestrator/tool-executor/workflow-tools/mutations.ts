@@ -1,9 +1,9 @@
-import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { createWorkspaceApiKey } from '@/lib/api-key/auth'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId } from '@/lib/core/utils/uuid'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import {
   getExecutionState,
@@ -334,7 +334,7 @@ export async function executeSetGlobalWorkflowVariables(
       const typedValue = coerceValue(op.value, nextType)
       if (op.operation === 'add') {
         byName[key] = {
-          id: crypto.randomUUID(),
+          id: generateId(),
           workflowId,
           name: key,
           type: nextType,
@@ -345,7 +345,7 @@ export async function executeSetGlobalWorkflowVariables(
       if (op.operation === 'edit') {
         if (!byName[key]) {
           byName[key] = {
-            id: crypto.randomUUID(),
+            id: generateId(),
             workflowId,
             name: key,
             type: nextType,

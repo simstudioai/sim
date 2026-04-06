@@ -16,19 +16,31 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Hoisted mock state - these are available to vi.mock factories
-const { mockIsHosted, mockEnv, mockGetBYOKKey, mockGetToolAsync, mockRateLimiterFns } = vi.hoisted(
-  () => ({
-    mockIsHosted: { value: false },
-    mockEnv: { NEXT_PUBLIC_APP_URL: 'http://localhost:3000' } as Record<string, string | undefined>,
-    mockGetBYOKKey: vi.fn(),
-    mockGetToolAsync: vi.fn(),
-    mockRateLimiterFns: {
-      acquireKey: vi.fn(),
-      preConsumeCapacity: vi.fn(),
-      consumeCapacity: vi.fn(),
-    },
-  })
-)
+const {
+  mockIsHosted,
+  mockEnv,
+  mockGetBYOKKey,
+  mockGetToolAsync,
+  mockRateLimiterFns,
+  mockGetCustomToolById,
+  mockListCustomTools,
+  mockGetCustomToolByIdOrTitle,
+  mockGenerateInternalToken,
+} = vi.hoisted(() => ({
+  mockIsHosted: { value: false },
+  mockEnv: { NEXT_PUBLIC_APP_URL: 'http://localhost:3000' } as Record<string, string | undefined>,
+  mockGetBYOKKey: vi.fn(),
+  mockGetToolAsync: vi.fn(),
+  mockRateLimiterFns: {
+    acquireKey: vi.fn(),
+    preConsumeCapacity: vi.fn(),
+    consumeCapacity: vi.fn(),
+  },
+  mockGetCustomToolById: vi.fn(),
+  mockListCustomTools: vi.fn(),
+  mockGetCustomToolByIdOrTitle: vi.fn(),
+  mockGenerateInternalToken: vi.fn(),
+}))
 
 // Mock feature flags
 vi.mock('@/lib/core/config/feature-flags', () => ({
@@ -53,6 +65,10 @@ vi.mock('@/lib/core/config/env', () => ({
 // Mock getBYOKKey
 vi.mock('@/lib/api-key/byok', () => ({
   getBYOKKey: (...args: unknown[]) => mockGetBYOKKey(...args),
+}))
+
+vi.mock('@/lib/auth/internal', () => ({
+  generateInternalToken: (...args: unknown[]) => mockGenerateInternalToken(...args),
 }))
 
 vi.mock('@/lib/billing/core/usage-log', () => ({}))
@@ -183,8 +199,8 @@ vi.mock('@/tools/registry', () => {
   return { tools: mockTools }
 })
 
-// Mock custom tools - define mock data inside factory function
-vi.mock('@/hooks/queries/utils/custom-tool-cache', () => {
+// Mock query client for custom tool cache reads
+vi.mock('@/app/_shell/providers/get-query-client', () => {
   const mockCustomTool = {
     id: 'custom-tool-123',
     title: 'Custom Weather Tool',
@@ -204,15 +220,20 @@ vi.mock('@/hooks/queries/utils/custom-tool-cache', () => {
     },
   }
   return {
-    getCustomTool: (toolId: string) => {
-      if (toolId === 'custom-tool-123') {
-        return mockCustomTool
-      }
-      return undefined
-    },
-    getCustomTools: () => [mockCustomTool],
+    getQueryClient: () => ({
+      getQueryData: (key: string[]) => {
+        if (key[0] === 'customTools') return [mockCustomTool]
+        return undefined
+      },
+    }),
   }
 })
+
+vi.mock('@/lib/workflows/custom-tools/operations', () => ({
+  getCustomToolById: mockGetCustomToolById,
+  listCustomTools: mockListCustomTools,
+  getCustomToolByIdOrTitle: mockGetCustomToolByIdOrTitle,
+}))
 
 vi.mock('@/tools/utils.server', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/tools/utils.server')>()
@@ -307,30 +328,23 @@ describe('Custom Tools', () => {
   })
 
   it('resolves custom tools through the async helper', async () => {
-    setupFetchMock({
-      json: {
-        data: [
-          {
-            id: 'remote-tool-123',
-            title: 'Custom Weather Tool',
-            schema: {
-              function: {
-                name: 'weather_tool',
-                description: 'Get weather information',
-                parameters: {
-                  type: 'object',
-                  properties: {
-                    location: { type: 'string', description: 'City name' },
-                  },
-                  required: ['location'],
-                },
-              },
+    mockGetCustomToolByIdOrTitle.mockResolvedValue({
+      id: 'remote-tool-123',
+      title: 'Custom Weather Tool',
+      schema: {
+        function: {
+          name: 'weather_tool',
+          description: 'Get weather information',
+          parameters: {
+            type: 'object',
+            properties: {
+              location: { type: 'string', description: 'City name' },
             },
+            required: ['location'],
           },
-        ],
+        },
       },
-      status: 200,
-      headers: { 'content-type': 'application/json' },
+      code: '',
     })
 
     const customTool = await getToolAsync('custom_remote-tool-123', {
@@ -1144,6 +1158,34 @@ describe('MCP Tool Execution', () => {
     expect(result.success).toBe(false)
     expect(result.error).toContain('Network error')
     expect(result.timing).toBeDefined()
+  })
+
+  it('should embed userId in JWT when executionContext is undefined (agent block path)', async () => {
+    mockGenerateInternalToken.mockResolvedValue('test-token')
+
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async () => ({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            success: true,
+            data: { output: { content: [{ type: 'text', text: 'OK' }] } },
+          }),
+      })),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    await executeTool('mcp-123-test_tool', {
+      query: 'test',
+      _context: {
+        workspaceId: 'workspace-456',
+        workflowId: 'workflow-789',
+        userId: 'user-abc',
+      },
+    })
+
+    expect(mockGenerateInternalToken).toHaveBeenCalledWith('user-abc')
   })
 
   describe('Tool request retries', () => {

@@ -30,7 +30,7 @@ const addFollowupBase = {
   },
   request: {
     url: (params: AddFollowupParams) =>
-      `https://api.cursor.com/v0/agents/${params.agentId}/followup`,
+      `https://api.cursor.com/v0/agents/${params.agentId.trim()}/followup`,
     method: 'POST',
     headers: (params: AddFollowupParams) => ({
       'Content-Type': 'application/json',

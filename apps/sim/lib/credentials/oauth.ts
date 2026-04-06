@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { account, credential, credentialMember } from '@sim/db/schema'
 import { and, eq, inArray, notInArray } from 'drizzle-orm'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 
 /** Provider IDs that are not real OAuth integrations (login-only social providers and password) */
@@ -146,7 +147,7 @@ export async function syncWorkspaceOAuthCredentialsForUser(
 
     try {
       await db.insert(credentialMember).values({
-        id: crypto.randomUUID(),
+        id: generateId(),
         credentialId,
         userId,
         role: 'admin',

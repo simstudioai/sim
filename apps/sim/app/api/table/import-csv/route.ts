@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId } from '@/lib/core/utils/uuid'
 import {
   batchInsertRows,
   createTable,
@@ -225,7 +226,7 @@ export async function POST(request: NextRequest) {
       let inserted = 0
       for (let i = 0; i < coerced.length; i += MAX_BATCH_SIZE) {
         const batch = coerced.slice(i, i + MAX_BATCH_SIZE)
-        const batchRequestId = crypto.randomUUID().slice(0, 8)
+        const batchRequestId = generateId().slice(0, 8)
         const result = await batchInsertRows(
           { tableId: table.id, rows: batch, workspaceId, userId: authResult.userId },
           table,

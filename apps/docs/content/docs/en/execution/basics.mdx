@@ -96,8 +96,9 @@ Understanding these core principles will help you build better workflows:
 2. **Automatic Parallelization**: Independent blocks run concurrently without configuration
 3. **Smart Data Flow**: Outputs flow automatically to connected blocks
 4. **Error Handling**: Failed blocks stop their execution path but don't affect independent paths
-5. **State Persistence**: All block outputs and execution details are preserved for debugging
-6. **Cycle Protection**: Workflows that call other workflows (via Workflow blocks, MCP tools, or API blocks) are tracked with a call chain. If the chain exceeds 25 hops, execution is stopped to prevent infinite loops
+5. **Response Blocks as Exit Points**: When a Response block executes, the entire workflow stops and the API response is sent immediately. Multiple Response blocks can exist on different branches — the first one to execute wins
+6. **State Persistence**: All block outputs and execution details are preserved for debugging
+7. **Cycle Protection**: Workflows that call other workflows (via Workflow blocks, MCP tools, or API blocks) are tracked with a call chain. If the chain exceeds 25 hops, execution is stopped to prevent infinite loops
 
 ## Next Steps
 

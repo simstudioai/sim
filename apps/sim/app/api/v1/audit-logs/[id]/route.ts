@@ -15,6 +15,7 @@ import { auditLog, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { generateId } from '@/lib/core/utils/uuid'
 import { validateEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
 import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
@@ -25,7 +26,7 @@ const logger = createLogger('V1AuditLogDetailAPI')
 export const revalidate = 0
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
 
   try {
     const rateLimit = await checkRateLimit(request, 'audit-logs')

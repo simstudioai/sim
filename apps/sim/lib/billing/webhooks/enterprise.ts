@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { getEmailSubject, renderEnterpriseSubscriptionEmail } from '@/components/emails'
+import { generateId } from '@/lib/core/utils/uuid'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { parseEnterpriseSubscriptionMetadata } from '../types'
@@ -62,7 +63,7 @@ export async function handleManualEnterpriseSubscription(event: Stripe.Event) {
   const referenceItem = stripeSubscription.items?.data?.[0]
 
   const subscriptionRow = {
-    id: crypto.randomUUID(),
+    id: generateId(),
     plan: 'enterprise',
     referenceId,
     stripeCustomerId,

@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { getNavBlogPosts } from '@/lib/blog/registry'
 import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
 import { season } from '@/app/_styles/fonts/season/season'
-import Footer from '@/app/(home)/components/footer/footer'
-import Navbar from '@/app/(home)/components/navbar/navbar'
+import Footer from '@/app/(landing)/components/footer/footer'
+import Navbar from '@/app/(landing)/components/navbar/navbar'
 
 export const metadata: Metadata = {
   title: 'Partner Program',

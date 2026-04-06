@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuthType, checkHybridAuth, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { performDeleteWorkflow } from '@/lib/workflows/orchestration'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { authorizeWorkflowByWorkspacePermission, getWorkflowById } from '@/lib/workflows/utils'
@@ -88,7 +89,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const finalWorkflowData = {
         ...workflowData,
         state: {
-          deploymentStatuses: {},
           blocks: normalizedData.blocks,
           edges: normalizedData.edges,
           loops: normalizedData.loops,
@@ -114,7 +114,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const emptyWorkflowData = {
       ...workflowData,
       state: {
-        deploymentStatuses: {},
         blocks: {},
         edges: [],
         loops: {},
@@ -224,6 +223,13 @@ export async function DELETE(
         result.errorCode === 'not_found' ? 404 : result.errorCode === 'validation' ? 400 : 500
       return NextResponse.json({ error: result.error }, { status })
     }
+
+    captureServerEvent(
+      userId,
+      'workflow_deleted',
+      { workflow_id: workflowId, workspace_id: workflowData.workspaceId ?? '' },
+      workflowData.workspaceId ? { groups: { workspace: workflowData.workspaceId } } : undefined
+    )
 
     const elapsed = Date.now() - startTime
     logger.info(`[${requestId}] Successfully archived workflow ${workflowId} in ${elapsed}ms`)

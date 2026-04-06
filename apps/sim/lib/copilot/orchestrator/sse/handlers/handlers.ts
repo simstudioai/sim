@@ -20,6 +20,7 @@ import type {
   ToolCallState,
 } from '@/lib/copilot/orchestrator/types'
 import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
+import { generateId } from '@/lib/core/utils/uuid'
 import { executeToolAndReport, waitForToolCompletion } from './tool-execution'
 
 const logger = createLogger('CopilotSseHandlers')
@@ -457,7 +458,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
       const pendingPromise = (async () => {
         try {
           await upsertAsyncToolCall({
-            runId: context.runId || crypto.randomUUID(),
+            runId: context.runId || generateId(),
             toolCallId,
             toolName,
             args,
@@ -512,7 +513,7 @@ export const sseHandlers: Record<string, SSEHandler> = {
       } else {
         toolCall.status = 'executing'
         await upsertAsyncToolCall({
-          runId: context.runId || crypto.randomUUID(),
+          runId: context.runId || generateId(),
           toolCallId,
           toolName,
           args,
@@ -709,7 +710,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
       const pendingPromise = (async () => {
         try {
           await upsertAsyncToolCall({
-            runId: context.runId || crypto.randomUUID(),
+            runId: context.runId || generateId(),
             toolCallId,
             toolName,
             args,
@@ -759,7 +760,7 @@ export const subAgentHandlers: Record<string, SSEHandler> = {
       } else {
         toolCall.status = 'executing'
         await upsertAsyncToolCall({
-          runId: context.runId || crypto.randomUUID(),
+          runId: context.runId || generateId(),
           toolCallId,
           toolName,
           args,

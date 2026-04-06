@@ -81,7 +81,7 @@ export function SocialLoginButtons({
   const githubButton = (
     <Button
       variant='outline'
-      className='w-full rounded-[10px]'
+      className='w-full rounded-sm border-[var(--landing-border-strong)] py-1.5 text-sm'
       disabled={!githubAvailable || isGithubLoading}
       onClick={signInWithGithub}
     >
@@ -93,7 +93,7 @@ export function SocialLoginButtons({
   const googleButton = (
     <Button
       variant='outline'
-      className='w-full rounded-[10px]'
+      className='w-full rounded-sm border-[var(--landing-border-strong)] py-1.5 text-sm'
       disabled={!googleAvailable || isGoogleLoading}
       onClick={signInWithGoogle}
     >

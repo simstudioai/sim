@@ -1,7 +1,7 @@
 import { getNavBlogPosts } from '@/lib/blog/registry'
 import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
-import Footer from '@/app/(home)/components/footer/footer'
-import Navbar from '@/app/(home)/components/navbar/navbar'
+import Footer from '@/app/(landing)/components/footer/footer'
+import Navbar from '@/app/(landing)/components/navbar/navbar'
 
 export default async function ChangelogLayout({ children }: { children: React.ReactNode }) {
   const blogPosts = await getNavBlogPosts()

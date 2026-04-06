@@ -6,6 +6,7 @@ import {
   getCanonicalValues,
   isCanonicalPair,
   resolveCanonicalMode,
+  resolveDependencyValue,
   type SubBlockCondition,
 } from '@/lib/workflows/subblocks/visibility'
 import type { SubBlockConfig as BlockSubBlockConfig } from '@/blocks/types'
@@ -17,6 +18,7 @@ export {
   evaluateSubBlockCondition,
   isCanonicalPair,
   resolveCanonicalMode,
+  resolveDependencyValue,
   type SubBlockCondition,
 }
 

@@ -19,6 +19,7 @@ import {
 } from '@/components/emcn'
 import type { AgentAuthentication, AgentCapabilities } from '@/lib/a2a/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import {
@@ -155,7 +156,7 @@ export function A2aDeploy({
     // Add input field if missing (for TextPart)
     if (missingFields.input) {
       newFields.push({
-        id: crypto.randomUUID(),
+        id: generateId(),
         name: 'input',
         type: 'string',
         value: '',
@@ -166,7 +167,7 @@ export function A2aDeploy({
     // Add data field if missing (for DataPart)
     if (missingFields.data) {
       newFields.push({
-        id: crypto.randomUUID(),
+        id: generateId(),
         name: 'data',
         type: 'object',
         value: '',
@@ -177,7 +178,7 @@ export function A2aDeploy({
     // Add files field if missing (for FilePart)
     if (missingFields.files) {
       newFields.push({
-        id: crypto.randomUUID(),
+        id: generateId(),
         name: 'files',
         type: 'file[]',
         value: '',

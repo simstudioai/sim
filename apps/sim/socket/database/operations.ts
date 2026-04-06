@@ -186,7 +186,6 @@ export async function getWorkflowState(workflowId: string) {
 
     if (normalizedData) {
       const finalState = {
-        deploymentStatuses: {},
         hasActiveWebhook: false,
         blocks: normalizedData.blocks,
         edges: normalizedData.edges,

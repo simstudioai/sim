@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
 import { PanelLeft } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import {
@@ -10,6 +11,7 @@ import {
   type LandingWorkflowSeed,
   LandingWorkflowSeedStorage,
 } from '@/lib/core/utils/browser-storage'
+import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 import { useChatHistory, useMarkTaskRead } from '@/hooks/queries/tasks'
 import type { ChatContext } from '@/stores/panel'
@@ -26,7 +28,11 @@ interface HomeProps {
 export function Home({ chatId }: HomeProps = {}) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const initialResourceId = searchParams.get('resource')
   const { data: session } = useSession()
+  const posthog = usePostHog()
+  const posthogRef = useRef(posthog)
   const [initialPrompt, setInitialPrompt] = useState('')
   const hasCheckedLandingStorageRef = useRef(false)
   const initialViewInputRef = useRef<HTMLDivElement>(null)
@@ -156,7 +162,10 @@ export function Home({ chatId }: HomeProps = {}) {
   } = useChat(
     workspaceId,
     chatId,
-    getMothershipUseChatOptions({ onResourceEvent: handleResourceEvent })
+    getMothershipUseChatOptions({
+      onResourceEvent: handleResourceEvent,
+      initialActiveResourceId: initialResourceId,
+    })
   )
 
   const [editingInputValue, setEditingInputValue] = useState('')
@@ -180,6 +189,16 @@ export function Home({ chatId }: HomeProps = {}) {
   )
 
   useEffect(() => {
+    const url = new URL(window.location.href)
+    if (activeResourceId) {
+      url.searchParams.set('resource', activeResourceId)
+    } else {
+      url.searchParams.delete('resource')
+    }
+    window.history.replaceState(null, '', url.toString())
+  }, [activeResourceId])
+
+  useEffect(() => {
     wasSendingRef.current = false
     if (resolvedChatId) markRead(resolvedChatId)
   }, [resolvedChatId, markRead])
@@ -199,10 +218,21 @@ export function Home({ chatId }: HomeProps = {}) {
     return () => cancelAnimationFrame(id)
   }, [resources])
 
+  useEffect(() => {
+    posthogRef.current = posthog
+  }, [posthog])
+
   const handleSubmit = useCallback(
     (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
       const trimmed = text.trim()
       if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
+
+      captureEvent(posthogRef.current, 'task_message_sent', {
+        workspace_id: workspaceId,
+        has_attachments: !!(fileAttachments && fileAttachments.length > 0),
+        has_contexts: !!(contexts && contexts.length > 0),
+        is_new_task: !chatId,
+      })
 
       if (initialViewInputRef.current) {
         setIsInputEntering(true)
@@ -210,7 +240,7 @@ export function Home({ chatId }: HomeProps = {}) {
 
       sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
     },
-    [sendMessage]
+    [sendMessage, workspaceId, chatId]
   )
 
   useEffect(() => {
@@ -334,6 +364,7 @@ export function Home({ chatId }: HomeProps = {}) {
           onSendQueuedMessage={sendNow}
           onEditQueuedMessage={handleEditQueuedMessage}
           userId={session?.user?.id}
+          chatId={resolvedChatId}
           onContextAdd={handleContextAdd}
           editValue={editingInputValue}
           onEditValueConsumed={clearEditingValue}

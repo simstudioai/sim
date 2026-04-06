@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@/lib/core/utils/uuid'
 
 declare global {
   interface Window {
@@ -58,7 +59,7 @@ export function useUndoRedo() {
       if (!activeWorkflowId || blockSnapshots.length === 0) return
 
       const operation: BatchAddBlocksOperation = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.BATCH_ADD_BLOCKS,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -71,7 +72,7 @@ export function useUndoRedo() {
       }
 
       const inverse: BatchRemoveBlocksOperation = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.BATCH_REMOVE_BLOCKS,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -104,7 +105,7 @@ export function useUndoRedo() {
       if (!activeWorkflowId || blockSnapshots.length === 0) return
 
       const operation: BatchRemoveBlocksOperation = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.BATCH_REMOVE_BLOCKS,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -117,7 +118,7 @@ export function useUndoRedo() {
       }
 
       const inverse: BatchAddBlocksOperation = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.BATCH_ADD_BLOCKS,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -152,7 +153,7 @@ export function useUndoRedo() {
       }
 
       const operation: BatchAddEdgesOperation = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.BATCH_ADD_EDGES,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -161,7 +162,7 @@ export function useUndoRedo() {
       }
 
       const inverse: BatchRemoveEdgesOperation = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.BATCH_REMOVE_EDGES,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -182,7 +183,7 @@ export function useUndoRedo() {
       if (!activeWorkflowId || edgeSnapshots.length === 0) return
 
       const operation: BatchRemoveEdgesOperation = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.BATCH_REMOVE_EDGES,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -193,7 +194,7 @@ export function useUndoRedo() {
       }
 
       const inverse: BatchAddEdgesOperation = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.BATCH_ADD_EDGES,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -225,7 +226,7 @@ export function useUndoRedo() {
       if (!activeWorkflowId || moves.length === 0) return
 
       const operation: BatchMoveBlocksOperation = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.BATCH_MOVE_BLOCKS,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -234,7 +235,7 @@ export function useUndoRedo() {
       }
 
       const inverse: BatchMoveBlocksOperation = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.BATCH_MOVE_BLOCKS,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -268,7 +269,7 @@ export function useUndoRedo() {
       if (!activeWorkflowId) return
 
       const operation: UpdateParentOperation = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.UPDATE_PARENT,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -284,7 +285,7 @@ export function useUndoRedo() {
       }
 
       const inverse: UpdateParentOperation = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.UPDATE_PARENT,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -326,7 +327,7 @@ export function useUndoRedo() {
       if (!activeWorkflowId || updates.length === 0) return
 
       const operation: BatchUpdateParentOperation = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.BATCH_UPDATE_PARENT,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -335,7 +336,7 @@ export function useUndoRedo() {
       }
 
       const inverse: BatchUpdateParentOperation = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.BATCH_UPDATE_PARENT,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -368,7 +369,7 @@ export function useUndoRedo() {
       if (!activeWorkflowId || blockIds.length === 0) return
 
       const operation: BatchToggleEnabledOperation = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.BATCH_TOGGLE_ENABLED,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -377,7 +378,7 @@ export function useUndoRedo() {
       }
 
       const inverse: BatchToggleEnabledOperation = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.BATCH_TOGGLE_ENABLED,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -398,7 +399,7 @@ export function useUndoRedo() {
       if (!activeWorkflowId || blockIds.length === 0) return
 
       const operation: BatchToggleHandlesOperation = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.BATCH_TOGGLE_HANDLES,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -407,7 +408,7 @@ export function useUndoRedo() {
       }
 
       const inverse: BatchToggleHandlesOperation = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.BATCH_TOGGLE_HANDLES,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -428,7 +429,7 @@ export function useUndoRedo() {
       if (!activeWorkflowId || blockIds.length === 0) return
 
       const operation: BatchToggleLockedOperation = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.BATCH_TOGGLE_LOCKED,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -437,7 +438,7 @@ export function useUndoRedo() {
       }
 
       const inverse: BatchToggleLockedOperation = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.BATCH_TOGGLE_LOCKED,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -469,7 +470,7 @@ export function useUndoRedo() {
         workflowId: activeWorkflowId,
       })
 
-      const opId = crypto.randomUUID()
+      const opId = generateId()
 
       switch (entry.inverse.type) {
         case UNDO_REDO_OPERATIONS.BATCH_REMOVE_BLOCKS: {
@@ -637,7 +638,7 @@ export function useUndoRedo() {
               const edgesToAdd = affectedEdges.filter((e) => !existingEdgeIds.has(e.id))
               if (edgesToAdd.length > 0) {
                 addToQueue({
-                  id: crypto.randomUUID(),
+                  id: generateId(),
                   operation: {
                     operation: EDGES_OPERATIONS.BATCH_ADD_EDGES,
                     target: OPERATION_TARGETS.EDGES,
@@ -651,7 +652,7 @@ export function useUndoRedo() {
             }
 
             addToQueue({
-              id: crypto.randomUUID(),
+              id: generateId(),
               operation: {
                 operation: BLOCK_OPERATIONS.UPDATE_POSITION,
                 target: OPERATION_TARGETS.BLOCK,
@@ -706,7 +707,7 @@ export function useUndoRedo() {
                 useWorkflowStore.getState().batchRemoveEdges(edgeIdsToRemove)
                 edgeIdsToRemove.forEach((edgeId) => {
                   addToQueue({
-                    id: crypto.randomUUID(),
+                    id: generateId(),
                     operation: {
                       operation: EDGE_OPERATIONS.REMOVE,
                       target: OPERATION_TARGETS.EDGE,
@@ -759,7 +760,7 @@ export function useUndoRedo() {
           // Apply edge operations in batch
           if (allEdgesToAdd.length > 0) {
             addToQueue({
-              id: crypto.randomUUID(),
+              id: generateId(),
               operation: {
                 operation: EDGES_OPERATIONS.BATCH_ADD_EDGES,
                 target: OPERATION_TARGETS.EDGES,
@@ -774,7 +775,7 @@ export function useUndoRedo() {
           if (allEdgeIdsToRemove.length > 0) {
             useWorkflowStore.getState().batchRemoveEdges(allEdgeIdsToRemove)
             addToQueue({
-              id: crypto.randomUUID(),
+              id: generateId(),
               operation: {
                 operation: EDGES_OPERATIONS.BATCH_REMOVE_EDGES,
                 target: OPERATION_TARGETS.EDGES,
@@ -1087,7 +1088,7 @@ export function useUndoRedo() {
         return
       }
 
-      const opId = crypto.randomUUID()
+      const opId = generateId()
 
       switch (entry.operation.type) {
         case UNDO_REDO_OPERATIONS.BATCH_ADD_BLOCKS: {
@@ -1262,7 +1263,7 @@ export function useUndoRedo() {
                 useWorkflowStore.getState().batchRemoveEdges(edgeIdsToRemove)
                 edgeIdsToRemove.forEach((edgeId) => {
                   addToQueue({
-                    id: crypto.randomUUID(),
+                    id: generateId(),
                     operation: {
                       operation: EDGE_OPERATIONS.REMOVE,
                       target: OPERATION_TARGETS.EDGE,
@@ -1277,7 +1278,7 @@ export function useUndoRedo() {
 
             // Send position update to server
             addToQueue({
-              id: crypto.randomUUID(),
+              id: generateId(),
               operation: {
                 operation: BLOCK_OPERATIONS.UPDATE_POSITION,
                 target: OPERATION_TARGETS.BLOCK,
@@ -1328,7 +1329,7 @@ export function useUndoRedo() {
               const edgesToAdd = affectedEdges.filter((e) => !existingEdgeIds.has(e.id))
               if (edgesToAdd.length > 0) {
                 addToQueue({
-                  id: crypto.randomUUID(),
+                  id: generateId(),
                   operation: {
                     operation: EDGES_OPERATIONS.BATCH_ADD_EDGES,
                     target: OPERATION_TARGETS.EDGES,
@@ -1382,7 +1383,7 @@ export function useUndoRedo() {
           if (allEdgeIdsToRemove.length > 0) {
             useWorkflowStore.getState().batchRemoveEdges(allEdgeIdsToRemove)
             addToQueue({
-              id: crypto.randomUUID(),
+              id: generateId(),
               operation: {
                 operation: EDGES_OPERATIONS.BATCH_REMOVE_EDGES,
                 target: OPERATION_TARGETS.EDGES,
@@ -1404,7 +1405,7 @@ export function useUndoRedo() {
           // Apply edge additions in batch after
           if (allEdgesToAdd.length > 0) {
             addToQueue({
-              id: crypto.randomUUID(),
+              id: generateId(),
               operation: {
                 operation: EDGES_OPERATIONS.BATCH_ADD_EDGES,
                 target: OPERATION_TARGETS.EDGES,
@@ -1717,7 +1718,7 @@ export function useUndoRedo() {
       if (!activeWorkflowId) return
 
       const operation: any = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.APPLY_DIFF,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -1730,7 +1731,7 @@ export function useUndoRedo() {
       }
 
       const inverse: any = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.APPLY_DIFF,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -1761,7 +1762,7 @@ export function useUndoRedo() {
       if (!activeWorkflowId) return
 
       const operation: any = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.ACCEPT_DIFF,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -1775,7 +1776,7 @@ export function useUndoRedo() {
       }
 
       const inverse: any = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.ACCEPT_DIFF,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -1801,7 +1802,7 @@ export function useUndoRedo() {
       if (!activeWorkflowId) return
 
       const operation: any = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.REJECT_DIFF,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,
@@ -1815,7 +1816,7 @@ export function useUndoRedo() {
       }
 
       const inverse: any = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: UNDO_REDO_OPERATIONS.REJECT_DIFF,
         timestamp: Date.now(),
         workflowId: activeWorkflowId,

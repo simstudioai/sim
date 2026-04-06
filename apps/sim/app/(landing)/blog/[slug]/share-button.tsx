@@ -8,6 +8,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/emcn'
+import { Copy } from '@/components/emcn/icons'
+import { LinkedInIcon, xIcon as XIcon } from '@/components/icons'
 
 interface ShareButtonProps {
   url: string
@@ -50,10 +52,17 @@ export function ShareButton({ url, title }: ShareButtonProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
         <DropdownMenuItem onSelect={handleCopyLink}>
+          <Copy className='h-4 w-4' />
           {copied ? 'Copied!' : 'Copy link'}
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={handleShareTwitter}>Share on X</DropdownMenuItem>
-        <DropdownMenuItem onSelect={handleShareLinkedIn}>Share on LinkedIn</DropdownMenuItem>
+        <DropdownMenuItem onSelect={handleShareTwitter}>
+          <XIcon className='h-4 w-4' />
+          Share on X
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={handleShareLinkedIn}>
+          <LinkedInIcon className='h-4 w-4' />
+          Share on LinkedIn
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

@@ -124,8 +124,7 @@ export async function applyAutoLayoutAndUpdateStore(
     try {
       useWorkflowStore.getState().updateLastSaved()
 
-      const { deploymentStatuses, needsRedeployment, dragStartPosition, ...stateToSave } =
-        newWorkflowState
+      const { dragStartPosition, ...stateToSave } = newWorkflowState
 
       const cleanedWorkflowState = {
         ...stateToSave,

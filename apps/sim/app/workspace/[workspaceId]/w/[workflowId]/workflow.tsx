@@ -19,6 +19,7 @@ import { createLogger } from '@sim/logger'
 import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '@/lib/auth/auth-client'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/base-tool'
+import { generateId } from '@/lib/core/utils/uuid'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import type { OAuthProvider } from '@/lib/oauth'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
@@ -85,7 +86,7 @@ import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useNotificationStore } from '@/stores/notifications'
 import { usePanelEditorStore } from '@/stores/panel'
 import { useUndoRedoStore } from '@/stores/undo-redo'
-import { useVariablesStore } from '@/stores/variables/store'
+import { useVariablesModalStore } from '@/stores/variables/modal'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { getUniqueBlockName, prepareBlockState } from '@/stores/workflows/utils'
@@ -265,13 +266,21 @@ const WorkflowContent = React.memo(
     const { fitViewToBounds, getViewportCenter } = useCanvasViewport(reactFlowInstance, {
       embedded,
     })
-    const { emitCursorUpdate } = useSocket()
+    const { emitCursorUpdate, joinWorkflow, leaveWorkflow } = useSocket()
     useDynamicHandleRefresh()
 
     const workspaceId = propWorkspaceId || (params.workspaceId as string)
     const workflowIdParam = propWorkflowId || (params.workflowId as string)
 
     const addNotification = useNotificationStore((state) => state.addNotification)
+
+    useEffect(() => {
+      if (!embedded || !workflowIdParam) return
+      joinWorkflow(workflowIdParam)
+      return () => {
+        leaveWorkflow()
+      }
+    }, [embedded, workflowIdParam, joinWorkflow, leaveWorkflow])
 
     useOAuthReturnForWorkflow(workflowIdParam)
 
@@ -337,7 +346,7 @@ const WorkflowContent = React.memo(
     autoConnectRef.current = isAutoConnectEnabled
 
     // Panel open states for context menu
-    const isVariablesOpen = useVariablesStore((state) => state.isOpen)
+    const isVariablesOpen = useVariablesModalStore((state) => state.isOpen)
     const isChatOpen = useChatStore((state) => state.isChatOpen)
 
     const snapGrid: [number, number] = useMemo(
@@ -1022,7 +1031,7 @@ const WorkflowContent = React.memo(
           }
 
           // Prevent cycle: pasting a container that is the target container itself or one of its ancestors.
-          // Use original clipboard IDs since preparePasteData regenerates them via uuidv4().
+          // Use original clipboard IDs since preparePasteData regenerates them via generateId().
           const ancestorIds = new Set<string>()
           let walkId: string | undefined = targetContainer.loopId
           while (walkId && !ancestorIds.has(walkId)) {
@@ -1374,7 +1383,7 @@ const WorkflowContent = React.memo(
     }, [router, workspaceId, workflowIdParam])
 
     const handleContextToggleVariables = useCallback(() => {
-      const { isOpen, setIsOpen } = useVariablesStore.getState()
+      const { isOpen, setIsOpen } = useVariablesModalStore.getState()
       setIsOpen(!isOpen)
     }, [])
 
@@ -1552,7 +1561,7 @@ const WorkflowContent = React.memo(
     const createEdgeObject = useCallback(
       (sourceId: string, targetId: string, sourceHandle: string): Edge => {
         const edge = {
-          id: crypto.randomUUID(),
+          id: generateId(),
           source: sourceId,
           target: targetId,
           sourceHandle,
@@ -1729,7 +1738,7 @@ const WorkflowContent = React.memo(
           clearDragHighlights()
 
           if (data.type === 'loop' || data.type === 'parallel') {
-            const id = crypto.randomUUID()
+            const id = generateId()
             const baseName = data.type === 'loop' ? 'Loop' : 'Parallel'
             const name = getUniqueBlockName(baseName, blocks)
 
@@ -1808,7 +1817,7 @@ const WorkflowContent = React.memo(
           }
 
           // Generate id and name here so they're available in all code paths
-          const id = crypto.randomUUID()
+          const id = generateId()
           // Prefer semantic default names for triggers; then ensure unique numbering centrally
           const defaultTriggerNameDrop = TriggerUtils.getDefaultTriggerName(data.type)
           const baseName = defaultTriggerNameDrop || blockConfig.name
@@ -1927,7 +1936,7 @@ const WorkflowContent = React.memo(
         const basePosition = getViewportCenter()
 
         if (type === 'loop' || type === 'parallel') {
-          const id = crypto.randomUUID()
+          const id = generateId()
           const baseName = type === 'loop' ? 'Loop' : 'Parallel'
           const name = getUniqueBlockName(baseName, blocks)
 
@@ -1961,7 +1970,7 @@ const WorkflowContent = React.memo(
 
         if (checkTriggerConstraints(type)) return
 
-        const id = crypto.randomUUID()
+        const id = generateId()
         const defaultTriggerName = TriggerUtils.getDefaultTriggerName(type)
         const baseName = defaultTriggerName || blockConfig.name
         const name = getUniqueBlockName(baseName, blocks)
@@ -2144,12 +2153,9 @@ const WorkflowContent = React.memo(
 
     const handleCanvasPointerMove = useCallback(
       (event: React.PointerEvent<Element>) => {
-        const target = event.currentTarget as HTMLElement
-        const bounds = target.getBoundingClientRect()
-
         const position = screenToFlowPosition({
-          x: event.clientX - bounds.left,
-          y: event.clientY - bounds.top,
+          x: event.clientX,
+          y: event.clientY,
         })
 
         emitCursorUpdate(position)
@@ -2949,7 +2955,7 @@ const WorkflowContent = React.memo(
           const targetParentId = blocks[targetNode.id]?.data?.parentId
 
           // Generate a unique edge ID
-          const edgeId = crypto.randomUUID()
+          const edgeId = generateId()
 
           // Special case for container start source: Always allow connections to nodes within the same container
           if (

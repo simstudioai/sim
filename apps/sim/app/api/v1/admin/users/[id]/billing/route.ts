@@ -22,9 +22,9 @@ import { db } from '@sim/db'
 import { member, organization, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, or } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isOrgPlan } from '@/lib/billing/plan-helpers'
+import { generateShortId } from '@/lib/core/utils/uuid'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -232,7 +232,7 @@ export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) =
       await db.update(userStats).set(updateData).where(eq(userStats.userId, userId))
     } else {
       await db.insert(userStats).values({
-        id: nanoid(),
+        id: generateShortId(),
         userId,
         ...updateData,
       })

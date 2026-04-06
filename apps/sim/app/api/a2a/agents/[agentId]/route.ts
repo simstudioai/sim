@@ -7,6 +7,7 @@ import { generateAgentCard, generateSkillsFromWorkflow } from '@/lib/a2a/agent-c
 import type { AgentCapabilities, AgentSkill } from '@/lib/a2a/types'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -180,6 +181,17 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     logger.info(`Deleted A2A agent: ${agentId}`)
 
+    captureServerEvent(
+      auth.userId,
+      'a2a_agent_deleted',
+      {
+        agent_id: agentId,
+        workflow_id: existingAgent.workflowId,
+        workspace_id: existingAgent.workspaceId,
+      },
+      { groups: { workspace: existingAgent.workspaceId } }
+    )
+
     return NextResponse.json({ success: true })
   } catch (error) {
     logger.error('Error deleting agent:', error)
@@ -251,6 +263,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
       }
 
       logger.info(`Published A2A agent: ${agentId}`)
+      captureServerEvent(
+        auth.userId,
+        'a2a_agent_published',
+        {
+          agent_id: agentId,
+          workflow_id: existingAgent.workflowId,
+          workspace_id: existingAgent.workspaceId,
+        },
+        { groups: { workspace: existingAgent.workspaceId } }
+      )
       return NextResponse.json({ success: true, isPublished: true })
     }
 
@@ -273,6 +295,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
       }
 
       logger.info(`Unpublished A2A agent: ${agentId}`)
+      captureServerEvent(
+        auth.userId,
+        'a2a_agent_unpublished',
+        {
+          agent_id: agentId,
+          workflow_id: existingAgent.workflowId,
+          workspace_id: existingAgent.workspaceId,
+        },
+        { groups: { workspace: existingAgent.workspaceId } }
+      )
       return NextResponse.json({ success: true, isPublished: false })
     }
 

@@ -31,6 +31,7 @@ import {
   extractPathFromOutputId,
   parseOutputContentSafely,
 } from '@/lib/core/utils/response-format'
+import { generateId } from '@/lib/core/utils/uuid'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers/triggers'
@@ -654,7 +655,7 @@ export function Chat() {
       if (typeof result !== 'object') return
 
       if ('stream' in result && result.stream instanceof ReadableStream) {
-        const responseMessageId = crypto.randomUUID()
+        const responseMessageId = generateId()
         addMessage({
           id: responseMessageId,
           content: '',
@@ -852,7 +853,7 @@ export function Chat() {
           const defaultType = fieldName === 'files' ? 'file[]' : 'string'
 
           return {
-            id: crypto.randomUUID(),
+            id: generateId(),
             name: fieldName,
             type: defaultType,
             value: '',
@@ -867,7 +868,7 @@ export function Chat() {
 
       const userId = session?.user?.id || 'unknown'
       addToQueue({
-        id: crypto.randomUUID(),
+        id: generateId(),
         operation: {
           operation: 'subblock-update',
           target: 'subblock',

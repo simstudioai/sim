@@ -1,4 +1,4 @@
-import { nanoid } from 'nanoid'
+import { shortId } from './id'
 
 /**
  * Permission types in order of access level (highest to lowest).
@@ -39,10 +39,10 @@ export interface PermissionFactoryOptions {
  */
 export function createPermission(options: PermissionFactoryOptions = {}): Permission {
   return {
-    id: options.id ?? nanoid(8),
-    userId: options.userId ?? `user-${nanoid(6)}`,
+    id: options.id ?? shortId(8),
+    userId: options.userId ?? `user-${shortId(6)}`,
     entityType: options.entityType ?? 'workspace',
-    entityId: options.entityId ?? `ws-${nanoid(6)}`,
+    entityId: options.entityId ?? `ws-${shortId(6)}`,
     permissionType: options.permissionType ?? 'read',
     createdAt: options.createdAt ?? new Date(),
   }
@@ -127,8 +127,8 @@ export interface WorkspaceRecordFactoryOptions {
 export function createWorkspaceRecord(
   options: WorkspaceRecordFactoryOptions = {}
 ): WorkspaceRecord {
-  const id = options.id ?? `ws-${nanoid(6)}`
-  const ownerId = options.ownerId ?? `user-${nanoid(6)}`
+  const id = options.id ?? `ws-${shortId(6)}`
+  const ownerId = options.ownerId ?? `user-${shortId(6)}`
   return {
     id,
     name: options.name ?? `Workspace ${id}`,
@@ -170,11 +170,11 @@ export interface WorkflowRecordFactoryOptions {
  * Creates a mock workflow database record.
  */
 export function createWorkflowRecord(options: WorkflowRecordFactoryOptions = {}): WorkflowRecord {
-  const id = options.id ?? `wf-${nanoid(6)}`
+  const id = options.id ?? `wf-${shortId(6)}`
   return {
     id,
     name: options.name ?? `Workflow ${id}`,
-    userId: options.userId ?? `user-${nanoid(6)}`,
+    userId: options.userId ?? `user-${shortId(6)}`,
     workspaceId: options.workspaceId ?? null,
     state: options.state ?? '{}',
     isDeployed: options.isDeployed ?? false,
@@ -209,7 +209,7 @@ export interface SessionFactoryOptions {
  * Creates a mock session object.
  */
 export function createSession(options: SessionFactoryOptions = {}): MockSession {
-  const userId = options.userId ?? `user-${nanoid(6)}`
+  const userId = options.userId ?? `user-${shortId(6)}`
   return {
     user: {
       id: userId,
@@ -327,7 +327,7 @@ export interface ApiKeyTestData {
  * Creates test API key data.
  */
 export function createLegacyApiKey(): { key: string; prefix: string } {
-  const random = nanoid(24)
+  const random = shortId(24)
   return {
     key: `sim_${random}`,
     prefix: 'sim_',
@@ -338,7 +338,7 @@ export function createLegacyApiKey(): { key: string; prefix: string } {
  * Creates test encrypted format API key data.
  */
 export function createEncryptedApiKey(): { key: string; prefix: string } {
-  const random = nanoid(24)
+  const random = shortId(24)
   return {
     key: `sk-sim-${random}`,
     prefix: 'sk-sim-',

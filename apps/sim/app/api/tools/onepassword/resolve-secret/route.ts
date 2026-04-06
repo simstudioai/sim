@@ -1,8 +1,8 @@
-import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { generateId } from '@/lib/core/utils/uuid'
 import { createOnePasswordClient, resolveCredentials } from '../utils'
 
 const logger = createLogger('OnePasswordResolveSecretAPI')
@@ -16,7 +16,7 @@ const ResolveSecretSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
 
   const auth = await checkInternalAuth(request)
   if (!auth.success || !auth.userId) {

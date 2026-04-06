@@ -12,7 +12,6 @@ import {
   Button,
   Combobox,
   Input,
-  Label,
   Modal,
   ModalBody,
   ModalContent,
@@ -432,7 +431,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
             <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
               <div className='space-y-3'>
                 <div className='flex flex-col gap-2'>
-                  <Label htmlFor='type'>Request</Label>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Request</p>
                   <Combobox
                     id='type'
                     options={REQUEST_TYPE_OPTIONS}
@@ -447,7 +446,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
                 </div>
 
                 <div className='flex flex-col gap-2'>
-                  <Label htmlFor='subject'>Subject</Label>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Subject</p>
                   <Input
                     id='subject'
                     placeholder='Brief description of your request'
@@ -457,7 +456,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
                 </div>
 
                 <div className='flex flex-col gap-2'>
-                  <Label htmlFor='message'>Message</Label>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Message</p>
                   <Textarea
                     id='message'
                     placeholder='Please provide details about your request...'
@@ -468,7 +467,9 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
                 </div>
 
                 <div className='flex flex-col gap-2'>
-                  <Label>Attach Images (Optional)</Label>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>
+                    Attach Images (Optional)
+                  </p>
                   <Button
                     type='button'
                     variant='default'
@@ -505,7 +506,9 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
 
                 {images.length > 0 && (
                   <div className='space-y-2'>
-                    <Label>Uploaded Images</Label>
+                    <p className='font-medium text-[var(--text-secondary)] text-sm'>
+                      Uploaded Images
+                    </p>
                     <div className='grid grid-cols-2 gap-3'>
                       {images.map((image, index) => (
                         <div

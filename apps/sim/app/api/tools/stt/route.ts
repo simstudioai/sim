@@ -7,6 +7,7 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getMimeTypeFromExtension, isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import {
   downloadFileFromStorage,
@@ -45,7 +46,7 @@ interface SttRequestBody {
 }
 
 export async function POST(request: NextRequest) {
-  const requestId = crypto.randomUUID()
+  const requestId = generateId()
   logger.info(`[${requestId}] STT transcription request started`)
 
   try {

@@ -2,7 +2,11 @@ import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { refreshTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
+import {
+  getServiceAccountToken,
+  refreshTokenIfNeeded,
+  resolveOAuthAccountId,
+} from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('VertexCredential')
 
@@ -21,6 +25,14 @@ export async function resolveVertexCredential(
   const resolved = await resolveOAuthAccountId(credentialId)
   if (!resolved) {
     throw new Error(`Vertex AI credential is not a valid OAuth credential: ${credentialId}`)
+  }
+
+  if (resolved.credentialType === 'service_account' && resolved.credentialId) {
+    const accessToken = await getServiceAccountToken(resolved.credentialId, [
+      'https://www.googleapis.com/auth/cloud-platform',
+    ])
+    logger.info(`[${requestId}] Successfully resolved Vertex AI service account credential`)
+    return accessToken
   }
 
   const credential = await db.query.account.findFirst({

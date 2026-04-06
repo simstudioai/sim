@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { permissions, workflow, workflowFolder, workspace as workspaceTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import { generateId } from '@/lib/core/utils/uuid'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -32,7 +33,7 @@ export async function duplicateWorkspace(
   const { sourceWorkspaceId, userId, name, requestId = 'unknown' } = options
 
   // Generate new workspace ID
-  const newWorkspaceId = crypto.randomUUID()
+  const newWorkspaceId = generateId()
   const now = new Date()
 
   // Verify the source workspace exists and user has permission
@@ -69,7 +70,7 @@ export async function duplicateWorkspace(
 
     // Grant admin permission to the user on the new workspace
     await tx.insert(permissions).values({
-      id: crypto.randomUUID(),
+      id: generateId(),
       userId,
       entityType: 'workspace',
       entityId: newWorkspaceId,
@@ -103,7 +104,7 @@ export async function duplicateWorkspace(
     const foldersAtLevel = foldersByParent.get(parentId) || []
 
     for (const sourceFolder of foldersAtLevel) {
-      const newFolderId = crypto.randomUUID()
+      const newFolderId = generateId()
       folderIdMap.set(sourceFolder.id, newFolderId)
 
       await db.insert(workflowFolder).values({

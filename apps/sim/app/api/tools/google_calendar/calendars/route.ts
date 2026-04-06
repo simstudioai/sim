@@ -2,7 +2,8 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { getScopesForService } from '@/lib/oauth/utils'
+import { refreshAccessTokenIfNeeded, ServiceAccountTokenError } from '@/app/api/auth/oauth/utils'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GoogleCalendarAPI')
@@ -28,6 +29,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const credentialId = searchParams.get('credentialId')
     const workflowId = searchParams.get('workflowId') || undefined
+    const impersonateEmail = searchParams.get('impersonateEmail') || undefined
 
     if (!credentialId) {
       logger.warn(`[${requestId}] Missing credentialId parameter`)
@@ -41,7 +43,9 @@ export async function GET(request: NextRequest) {
     const accessToken = await refreshAccessTokenIfNeeded(
       credentialId,
       authz.credentialOwnerUserId,
-      requestId
+      requestId,
+      getScopesForService('google-calendar'),
+      impersonateEmail
     )
 
     if (!accessToken) {
@@ -98,6 +102,10 @@ export async function GET(request: NextRequest) {
       })),
     })
   } catch (error) {
+    if (error instanceof ServiceAccountTokenError) {
+      logger.warn(`[${requestId}] Service account token error`, { message: error.message })
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     logger.error(`[${requestId}] Error fetching Google calendars`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

@@ -8,13 +8,14 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, min } from 'drizzle-orm'
+import { generateId } from '@/lib/core/utils/uuid'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import {
   authorizeWorkflowByWorkspacePermission,
   deduplicateWorkflowName,
 } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import type { Variable } from '@/stores/panel/variables/types'
+import type { Variable } from '@/stores/variables/types'
 import type { LoopConfig, ParallelConfig } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowDuplicateHelper')
@@ -135,7 +136,7 @@ export async function duplicateWorkflow(
     newWorkflowId: clientNewWorkflowId,
   } = options
 
-  const newWorkflowId = clientNewWorkflowId || crypto.randomUUID()
+  const newWorkflowId = clientNewWorkflowId || generateId()
   const now = new Date()
 
   // Duplicate workflow and all related data in a transaction
@@ -227,7 +228,7 @@ export async function duplicateWorkflow(
         const sourceVars = (source.variables as Record<string, Variable>) || {}
         const remapped: Record<string, Variable> = {}
         for (const [oldVarId, variable] of Object.entries(sourceVars) as [string, Variable][]) {
-          const newVarId = crypto.randomUUID()
+          const newVarId = generateId()
           varIdMapping.set(oldVarId, newVarId)
           remapped[newVarId] = {
             ...variable,
@@ -251,7 +252,7 @@ export async function duplicateWorkflow(
     if (sourceBlocks.length > 0) {
       // First pass: Create all block ID mappings
       sourceBlocks.forEach((block) => {
-        const newBlockId = crypto.randomUUID()
+        const newBlockId = generateId()
         blockIdMapping.set(block.id, newBlockId)
       })
 
@@ -344,7 +345,7 @@ export async function duplicateWorkflow(
 
         return {
           ...edge,
-          id: crypto.randomUUID(),
+          id: generateId(),
           workflowId: newWorkflowId,
           sourceBlockId: newSourceBlockId,
           targetBlockId: blockIdMapping.get(edge.targetBlockId) || edge.targetBlockId,

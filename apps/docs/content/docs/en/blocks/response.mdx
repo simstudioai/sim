@@ -20,7 +20,7 @@ The Response block formats and sends structured HTTP responses back to API calle
 </div>
 
 <Callout type="info">
-  Response blocks are terminal blocks - they end workflow execution and cannot connect to other blocks.
+  Response blocks are exit points — when a Response block executes, it ends the workflow and sends the HTTP response immediately. Multiple Response blocks can be placed on different branches (e.g. after a Router or Condition), but only the first one to execute determines the API response.
 </Callout>
 
 ## Configuration Options
@@ -77,7 +77,11 @@ Condition (Error Detected) → Router → Response (400/500, Error Details)
 
 ## Outputs
 
-Response blocks are terminal — no downstream blocks execute after them. However, the block does define outputs (`data`, `status`, `headers`) which are used to construct the HTTP response sent back to the API caller.
+Response blocks are exit points — when one executes, no further blocks run. The block defines outputs (`data`, `status`, `headers`) which are used to construct the HTTP response sent back to the API caller.
+
+<Callout type="warning">
+  If a Response block is placed on a parallel branch, there are no guarantees about whether other parallel blocks will run or not. Execution order across parallel branches is non-deterministic, so a parallel block may execute before or after the Response block on any given run. Avoid placing Response blocks in parallel with blocks that have important side effects.
+</Callout>
 
 ## Variable References
 
@@ -110,10 +114,10 @@ Use the `<variable.name>` syntax to dynamically insert workflow variables into y
 - **Validate variable references**: Ensure all referenced variables exist and contain the expected data types before the Response block executes
 
 <FAQ items={[
-  { question: "Can I have multiple Response blocks in a workflow?", answer: "No. The Response block is a single-instance block — only one is allowed per workflow. If you need different responses for different conditions, use a Condition or Router block upstream to determine what data reaches the single Response block." },
+  { question: "Can I have multiple Response blocks in a workflow?", answer: "Yes. You can place multiple Response blocks on different branches (e.g. after a Router or Condition block). The first Response block to execute determines the API response and ends the workflow. This is useful for returning different responses based on conditions — for example, a 200 on the success branch and a 500 on the error branch." },
   { question: "What triggers require a Response block?", answer: "The Response block is designed for use with the API Trigger. When your workflow is invoked via the API, the Response block sends the structured HTTP response back to the caller. Other trigger types (like webhooks or schedules) do not require a Response block." },
   { question: "What is the difference between Builder and Editor mode?", answer: "Builder mode provides a visual interface for constructing your response structure with fields and types. Editor mode gives you a raw JSON code editor where you can write the response body directly. Builder mode is recommended for most use cases." },
   { question: "What is the default status code?", answer: "If you do not specify a status code, the Response block defaults to 200 (OK). You can set any valid HTTP status code including error codes like 400, 404, or 500." },
-  { question: "Can the Response block connect to downstream blocks?", answer: "No. Response blocks are terminal — they end workflow execution and send the HTTP response. No further blocks can be connected after a Response block." },
+  { question: "Can the Response block connect to downstream blocks?", answer: "No. Response blocks are exit points — they end workflow execution and send the HTTP response. No further blocks can execute after a Response block." },
 ]} />
 

@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { idempotencyKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -6,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getStorageMethod, type StorageMethod } from '@/lib/core/storage'
+import { generateId } from '@/lib/core/utils/uuid'
 import { extractProviderIdentifierFromBody } from '@/lib/webhooks/provider-utils'
 
 const logger = createLogger('IdempotencyService')
@@ -432,7 +432,7 @@ export class IdempotencyService {
       }
     }
 
-    const uniqueId = randomUUID()
+    const uniqueId = generateId()
     logger.warn('No unique identifier found, duplicate executions may occur', {
       webhookId,
       provider,

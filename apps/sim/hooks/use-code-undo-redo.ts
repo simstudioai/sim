@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { useShallow } from 'zustand/react/shallow'
+import { generateId } from '@/lib/core/utils/uuid'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useCodeUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
@@ -83,7 +84,7 @@ export function useCodeUndoRedo({
     }
 
     useCodeUndoRedoStore.getState().push({
-      id: crypto.randomUUID(),
+      id: generateId(),
       createdAt: Date.now(),
       workflowId: activeWorkflowId,
       blockId,
@@ -128,7 +129,7 @@ export function useCodeUndoRedo({
       }
 
       useCodeUndoRedoStore.getState().push({
-        id: crypto.randomUUID(),
+        id: generateId(),
         createdAt: Date.now(),
         workflowId: activeWorkflowId,
         blockId,

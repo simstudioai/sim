@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { v4 as uuidv4 } from 'uuid'
+import { generateId } from '@/lib/core/utils/uuid'
 import type {
   BlockCompletedData,
   BlockErrorData,
@@ -592,7 +592,7 @@ export async function executeWorkflowWithFullLogging(
     throw new Error('No active workflow')
   }
 
-  const executionId = options.executionId || uuidv4()
+  const executionId = options.executionId || generateId()
   const { addConsole, updateConsole, cancelRunningEntries } = useTerminalConsoleStore.getState()
   const { setActiveBlocks, setBlockRunStatus, setEdgeRunStatus, setCurrentExecutionId } =
     useExecutionStore.getState()

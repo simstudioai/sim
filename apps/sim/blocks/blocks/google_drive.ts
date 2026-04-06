@@ -2,7 +2,7 @@ import { GoogleDriveIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleDriveResponse } from '@/tools/google_drive/types'
 
 export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
@@ -63,6 +63,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       placeholder: 'Enter credential ID',
       required: true,
     },
+    ...SERVICE_ACCOUNT_SUBBLOCKS,
     // Create/Upload File Fields
     {
       id: 'fileName',
