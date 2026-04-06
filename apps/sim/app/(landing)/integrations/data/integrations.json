@@ -12888,26 +12888,32 @@
     "operationCount": 10,
     "triggers": [
       {
+        "id": "zoom_meeting_started",
         "name": "Meeting Started",
         "description": "Triggered when a Zoom meeting starts"
       },
       {
+        "id": "zoom_meeting_ended",
         "name": "Meeting Ended",
         "description": "Triggered when a Zoom meeting ends"
       },
       {
+        "id": "zoom_participant_joined",
         "name": "Participant Joined",
         "description": "Triggered when a participant joins a Zoom meeting"
       },
       {
+        "id": "zoom_participant_left",
         "name": "Participant Left",
         "description": "Triggered when a participant leaves a Zoom meeting"
       },
       {
+        "id": "zoom_recording_completed",
         "name": "Recording Completed",
         "description": "Triggered when a Zoom cloud recording is completed"
       },
       {
+        "id": "zoom_webhook",
         "name": "Generic Webhook",
         "description": "Triggered on any Zoom webhook event"
       }
