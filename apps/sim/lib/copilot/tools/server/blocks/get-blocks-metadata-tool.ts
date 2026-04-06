@@ -338,23 +338,25 @@ function transformBlockMetadata(metadata: CopilotBlockMetadata): any {
     transformed.authType = metadata.authType
 
     if (metadata.authType === 'OAuth') {
-      // Resolve the actual OAuth service ID from the oauth-input subblock
-      const oauthSubBlock = metadata.inputSchema?.find(
-        (sb: CopilotSubblockMetadata) => sb.type === 'oauth-input' && sb.serviceId
-      )
-      const serviceId = oauthSubBlock?.serviceId ?? metadata.id
-
       transformed.requiredCredentials = {
         type: 'oauth',
-        service: serviceId,
+        service: metadata.id, // e.g., 'gmail', 'slack', etc.
         description: `OAuth authentication required for ${metadata.name}`,
       }
 
       // Check if this service also supports service account credentials
-      const serviceAccountProviderId = getServiceAccountProviderForProviderId(serviceId)
-      if (serviceAccountProviderId) {
-        transformed.requiredCredentials.serviceAccountType = serviceAccountProviderId
-        transformed.requiredCredentials.description = `OAuth or service account authentication supported for ${metadata.name}`
+      const oauthSubBlock = metadata.inputSchema?.find(
+        (sb: CopilotSubblockMetadata) => sb.type === 'oauth-input' && sb.serviceId
+      )
+      if (oauthSubBlock?.serviceId) {
+        const serviceAccountProviderId = getServiceAccountProviderForProviderId(
+          oauthSubBlock.serviceId
+        )
+        if (serviceAccountProviderId) {
+          transformed.requiredCredentials.serviceAccountType = serviceAccountProviderId
+          transformed.requiredCredentials.description =
+            `OAuth or service account authentication supported for ${metadata.name}`
+        }
       }
     } else if (metadata.authType === 'API Key') {
       transformed.requiredCredentials = {
