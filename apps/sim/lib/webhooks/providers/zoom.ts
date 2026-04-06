@@ -29,6 +29,12 @@ function validateZoomSignature(
       return false
     }
 
+    const nowSeconds = Math.floor(Date.now() / 1000)
+    const requestSeconds = parseInt(timestamp, 10)
+    if (isNaN(requestSeconds) || Math.abs(nowSeconds - requestSeconds) > 30) {
+      return false
+    }
+
     const message = `v0:${timestamp}:${body}`
     const computedHash = crypto.createHmac('sha256', secretToken).update(message).digest('hex')
     const expectedSignature = `v0=${computedHash}`
@@ -119,6 +125,12 @@ export const zoomHandler: WebhookProviderHandler = {
       }
     } catch (err) {
       logger.warn(`[${requestId}] Failed to look up webhook secret for Zoom validation`, err)
+      return null
+    }
+
+    if (!secretToken) {
+      logger.warn(`[${requestId}] No secret token configured for Zoom URL validation on path: ${path}`)
+      return null
     }
 
     const hashForValidate = crypto

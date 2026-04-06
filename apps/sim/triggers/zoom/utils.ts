@@ -140,7 +140,7 @@ export function buildMeetingOutputs(): Record<string, TriggerOutput> {
         },
       },
     },
-  } as any
+  }
 }
 
 /**
@@ -187,7 +187,7 @@ export function buildParticipantOutputs(): Record<string, TriggerOutput> {
         },
       },
     },
-  } as any
+  }
 }
 
 /**
@@ -229,7 +229,7 @@ export function buildRecordingOutputs(): Record<string, TriggerOutput> {
         },
       },
     },
-  } as any
+  }
 }
 
 /**
