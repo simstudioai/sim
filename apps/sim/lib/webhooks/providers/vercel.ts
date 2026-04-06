@@ -51,6 +51,13 @@ export const vercelHandler: WebhookProviderHandler = {
         vercel_webhook: undefined,
       }
 
+      if (triggerId && !(triggerId in eventTypeMap)) {
+        logger.warn(
+          `[${requestId}] Unknown triggerId for Vercel: ${triggerId}, defaulting to all events`,
+          { triggerId, webhookId: webhook.id }
+        )
+      }
+
       const events = eventTypeMap[triggerId ?? '']
       const notificationUrl = getNotificationUrl(webhook)
 
@@ -107,7 +114,10 @@ export const vercelHandler: WebhookProviderHandler = {
         body: JSON.stringify(requestBody),
       })
 
-      const responseBody = (await vercelResponse.json()) as Record<string, unknown>
+      const responseBody = (await vercelResponse.json().catch(() => ({}))) as Record<
+        string,
+        unknown
+      >
 
       if (!vercelResponse.ok) {
         const errorObj = responseBody.error as Record<string, unknown> | undefined
