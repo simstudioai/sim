@@ -108,6 +108,20 @@ export const linearHandler: WebhookProviderHandler = {
 
     const notificationUrl = getNotificationUrl(ctx.webhook)
     const webhookSecret = generateId()
+    const teamId = config.teamId as string | undefined
+
+    const input: Record<string, unknown> = {
+      url: notificationUrl,
+      resourceTypes,
+      secret: webhookSecret,
+      enabled: true,
+    }
+
+    if (teamId) {
+      input.teamId = teamId
+    } else {
+      input.allPublicTeams = true
+    }
 
     try {
       const response = await fetch('https://api.linear.app/graphql', {
@@ -123,14 +137,7 @@ export const linearHandler: WebhookProviderHandler = {
               webhook { id enabled }
             }
           }`,
-          variables: {
-            input: {
-              url: notificationUrl,
-              resourceTypes,
-              secret: webhookSecret,
-              enabled: true,
-            },
-          },
+          variables: { input },
         }),
       })
 

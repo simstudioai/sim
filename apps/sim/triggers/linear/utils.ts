@@ -84,6 +84,7 @@ export function linearSetupInstructions(eventType: string, additionalNotes?: str
 export function linearV2SetupInstructions(eventType: string, additionalNotes?: string): string {
   const instructions = [
     'Enter your Linear API Key above. You can create one in Linear at <a href="https://linear.app/settings/api" target="_blank" rel="noopener noreferrer">Settings &gt; API &gt; Personal API keys</a>.',
+    'Optionally enter a <strong>Team ID</strong> to scope the webhook to a single team. Leave it empty to receive events from all public teams. You can find Team IDs in Linear under <a href="https://linear.app/settings" target="_blank" rel="noopener noreferrer">Settings &gt; Teams</a> or via the API.',
     `Click <strong>"Save Configuration"</strong> to automatically create the webhook in Linear for <strong>${eventType}</strong> events.`,
     'The webhook will be automatically deleted when you remove this trigger.',
   ]
@@ -156,6 +157,15 @@ export function buildLinearV2SubBlocks(options: {
     password: true,
     required: true,
     paramVisibility: 'user-only',
+    mode: 'trigger',
+    condition: { field: 'selectedTriggerId', value: triggerId },
+  })
+
+  blocks.push({
+    id: 'teamId',
+    title: 'Team ID',
+    type: 'short-input',
+    placeholder: 'All teams (optional)',
     mode: 'trigger',
     condition: { field: 'selectedTriggerId', value: triggerId },
   })
