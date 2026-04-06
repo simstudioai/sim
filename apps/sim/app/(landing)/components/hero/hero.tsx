@@ -58,7 +58,9 @@ export default function Hero() {
               type='button'
               className={`${CTA_BASE} border-[var(--landing-border-strong)] bg-transparent text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]`}
               aria-label='Get a demo'
-              onClick={() => trackLandingCta({ label: 'Get a demo', section: 'hero', destination: 'demo_modal' })}
+              onClick={() =>
+                trackLandingCta({ label: 'Get a demo', section: 'hero', destination: 'demo_modal' })
+              }
             >
               Get a demo
             </button>
@@ -67,7 +69,9 @@ export default function Hero() {
             href='/signup'
             className={`${CTA_BASE} gap-2 border-white bg-white text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]`}
             aria-label='Get started with Sim'
-            onClick={() => trackLandingCta({ label: 'Get started', section: 'hero', destination: '/signup' })}
+            onClick={() =>
+              trackLandingCta({ label: 'Get started', section: 'hero', destination: '/signup' })
+            }
           >
             Get started
           </Link>

@@ -13,12 +13,12 @@ import {
   Textarea,
 } from '@/components/emcn'
 import { Check } from '@/components/emcn/icons'
+import { captureClientEvent } from '@/lib/posthog/client'
 import {
   DEMO_REQUEST_COMPANY_SIZE_OPTIONS,
   type DemoRequestPayload,
   demoRequestSchema,
 } from '@/app/(landing)/components/demo-request/consts'
-import { captureClientEvent } from '@/lib/posthog/client'
 
 interface DemoRequestModalProps {
   children: React.ReactNode

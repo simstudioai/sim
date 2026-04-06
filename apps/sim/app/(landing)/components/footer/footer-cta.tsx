@@ -3,10 +3,10 @@
 import { useCallback, useRef, useState } from 'react'
 import { ArrowUp } from 'lucide-react'
 import Link from 'next/link'
-import { useLandingSubmit } from '@/app/(landing)/components/landing-preview/components/landing-preview-panel/landing-preview-panel'
-import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
-import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 import { captureClientEvent } from '@/lib/posthog/client'
+import { useLandingSubmit } from '@/app/(landing)/components/landing-preview/components/landing-preview-panel/landing-preview-panel'
+import { trackLandingCta } from '@/app/(landing)/landing-analytics'
+import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
 
 const MAX_HEIGHT = 120
 
@@ -97,14 +97,22 @@ export function FooterCTA() {
           target='_blank'
           rel='noopener noreferrer'
           className={`${CTA_BUTTON} border-[var(--landing-border-strong)] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]`}
-          onClick={() => trackLandingCta({ label: 'Docs', section: 'footer_cta', destination: 'https://docs.sim.ai' })}
+          onClick={() =>
+            trackLandingCta({
+              label: 'Docs',
+              section: 'footer_cta',
+              destination: 'https://docs.sim.ai',
+            })
+          }
         >
           Docs
         </a>
         <Link
           href='/signup'
           className={`${CTA_BUTTON} gap-2 border-white bg-white text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]`}
-          onClick={() => trackLandingCta({ label: 'Get started', section: 'footer_cta', destination: '/signup' })}
+          onClick={() =>
+            trackLandingCta({ label: 'Get started', section: 'footer_cta', destination: '/signup' })
+          }
         >
           Get started
         </Link>

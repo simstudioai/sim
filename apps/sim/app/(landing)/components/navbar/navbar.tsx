@@ -7,13 +7,13 @@ import { useSearchParams } from 'next/navigation'
 import { GithubOutlineIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
-import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 import {
   BlogDropdown,
   type NavBlogPost,
 } from '@/app/(landing)/components/navbar/components/blog-dropdown'
 import { DocsDropdown } from '@/app/(landing)/components/navbar/components/docs-dropdown'
 import { GitHubStars } from '@/app/(landing)/components/navbar/components/github-stars'
+import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 type DropdownId = 'docs' | 'blog' | null
@@ -213,7 +213,13 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                 href='/workspace'
                 className='inline-flex h-[30px] items-center gap-[7px] rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-[9px] text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
                 aria-label='Go to app'
-                onClick={() => trackLandingCta({ label: 'Go to App', section: 'navbar', destination: '/workspace' })}
+                onClick={() =>
+                  trackLandingCta({
+                    label: 'Go to App',
+                    section: 'navbar',
+                    destination: '/workspace',
+                  })
+                }
               >
                 Go to App
               </Link>
@@ -223,7 +229,9 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                   href='/login'
                   className='inline-flex h-[30px] items-center rounded-[5px] border border-[var(--landing-border-strong)] px-[9px] text-[13.5px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
                   aria-label='Log in'
-                  onClick={() => trackLandingCta({ label: 'Log in', section: 'navbar', destination: '/login' })}
+                  onClick={() =>
+                    trackLandingCta({ label: 'Log in', section: 'navbar', destination: '/login' })
+                  }
                 >
                   Log in
                 </Link>
@@ -231,7 +239,13 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                   href='/signup'
                   className='inline-flex h-[30px] items-center gap-[7px] rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-2.5 text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
                   aria-label='Get started with Sim'
-                  onClick={() => trackLandingCta({ label: 'Get started', section: 'navbar', destination: '/signup' })}
+                  onClick={() =>
+                    trackLandingCta({
+                      label: 'Get started',
+                      section: 'navbar',
+                      destination: '/signup',
+                    })
+                  }
                 >
                   Get started
                 </Link>
@@ -307,7 +321,14 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                 <Link
                   href='/workspace'
                   className='flex h-[32px] items-center justify-center rounded-[5px] border border-[var(--white)] bg-[var(--white)] text-[14px] text-black transition-colors active:bg-[#E0E0E0]'
-                  onClick={() => { trackLandingCta({ label: 'Go to App', section: 'navbar', destination: '/workspace' }); setMobileMenuOpen(false) }}
+                  onClick={() => {
+                    trackLandingCta({
+                      label: 'Go to App',
+                      section: 'navbar',
+                      destination: '/workspace',
+                    })
+                    setMobileMenuOpen(false)
+                  }}
                   aria-label='Go to app'
                 >
                   Go to App
@@ -317,7 +338,10 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                   <Link
                     href='/login'
                     className='flex h-[32px] items-center justify-center rounded-[5px] border border-[var(--landing-border-strong)] text-[14px] text-[var(--landing-text)] transition-colors active:bg-[var(--landing-bg-elevated)]'
-                    onClick={() => { trackLandingCta({ label: 'Log in', section: 'navbar', destination: '/login' }); setMobileMenuOpen(false) }}
+                    onClick={() => {
+                      trackLandingCta({ label: 'Log in', section: 'navbar', destination: '/login' })
+                      setMobileMenuOpen(false)
+                    }}
                     aria-label='Log in'
                   >
                     Log in
@@ -325,7 +349,14 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                   <Link
                     href='/signup'
                     className='flex h-[32px] items-center justify-center rounded-[5px] border border-[var(--white)] bg-[var(--white)] text-[14px] text-black transition-colors active:bg-[#E0E0E0]'
-                    onClick={() => { trackLandingCta({ label: 'Get started', section: 'navbar', destination: '/signup' }); setMobileMenuOpen(false) }}
+                    onClick={() => {
+                      trackLandingCta({
+                        label: 'Get started',
+                        section: 'navbar',
+                        destination: '/signup',
+                      })
+                      setMobileMenuOpen(false)
+                    }}
                     aria-label='Get started with Sim'
                   >
                     Get started

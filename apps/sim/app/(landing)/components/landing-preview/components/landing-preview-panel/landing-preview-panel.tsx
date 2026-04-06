@@ -8,8 +8,8 @@ import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { Blimp, BubbleChatPreview, ChevronDown, MoreHorizontal, Play } from '@/components/emcn'
 import { AgentIcon, HubspotIcon, OpenAIIcon, SalesforceIcon } from '@/components/icons'
-import { captureClientEvent } from '@/lib/posthog/client'
 import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
+import { captureClientEvent } from '@/lib/posthog/client'
 import {
   EASE_OUT,
   type EditorPromptData,
