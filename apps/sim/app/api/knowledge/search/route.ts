@@ -420,19 +420,25 @@ export async function POST(request: NextRequest) {
       }
 
       // When mixing results from different embedding spaces (OpenAI + Ollama), raw
-      // cosine distances are not directly comparable. Normalize to [0, 1] only in
-      // that case so existing consumers of single-provider similarity scores are
-      // unaffected.
+      // cosine distances are not directly comparable. Normalize each provider's
+      // results independently to [0, 1] so neither provider dominates based on its
+      // own absolute distance range, then merge. Single-provider searches are
+      // returned unchanged to preserve the original score semantics.
       const isMixedProviders = openaiKbIds.length > 0 && ollamaKbIds.length > 0
-      const normalizeScores = (items: SearchResult[]): SearchResult[] => {
-        if (items.length <= 1) return items
-        const min = Math.min(...items.map((r) => r.distance))
-        const max = Math.max(...items.map((r) => r.distance))
-        const range = max - min || 1
-        return items.map((r) => ({ ...r, distance: (r.distance - min) / range }))
+      const normalizeByProvider = (items: SearchResult[]): SearchResult[] => {
+        const normalizeGroup = (group: SearchResult[]): SearchResult[] => {
+          if (group.length <= 1) return group
+          const min = Math.min(...group.map((r) => r.distance))
+          const max = Math.max(...group.map((r) => r.distance))
+          const range = max - min || 1
+          return group.map((r) => ({ ...r, distance: (r.distance - min) / range }))
+        }
+        const openaiGroup = items.filter((r) => openaiKbIds.includes(r.knowledgeBaseId))
+        const ollamaGroup = items.filter((r) => ollamaKbIds.includes(r.knowledgeBaseId))
+        return [...normalizeGroup(openaiGroup), ...normalizeGroup(ollamaGroup)]
       }
 
-      const results: SearchResult[] = (isMixedProviders ? normalizeScores(allResults) : allResults)
+      const results: SearchResult[] = (isMixedProviders ? normalizeByProvider(allResults) : allResults)
         .sort((a, b) => a.distance - b.distance)
         .slice(0, validatedData.topK)
 
