@@ -50,7 +50,10 @@ export const zoomHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
     const secretToken = providerConfig.secretToken as string | undefined
     if (!secretToken) {
-      return null
+      logger.warn(
+        `[${requestId}] Zoom webhook missing secretToken in providerConfig — rejecting request`
+      )
+      return new NextResponse('Unauthorized - Zoom secret token not configured', { status: 401 })
     }
 
     const signature = request.headers.get('x-zm-signature')
@@ -98,7 +101,7 @@ export const zoomHandler: WebhookProviderHandler = {
    * Zoom sends an `endpoint.url_validation` event with a `plainToken` that must
    * be hashed with the app's secret token and returned alongside the original token.
    */
-  async handleChallenge(body: unknown, _request: NextRequest, requestId: string, path: string) {
+  async handleChallenge(body: unknown, request: NextRequest, requestId: string, path: string) {
     const obj = body as Record<string, unknown> | null
     if (obj?.event !== 'endpoint.url_validation') {
       return null
@@ -118,7 +121,9 @@ export const zoomHandler: WebhookProviderHandler = {
       const webhooks = await db
         .select()
         .from(webhook)
-        .where(and(eq(webhook.path, path), eq(webhook.isActive, true)))
+        .where(
+          and(eq(webhook.path, path), eq(webhook.provider, 'zoom'), eq(webhook.isActive, true))
+        )
       if (webhooks.length > 0) {
         const config = webhooks[0].providerConfig as Record<string, unknown> | null
         secretToken = (config?.secretToken as string) || ''
@@ -133,6 +138,17 @@ export const zoomHandler: WebhookProviderHandler = {
         `[${requestId}] No secret token configured for Zoom URL validation on path: ${path}`
       )
       return null
+    }
+
+    // Verify the challenge request's signature to prevent HMAC oracle attacks
+    const signature = request.headers.get('x-zm-signature')
+    const timestamp = request.headers.get('x-zm-request-timestamp')
+    if (signature && timestamp) {
+      const rawBody = JSON.stringify(body)
+      if (!validateZoomSignature(secretToken, signature, timestamp, rawBody)) {
+        logger.warn(`[${requestId}] Zoom challenge request failed signature verification`)
+        return null
+      }
     }
 
     const hashForValidate = crypto
