@@ -1,4 +1,6 @@
+import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@/lib/core/security/encryption'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/providers/subscription-utils'
 import type {
   DeleteSubscriptionContext,
@@ -8,10 +10,21 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Vercel')
 
 export const vercelHandler: WebhookProviderHandler = {
+  verifyAuth: createHmacVerifier({
+    configKey: 'webhookSecret',
+    headerName: 'x-vercel-signature',
+    validateFn: (secret, signature, body) => {
+      const hash = crypto.createHmac('sha1', secret).update(body, 'utf8').digest('hex')
+      return safeCompare(hash, signature)
+    },
+    providerLabel: 'Vercel',
+  }),
+
   async createSubscription(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined> {
     const { webhook, requestId } = ctx
     try {
@@ -49,16 +62,25 @@ export const vercelHandler: WebhookProviderHandler = {
         webhookId: webhook.id,
       })
 
+      /**
+       * Vercel requires an explicit events list — there is no "subscribe to all" option.
+       * For the generic webhook trigger, we subscribe to the most commonly useful events.
+       * Full list: https://vercel.com/docs/webhooks/webhooks-api#event-types
+       */
       const requestBody: Record<string, unknown> = {
         url: notificationUrl,
         events: events || [
           'deployment.created',
           'deployment.ready',
+          'deployment.succeeded',
           'deployment.error',
           'deployment.canceled',
+          'deployment.promoted',
           'project.created',
           'project.removed',
           'domain.created',
+          'edge-config.created',
+          'edge-config.deleted',
         ],
       }
 
@@ -110,7 +132,12 @@ export const vercelHandler: WebhookProviderHandler = {
         { vercelWebhookId: responseBody.id }
       )
 
-      return { providerConfigUpdates: { externalId: responseBody.id } }
+      return {
+        providerConfigUpdates: {
+          externalId: responseBody.id,
+          webhookSecret: (responseBody.secret as string) || '',
+        },
+      }
     } catch (error: unknown) {
       const err = error as Error
       logger.error(
