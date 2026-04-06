@@ -158,7 +158,7 @@ export const linearHandler: WebhookProviderHandler = {
         },
       }
     } catch (error) {
-      if (error instanceof Error && error.message.includes('API key')) {
+      if (error instanceof Error && error.message !== 'fetch failed') {
         throw error
       }
       logger.error(`[${ctx.requestId}] Error creating Linear webhook`, {
