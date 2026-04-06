@@ -228,15 +228,6 @@ function SignupFormContent({
         emailValidationErrors.length > 0 ||
         errors.length > 0
       ) {
-        if (nameValidationErrors.length > 0) {
-          setShowNameValidationError(true)
-        }
-        if (emailValidationErrors.length > 0) {
-          setShowEmailValidationError(true)
-        }
-        if (errors.length > 0) {
-          setShowValidationError(true)
-        }
         setIsLoading(false)
         return
       }
