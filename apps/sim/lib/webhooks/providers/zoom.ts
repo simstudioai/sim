@@ -31,7 +31,7 @@ function validateZoomSignature(
 
     const nowSeconds = Math.floor(Date.now() / 1000)
     const requestSeconds = Number.parseInt(timestamp, 10)
-    if (Number.isNaN(requestSeconds) || Math.abs(nowSeconds - requestSeconds) > 30) {
+    if (Number.isNaN(requestSeconds) || Math.abs(nowSeconds - requestSeconds) > 300) {
       return false
     }
 
