@@ -21,6 +21,7 @@ import { lemlistHandler } from '@/lib/webhooks/providers/lemlist'
 import { linearHandler } from '@/lib/webhooks/providers/linear'
 import { microsoftTeamsHandler } from '@/lib/webhooks/providers/microsoft-teams'
 import { outlookHandler } from '@/lib/webhooks/providers/outlook'
+import { resendHandler } from '@/lib/webhooks/providers/resend'
 import { rssHandler } from '@/lib/webhooks/providers/rss'
 import { slackHandler } from '@/lib/webhooks/providers/slack'
 import { stripeHandler } from '@/lib/webhooks/providers/stripe'
@@ -55,6 +56,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   jira: jiraHandler,
   lemlist: lemlistHandler,
   linear: linearHandler,
+  resend: resendHandler,
   'microsoft-teams': microsoftTeamsHandler,
   outlook: outlookHandler,
   rss: rssHandler,

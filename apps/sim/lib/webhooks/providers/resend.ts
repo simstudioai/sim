@@ -1,0 +1,185 @@
+import { createLogger } from '@sim/logger'
+import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/providers/subscription-utils'
+import type {
+  DeleteSubscriptionContext,
+  FormatInputContext,
+  FormatInputResult,
+  SubscriptionContext,
+  SubscriptionResult,
+  WebhookProviderHandler,
+} from '@/lib/webhooks/providers/types'
+
+const logger = createLogger('WebhookProvider:Resend')
+
+const ALL_RESEND_EVENTS = [
+  'email.sent',
+  'email.delivered',
+  'email.delivery_delayed',
+  'email.bounced',
+  'email.complained',
+  'email.opened',
+  'email.clicked',
+  'email.failed',
+  'email.received',
+  'email.scheduled',
+  'email.suppressed',
+  'contact.created',
+  'contact.updated',
+  'contact.deleted',
+  'domain.created',
+  'domain.updated',
+  'domain.deleted',
+]
+
+export const resendHandler: WebhookProviderHandler = {
+  async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
+    const payload = body as Record<string, unknown>
+    const data = payload.data as Record<string, unknown> | undefined
+    const bounce = data?.bounce as Record<string, unknown> | undefined
+    const click = data?.click as Record<string, unknown> | undefined
+
+    return {
+      input: {
+        type: payload.type,
+        created_at: payload.created_at,
+        email_id: data?.email_id ?? null,
+        from: data?.from ?? null,
+        to: data?.to ?? null,
+        subject: data?.subject ?? null,
+        bounceType: bounce?.type ?? null,
+        bounceSubType: bounce?.subType ?? null,
+        bounceMessage: bounce?.message ?? null,
+        clickIpAddress: click?.ipAddress ?? null,
+        clickLink: click?.link ?? null,
+        clickTimestamp: click?.timestamp ?? null,
+        clickUserAgent: click?.userAgent ?? null,
+      },
+    }
+  },
+
+  async createSubscription(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined> {
+    const { webhook, requestId } = ctx
+    try {
+      const providerConfig = getProviderConfig(webhook)
+      const apiKey = providerConfig.apiKey as string | undefined
+      const triggerId = providerConfig.triggerId as string | undefined
+
+      if (!apiKey) {
+        logger.warn(`[${requestId}] Missing apiKey for Resend webhook creation.`, {
+          webhookId: webhook.id,
+        })
+        throw new Error(
+          'Resend API Key is required. Please provide your Resend API Key in the trigger configuration.'
+        )
+      }
+
+      const eventTypeMap: Record<string, string[]> = {
+        resend_email_sent: ['email.sent'],
+        resend_email_delivered: ['email.delivered'],
+        resend_email_bounced: ['email.bounced'],
+        resend_email_complained: ['email.complained'],
+        resend_email_opened: ['email.opened'],
+        resend_email_clicked: ['email.clicked'],
+        resend_email_failed: ['email.failed'],
+        resend_webhook: ALL_RESEND_EVENTS,
+      }
+
+      const events = eventTypeMap[triggerId ?? ''] ?? ALL_RESEND_EVENTS
+      const notificationUrl = getNotificationUrl(webhook)
+
+      logger.info(`[${requestId}] Creating Resend webhook`, {
+        triggerId,
+        events,
+        webhookId: webhook.id,
+      })
+
+      const resendResponse = await fetch('https://api.resend.com/webhooks', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          endpoint: notificationUrl,
+          events,
+        }),
+      })
+
+      const responseBody = (await resendResponse.json()) as Record<string, unknown>
+
+      if (!resendResponse.ok) {
+        const errorMessage =
+          (responseBody.message as string) ||
+          (responseBody.name as string) ||
+          'Unknown Resend API error'
+        logger.error(
+          `[${requestId}] Failed to create webhook in Resend for webhook ${webhook.id}. Status: ${resendResponse.status}`,
+          { message: errorMessage, response: responseBody }
+        )
+
+        let userFriendlyMessage = 'Failed to create webhook subscription in Resend'
+        if (resendResponse.status === 401 || resendResponse.status === 403) {
+          userFriendlyMessage = 'Invalid Resend API Key. Please verify your API Key is correct.'
+        } else if (errorMessage && errorMessage !== 'Unknown Resend API error') {
+          userFriendlyMessage = `Resend error: ${errorMessage}`
+        }
+
+        throw new Error(userFriendlyMessage)
+      }
+
+      logger.info(
+        `[${requestId}] Successfully created webhook in Resend for webhook ${webhook.id}.`,
+        {
+          resendWebhookId: responseBody.id,
+        }
+      )
+
+      return { providerConfigUpdates: { externalId: responseBody.id } }
+    } catch (error: unknown) {
+      const err = error as Error
+      logger.error(
+        `[${requestId}] Exception during Resend webhook creation for webhook ${webhook.id}.`,
+        {
+          message: err.message,
+          stack: err.stack,
+        }
+      )
+      throw error
+    }
+  },
+
+  async deleteSubscription(ctx: DeleteSubscriptionContext): Promise<void> {
+    const { webhook, requestId } = ctx
+    try {
+      const config = getProviderConfig(webhook)
+      const apiKey = config.apiKey as string | undefined
+      const externalId = config.externalId as string | undefined
+
+      if (!apiKey || !externalId) {
+        logger.warn(
+          `[${requestId}] Missing apiKey or externalId for Resend webhook deletion ${webhook.id}, skipping cleanup`
+        )
+        return
+      }
+
+      const resendResponse = await fetch(`https://api.resend.com/webhooks/${externalId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+      })
+
+      if (!resendResponse.ok && resendResponse.status !== 404) {
+        const responseBody = await resendResponse.json().catch(() => ({}))
+        logger.warn(
+          `[${requestId}] Failed to delete Resend webhook (non-fatal): ${resendResponse.status}`,
+          { response: responseBody }
+        )
+      } else {
+        logger.info(`[${requestId}] Successfully deleted Resend webhook ${externalId}`)
+      }
+    } catch (error) {
+      logger.warn(`[${requestId}] Error deleting Resend webhook (non-fatal)`, error)
+    }
+  },
+}

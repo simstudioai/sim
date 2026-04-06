@@ -1,6 +1,7 @@
 import { ResendIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { getTrigger } from '@/triggers'
 
 export const ResendBlock: BlockConfig = {
   type: 'resend',
@@ -15,6 +16,20 @@ export const ResendBlock: BlockConfig = {
   bgColor: '#181C1E',
   icon: ResendIcon,
   authMode: AuthMode.ApiKey,
+
+  triggers: {
+    enabled: true,
+    available: [
+      'resend_email_sent',
+      'resend_email_delivered',
+      'resend_email_bounced',
+      'resend_email_complained',
+      'resend_email_opened',
+      'resend_email_clicked',
+      'resend_email_failed',
+      'resend_webhook',
+    ],
+  },
 
   subBlocks: [
     {
@@ -221,6 +236,15 @@ Return ONLY the email body - no explanations, no extra text.`,
       condition: { field: 'operation', value: ['get_contact', 'update_contact', 'delete_contact'] },
       required: true,
     },
+
+    ...getTrigger('resend_email_sent').subBlocks,
+    ...getTrigger('resend_email_delivered').subBlocks,
+    ...getTrigger('resend_email_bounced').subBlocks,
+    ...getTrigger('resend_email_complained').subBlocks,
+    ...getTrigger('resend_email_opened').subBlocks,
+    ...getTrigger('resend_email_clicked').subBlocks,
+    ...getTrigger('resend_email_failed').subBlocks,
+    ...getTrigger('resend_webhook').subBlocks,
   ],
 
   tools: {
