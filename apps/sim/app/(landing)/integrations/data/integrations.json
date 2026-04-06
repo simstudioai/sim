@@ -324,7 +324,7 @@
     "longDescription": "Search across your synced data sources using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results.",
     "bgColor": "#6366F1",
     "iconName": "AirweaveIcon",
-    "docsUrl": "https://docs.airweave.ai",
+    "docsUrl": "https://docs.sim.ai/tools/airweave",
     "operations": [],
     "operationCount": 0,
     "triggers": [],
@@ -10638,6 +10638,41 @@
     "category": "tools",
     "integrationType": "analytics",
     "tags": ["marketing", "data-analytics", "seo"]
+  },
+  {
+    "type": "sixtyfour",
+    "slug": "sixtyfour-ai",
+    "name": "Sixtyfour AI",
+    "description": "Enrich leads and companies with AI-powered research",
+    "longDescription": "Find emails, phone numbers, and enrich lead or company data with contact information, social profiles, and detailed research using Sixtyfour AI.",
+    "bgColor": "#000000",
+    "iconName": "SixtyfourIcon",
+    "docsUrl": "https://docs.sim.ai/tools/sixtyfour",
+    "operations": [
+      {
+        "name": "Find Phone",
+        "description": "Find phone numbers for a lead using Sixtyfour AI."
+      },
+      {
+        "name": "Find Email",
+        "description": "Find email addresses for a lead using Sixtyfour AI."
+      },
+      {
+        "name": "Enrich Lead",
+        "description": "Enrich lead information with contact details, social profiles, and company data using Sixtyfour AI."
+      },
+      {
+        "name": "Enrich Company",
+        "description": "Enrich company data with additional information and find associated people using Sixtyfour AI."
+      }
+    ],
+    "operationCount": 4,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "sales-intelligence",
+    "tags": ["enrichment", "sales-engagement"]
   },
   {
     "type": "slack",
