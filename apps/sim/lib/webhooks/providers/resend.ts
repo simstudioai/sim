@@ -6,6 +6,7 @@ import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/providers/
 import type {
   AuthContext,
   DeleteSubscriptionContext,
+  EventMatchContext,
   FormatInputContext,
   FormatInputResult,
   SubscriptionContext,
@@ -98,6 +99,35 @@ export const resendHandler: WebhookProviderHandler = {
     }
 
     return null
+  },
+
+  matchEvent({ body, providerConfig, requestId }: EventMatchContext): boolean {
+    const triggerId = providerConfig.triggerId as string | undefined
+    if (!triggerId || triggerId === 'resend_webhook') {
+      return true
+    }
+
+    const EVENT_TYPE_MAP: Record<string, string> = {
+      resend_email_sent: 'email.sent',
+      resend_email_delivered: 'email.delivered',
+      resend_email_bounced: 'email.bounced',
+      resend_email_complained: 'email.complained',
+      resend_email_opened: 'email.opened',
+      resend_email_clicked: 'email.clicked',
+      resend_email_failed: 'email.failed',
+    }
+
+    const expectedType = EVENT_TYPE_MAP[triggerId]
+    const actualType = (body as Record<string, unknown>)?.type as string | undefined
+
+    if (expectedType && actualType !== expectedType) {
+      logger.debug(
+        `[${requestId}] Resend event type mismatch: expected ${expectedType}, got ${actualType}. Skipping.`
+      )
+      return false
+    }
+
+    return true
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {

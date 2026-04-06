@@ -48,6 +48,7 @@ export function buildResendExtraFields(triggerId: string) {
       placeholder: 'Enter your Resend API key (re_...)',
       description: 'Required to create the webhook in Resend.',
       password: true,
+      paramVisibility: 'user-only' as const,
       required: true,
       mode: 'trigger' as const,
       condition: { field: 'selectedTriggerId', value: triggerId },
