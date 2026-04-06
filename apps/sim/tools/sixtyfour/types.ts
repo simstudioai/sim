@@ -51,6 +51,9 @@ export interface SixtyfourFindEmailResponse extends ToolResponse {
   output: {
     name: string | null
     company: string | null
+    title: string | null
+    phone: string | null
+    linkedinUrl: string | null
     emails: { address: string; status: string; type: string }[]
     personalEmails: { address: string; status: string; type: string }[]
   }

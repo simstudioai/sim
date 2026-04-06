@@ -243,9 +243,25 @@ export const SixtyfourBlock: BlockConfig = {
   },
 
   outputs: {
+    name: {
+      type: 'string',
+      description: 'Name of the person (find_phone, find_email)',
+    },
+    company: {
+      type: 'string',
+      description: 'Company name (find_phone, find_email)',
+    },
     phone: {
       type: 'string',
       description: 'Phone number(s) found (find_phone)',
+    },
+    linkedinUrl: {
+      type: 'string',
+      description: 'LinkedIn profile URL (find_phone, find_email)',
+    },
+    title: {
+      type: 'string',
+      description: 'Job title (find_email)',
     },
     emails: {
       type: 'json',

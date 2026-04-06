@@ -106,6 +106,9 @@ export const sixtyfourFindEmailTool: ToolConfig<
       output: {
         name: data.name ?? null,
         company: data.company ?? null,
+        title: data.title ?? null,
+        phone: data.phone ?? null,
+        linkedinUrl: data.linkedin ?? null,
         emails: parseEmails(data.email),
         personalEmails: parseEmails(data.personal_email),
       },
@@ -115,6 +118,9 @@ export const sixtyfourFindEmailTool: ToolConfig<
   outputs: {
     name: { type: 'string', description: 'Name of the person', optional: true },
     company: { type: 'string', description: 'Company name', optional: true },
+    title: { type: 'string', description: 'Job title', optional: true },
+    phone: { type: 'string', description: 'Phone number', optional: true },
+    linkedinUrl: { type: 'string', description: 'LinkedIn profile URL', optional: true },
     emails: {
       type: 'json',
       description: 'Professional email addresses found',
