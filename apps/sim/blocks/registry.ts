@@ -102,7 +102,7 @@ import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
 import { LangsmithBlock } from '@/blocks/blocks/langsmith'
 import { LaunchDarklyBlock } from '@/blocks/blocks/launchdarkly'
 import { LemlistBlock } from '@/blocks/blocks/lemlist'
-import { LinearBlock } from '@/blocks/blocks/linear'
+import { LinearBlock, LinearV2Block } from '@/blocks/blocks/linear'
 import { LinkedInBlock } from '@/blocks/blocks/linkedin'
 import { LinkupBlock } from '@/blocks/blocks/linkup'
 import { LoopsBlock } from '@/blocks/blocks/loops'
@@ -338,6 +338,7 @@ export const registry: Record<string, BlockConfig> = {
   launchdarkly: LaunchDarklyBlock,
   lemlist: LemlistBlock,
   linear: LinearBlock,
+  linear_v2: LinearV2Block,
   linkedin: LinkedInBlock,
   linkup: LinkupBlock,
   loops: LoopsBlock,

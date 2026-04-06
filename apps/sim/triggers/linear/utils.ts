@@ -1,3 +1,4 @@
+import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
 /**
@@ -22,7 +23,37 @@ export const linearTriggerOptions = [
 ]
 
 /**
- * Generate setup instructions for a specific Linear event type
+ * Maps trigger IDs to Linear resource types for webhook creation.
+ * Used by the automatic webhook registration in provider-subscriptions.
+ */
+export const LINEAR_RESOURCE_TYPE_MAP: Record<string, string[]> = {
+  linear_issue_created_v2: ['Issue'],
+  linear_issue_updated_v2: ['Issue'],
+  linear_issue_removed_v2: ['Issue'],
+  linear_comment_created_v2: ['Comment'],
+  linear_comment_updated_v2: ['Comment'],
+  linear_project_created_v2: ['Project'],
+  linear_project_updated_v2: ['Project'],
+  linear_cycle_created_v2: ['Cycle'],
+  linear_cycle_updated_v2: ['Cycle'],
+  linear_label_created_v2: ['IssueLabel'],
+  linear_label_updated_v2: ['IssueLabel'],
+  linear_project_update_created_v2: ['ProjectUpdate'],
+  linear_customer_request_created_v2: ['CustomerNeed'],
+  linear_customer_request_updated_v2: ['CustomerNeed'],
+  linear_webhook_v2: [
+    'Issue',
+    'Comment',
+    'Project',
+    'Cycle',
+    'IssueLabel',
+    'ProjectUpdate',
+    'CustomerNeed',
+  ],
+}
+
+/**
+ * Generate setup instructions for manual Linear webhook configuration (v1 triggers)
  */
 export function linearSetupInstructions(eventType: string, additionalNotes?: string): string {
   const instructions = [
@@ -45,6 +76,121 @@ export function linearSetupInstructions(eventType: string, additionalNotes?: str
         `<div class="mb-3">${index === 0 ? instruction : `<strong>${index}.</strong> ${instruction}`}</div>`
     )
     .join('')
+}
+
+/**
+ * Generate setup instructions for automatic Linear webhook creation (v2 triggers)
+ */
+export function linearV2SetupInstructions(eventType: string, additionalNotes?: string): string {
+  const instructions = [
+    'Enter your Linear API Key above. You can create one in Linear at <a href="https://linear.app/settings/api" target="_blank" rel="noopener noreferrer">Settings &gt; API &gt; Personal API keys</a>.',
+    'Optionally enter a <strong>Team ID</strong> to scope the webhook to a single team. Leave it empty to receive events from all public teams. You can find Team IDs in Linear under <a href="https://linear.app/settings" target="_blank" rel="noopener noreferrer">Settings &gt; Teams</a> or via the API.',
+    `Click <strong>"Save Configuration"</strong> to automatically create the webhook in Linear for <strong>${eventType}</strong> events.`,
+    'The webhook will be automatically deleted when you remove this trigger.',
+  ]
+
+  if (additionalNotes) {
+    instructions.push(additionalNotes)
+  }
+
+  return instructions
+    .map(
+      (instruction, index) =>
+        `<div class="mb-3"><strong>${index + 1}.</strong> ${instruction}</div>`
+    )
+    .join('')
+}
+
+/**
+ * V2 trigger dropdown options with _v2 suffixed IDs
+ */
+export const linearV2TriggerOptions = [
+  { label: 'Issue Created', id: 'linear_issue_created_v2' },
+  { label: 'Issue Updated', id: 'linear_issue_updated_v2' },
+  { label: 'Issue Removed', id: 'linear_issue_removed_v2' },
+  { label: 'Comment Created', id: 'linear_comment_created_v2' },
+  { label: 'Comment Updated', id: 'linear_comment_updated_v2' },
+  { label: 'Project Created', id: 'linear_project_created_v2' },
+  { label: 'Project Updated', id: 'linear_project_updated_v2' },
+  { label: 'Cycle Created', id: 'linear_cycle_created_v2' },
+  { label: 'Cycle Updated', id: 'linear_cycle_updated_v2' },
+  { label: 'Label Created', id: 'linear_label_created_v2' },
+  { label: 'Label Updated', id: 'linear_label_updated_v2' },
+  { label: 'Project Update Created', id: 'linear_project_update_created_v2' },
+  { label: 'Customer Request Created', id: 'linear_customer_request_created_v2' },
+  { label: 'Customer Request Updated', id: 'linear_customer_request_updated_v2' },
+  { label: 'General Webhook (All Events)', id: 'linear_webhook_v2' },
+]
+
+/**
+ * Builds the complete subBlocks array for a v2 Linear trigger.
+ * Webhooks are managed via API, so no webhook URL is displayed.
+ *
+ * Structure: [dropdown?] -> apiKey -> triggerSave -> instructions
+ */
+export function buildLinearV2SubBlocks(options: {
+  triggerId: string
+  eventType: string
+  includeDropdown?: boolean
+  additionalNotes?: string
+}): SubBlockConfig[] {
+  const { triggerId, eventType, includeDropdown = false, additionalNotes } = options
+  const blocks: SubBlockConfig[] = []
+
+  if (includeDropdown) {
+    blocks.push({
+      id: 'selectedTriggerId',
+      title: 'Trigger Type',
+      type: 'dropdown',
+      mode: 'trigger',
+      options: linearV2TriggerOptions,
+      value: () => triggerId,
+      required: true,
+    })
+  }
+
+  blocks.push({
+    id: 'apiKey',
+    title: 'API Key',
+    type: 'short-input',
+    placeholder: 'Enter your Linear API key',
+    password: true,
+    required: true,
+    paramVisibility: 'user-only',
+    mode: 'trigger',
+    condition: { field: 'selectedTriggerId', value: triggerId },
+  })
+
+  blocks.push({
+    id: 'teamId',
+    title: 'Team ID',
+    type: 'short-input',
+    placeholder: 'All teams (optional)',
+    mode: 'trigger',
+    condition: { field: 'selectedTriggerId', value: triggerId },
+  })
+
+  blocks.push({
+    id: 'triggerSave',
+    title: '',
+    type: 'trigger-save',
+    hideFromPreview: true,
+    mode: 'trigger',
+    triggerId,
+    condition: { field: 'selectedTriggerId', value: triggerId },
+  })
+
+  blocks.push({
+    id: 'triggerInstructions',
+    title: 'Setup Instructions',
+    hideFromPreview: true,
+    type: 'text',
+    defaultValue: linearV2SetupInstructions(eventType, additionalNotes),
+    mode: 'trigger',
+    condition: { field: 'selectedTriggerId', value: triggerId },
+  })
+
+  return blocks
 }
 
 /**
@@ -298,7 +444,7 @@ export function buildIssueOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Previous values for changed fields (only present on update)',
     },
-  } as any
+  } as unknown as Record<string, TriggerOutput>
 }
 
 /**
@@ -385,7 +531,7 @@ export function buildCommentOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Previous values for changed fields (only present on update)',
     },
-  } as any
+  } as unknown as Record<string, TriggerOutput>
 }
 
 /**
@@ -528,7 +674,7 @@ export function buildProjectOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Previous values for changed fields (only present on update)',
     },
-  } as any
+  } as unknown as Record<string, TriggerOutput>
 }
 
 /**
@@ -631,7 +777,7 @@ export function buildCycleOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Previous values for changed fields (only present on update)',
     },
-  } as any
+  } as unknown as Record<string, TriggerOutput>
 }
 
 /**
@@ -718,7 +864,7 @@ export function buildLabelOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Previous values for changed fields (only present on update)',
     },
-  } as any
+  } as unknown as Record<string, TriggerOutput>
 }
 
 /**
@@ -793,7 +939,7 @@ export function buildProjectUpdateOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Previous values for changed fields (only present on update)',
     },
-  } as any
+  } as unknown as Record<string, TriggerOutput>
 }
 
 /**
@@ -876,7 +1022,7 @@ export function buildCustomerRequestOutputs(): Record<string, TriggerOutput> {
       type: 'object',
       description: 'Previous values for changed fields (only present on update)',
     },
-  } as any
+  } as unknown as Record<string, TriggerOutput>
 }
 
 /**
@@ -900,7 +1046,8 @@ export function isLinearEventMatch(triggerId: string, eventType: string, action?
     linear_customer_request_updated: { type: 'CustomerNeed', actions: ['update'] },
   }
 
-  const config = eventMap[triggerId]
+  const normalizedId = triggerId.replace(/_v2$/, '')
+  const config = eventMap[normalizedId]
   if (!config) {
     return true // Unknown trigger, allow through
   }
