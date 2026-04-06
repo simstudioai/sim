@@ -9,6 +9,7 @@ import type {
   ExecutionCompletedData,
   ExecutionErrorData,
   ExecutionEvent,
+  ExecutionPausedData,
   ExecutionStartedData,
   StreamChunkData,
   StreamDoneData,
@@ -74,6 +75,9 @@ export async function processSSEStream(
             case 'execution:completed':
               callbacks.onExecutionCompleted?.(event.data)
               break
+            case 'execution:paused':
+              callbacks.onExecutionPaused?.(event.data)
+              break
             case 'execution:error':
               callbacks.onExecutionError?.(event.data)
               break
@@ -114,6 +118,7 @@ export async function processSSEStream(
 export interface ExecutionStreamCallbacks {
   onExecutionStarted?: (data: ExecutionStartedData) => void
   onExecutionCompleted?: (data: ExecutionCompletedData) => void
+  onExecutionPaused?: (data: ExecutionPausedData) => void
   onExecutionError?: (data: ExecutionErrorData) => void
   onExecutionCancelled?: (data: ExecutionCancelledData) => void
   onBlockStarted?: (data: BlockStartedData) => void

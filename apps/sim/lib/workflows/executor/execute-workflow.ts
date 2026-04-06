@@ -3,7 +3,7 @@ import { generateId } from '@/lib/core/utils/uuid'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
-import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
+import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
@@ -127,41 +127,7 @@ export async function executeWorkflow(
       )
     }
 
-    if (result.status === 'paused') {
-      if (!result.snapshotSeed) {
-        logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
-          executionId,
-        })
-        await loggingSession.markAsFailed('Missing snapshot seed for paused execution')
-      } else {
-        try {
-          await PauseResumeManager.persistPauseResult({
-            workflowId,
-            executionId,
-            pausePoints: result.pausePoints || [],
-            snapshotSeed: result.snapshotSeed,
-            executorUserId: result.metadata?.userId,
-          })
-        } catch (pauseError) {
-          logger.error(`[${requestId}] Failed to persist pause result`, {
-            executionId,
-            error: pauseError instanceof Error ? pauseError.message : String(pauseError),
-          })
-          await loggingSession.markAsFailed(
-            `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
-          )
-        }
-      }
-    } else {
-      try {
-        await PauseResumeManager.processQueuedResumes(executionId)
-      } catch (resumeError) {
-        logger.error(`[${requestId}] Failed to process queued resumes`, {
-          executionId,
-          error: resumeError instanceof Error ? resumeError.message : String(resumeError),
-        })
-      }
-    }
+    await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })
 
     if (streamConfig?.skipLoggingComplete) {
       return {

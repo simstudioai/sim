@@ -93,15 +93,34 @@ Access resume data in downstream blocks using `<blockId.resumeInput.fieldName>`.
   <Tab>
     ### REST API
     
-    Programmatically resume workflows:
+    Programmatically resume workflows using the resume endpoint. The `contextId` is available from the block's `resumeEndpoint` output or from the paused execution detail.
     
     ```bash
-    POST /api/workflows/{workflowId}/executions/{executionId}/resume/{blockId}
+    POST /api/resume/{workflowId}/{executionId}/{contextId}
+    Content-Type: application/json
     
     {
-      "approved": true,
-      "comments": "Looks good to proceed"
+      "input": {
+        "approved": true,
+        "comments": "Looks good to proceed"
+      }
     }
+    ```
+    
+    The response includes a new `executionId` for the resumed execution:
+    
+    ```json
+    {
+      "status": "started",
+      "executionId": "<resumeExecutionId>",
+      "message": "Resume execution started."
+    }
+    ```
+    
+    To poll execution progress after resuming, connect to the SSE stream:
+    
+    ```bash
+    GET /api/workflows/{workflowId}/executions/{resumeExecutionId}/stream
     ```
     
     Build custom approval UIs or integrate with existing systems.

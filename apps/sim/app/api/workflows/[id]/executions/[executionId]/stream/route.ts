@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { getSession } from '@/lib/auth'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import {
   type ExecutionStreamStatus,
@@ -29,30 +29,20 @@ export async function GET(
   const { id: workflowId, executionId } = await params
 
   try {
-    const auth = await checkHybridAuth(req, { requireWorkflowId: false })
-    if (!auth.success || !auth.userId) {
-      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
       workflowId,
-      userId: auth.userId,
+      userId: session.user.id,
       action: 'read',
     })
     if (!workflowAuthorization.allowed) {
       return NextResponse.json(
         { error: workflowAuthorization.message || 'Access denied' },
         { status: workflowAuthorization.status }
-      )
-    }
-
-    if (
-      auth.apiKeyType === 'workspace' &&
-      workflowAuthorization.workflow?.workspaceId !== auth.workspaceId
-    ) {
-      return NextResponse.json(
-        { error: 'API key is not authorized for this workspace' },
-        { status: 403 }
       )
     }
 
