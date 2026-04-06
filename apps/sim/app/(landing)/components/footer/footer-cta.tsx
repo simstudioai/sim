@@ -4,9 +4,9 @@ import { useCallback, useRef, useState } from 'react'
 import { ArrowUp } from 'lucide-react'
 import Link from 'next/link'
 import { captureClientEvent } from '@/lib/posthog/client'
-import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
 import { useLandingSubmit } from '@/app/(landing)/components/landing-preview/components/landing-preview-panel/landing-preview-panel'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
+import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
 
 const MAX_HEIGHT = 120
 
