@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import { db, webhook } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { safeCompare } from '@/lib/core/security/encryption'
@@ -112,7 +112,7 @@ export const zoomHandler: WebhookProviderHandler = {
       const webhooks = await db
         .select()
         .from(webhook)
-        .where(and(eq(webhook.path, path), isNull(webhook.deletedAt)))
+        .where(and(eq(webhook.path, path), eq(webhook.isActive, true)))
       if (webhooks.length > 0) {
         const config = webhooks[0].providerConfig as Record<string, unknown> | null
         secretToken = (config?.secretToken as string) || ''
