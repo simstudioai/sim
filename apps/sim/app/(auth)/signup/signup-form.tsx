@@ -229,15 +229,12 @@ function SignupFormContent({
         errors.length > 0
       ) {
         if (nameValidationErrors.length > 0) {
-          setNameErrors([nameValidationErrors[0]])
           setShowNameValidationError(true)
         }
         if (emailValidationErrors.length > 0) {
-          setEmailErrors([emailValidationErrors[0]])
           setShowEmailValidationError(true)
         }
         if (errors.length > 0) {
-          setPasswordErrors([errors[0]])
           setShowValidationError(true)
         }
         setIsLoading(false)
@@ -400,7 +397,7 @@ function SignupFormContent({
                 />
                 <div
                   className={cn(
-                    'absolute right-0 left-0 z-10 grid transition-[grid-template-rows] duration-200 ease-out',
+                    'grid transition-[grid-template-rows] duration-200 ease-out',
                     showNameValidationError && nameErrors.length > 0
                       ? 'grid-rows-[1fr]'
                       : 'grid-rows-[0fr]'
@@ -438,7 +435,7 @@ function SignupFormContent({
                 />
                 <div
                   className={cn(
-                    'absolute right-0 left-0 z-10 grid transition-[grid-template-rows] duration-200 ease-out',
+                    'grid transition-[grid-template-rows] duration-200 ease-out',
                     (showEmailValidationError && emailErrors.length > 0) ||
                       (emailError && !showEmailValidationError)
                       ? 'grid-rows-[1fr]'
@@ -497,7 +494,7 @@ function SignupFormContent({
                 </div>
                 <div
                   className={cn(
-                    'absolute right-0 left-0 z-10 grid transition-[grid-template-rows] duration-200 ease-out',
+                    'grid transition-[grid-template-rows] duration-200 ease-out',
                     showValidationError && passwordErrors.length > 0
                       ? 'grid-rows-[1fr]'
                       : 'grid-rows-[0fr]'

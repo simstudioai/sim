@@ -104,38 +104,38 @@ export function SetNewPasswordForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    const errors: string[] = []
+
     if (password.length < 8) {
-      setValidationMessage('Password must be at least 8 characters long')
-      return
+      errors.push('Password must be at least 8 characters long')
     }
 
     if (password.length > 100) {
-      setValidationMessage('Password must not exceed 100 characters')
-      return
+      errors.push('Password must not exceed 100 characters')
     }
 
     if (!/[A-Z]/.test(password)) {
-      setValidationMessage('Password must contain at least one uppercase letter')
-      return
+      errors.push('Password must contain at least one uppercase letter')
     }
 
     if (!/[a-z]/.test(password)) {
-      setValidationMessage('Password must contain at least one lowercase letter')
-      return
+      errors.push('Password must contain at least one lowercase letter')
     }
 
     if (!/[0-9]/.test(password)) {
-      setValidationMessage('Password must contain at least one number')
-      return
+      errors.push('Password must contain at least one number')
     }
 
     if (!/[^A-Za-z0-9]/.test(password)) {
-      setValidationMessage('Password must contain at least one special character')
-      return
+      errors.push('Password must contain at least one special character')
     }
 
     if (password !== confirmPassword) {
-      setValidationMessage('Passwords do not match')
+      errors.push('Passwords do not match')
+    }
+
+    if (errors.length > 0) {
+      setValidationMessage(errors.join(' '))
       return
     }
 
