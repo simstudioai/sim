@@ -2198,6 +2198,12 @@ import {
   similarwebWebsiteOverviewTool,
 } from '@/tools/similarweb'
 import {
+  sixtyfourEnrichCompanyTool,
+  sixtyfourEnrichLeadTool,
+  sixtyfourFindEmailTool,
+  sixtyfourFindPhoneTool,
+} from '@/tools/sixtyfour'
+import {
   slackAddReactionTool,
   slackCanvasTool,
   slackCreateChannelCanvasTool,
@@ -3141,6 +3147,10 @@ export const tools: Record<string, ToolConfig> = {
   similarweb_bounce_rate: similarwebBounceRateTool,
   similarweb_pages_per_visit: similarwebPagesPerVisitTool,
   similarweb_visit_duration: similarwebVisitDurationTool,
+  sixtyfour_find_phone: sixtyfourFindPhoneTool,
+  sixtyfour_find_email: sixtyfourFindEmailTool,
+  sixtyfour_enrich_lead: sixtyfourEnrichLeadTool,
+  sixtyfour_enrich_company: sixtyfourEnrichCompanyTool,
   servicenow_create_record: servicenowCreateRecordTool,
   servicenow_read_record: servicenowReadRecordTool,
   servicenow_update_record: servicenowUpdateRecordTool,
