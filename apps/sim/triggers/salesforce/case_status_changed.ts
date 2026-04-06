@@ -1,6 +1,7 @@
 import { SalesforceIcon } from '@/components/icons'
 import { buildTriggerSubBlocks } from '@/triggers'
 import {
+  buildSalesforceAuthOnlyFields,
   buildSalesforceCaseStatusOutputs,
   salesforceSetupInstructions,
   salesforceTriggerOptions,
@@ -22,6 +23,7 @@ export const salesforceCaseStatusChangedTrigger: TriggerConfig = {
     triggerId: 'salesforce_case_status_changed',
     triggerOptions: salesforceTriggerOptions,
     setupInstructions: salesforceSetupInstructions('Case Status Changed'),
+    extraFields: buildSalesforceAuthOnlyFields('salesforce_case_status_changed'),
   }),
 
   outputs: buildSalesforceCaseStatusOutputs(),

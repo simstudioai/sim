@@ -13,34 +13,190 @@ export const salesforceTriggerOptions = [
   { label: 'Generic Webhook (All Events)', id: 'salesforce_webhook' },
 ]
 
+function normalizeToken(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_')
+}
+
+function payloadObjectType(body: Record<string, unknown>): string | undefined {
+  const direct =
+    (typeof body.objectType === 'string' && body.objectType) ||
+    (typeof body.sobjectType === 'string' && body.sobjectType) ||
+    undefined
+  if (direct) {
+    return direct
+  }
+  const attrs = body.attributes as Record<string, unknown> | undefined
+  if (typeof attrs?.type === 'string') {
+    return attrs.type
+  }
+  const record = body.record
+  if (record && typeof record === 'object' && !Array.isArray(record)) {
+    const r = record as Record<string, unknown>
+    if (typeof r.sobjectType === 'string') {
+      return r.sobjectType
+    }
+    const ra = r.attributes as Record<string, unknown> | undefined
+    if (typeof ra?.type === 'string') {
+      return ra.type
+    }
+  }
+  return undefined
+}
+
+const RECORD_CREATED = new Set([
+  'record_created',
+  'created',
+  'create',
+  'after_insert',
+  'afterinsert',
+  'insert',
+])
+
+const RECORD_UPDATED = new Set([
+  'record_updated',
+  'updated',
+  'update',
+  'after_update',
+  'afterupdate',
+])
+
+const RECORD_DELETED = new Set([
+  'record_deleted',
+  'deleted',
+  'delete',
+  'after_delete',
+  'afterdelete',
+])
+
+const OPP_STAGE = new Set([
+  'opportunity_stage_changed',
+  'stage_changed',
+  'stage_change',
+  'opportunity_stage_change',
+  'opportunitystagechanged',
+])
+
+const CASE_STATUS = new Set([
+  'case_status_changed',
+  'status_changed',
+  'status_change',
+  'case_status_change',
+  'casestatuschanged',
+])
+
+function matchesRecordTrigger(triggerId: string, normalizedEvent: string): boolean {
+  if (triggerId === 'salesforce_record_created') {
+    return RECORD_CREATED.has(normalizedEvent)
+  }
+  if (triggerId === 'salesforce_record_updated') {
+    return RECORD_UPDATED.has(normalizedEvent)
+  }
+  if (triggerId === 'salesforce_record_deleted') {
+    return RECORD_DELETED.has(normalizedEvent)
+  }
+  return false
+}
+
+/**
+ * Server-side filter for Salesforce Flow (JSON) payloads.
+ * Users should send a string `eventType` (or `simEventType`) from the Flow body.
+ * Optional `objectType` in provider config is enforced against payload when set.
+ */
+export function isSalesforceEventMatch(
+  triggerId: string,
+  body: Record<string, unknown>,
+  configuredObjectType?: string
+): boolean {
+  if (triggerId === 'salesforce_webhook') {
+    const want = configuredObjectType?.trim()
+    if (!want) {
+      return true
+    }
+    const got = payloadObjectType(body)
+    if (!got) {
+      return false
+    }
+    return normalizeToken(got) === normalizeToken(want)
+  }
+
+  const wantType = configuredObjectType?.trim()
+  const gotType = payloadObjectType(body)
+  if (wantType && gotType && normalizeToken(gotType) !== normalizeToken(wantType)) {
+    return false
+  }
+
+  if (triggerId === 'salesforce_opportunity_stage_changed') {
+    if (gotType && normalizeToken(gotType) !== 'opportunity') {
+      return false
+    }
+    const etRaw =
+      (typeof body.eventType === 'string' && body.eventType) ||
+      (typeof body.simEventType === 'string' && body.simEventType) ||
+      ''
+    if (!etRaw.trim()) {
+      return Boolean(gotType && normalizeToken(gotType) === 'opportunity')
+    }
+    return OPP_STAGE.has(normalizeToken(etRaw))
+  }
+
+  if (triggerId === 'salesforce_case_status_changed') {
+    if (gotType && normalizeToken(gotType) !== 'case') {
+      return false
+    }
+    const etRaw =
+      (typeof body.eventType === 'string' && body.eventType) ||
+      (typeof body.simEventType === 'string' && body.simEventType) ||
+      ''
+    if (!etRaw.trim()) {
+      return Boolean(gotType && normalizeToken(gotType) === 'case')
+    }
+    return CASE_STATUS.has(normalizeToken(etRaw))
+  }
+
+  const etRaw =
+    (typeof body.eventType === 'string' && body.eventType) ||
+    (typeof body.simEventType === 'string' && body.simEventType) ||
+    ''
+
+  if (!etRaw.trim()) {
+    return false
+  }
+
+  const normalized = normalizeToken(etRaw)
+  return matchesRecordTrigger(triggerId, normalized)
+}
+
 /**
  * Generates HTML setup instructions for the Salesforce trigger.
- * Salesforce has no native webhook API — users must configure
- * Flow HTTP Callouts or Outbound Messages manually.
+ * Use Flow HTTP Callouts with a JSON body. Outbound Messages are SOAP/XML and are not supported.
  */
 export function salesforceSetupInstructions(eventType: string): string {
   const isGeneric = eventType === 'All Events'
 
   const instructions = isGeneric
     ? [
-        'Copy the <strong>Webhook URL</strong> above.',
+        'Copy the <strong>Webhook URL</strong> above and generate a <strong>Webhook Secret</strong> (any strong random string). Paste the secret in the <strong>Webhook Secret</strong> field here.',
+        'In your Flow’s HTTP Callout, set header <code>Authorization: Bearer &lt;your secret&gt;</code> or <code>X-Sim-Webhook-Secret: &lt;your secret&gt;</code> (same value).',
         'In Salesforce, go to <strong>Setup → Flows</strong> and click <strong>New Flow</strong>.',
         'Select <strong>Record-Triggered Flow</strong> and choose the object(s) you want to monitor.',
-        'Add an <strong>HTTP Callout</strong> action — set the method to <strong>POST</strong> and paste the webhook URL.',
-        'In the request body, include the record fields you want sent as <strong>JSON</strong> (e.g., Id, Name, and any relevant fields).',
-        'Repeat for each object type you want to send events for.',
+        'Add an <strong>Action</strong> that performs an <strong>HTTP Callout</strong> — method <strong>POST</strong>, <code>Content-Type: application/json</code>, and paste the webhook URL.',
+        'Build the request body as <strong>JSON</strong> (not SOAP/XML). Include <code>eventType</code> and record fields (e.g. <code>Id</code>, <code>Name</code>). Outbound Messages use SOAP and will not work with this trigger.',
         'Save and <strong>Activate</strong> the Flow(s).',
+        '<strong>Save this trigger in Sim first</strong> so the URL is registered; Salesforce connectivity checks may arrive before the Flow runs.',
         'Click <strong>"Save"</strong> above to activate your trigger.',
       ]
     : [
-        'Copy the <strong>Webhook URL</strong> above.',
+        'Copy the <strong>Webhook URL</strong> above and set a <strong>Webhook Secret</strong>. In the Flow HTTP Callout, send the same value as <code>Authorization: Bearer …</code> or <code>X-Sim-Webhook-Secret: …</code>.',
         'In Salesforce, go to <strong>Setup → Flows</strong> and click <strong>New Flow</strong>.',
-        `Select <strong>Record-Triggered Flow</strong> and choose the object and <strong>${eventType}</strong> trigger condition.`,
-        'Add an <strong>HTTP Callout</strong> action — set the method to <strong>POST</strong> and paste the webhook URL.',
-        'In the request body, include the record fields you want sent as <strong>JSON</strong> (e.g., Id, Name, and any relevant fields).',
+        `Select <strong>Record-Triggered Flow</strong> for the right object and <strong>${eventType}</strong> as the entry condition.`,
+        'Add an <strong>HTTP Callout</strong> — <strong>POST</strong>, JSON body, URL = webhook URL.',
+        `Include <code>eventType</code> in the JSON body using a value this trigger accepts (e.g. for Record Created use <code>record_created</code>, <code>created</code>, or <code>after_insert</code>).`,
+        'Include <code>attributes.type</code> / object API name or <code>objectType</code> so filtering can run when you set Object Type above.',
         'Save and <strong>Activate</strong> the Flow.',
         'Click <strong>"Save"</strong> above to activate your trigger.',
-        '<em>Alternative: You can also use <strong>Setup → Outbound Messages</strong> with a Workflow Rule, but this sends SOAP/XML instead of JSON.</em>',
       ]
 
   return instructions
@@ -51,21 +207,42 @@ export function salesforceSetupInstructions(eventType: string): string {
     .join('')
 }
 
-/**
- * Extra fields for Salesforce triggers (object type filter).
- */
+function salesforceWebhookSecretField(triggerId: string): SubBlockConfig {
+  return {
+    id: 'webhookSecret',
+    title: 'Webhook Secret',
+    type: 'short-input',
+    placeholder: 'Generate a secret and paste it here',
+    description:
+      'Required. Use the same value in your Salesforce HTTP Callout as Bearer token or X-Sim-Webhook-Secret.',
+    password: true,
+    required: true,
+    mode: 'trigger',
+    condition: { field: 'selectedTriggerId', value: triggerId },
+  }
+}
+
+function salesforceObjectTypeField(triggerId: string): SubBlockConfig {
+  return {
+    id: 'objectType',
+    title: 'Object Type (Optional)',
+    type: 'short-input',
+    placeholder: 'e.g., Account, Contact, Opportunity',
+    description:
+      'When set, only payloads for this Salesforce object API name are accepted (matched case-insensitively).',
+    mode: 'trigger',
+    condition: { field: 'selectedTriggerId', value: triggerId },
+  }
+}
+
+/** Secret + optional object filter (record triggers and generic webhook). */
 export function buildSalesforceExtraFields(triggerId: string): SubBlockConfig[] {
-  return [
-    {
-      id: 'objectType',
-      title: 'Object Type (Optional)',
-      type: 'short-input',
-      placeholder: 'e.g., Account, Contact, Lead, Opportunity',
-      description: 'Optionally filter to a specific Salesforce object type',
-      mode: 'trigger',
-      condition: { field: 'selectedTriggerId', value: triggerId },
-    },
-  ]
+  return [salesforceWebhookSecretField(triggerId), salesforceObjectTypeField(triggerId)]
+}
+
+/** Webhook secret only (Opportunity / Case specialized triggers — object is implied). */
+export function buildSalesforceAuthOnlyFields(triggerId: string): SubBlockConfig[] {
+  return [salesforceWebhookSecretField(triggerId)]
 }
 
 /**

@@ -138,6 +138,8 @@ export interface WebhookProviderHandler {
     body: unknown,
     request: NextRequest,
     requestId: string,
-    path: string
+    path: string,
+    /** Raw request body bytes (when available); required for signature checks that must match the provider (e.g. Zoom). */
+    rawBody?: string
   ): Promise<NextResponse | null> | NextResponse | null
 }

@@ -26,7 +26,12 @@ export function isZoomEventMatch(triggerId: string, event: string): boolean {
     return false
   }
 
-  return allowedEvents.includes(event)
+  const ev = event?.trim()
+  if (!ev) {
+    return false
+  }
+
+  return allowedEvents.includes(ev)
 }
 
 /**
@@ -64,7 +69,7 @@ export function zoomSetupInstructions(eventType: ZoomEventType): string {
 
   const instructions = [
     'Copy the <strong>Webhook URL</strong> above.',
-    'Go to the <a href="https://marketplace.zoom.us/" target="_blank" rel="noopener noreferrer">Zoom Marketplace</a> and open your app (or create a new Webhook Only app).',
+    'Go to the <a href="https://marketplace.zoom.us/" target="_blank" rel="noopener noreferrer">Zoom Marketplace</a> and create or open a <strong>Webhook-only</strong> or general app with <strong>Event Subscriptions</strong> enabled (Meeting / Recording events as needed). Admin approval may be required for account-level webhooks.',
     "Copy the <strong>Secret Token</strong> from your Zoom app's <strong>Features</strong> page and paste it in the <strong>Secret Token</strong> field above.",
     'Click <strong>"Save Configuration"</strong> above to activate the trigger.',
     'Navigate to <strong>Features > Event Subscriptions</strong> and click <strong>Add Event Subscription</strong>.',
