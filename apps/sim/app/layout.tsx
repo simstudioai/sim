@@ -6,7 +6,7 @@ import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
 import { generateBrandedMetadata, generateThemeCSS } from '@/ee/whitelabeling'
 import '@/app/_styles/globals.css'
 import { OneDollarStats } from '@/components/analytics/onedollarstats'
-import { isReactGrabEnabled, isReactScanEnabled } from '@/lib/core/config/feature-flags'
+import { isHosted, isReactGrabEnabled, isReactScanEnabled } from '@/lib/core/config/feature-flags'
 import { HydrationErrorHandler } from '@/app/_shell/hydration-error-handler'
 import { QueryProvider } from '@/app/_shell/providers/query-provider'
 import { SessionProvider } from '@/app/_shell/providers/session-provider'
@@ -24,6 +24,9 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = generateBrandedMetadata()
+
+const GTM_ID = 'GTM-T7PHSRX5' as const
+const GA_ID = 'G-DR7YBE70VS' as const
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const themeCSS = generateThemeCSS()
@@ -208,9 +211,54 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel='dns-prefetch' href='https://assets.onedollarstats.com' />
         <script defer src='https://assets.onedollarstats.com/stonks.js' />
 
+        {/* Google Tag Manager — hosted only */}
+        {isHosted && (
+          <Script
+            id='gtm'
+            strategy='afterInteractive'
+            dangerouslySetInnerHTML={{
+              __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','${GTM_ID}');`,
+            }}
+          />
+        )}
+
+        {/* Google Analytics (gtag.js) — hosted only */}
+        {isHosted && (
+          <>
+            <Script
+              id='gtag-src'
+              src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
+              strategy='afterInteractive'
+            />
+            <Script
+              id='gtag-init'
+              strategy='afterInteractive'
+              dangerouslySetInnerHTML={{
+                __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}');`,
+              }}
+            />
+          </>
+        )}
+
         <PublicEnvScript />
       </head>
       <body className={`${season.variable} font-season`} suppressHydrationWarning>
+        {/* Google Tag Manager (noscript) — hosted only */}
+        {isHosted && (
+          <noscript>
+            <iframe
+              src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
+              title='Google Tag Manager'
+              height='0'
+              width='0'
+              className='invisible hidden'
+            />
+          </noscript>
+        )}
         <HydrationErrorHandler />
         <OneDollarStats />
         <PostHogProvider>
