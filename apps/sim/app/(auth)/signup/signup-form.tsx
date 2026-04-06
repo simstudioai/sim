@@ -262,7 +262,7 @@ function SignupFormContent({
           token = await widget.getResponsePromise()
         } catch {
           captureEvent(posthog, 'signup_failed', {
-            reason: 'captcha_client_failure',
+            error_code: 'captcha_client_failure',
           })
           setFormError('Captcha verification failed. Please try again.')
           setIsLoading(false)
@@ -287,9 +287,9 @@ function SignupFormContent({
             logger.error('Signup error:', ctx.error)
             const errorMessage: string[] = ['Failed to create account']
 
-            let reason = 'unknown'
+            let errorCode = 'unknown'
             if (ctx.error.code?.includes('USER_ALREADY_EXISTS')) {
-              reason = 'user_already_exists'
+              errorCode = 'user_already_exists'
               errorMessage.push(
                 'An account with this email already exists. Please sign in instead.'
               )
@@ -298,30 +298,30 @@ function SignupFormContent({
               ctx.error.code?.includes('BAD_REQUEST') ||
               ctx.error.message?.includes('Email and password sign up is not enabled')
             ) {
-              reason = 'signup_disabled'
+              errorCode = 'signup_disabled'
               errorMessage.push('Email signup is currently disabled.')
               setEmailError(errorMessage[0])
             } else if (ctx.error.code?.includes('INVALID_EMAIL')) {
-              reason = 'invalid_email'
+              errorCode = 'invalid_email'
               errorMessage.push('Please enter a valid email address.')
               setEmailError(errorMessage[0])
             } else if (ctx.error.code?.includes('PASSWORD_TOO_SHORT')) {
-              reason = 'password_too_short'
+              errorCode = 'password_too_short'
               errorMessage.push('Password must be at least 8 characters long.')
               setPasswordErrors(errorMessage)
               setShowValidationError(true)
             } else if (ctx.error.code?.includes('PASSWORD_TOO_LONG')) {
-              reason = 'password_too_long'
+              errorCode = 'password_too_long'
               errorMessage.push('Password must be less than 128 characters long.')
               setPasswordErrors(errorMessage)
               setShowValidationError(true)
             } else if (ctx.error.code?.includes('network')) {
-              reason = 'network_error'
+              errorCode = 'network_error'
               errorMessage.push('Network error. Please check your connection and try again.')
               setPasswordErrors(errorMessage)
               setShowValidationError(true)
             } else if (ctx.error.code?.includes('rate limit')) {
-              reason = 'rate_limited'
+              errorCode = 'rate_limited'
               errorMessage.push('Too many requests. Please wait a moment before trying again.')
               setPasswordErrors(errorMessage)
               setShowValidationError(true)
@@ -330,10 +330,7 @@ function SignupFormContent({
               setShowValidationError(true)
             }
 
-            captureEvent(posthog, 'signup_failed', {
-              reason,
-              error_code: ctx.error.code,
-            })
+            captureEvent(posthog, 'signup_failed', { error_code: errorCode })
           },
         }
       )
@@ -362,8 +359,7 @@ function SignupFormContent({
     } catch (error) {
       logger.error('Signup error:', error)
       captureEvent(posthog, 'signup_failed', {
-        reason: 'unexpected_error',
-        error_code: error instanceof Error ? error.message : undefined,
+        error_code: 'unexpected_error',
       })
       setIsLoading(false)
     }

@@ -17,8 +17,7 @@ export interface PostHogEventMap {
   signup_page_viewed: Record<string, never>
 
   signup_failed: {
-    reason: string
-    error_code?: string
+    error_code: string
   }
 
   subscription_created: {
