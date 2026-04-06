@@ -185,7 +185,9 @@ export async function createChunk(
     kbOllamaBaseUrl
   )
 
-  const tokenCount = estimateTokenCount(chunkData.content, 'openai')
+  const tokenCount = isOllama
+    ? { count: Math.ceil(chunkData.content.length / 3) }
+    : estimateTokenCount(chunkData.content, 'openai')
   const chunkId = generateId()
   const now = new Date()
 
@@ -549,7 +551,9 @@ export async function updateChunk(
           kbOllamaBaseUrl
         )
         newEmbedding = embeddings[0]
-        newTokenCount = estimateTokenCount(content, 'openai').count
+        newTokenCount = isOllama
+          ? Math.ceil(content.length / 3)
+          : estimateTokenCount(content, 'openai').count
       }
 
       const newHash = createHash('sha256').update(content).digest('hex')
