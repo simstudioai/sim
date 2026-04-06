@@ -264,7 +264,7 @@ export interface ParsedSSEChunk {
   /** Final success flag if this chunk contains the final event */
   finalSuccess?: boolean
   /** Terminal task state if known */
-  terminalState?: 'completed' | 'failed' | 'canceled'
+  terminalState?: 'completed' | 'failed' | 'canceled' | 'input-required'
   /** Final artifacts if present on terminal event */
   finalArtifacts?: Artifact[]
   /** Whether this chunk indicates the stream is done */
@@ -325,6 +325,15 @@ export function parseWorkflowSSEChunk(chunk: string): ParsedSSEChunk {
         result.finalArtifacts = (parsed.data?.output?.artifacts as Artifact[] | undefined) || []
         result.finalSuccess = parsed.data?.success !== false
         result.terminalState = result.finalSuccess ? 'completed' : 'failed'
+        result.isDone = true
+      } else if (parsed.type === 'execution:paused') {
+        if (parsed.data?.output?.content) {
+          result.finalContent = parsed.data.output.content
+        } else if (parsed.data?.output) {
+          result.finalContent = JSON.stringify(parsed.data.output)
+        }
+        result.finalSuccess = true
+        result.terminalState = 'input-required'
         result.isDone = true
       } else if (parsed.type === 'execution:cancelled') {
         result.finalSuccess = false

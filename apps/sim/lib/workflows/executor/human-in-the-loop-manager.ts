@@ -292,7 +292,7 @@ export class PauseResumeManager {
     })
   }
 
-  static async startResumeExecution(args: StartResumeExecutionArgs): Promise<void> {
+  static async startResumeExecution(args: StartResumeExecutionArgs): Promise<ExecutionResult> {
     const { resumeEntryId, resumeExecutionId, pausedExecution, contextId, resumeInput, userId } =
       args
 
@@ -357,6 +357,8 @@ export class PauseResumeManager {
       })
 
       await PauseResumeManager.processQueuedResumes(pausedExecution.executionId)
+
+      return result
     } catch (error) {
       await PauseResumeManager.markResumeFailed({
         resumeEntryId,
@@ -995,6 +997,20 @@ export class PauseResumeManager {
           data: { duration: result.metadata?.duration || 0 },
         } as ExecutionEvent)
         finalMetaStatus = 'cancelled'
+      } else if (result.status === 'paused') {
+        writeBufferedEvent({
+          type: 'execution:paused',
+          timestamp: new Date().toISOString(),
+          executionId: resumeExecutionId,
+          workflowId,
+          data: {
+            output: result.output,
+            duration: result.metadata?.duration || 0,
+            startTime: result.metadata?.startTime || new Date().toISOString(),
+            endTime: result.metadata?.endTime || new Date().toISOString(),
+          },
+        } as ExecutionEvent)
+        finalMetaStatus = 'complete'
       } else {
         writeBufferedEvent({
           type: 'execution:completed',

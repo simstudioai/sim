@@ -8,6 +8,7 @@ import type { SubflowType } from '@/stores/workflows/workflow/types'
 export type ExecutionEventType =
   | 'execution:started'
   | 'execution:completed'
+  | 'execution:paused'
   | 'execution:error'
   | 'execution:cancelled'
   | 'block:started'
@@ -46,6 +47,20 @@ export interface ExecutionCompletedEvent extends BaseExecutionEvent {
   workflowId: string
   data: {
     success: boolean
+    output: any
+    duration: number
+    startTime: string
+    endTime: string
+  }
+}
+
+/**
+ * Execution paused event (HITL block waiting for human input)
+ */
+export interface ExecutionPausedEvent extends BaseExecutionEvent {
+  type: 'execution:paused'
+  workflowId: string
+  data: {
     output: any
     duration: number
     startTime: string
@@ -196,6 +211,7 @@ export interface StreamDoneEvent extends BaseExecutionEvent {
 export type ExecutionEvent =
   | ExecutionStartedEvent
   | ExecutionCompletedEvent
+  | ExecutionPausedEvent
   | ExecutionErrorEvent
   | ExecutionCancelledEvent
   | BlockStartedEvent
@@ -207,6 +223,7 @@ export type ExecutionEvent =
 
 export type ExecutionStartedData = ExecutionStartedEvent['data']
 export type ExecutionCompletedData = ExecutionCompletedEvent['data']
+export type ExecutionPausedData = ExecutionPausedEvent['data']
 export type ExecutionErrorData = ExecutionErrorEvent['data']
 export type ExecutionCancelledData = ExecutionCancelledEvent['data']
 export type BlockStartedData = BlockStartedEvent['data']

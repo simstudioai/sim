@@ -216,6 +216,20 @@ export async function executeQueuedWorkflowJob(
           },
         })
         await setExecutionMeta(executionId, { status: 'cancelled' })
+      } else if (result.status === 'paused') {
+        await eventWriter.write({
+          type: 'execution:paused',
+          timestamp: new Date().toISOString(),
+          executionId,
+          workflowId,
+          data: {
+            output: outputWithBase64,
+            duration: result.metadata?.duration || 0,
+            startTime: result.metadata?.startTime || metadata.startTime,
+            endTime: result.metadata?.endTime || new Date().toISOString(),
+          },
+        })
+        await setExecutionMeta(executionId, { status: 'complete' })
       } else {
         await eventWriter.write({
           type: 'execution:completed',

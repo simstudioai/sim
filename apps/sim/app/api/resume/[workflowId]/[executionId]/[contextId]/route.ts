@@ -132,14 +132,36 @@ export async function POST(
       workflowId,
     })
 
-    PauseResumeManager.startResumeExecution({
+    const resumeArgs = {
       resumeEntryId: enqueueResult.resumeEntryId,
       resumeExecutionId: enqueueResult.resumeExecutionId,
       pausedExecution: enqueueResult.pausedExecution,
       contextId: enqueueResult.contextId,
       resumeInput: enqueueResult.resumeInput,
       userId: enqueueResult.userId,
-    }).catch((error) => {
+    }
+
+    const isApiCaller = access.auth?.authType === AuthType.API_KEY
+
+    if (isApiCaller) {
+      const result = await PauseResumeManager.startResumeExecution(resumeArgs)
+
+      return NextResponse.json({
+        success: result.success,
+        executionId: enqueueResult.resumeExecutionId,
+        output: result.output,
+        error: result.error,
+        metadata: result.metadata
+          ? {
+              duration: result.metadata.duration,
+              startTime: result.metadata.startTime,
+              endTime: result.metadata.endTime,
+            }
+          : undefined,
+      })
+    }
+
+    PauseResumeManager.startResumeExecution(resumeArgs).catch((error) => {
       logger.error('Failed to start resume execution', {
         workflowId,
         parentExecutionId: executionId,
