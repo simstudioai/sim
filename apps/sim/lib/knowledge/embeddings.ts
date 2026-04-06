@@ -17,6 +17,34 @@ export function getOllamaBaseUrl(explicit?: string | null): string {
   return explicit || env.OLLAMA_URL || 'http://localhost:11434'
 }
 
+/**
+ * Validate that an Ollama base URL points to a safe, local or private-network destination.
+ * Used at KB creation time and re-applied to stored URLs before outbound requests.
+ */
+export function isAllowedOllamaUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+    const hostname = parsed.hostname.toLowerCase()
+    if (hostname === '169.254.169.254' || hostname === 'metadata.google.internal') return false
+    if (hostname.startsWith('[') && hostname !== '[::1]') return false
+    if (hostname === 'localhost' || hostname === '[::1]') return true
+    const ipv4 = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/
+    if (ipv4.test(hostname)) {
+      if (hostname.startsWith('127.') || hostname.startsWith('10.') || hostname.startsWith('192.168.')) return true
+      if (hostname.startsWith('172.')) {
+        const second = Number.parseInt(hostname.split('.')[1], 10)
+        if (second >= 16 && second <= 31) return true
+      }
+      return false
+    }
+    if (!hostname.includes('.') || hostname === 'host.docker.internal') return true
+    return false
+  } catch {
+    return false
+  }
+}
+
 /** Default context length for Ollama embedding models when it cannot be queried */
 const OLLAMA_DEFAULT_CONTEXT_LENGTH = 2048
 /** Default embedding dimension for Ollama models when it cannot be queried */
@@ -427,8 +455,10 @@ export async function generateEmbeddings(
         allEmbeddings.push(emb)
       }
     }
-    // Ollama doesn't report token counts or use API keys
-    return { embeddings: allEmbeddings, totalTokens: 0, isBYOK: false, modelName }
+    // Ollama doesn't report token counts or use API keys.
+    // Return the full prefixed model string (e.g. "ollama/nomic-embed-text") so callers
+    // store a name consistent with the KB-level embeddingModel field.
+    return { embeddings: allEmbeddings, totalTokens: 0, isBYOK: false, modelName: embeddingModel }
   }
 
   const config = await getEmbeddingConfig(embeddingModel, workspaceId)

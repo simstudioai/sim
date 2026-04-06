@@ -39,7 +39,11 @@ import {
   insertKBEmbeddings,
   parseEmbeddingModel,
 } from '@/lib/knowledge/dynamic-tables'
-import { generateEmbeddings, getOllamaModelContextLength } from '@/lib/knowledge/embeddings'
+import {
+  generateEmbeddings,
+  getOllamaModelContextLength,
+  isAllowedOllamaUrl,
+} from '@/lib/knowledge/embeddings'
 import {
   buildUndefinedTagsError,
   parseBooleanValue,
@@ -485,6 +489,12 @@ export async function processDocumentAsync(
     let effectiveOverlap = processingOptions.chunkOverlap ?? kbConfig.overlap
     let ollamaContextLength: number | undefined
     if (embeddingProvider === 'ollama') {
+      if (kbConfig.ollamaBaseUrl && !isAllowedOllamaUrl(kbConfig.ollamaBaseUrl)) {
+        throw new Error(
+          `Knowledge base has a disallowed Ollama URL: ${kbConfig.ollamaBaseUrl}. ` +
+            'The URL must point to localhost, a private network address, or a Docker service hostname.'
+        )
+      }
       ollamaContextLength = await getOllamaModelContextLength(
         kbModelName,
         kbConfig.ollamaBaseUrl

@@ -11,7 +11,7 @@ import type {
   ChunkQueryResult,
   CreateChunkData,
 } from '@/lib/knowledge/chunks/types'
-import { generateEmbeddings } from '@/lib/knowledge/embeddings'
+import { generateEmbeddings, isAllowedOllamaUrl } from '@/lib/knowledge/embeddings'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 
 const logger = createLogger('ChunksService')
@@ -110,8 +110,30 @@ export async function createChunk(
   requestId: string,
   workspaceId?: string | null
 ): Promise<ChunkData> {
+  // Look up KB embedding config so we use the right provider and model
+  const kbRows = await db
+    .select({ embeddingModel: knowledgeBase.embeddingModel, chunkingConfig: knowledgeBase.chunkingConfig })
+    .from(knowledgeBase)
+    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+    .limit(1)
+
+  if (kbRows.length === 0) throw new Error(`Knowledge base not found: ${knowledgeBaseId}`)
+
+  const kbEmbeddingModel = kbRows[0].embeddingModel
+  const rawKbCfg = kbRows[0].chunkingConfig as { ollamaBaseUrl?: string } | null
+  const kbOllamaBaseUrl = rawKbCfg?.ollamaBaseUrl
+
+  if (kbOllamaBaseUrl && !isAllowedOllamaUrl(kbOllamaBaseUrl)) {
+    throw new Error(`Knowledge base has a disallowed Ollama URL: ${kbOllamaBaseUrl}`)
+  }
+
   logger.info(`[${requestId}] Generating embedding for manual chunk`)
-  const { embeddings } = await generateEmbeddings([chunkData.content], undefined, workspaceId)
+  const { embeddings, modelName: usedModel } = await generateEmbeddings(
+    [chunkData.content],
+    kbEmbeddingModel,
+    workspaceId,
+    kbOllamaBaseUrl
+  )
 
   // Calculate accurate token count
   const tokenCount = estimateTokenCount(chunkData.content, 'openai')
@@ -160,7 +182,7 @@ export async function createChunk(
       contentLength: chunkData.content.length,
       tokenCount: tokenCount.count,
       embedding: embeddings[0],
-      embeddingModel: 'text-embedding-3-small',
+      embeddingModel: usedModel,
       startOffset: 0, // Manual chunks don't have document offsets
       endOffset: chunkData.content.length,
       // Inherit text tags from parent document
@@ -339,6 +361,7 @@ export async function updateChunk(
       const currentChunk = await tx
         .select({
           documentId: embedding.documentId,
+          knowledgeBaseId: embedding.knowledgeBaseId,
           content: embedding.content,
           contentLength: embedding.contentLength,
           tokenCount: embedding.tokenCount,
@@ -360,7 +383,22 @@ export async function updateChunk(
       if (content !== currentChunk[0].content) {
         logger.info(`[${requestId}] Content changed, regenerating embedding for chunk ${chunkId}`)
 
-        const { embeddings } = await generateEmbeddings([content], undefined, workspaceId)
+        // Look up KB embedding config so we use the right provider and model
+        const kbForChunk = await tx
+          .select({ embeddingModel: knowledgeBase.embeddingModel, chunkingConfig: knowledgeBase.chunkingConfig })
+          .from(knowledgeBase)
+          .where(and(eq(knowledgeBase.id, currentChunk[0].knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+          .limit(1)
+
+        const chunkKbModel = kbForChunk[0]?.embeddingModel ?? 'text-embedding-3-small'
+        const chunkRawCfg = kbForChunk[0]?.chunkingConfig as { ollamaBaseUrl?: string } | null
+        const chunkOllamaUrl = chunkRawCfg?.ollamaBaseUrl
+
+        if (chunkOllamaUrl && !isAllowedOllamaUrl(chunkOllamaUrl)) {
+          throw new Error(`Knowledge base has a disallowed Ollama URL: ${chunkOllamaUrl}`)
+        }
+
+        const { embeddings } = await generateEmbeddings([content], chunkKbModel, workspaceId, chunkOllamaUrl)
 
         // Calculate accurate token count
         const tokenCount = estimateTokenCount(content, 'openai')

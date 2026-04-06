@@ -13,7 +13,7 @@ import {
   searchKBTable,
   searchKBTableTagOnly,
 } from '@/lib/knowledge/dynamic-tables'
-import { generateSearchEmbedding, getOllamaBaseUrl } from '@/lib/knowledge/embeddings'
+import { generateSearchEmbedding, getOllamaBaseUrl, isAllowedOllamaUrl } from '@/lib/knowledge/embeddings'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
 import type { ExtendedChunkingConfig, StructuredFilter } from '@/lib/knowledge/types'
@@ -327,8 +327,13 @@ export async function POST(request: NextRequest) {
         const uniquePairs = new Map<string, { modelName: string; ollamaBaseUrl: string }>()
         for (const kbId of ollamaKbIds) {
           const config = kbConfigMap.get(kbId)!
-          const cfg = config.chunkingConfig as ExtendedChunkingConfig
+          const cfg = (config.chunkingConfig ?? {}) as ExtendedChunkingConfig
           const { modelName } = parseEmbeddingModel(config.embeddingModel)
+          // Re-validate stored URL against SSRF allowlist before making outbound requests
+          if (cfg.ollamaBaseUrl && !isAllowedOllamaUrl(cfg.ollamaBaseUrl)) {
+            logger.warn(`[${requestId}] Blocked disallowed Ollama URL for KB ${kbId}: ${cfg.ollamaBaseUrl}`)
+            continue
+          }
           const baseUrl = getOllamaBaseUrl(cfg.ollamaBaseUrl)
           uniquePairs.set(`${modelName}:${baseUrl}`, { modelName, ollamaBaseUrl: baseUrl })
         }
@@ -388,7 +393,7 @@ export async function POST(request: NextRequest) {
       // Ollama KBs — per-KB table search
       for (const kbId of ollamaKbIds) {
         const config = kbConfigMap.get(kbId)!
-        const cfg = config.chunkingConfig as ExtendedChunkingConfig
+        const cfg = (config.chunkingConfig ?? {}) as ExtendedChunkingConfig
         const { modelName } = parseEmbeddingModel(config.embeddingModel)
         const baseUrl = getOllamaBaseUrl(cfg.ollamaBaseUrl)
         const pairKey = `${modelName}:${baseUrl}`

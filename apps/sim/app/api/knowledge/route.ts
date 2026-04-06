@@ -10,7 +10,7 @@ import {
   dropKBEmbeddingTable,
   parseEmbeddingModel,
 } from '@/lib/knowledge/dynamic-tables'
-import { getOllamaBaseUrl, validateOllamaModel } from '@/lib/knowledge/embeddings'
+import { getOllamaBaseUrl, isAllowedOllamaUrl, validateOllamaModel } from '@/lib/knowledge/embeddings'
 import {
   createKnowledgeBase,
   getKnowledgeBases,
@@ -45,60 +45,10 @@ const CreateKnowledgeBaseSchema = z.object({
   ollamaBaseUrl: z
     .string()
     .url('Ollama base URL must be a valid URL')
-    .refine(
-      (url) => {
-        try {
-          const parsed = new URL(url)
-          // Only allow http/https schemes
-          if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-            return false
-          }
-          const hostname = parsed.hostname.toLowerCase()
-          // Block known cloud metadata endpoints
-          if (hostname === '169.254.169.254' || hostname === 'metadata.google.internal') {
-            return false
-          }
-          // Block IPv6 addresses (except loopback) — prevents IPv6-mapped IPv4 bypass
-          // URL.hostname keeps brackets for IPv6, e.g. "[::ffff:169.254.169.254]"
-          if (hostname.startsWith('[') && hostname !== '[::1]') {
-            return false
-          }
-          // Allow localhost and IPv6 loopback
-          if (hostname === 'localhost' || hostname === '[::1]') {
-            return true
-          }
-          // Allow private IPv4 ranges — only match actual IPs, not domains like "10.evil.com"
-          const ipv4 = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/
-          if (ipv4.test(hostname)) {
-            if (
-              hostname.startsWith('127.') ||
-              hostname.startsWith('10.') ||
-              hostname.startsWith('192.168.')
-            ) {
-              return true
-            }
-            if (hostname.startsWith('172.')) {
-              const second = Number.parseInt(hostname.split('.')[1], 10)
-              if (second >= 16 && second <= 31) return true
-            }
-            return false
-          }
-          // Allow Docker service hostnames (no dots = not a public domain, e.g. "ollama")
-          // or the well-known Docker Desktop host alias. Do NOT allow all *.internal domains —
-          // they are not universally restricted and could be DNS-resolved to cloud metadata IPs.
-          if (!hostname.includes('.') || hostname === 'host.docker.internal') {
-            return true
-          }
-          return false
-        } catch {
-          return false
-        }
-      },
-      {
-        message:
-          'Ollama base URL must point to localhost, a private network address, or a Docker service hostname',
-      }
-    )
+    .refine(isAllowedOllamaUrl, {
+      message:
+        'Ollama base URL must point to localhost, a private network address, or a Docker service hostname',
+    })
     .optional(),
   chunkingConfig: z
     .object({
