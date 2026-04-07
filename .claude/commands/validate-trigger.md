@@ -31,7 +31,7 @@ Also read for reference:
 ```
 apps/sim/lib/webhooks/providers/types.ts            # WebhookProviderHandler interface
 apps/sim/lib/webhooks/providers/utils.ts            # Shared helpers (createHmacVerifier, etc.)
-apps/sim/lib/webhooks/providers/subscription-utils.ts  # Subscription helpers
+apps/sim/lib/webhooks/provider-subscription-utils.ts    # Subscription helpers
 apps/sim/lib/webhooks/processor.ts                  # Central webhook processor
 ```
 

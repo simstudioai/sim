@@ -24,12 +24,13 @@ apps/sim/triggers/{service}/
 ├── {event_b}.ts          # Secondary trigger (no dropdown)
 └── webhook.ts            # Generic webhook trigger (optional, for "all events")
 
-apps/sim/lib/webhooks/providers/
-├── {service}.ts           # Provider handler (auth, formatInput, matchEvent, subscriptions)
-├── types.ts               # WebhookProviderHandler interface
-├── utils.ts               # Shared helpers (createHmacVerifier, verifyTokenAuth, skipByEventTypes)
-├── subscription-utils.ts  # Shared subscription helpers (getProviderConfig, getNotificationUrl)
-└── registry.ts            # Handler map + default handler
+apps/sim/lib/webhooks/
+├── provider-subscription-utils.ts  # Shared subscription helpers (getProviderConfig, getNotificationUrl)
+├── providers/
+│   ├── {service}.ts       # Provider handler (auth, formatInput, matchEvent, subscriptions)
+│   ├── types.ts           # WebhookProviderHandler interface
+│   ├── utils.ts           # Shared helpers (createHmacVerifier, verifyTokenAuth, skipByEventTypes)
+│   └── registry.ts        # Handler map + default handler
 ```
 
 ## Step 1: Create `utils.ts`
@@ -267,7 +268,7 @@ If they differ: the tag dropdown shows fields that don't exist, or actual data h
 If the service API supports programmatic webhook creation, implement `createSubscription` and `deleteSubscription` on the handler. The orchestration layer calls these automatically — **no code touches `route.ts`, `provider-subscriptions.ts`, or `deploy.ts`**.
 
 ```typescript
-import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/providers/subscription-utils'
+import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type { DeleteSubscriptionContext, SubscriptionContext, SubscriptionResult } from '@/lib/webhooks/providers/types'
 
 export const {service}Handler: WebhookProviderHandler = {
