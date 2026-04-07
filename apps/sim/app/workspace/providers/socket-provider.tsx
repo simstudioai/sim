@@ -372,9 +372,9 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
         socketInstance.on('workflow-deleted', (data) => {
           logger.warn(`Workflow ${data.workflowId} has been deleted`)
+          deletedWorkflowIdRef.current = data.workflowId
           setCurrentWorkflowId((current) => {
             if (current === data.workflowId) {
-              deletedWorkflowIdRef.current = data.workflowId
               setPresenceUsers([])
               return null
             }
