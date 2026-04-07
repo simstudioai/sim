@@ -214,10 +214,10 @@ export const Dropdown = memo(function Dropdown({
   const handleOpenChange = useCallback(
     (open: boolean) => {
       if (open) {
-        void fetchOptionsIfNeeded(true)
+        void fetchOptionsIfNeeded(Boolean(fetchError))
       }
     },
-    [fetchOptionsIfNeeded]
+    [fetchOptionsIfNeeded, fetchError]
   )
 
   const evaluatedOptions = useMemo(() => {

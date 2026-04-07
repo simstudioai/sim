@@ -473,10 +473,10 @@ export const ComboBox = memo(function ComboBox({
   const handleOpenChange = useCallback(
     (open: boolean) => {
       if (open) {
-        void fetchOptionsIfNeeded(true)
+        void fetchOptionsIfNeeded(Boolean(fetchError))
       }
     },
-    [fetchOptionsIfNeeded]
+    [fetchOptionsIfNeeded, fetchError]
   )
 
   /**
