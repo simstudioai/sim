@@ -29,7 +29,11 @@ function buildListRunsQuery(hasFilter: boolean) {
             endTime
           }
         }
-        ... on Error {
+        ... on InvalidPipelineRunsFilterError {
+          __typename
+          message
+        }
+        ... on PythonError {
           __typename
           message
         }

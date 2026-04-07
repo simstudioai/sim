@@ -15,7 +15,13 @@ const DELETE_RUN_MUTATION = `
       ... on DeletePipelineRunSuccess {
         runId
       }
-      ... on Error {
+      ... on RunNotFoundError {
+        message
+      }
+      ... on UnauthorizedError {
+        message
+      }
+      ... on PythonError {
         message
       }
     }

@@ -10,6 +10,19 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#ffffff"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[Dagster](https://dagster.io/) is an open-source data orchestration platform designed for building, testing, and monitoring data pipelines. It provides a unified model for defining data assets, scheduling jobs, and observing pipeline execution — whether running locally or deployed to Dagster+.
+
+With Dagster, you can:
+
+- **Orchestrate data pipelines**: Define and run jobs composed of ops and assets with full dependency tracking
+- **Monitor executions**: Track run status, inspect logs, and debug failures step by step
+- **Manage schedules and sensors**: Automate pipeline triggers on a cron schedule or in response to external events
+- **Reexecute selectively**: Resume failed pipelines from the point of failure without rerunning successful steps
+
+In Sim, the Dagster integration enables your agents to interact with a Dagster instance programmatically. Agents can launch and monitor job runs, retrieve execution logs, reexecute failed runs, and manage schedules and sensors — all as part of a larger automated workflow. Use Dagster as an orchestration layer your agents can control and observe, enabling data-driven automation that responds dynamically to pipeline outcomes.
+{/* MANUAL-CONTENT-END */}
+
 ## Usage Instructions
 
 Connect to a Dagster instance to launch job runs, monitor run status, list available jobs across repositories, terminate or delete runs, reexecute failed runs, fetch run logs, and manage schedules and sensors. API token only required for Dagster+.

@@ -27,7 +27,11 @@ function buildListSensorsQuery(hasStatus: boolean) {
             }
           }
         }
-        ... on Error {
+        ... on RepositoryNotFoundError {
+          __typename
+          message
+        }
+        ... on PythonError {
           __typename
           message
         }

@@ -21,7 +21,15 @@ const START_SENSOR_MUTATION = `
           status
         }
       }
-      ... on Error {
+      ... on SensorNotFoundError {
+        __typename
+        message
+      }
+      ... on UnauthorizedError {
+        __typename
+        message
+      }
+      ... on PythonError {
         __typename
         message
       }

@@ -21,7 +21,11 @@ const STOP_SENSOR_MUTATION = `
           status
         }
       }
-      ... on Error {
+      ... on UnauthorizedError {
+        __typename
+        message
+      }
+      ... on PythonError {
         __typename
         message
       }

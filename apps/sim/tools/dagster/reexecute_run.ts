@@ -41,7 +41,16 @@ const REEXECUTE_RUN_MUTATION = `
           message
         }
       }
-      ... on Error {
+      ... on PipelineNotFoundError {
+        message
+      }
+      ... on RunConflict {
+        message
+      }
+      ... on UnauthorizedError {
+        message
+      }
+      ... on PythonError {
         message
       }
     }

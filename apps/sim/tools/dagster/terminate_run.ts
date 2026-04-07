@@ -24,7 +24,13 @@ const TERMINATE_RUN_MUTATION = `
         }
         message
       }
-      ... on Error {
+      ... on RunNotFoundError {
+        message
+      }
+      ... on UnauthorizedError {
+        message
+      }
+      ... on PythonError {
         message
       }
     }

@@ -13,7 +13,11 @@ const LIST_JOBS_QUERY = `
           }
         }
       }
-      ... on Error {
+      ... on RepositoryNotFoundError {
+        __typename
+        message
+      }
+      ... on PythonError {
         __typename
         message
       }

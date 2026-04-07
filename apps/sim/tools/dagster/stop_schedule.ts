@@ -15,7 +15,7 @@ interface ScheduleMutationResult {
 }
 
 const STOP_SCHEDULE_MUTATION = `
-  mutation StopSchedule($id: String!) {
+  mutation StopSchedule($id: String) {
     stopRunningSchedule(id: $id) {
       type: __typename
       ... on ScheduleStateResult {
