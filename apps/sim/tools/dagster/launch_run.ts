@@ -70,6 +70,18 @@ function buildLaunchRunMutation(hasConfig: boolean, hasTags: boolean) {
         ... on UnauthorizedError {
           message
         }
+        ... on InvalidSubsetError {
+          message
+        }
+        ... on PresetNotFoundError {
+          message
+        }
+        ... on ConflictingExecutionParamsError {
+          message
+        }
+        ... on NoModeProvidedError {
+          message
+        }
         ... on PythonError {
           message
         }
