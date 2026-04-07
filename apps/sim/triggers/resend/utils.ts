@@ -95,6 +95,7 @@ export function buildResendExtraFields(triggerId: string) {
 
 /**
  * Common fields present in all Resend email webhook payloads
+ * (see https://resend.com/docs/dashboard/webhooks/introduction — example `data` object).
  */
 const commonEmailOutputs = {
   type: {
@@ -103,11 +104,28 @@ const commonEmailOutputs = {
   },
   created_at: {
     type: 'string',
-    description: 'Event creation timestamp (ISO 8601)',
+    description: 'Webhook event creation timestamp (ISO 8601), top-level `created_at`',
+  },
+  data_created_at: {
+    type: 'string',
+    description:
+      'Email record timestamp from payload `data.created_at` (ISO 8601), when present — distinct from top-level `created_at`',
   },
   email_id: {
     type: 'string',
     description: 'Unique email identifier',
+  },
+  broadcast_id: {
+    type: 'string',
+    description: 'Broadcast ID associated with the email, when sent as part of a broadcast',
+  },
+  template_id: {
+    type: 'string',
+    description: 'Template ID used to send the email, when applicable',
+  },
+  tags: {
+    type: 'json',
+    description: 'Tag key/value metadata attached to the email (payload `data.tags`)',
   },
   from: {
     type: 'string',

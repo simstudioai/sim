@@ -84,10 +84,14 @@ function buildBaseOutputs(): Record<string, TriggerOutput> {
     workspace_name: { type: 'string', description: 'Workspace name' },
     subscription_id: { type: 'string', description: 'Webhook subscription ID' },
     integration_id: { type: 'string', description: 'Integration ID that received the event' },
-    attempt_number: { type: 'number', description: 'Delivery attempt number' },
+    attempt_number: {
+      type: 'number',
+      description: 'Delivery attempt number (1-8 per Notion retries)',
+    },
     accessible_by: {
       type: 'array',
-      description: 'Array of users and bots that can access the entity',
+      description:
+        'Users and bots with access to the entity (`id` + `type` per object); `type` is `person` or `bot`. Omitted on some deliveries (treat as empty).',
     },
   }
 }
@@ -97,8 +101,14 @@ function buildBaseOutputs(): Record<string, TriggerOutput> {
  */
 function buildEntityOutputs(): Record<string, TriggerOutput> {
   return {
-    id: { type: 'string', description: 'Entity ID (page or database ID)' },
-    entity_type: { type: 'string', description: 'Entity type (page, database, block, or comment)' },
+    id: {
+      type: 'string',
+      description: 'Entity ID (page, database, block, comment, or data source ID)',
+    },
+    entity_type: {
+      type: 'string',
+      description: 'Entity type: `page`, `database`, `block`, `comment`, or `data_source`',
+    },
   }
 }
 
@@ -110,7 +120,8 @@ export function buildPageEventOutputs(): Record<string, TriggerOutput> {
     ...buildBaseOutputs(),
     authors: {
       type: 'array',
-      description: 'Array of users who triggered the event',
+      description:
+        'Actors who triggered the event (`id` + `type` per object); `type` is `person`, `bot`, or `agent` per Notion',
     },
     entity: buildEntityOutputs(),
     data: {
@@ -123,10 +134,13 @@ export function buildPageEventOutputs(): Record<string, TriggerOutput> {
         description: 'Property IDs updated as part of the event, when provided by Notion',
       },
       parent: {
-        id: { type: 'string', description: 'Parent page or database ID' },
+        id: {
+          type: 'string',
+          description: 'Parent page, database, workspace (space), or block ID',
+        },
         parent_type: {
           type: 'string',
-          description: 'Parent type (database, page, block, or workspace)',
+          description: 'Parent type: `page`, `database`, `block`, `workspace`, or `space`',
         },
       },
     },
@@ -141,7 +155,8 @@ export function buildDatabaseEventOutputs(): Record<string, TriggerOutput> {
     ...buildBaseOutputs(),
     authors: {
       type: 'array',
-      description: 'Array of users who triggered the event',
+      description:
+        'Actors who triggered the event (`id` + `type` per object); `type` is `person`, `bot`, or `agent` per Notion',
     },
     entity: buildEntityOutputs(),
     data: {
@@ -154,8 +169,11 @@ export function buildDatabaseEventOutputs(): Record<string, TriggerOutput> {
         description: 'Database properties updated as part of the event, when provided by Notion',
       },
       parent: {
-        id: { type: 'string', description: 'Parent page or workspace ID' },
-        parent_type: { type: 'string', description: 'Parent type (page, database, or workspace)' },
+        id: { type: 'string', description: 'Parent page, database, workspace, or space ID' },
+        parent_type: {
+          type: 'string',
+          description: 'Parent type: `page`, `database`, `workspace`, or `space`',
+        },
       },
     },
   }
@@ -169,7 +187,8 @@ export function buildCommentEventOutputs(): Record<string, TriggerOutput> {
     ...buildBaseOutputs(),
     authors: {
       type: 'array',
-      description: 'Array of users who triggered the event',
+      description:
+        'Actors who triggered the event (`id` + `type` per object); `type` is `person`, `bot`, or `agent` per Notion',
     },
     entity: {
       id: { type: 'string', description: 'Comment ID' },
@@ -193,7 +212,8 @@ export function buildGenericWebhookOutputs(): Record<string, TriggerOutput> {
     ...buildBaseOutputs(),
     authors: {
       type: 'array',
-      description: 'Array of users who triggered the event',
+      description:
+        'Actors who triggered the event (`id` + `type` per object); `type` is `person`, `bot`, or `agent` per Notion',
     },
     entity: buildEntityOutputs(),
     data: {
@@ -201,7 +221,8 @@ export function buildGenericWebhookOutputs(): Record<string, TriggerOutput> {
         id: { type: 'string', description: 'Parent entity ID, when provided by Notion' },
         parent_type: {
           type: 'string',
-          description: 'Parent entity type (page, database, block, or workspace), when present',
+          description:
+            'Parent type (`page`, `database`, `block`, `workspace`, `space`, …), when present',
         },
       },
       page_id: { type: 'string', description: 'Page ID related to the event, when present' },

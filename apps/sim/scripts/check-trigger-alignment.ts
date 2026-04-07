@@ -75,6 +75,43 @@ const PROVIDER_CHECKS: Record<string, CheckFn> = {
       formatInputKeys: Object.keys(input).sort(),
     }
   },
+  resend: async () => {
+    const { buildResendOutputs } = await import('@/triggers/resend/utils')
+    const { resendHandler } = await import('@/lib/webhooks/providers/resend')
+    const outputs = buildResendOutputs() as Record<string, TriggerOutput>
+    const result = await resendHandler.formatInput!({
+      webhook: {},
+      workflow: { id: 'check-alignment', userId: 'check-alignment' },
+      body: {
+        type: 'email.bounced',
+        created_at: '2024-11-22T23:41:12.126Z',
+        data: {
+          broadcast_id: '8b146471-e88e-4322-86af-016cd36fd216',
+          created_at: '2024-11-22T23:41:11.894719+00:00',
+          email_id: '56761188-7520-42d8-8898-ff6fc54ce618',
+          from: 'Acme <onboarding@resend.dev>',
+          to: ['delivered@resend.dev'],
+          subject: 'Sending this example',
+          template_id: '43f68331-0622-4e15-8202-246a0388854b',
+          bounce: {
+            message:
+              "The recipient's email address is on the suppression list because it has a recent history of producing hard bounces.",
+            subType: 'Suppressed',
+            type: 'Permanent',
+          },
+          tags: { category: 'confirm_email' },
+        },
+      },
+      headers: {},
+      requestId: 'check-trigger-alignment',
+    })
+    const input = result.input as Record<string, unknown>
+    return {
+      referenceLabel: 'buildResendOutputs()',
+      outputKeys: Object.keys(outputs).sort(),
+      formatInputKeys: Object.keys(input).sort(),
+    }
+  },
   notion: async () => {
     const { buildPageEventOutputs } = await import('@/triggers/notion/utils')
     const { notionHandler } = await import('@/lib/webhooks/providers/notion')

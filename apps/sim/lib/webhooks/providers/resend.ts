@@ -121,13 +121,24 @@ export const resendHandler: WebhookProviderHandler = {
     const data = payload.data as Record<string, unknown> | undefined
     const bounce = data?.bounce as Record<string, unknown> | undefined
     const click = data?.click as Record<string, unknown> | undefined
+    const dataCreatedAt = data?.created_at
+    const dataCreatedAtStr =
+      typeof dataCreatedAt === 'string'
+        ? dataCreatedAt
+        : dataCreatedAt != null
+          ? String(dataCreatedAt)
+          : null
 
     return {
       input: {
         type: payload.type,
         created_at: payload.created_at,
+        data_created_at: dataCreatedAtStr,
         data: data ?? null,
         email_id: data?.email_id ?? null,
+        broadcast_id: data?.broadcast_id ?? null,
+        template_id: data?.template_id ?? null,
+        tags: data?.tags ?? null,
         from: data?.from ?? null,
         to: data?.to ?? null,
         subject: data?.subject ?? null,
