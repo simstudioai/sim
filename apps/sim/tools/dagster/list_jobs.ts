@@ -1,5 +1,5 @@
-import { dagsterUnionErrorMessage, parseDagsterGraphqlResponse } from '@/tools/dagster/graphql'
 import type { DagsterBaseParams, DagsterListJobsResponse } from '@/tools/dagster/types'
+import { dagsterUnionErrorMessage, parseDagsterGraphqlResponse } from '@/tools/dagster/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const LIST_JOBS_QUERY = `

@@ -1,11 +1,16 @@
-import { dagsterUnionErrorMessage, parseDagsterGraphqlResponse } from '@/tools/dagster/graphql'
 import type { DagsterLaunchRunParams, DagsterLaunchRunResponse } from '@/tools/dagster/types'
+import { dagsterUnionErrorMessage, parseDagsterGraphqlResponse } from '@/tools/dagster/utils'
 import type { ToolConfig } from '@/tools/types'
 
 interface LaunchRunResult {
   type: string
   run?: { runId: string }
   message?: string
+  /** Present when type === 'InvalidStepError' */
+  invalidStepKey?: string
+  /** Present when type === 'InvalidOutputError' */
+  stepKey?: string
+  invalidOutputName?: string
 }
 
 function buildLaunchRunMutation(hasConfig: boolean, hasTags: boolean) {
@@ -43,6 +48,15 @@ function buildLaunchRunMutation(hasConfig: boolean, hasTags: boolean) {
         ... on Error {
           __typename
           message
+        }
+        ... on InvalidStepError {
+          __typename
+          invalidStepKey
+        }
+        ... on InvalidOutputError {
+          __typename
+          stepKey
+          invalidOutputName
         }
       }
     }
@@ -156,6 +170,16 @@ export const launchRunTool: ToolConfig<DagsterLaunchRunParams, DagsterLaunchRunR
       }
     }
 
+    // InvalidStepError and InvalidOutputError don't implement the Error interface
+    // so they have no message field — build a descriptive message from their fields.
+    if (result.type === 'InvalidStepError' && result.invalidStepKey) {
+      throw new Error(`InvalidStepError: invalid step key "${result.invalidStepKey}"`)
+    }
+    if (result.type === 'InvalidOutputError' && result.stepKey) {
+      throw new Error(
+        `InvalidOutputError: invalid output "${result.invalidOutputName ?? 'unknown'}" on step "${result.stepKey}"`
+      )
+    }
     throw new Error(`${result.type}: ${dagsterUnionErrorMessage(result, 'Launch run failed')}`)
   },
 

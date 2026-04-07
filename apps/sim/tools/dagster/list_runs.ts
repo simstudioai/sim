@@ -1,5 +1,5 @@
-import { dagsterUnionErrorMessage, parseDagsterGraphqlResponse } from '@/tools/dagster/graphql'
 import type { DagsterListRunsParams, DagsterListRunsResponse } from '@/tools/dagster/types'
+import { dagsterUnionErrorMessage, parseDagsterGraphqlResponse } from '@/tools/dagster/utils'
 import type { ToolConfig } from '@/tools/types'
 
 /** Shape of each run in the `runsOrError` → `Runs.results` GraphQL selection set. */

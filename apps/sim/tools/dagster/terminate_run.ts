@@ -1,8 +1,8 @@
-import { dagsterUnionErrorMessage, parseDagsterGraphqlResponse } from '@/tools/dagster/graphql'
 import type { DagsterTerminateRunParams, DagsterTerminateRunResponse } from '@/tools/dagster/types'
+import { dagsterUnionErrorMessage, parseDagsterGraphqlResponse } from '@/tools/dagster/utils'
 import type { ToolConfig } from '@/tools/types'
 
-/** Fields returned from `terminateRun` for success and `Error` union members. */
+/** Fields returned from `terminateRun` for all union members. */
 interface DagsterTerminateRunPayload {
   __typename?: string
   run?: { runId: string }
@@ -12,13 +12,19 @@ interface DagsterTerminateRunPayload {
 const TERMINATE_RUN_MUTATION = `
   mutation TerminateRun($runId: String!) {
     terminateRun(runId: $runId) {
+      __typename
       ... on TerminateRunSuccess {
         run {
           runId
         }
       }
+      ... on TerminateRunFailure {
+        run {
+          runId
+        }
+        message
+      }
       ... on Error {
-        __typename
         message
       }
     }
@@ -76,7 +82,7 @@ export const terminateRunTool: ToolConfig<DagsterTerminateRunParams, DagsterTerm
       const result = data.data?.terminateRun
       if (!result) throw new Error('Unexpected response from Dagster')
 
-      if (result.run?.runId) {
+      if (result.__typename === 'TerminateRunSuccess' && result.run?.runId) {
         return {
           success: true,
           output: {
@@ -85,6 +91,12 @@ export const terminateRunTool: ToolConfig<DagsterTerminateRunParams, DagsterTerm
             message: null,
           },
         }
+      }
+
+      if (result.__typename === 'TerminateRunFailure') {
+        throw new Error(
+          `TerminateRunFailure: ${dagsterUnionErrorMessage(result, 'Terminate run failed')}`
+        )
       }
 
       throw new Error(dagsterUnionErrorMessage(result, 'Terminate run failed'))

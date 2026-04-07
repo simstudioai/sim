@@ -1,5 +1,5 @@
-import { dagsterUnionErrorMessage, parseDagsterGraphqlResponse } from '@/tools/dagster/graphql'
 import type { DagsterGetRunParams, DagsterGetRunResponse } from '@/tools/dagster/types'
+import { dagsterUnionErrorMessage, parseDagsterGraphqlResponse } from '@/tools/dagster/utils'
 import type { ToolConfig } from '@/tools/types'
 
 /** Fields selected on `runOrError` when the union resolves to `Run`. */
