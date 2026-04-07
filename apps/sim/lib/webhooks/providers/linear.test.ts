@@ -41,7 +41,7 @@ describe('Linear webhook provider', () => {
     const rawBody = JSON.stringify({
       action: 'update',
       type: 'Issue',
-      webhookTimestamp: Date.now() - 120_000,
+      webhookTimestamp: Date.now() - 600_000,
     })
 
     const res = await linearHandler.verifyAuth!({

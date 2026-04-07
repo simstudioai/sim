@@ -42,7 +42,7 @@ function validateLinearSignature(secret: string, signature: string, body: string
   }
 }
 
-const LINEAR_WEBHOOK_TIMESTAMP_SKEW_MS = 60 * 1000
+const LINEAR_WEBHOOK_TIMESTAMP_SKEW_MS = 5 * 60 * 1000
 
 export const linearHandler: WebhookProviderHandler = {
   async verifyAuth({

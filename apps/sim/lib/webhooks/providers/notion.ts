@@ -127,9 +127,7 @@ export const notionHandler: WebhookProviderHandler = {
             receivedEvent: eventType,
           }
         )
-        return NextResponse.json({
-          message: 'Event type does not match trigger configuration. Ignoring.',
-        })
+        return false
       }
     }
 
