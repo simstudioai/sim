@@ -23,6 +23,15 @@ export const telegramHandler: WebhookProviderHandler = {
     return null
   },
 
+  extractIdempotencyId(body: unknown): string | null {
+    const obj = body as Record<string, unknown>
+    const updateId = obj.update_id
+    if (typeof updateId === 'number') {
+      return `telegram:${updateId}`
+    }
+    return null
+  },
+
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
     const rawMessage = (b?.message ||

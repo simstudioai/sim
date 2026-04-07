@@ -128,36 +128,6 @@ export const zoomHandler: WebhookProviderHandler = {
     return null
   },
 
-  extractIdempotencyId(body: unknown): string | null {
-    const obj = body as Record<string, unknown>
-    const event = obj.event
-    const ts = obj.event_ts
-    if (typeof event !== 'string' || ts === undefined || ts === null) {
-      return null
-    }
-    const payload = obj.payload as Record<string, unknown> | undefined
-    const inner = payload?.object as Record<string, unknown> | undefined
-    const participant =
-      inner?.participant &&
-      typeof inner.participant === 'object' &&
-      !Array.isArray(inner.participant)
-        ? (inner.participant as Record<string, unknown>)
-        : null
-    const participantStable =
-      (typeof participant?.user_id === 'string' && participant.user_id) ||
-      (typeof participant?.id === 'string' && participant.id) ||
-      (typeof participant?.email === 'string' && participant.email) ||
-      (typeof participant?.join_time === 'string' && participant.join_time) ||
-      (typeof participant?.leave_time === 'string' && participant.leave_time) ||
-      ''
-    const stable =
-      participantStable ||
-      (typeof inner?.uuid === 'string' && inner.uuid) ||
-      (inner?.id !== undefined && inner.id !== null ? String(inner.id) : '') ||
-      ''
-    return `zoom:${event}:${String(ts)}:${stable}`
-  },
-
   async matchEvent({ webhook: wh, workflow, body, requestId, providerConfig }: EventMatchContext) {
     const triggerId = providerConfig.triggerId as string | undefined
     const obj = body as Record<string, unknown>
