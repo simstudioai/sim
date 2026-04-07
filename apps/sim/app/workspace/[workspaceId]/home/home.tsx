@@ -229,6 +229,14 @@ export function Home({ chatId }: HomeProps = {}) {
     void stopGeneration().catch(() => {})
   }, [stopGeneration, workspaceId])
 
+  const handleStopGeneration = useCallback(() => {
+    captureEvent(posthogRef.current, 'task_generation_aborted', {
+      workspace_id: workspaceId,
+      view: 'mothership',
+    })
+    stopGeneration()
+  }, [stopGeneration, workspaceId])
+
   const handleSubmit = useCallback(
     (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
       const trimmed = text.trim()
