@@ -362,6 +362,11 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
+  task_generation_aborted: {
+    workspace_id: string
+    view: 'mothership' | 'copilot'
+  }
+
   task_message_sent: {
     workspace_id: string
     has_attachments: boolean
