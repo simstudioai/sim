@@ -89,22 +89,26 @@ export async function POST(request: NextRequest) {
       billingUserId = session.user.id
     }
 
-    if (billingUserId) {
-      const rateCheck = await rateLimiter.checkRateLimitDirect(
-        `stt-token:${billingUserId}`,
-        STT_TOKEN_RATE_LIMIT
+    const clientIp =
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      request.headers.get('x-real-ip')?.trim() ||
+      'unknown'
+
+    const rateLimitKey = chatId
+      ? `stt-token:chat:${chatId}:${clientIp}`
+      : `stt-token:user:${billingUserId}`
+
+    const rateCheck = await rateLimiter.checkRateLimitDirect(rateLimitKey, STT_TOKEN_RATE_LIMIT)
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { error: 'Voice input rate limit exceeded. Please try again later.' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(Math.ceil((rateCheck.retryAfterMs ?? 60000) / 1000)),
+          },
+        }
       )
-      if (!rateCheck.allowed) {
-        return NextResponse.json(
-          { error: 'Voice input rate limit exceeded. Please try again later.' },
-          {
-            status: 429,
-            headers: {
-              'Retry-After': String(Math.ceil((rateCheck.retryAfterMs ?? 60000) / 1000)),
-            },
-          }
-        )
-      }
     }
 
     const apiKey = env.ELEVENLABS_API_KEY
