@@ -65,6 +65,8 @@ import {
   isBillingEnabled,
   isEmailPasswordEnabled,
   isEmailVerificationEnabled,
+  isGithubAuthDisabled,
+  isGoogleAuthDisabled,
   isHosted,
   isOrganizationsEnabled,
   isRegistrationDisabled,
@@ -607,19 +609,23 @@ export const auth = betterAuth({
     },
   },
   socialProviders: {
-    github: {
-      clientId: env.GITHUB_CLIENT_ID as string,
-      clientSecret: env.GITHUB_CLIENT_SECRET as string,
-      scope: ['user:email', 'repo'],
-    },
-    google: {
-      clientId: env.GOOGLE_CLIENT_ID as string,
-      clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-      scope: [
-        'https://www.googleapis.com/auth/userinfo.email',
-        'https://www.googleapis.com/auth/userinfo.profile',
-      ],
-    },
+    ...(!isGithubAuthDisabled && {
+      github: {
+        clientId: env.GITHUB_CLIENT_ID as string,
+        clientSecret: env.GITHUB_CLIENT_SECRET as string,
+        scope: ['user:email', 'repo'],
+      },
+    }),
+    ...(!isGoogleAuthDisabled && {
+      google: {
+        clientId: env.GOOGLE_CLIENT_ID as string,
+        clientSecret: env.GOOGLE_CLIENT_SECRET as string,
+        scope: [
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
+        ],
+      },
+    }),
   },
   emailVerification: {
     autoSignInAfterVerification: true,

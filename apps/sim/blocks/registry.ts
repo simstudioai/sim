@@ -30,6 +30,7 @@ import { ConditionBlock } from '@/blocks/blocks/condition'
 import { ConfluenceBlock, ConfluenceV2Block } from '@/blocks/blocks/confluence'
 import { CredentialBlock } from '@/blocks/blocks/credential'
 import { CursorBlock, CursorV2Block } from '@/blocks/blocks/cursor'
+import { DagsterBlock } from '@/blocks/blocks/dagster'
 import { DatabricksBlock } from '@/blocks/blocks/databricks'
 import { DatadogBlock } from '@/blocks/blocks/datadog'
 import { DevinBlock } from '@/blocks/blocks/devin'
@@ -254,6 +255,7 @@ export const registry: Record<string, BlockConfig> = {
   confluence_v2: ConfluenceV2Block,
   cursor: CursorBlock,
   cursor_v2: CursorV2Block,
+  dagster: DagsterBlock,
   databricks: DatabricksBlock,
   datadog: DatadogBlock,
   devin: DevinBlock,

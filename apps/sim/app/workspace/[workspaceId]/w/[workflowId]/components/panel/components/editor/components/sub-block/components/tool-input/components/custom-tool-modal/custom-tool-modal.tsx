@@ -1181,7 +1181,7 @@ try {
                 This will permanently delete the tool and remove it from any workflows that are
                 using it.
               </span>{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              This action cannot be undone.
             </p>
           </ModalBody>
           <ModalFooter>

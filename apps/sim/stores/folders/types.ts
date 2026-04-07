@@ -1,13 +1,3 @@
-export interface Workflow {
-  id: string
-  folderId?: string | null
-  name?: string
-  description?: string
-  userId?: string
-  workspaceId?: string
-  [key: string]: any // For additional properties
-}
-
 export interface WorkflowFolder {
   id: string
   name: string

@@ -50,7 +50,7 @@ export function Lightbox({ isOpen, onClose, src, alt, type }: LightboxProps) {
       aria-modal='true'
       aria-label='Media viewer'
     >
-      <div className='relative max-h-full max-w-full overflow-hidden rounded-xl shadow-2xl'>
+      <div className='relative max-h-full max-w-full overflow-hidden rounded-xl'>
         {type === 'image' ? (
           <img
             src={src}

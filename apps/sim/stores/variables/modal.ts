@@ -1,10 +1,6 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
-import type {
-  VariablesDimensions,
-  VariablesModalStore,
-  VariablesPosition,
-} from '@/stores/variables/types'
+import type { VariablesModalStore, VariablesPosition } from '@/stores/variables/types'
 
 /**
  * Floating variables modal default dimensions.
@@ -135,11 +131,3 @@ export const useVariablesModalStore = create<VariablesModalStore>()(
     { name: 'variables-modal-store' }
   )
 )
-
-/**
- * Get default floating variables modal dimensions.
- */
-export const getDefaultVariablesDimensions = (): VariablesDimensions => ({
-  width: DEFAULT_WIDTH,
-  height: DEFAULT_HEIGHT,
-})

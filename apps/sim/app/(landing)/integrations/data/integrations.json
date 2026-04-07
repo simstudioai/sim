@@ -2346,6 +2346,81 @@
     "tags": ["agentic", "automation"]
   },
   {
+    "type": "dagster",
+    "slug": "dagster",
+    "name": "Dagster",
+    "description": "Orchestrate data pipelines and manage job runs with Dagster",
+    "longDescription": "Connect to a Dagster instance to launch job runs, monitor run status, list available jobs across repositories, terminate or delete runs, reexecute failed runs, fetch run logs, and manage schedules and sensors. API token only required for Dagster+.",
+    "bgColor": "#ffffff",
+    "iconName": "DagsterIcon",
+    "docsUrl": "https://docs.sim.ai/tools/dagster",
+    "operations": [
+      {
+        "name": "Launch Run",
+        "description": "Launch a job run on a Dagster instance."
+      },
+      {
+        "name": "Get Run",
+        "description": "Get the status and details of a Dagster run by its ID."
+      },
+      {
+        "name": "Get Run Logs",
+        "description": "Fetch execution event logs for a Dagster run."
+      },
+      {
+        "name": "List Runs",
+        "description": "List recent Dagster runs, optionally filtered by job name."
+      },
+      {
+        "name": "List Jobs",
+        "description": "List all jobs across repositories in a Dagster instance."
+      },
+      {
+        "name": "Reexecute Run",
+        "description": "Reexecute an existing Dagster run, optionally resuming only from failed steps."
+      },
+      {
+        "name": "Terminate Run",
+        "description": "Terminate an in-progress Dagster run."
+      },
+      {
+        "name": "Delete Run",
+        "description": "Permanently delete a Dagster run record."
+      },
+      {
+        "name": "List Schedules",
+        "description": "List all schedules in a Dagster repository, optionally filtered by status."
+      },
+      {
+        "name": "Start Schedule",
+        "description": "Enable (start) a schedule in a Dagster repository."
+      },
+      {
+        "name": "Stop Schedule",
+        "description": "Disable (stop) a running schedule in Dagster."
+      },
+      {
+        "name": "List Sensors",
+        "description": "List all sensors in a Dagster repository, optionally filtered by status."
+      },
+      {
+        "name": "Start Sensor",
+        "description": "Enable (start) a sensor in a Dagster repository."
+      },
+      {
+        "name": "Stop Sensor",
+        "description": "Disable (stop) a running sensor in Dagster."
+      }
+    ],
+    "operationCount": 14,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "automation",
+    "tags": ["data-analytics", "automation"]
+  },
+  {
     "type": "databricks",
     "slug": "databricks",
     "name": "Databricks",

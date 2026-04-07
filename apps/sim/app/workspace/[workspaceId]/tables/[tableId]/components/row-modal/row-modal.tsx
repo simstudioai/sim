@@ -168,7 +168,7 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
               <span className='text-[var(--text-error)]'>
                 This will permanently remove all data in {isSingleRow ? 'this row' : 'these rows'}.
               </span>{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              This action cannot be undone.
             </p>
           </ModalBody>
           <ModalFooter>

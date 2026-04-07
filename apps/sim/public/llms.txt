@@ -1,0 +1,38 @@
+# Sim
+
+Sim is an open-source platform for building, testing, and deploying AI agent workflows visually. Create powerful AI agents, automation pipelines, and data processing workflows by connecting blocks on a canvas.
+
+## Key Facts
+
+- Website: https://sim.ai
+- GitHub: https://github.com/simstudioai/sim
+- Documentation: https://docs.sim.ai
+- License: Apache 2.0
+- Category: AI workflow automation, developer tools
+
+## What Sim Does
+
+- Visual workflow builder with drag-and-drop interface for AI agents
+- 80+ built-in integrations (OpenAI, Anthropic, Slack, Gmail, GitHub, and more)
+- Real-time team collaboration on workflows
+- Multiple deployment options: cloud-hosted or self-hosted
+- Custom integrations via MCP (Model Context Protocol)
+- API and SDK access (TypeScript, Python)
+- Workflow execution engine with logging and debugging
+
+## Blog
+
+The Sim blog covers announcements, technical deep-dives, and guides for building AI agent workflows.
+
+- Blog: https://sim.ai/blog
+- RSS: https://sim.ai/blog/rss.xml
+
+## Documentation Sections
+
+- Getting Started: https://docs.sim.ai/getting-started
+- Blocks: https://docs.sim.ai/blocks
+- Tools & Integrations: https://docs.sim.ai/tools
+- Webhooks: https://docs.sim.ai/webhooks
+- MCP Protocol: https://docs.sim.ai/mcp
+- Deployment: https://docs.sim.ai/deployment
+- SDKs: https://docs.sim.ai/sdks

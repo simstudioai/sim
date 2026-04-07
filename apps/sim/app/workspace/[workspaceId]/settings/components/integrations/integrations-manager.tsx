@@ -1136,7 +1136,7 @@ export function IntegrationsManager() {
             <span className='font-medium text-[var(--text-primary)]'>
               {credentialToDelete?.displayName}
             </span>
-            ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            ? This action cannot be undone.
           </p>
           {deleteError && (
             <div className='mt-3 rounded-lg border border-red-500/50 bg-red-50 p-3 dark:bg-red-950/30'>

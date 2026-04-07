@@ -21,6 +21,7 @@
  *   SSO_OIDC_CLIENT_ID=your_client_id
  *   SSO_OIDC_CLIENT_SECRET=your_client_secret
  *   SSO_OIDC_SCOPES=openid,profile,email (optional)
+ *   SSO_OIDC_TOKEN_ENDPOINT_AUTH=client_secret_post|client_secret_basic (optional, defaults to client_secret_post)
  *
  * SAML Providers:
  *   SSO_SAML_ENTRY_POINT=https://your-idp/sso
@@ -215,6 +216,11 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
       pkce: process.env.SSO_OIDC_PKCE !== 'false',
       authorizationEndpoint: process.env.SSO_OIDC_AUTHORIZATION_ENDPOINT,
       tokenEndpoint: process.env.SSO_OIDC_TOKEN_ENDPOINT,
+      tokenEndpointAuthentication:
+        process.env.SSO_OIDC_TOKEN_ENDPOINT_AUTH === 'client_secret_post' ||
+        process.env.SSO_OIDC_TOKEN_ENDPOINT_AUTH === 'client_secret_basic'
+          ? process.env.SSO_OIDC_TOKEN_ENDPOINT_AUTH
+          : undefined,
       userInfoEndpoint: process.env.SSO_OIDC_USERINFO_ENDPOINT,
       jwksEndpoint: process.env.SSO_OIDC_JWKS_ENDPOINT,
       discoveryEndpoint:
@@ -507,7 +513,11 @@ async function registerSSOProvider(): Promise<boolean> {
         clientSecret: ssoConfig.oidcConfig.clientSecret,
         authorizationEndpoint: ssoConfig.oidcConfig.authorizationEndpoint,
         tokenEndpoint: ssoConfig.oidcConfig.tokenEndpoint,
-        tokenEndpointAuthentication: ssoConfig.oidcConfig.tokenEndpointAuthentication,
+        // Default to client_secret_post: better-auth sends client_secret_basic
+        // credentials without URL-encoding per RFC 6749 §2.3.1, so '+' in secrets
+        // is decoded as space by OIDC providers, causing invalid_client errors.
+        tokenEndpointAuthentication:
+          ssoConfig.oidcConfig.tokenEndpointAuthentication ?? 'client_secret_post',
         jwksEndpoint: ssoConfig.oidcConfig.jwksEndpoint,
         pkce: ssoConfig.oidcConfig.pkce,
         discoveryEndpoint:

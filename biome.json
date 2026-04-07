@@ -99,6 +99,7 @@
         "noDangerouslySetInnerHtml": "off"
       },
       "style": {
+        "noDescendingSpecificity": "off",
         "noNonNullAssertion": "off",
         "noParameterAssign": "off",
         "useNodejsImportProtocol": "off",

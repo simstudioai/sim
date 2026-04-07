@@ -71,12 +71,14 @@ export const {service}Connector: ConnectorConfig = {
   ],
 
   listDocuments: async (accessToken, sourceConfig, cursor) => {
-    // Paginate via cursor, extract text, compute SHA-256 hash
+    // Return metadata stubs with contentDeferred: true (if per-doc content fetch needed)
+    // Or full documents with content (if list API returns content inline)
     // Return { documents: ExternalDocument[], nextCursor?, hasMore }
   },
 
   getDocument: async (accessToken, sourceConfig, externalId) => {
-    // Return ExternalDocument or null
+    // Fetch full content for a single document
+    // Return ExternalDocument with contentDeferred: false, or null
   },
 
   validateConfig: async (accessToken, sourceConfig) => {
@@ -281,25 +283,109 @@ Every document returned from `listDocuments`/`getDocument` must include:
 {
   externalId: string          // Source-specific unique ID
   title: string               // Document title
-  content: string             // Extracted plain text
+  content: string             // Extracted plain text (or '' if contentDeferred)
+  contentDeferred?: boolean   // true = content will be fetched via getDocument
   mimeType: 'text/plain'     // Always text/plain (content is extracted)
-  contentHash: string         // SHA-256 of content (change detection)
+  contentHash: string         // Metadata-based hash for change detection
   sourceUrl?: string          // Link back to original (stored on document record)
   metadata?: Record<string, unknown>  // Source-specific data (fed to mapTags)
 }
 ```
 
-## Content Hashing (Required)
+## Content Deferral (Required for file/content-download connectors)
 
-The sync engine uses content hashes for change detection:
+**All connectors that require per-document API calls to fetch content MUST use `contentDeferred: true`.** This is the standard pattern — `listDocuments` returns lightweight metadata stubs, and content is fetched lazily by the sync engine via `getDocument` only for new/changed documents.
+
+This pattern is critical for reliability: the sync engine processes documents in batches and enqueues each batch for processing immediately. If a sync times out, all previously-batched documents are already queued. Without deferral, content downloads during listing can exhaust the sync task's time budget before any documents are saved.
+
+### When to use `contentDeferred: true`
+
+- The service's list API does NOT return document content (only metadata)
+- Content requires a separate download/export API call per document
+- Examples: Google Drive, OneDrive, SharePoint, Dropbox, Notion, Confluence, Gmail, Obsidian, Evernote, GitHub
+
+### When NOT to use `contentDeferred`
+
+- The list API already returns the full content inline (e.g., Slack messages, Reddit posts, HubSpot notes)
+- No per-document API call is needed to get content
+
+### Content Hash Strategy
+
+Use a **metadata-based** `contentHash` — never a content-based hash. The hash must be derivable from the list response metadata alone, so the sync engine can detect changes without downloading content.
+
+Good metadata hash sources:
+- `modifiedTime` / `lastModifiedDateTime` — changes when file is edited
+- Git blob SHA — unique per content version
+- API-provided content hash (e.g., Dropbox `content_hash`)
+- Version number (e.g., Confluence page version)
+
+Format: `{service}:{id}:{changeIndicator}`
 
 ```typescript
-async function computeContentHash(content: string): Promise<string> {
-  const data = new TextEncoder().encode(content)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('')
+// Google Drive: modifiedTime changes on edit
+contentHash: `gdrive:${file.id}:${file.modifiedTime ?? ''}`
+
+// GitHub: blob SHA is a content-addressable hash
+contentHash: `gitsha:${item.sha}`
+
+// Dropbox: API provides content_hash
+contentHash: `dropbox:${entry.id}:${entry.content_hash ?? entry.server_modified}`
+
+// Confluence: version number increments on edit
+contentHash: `confluence:${page.id}:${page.version.number}`
+```
+
+**Critical invariant:** The `contentHash` MUST be identical whether produced by `listDocuments` (stub) or `getDocument` (full doc). Both should use the same stub function to guarantee this.
+
+### Implementation Pattern
+
+```typescript
+// 1. Create a stub function (sync, no API calls)
+function fileToStub(file: ServiceFile): ExternalDocument {
+  return {
+    externalId: file.id,
+    title: file.name || 'Untitled',
+    content: '',
+    contentDeferred: true,
+    mimeType: 'text/plain',
+    sourceUrl: `https://service.com/file/${file.id}`,
+    contentHash: `service:${file.id}:${file.modifiedTime ?? ''}`,
+    metadata: { /* fields needed by mapTags */ },
+  }
+}
+
+// 2. listDocuments returns stubs (fast, metadata only)
+listDocuments: async (accessToken, sourceConfig, cursor) => {
+  const response = await fetchWithRetry(listUrl, { ... })
+  const files = (await response.json()).files
+  const documents = files.map(fileToStub)
+  return { documents, nextCursor, hasMore }
+}
+
+// 3. getDocument fetches content and returns full doc with SAME contentHash
+getDocument: async (accessToken, sourceConfig, externalId) => {
+  const metadata = await fetchWithRetry(metadataUrl, { ... })
+  const file = await metadata.json()
+  if (file.trashed) return null
+
+  try {
+    const content = await fetchContent(accessToken, file)
+    if (!content.trim()) return null
+    const stub = fileToStub(file)
+    return { ...stub, content, contentDeferred: false }
+  } catch (error) {
+    logger.warn(`Failed to fetch content for: ${file.name}`, { error })
+    return null
+  }
 }
 ```
+
+### Reference Implementations
+
+- **Google Drive**: `connectors/google-drive/google-drive.ts` — file download/export with `modifiedTime` hash
+- **GitHub**: `connectors/github/github.ts` — git blob SHA hash
+- **Notion**: `connectors/notion/notion.ts` — blocks API with `last_edited_time` hash
+- **Confluence**: `connectors/confluence/confluence.ts` — version number hash
 
 ## tagDefinitions — Declared Tag Definitions
 
@@ -409,7 +495,10 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
 
 ## Reference Implementations
 
-- **OAuth**: `apps/sim/connectors/confluence/confluence.ts` — multiple config field types, `mapTags`, label fetching
+- **OAuth + contentDeferred**: `apps/sim/connectors/google-drive/google-drive.ts` — file download with metadata-based hash, `orderBy` for deterministic pagination
+- **OAuth + contentDeferred (blocks API)**: `apps/sim/connectors/notion/notion.ts` — complex block content extraction deferred to `getDocument`
+- **OAuth + contentDeferred (git)**: `apps/sim/connectors/github/github.ts` — blob SHA hash, tree listing
+- **OAuth + inline content**: `apps/sim/connectors/confluence/confluence.ts` — multiple config field types, `mapTags`, label fetching
 - **API key**: `apps/sim/connectors/fireflies/fireflies.ts` — GraphQL API with Bearer token auth
 
 ## Checklist
@@ -425,7 +514,9 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   - `selectorKey` exists in `hooks/selectors/registry.ts`
   - `dependsOn` references selector field IDs (not `canonicalParamId`)
   - Dependency `canonicalParamId` values exist in `SELECTOR_CONTEXT_FIELDS`
-- [ ] `listDocuments` handles pagination and computes content hashes
+- [ ] `listDocuments` handles pagination with metadata-based content hashes
+- [ ] `contentDeferred: true` used if content requires per-doc API calls (file download, export, blocks fetch)
+- [ ] `contentHash` is metadata-based (not content-based) and identical between stub and `getDocument`
 - [ ] `sourceUrl` set on each ExternalDocument (full URL, not relative)
 - [ ] `metadata` includes source-specific data for tag mapping
 - [ ] `tagDefinitions` declared for each semantic key returned by `mapTags`

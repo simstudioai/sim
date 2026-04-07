@@ -99,7 +99,11 @@ function SignupFormContent({
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const turnstileRef = useRef<TurnstileInstance>(null)
-  const turnstileSiteKey = useMemo(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'), [])
+  const [turnstileSiteKey, setTurnstileSiteKey] = useState<string | undefined>()
+
+  useEffect(() => {
+    setTurnstileSiteKey(getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'))
+  }, [])
   const redirectUrl = useMemo(
     () => searchParams.get('redirect') || searchParams.get('callbackUrl') || '',
     [searchParams]
