@@ -309,7 +309,7 @@ Return ONLY the comma-separated status values - no explanations, no extra text.`
         // list_runs: type-coerce limit and remap job name filter
         if (params.operation === 'list_runs') {
           if (params.limit != null && params.limit !== '') result.limit = Number(params.limit)
-          if (params.listRunsJobName) result.jobName = params.listRunsJobName
+          result.jobName = params.listRunsJobName || undefined
         }
 
         // get_run_logs: remap logsLimit → limit
