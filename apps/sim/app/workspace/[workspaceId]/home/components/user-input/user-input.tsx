@@ -108,6 +108,8 @@ interface UserInputProps {
   isInitialView?: boolean
   userId?: string
   onContextAdd?: (context: ChatContext) => void
+  onEnterWhileEmpty?: () => boolean
+  onPrimedDismiss?: () => void
 }
 
 export function UserInput({
@@ -120,6 +122,8 @@ export function UserInput({
   isInitialView = true,
   userId,
   onContextAdd,
+  onEnterWhileEmpty,
+  onPrimedDismiss,
 }: UserInputProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { data: workflowsById = {} } = useWorkflowMap(workspaceId)
@@ -208,6 +212,10 @@ export function UserInput({
   filesRef.current = files
   const contextRef = useRef(contextManagement)
   contextRef.current = contextManagement
+  const onEnterWhileEmptyRef = useRef(onEnterWhileEmpty)
+  onEnterWhileEmptyRef.current = onEnterWhileEmpty
+  const isSendingRef = useRef(isSending)
+  isSendingRef.current = isSending
 
   useEffect(() => {
     return () => {
@@ -448,6 +456,9 @@ export function UserInput({
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
         e.preventDefault()
+        if (isSendingRef.current && !valueRef.current.trim() && onEnterWhileEmptyRef.current?.()) {
+          return
+        }
         handleSubmit()
         return
       }
@@ -540,8 +551,9 @@ export function UserInput({
 
       setValue(newValue)
       restartRecognition(newValue)
+      if (newValue.trim()) onPrimedDismiss?.()
     },
-    [restartRecognition]
+    [restartRecognition, onPrimedDismiss]
   )
 
   const handleSelectAdjust = useCallback(() => {
