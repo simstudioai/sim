@@ -4015,8 +4015,14 @@
       }
     ],
     "operationCount": 12,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "gmail_poller",
+        "name": "Gmail Email Trigger",
+        "description": "Triggers when new emails are received in Gmail (requires Gmail credentials)"
+      }
+    ],
+    "triggerCount": 1,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "email",
@@ -7256,7 +7262,7 @@
       {
         "id": "linear_webhook_v2",
         "name": "Linear Webhook",
-        "description": "Trigger workflow from Linear data-change events included in this webhook subscription (Issues, Comments, Projects, etc.—not every Linear model)."
+        "description": "Trigger workflow from Linear events you select when creating the webhook in Linear (not guaranteed to be every model or event type)."
       }
     ],
     "triggerCount": 15,
@@ -8580,8 +8586,14 @@
       }
     ],
     "operationCount": 9,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "outlook_poller",
+        "name": "Outlook Email Trigger",
+        "description": "Triggers when new emails are received in Outlook (requires Microsoft credentials)"
+      }
+    ],
+    "triggerCount": 1,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "email",

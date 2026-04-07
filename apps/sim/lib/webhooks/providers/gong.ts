@@ -123,6 +123,20 @@ export async function verifyGongJwtAuth(ctx: AuthContext): Promise<NextResponse 
 export const gongHandler: WebhookProviderHandler = {
   verifyAuth: verifyGongJwtAuth,
 
+  extractIdempotencyId(body: unknown): string | null {
+    const obj = body as Record<string, unknown>
+    const callData = obj.callData as Record<string, unknown> | undefined
+    const metaData = callData?.metaData as Record<string, unknown> | undefined
+    const id = metaData?.id
+    if (typeof id === 'string' && id) {
+      return `gong:${id}`
+    }
+    if (typeof id === 'number') {
+      return `gong:${id}`
+    }
+    return null
+  },
+
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
     const callData = b.callData as Record<string, unknown> | undefined
