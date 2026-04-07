@@ -301,6 +301,3 @@ export const useIsWorkflowSelected = (workflowId: string) =>
 
 export const useIsFolderSelected = (folderId: string) =>
   useFolderStore((state) => state.selectedFolders.has(folderId))
-
-export const useIsTaskSelected = (taskId: string) =>
-  useFolderStore((state) => state.selectedTasks.has(taskId))
