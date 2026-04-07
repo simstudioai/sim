@@ -1232,10 +1232,8 @@ const DeleteConfirmModal = memo(function DeleteConfirmModal({
         <ModalBody>
           <p className='text-[var(--text-secondary)]'>
             Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{fileName}</span>?{' '}
-            <span className='text-[var(--text-tertiary)]'>
-              You can restore it from Recently Deleted in Settings.
-            </span>
+            <span className='font-medium text-[var(--text-primary)]'>{fileName}</span>? You can
+            restore it from Recently Deleted in Settings.
           </p>
         </ModalBody>
         <ModalFooter>

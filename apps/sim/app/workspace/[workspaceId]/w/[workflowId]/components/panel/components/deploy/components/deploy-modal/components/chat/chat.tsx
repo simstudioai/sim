@@ -433,7 +433,8 @@ export function ChatDeploy({
               <span className='text-[var(--text-error)]'>
                 This will remove the chat at "{getEmailDomain()}/chat/{existingChat?.identifier}"
                 and make it unavailable to all users.
-              </span>
+              </span>{' '}
+              This action cannot be undone.
             </p>
           </ModalBody>
           <ModalFooter>

@@ -710,7 +710,7 @@ export function MCP({ initialServerId }: MCPProps) {
             <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{serverToDelete?.name}</span>
-              ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              ? This action cannot be undone.
             </p>
           </ModalBody>
           <ModalFooter>

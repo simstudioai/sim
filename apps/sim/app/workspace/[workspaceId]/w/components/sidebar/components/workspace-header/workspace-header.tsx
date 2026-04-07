@@ -667,8 +667,8 @@ export function WorkspaceHeader({
             <p className='text-[var(--text-secondary)]'>
               Are you sure you want to leave{' '}
               <span className='font-base text-[var(--text-primary)]'>{leaveTarget?.name}</span>? You
-              will lose access to all workflows and data in this workspace.{' '}
-              <span className='text-[var(--text-tertiary)]'>This action cannot be undone.</span>
+              will lose access to all workflows and data in this workspace. This action cannot be
+              undone.
             </p>
           </ModalBody>
           <ModalFooter>

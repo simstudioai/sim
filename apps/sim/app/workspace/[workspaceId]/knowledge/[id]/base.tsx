@@ -1182,9 +1182,7 @@ export function KnowledgeBase({
                 The knowledge base and all {pagination.total} document
                 {pagination.total === 1 ? '' : 's'} within it will be removed.
               </span>{' '}
-              <span className='text-[var(--text-tertiary)]'>
-                You can restore it from Recently Deleted in Settings.
-              </span>
+              You can restore it from Recently Deleted in Settings.
             </p>
           </ModalBody>
           <ModalFooter>
@@ -1221,9 +1219,12 @@ export function KnowledgeBase({
                       it from future syncs. To temporarily hide it from search, disable it instead.
                     </span>
                   ) : (
-                    <span className='text-[var(--text-error)]'>
-                      This will permanently delete the document.
-                    </span>
+                    <>
+                      <span className='text-[var(--text-error)]'>
+                        This will permanently delete the document.
+                      </span>{' '}
+                      This action cannot be undone.
+                    </>
                   )}
                 </p>
               )
@@ -1256,7 +1257,8 @@ export function KnowledgeBase({
               <span className='text-[var(--text-error)]'>
                 This will permanently delete the selected document
                 {selectedDocuments.size === 1 ? '' : 's'}.
-              </span>
+              </span>{' '}
+              This action cannot be undone.
             </p>
           </ModalBody>
           <ModalFooter>

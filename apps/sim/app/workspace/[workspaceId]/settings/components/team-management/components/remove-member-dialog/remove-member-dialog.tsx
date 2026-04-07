@@ -46,7 +46,7 @@ export function RemoveMemberDialog({
                 the team?
               </>
             )}{' '}
-            <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            This action cannot be undone.
           </p>
 
           {!isSelfRemoval && (

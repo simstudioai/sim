@@ -125,8 +125,8 @@ export function InboxEnableToggle() {
                   <span className='font-medium text-[var(--text-primary)]'>{config.address}</span>
                 </>
               )}
-              ? Any emails sent to this address after disabling will not be delivered.{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              ? Any emails sent to this address after disabling will not be delivered. This action
+              cannot be undone.
             </p>
             <p className='mt-2 text-[var(--text-secondary)]'>
               Your existing conversations and task history will be preserved.
