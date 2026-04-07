@@ -241,12 +241,7 @@ async function restoreFolderRecursively(
     )
 
   for (const child of archivedChildren) {
-    const childStats = await restoreFolderRecursively(
-      child.id,
-      workspaceId,
-      child.archivedAt!,
-      tx
-    )
+    const childStats = await restoreFolderRecursively(child.id, workspaceId, child.archivedAt!, tx)
     stats.folders += childStats.folders
     stats.workflows += childStats.workflows
   }
