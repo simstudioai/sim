@@ -324,6 +324,7 @@ export function SettingsSidebar({
                         onFocus={() => handlePrefetch(item.id)}
                         onClick={() => {
                           const section = item.id as SettingsSection
+                          if (section === activeSection) return
                           if (!requestNavigation(section)) {
                             setShowDiscardDialog(true)
                             return
