@@ -164,6 +164,7 @@ export function useCreateFolder() {
           ),
         createdAt: new Date(),
         updatedAt: new Date(),
+        archivedAt: null,
       }
     },
     (variables) => variables.id ?? generateId()
@@ -294,6 +295,7 @@ export function useDuplicateFolderMutation() {
         ),
         createdAt: new Date(),
         updatedAt: new Date(),
+        archivedAt: null,
       }
     },
     (variables) => variables.newId ?? generateId()
