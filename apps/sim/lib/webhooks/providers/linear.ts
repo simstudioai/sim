@@ -293,13 +293,4 @@ export const linearHandler: WebhookProviderHandler = {
       })
     }
   },
-
-  extractIdempotencyId(body: unknown) {
-    const obj = body as Record<string, unknown>
-    const data = obj.data as Record<string, unknown> | undefined
-    if (obj.action && data?.id) {
-      return `${obj.action}:${data.id}`
-    }
-    return null
-  },
 }
