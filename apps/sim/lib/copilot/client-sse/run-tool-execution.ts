@@ -331,7 +331,11 @@ async function reportCompletion(
       headers: { 'Content-Type': 'application/json' },
       body,
     })
-    if (!res.ok && data && new Blob([body]).size > 1024 * 1024) {
+    // Next.js silently truncates request bodies beyond its body size limit (default 10MB),
+    // corrupting the JSON and causing a server-side parse error (500). When the request fails
+    // and the payload is large, retry without the data to unblock the server-side waiter.
+    const LARGE_PAYLOAD_THRESHOLD = 1024 * 1024
+    if (!res.ok && data && new Blob([body]).size > LARGE_PAYLOAD_THRESHOLD) {
       logger.warn('[RunTool] reportCompletion failed with large payload, retrying without data', {
         toolCallId,
         status: res.status,
