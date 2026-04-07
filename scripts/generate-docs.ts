@@ -1661,7 +1661,7 @@ function extractToolInfo(
       if (spreadMatch) {
         const baseVarName = spreadMatch[1]
         const baseToolRegex = new RegExp(
-          `export\\s+const\\s+${baseVarName}[^=]*=\\s*\\{`,
+          `export\\s+const\\s+${baseVarName}(?=[^a-zA-Z0-9_]|$)[^=]*=\\s*\\{`,
           'i'
         )
         const baseToolMatch = fileContent.match(baseToolRegex)
