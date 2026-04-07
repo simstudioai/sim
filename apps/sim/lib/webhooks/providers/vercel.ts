@@ -90,24 +90,24 @@ export const vercelHandler: WebhookProviderHandler = {
         )
       }
 
-      const eventTypeMap: Record<string, string[] | undefined> = {
-        vercel_deployment_created: ['deployment.created'],
-        vercel_deployment_ready: ['deployment.ready'],
-        vercel_deployment_error: ['deployment.error'],
-        vercel_deployment_canceled: ['deployment.canceled'],
-        vercel_project_created: ['project.created'],
-        vercel_project_removed: ['project.removed'],
-        vercel_domain_created: ['domain.created'],
-        vercel_webhook: undefined,
-      }
+      const { VERCEL_GENERIC_TRIGGER_EVENT_TYPES, VERCEL_TRIGGER_EVENT_TYPES } = await import(
+        '@/triggers/vercel/utils'
+      )
 
-      if (triggerId && !(triggerId in eventTypeMap)) {
+      if (
+        triggerId &&
+        triggerId !== 'vercel_webhook' &&
+        !(triggerId in VERCEL_TRIGGER_EVENT_TYPES)
+      ) {
         throw new Error(
           `Unknown Vercel trigger "${triggerId}". Remove and re-add the Vercel trigger, then save again.`
         )
       }
 
-      const events = eventTypeMap[triggerId ?? '']
+      const events =
+        triggerId && triggerId !== 'vercel_webhook'
+          ? [VERCEL_TRIGGER_EVENT_TYPES[triggerId]]
+          : undefined
       const notificationUrl = getNotificationUrl(webhook)
 
       logger.info(`[${requestId}] Creating Vercel webhook`, {
@@ -125,19 +125,7 @@ export const vercelHandler: WebhookProviderHandler = {
        */
       const requestBody: Record<string, unknown> = {
         url: notificationUrl,
-        events: events || [
-          'deployment.created',
-          'deployment.ready',
-          'deployment.succeeded',
-          'deployment.error',
-          'deployment.canceled',
-          'deployment.promoted',
-          'project.created',
-          'project.removed',
-          'domain.created',
-          'edge-config.created',
-          'edge-config.deleted',
-        ],
+        events: events || [...VERCEL_GENERIC_TRIGGER_EVENT_TYPES],
       }
 
       if (filterProjectIds) {

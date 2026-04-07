@@ -28,6 +28,20 @@ describe('normalizeGongPublicKeyPem', () => {
   })
 })
 
+describe('gongHandler formatInput', () => {
+  it('always returns callId as a string', async () => {
+    const { input } = await gongHandler.formatInput!({
+      webhook: {},
+      workflow: { id: 'wf', userId: 'u' },
+      body: { callData: { metaData: {} } },
+      headers: {},
+      requestId: 'gong-format',
+    })
+
+    expect((input as Record<string, unknown>).callId).toBe('')
+  })
+})
+
 describe('gongHandler verifyAuth (JWT)', () => {
   it('returns null when JWT public key is not configured', async () => {
     const request = new NextRequest('https://app.example.com/api/webhooks/trigger/abc', {

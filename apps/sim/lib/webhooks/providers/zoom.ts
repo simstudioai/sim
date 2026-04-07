@@ -82,7 +82,21 @@ export const zoomHandler: WebhookProviderHandler = {
     }
     const payload = obj.payload as Record<string, unknown> | undefined
     const inner = payload?.object as Record<string, unknown> | undefined
+    const participant =
+      inner?.participant &&
+      typeof inner.participant === 'object' &&
+      !Array.isArray(inner.participant)
+        ? (inner.participant as Record<string, unknown>)
+        : null
+    const participantStable =
+      (typeof participant?.user_id === 'string' && participant.user_id) ||
+      (typeof participant?.id === 'string' && participant.id) ||
+      (typeof participant?.email === 'string' && participant.email) ||
+      (typeof participant?.join_time === 'string' && participant.join_time) ||
+      (typeof participant?.leave_time === 'string' && participant.leave_time) ||
+      ''
     const stable =
+      participantStable ||
       (typeof inner?.uuid === 'string' && inner.uuid) ||
       (inner?.id !== undefined && inner.id !== null ? String(inner.id) : '') ||
       ''
@@ -93,6 +107,10 @@ export const zoomHandler: WebhookProviderHandler = {
     const triggerId = providerConfig.triggerId as string | undefined
     const obj = body as Record<string, unknown>
     const event = typeof obj.event === 'string' ? obj.event : ''
+
+    if (event === 'endpoint.url_validation') {
+      return false
+    }
 
     if (triggerId) {
       const { isZoomEventMatch } = await import('@/triggers/zoom/utils')

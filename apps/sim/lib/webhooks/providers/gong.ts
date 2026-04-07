@@ -129,9 +129,7 @@ export const gongHandler: WebhookProviderHandler = {
     const metaData = (callData?.metaData as Record<string, unknown>) || {}
     const content = callData?.content as Record<string, unknown> | undefined
     const callId =
-      typeof metaData.id === 'string' || typeof metaData.id === 'number'
-        ? String(metaData.id)
-        : null
+      typeof metaData.id === 'string' || typeof metaData.id === 'number' ? String(metaData.id) : ''
 
     return {
       input: {
@@ -142,7 +140,7 @@ export const gongHandler: WebhookProviderHandler = {
         context: (callData?.context as unknown[]) || [],
         trackers: (content?.trackers as unknown[]) || [],
         eventType: 'gong.automation_rule',
-        callId: callId ?? null,
+        callId,
       },
     }
   },

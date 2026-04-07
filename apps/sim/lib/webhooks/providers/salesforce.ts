@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import type {
@@ -96,7 +97,26 @@ function pickTimestamp(body: Record<string, unknown>, record: Record<string, unk
       return c
     }
   }
-  return new Date().toISOString()
+  return ''
+}
+
+function stableSerialize(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableSerialize(item)).join(',')}]`
+  }
+
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, nested]) => `${JSON.stringify(key)}:${stableSerialize(nested)}`)
+      .join(',')}}`
+  }
+
+  return JSON.stringify(value)
+}
+
+function buildFallbackDeliveryFingerprint(body: Record<string, unknown>): string {
+  return crypto.createHash('sha256').update(stableSerialize(body), 'utf8').digest('hex')
 }
 
 function pickRecordId(body: Record<string, unknown>, record: Record<string, unknown>): string {
@@ -295,6 +315,10 @@ export const salesforceHandler: WebhookProviderHandler = {
     if (!id) {
       return null
     }
-    return `salesforce:${et || 'event'}:${id}:${ts}`
+    if (ts) {
+      return `salesforce:${et || 'event'}:${id}:${ts}`
+    }
+
+    return `salesforce:${et || 'event'}:${id}:${buildFallbackDeliveryFingerprint(b)}`
   },
 }

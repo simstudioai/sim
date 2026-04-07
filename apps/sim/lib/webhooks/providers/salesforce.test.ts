@@ -64,6 +64,17 @@ describe('Salesforce webhook provider', () => {
     expect(
       isSalesforceEventMatch('salesforce_webhook', { objectType: 'Contact', Id: 'x' }, 'Account')
     ).toBe(false)
+    expect(isSalesforceEventMatch('salesforce_webhook', { Id: 'x' }, 'Account')).toBe(false)
+  })
+
+  it('isSalesforceEventMatch fails closed for record triggers when configured objectType is missing', () => {
+    expect(
+      isSalesforceEventMatch(
+        'salesforce_record_created',
+        { eventType: 'created', Id: '001' },
+        'Account'
+      )
+    ).toBe(false)
   })
 
   it('formatInput maps record trigger fields', async () => {
@@ -91,6 +102,23 @@ describe('Salesforce webhook provider', () => {
       Id: '001',
     })
     expect(id).toContain('001')
+  })
+
+  it('extractIdempotencyId is stable without timestamps for identical payloads', () => {
+    const body = {
+      eventType: 'updated',
+      objectType: 'Account',
+      Id: '001',
+      Name: 'Acme',
+      changedFields: ['Name'],
+    }
+
+    const first = salesforceHandler.extractIdempotencyId!(body)
+    const second = salesforceHandler.extractIdempotencyId!({ ...body })
+
+    expect(first).toBe(second)
+    expect(first).toContain('001')
+    expect(first).toContain('updated')
   })
 })
 
@@ -120,5 +148,33 @@ describe('Zoom webhook provider', () => {
       payload: { object: { uuid: 'u1', id: 55 } },
     })
     expect(zid).toBe('zoom:meeting.started:123:u1')
+  })
+
+  it('extractIdempotencyId uses participant identity when available', () => {
+    const zid = zoomHandler.extractIdempotencyId!({
+      event: 'meeting.participant_joined',
+      event_ts: 123,
+      payload: {
+        object: {
+          uuid: 'meeting-uuid',
+          participant: {
+            user_id: 'participant-1',
+          },
+        },
+      },
+    })
+    expect(zid).toBe('zoom:meeting.participant_joined:123:participant-1')
+  })
+
+  it('matchEvent never executes endpoint validation payloads', async () => {
+    const result = await zoomHandler.matchEvent!({
+      webhook: { id: 'w' },
+      workflow: { id: 'wf' },
+      body: { event: 'endpoint.url_validation' },
+      request: reqWithHeaders({}),
+      requestId: 't5',
+      providerConfig: { triggerId: 'zoom_webhook' },
+    })
+    expect(result).toBe(false)
   })
 })

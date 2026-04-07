@@ -60,6 +60,17 @@ export function buildGreenhouseExtraFields(triggerId: string): SubBlockConfig[] 
   ]
 }
 
+function buildSourceOutputs(): Record<string, TriggerOutput> {
+  return {
+    id: { type: 'number', description: 'Source ID' },
+    name: { type: 'string', description: 'Source name when provided by Greenhouse' },
+    public_name: {
+      type: 'string',
+      description: 'Public-facing source name when provided by Greenhouse',
+    },
+  }
+}
+
 /**
  * Generates HTML setup instructions for Greenhouse webhooks.
  * Webhooks are manually configured in the Greenhouse admin panel.
@@ -115,10 +126,7 @@ export function buildCandidateHiredOutputs(): Record<string, TriggerOutput> {
           coordinator: { type: 'json', description: 'Assigned coordinator' },
         },
         jobs: { type: 'json', description: 'Associated jobs (array)' },
-        source: {
-          id: { type: 'number', description: 'Source ID' },
-          public_name: { type: 'string', description: 'Source name' },
-        },
+        source: buildSourceOutputs(),
         offer: {
           id: { type: 'number', description: 'Offer ID' },
           version: { type: 'number', description: 'Offer version' },
@@ -161,10 +169,7 @@ export function buildNewApplicationOutputs(): Record<string, TriggerOutput> {
           tags: { type: 'json', description: 'Candidate tags' },
         },
         jobs: { type: 'json', description: 'Associated jobs (array)' },
-        source: {
-          id: { type: 'number', description: 'Source ID' },
-          public_name: { type: 'string', description: 'Source name' },
-        },
+        source: buildSourceOutputs(),
         answers: { type: 'json', description: 'Application question answers' },
         attachments: { type: 'json', description: 'Application attachments' },
         custom_fields: { type: 'json', description: 'Application custom fields' },
@@ -202,10 +207,7 @@ export function buildCandidateStageChangeOutputs(): Record<string, TriggerOutput
           phone_numbers: { type: 'json', description: 'Phone numbers' },
         },
         jobs: { type: 'json', description: 'Associated jobs (array)' },
-        source: {
-          id: { type: 'number', description: 'Source ID' },
-          public_name: { type: 'string', description: 'Source name' },
-        },
+        source: buildSourceOutputs(),
         custom_fields: { type: 'json', description: 'Application custom fields' },
       },
     },

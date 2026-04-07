@@ -98,6 +98,14 @@ export const greenhouseHandler: WebhookProviderHandler = {
       return `greenhouse:${action}:offer:${String(offerId)}:${v}`
     }
 
+    const offer = (payload.offer || {}) as Record<string, unknown>
+    const nestedOfferId = offer.id
+    if (nestedOfferId !== undefined && nestedOfferId !== null && nestedOfferId !== '') {
+      const nestedVersion =
+        offer.version !== undefined && offer.version !== null ? String(offer.version) : '0'
+      return `greenhouse:${action}:offer:${String(nestedOfferId)}:${nestedVersion}`
+    }
+
     const job = (payload.job || {}) as Record<string, unknown>
     const jobId = job.id
     if (jobId !== undefined && jobId !== null && jobId !== '') {

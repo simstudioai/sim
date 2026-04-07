@@ -42,7 +42,7 @@ function validateLinearSignature(secret: string, signature: string, body: string
   }
 }
 
-const LINEAR_WEBHOOK_TIMESTAMP_SKEW_MS = 5 * 60 * 1000
+const LINEAR_WEBHOOK_TIMESTAMP_SKEW_MS = 60 * 1000
 
 export const linearHandler: WebhookProviderHandler = {
   async verifyAuth({
@@ -70,15 +70,20 @@ export const linearHandler: WebhookProviderHandler = {
     try {
       const parsed = JSON.parse(rawBody) as Record<string, unknown>
       const ts = parsed.webhookTimestamp
-      if (typeof ts === 'number' && Number.isFinite(ts)) {
-        if (Math.abs(Date.now() - ts) > LINEAR_WEBHOOK_TIMESTAMP_SKEW_MS) {
-          logger.warn(
-            `[${requestId}] Linear webhookTimestamp outside allowed skew (${LINEAR_WEBHOOK_TIMESTAMP_SKEW_MS}ms)`
-          )
-          return new NextResponse('Unauthorized - Webhook timestamp skew too large', {
-            status: 401,
-          })
-        }
+      if (typeof ts !== 'number' || !Number.isFinite(ts)) {
+        logger.warn(`[${requestId}] Linear webhookTimestamp missing or invalid`)
+        return new NextResponse('Unauthorized - Invalid webhook timestamp', {
+          status: 401,
+        })
+      }
+
+      if (Math.abs(Date.now() - ts) > LINEAR_WEBHOOK_TIMESTAMP_SKEW_MS) {
+        logger.warn(
+          `[${requestId}] Linear webhookTimestamp outside allowed skew (${LINEAR_WEBHOOK_TIMESTAMP_SKEW_MS}ms)`
+        )
+        return new NextResponse('Unauthorized - Webhook timestamp skew too large', {
+          status: 401,
+        })
       }
     } catch (error) {
       logger.warn(

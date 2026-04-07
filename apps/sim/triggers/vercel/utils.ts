@@ -26,6 +26,21 @@ export const VERCEL_TRIGGER_EVENT_TYPES: Record<string, string> = {
   vercel_domain_created: 'domain.created',
 }
 
+/** Curated set used by the generic Vercel webhook trigger. */
+export const VERCEL_GENERIC_TRIGGER_EVENT_TYPES = [
+  'deployment.created',
+  'deployment.ready',
+  'deployment.succeeded',
+  'deployment.error',
+  'deployment.canceled',
+  'deployment.promoted',
+  'project.created',
+  'project.removed',
+  'domain.created',
+  'edge-config.created',
+  'edge-config.deleted',
+] as const
+
 /**
  * Returns whether the incoming Vercel event matches the configured trigger.
  * `vercel_webhook` is handled only at subscription time; deliveries are not filtered here.

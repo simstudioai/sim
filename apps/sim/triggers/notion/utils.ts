@@ -226,7 +226,7 @@ const TRIGGER_EVENT_MAP: Record<string, string[]> = {
   notion_page_content_updated: ['page.content_updated'],
   notion_page_deleted: ['page.deleted'],
   notion_database_created: ['database.created'],
-  notion_database_schema_updated: ['database.schema_updated'],
+  notion_database_schema_updated: ['database.schema_updated', 'data_source.schema_updated'],
   notion_database_deleted: ['database.deleted'],
   notion_comment_created: ['comment.created'],
 }

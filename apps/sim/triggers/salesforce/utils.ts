@@ -124,8 +124,13 @@ export function isSalesforceEventMatch(
 
   const wantType = configuredObjectType?.trim()
   const gotType = payloadObjectType(body)
-  if (wantType && gotType && normalizeToken(gotType) !== normalizeToken(wantType)) {
-    return false
+  if (wantType) {
+    if (!gotType) {
+      return false
+    }
+    if (normalizeToken(gotType) !== normalizeToken(wantType)) {
+      return false
+    }
   }
 
   if (triggerId === 'salesforce_opportunity_stage_changed') {
@@ -194,7 +199,7 @@ export function salesforceSetupInstructions(eventType: string): string {
         `Select <strong>Record-Triggered Flow</strong> for the right object and <strong>${eventType}</strong> as the entry condition.`,
         'Add an <strong>HTTP Callout</strong> — <strong>POST</strong>, JSON body, URL = webhook URL.',
         `Include <code>eventType</code> in the JSON body using a value this trigger accepts (e.g. for Record Created use <code>record_created</code>, <code>created</code>, or <code>after_insert</code>).`,
-        'Include <code>attributes.type</code> / object API name or <code>objectType</code> so filtering can run when you set Object Type above.',
+        'If you use <strong>Object Type (Optional)</strong>, you must also include matching type metadata in the JSON body (for example <code>objectType</code>, <code>sobjectType</code>, or <code>attributes.type</code>) or the event will be rejected.',
         'Save and <strong>Activate</strong> the Flow.',
         'Click <strong>"Save"</strong> above to activate your trigger.',
       ]
@@ -229,7 +234,7 @@ function salesforceObjectTypeField(triggerId: string): SubBlockConfig {
     type: 'short-input',
     placeholder: 'e.g., Account, Contact, Opportunity',
     description:
-      'When set, only payloads for this Salesforce object API name are accepted (matched case-insensitively).',
+      'When set, the payload must include matching object type metadata (for example objectType, sobjectType, or attributes.type) or the event is rejected.',
     mode: 'trigger',
     condition: { field: 'selectedTriggerId', value: triggerId },
   }

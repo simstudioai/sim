@@ -691,13 +691,13 @@ export const {service}WebhookTrigger: TriggerConfig = {
 ### Automatic Webhook Registration (if supported)
 - [ ] Added API key field to `build{Service}ExtraFields` with `password: true`
 - [ ] Updated setup instructions for automatic webhook creation
-- [ ] Added provider-specific logic to `apps/sim/app/api/webhooks/route.ts`
-- [ ] Added `create{Service}WebhookSubscription` helper function
-- [ ] Added `delete{Service}Webhook` function to `provider-subscriptions.ts`
-- [ ] Added provider to `cleanupExternalWebhook` function
+- [ ] Added `createSubscription` to `apps/sim/lib/webhooks/providers/{service}.ts`
+- [ ] Added `deleteSubscription` to `apps/sim/lib/webhooks/providers/{service}.ts`
+- [ ] Did not add provider-specific orchestration logic to shared route / deploy / provider-subscriptions files unless absolutely required
 
 ### Webhook Input Formatting
-- [ ] Added handler in `apps/sim/lib/webhooks/utils.server.ts` (if custom formatting needed)
+- [ ] Added provider-owned `formatInput` in `apps/sim/lib/webhooks/providers/{service}.ts` when custom formatting is needed
+- [ ] Used `createHmacVerifier` for standard HMAC providers, or a custom `verifyAuth()` when the provider requires non-standard signature semantics / stricter secret handling
 - [ ] Handler returns fields matching trigger `outputs` exactly
 - [ ] Run `bun run apps/sim/scripts/check-trigger-alignment.ts {service}` to verify alignment
 

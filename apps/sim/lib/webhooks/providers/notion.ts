@@ -135,4 +135,17 @@ export const notionHandler: WebhookProviderHandler = {
 
     return true
   },
+
+  extractIdempotencyId(body: unknown) {
+    const obj = body as Record<string, unknown>
+    const id = obj.id
+    const type = obj.type
+    if (
+      (typeof id === 'string' || typeof id === 'number') &&
+      (typeof type === 'string' || typeof type === 'number')
+    ) {
+      return `notion:${String(type)}:${String(id)}`
+    }
+    return null
+  },
 }

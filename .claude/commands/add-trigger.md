@@ -806,7 +806,7 @@ export const {service}WebhookTrigger: TriggerConfig = {
 - [ ] Created handler file in `apps/sim/lib/webhooks/providers/{service}.ts`
 - [ ] Registered handler in `apps/sim/lib/webhooks/providers/registry.ts` (alphabetical)
 - [ ] Signature validator defined as private function inside handler file (not in a shared file)
-- [ ] Used `createHmacVerifier` from `providers/utils` for HMAC-based auth
+- [ ] Used `createHmacVerifier` from `providers/utils` for standard HMAC auth, or a provider-specific `verifyAuth()` when the provider requires custom signature semantics / stricter secret handling
 - [ ] Used `verifyTokenAuth` from `providers/utils` for token-based auth
 - [ ] Event matching uses dynamic `await import()` for trigger utils
 - [ ] Added `formatInput` if webhook payload needs transformation (returns `{ input: ... }`)

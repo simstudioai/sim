@@ -46,6 +46,121 @@ const PROVIDER_CHECKS: Record<string, CheckFn> = {
       formatInputKeys: Object.keys(input).sort(),
     }
   },
+  linear: async () => {
+    const { buildIssueOutputs } = await import('@/triggers/linear/utils')
+    const { linearHandler } = await import('@/lib/webhooks/providers/linear')
+    const outputs = buildIssueOutputs() as Record<string, TriggerOutput>
+    const result = await linearHandler.formatInput!({
+      webhook: {},
+      workflow: { id: 'check-alignment', userId: 'check-alignment' },
+      body: {
+        action: 'create',
+        type: 'Issue',
+        webhookId: 'wh_123',
+        webhookTimestamp: Date.now(),
+        organizationId: 'org_123',
+        createdAt: new Date().toISOString(),
+        url: 'https://linear.app',
+        actor: { id: 'user_1', type: 'user', name: 'Test User' },
+        data: {},
+        updatedFrom: null,
+      },
+      headers: {},
+      requestId: 'check-trigger-alignment',
+    })
+    const input = result.input as Record<string, unknown>
+    return {
+      referenceLabel: 'buildIssueOutputs()',
+      outputKeys: Object.keys(outputs).sort(),
+      formatInputKeys: Object.keys(input).sort(),
+    }
+  },
+  notion: async () => {
+    const { buildPageEventOutputs } = await import('@/triggers/notion/utils')
+    const { notionHandler } = await import('@/lib/webhooks/providers/notion')
+    const outputs = buildPageEventOutputs() as Record<string, TriggerOutput>
+    const result = await notionHandler.formatInput!({
+      webhook: {},
+      workflow: { id: 'check-alignment', userId: 'check-alignment' },
+      body: {
+        id: 'evt_123',
+        type: 'page.created',
+        timestamp: new Date().toISOString(),
+        workspace_id: 'workspace_1',
+        workspace_name: 'Workspace',
+        subscription_id: 'sub_1',
+        integration_id: 'int_1',
+        attempt_number: 1,
+        authors: [],
+        accessible_by: [],
+        entity: { id: 'page_1', type: 'page' },
+        data: { parent: { id: 'parent_1', type: 'page' } },
+      },
+      headers: {},
+      requestId: 'check-trigger-alignment',
+    })
+    const input = result.input as Record<string, unknown>
+    return {
+      referenceLabel: 'buildPageEventOutputs()',
+      outputKeys: Object.keys(outputs).sort(),
+      formatInputKeys: Object.keys(input).sort(),
+    }
+  },
+  salesforce: async () => {
+    const { buildSalesforceWebhookOutputs } = await import('@/triggers/salesforce/utils')
+    const { salesforceHandler } = await import('@/lib/webhooks/providers/salesforce')
+    const outputs = buildSalesforceWebhookOutputs() as Record<string, TriggerOutput>
+    const result = await salesforceHandler.formatInput!({
+      webhook: { providerConfig: { triggerId: 'salesforce_webhook' } },
+      workflow: { id: 'check-alignment', userId: 'check-alignment' },
+      body: {
+        eventType: 'record_created',
+        objectType: 'Account',
+        Id: '001',
+        Name: 'Acme',
+      },
+      headers: {},
+      requestId: 'check-trigger-alignment',
+    })
+    const input = result.input as Record<string, unknown>
+    return {
+      referenceLabel: 'buildSalesforceWebhookOutputs()',
+      outputKeys: Object.keys(outputs).sort(),
+      formatInputKeys: Object.keys(input).sort(),
+    }
+  },
+  vercel: async () => {
+    const { buildVercelOutputs } = await import('@/triggers/vercel/utils')
+    const { vercelHandler } = await import('@/lib/webhooks/providers/vercel')
+    const outputs = buildVercelOutputs() as Record<string, TriggerOutput>
+    const result = await vercelHandler.formatInput!({
+      webhook: {},
+      workflow: { id: 'check-alignment', userId: 'check-alignment' },
+      body: {
+        type: 'deployment.created',
+        id: 'evt_123',
+        createdAt: Date.now(),
+        region: 'iad1',
+        payload: {
+          deployment: { id: 'dep_1', url: 'example.vercel.app', name: 'preview' },
+          project: { id: 'prj_1', name: 'project' },
+          team: { id: 'team_1' },
+          user: { id: 'user_1' },
+          target: 'preview',
+          plan: 'pro',
+          domain: { name: 'example.com' },
+        },
+      },
+      headers: {},
+      requestId: 'check-trigger-alignment',
+    })
+    const input = result.input as Record<string, unknown>
+    return {
+      referenceLabel: 'buildVercelOutputs()',
+      outputKeys: Object.keys(outputs).sort(),
+      formatInputKeys: Object.keys(input).sort(),
+    }
+  },
 }
 
 const provider = process.argv[2]?.trim()
