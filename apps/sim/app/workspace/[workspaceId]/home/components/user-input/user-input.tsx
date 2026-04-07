@@ -175,6 +175,7 @@ export function UserInput({
       if (ctx.kind === 'knowledge' && ctx.knowledgeId) keys.add(`knowledgebase:${ctx.knowledgeId}`)
       if (ctx.kind === 'table' && ctx.tableId) keys.add(`table:${ctx.tableId}`)
       if (ctx.kind === 'file' && ctx.fileId) keys.add(`file:${ctx.fileId}`)
+      if (ctx.kind === 'folder' && 'folderId' in ctx) keys.add(`folder:${ctx.folderId}`)
     }
     return keys
   }, [contextManagement.selectedContexts])
