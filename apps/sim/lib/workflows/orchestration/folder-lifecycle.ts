@@ -10,7 +10,7 @@ import {
   workflowSchedule,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, gte, inArray, isNotNull, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { archiveWorkflowsByIdsInWorkspace } from '@/lib/workflows/lifecycle'
 import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
@@ -179,14 +179,11 @@ export async function performDeleteFolder(
 }
 
 /**
- * Recursively restores a folder and its archived children within a transaction.
- * Only restores workflows archived around the same time as the folder (within 5s),
- * so individually-deleted workflows are not silently un-deleted.
+ * Recursively restores a folder and all its archived children/workflows within a transaction.
  */
 async function restoreFolderRecursively(
   folderId: string,
   workspaceId: string,
-  folderArchivedAt: Date,
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0]
 ): Promise<{ folders: number; workflows: number }> {
   const stats = { folders: 0, workflows: 0 }
@@ -194,7 +191,6 @@ async function restoreFolderRecursively(
   await tx.update(workflowFolder).set({ archivedAt: null }).where(eq(workflowFolder.id, folderId))
   stats.folders += 1
 
-  const archiveWindowStart = new Date(folderArchivedAt.getTime() - 5_000)
   const archivedWorkflows = await tx
     .select({ id: workflow.id })
     .from(workflow)
@@ -202,8 +198,7 @@ async function restoreFolderRecursively(
       and(
         eq(workflow.folderId, folderId),
         eq(workflow.workspaceId, workspaceId),
-        isNotNull(workflow.archivedAt),
-        gte(workflow.archivedAt, archiveWindowStart)
+        isNotNull(workflow.archivedAt)
       )
     )
 
@@ -230,7 +225,7 @@ async function restoreFolderRecursively(
   }
 
   const archivedChildren = await tx
-    .select({ id: workflowFolder.id, archivedAt: workflowFolder.archivedAt })
+    .select({ id: workflowFolder.id })
     .from(workflowFolder)
     .where(
       and(
@@ -241,12 +236,7 @@ async function restoreFolderRecursively(
     )
 
   for (const child of archivedChildren) {
-    const childStats = await restoreFolderRecursively(
-      child.id,
-      workspaceId,
-      child.archivedAt!,
-      tx
-    )
+    const childStats = await restoreFolderRecursively(child.id, workspaceId, tx)
     stats.folders += childStats.folders
     stats.workflows += childStats.workflows
   }
@@ -306,7 +296,7 @@ export async function performRestoreFolder(
       }
     }
 
-    return restoreFolderRecursively(folderId, workspaceId, folder.archivedAt!, tx)
+    return restoreFolderRecursively(folderId, workspaceId, tx)
   })
 
   logger.info('Restored folder and all contents:', { folderId, restoredStats })
