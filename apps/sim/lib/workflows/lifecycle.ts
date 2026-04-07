@@ -22,6 +22,7 @@ const logger = createLogger('WorkflowLifecycle')
 interface ArchiveWorkflowOptions {
   requestId: string
   notifySocket?: boolean
+  archivedAt?: Date
 }
 
 async function notifyWorkflowArchived(workflowId: string, requestId: string): Promise<void> {
@@ -120,7 +121,7 @@ export async function archiveWorkflow(
     return { archived: false, workflow: existingWorkflow }
   }
 
-  const now = new Date()
+  const now = options.archivedAt ?? new Date()
   const affectedWorkflowMcpServers = await db
     .select({ serverId: workflowMcpTool.serverId })
     .from(workflowMcpTool)
