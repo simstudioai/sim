@@ -100,7 +100,20 @@ export function BaseCard({
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isTagsModalOpen, setIsTagsModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  /**
+   * Guards against context menu actions triggering card navigation.
+   * The card's onClick fires synchronously during the click event bubble phase,
+   * so the ref is checked before the setTimeout-0 callback resets it.
+   */
   const actionTakenRef = useRef(false)
+  const withActionGuard = useCallback((fn: () => void) => {
+    actionTakenRef.current = true
+    fn()
+    setTimeout(() => {
+      actionTakenRef.current = false
+    }, 0)
+  }, [])
 
   const searchParams = new URLSearchParams({
     kbName: title,
@@ -131,45 +144,25 @@ export function BaseCard({
   )
 
   const handleOpenInNewTab = useCallback(() => {
-    actionTakenRef.current = true
-    window.open(href, '_blank')
-    setTimeout(() => {
-      actionTakenRef.current = false
-    }, 0)
-  }, [href])
+    withActionGuard(() => window.open(href, '_blank'))
+  }, [href, withActionGuard])
 
   const handleViewTags = useCallback(() => {
-    actionTakenRef.current = true
-    setIsTagsModalOpen(true)
-    setTimeout(() => {
-      actionTakenRef.current = false
-    }, 0)
-  }, [])
+    withActionGuard(() => setIsTagsModalOpen(true))
+  }, [withActionGuard])
 
   const handleEdit = useCallback(() => {
-    actionTakenRef.current = true
-    setIsEditModalOpen(true)
-    setTimeout(() => {
-      actionTakenRef.current = false
-    }, 0)
-  }, [])
+    withActionGuard(() => setIsEditModalOpen(true))
+  }, [withActionGuard])
 
   const handleDelete = useCallback(() => {
-    actionTakenRef.current = true
-    setIsDeleteModalOpen(true)
-    setTimeout(() => {
-      actionTakenRef.current = false
-    }, 0)
-  }, [])
+    withActionGuard(() => setIsDeleteModalOpen(true))
+  }, [withActionGuard])
 
   const handleCopyId = useCallback(() => {
     if (!id) return
-    actionTakenRef.current = true
-    navigator.clipboard.writeText(id)
-    setTimeout(() => {
-      actionTakenRef.current = false
-    }, 0)
-  }, [id])
+    withActionGuard(() => navigator.clipboard.writeText(id))
+  }, [id, withActionGuard])
 
   const handleConfirmDelete = useCallback(async () => {
     if (!id || !onDelete) return
