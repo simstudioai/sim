@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { History, Plus, Square } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import {
   BubbleChatClose,
@@ -33,6 +34,7 @@ import {
 import { Lock, Unlock, Upload } from '@/components/emcn/icons'
 import { VariableIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
+import { captureEvent } from '@/lib/posthog/client'
 import { generateWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components'
@@ -100,6 +102,9 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   const router = useRouter()
   const params = useParams()
   const workspaceId = propWorkspaceId ?? (params.workspaceId as string)
+
+  const posthog = usePostHog()
+  const posthogRef = useRef(posthog)
 
   const panelRef = useRef<HTMLElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -264,6 +269,10 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     loadCopilotChats()
   }, [loadCopilotChats])
 
+  useEffect(() => {
+    posthogRef.current = posthog
+  }, [posthog])
+
   const handleCopilotSelectChat = useCallback((chat: { id: string; title: string | null }) => {
     setCopilotChatId(chat.id)
     setCopilotChatTitle(chat.title)
@@ -393,6 +402,14 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     },
     [copilotEditQueuedMessage]
   )
+
+  const handleCopilotStopGeneration = useCallback(() => {
+    captureEvent(posthogRef.current, 'task_generation_aborted', {
+      workspace_id: workspaceId,
+      view: 'copilot',
+    })
+    copilotStopGeneration()
+  }, [copilotStopGeneration, workspaceId])
 
   const handleCopilotSubmit = useCallback(
     (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
@@ -833,7 +850,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                   isSending={copilotIsSending}
                   isReconnecting={copilotIsReconnecting}
                   onSubmit={handleCopilotSubmit}
-                  onStopGeneration={copilotStopGeneration}
+                  onStopGeneration={handleCopilotStopGeneration}
                   messageQueue={copilotMessageQueue}
                   onRemoveQueuedMessage={copilotRemoveFromQueue}
                   onSendQueuedMessage={copilotSendNow}

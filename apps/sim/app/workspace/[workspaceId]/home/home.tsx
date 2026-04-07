@@ -223,6 +223,14 @@ export function Home({ chatId }: HomeProps = {}) {
     posthogRef.current = posthog
   }, [posthog])
 
+  const handleStopGeneration = useCallback(() => {
+    captureEvent(posthogRef.current, 'task_generation_aborted', {
+      workspace_id: workspaceId,
+      view: 'mothership',
+    })
+    stopGeneration()
+  }, [stopGeneration, workspaceId])
+
   const handleSubmit = useCallback(
     (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
       const trimmed = text.trim()
@@ -334,7 +342,7 @@ export function Home({ chatId }: HomeProps = {}) {
               defaultValue={initialPrompt}
               onSubmit={handleSubmit}
               isSending={isSending}
-              onStopGeneration={stopGeneration}
+              onStopGeneration={handleStopGeneration}
               userId={session?.user?.id}
               onContextAdd={handleContextAdd}
             />
@@ -359,7 +367,7 @@ export function Home({ chatId }: HomeProps = {}) {
           isSending={isSending}
           isReconnecting={isReconnecting}
           onSubmit={handleSubmit}
-          onStopGeneration={stopGeneration}
+          onStopGeneration={handleStopGeneration}
           messageQueue={messageQueue}
           onRemoveQueuedMessage={removeFromQueue}
           onSendQueuedMessage={sendNow}
