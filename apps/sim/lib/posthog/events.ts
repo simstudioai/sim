@@ -28,6 +28,10 @@ export interface PostHogEventMap {
 
   signup_page_viewed: Record<string, never>
 
+  signup_failed: {
+    error_code: string
+  }
+
   subscription_created: {
     plan: string
     status: string
