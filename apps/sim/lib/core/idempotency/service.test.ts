@@ -6,6 +6,16 @@ import { describe, expect, it } from 'vitest'
 import { IdempotencyService } from '@/lib/core/idempotency/service'
 
 describe('IdempotencyService.createWebhookIdempotencyKey', () => {
+  it('uses Greenhouse-Event-ID when present', () => {
+    const key = IdempotencyService.createWebhookIdempotencyKey(
+      'wh_1',
+      { 'greenhouse-event-id': 'evt-gh-99' },
+      {},
+      'greenhouse'
+    )
+    expect(key).toBe('wh_1:evt-gh-99')
+  })
+
   it('prefers svix-id for Resend / Svix duplicate delivery deduplication', () => {
     const key = IdempotencyService.createWebhookIdempotencyKey(
       'wh_1',
