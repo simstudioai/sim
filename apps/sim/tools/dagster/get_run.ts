@@ -28,7 +28,11 @@ const GET_RUN_QUERY = `
           value
         }
       }
-      ... on Error {
+      ... on RunNotFoundError {
+        __typename
+        message
+      }
+      ... on PythonError {
         __typename
         message
       }

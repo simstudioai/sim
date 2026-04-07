@@ -34,7 +34,11 @@ const GET_RUN_LOGS_QUERY = `
         cursor
         hasMore
       }
-      ... on Error {
+      ... on RunNotFoundError {
+        __typename
+        message
+      }
+      ... on PythonError {
         __typename
         message
       }
