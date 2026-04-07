@@ -53,10 +53,14 @@ interface DropdownProps {
   /** Enable multi-select mode */
   multiSelect?: boolean
   /** Async function to fetch options dynamically */
-  fetchOptions?: (blockId: string) => Promise<Array<{ label: string; id: string }>>
+  fetchOptions?: (
+    blockId: string,
+    subBlockId: string
+  ) => Promise<Array<{ label: string; id: string }>>
   /** Async function to fetch a single option's label by ID (for hydration) */
   fetchOptionById?: (
     blockId: string,
+    subBlockId: string,
     optionId: string
   ) => Promise<{ label: string; id: string } | null>
   /** Field dependencies that trigger option refetch when changed */
