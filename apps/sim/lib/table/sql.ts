@@ -322,10 +322,15 @@ function buildComparisonClause(
   return sql`(${sql.raw(`${tableName}.data->>'${escapedField}'`)})::numeric ${sql.raw(operator)} ${value}`
 }
 
+/** Escapes LIKE/ILIKE wildcard characters so they match literally */
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, '\\$&')
+}
+
 /** Builds case-insensitive pattern match: `data->>'field' ILIKE '%value%'` */
 function buildContainsClause(tableName: string, field: string, value: string): SQL {
   const escapedField = field.replace(/'/g, "''")
-  return sql`${sql.raw(`${tableName}.data->>'${escapedField}'`)} ILIKE ${`%${value}%`}`
+  return sql`${sql.raw(`${tableName}.data->>'${escapedField}'`)} ILIKE ${`%${escapeLikePattern(value)}%`}`
 }
 
 /**
