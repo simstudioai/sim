@@ -290,6 +290,7 @@ function buildResultData(result: unknown): Record<string, unknown> | undefined {
     return {
       success: r.success,
       output: r.output,
+      logs: r.logs,
       error: r.error,
     }
   }
@@ -299,6 +300,7 @@ function buildResultData(result: unknown): Record<string, unknown> | undefined {
     return {
       success: exec.success,
       output: exec.output,
+      logs: exec.logs,
       error: exec.error,
     }
   }
@@ -318,20 +320,22 @@ async function reportCompletion(
   data?: Record<string, unknown>
 ): Promise<void> {
   try {
-    const payload = {
+    const body = JSON.stringify({
       toolCallId,
       status,
       message: message || (status === 'success' ? 'Tool completed' : 'Tool failed'),
       ...(data ? { data } : {}),
-    }
+    })
     const res = await fetch(COPILOT_CONFIRM_API_PATH, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body,
     })
-    if (res.status === 413 && data) {
-      logger.warn('[RunTool] reportCompletion payload too large, retrying without data', {
+    if (!res.ok && data && new Blob([body]).size > 1024 * 1024) {
+      logger.warn('[RunTool] reportCompletion failed with large payload, retrying without data', {
         toolCallId,
+        status: res.status,
+        bodySize: new Blob([body]).size,
       })
       const retryRes = await fetch(COPILOT_CONFIRM_API_PATH, {
         method: 'POST',
@@ -339,7 +343,7 @@ async function reportCompletion(
         body: JSON.stringify({
           toolCallId,
           status: 'error',
-          message: 'Workflow execution failed: payload too large',
+          message: 'Workflow execution failed: result payload too large',
         }),
       })
       if (!retryRes.ok) {
