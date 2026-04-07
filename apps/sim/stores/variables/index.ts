@@ -1,5 +1,4 @@
 export {
-  getDefaultVariablesDimensions,
   getVariablesPosition,
   MAX_VARIABLES_HEIGHT,
   MAX_VARIABLES_WIDTH,
