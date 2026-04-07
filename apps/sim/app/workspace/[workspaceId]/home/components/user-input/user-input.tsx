@@ -454,7 +454,8 @@ export function UserInput({
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
         e.preventDefault()
-        if (isSendingRef.current && !valueRef.current.trim() && onEnterWhileEmptyRef.current?.()) {
+        if (isSendingRef.current && !valueRef.current.trim()) {
+          onEnterWhileEmptyRef.current?.()
           return
         }
         handleSubmit()
