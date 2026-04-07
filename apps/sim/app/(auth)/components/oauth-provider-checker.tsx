@@ -1,9 +1,5 @@
 import { env } from '@/lib/core/config/env'
-import {
-  isGithubAuthDisabled,
-  isGoogleAuthDisabled,
-  isProd,
-} from '@/lib/core/config/feature-flags'
+import { isGithubAuthDisabled, isGoogleAuthDisabled, isProd } from '@/lib/core/config/feature-flags'
 
 export async function getOAuthProviderStatus() {
   const githubAvailable =
