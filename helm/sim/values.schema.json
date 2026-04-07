@@ -184,6 +184,14 @@
               "type": "string",
               "description": "GitHub OAuth client secret"
             },
+            "DISABLE_GOOGLE_AUTH": {
+              "type": "string",
+              "description": "Set to 'true' to hide Google OAuth login even when credentials are configured"
+            },
+            "DISABLE_GITHUB_AUTH": {
+              "type": "string",
+              "description": "Set to 'true' to hide GitHub OAuth login even when credentials are configured"
+            },
             "OPENAI_API_KEY": {
               "type": "string",
               "description": "Primary OpenAI API key"
