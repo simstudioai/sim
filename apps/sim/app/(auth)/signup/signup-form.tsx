@@ -280,10 +280,7 @@ function SignupFormContent({
             let errorCode = 'unknown'
             if (ctx.error.code?.includes('USER_ALREADY_EXISTS')) {
               errorCode = 'user_already_exists'
-              errorMessage.push(
-                'An account with this email already exists. Please sign in instead.'
-              )
-              setEmailError(errorMessage[0])
+              setEmailError('An account with this email already exists. Please sign in instead.')
             } else if (
               ctx.error.code?.includes('BAD_REQUEST') ||
               ctx.error.message?.includes('Email and password sign up is not enabled')
