@@ -7182,8 +7182,84 @@
       }
     ],
     "operationCount": 78,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "linear_issue_created_v2",
+        "name": "Linear Issue Created",
+        "description": "Trigger workflow when a new issue is created in Linear"
+      },
+      {
+        "id": "linear_issue_updated_v2",
+        "name": "Linear Issue Updated",
+        "description": "Trigger workflow when an issue is updated in Linear"
+      },
+      {
+        "id": "linear_issue_removed_v2",
+        "name": "Linear Issue Removed",
+        "description": "Trigger workflow when an issue is removed/deleted in Linear"
+      },
+      {
+        "id": "linear_comment_created_v2",
+        "name": "Linear Comment Created",
+        "description": "Trigger workflow when a new comment is created in Linear"
+      },
+      {
+        "id": "linear_comment_updated_v2",
+        "name": "Linear Comment Updated",
+        "description": "Trigger workflow when a comment is updated in Linear"
+      },
+      {
+        "id": "linear_project_created_v2",
+        "name": "Linear Project Created",
+        "description": "Trigger workflow when a new project is created in Linear"
+      },
+      {
+        "id": "linear_project_updated_v2",
+        "name": "Linear Project Updated",
+        "description": "Trigger workflow when a project is updated in Linear"
+      },
+      {
+        "id": "linear_cycle_created_v2",
+        "name": "Linear Cycle Created",
+        "description": "Trigger workflow when a new cycle is created in Linear"
+      },
+      {
+        "id": "linear_cycle_updated_v2",
+        "name": "Linear Cycle Updated",
+        "description": "Trigger workflow when a cycle is updated in Linear"
+      },
+      {
+        "id": "linear_label_created_v2",
+        "name": "Linear Label Created",
+        "description": "Trigger workflow when a new label is created in Linear"
+      },
+      {
+        "id": "linear_label_updated_v2",
+        "name": "Linear Label Updated",
+        "description": "Trigger workflow when a label is updated in Linear"
+      },
+      {
+        "id": "linear_project_update_created_v2",
+        "name": "Linear Project Update Created",
+        "description": "Trigger workflow when a new project update is posted in Linear"
+      },
+      {
+        "id": "linear_customer_request_created_v2",
+        "name": "Linear Customer Request Created",
+        "description": "Trigger workflow when a new customer request is created in Linear"
+      },
+      {
+        "id": "linear_customer_request_updated_v2",
+        "name": "Linear Customer Request Updated",
+        "description": "Trigger workflow when a customer request is updated in Linear"
+      },
+      {
+        "id": "linear_webhook_v2",
+        "name": "Linear Webhook",
+        "description": "Trigger workflow from Linear data-change events included in this webhook subscription (Issues, Comments, Projects, etc.—not every Linear model)."
+      }
+    ],
+    "triggerCount": 15,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "productivity",
