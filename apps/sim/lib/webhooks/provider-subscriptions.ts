@@ -31,6 +31,13 @@ const SYSTEM_MANAGED_FIELDS = new Set([
   'userId',
 ])
 
+/**
+ * Determine whether a webhook with provider-managed registration should be
+ * recreated after its persisted provider config changes.
+ *
+ * Only user-controlled fields are considered; provider-managed fields such as
+ * external IDs and generated secrets are ignored.
+ */
 export function shouldRecreateExternalWebhookSubscription({
   previousProvider,
   nextProvider,
@@ -69,6 +76,13 @@ export function shouldRecreateExternalWebhookSubscription({
   return false
 }
 
+/**
+ * Ask the provider handler to create an external webhook subscription, if that
+ * provider supports automatic registration.
+ *
+ * The returned provider-managed fields are merged back into `providerConfig`
+ * by the caller.
+ */
 export async function createExternalWebhookSubscription(
   request: NextRequest,
   webhookData: Record<string, unknown>,
