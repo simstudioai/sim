@@ -284,7 +284,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   langsmith: LangsmithIcon,
   launchdarkly: LaunchDarklyIcon,
   lemlist: LemlistIcon,
-  linear: LinearIcon,
+  linear_v2: LinearIcon,
   linkedin: LinkedInIcon,
   linkup: LinkupIcon,
   loops: LoopsIcon,

@@ -257,6 +257,66 @@ const PROVIDER_CHECKS: Record<string, CheckFn> = {
       formatInputKeys: Object.keys(input).sort(),
     }
   },
+  hubspot: async () => {
+    const { buildWebhookOutputs } = await import('@/triggers/hubspot/utils')
+    const { hubspotHandler } = await import('@/lib/webhooks/providers/hubspot')
+    const outputs = buildWebhookOutputs() as Record<string, TriggerOutput>
+    const sampleBody = [
+      {
+        objectId: 123,
+        subscriptionType: 'contact.creation',
+        portalId: 456,
+        occurredAt: 1700000000000,
+        attemptNumber: 0,
+        eventId: 789,
+        changeSource: 'CRM',
+      },
+    ]
+    const result = await hubspotHandler.formatInput!({
+      webhook: { providerConfig: { triggerId: 'hubspot_webhook' } },
+      workflow: { id: 'check-alignment', userId: 'check-alignment' },
+      body: sampleBody as unknown as Record<string, unknown>,
+      headers: {},
+      requestId: 'check-trigger-alignment',
+    })
+    const input = result.input as Record<string, unknown>
+    return {
+      referenceLabel: 'buildWebhookOutputs()',
+      outputKeys: Object.keys(outputs).sort(),
+      formatInputKeys: Object.keys(input).sort(),
+    }
+  },
+  intercom: async () => {
+    const { buildIntercomGenericOutputs } = await import('@/triggers/intercom/utils')
+    const { intercomHandler } = await import('@/lib/webhooks/providers/intercom')
+    const outputs = buildIntercomGenericOutputs() as Record<string, TriggerOutput>
+    const result = await intercomHandler.formatInput!({
+      webhook: {},
+      workflow: { id: 'check-alignment', userId: 'check-alignment' },
+      body: {
+        topic: 'contact.created',
+        id: 'notif_123',
+        app_id: 'app_123',
+        created_at: 1700000000,
+        delivery_attempts: 1,
+        first_sent_at: 1700000000,
+        data: {
+          item: {
+            id: 'contact_1',
+            email: 'ada@example.com',
+          },
+        },
+      },
+      headers: {},
+      requestId: 'check-trigger-alignment',
+    })
+    const input = result.input as Record<string, unknown>
+    return {
+      referenceLabel: 'buildIntercomGenericOutputs()',
+      outputKeys: Object.keys(outputs).sort(),
+      formatInputKeys: Object.keys(input).sort(),
+    }
+  },
 }
 
 const provider = process.argv[2]?.trim()

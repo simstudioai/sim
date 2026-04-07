@@ -417,7 +417,4 @@ List participants from a past Zoom meeting
 |   ↳ `totalRecords` | number | Total number of records |
 |   ↳ `nextPageToken` | string | Token for next page of results |
 
-## Webhook triggers
-
-Zoom **Meeting** and **Recording** webhook payloads use the same top-level envelope Sim exposes to workflows: `event` (string), `event_ts` (number, ms), and `payload` with `account_id` and an `object` whose fields depend on the event. Field names align with Zoom’s Meetings and cloud recording objects (for example meeting `id`, `uuid`, `topic`, `host_id`, `start_time`, `timezone`, `duration`, `join_url`, and recording `recording_files`). See [Zoom webhooks](https://developers.zoom.us/docs/api/webhooks/) and [Meeting webhooks](https://developers.zoom.us/docs/api/meetings/events/) for the authoritative event list; participant events nest a `participant` object alongside meeting fields.
 

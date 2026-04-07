@@ -28,21 +28,6 @@ In Sim, the Vercel integration lets your agents programmatically manage deployme
 
 Integrate with Vercel to manage deployments, projects, domains, DNS records, environment variables, aliases, edge configs, teams, and more.
 
-### Triggers (webhooks)
-
-Sim can subscribe to [Vercel webhooks](https://vercel.com/docs/webhooks/webhooks-api). Incoming events are normalized to workflow inputs that mirror the documented webhook body:
-
-| Field | Description |
-| ----- | ----------- |
-| `type`, `id`, `createdAt`, `region` | Top-level delivery metadata from the webhook JSON |
-| `payload` | Full `payload` object for the event |
-| `links.deployment`, `links.project` | Dashboard URLs when Vercel includes `payload.links` |
-| `regions` | `payload.regions` list when present (e.g. deployment events) |
-| `deployment` | `id`, `url`, `name`, and `meta` (metadata map) when `payload.deployment` exists |
-| `project`, `team`, `user` | Normalized ids (and project name) from the payload when present |
-| `target`, `plan` | From `payload.target` and `payload.plan` when present |
-| `domain` | `name` and `delegated` when `payload.domain` exists (e.g. `domain.created`) |
-
 
 
 ## Tools
