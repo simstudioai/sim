@@ -77,6 +77,8 @@ export const notionHandler: WebhookProviderHandler = {
       rawData.parent && typeof rawData.parent === 'object'
         ? (rawData.parent as Record<string, unknown>)
         : null
+    const { type: entityType, ...entityRest } = rawEntity
+    const { type: _rawParentType, ...parentRest } = rawParent ?? {}
 
     return {
       input: {
@@ -92,15 +94,15 @@ export const notionHandler: WebhookProviderHandler = {
         authors: b.authors || [],
         accessible_by: b.accessible_by || [],
         entity: {
-          ...rawEntity,
-          entity_type: rawEntity.type,
+          ...entityRest,
+          entity_type: entityType,
         },
         data: {
           ...rawData,
           ...(rawParent
             ? {
                 parent: {
-                  ...rawParent,
+                  ...parentRest,
                   parent_type: rawParent.type,
                 },
               }
