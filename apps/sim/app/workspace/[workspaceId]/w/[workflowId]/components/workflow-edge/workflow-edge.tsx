@@ -134,7 +134,7 @@ const WorkflowEdgeComponent = ({
               position: 'absolute',
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: 'all',
-              zIndex: 100,
+              zIndex: 1011,
             }}
             onClick={(e) => {
               e.preventDefault()
