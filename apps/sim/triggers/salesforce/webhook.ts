@@ -1,6 +1,7 @@
 import { SalesforceIcon } from '@/components/icons'
 import { buildTriggerSubBlocks } from '@/triggers'
 import {
+  buildSalesforceExtraFields,
   buildSalesforceWebhookOutputs,
   salesforceSetupInstructions,
   salesforceTriggerOptions,
@@ -24,6 +25,7 @@ export const salesforceWebhookTrigger: TriggerConfig = {
     triggerId: 'salesforce_webhook',
     triggerOptions: salesforceTriggerOptions,
     setupInstructions: salesforceSetupInstructions('All Events'),
+    extraFields: buildSalesforceExtraFields('salesforce_webhook'),
   }),
 
   outputs: buildSalesforceWebhookOutputs(),

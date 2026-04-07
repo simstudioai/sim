@@ -76,7 +76,7 @@ async function handleWebhookPost(
 
   const { body, rawBody } = parseResult
 
-  const challengeResponse = await handleProviderChallenges(body, request, requestId, path)
+  const challengeResponse = await handleProviderChallenges(body, request, requestId, path, rawBody)
   if (challengeResponse) {
     return challengeResponse
   }

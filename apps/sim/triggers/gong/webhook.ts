@@ -1,6 +1,12 @@
 import { GongIcon } from '@/components/icons'
+import { buildTriggerSubBlocks } from '@/triggers'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildGenericOutputs, gongSetupInstructions, gongTriggerOptions } from './utils'
+import {
+  buildGenericOutputs,
+  buildGongExtraFields,
+  gongSetupInstructions,
+  gongTriggerOptions,
+} from './utils'
 
 /**
  * Gong Generic Webhook Trigger
@@ -16,55 +22,13 @@ export const gongWebhookTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: GongIcon,
 
-  subBlocks: [
-    {
-      id: 'selectedTriggerId',
-      title: 'Trigger Type',
-      type: 'dropdown',
-      mode: 'trigger',
-      options: gongTriggerOptions,
-      value: () => 'gong_webhook',
-      required: true,
-    },
-    {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
-      type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'gong_webhook',
-      },
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'gong_webhook',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'gong_webhook',
-      },
-    },
-    {
-      id: 'triggerInstructions',
-      title: 'Setup Instructions',
-      hideFromPreview: true,
-      type: 'text',
-      defaultValue: gongSetupInstructions('All Events'),
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'gong_webhook',
-      },
-    },
-  ],
+  subBlocks: buildTriggerSubBlocks({
+    triggerId: 'gong_webhook',
+    triggerOptions: gongTriggerOptions,
+    includeDropdown: true,
+    setupInstructions: gongSetupInstructions('All Events'),
+    extraFields: buildGongExtraFields('gong_webhook'),
+  }),
 
   outputs: buildGenericOutputs(),
 

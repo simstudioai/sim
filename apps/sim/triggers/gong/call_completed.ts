@@ -1,12 +1,19 @@
 import { GongIcon } from '@/components/icons'
+import { buildTriggerSubBlocks } from '@/triggers'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildCallOutputs, gongSetupInstructions } from './utils'
+import {
+  buildCallOutputs,
+  buildGongExtraFields,
+  gongSetupInstructions,
+  gongTriggerOptions,
+} from './utils'
 
 /**
  * Gong Call Completed Trigger
  *
  * Secondary trigger - does NOT include the dropdown (the generic webhook trigger has it).
- * Fires when a call matching the configured rule is processed in Gong.
+ * Use this when the workflow is scoped to “completed call” rules; Gong still filters calls in the rule —
+ * the payload shape is the same as other call webhooks.
  */
 export const gongCallCompletedTrigger: TriggerConfig = {
   id: 'gong_call_completed',
@@ -16,46 +23,12 @@ export const gongCallCompletedTrigger: TriggerConfig = {
   version: '1.0.0',
   icon: GongIcon,
 
-  subBlocks: [
-    {
-      id: 'webhookUrlDisplay',
-      title: 'Webhook URL',
-      type: 'short-input',
-      readOnly: true,
-      showCopyButton: true,
-      useWebhookUrl: true,
-      placeholder: 'Webhook URL will be generated',
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'gong_call_completed',
-      },
-    },
-    {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'gong_call_completed',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'gong_call_completed',
-      },
-    },
-    {
-      id: 'triggerInstructions',
-      title: 'Setup Instructions',
-      hideFromPreview: true,
-      type: 'text',
-      defaultValue: gongSetupInstructions('Call Completed'),
-      mode: 'trigger',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'gong_call_completed',
-      },
-    },
-  ],
+  subBlocks: buildTriggerSubBlocks({
+    triggerId: 'gong_call_completed',
+    triggerOptions: gongTriggerOptions,
+    setupInstructions: gongSetupInstructions('Call Completed'),
+    extraFields: buildGongExtraFields('gong_call_completed'),
+  }),
 
   outputs: buildCallOutputs(),
 

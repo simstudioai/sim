@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { safeCompare } from '@/lib/core/security/encryption'
-import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/providers/subscription-utils'
+import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -13,28 +13,12 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
+import {
+  RESEND_ALL_WEBHOOK_EVENT_TYPES,
+  RESEND_TRIGGER_TO_EVENT_TYPE,
+} from '@/triggers/resend/utils'
 
 const logger = createLogger('WebhookProvider:Resend')
-
-const ALL_RESEND_EVENTS = [
-  'email.sent',
-  'email.delivered',
-  'email.delivery_delayed',
-  'email.bounced',
-  'email.complained',
-  'email.opened',
-  'email.clicked',
-  'email.failed',
-  'email.received',
-  'email.scheduled',
-  'email.suppressed',
-  'contact.created',
-  'contact.updated',
-  'contact.deleted',
-  'domain.created',
-  'domain.updated',
-  'domain.deleted',
-]
 
 /**
  * Verify a Resend webhook signature using the Svix signing scheme.
@@ -86,8 +70,9 @@ export const resendHandler: WebhookProviderHandler = {
     providerConfig,
   }: AuthContext): Promise<NextResponse | null> {
     const signingSecret = providerConfig.signingSecret as string | undefined
-    if (!signingSecret) {
-      return null
+    if (!signingSecret?.trim()) {
+      logger.warn(`[${requestId}] Resend webhook missing signing secret in provider configuration`)
+      return new NextResponse('Unauthorized - Resend signing secret is required', { status: 401 })
     }
 
     const svixId = request.headers.get('svix-id')
@@ -113,20 +98,15 @@ export const resendHandler: WebhookProviderHandler = {
       return true
     }
 
-    const EVENT_TYPE_MAP: Record<string, string> = {
-      resend_email_sent: 'email.sent',
-      resend_email_delivered: 'email.delivered',
-      resend_email_bounced: 'email.bounced',
-      resend_email_complained: 'email.complained',
-      resend_email_opened: 'email.opened',
-      resend_email_clicked: 'email.clicked',
-      resend_email_failed: 'email.failed',
+    const expectedType = RESEND_TRIGGER_TO_EVENT_TYPE[triggerId]
+    if (!expectedType) {
+      logger.debug(`[${requestId}] Unknown Resend triggerId ${triggerId}, skipping.`)
+      return false
     }
 
-    const expectedType = EVENT_TYPE_MAP[triggerId]
     const actualType = (body as Record<string, unknown>)?.type as string | undefined
 
-    if (expectedType && actualType !== expectedType) {
+    if (actualType !== expectedType) {
       logger.debug(
         `[${requestId}] Resend event type mismatch: expected ${expectedType}, got ${actualType}. Skipping.`
       )
@@ -141,12 +121,24 @@ export const resendHandler: WebhookProviderHandler = {
     const data = payload.data as Record<string, unknown> | undefined
     const bounce = data?.bounce as Record<string, unknown> | undefined
     const click = data?.click as Record<string, unknown> | undefined
+    const dataCreatedAt = data?.created_at
+    const dataCreatedAtStr =
+      typeof dataCreatedAt === 'string'
+        ? dataCreatedAt
+        : dataCreatedAt != null
+          ? String(dataCreatedAt)
+          : null
 
     return {
       input: {
         type: payload.type,
         created_at: payload.created_at,
+        data_created_at: dataCreatedAtStr,
+        data: data ?? null,
         email_id: data?.email_id ?? null,
+        broadcast_id: data?.broadcast_id ?? null,
+        template_id: data?.template_id ?? null,
+        tags: data?.tags ?? null,
         from: data?.from ?? null,
         to: data?.to ?? null,
         subject: data?.subject ?? null,
@@ -177,18 +169,17 @@ export const resendHandler: WebhookProviderHandler = {
         )
       }
 
-      const eventTypeMap: Record<string, string[]> = {
-        resend_email_sent: ['email.sent'],
-        resend_email_delivered: ['email.delivered'],
-        resend_email_bounced: ['email.bounced'],
-        resend_email_complained: ['email.complained'],
-        resend_email_opened: ['email.opened'],
-        resend_email_clicked: ['email.clicked'],
-        resend_email_failed: ['email.failed'],
-        resend_webhook: ALL_RESEND_EVENTS,
+      const events =
+        triggerId === 'resend_webhook'
+          ? RESEND_ALL_WEBHOOK_EVENT_TYPES
+          : triggerId && RESEND_TRIGGER_TO_EVENT_TYPE[triggerId]
+            ? [RESEND_TRIGGER_TO_EVENT_TYPE[triggerId]]
+            : null
+
+      if (!events?.length) {
+        throw new Error(`Unknown or unsupported Resend trigger type: ${triggerId ?? '(missing)'}`)
       }
 
-      const events = eventTypeMap[triggerId ?? ''] ?? ALL_RESEND_EVENTS
       const notificationUrl = getNotificationUrl(webhook)
 
       logger.info(`[${requestId}] Creating Resend webhook`, {
@@ -231,17 +222,31 @@ export const resendHandler: WebhookProviderHandler = {
         throw new Error(userFriendlyMessage)
       }
 
+      const externalId = responseBody.id
+      const signingSecretOut = responseBody.signing_secret
+
+      if (typeof externalId !== 'string' || !externalId.trim()) {
+        throw new Error(
+          'Resend webhook was created but the API response did not include a webhook id.'
+        )
+      }
+      if (typeof signingSecretOut !== 'string' || !signingSecretOut.trim()) {
+        throw new Error(
+          'Resend webhook was created but the API response did not include a signing secret.'
+        )
+      }
+
       logger.info(
         `[${requestId}] Successfully created webhook in Resend for webhook ${webhook.id}.`,
         {
-          resendWebhookId: responseBody.id,
+          resendWebhookId: externalId,
         }
       )
 
       return {
         providerConfigUpdates: {
-          externalId: responseBody.id,
-          signingSecret: responseBody.signing_secret,
+          externalId,
+          signingSecret: signingSecretOut,
         },
       }
     } catch (error: unknown) {

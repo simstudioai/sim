@@ -12,8 +12,49 @@ export const vercelTriggerOptions = [
   { label: 'Project Created', id: 'vercel_project_created' },
   { label: 'Project Removed', id: 'vercel_project_removed' },
   { label: 'Domain Created', id: 'vercel_domain_created' },
-  { label: 'Generic Webhook (All Events)', id: 'vercel_webhook' },
+  { label: 'Common events (curated list)', id: 'vercel_webhook' },
 ]
+
+/** Maps Sim trigger IDs to Vercel webhook `type` strings (see Vercel Webhooks API). */
+export const VERCEL_TRIGGER_EVENT_TYPES: Record<string, string> = {
+  vercel_deployment_created: 'deployment.created',
+  vercel_deployment_ready: 'deployment.ready',
+  vercel_deployment_error: 'deployment.error',
+  vercel_deployment_canceled: 'deployment.canceled',
+  vercel_project_created: 'project.created',
+  vercel_project_removed: 'project.removed',
+  vercel_domain_created: 'domain.created',
+}
+
+/** Curated set used by the generic Vercel webhook trigger. */
+export const VERCEL_GENERIC_TRIGGER_EVENT_TYPES = [
+  'deployment.created',
+  'deployment.ready',
+  'deployment.succeeded',
+  'deployment.error',
+  'deployment.canceled',
+  'deployment.promoted',
+  'project.created',
+  'project.removed',
+  'domain.created',
+  'edge-config.created',
+  'edge-config.deleted',
+] as const
+
+/**
+ * Returns whether the incoming Vercel event matches the configured trigger.
+ * `vercel_webhook` is handled only at subscription time; deliveries are not filtered here.
+ */
+export function isVercelEventMatch(triggerId: string, eventType: string | undefined): boolean {
+  if (triggerId === 'vercel_webhook') {
+    return true
+  }
+  const expected = VERCEL_TRIGGER_EVENT_TYPES[triggerId]
+  if (!expected) {
+    return false
+  }
+  return eventType === expected
+}
 
 /**
  * Generates setup instructions for Vercel webhooks.
@@ -84,7 +125,7 @@ const coreOutputs = {
   },
   id: {
     type: 'string',
-    description: 'Unique webhook delivery ID',
+    description: 'Unique webhook delivery ID (string)',
   },
   createdAt: {
     type: 'number',
@@ -96,15 +137,50 @@ const coreOutputs = {
   },
 } as const
 
+/** Raw `payload` object from the Vercel webhook body (event-specific shape). */
+const payloadOutput = {
+  payload: { type: 'json' as const, description: 'Raw event payload from Vercel' },
+} as const
+
 /**
- * Deployment-specific output fields
+ * Dashboard deep links included on many deployment webhook events (Vercel Webhooks API).
  */
-const deploymentOutputs = {
+const linksOutputs = {
+  links: {
+    deployment: {
+      type: 'string',
+      description: 'Vercel Dashboard URL for the deployment',
+    },
+    project: {
+      type: 'string',
+      description: 'Vercel Dashboard URL for the project',
+    },
+  },
+  regions: {
+    type: 'json',
+    description: 'Regions associated with the deployment (array), when provided by Vercel',
+  },
+} as const
+
+/** Normalized deployment object from `formatInput` (null when no deployment on the event). */
+const deploymentResourceOutputs = {
   deployment: {
     id: { type: 'string', description: 'Deployment ID' },
     url: { type: 'string', description: 'Deployment URL' },
     name: { type: 'string', description: 'Deployment name' },
+    meta: {
+      type: 'json',
+      description: 'Deployment metadata map (e.g. Git metadata), per Vercel Webhooks API',
+    },
   },
+} as const
+
+/**
+ * Deployment-specific output fields
+ */
+const deploymentOutputs = {
+  ...linksOutputs,
+  ...deploymentResourceOutputs,
   project: {
     id: { type: 'string', description: 'Project ID' },
     name: { type: 'string', description: 'Project name' },
@@ -117,12 +193,25 @@ const deploymentOutputs = {
   },
   target: {
     type: 'string',
-    description: 'Deployment target (production, preview)',
+    description: 'Deployment target (production, staging, or preview)',
   },
   plan: {
     type: 'string',
     description: 'Account plan type',
   },
+  domain: {
+    name: { type: 'string', description: 'Domain name' },
+    delegated: {
+      type: 'boolean',
+      description: 'Whether the domain was delegated/shared when present on the payload',
+    },
+  },
+} as const
+
+const deploymentTargetPlanDomain = {
+  target: deploymentOutputs.target,
+  plan: deploymentOutputs.plan,
+  domain: deploymentOutputs.domain,
 } as const
 
 /**
@@ -147,6 +236,11 @@ const projectOutputs = {
 const domainOutputs = {
   domain: {
     name: { type: 'string', description: 'Domain name' },
+    delegated: {
+      type: 'boolean',
+      description:
+        'Whether the domain was delegated/shared (domain.created), per Vercel Webhooks API',
+    },
   },
   project: {
     id: { type: 'string', description: 'Project ID' },
@@ -165,6 +259,7 @@ const domainOutputs = {
 export function buildDeploymentOutputs(): Record<string, TriggerOutput> {
   return {
     ...coreOutputs,
+    ...payloadOutput,
     ...deploymentOutputs,
   } as Record<string, TriggerOutput>
 }
@@ -175,7 +270,11 @@ export function buildDeploymentOutputs(): Record<string, TriggerOutput> {
 export function buildProjectOutputs(): Record<string, TriggerOutput> {
   return {
     ...coreOutputs,
+    ...payloadOutput,
+    ...linksOutputs,
+    ...deploymentResourceOutputs,
     ...projectOutputs,
+    ...deploymentTargetPlanDomain,
   } as Record<string, TriggerOutput>
 }
 
@@ -185,6 +284,10 @@ export function buildProjectOutputs(): Record<string, TriggerOutput> {
 export function buildDomainOutputs(): Record<string, TriggerOutput> {
   return {
     ...coreOutputs,
+    ...payloadOutput,
+    ...linksOutputs,
+    ...deploymentResourceOutputs,
+    ...deploymentTargetPlanDomain,
     ...domainOutputs,
   } as Record<string, TriggerOutput>
 }
@@ -196,31 +299,11 @@ export function buildVercelOutputs(): Record<string, TriggerOutput> {
   return {
     ...coreOutputs,
     payload: { type: 'json', description: 'Full event payload' },
-    deployment: {
-      id: { type: 'string', description: 'Deployment ID' },
-      url: { type: 'string', description: 'Deployment URL' },
-      name: { type: 'string', description: 'Deployment name' },
-    },
-    project: {
-      id: { type: 'string', description: 'Project ID' },
-      name: { type: 'string', description: 'Project name' },
-    },
-    team: {
-      id: { type: 'string', description: 'Team ID' },
-    },
-    user: {
-      id: { type: 'string', description: 'User ID' },
-    },
-    target: {
-      type: 'string',
-      description: 'Deployment target (production, preview)',
-    },
-    plan: {
-      type: 'string',
-      description: 'Account plan type',
-    },
-    domain: {
-      name: { type: 'string', description: 'Domain name' },
-    },
+    ...linksOutputs,
+    ...deploymentResourceOutputs,
+    project: deploymentOutputs.project,
+    team: deploymentOutputs.team,
+    user: deploymentOutputs.user,
+    ...deploymentTargetPlanDomain,
   } as Record<string, TriggerOutput>
 }

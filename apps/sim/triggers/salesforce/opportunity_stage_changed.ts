@@ -1,6 +1,7 @@
 import { SalesforceIcon } from '@/components/icons'
 import { buildTriggerSubBlocks } from '@/triggers'
 import {
+  buildSalesforceAuthOnlyFields,
   buildSalesforceOpportunityStageOutputs,
   salesforceSetupInstructions,
   salesforceTriggerOptions,
@@ -22,6 +23,7 @@ export const salesforceOpportunityStageChangedTrigger: TriggerConfig = {
     triggerId: 'salesforce_opportunity_stage_changed',
     triggerOptions: salesforceTriggerOptions,
     setupInstructions: salesforceSetupInstructions('Opportunity Stage Changed'),
+    extraFields: buildSalesforceAuthOnlyFields('salesforce_opportunity_stage_changed'),
   }),
 
   outputs: buildSalesforceOpportunityStageOutputs(),

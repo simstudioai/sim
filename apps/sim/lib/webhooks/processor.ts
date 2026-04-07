@@ -123,12 +123,13 @@ export async function handleProviderChallenges(
   body: unknown,
   request: NextRequest,
   requestId: string,
-  path: string
+  path: string,
+  rawBody?: string
 ): Promise<NextResponse | null> {
   for (const provider of CHALLENGE_PROVIDERS) {
     const handler = getProviderHandler(provider)
     if (handler.handleChallenge) {
-      const response = await handler.handleChallenge(body, request, requestId, path)
+      const response = await handler.handleChallenge(body, request, requestId, path, rawBody)
       if (response) {
         return response
       }

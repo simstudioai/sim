@@ -26,7 +26,12 @@ export function isZoomEventMatch(triggerId: string, event: string): boolean {
     return false
   }
 
-  return allowedEvents.includes(event)
+  const ev = event?.trim()
+  if (!ev) {
+    return false
+  }
+
+  return allowedEvents.includes(ev)
 }
 
 /**
@@ -64,7 +69,7 @@ export function zoomSetupInstructions(eventType: ZoomEventType): string {
 
   const instructions = [
     'Copy the <strong>Webhook URL</strong> above.',
-    'Go to the <a href="https://marketplace.zoom.us/" target="_blank" rel="noopener noreferrer">Zoom Marketplace</a> and open your app (or create a new Webhook Only app).',
+    'Go to the <a href="https://marketplace.zoom.us/" target="_blank" rel="noopener noreferrer">Zoom Marketplace</a> and create or open a <strong>Webhook-only</strong> or general app with <strong>Event Subscriptions</strong> enabled (Meeting / Recording events as needed). Admin approval may be required for account-level webhooks.',
     "Copy the <strong>Secret Token</strong> from your Zoom app's <strong>Features</strong> page and paste it in the <strong>Secret Token</strong> field above.",
     'Click <strong>"Save Configuration"</strong> above to activate the trigger.',
     'Navigate to <strong>Features > Event Subscriptions</strong> and click <strong>Add Event Subscription</strong>.',
@@ -123,23 +128,45 @@ export function buildMeetingOutputs(): Record<string, TriggerOutput> {
       },
       object: {
         type: 'object',
-        description: 'Meeting details',
-        properties: {
-          id: { type: 'number', description: 'Meeting ID' },
-          uuid: { type: 'string', description: 'Meeting UUID' },
-          topic: { type: 'string', description: 'Meeting topic' },
-          meeting_type: {
-            type: 'number',
-            description: 'Meeting type (1=instant, 2=scheduled, etc.)',
-          },
-          host_id: { type: 'string', description: 'Host user ID' },
-          start_time: { type: 'string', description: 'Meeting start time (ISO 8601)' },
-          end_time: {
-            type: 'string',
-            description: 'Meeting end time (ISO 8601, present on meeting.ended)',
-          },
-          timezone: { type: 'string', description: 'Meeting timezone' },
-          duration: { type: 'number', description: 'Meeting duration in minutes' },
+        description: 'Meeting details (shape aligns with Zoom Meetings webhook object fields)',
+        id: { type: 'number', description: 'Meeting ID' },
+        uuid: { type: 'string', description: 'Meeting UUID' },
+        topic: { type: 'string', description: 'Meeting topic' },
+        meeting_type: {
+          type: 'number',
+          description: 'Meeting type (1=instant, 2=scheduled, etc.; maps to Zoom `type`)',
+        },
+        host_id: { type: 'string', description: 'Host user ID' },
+        host_email: {
+          type: 'string',
+          description: 'Host email address (when provided by Zoom)',
+        },
+        start_time: { type: 'string', description: 'Meeting start time (ISO 8601)' },
+        end_time: {
+          type: 'string',
+          description: 'Meeting end time (ISO 8601, present on meeting.ended)',
+        },
+        timezone: { type: 'string', description: 'Meeting timezone' },
+        duration: { type: 'number', description: 'Meeting duration in minutes' },
+        agenda: {
+          type: 'string',
+          description: 'Meeting agenda or description (when provided)',
+        },
+        join_url: {
+          type: 'string',
+          description: 'URL for participants to join (when provided)',
+        },
+        password: {
+          type: 'string',
+          description: 'Meeting password (when provided)',
+        },
+        status: {
+          type: 'string',
+          description: 'Meeting status (e.g. waiting, started; when provided)',
+        },
+        created_at: {
+          type: 'string',
+          description: 'Creation timestamp in ISO 8601 format (when provided)',
         },
       },
     },
@@ -166,26 +193,30 @@ export function buildParticipantOutputs(): Record<string, TriggerOutput> {
       },
       object: {
         type: 'object',
-        description: 'Meeting details',
-        properties: {
-          id: { type: 'number', description: 'Meeting ID' },
-          uuid: { type: 'string', description: 'Meeting UUID' },
-          topic: { type: 'string', description: 'Meeting topic' },
-          host_id: { type: 'string', description: 'Host user ID' },
-          participant: {
-            type: 'object',
-            description: 'Participant details',
-            properties: {
-              id: { type: 'string', description: 'Participant user ID' },
-              user_id: { type: 'string', description: 'Participant user ID (16-digit)' },
-              user_name: { type: 'string', description: 'Participant display name' },
-              email: { type: 'string', description: 'Participant email' },
-              join_time: { type: 'string', description: 'Time participant joined (ISO 8601)' },
-              leave_time: {
-                type: 'string',
-                description: 'Time participant left (ISO 8601, present on participant_left)',
-              },
-            },
+        description: 'Meeting and participant details',
+        id: { type: 'number', description: 'Meeting ID' },
+        uuid: { type: 'string', description: 'Meeting UUID' },
+        topic: { type: 'string', description: 'Meeting topic' },
+        host_id: { type: 'string', description: 'Host user ID' },
+        join_url: {
+          type: 'string',
+          description: 'URL for participants to join (when provided)',
+        },
+        participant: {
+          type: 'object',
+          description: 'Participant details',
+          id: { type: 'string', description: 'Participant identifier' },
+          user_id: { type: 'string', description: 'Participant user ID (when a Zoom user)' },
+          user_name: { type: 'string', description: 'Participant display name' },
+          email: { type: 'string', description: 'Participant email (when available)' },
+          join_time: { type: 'string', description: 'Time participant joined (ISO 8601)' },
+          leave_time: {
+            type: 'string',
+            description: 'Time participant left (ISO 8601, present on participant_left)',
+          },
+          duration: {
+            type: 'number',
+            description: 'Seconds the participant was in the meeting (when provided)',
           },
         },
       },
@@ -213,22 +244,30 @@ export function buildRecordingOutputs(): Record<string, TriggerOutput> {
       },
       object: {
         type: 'object',
-        description: 'Recording details',
-        properties: {
-          id: { type: 'number', description: 'Meeting ID' },
-          uuid: { type: 'string', description: 'Meeting UUID' },
-          topic: { type: 'string', description: 'Meeting topic' },
-          host_id: { type: 'string', description: 'Host user ID' },
-          host_email: { type: 'string', description: 'Host email' },
-          start_time: { type: 'string', description: 'Recording start time (ISO 8601)' },
-          duration: { type: 'number', description: 'Recording duration in minutes' },
-          total_size: { type: 'number', description: 'Total recording size in bytes' },
-          recording_count: { type: 'number', description: 'Number of recording files' },
-          share_url: { type: 'string', description: 'URL to share the recording' },
-          recording_files: {
-            type: 'json',
-            description: 'Array of recording file objects with download URLs',
-          },
+        description: 'Cloud recording details (aligns with Zoom cloud recording objects)',
+        id: { type: 'number', description: 'Meeting ID' },
+        uuid: { type: 'string', description: 'Meeting UUID' },
+        topic: { type: 'string', description: 'Meeting topic' },
+        meeting_type: {
+          type: 'number',
+          description: 'Meeting type (when provided; maps to Zoom `type`)',
+        },
+        host_id: { type: 'string', description: 'Host user ID' },
+        host_email: { type: 'string', description: 'Host email' },
+        start_time: { type: 'string', description: 'Recording start time (ISO 8601)' },
+        timezone: { type: 'string', description: 'Meeting timezone (when provided)' },
+        agenda: {
+          type: 'string',
+          description: 'Meeting agenda (when provided)',
+        },
+        duration: { type: 'number', description: 'Recording duration in minutes' },
+        total_size: { type: 'number', description: 'Total recording size in bytes' },
+        recording_count: { type: 'number', description: 'Number of recording files' },
+        share_url: { type: 'string', description: 'URL to share the recording' },
+        recording_files: {
+          type: 'json',
+          description:
+            'Array of recording file objects (e.g. id, file_type, play_url, download_url) per Zoom cloud recording payloads',
         },
       },
     },

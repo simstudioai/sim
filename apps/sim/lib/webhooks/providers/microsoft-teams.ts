@@ -15,7 +15,7 @@ import {
   getCredentialOwner,
   getNotificationUrl,
   getProviderConfig,
-} from '@/lib/webhooks/providers/subscription-utils'
+} from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
   DeleteSubscriptionContext,

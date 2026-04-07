@@ -115,10 +115,10 @@ export interface WebhookProviderHandler {
   /** Custom error response when queuing fails. Return null for default 500. */
   formatQueueErrorResponse?(): NextResponse | null
 
-  /** Custom input preparation. Replaces the standard `formatWebhookInput` call when defined. */
+  /** Custom input preparation. When defined, replaces the default pass-through of the raw body. */
   formatInput?(ctx: FormatInputContext): Promise<FormatInputResult>
 
-  /** Called when standard `formatWebhookInput` returns null. Return skip message or null to proceed. */
+  /** Called when input is null after formatting. Return skip message or null to proceed. */
   handleEmptyInput?(requestId: string): { message: string } | null
 
   /** Post-process input to handle file uploads before execution. */
@@ -138,6 +138,8 @@ export interface WebhookProviderHandler {
     body: unknown,
     request: NextRequest,
     requestId: string,
-    path: string
+    path: string,
+    /** Raw request body bytes (when available); required for signature checks that must match the provider (e.g. Zoom). */
+    rawBody?: string
   ): Promise<NextResponse | null> | NextResponse | null
 }
