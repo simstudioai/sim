@@ -24,6 +24,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -51,6 +52,7 @@ export function useAvailableResources(
   const { data: tables = [] } = useTablesList(workspaceId)
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
   const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId)
+  const { data: folders = [] } = useFolders(workspaceId)
 
   return useMemo(
     () => [
@@ -61,6 +63,14 @@ export function useAvailableResources(
           name: w.name,
           color: w.color,
           isOpen: existingKeys.has(`workflow:${w.id}`),
+        })),
+      },
+      {
+        type: 'folder' as const,
+        items: folders.map((f) => ({
+          id: f.id,
+          name: f.name,
+          isOpen: existingKeys.has(`folder:${f.id}`),
         })),
       },
       {
@@ -88,7 +98,7 @@ export function useAvailableResources(
         })),
       },
     ],
-    [workflows, tables, files, knowledgeBases, existingKeys]
+    [workflows, folders, tables, files, knowledgeBases, existingKeys]
   )
 }
 
