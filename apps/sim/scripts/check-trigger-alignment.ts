@@ -317,6 +317,176 @@ const PROVIDER_CHECKS: Record<string, CheckFn> = {
       formatInputKeys: Object.keys(input).sort(),
     }
   },
+  github: async () => {
+    const { repositoryOutputs, userOutputs } = await import('@/triggers/github/utils')
+    const { githubHandler } = await import('@/lib/webhooks/providers/github')
+
+    const outputs = {
+      action: { type: 'string', description: 'GitHub action' },
+      event_type: { type: 'string', description: 'GitHub event type' },
+      branch: { type: 'string', description: 'Branch name' },
+      repository: repositoryOutputs,
+      sender: userOutputs,
+    } as unknown as Record<string, TriggerOutput>
+
+    const result = await githubHandler.formatInput!({
+      webhook: {},
+      workflow: { id: 'check-alignment', userId: 'check-alignment' },
+      body: {
+        action: 'opened',
+        ref: 'refs/heads/main',
+        repository: {
+          id: 1,
+          node_id: 'node_1',
+          name: 'sim',
+          full_name: 'simstudioai/sim',
+          private: true,
+          html_url: 'https://github.com/simstudioai/sim',
+          description: 'Repo',
+          fork: false,
+          url: 'https://api.github.com/repos/simstudioai/sim',
+          homepage: null,
+          size: 123,
+          stargazers_count: 10,
+          watchers_count: 10,
+          language: 'TypeScript',
+          forks_count: 2,
+          open_issues_count: 3,
+          default_branch: 'main',
+          owner: {
+            login: 'simstudioai',
+            id: 1,
+            avatar_url: 'https://avatars.githubusercontent.com/u/1',
+            html_url: 'https://github.com/simstudioai',
+          },
+        },
+        sender: {
+          login: 'octocat',
+          id: 2,
+          node_id: 'node_2',
+          avatar_url: 'https://avatars.githubusercontent.com/u/2',
+          html_url: 'https://github.com/octocat',
+          type: 'User',
+        },
+      },
+      headers: { 'x-github-event': 'issues' },
+      requestId: 'check-trigger-alignment',
+    })
+    const input = result.input as Record<string, unknown>
+    return {
+      referenceLabel: 'github issue-shaped outputs',
+      outputKeys: Object.keys(outputs).sort(),
+      formatInputKeys: Object.keys(input).sort(),
+    }
+  },
+  slack: async () => {
+    const { slackHandler } = await import('@/lib/webhooks/providers/slack')
+
+    const outputs = {
+      event: {
+        type: 'object',
+        description: 'Slack event data',
+        properties: {
+          event_type: { type: 'string', description: 'Slack event type' },
+          channel: { type: 'string', description: 'Channel ID' },
+          channel_name: { type: 'string', description: 'Channel name' },
+          user: { type: 'string', description: 'User ID' },
+          user_name: { type: 'string', description: 'Username' },
+          text: { type: 'string', description: 'Message text' },
+          timestamp: { type: 'string', description: 'Message timestamp' },
+          thread_ts: { type: 'string', description: 'Thread timestamp' },
+          team_id: { type: 'string', description: 'Workspace ID' },
+          event_id: { type: 'string', description: 'Event ID' },
+          reaction: { type: 'string', description: 'Reaction name' },
+          item_user: { type: 'string', description: 'Original message author' },
+          hasFiles: { type: 'boolean', description: 'Whether files are attached' },
+          files: { type: 'file[]', description: 'Downloaded files' },
+        },
+      },
+    } as Record<string, TriggerOutput>
+
+    const result = await slackHandler.formatInput!({
+      webhook: { providerConfig: {} },
+      workflow: { id: 'check-alignment', userId: 'check-alignment' },
+      body: {
+        team_id: 'T123',
+        event_id: 'Ev123',
+        event: {
+          type: 'app_mention',
+          channel: 'C123',
+          user: 'U123',
+          text: 'hello',
+          ts: '1700000000.0001',
+          thread_ts: '1700000000.0001',
+        },
+      },
+      headers: {},
+      requestId: 'check-trigger-alignment',
+    })
+    const input = result.input as Record<string, unknown>
+    return {
+      referenceLabel: 'slackWebhookTrigger.outputs',
+      outputKeys: Object.keys(outputs).sort(),
+      formatInputKeys: Object.keys(input).sort(),
+    }
+  },
+  typeform: async () => {
+    const { typeformHandler } = await import('@/lib/webhooks/providers/typeform')
+
+    const outputs = {
+      event_id: { type: 'string', description: 'Unique event identifier' },
+      event_type: { type: 'string', description: 'Typeform event type' },
+      form_id: { type: 'string', description: 'Form ID' },
+      token: { type: 'string', description: 'Submission token' },
+      submitted_at: { type: 'string', description: 'Submission timestamp' },
+      landed_at: { type: 'string', description: 'Landing timestamp' },
+      calculated: {
+        type: 'object',
+        description: 'Calculated values',
+        properties: { score: { type: 'number', description: 'Score' } },
+      },
+      variables: { type: 'array', description: 'Variables' },
+      hidden: { type: 'object', description: 'Hidden fields' },
+      answers: { type: 'array', description: 'Answers' },
+      ending: {
+        type: 'object',
+        description: 'Ending',
+        properties: {
+          id: { type: 'string', description: 'Ending id' },
+          ref: { type: 'string', description: 'Ending ref' },
+        },
+      },
+      raw: { type: 'object', description: 'Raw payload' },
+    } as Record<string, TriggerOutput>
+
+    const result = await typeformHandler.formatInput!({
+      webhook: { providerConfig: { includeDefinition: false } },
+      workflow: { id: 'check-alignment', userId: 'check-alignment' },
+      body: {
+        event_id: 'evt_1',
+        event_type: 'form_response',
+        form_response: {
+          form_id: 'form_1',
+          token: 'token_1',
+          submitted_at: '2026-01-01T00:00:00Z',
+          landed_at: '2026-01-01T00:00:00Z',
+          calculated: { score: 5 },
+          variables: [],
+          hidden: {},
+          answers: [],
+          ending: { id: 'ending_1', ref: 'end_ref' },
+        },
+      },
+      headers: {},
+      requestId: 'check-trigger-alignment',
+    })
+    const input = result.input as Record<string, unknown>
+    return {
+      referenceLabel: 'typeformWebhookTrigger.outputs',
+      outputKeys: Object.keys(outputs).sort(),
+      formatInputKeys: Object.keys(input).sort(),
+    }
+  },
 }
 
 const provider = process.argv[2]?.trim()
