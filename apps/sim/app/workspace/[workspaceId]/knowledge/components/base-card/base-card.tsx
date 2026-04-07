@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Badge, DocumentAttachment, Tooltip } from '@/components/emcn'
 import { formatAbsoluteDate, formatRelativeTime } from '@/lib/core/utils/formatting'
@@ -101,6 +101,23 @@ export function BaseCard({
   const [isTagsModalOpen, setIsTagsModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  /**
+   * Guards against context menu actions triggering card navigation.
+   * The card's onClick fires synchronously during the click event bubble phase,
+   * so the ref is checked before the setTimeout-0 callback resets it.
+   */
+  const actionTakenRef = useRef(false)
+  const withActionGuard = useCallback((fn: () => void) => {
+    actionTakenRef.current = true
+    try {
+      fn()
+    } finally {
+      setTimeout(() => {
+        actionTakenRef.current = false
+      }, 0)
+    }
+  }, [])
+
   const searchParams = new URLSearchParams({
     kbName: title,
   })
@@ -110,7 +127,7 @@ export function BaseCard({
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
-      if (isContextMenuOpen) {
+      if (isContextMenuOpen || actionTakenRef.current) {
         e.preventDefault()
         return
       }
@@ -130,20 +147,25 @@ export function BaseCard({
   )
 
   const handleOpenInNewTab = useCallback(() => {
-    window.open(href, '_blank')
-  }, [href])
+    withActionGuard(() => window.open(href, '_blank'))
+  }, [href, withActionGuard])
 
   const handleViewTags = useCallback(() => {
-    setIsTagsModalOpen(true)
-  }, [])
+    withActionGuard(() => setIsTagsModalOpen(true))
+  }, [withActionGuard])
 
   const handleEdit = useCallback(() => {
-    setIsEditModalOpen(true)
-  }, [])
+    withActionGuard(() => setIsEditModalOpen(true))
+  }, [withActionGuard])
 
   const handleDelete = useCallback(() => {
-    setIsDeleteModalOpen(true)
-  }, [])
+    withActionGuard(() => setIsDeleteModalOpen(true))
+  }, [withActionGuard])
+
+  const handleCopyId = useCallback(() => {
+    if (!id) return
+    withActionGuard(() => navigator.clipboard.writeText(id))
+  }, [id, withActionGuard])
 
   const handleConfirmDelete = useCallback(async () => {
     if (!id || !onDelete) return
@@ -240,7 +262,7 @@ export function BaseCard({
         onClose={closeContextMenu}
         onOpenInNewTab={handleOpenInNewTab}
         onViewTags={handleViewTags}
-        onCopyId={id ? () => navigator.clipboard.writeText(id) : undefined}
+        onCopyId={id ? handleCopyId : undefined}
         onEdit={handleEdit}
         onDelete={handleDelete}
         showOpenInNewTab={true}

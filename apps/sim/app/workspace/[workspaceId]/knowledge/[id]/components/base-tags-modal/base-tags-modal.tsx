@@ -261,7 +261,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
   return (
     <>
       <Modal open={open} onOpenChange={handleClose}>
-        <ModalContent size='sm'>
+        <ModalContent size='md'>
           <ModalHeader>
             <div className='flex items-center justify-between'>
               <span>Tags</span>
