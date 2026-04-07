@@ -1,8 +1,3 @@
----
-name: add-block
-description: Create or update a Sim integration block with correct subBlocks, conditions, dependsOn, modes, canonicalParamId usage, outputs, and tool wiring. Use when working on `apps/sim/blocks/blocks/{service}.ts` or aligning a block with its tools.
----
-
 # Add Block Skill
 
 You are an expert at creating block configurations for Sim. You understand the serializer, subBlock types, conditions, dependsOn, modes, and all UI patterns.
