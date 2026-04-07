@@ -29,6 +29,20 @@ In Sim, the Greenhouse integration enables your agents to interact with your rec
 
 Integrate Greenhouse into the workflow. List and retrieve candidates, jobs, applications, users, departments, offices, and job stages from your Greenhouse ATS account.
 
+### Triggers (webhooks)
+
+Sim accepts [Greenhouse webhooks](https://developers.greenhouse.io/webhooks.html) POSTed to your trigger URL. Each delivery is normalized to workflow inputs with:
+
+| Field | Description |
+| ----- | ----------- |
+| `action` | Webhook action string (e.g. `new_candidate_application`) |
+| `applicationId` | `payload.application.id`, or `payload.application_id` on flat offer payloads |
+| `candidateId` | `payload.application.candidate.id` when the nested candidate object is present |
+| `jobId` | `payload.job.id` for job webhooks, or `payload.job_id` when provided on the payload (e.g. offers) |
+| `payload` | Full JSON `payload` for the event |
+
+Nested objects such as `email_addresses[].type` remain inside `payload` as JSON so they do not collide with Sim’s trigger output schema rules.
+
 
 
 ## Tools

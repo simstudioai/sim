@@ -256,6 +256,31 @@ export const vercelHandler: WebhookProviderHandler = {
     const user = payload.user ?? null
     const domain = payload.domain ?? null
 
+    const linksRaw = payload.links
+    let links: { deployment: string; project: string } | null = null
+    if (linksRaw && typeof linksRaw === 'object' && !Array.isArray(linksRaw)) {
+      const L = linksRaw as Record<string, unknown>
+      const dep = L.deployment
+      const proj = L.project
+      if (typeof dep === 'string' || typeof proj === 'string') {
+        links = {
+          deployment: typeof dep === 'string' ? dep : '',
+          project: typeof proj === 'string' ? proj : '',
+        }
+      }
+    }
+
+    const regionsRaw = payload.regions
+    const regions = Array.isArray(regionsRaw) ? regionsRaw : null
+
+    let deploymentMeta: Record<string, unknown> | null = null
+    if (deployment && typeof deployment === 'object') {
+      const meta = (deployment as Record<string, unknown>).meta
+      if (meta && typeof meta === 'object' && !Array.isArray(meta)) {
+        deploymentMeta = meta as Record<string, unknown>
+      }
+    }
+
     return {
       input: {
         type: body.type ?? '',
@@ -274,6 +299,8 @@ export const vercelHandler: WebhookProviderHandler = {
         })(),
         region: body.region != null ? String(body.region) : null,
         payload,
+        links,
+        regions,
         deployment:
           deployment && typeof deployment === 'object'
             ? {
@@ -283,6 +310,7 @@ export const vercelHandler: WebhookProviderHandler = {
                     : '',
                 url: ((deployment as Record<string, unknown>).url as string) ?? '',
                 name: ((deployment as Record<string, unknown>).name as string) ?? '',
+                meta: deploymentMeta,
               }
             : null,
         project:
@@ -319,6 +347,10 @@ export const vercelHandler: WebhookProviderHandler = {
           domain && typeof domain === 'object'
             ? {
                 name: ((domain as Record<string, unknown>).name as string) ?? '',
+                delegated:
+                  typeof (domain as Record<string, unknown>).delegated === 'boolean'
+                    ? ((domain as Record<string, unknown>).delegated as boolean)
+                    : null,
               }
             : null,
       },

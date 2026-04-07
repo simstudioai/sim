@@ -142,13 +142,23 @@ const PROVIDER_CHECKS: Record<string, CheckFn> = {
         createdAt: Date.now(),
         region: 'iad1',
         payload: {
-          deployment: { id: 'dep_1', url: 'example.vercel.app', name: 'preview' },
+          deployment: {
+            id: 'dep_1',
+            url: 'example.vercel.app',
+            name: 'preview',
+            meta: { githubCommitSha: 'abc123' },
+          },
           project: { id: 'prj_1', name: 'project' },
           team: { id: 'team_1' },
           user: { id: 'user_1' },
           target: 'preview',
           plan: 'pro',
-          domain: { name: 'example.com' },
+          links: {
+            deployment: 'https://vercel.com/acme/project/dep',
+            project: 'https://vercel.com/acme/project',
+          },
+          regions: ['iad1'],
+          domain: { name: 'example.com', delegated: false },
         },
       },
       headers: {},
@@ -157,6 +167,33 @@ const PROVIDER_CHECKS: Record<string, CheckFn> = {
     const input = result.input as Record<string, unknown>
     return {
       referenceLabel: 'buildVercelOutputs()',
+      outputKeys: Object.keys(outputs).sort(),
+      formatInputKeys: Object.keys(input).sort(),
+    }
+  },
+  greenhouse: async () => {
+    const { buildWebhookOutputs } = await import('@/triggers/greenhouse/utils')
+    const { greenhouseHandler } = await import('@/lib/webhooks/providers/greenhouse')
+    const outputs = buildWebhookOutputs() as Record<string, TriggerOutput>
+    const result = await greenhouseHandler.formatInput!({
+      webhook: {},
+      workflow: { id: 'check-alignment', userId: 'check-alignment' },
+      body: {
+        action: 'new_candidate_application',
+        payload: {
+          application: {
+            id: 71980812,
+            candidate: { id: 60304594 },
+            jobs: [{ id: 274075, name: 'Engineer' }],
+          },
+        },
+      },
+      headers: {},
+      requestId: 'check-trigger-alignment',
+    })
+    const input = result.input as Record<string, unknown>
+    return {
+      referenceLabel: 'buildWebhookOutputs()',
       outputKeys: Object.keys(outputs).sort(),
       formatInputKeys: Object.keys(input).sort(),
     }

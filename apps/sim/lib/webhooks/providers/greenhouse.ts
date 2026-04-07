@@ -43,9 +43,37 @@ export const greenhouseHandler: WebhookProviderHandler = {
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
+    const payload = (b.payload || {}) as Record<string, unknown>
+    const application = (payload.application || {}) as Record<string, unknown>
+    const candidate = (application.candidate || {}) as Record<string, unknown>
+    const jobNested = payload.job
+
+    let applicationId: number | null = null
+    if (typeof application.id === 'number') {
+      applicationId = application.id
+    } else if (typeof payload.application_id === 'number') {
+      applicationId = payload.application_id
+    }
+
+    const candidateId = typeof candidate.id === 'number' ? candidate.id : null
+
+    let jobId: number | null = null
+    if (
+      jobNested &&
+      typeof jobNested === 'object' &&
+      typeof (jobNested as Record<string, unknown>).id === 'number'
+    ) {
+      jobId = (jobNested as Record<string, unknown>).id as number
+    } else if (typeof payload.job_id === 'number') {
+      jobId = payload.job_id
+    }
+
     return {
       input: {
         action: b.action,
+        applicationId,
+        candidateId,
+        jobId,
         payload: b.payload || {},
       },
     }

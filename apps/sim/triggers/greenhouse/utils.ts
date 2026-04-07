@@ -2,6 +2,26 @@ import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
 /**
+ * Top-level ids mirrored from the webhook JSON for ergonomics (see Greenhouse webhook common attributes).
+ * Always present on `formatInput`; use null when not applicable to the event.
+ */
+const greenhouseIndexedOutputs = {
+  applicationId: {
+    type: 'number',
+    description:
+      'Application id when present (`payload.application.id` or flat `payload.application_id` on offers)',
+  },
+  candidateId: {
+    type: 'number',
+    description: 'Candidate id when `payload.application.candidate.id` is present',
+  },
+  jobId: {
+    type: 'number',
+    description: 'Job id from `payload.job.id` or flat `payload.job_id` when present',
+  },
+} as const
+
+/**
  * Dropdown options for the Greenhouse trigger type selector.
  */
 export const greenhouseTriggerOptions = [
@@ -103,6 +123,7 @@ export function greenhouseSetupInstructions(eventType: string): string {
 export function buildCandidateHiredOutputs(): Record<string, TriggerOutput> {
   return {
     action: { type: 'string', description: 'The webhook event type (hire_candidate)' },
+    ...greenhouseIndexedOutputs,
     payload: {
       application: {
         id: { type: 'number', description: 'Application ID' },
@@ -146,6 +167,7 @@ export function buildCandidateHiredOutputs(): Record<string, TriggerOutput> {
 export function buildNewApplicationOutputs(): Record<string, TriggerOutput> {
   return {
     action: { type: 'string', description: 'The webhook event type (new_candidate_application)' },
+    ...greenhouseIndexedOutputs,
     payload: {
       application: {
         id: { type: 'number', description: 'Application ID' },
@@ -185,6 +207,7 @@ export function buildNewApplicationOutputs(): Record<string, TriggerOutput> {
 export function buildCandidateStageChangeOutputs(): Record<string, TriggerOutput> {
   return {
     action: { type: 'string', description: 'The webhook event type (candidate_stage_change)' },
+    ...greenhouseIndexedOutputs,
     payload: {
       application: {
         id: { type: 'number', description: 'Application ID' },
@@ -221,6 +244,7 @@ export function buildCandidateStageChangeOutputs(): Record<string, TriggerOutput
 export function buildCandidateRejectedOutputs(): Record<string, TriggerOutput> {
   return {
     action: { type: 'string', description: 'The webhook event type (reject_candidate)' },
+    ...greenhouseIndexedOutputs,
     payload: {
       application: {
         id: { type: 'number', description: 'Application ID' },
@@ -259,6 +283,7 @@ export function buildCandidateRejectedOutputs(): Record<string, TriggerOutput> {
 export function buildOfferCreatedOutputs(): Record<string, TriggerOutput> {
   return {
     action: { type: 'string', description: 'The webhook event type (offer_created)' },
+    ...greenhouseIndexedOutputs,
     payload: {
       id: { type: 'number', description: 'Offer ID' },
       application_id: { type: 'number', description: 'Associated application ID' },
@@ -303,6 +328,7 @@ function buildJobPayload(): Record<string, TriggerOutput> {
 export function buildJobCreatedOutputs(): Record<string, TriggerOutput> {
   return {
     action: { type: 'string', description: 'The webhook event type (job_created)' },
+    ...greenhouseIndexedOutputs,
     payload: { job: buildJobPayload() },
   } as Record<string, TriggerOutput>
 }
@@ -314,6 +340,7 @@ export function buildJobCreatedOutputs(): Record<string, TriggerOutput> {
 export function buildJobUpdatedOutputs(): Record<string, TriggerOutput> {
   return {
     action: { type: 'string', description: 'The webhook event type (job_updated)' },
+    ...greenhouseIndexedOutputs,
     payload: { job: buildJobPayload() },
   } as Record<string, TriggerOutput>
 }
@@ -324,6 +351,7 @@ export function buildJobUpdatedOutputs(): Record<string, TriggerOutput> {
 export function buildWebhookOutputs(): Record<string, TriggerOutput> {
   return {
     action: { type: 'string', description: 'The webhook event type' },
+    ...greenhouseIndexedOutputs,
     payload: { type: 'json', description: 'Full event payload' },
   } as Record<string, TriggerOutput>
 }
