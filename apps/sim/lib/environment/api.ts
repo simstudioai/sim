@@ -1,5 +1,9 @@
 import { API_ENDPOINTS } from '@/stores/constants'
-import type { EnvironmentVariable } from '@/stores/settings/environment'
+
+export interface EnvironmentVariable {
+  key: string
+  value: string
+}
 
 export interface WorkspaceEnvironmentData {
   workspace: Record<string, string>

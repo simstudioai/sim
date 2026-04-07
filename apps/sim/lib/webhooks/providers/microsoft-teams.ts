@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { safeCompare } from '@/lib/core/security/encryption'
+import { isMicrosoftContentUrl } from '@/lib/core/security/input-validation'
 import {
   type SecureFetchResponse,
   secureFetchWithPinnedIP,
@@ -240,10 +241,24 @@ async function formatTeamsGraphNotification(
 
                 if (!contentUrl) continue
 
+                let parsedContentUrl: URL
+                try {
+                  parsedContentUrl = new URL(contentUrl)
+                } catch {
+                  continue
+                }
+                const contentHost = parsedContentUrl.hostname.toLowerCase()
+
                 let buffer: Buffer | null = null
                 let mimeType = 'application/octet-stream'
 
-                if (contentUrl.includes('sharepoint.com') || contentUrl.includes('onedrive')) {
+                const isOneDriveShareLink =
+                  contentHost === '1drv.ms' ||
+                  contentHost === '1drv.com' ||
+                  contentHost === 'microsoftpersonalcontent.com' ||
+                  contentHost.endsWith('.microsoftpersonalcontent.com')
+
+                if (isMicrosoftContentUrl(contentUrl) && !isOneDriveShareLink) {
                   try {
                     const directRes = await fetchWithDNSPinning(
                       contentUrl,
@@ -285,22 +300,15 @@ async function formatTeamsGraphNotification(
                   } catch {
                     continue
                   }
-                } else if (
-                  contentUrl.includes('1drv.ms') ||
-                  contentUrl.includes('onedrive.live.com') ||
-                  contentUrl.includes('onedrive.com') ||
-                  contentUrl.includes('my.microsoftpersonalcontent.com')
-                ) {
+                } else if (isOneDriveShareLink) {
                   try {
                     let shareToken: string | null = null
 
-                    if (contentUrl.includes('1drv.ms')) {
-                      const urlParts = contentUrl.split('/').pop()
-                      if (urlParts) shareToken = urlParts
-                    } else if (contentUrl.includes('resid=')) {
-                      const urlParams = new URL(contentUrl).searchParams
-                      const resId = urlParams.get('resid')
-                      if (resId) shareToken = resId
+                    if (contentHost === '1drv.ms') {
+                      const lastSegment = parsedContentUrl.pathname.split('/').pop()
+                      if (lastSegment) shareToken = lastSegment
+                    } else if (parsedContentUrl.searchParams.has('resid')) {
+                      shareToken = parsedContentUrl.searchParams.get('resid')
                     }
 
                     if (!shareToken) {
