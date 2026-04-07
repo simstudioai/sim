@@ -30,6 +30,7 @@ import {
   type PendingCredentialCreateRequest,
   readPendingCredentialCreateRequest,
 } from '@/lib/credentials/client-state'
+import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { isValidEnvVarName } from '@/executor/constants'
 import {
@@ -48,7 +49,6 @@ import {
   useSavePersonalEnvironment,
   useUpsertWorkspaceEnvironment,
   useWorkspaceEnvironment,
-  type WorkspaceEnvironmentData,
 } from '@/hooks/queries/environment'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'

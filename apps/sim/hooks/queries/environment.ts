@@ -5,8 +5,6 @@ import { fetchPersonalEnvironment, fetchWorkspaceEnvironment } from '@/lib/envir
 import { workspaceCredentialKeys } from '@/hooks/queries/credentials'
 import { API_ENDPOINTS } from '@/stores/constants'
 
-export type { EnvironmentVariable, WorkspaceEnvironmentData } from '@/lib/environment/api'
-
 const logger = createLogger('EnvironmentQueries')
 
 /**
@@ -25,8 +23,7 @@ export function usePersonalEnvironment() {
   return useQuery({
     queryKey: environmentKeys.personal(),
     queryFn: ({ signal }) => fetchPersonalEnvironment(signal),
-    staleTime: 60 * 1000, // 1 minute
-    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
   })
 }
 

@@ -10,11 +10,8 @@ import {
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { writePendingCredentialCreateRequest } from '@/lib/credentials/client-state'
-import {
-  usePersonalEnvironment,
-  useWorkspaceEnvironment,
-  type WorkspaceEnvironmentData,
-} from '@/hooks/queries/environment'
+import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
+import { usePersonalEnvironment, useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 /**
