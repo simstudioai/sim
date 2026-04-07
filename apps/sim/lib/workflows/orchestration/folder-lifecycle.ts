@@ -10,7 +10,7 @@ import {
   workflowSchedule,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { archiveWorkflowsByIdsInWorkspace } from '@/lib/workflows/lifecycle'
 import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
@@ -230,18 +230,18 @@ async function restoreFolderRecursively(
   }
 
   const archivedChildren = await tx
-    .select({ id: workflowFolder.id, archivedAt: workflowFolder.archivedAt })
+    .select({ id: workflowFolder.id })
     .from(workflowFolder)
     .where(
       and(
         eq(workflowFolder.parentId, folderId),
         eq(workflowFolder.workspaceId, workspaceId),
-        isNotNull(workflowFolder.archivedAt)
+        eq(workflowFolder.archivedAt, folderArchivedAt)
       )
     )
 
   for (const child of archivedChildren) {
-    const childStats = await restoreFolderRecursively(child.id, workspaceId, child.archivedAt!, tx)
+    const childStats = await restoreFolderRecursively(child.id, workspaceId, folderArchivedAt, tx)
     stats.folders += childStats.folders
     stats.workflows += childStats.workflows
   }
@@ -283,7 +283,13 @@ export async function performRestoreFolder(
   }
 
   if (!folder.archivedAt) {
-    return { success: false, error: 'Folder is not archived' }
+    return { success: true, restoredItems: { folders: 0, workflows: 0 } }
+  }
+
+  const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
+  const ws = await getWorkspaceWithOwner(workspaceId)
+  if (!ws || ws.archivedAt) {
+    return { success: false, error: 'Cannot restore folder into an archived workspace' }
   }
 
   const restoredStats = await db.transaction(async (tx) => {
