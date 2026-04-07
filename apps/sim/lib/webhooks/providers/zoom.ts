@@ -72,7 +72,11 @@ async function resolveZoomChallengeSecrets(
           : {}
 
       try {
-        const config = await resolveEnvVarsInObject(rawConfig, row.userId, row.workspaceId)
+        const config = await resolveEnvVarsInObject(
+          rawConfig,
+          row.userId,
+          row.workspaceId ?? undefined
+        )
         const secretToken = typeof config.secretToken === 'string' ? config.secretToken : ''
         return { secretToken }
       } catch (error) {
