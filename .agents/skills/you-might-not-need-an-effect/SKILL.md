@@ -1,6 +1,6 @@
 ---
 name: you-might-not-need-an-effect
-description: Analyze code for useEffect anti-patterns and fix them based on React guidelines
+description: Analyze and fix useEffect anti-patterns in your code
 ---
 
 # You Might Not Need an Effect
@@ -8,6 +8,8 @@ description: Analyze code for useEffect anti-patterns and fix them based on Reac
 Arguments:
 - scope: what to analyze (default: your current changes). Examples: "diff to main", "PR #123", "src/components/", "whole codebase"
 - fix: whether to apply fixes (default: true). Set to false to only propose changes.
+
+User arguments: $ARGUMENTS
 
 Steps:
 1. Read https://react.dev/learn/you-might-not-need-an-effect to understand the guidelines

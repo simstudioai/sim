@@ -1,6 +1,15 @@
+---
+description: Analyze and fix useEffect anti-patterns in your code
+argument-hint: [scope] [fix=true|false]
+---
+
+# You Might Not Need an Effect
+
 Arguments:
 - scope: what to analyze (default: your current changes). Examples: "diff to main", "PR #123", "src/components/", "whole codebase"
 - fix: whether to apply fixes (default: true). Set to false to only propose changes.
+
+User arguments: $ARGUMENTS
 
 Steps:
 1. Read https://react.dev/learn/you-might-not-need-an-effect to understand the guidelines
