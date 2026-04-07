@@ -1,10 +1,11 @@
 import crypto from 'crypto'
-import { db, webhook } from '@sim/db'
+import { db, webhook, workflow } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { safeCompare } from '@/lib/core/security/encryption'
+import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import type {
   AuthContext,
   EventMatchContext,
@@ -45,6 +46,46 @@ export function validateZoomSignature(
     logger.error('Zoom signature validation error', err)
     return false
   }
+}
+
+async function resolveZoomChallengeSecrets(
+  path: string,
+  requestId: string
+): Promise<Array<{ secretToken: string }>> {
+  const rows = await db
+    .select({
+      providerConfig: webhook.providerConfig,
+      userId: workflow.userId,
+      workspaceId: workflow.workspaceId,
+    })
+    .from(webhook)
+    .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
+    .where(and(eq(webhook.path, path), eq(webhook.provider, 'zoom'), eq(webhook.isActive, true)))
+
+  const resolvedRows = await Promise.all(
+    rows.map(async (row) => {
+      const rawConfig =
+        row.providerConfig &&
+        typeof row.providerConfig === 'object' &&
+        !Array.isArray(row.providerConfig)
+          ? (row.providerConfig as Record<string, unknown>)
+          : {}
+
+      try {
+        const config = await resolveEnvVarsInObject(rawConfig, row.userId, row.workspaceId)
+        const secretToken = typeof config.secretToken === 'string' ? config.secretToken : ''
+        return { secretToken }
+      } catch (error) {
+        logger.warn(`[${requestId}] Failed to resolve Zoom webhook secret for challenge`, {
+          error: error instanceof Error ? error.message : String(error),
+          path,
+        })
+        return { secretToken: '' }
+      }
+    })
+  )
+
+  return resolvedRows.filter((row) => row.secretToken)
 }
 
 export const zoomHandler: WebhookProviderHandler = {
@@ -166,22 +207,16 @@ export const zoomHandler: WebhookProviderHandler = {
     const bodyForSignature =
       rawBody !== undefined && rawBody !== null ? rawBody : JSON.stringify(body)
 
-    let rows: { providerConfig: unknown }[] = []
+    let rows: Array<{ secretToken: string }> = []
     try {
-      rows = await db
-        .select({ providerConfig: webhook.providerConfig })
-        .from(webhook)
-        .where(
-          and(eq(webhook.path, path), eq(webhook.provider, 'zoom'), eq(webhook.isActive, true))
-        )
+      rows = await resolveZoomChallengeSecrets(path, requestId)
     } catch (err) {
       logger.warn(`[${requestId}] Failed to look up webhook secret for Zoom validation`, err)
       return null
     }
 
     for (const row of rows) {
-      const config = row.providerConfig as Record<string, unknown> | null
-      const secretToken = (config?.secretToken as string) || ''
+      const secretToken = row.secretToken
       if (
         secretToken &&
         validateZoomSignature(secretToken, signature, timestamp, bodyForSignature)
