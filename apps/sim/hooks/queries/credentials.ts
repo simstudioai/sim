@@ -223,6 +223,45 @@ export function useUpdateWorkspaceCredential() {
       }
       return response.json()
     },
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({
+        queryKey: workspaceCredentialKeys.detail(variables.credentialId),
+      })
+      await queryClient.cancelQueries({ queryKey: workspaceCredentialKeys.lists() })
+
+      const previousLists = queryClient.getQueriesData<WorkspaceCredential[]>({
+        queryKey: workspaceCredentialKeys.lists(),
+      })
+
+      queryClient.setQueriesData<WorkspaceCredential[]>(
+        { queryKey: workspaceCredentialKeys.lists() },
+        (old) => {
+          if (!old) return old
+          return old.map((cred) =>
+            cred.id === variables.credentialId
+              ? {
+                  ...cred,
+                  ...(variables.displayName !== undefined
+                    ? { displayName: variables.displayName }
+                    : {}),
+                  ...(variables.description !== undefined
+                    ? { description: variables.description ?? null }
+                    : {}),
+                }
+              : cred
+          )
+        }
+      )
+
+      return { previousLists }
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousLists) {
+        for (const [queryKey, data] of context.previousLists) {
+          queryClient.setQueryData(queryKey, data)
+        }
+      }
+    },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: workspaceCredentialKeys.detail(variables.credentialId),

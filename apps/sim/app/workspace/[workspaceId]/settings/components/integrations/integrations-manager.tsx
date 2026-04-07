@@ -262,8 +262,6 @@ export function IntegrationsManager() {
         if (isDisplayNameDirty) setSelectedDisplayNameDraft((v) => v.trim())
         if (isDescriptionDirty) setSelectedDescriptionDraft((v) => v.trim())
       }
-
-      await refetchCredentials()
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to save changes'
       setDetailsError(message)
