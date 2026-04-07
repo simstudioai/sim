@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { EnvironmentVariable, WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { fetchPersonalEnvironment, fetchWorkspaceEnvironment } from '@/lib/environment/api'
 import { workspaceCredentialKeys } from '@/hooks/queries/credentials'
@@ -39,7 +39,6 @@ export function useWorkspaceEnvironment<TData = WorkspaceEnvironmentData>(
     queryFn: ({ signal }) => fetchWorkspaceEnvironment(workspaceId, signal),
     enabled: !!workspaceId,
     staleTime: 60 * 1000, // 1 minute
-    placeholderData: keepPreviousData,
     ...options,
   })
 }

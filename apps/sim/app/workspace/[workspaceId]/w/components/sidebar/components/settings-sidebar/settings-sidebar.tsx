@@ -210,7 +210,6 @@ export function SettingsSidebar({
     if (section) {
       router.replace(getSettingsHref({ section }), { scroll: false })
     } else {
-      // Triggered by the back button — no pending section was set
       router.push(popSettingsReturnUrl(`/workspace/${workspaceId}/home`))
     }
   }, [confirmNavigation, router, getSettingsHref, popSettingsReturnUrl, workspaceId])

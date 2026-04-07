@@ -1219,7 +1219,6 @@ const MICROSOFT_CONTENT_SUFFIXES = [
   '1drv.ms',
   '1drv.com',
   'microsoftpersonalcontent.com',
-  'smba.trafficmanager.net',
 ] as const
 
 /**
@@ -1229,8 +1228,7 @@ const MICROSOFT_CONTENT_SUFFIXES = [
  *
  * Covers SharePoint Online (commercial, GCC/GCC High/DoD, Germany, China),
  * OneDrive business and consumer, OneDrive short-link and CDN domains,
- * Microsoft personal content CDN, and the Azure Traffic Manager endpoint
- * used for Teams inline image attachments.
+ * and Microsoft personal content CDN.
  *
  * @see https://learn.microsoft.com/en-us/sharepoint/required-urls-and-ports
  * @see https://learn.microsoft.com/en-us/microsoft-365/enterprise/microsoft-365-u-s-government-gcc-high-endpoints
