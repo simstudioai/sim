@@ -270,10 +270,8 @@ function SignupFormContent({
           name: sanitizedName,
         },
         {
-          fetchOptions: {
-            headers: {
-              ...(token ? { 'x-captcha-response': token } : {}),
-            },
+          headers: {
+            ...(token ? { 'x-captcha-response': token } : {}),
           },
           onError: (ctx) => {
             logger.error('Signup error:', ctx.error)

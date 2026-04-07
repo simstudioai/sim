@@ -1,6 +1,7 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import Link from 'next/link'
@@ -86,6 +87,12 @@ export default function LoginPage({
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const turnstileRef = useRef<TurnstileInstance>(null)
+  const [turnstileSiteKey, setTurnstileSiteKey] = useState<string | undefined>()
+
+  useEffect(() => {
+    setTurnstileSiteKey(getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'))
+  }, [])
   const callbackUrlParam = searchParams?.get('callbackUrl')
   const isValidCallbackUrl = callbackUrlParam ? validateCallbackUrl(callbackUrlParam) : false
   const invalidCallbackRef = useRef(false)
@@ -163,6 +170,20 @@ export default function LoginPage({
       const safeCallbackUrl = callbackUrl
       let errorHandled = false
 
+      let token: string | undefined
+      const widget = turnstileRef.current
+      if (turnstileSiteKey && widget) {
+        try {
+          widget.reset()
+          widget.execute()
+          token = await widget.getResponsePromise()
+        } catch {
+          setFormError('Captcha verification failed. Please try again.')
+          setIsLoading(false)
+          return
+        }
+      }
+
       setFormError(null)
       const result = await client.signIn.email(
         {
@@ -171,6 +192,9 @@ export default function LoginPage({
           callbackURL: safeCallbackUrl,
         },
         {
+          headers: {
+            ...(token ? { 'x-captcha-response': token } : {}),
+          },
           onError: (ctx: any) => {
             logger.error('Login error:', ctx.error)
 
@@ -439,6 +463,14 @@ export default function LoginPage({
             <div className='text-[#4CAF50] text-xs'>
               <p>{resetSuccessMessage}</p>
             </div>
+          )}
+
+          {turnstileSiteKey && (
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={turnstileSiteKey}
+              options={{ execution: 'execute', appearance: 'execute' }}
+            />
           )}
 
           {formError && (
