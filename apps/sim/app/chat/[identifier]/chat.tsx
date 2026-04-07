@@ -494,6 +494,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
         isStreaming={isStreamingResponse}
         isPlayingAudio={isPlayingAudio}
         audioContextRef={audioContextRef}
+        chatId={chatConfig?.id}
         messages={messages.map((msg) => ({
           content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
           type: msg.type,
