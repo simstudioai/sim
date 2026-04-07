@@ -15,7 +15,7 @@ import {
   createExecutionCallbacks,
   type ExecutionEvent,
 } from '@/lib/workflows/executor/execution-events'
-import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
+import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
 import type { BlockLog, NormalizedBlockOutput } from '@/executor/types'
@@ -194,21 +194,7 @@ export async function executeQueuedWorkflowJob(
       )
     }
 
-    if (result.status === 'paused') {
-      if (!result.snapshotSeed) {
-        await loggingSession.markAsFailed('Missing snapshot seed for paused execution')
-      } else {
-        await PauseResumeManager.persistPauseResult({
-          workflowId,
-          executionId,
-          pausePoints: result.pausePoints || [],
-          snapshotSeed: result.snapshotSeed,
-          executorUserId: result.metadata?.userId,
-        })
-      }
-    } else {
-      await PauseResumeManager.processQueuedResumes(executionId)
-    }
+    await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })
 
     const outputWithBase64 = payload.includeFileBase64
       ? await hydrateUserFilesWithBase64(result.output, {
@@ -230,6 +216,20 @@ export async function executeQueuedWorkflowJob(
           },
         })
         await setExecutionMeta(executionId, { status: 'cancelled' })
+      } else if (result.status === 'paused') {
+        await eventWriter.write({
+          type: 'execution:paused',
+          timestamp: new Date().toISOString(),
+          executionId,
+          workflowId,
+          data: {
+            output: outputWithBase64,
+            duration: result.metadata?.duration || 0,
+            startTime: result.metadata?.startTime || metadata.startTime,
+            endTime: result.metadata?.endTime || new Date().toISOString(),
+          },
+        })
+        await setExecutionMeta(executionId, { status: 'complete' })
       } else {
         await eventWriter.write({
           type: 'execution:completed',

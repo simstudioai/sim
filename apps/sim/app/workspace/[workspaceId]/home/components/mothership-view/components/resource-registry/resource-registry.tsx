@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import {
   Database,
   File as FileIcon,
+  Folder as FolderIcon,
   Table as TableIcon,
   TerminalWindow,
 } from '@/components/emcn/icons'
@@ -18,6 +19,7 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { tableKeys } from '@/hooks/queries/tables'
+import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
@@ -140,6 +142,15 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Database} />,
   },
+  folder: {
+    type: 'folder',
+    label: 'Folders',
+    icon: FolderIcon,
+    renderTabIcon: (_resource, className) => (
+      <FolderIcon className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={FolderIcon} />,
+  },
 } as const
 
 export const RESOURCE_TYPES = Object.values(RESOURCE_REGISTRY)
@@ -170,6 +181,9 @@ const RESOURCE_INVALIDATORS: Record<
     qc.invalidateQueries({ queryKey: knowledgeKeys.lists() })
     qc.invalidateQueries({ queryKey: knowledgeKeys.detail(id) })
     qc.invalidateQueries({ queryKey: knowledgeKeys.tagDefinitions(id) })
+  },
+  folder: (qc) => {
+    qc.invalidateQueries({ queryKey: folderKeys.lists() })
   },
 }
 

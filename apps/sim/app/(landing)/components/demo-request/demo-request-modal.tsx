@@ -13,6 +13,7 @@ import {
   Textarea,
 } from '@/components/emcn'
 import { Check } from '@/components/emcn/icons'
+import { captureClientEvent } from '@/lib/posthog/client'
 import {
   DEMO_REQUEST_COMPANY_SIZE_OPTIONS,
   type DemoRequestPayload,
@@ -163,6 +164,9 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
         }
 
         setSubmitSuccess(true)
+        captureClientEvent('landing_demo_request_submitted', {
+          company_size: parsed.data.companySize,
+        })
       } catch (error) {
         setSubmitError(
           error instanceof Error

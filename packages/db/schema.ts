@@ -130,6 +130,7 @@ export const workflowFolder = pgTable(
     sortOrder: integer('sort_order').notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    archivedAt: timestamp('archived_at'),
   },
   (table) => ({
     userIdx: index('workflow_folder_user_idx').on(table.userId),
@@ -138,6 +139,7 @@ export const workflowFolder = pgTable(
       table.parentId
     ),
     parentSortIdx: index('workflow_folder_parent_sort_idx').on(table.parentId, table.sortOrder),
+    archivedAtIdx: index('workflow_folder_archived_at_idx').on(table.archivedAt),
   })
 )
 

@@ -47,6 +47,7 @@ import { useReactivateSchedule, useScheduleInfo } from '@/hooks/queries/schedule
 import { useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
+import { useReactiveConditions } from '@/hooks/use-reactive-conditions'
 import { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -942,6 +943,13 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const canonicalIndex = useMemo(() => buildCanonicalIndex(config.subBlocks), [config.subBlocks])
   const canonicalModeOverrides = currentStoreBlock?.data?.canonicalModes
 
+  const hiddenByReactiveCondition = useReactiveConditions(
+    config.subBlocks,
+    id,
+    activeWorkflowId,
+    canonicalModeOverrides
+  )
+
   const subBlockRowsData = useMemo(() => {
     const rows: SubBlockConfig[][] = []
     let currentRow: SubBlockConfig[] = []
@@ -979,6 +987,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     const visibleSubBlocks = config.subBlocks.filter((block) => {
       if (block.hidden) return false
       if (block.hideFromPreview) return false
+      if (hiddenByReactiveCondition.has(block.id)) return false
       if (!isSubBlockFeatureEnabled(block)) return false
       if (isSubBlockHidden(block)) return false
 
@@ -1047,6 +1056,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     canonicalModeOverrides,
     userPermissions.canEdit,
     canonicalIndex,
+    hiddenByReactiveCondition,
     blockSubBlockValues,
     activeWorkflowId,
   ])

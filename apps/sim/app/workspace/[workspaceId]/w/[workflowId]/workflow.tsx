@@ -2772,10 +2772,37 @@ const WorkflowContent = React.memo(
       (changes: NodeChange[]) => {
         const hasSelectionChange = changes.some((c) => c.type === 'select')
         setDisplayNodes((currentNodes) => {
-          const updated = applyNodeChanges(changes, currentNodes)
+          // Filter out cross-context selection changes before applying so that
+          // nodes at a different nesting level never appear selected, even for
+          // a single frame.
+          let changesToApply = changes
+          if (hasSelectionChange) {
+            const currentlySelected = currentNodes.filter((n) => n.selected)
+            // Only filter on additive multi-select (shift-click), not replacement
+            // clicks. A replacement click includes deselections of currently selected
+            // nodes; a shift-click only adds selections.
+            const isReplacementClick = changes.some(
+              (c) =>
+                c.type === 'select' &&
+                'selected' in c &&
+                !c.selected &&
+                currentlySelected.some((n) => n.id === c.id)
+            )
+            if (!isReplacementClick && currentlySelected.length > 0) {
+              const selectionContext = getNodeSelectionContextId(currentlySelected[0], blocks)
+              changesToApply = changes.filter((c) => {
+                if (c.type !== 'select' || !('selected' in c) || !c.selected) return true
+                const node = currentNodes.find((n) => n.id === c.id)
+                if (!node) return true
+                return getNodeSelectionContextId(node, blocks) === selectionContext
+              })
+            }
+          }
+
+          const updated = applyNodeChanges(changesToApply, currentNodes)
           if (!hasSelectionChange) return updated
 
-          const preferredNodeId = [...changes]
+          const preferredNodeId = [...changesToApply]
             .reverse()
             .find(
               (change): change is NodeChange & { id: string; selected: boolean } =>
@@ -3271,12 +3298,17 @@ const WorkflowContent = React.memo(
             previousPositions: multiNodeDragStartRef.current,
           })
 
-          // Process parent updates using shared helper
-          executeBatchParentUpdate(
-            selectedNodes,
-            potentialParentId,
-            'Batch moved nodes to new parent'
-          )
+          // Only reparent when an actual drag changed the target container.
+          // onNodeDragStart sets both potentialParentId and dragStartParentId to the
+          // clicked node's current parent; they only diverge when onNodeDrag detects
+          // the selection being dragged over a different container.
+          if (potentialParentId !== dragStartParentId) {
+            executeBatchParentUpdate(
+              selectedNodes,
+              potentialParentId,
+              'Batch moved nodes to new parent'
+            )
+          }
 
           // Clear drag start state
           setDragStartPosition(null)
@@ -3687,6 +3719,20 @@ const WorkflowContent = React.memo(
     const handleNodeClick = useCallback(
       (event: React.MouseEvent, node: Node) => {
         const isMultiSelect = event.shiftKey || event.metaKey || event.ctrlKey
+
+        // Ignore shift-clicks on nodes at a different nesting level
+        if (isMultiSelect) {
+          const clickedContext = getNodeSelectionContextId(node, blocks)
+          const currentlySelected = getNodes().filter((n) => n.selected)
+          if (currentlySelected.length > 0) {
+            const selectionContext = getNodeSelectionContextId(currentlySelected[0], blocks)
+            if (clickedContext !== selectionContext) {
+              usePanelEditorStore.getState().clearCurrentBlock()
+              return
+            }
+          }
+        }
+
         setDisplayNodes((currentNodes) => {
           const updated = currentNodes.map((currentNode) => ({
             ...currentNode,
@@ -3699,7 +3745,7 @@ const WorkflowContent = React.memo(
           return resolveSelectionConflicts(updated, blocks, isMultiSelect ? node.id : undefined)
         })
       },
-      [blocks]
+      [blocks, getNodes]
     )
 
     /** Handles edge selection with container context tracking and Shift-click multi-selection. */
@@ -3808,9 +3854,17 @@ const WorkflowContent = React.memo(
           (targetNode?.zIndex ?? 21) + 1
         )
 
+        // Edges inside subflows need a z-index above the container's body area
+        // (which has pointer-events: auto) so they're directly clickable.
+        // Derive from the container's depth-based zIndex (+1) so the edge sits
+        // just above its parent container but below canvas blocks (z-21+) and
+        // child blocks (z-1000).
+        const containerNode = parentLoopId ? nodeMap.get(parentLoopId) : null
+        const baseZIndex = containerNode ? (containerNode.zIndex ?? 0) + 1 : 0
+
         return {
           ...edge,
-          zIndex: connectedToElevated ? elevatedZIndex : 0,
+          zIndex: connectedToElevated ? elevatedZIndex : baseZIndex,
           data: {
             ...edge.data,
             isSelected: selectedEdges.has(edgeContextId),

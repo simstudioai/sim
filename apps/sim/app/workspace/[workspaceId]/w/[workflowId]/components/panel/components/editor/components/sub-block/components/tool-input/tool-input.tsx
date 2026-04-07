@@ -210,7 +210,7 @@ function WorkflowToolDeployBadge({
   workflowId: string
   onDeploySuccess?: () => void
 }) {
-  const { data, isLoading } = useDeploymentInfo(workflowId)
+  const { data, isLoading } = useDeploymentInfo(workflowId, { refetchOnMount: 'always' })
   const { mutate, isPending: isDeploying } = useDeployWorkflow()
   const userPermissions = useUserPermissionsContext()
 
@@ -1021,13 +1021,13 @@ export const ToolInput = memo(function ToolInput({
     [isPreview, disabled, selectedTools, setStoreValue]
   )
 
-  const [previewExpanded, setPreviewExpanded] = useState<Record<number, boolean>>({})
+  const [localExpanded, setLocalExpanded] = useState<Record<number, boolean>>({})
 
   const toggleToolExpansion = (toolIndex: number) => {
-    if ((isPreview && !allowExpandInPreview) || disabled) return
+    if (isPreview && !allowExpandInPreview) return
 
-    if (isPreview) {
-      setPreviewExpanded((prev) => ({
+    if (isPreview || disabled) {
+      setLocalExpanded((prev) => ({
         ...prev,
         [toolIndex]: !(prev[toolIndex] ?? !!selectedTools[toolIndex]?.isExpanded),
       }))
@@ -1689,8 +1689,8 @@ export const ToolInput = memo(function ToolInput({
           const hasToolBody = hasOperations || hasParams
 
           const isExpandedForDisplay = hasToolBody
-            ? isPreview
-              ? (previewExpanded[toolIndex] ?? !!tool.isExpanded)
+            ? isPreview || disabled
+              ? (localExpanded[toolIndex] ?? !!tool.isExpanded)
               : !!tool.isExpanded
             : false
 

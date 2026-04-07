@@ -102,7 +102,7 @@ import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
 import { LangsmithBlock } from '@/blocks/blocks/langsmith'
 import { LaunchDarklyBlock } from '@/blocks/blocks/launchdarkly'
 import { LemlistBlock } from '@/blocks/blocks/lemlist'
-import { LinearBlock } from '@/blocks/blocks/linear'
+import { LinearBlock, LinearV2Block } from '@/blocks/blocks/linear'
 import { LinkedInBlock } from '@/blocks/blocks/linkedin'
 import { LinkupBlock } from '@/blocks/blocks/linkup'
 import { LoopsBlock } from '@/blocks/blocks/loops'
@@ -171,6 +171,7 @@ import { SftpBlock } from '@/blocks/blocks/sftp'
 import { SharepointBlock } from '@/blocks/blocks/sharepoint'
 import { ShopifyBlock } from '@/blocks/blocks/shopify'
 import { SimilarwebBlock } from '@/blocks/blocks/similarweb'
+import { SixtyfourBlock } from '@/blocks/blocks/sixtyfour'
 import { SlackBlock } from '@/blocks/blocks/slack'
 import { SmtpBlock } from '@/blocks/blocks/smtp'
 import { SpotifyBlock } from '@/blocks/blocks/spotify'
@@ -337,6 +338,7 @@ export const registry: Record<string, BlockConfig> = {
   launchdarkly: LaunchDarklyBlock,
   lemlist: LemlistBlock,
   linear: LinearBlock,
+  linear_v2: LinearV2Block,
   linkedin: LinkedInBlock,
   linkup: LinkupBlock,
   loops: LoopsBlock,
@@ -407,6 +409,7 @@ export const registry: Record<string, BlockConfig> = {
   sharepoint: SharepointBlock,
   shopify: ShopifyBlock,
   similarweb: SimilarwebBlock,
+  sixtyfour: SixtyfourBlock,
   slack: SlackBlock,
   smtp: SmtpBlock,
   spotify: SpotifyBlock,

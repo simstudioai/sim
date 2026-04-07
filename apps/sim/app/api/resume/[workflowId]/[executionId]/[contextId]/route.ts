@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { AuthType } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateId } from '@/lib/core/utils/uuid'
+import { setExecutionMeta } from '@/lib/execution/event-buffer'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
@@ -125,14 +126,43 @@ export async function POST(
       })
     }
 
-    PauseResumeManager.startResumeExecution({
+    await setExecutionMeta(enqueueResult.resumeExecutionId, {
+      status: 'active',
+      userId,
+      workflowId,
+    })
+
+    const resumeArgs = {
       resumeEntryId: enqueueResult.resumeEntryId,
       resumeExecutionId: enqueueResult.resumeExecutionId,
       pausedExecution: enqueueResult.pausedExecution,
       contextId: enqueueResult.contextId,
       resumeInput: enqueueResult.resumeInput,
       userId: enqueueResult.userId,
-    }).catch((error) => {
+    }
+
+    const isApiCaller = access.auth?.authType === AuthType.API_KEY
+
+    if (isApiCaller) {
+      const result = await PauseResumeManager.startResumeExecution(resumeArgs)
+
+      return NextResponse.json({
+        success: result.success,
+        status: result.status ?? (result.success ? 'completed' : 'failed'),
+        executionId: enqueueResult.resumeExecutionId,
+        output: result.output,
+        error: result.error,
+        metadata: result.metadata
+          ? {
+              duration: result.metadata.duration,
+              startTime: result.metadata.startTime,
+              endTime: result.metadata.endTime,
+            }
+          : undefined,
+      })
+    }
+
+    PauseResumeManager.startResumeExecution(resumeArgs).catch((error) => {
       logger.error('Failed to start resume execution', {
         workflowId,
         parentExecutionId: executionId,

@@ -166,6 +166,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const positionUpdateTimeouts = useRef<Map<string, number>>(new Map())
   const isRejoiningRef = useRef<boolean>(false)
   const pendingPositionUpdates = useRef<Map<string, any>>(new Map())
+  const deletedWorkflowIdRef = useRef<string | null>(null)
 
   const generateSocketToken = async (): Promise<string> => {
     const res = await fetch('/api/auth/socket-token', {
@@ -371,6 +372,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
         socketInstance.on('workflow-deleted', (data) => {
           logger.warn(`Workflow ${data.workflowId} has been deleted`)
+          deletedWorkflowIdRef.current = data.workflowId
           setCurrentWorkflowId((current) => {
             if (current === data.workflowId) {
               setPresenceUsers([])
@@ -500,7 +502,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           if (error?.type === 'SESSION_ERROR') {
             const workflowId = urlWorkflowIdRef.current
 
-            if (workflowId && !isRejoiningRef.current) {
+            if (
+              workflowId &&
+              !isRejoiningRef.current &&
+              deletedWorkflowIdRef.current !== workflowId
+            ) {
               isRejoiningRef.current = true
               logger.info(`Session expired, rejoining workflow: ${workflowId}`)
               socketInstance.emit('join-workflow', {
@@ -552,12 +558,24 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const hydrationPhase = useWorkflowRegistryStore((s) => s.hydration.phase)
 
   useEffect(() => {
-    if (!socket || !isConnected || !urlWorkflowId) return
+    if (!socket || !isConnected || !urlWorkflowId) {
+      if (!urlWorkflowId) {
+        deletedWorkflowIdRef.current = null
+      }
+      return
+    }
 
     if (hydrationPhase === 'creating') return
 
     // Skip if already in the correct room
     if (currentWorkflowId === urlWorkflowId) return
+
+    // Prevent rejoining a workflow that was just deleted. The URL param may
+    // still reference the old workflow while router.push() propagates.
+    if (deletedWorkflowIdRef.current === urlWorkflowId) {
+      return
+    }
+    deletedWorkflowIdRef.current = null
 
     logger.info(
       `URL workflow changed from ${currentWorkflowId} to ${urlWorkflowId}, switching rooms`

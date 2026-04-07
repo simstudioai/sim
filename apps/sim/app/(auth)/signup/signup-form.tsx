@@ -228,18 +228,6 @@ function SignupFormContent({
         emailValidationErrors.length > 0 ||
         errors.length > 0
       ) {
-        if (nameValidationErrors.length > 0) {
-          setNameErrors([nameValidationErrors[0]])
-          setShowNameValidationError(true)
-        }
-        if (emailValidationErrors.length > 0) {
-          setEmailErrors([emailValidationErrors[0]])
-          setShowEmailValidationError(true)
-        }
-        if (errors.length > 0) {
-          setPasswordErrors([errors[0]])
-          setShowValidationError(true)
-        }
         setIsLoading(false)
         return
       }
@@ -261,6 +249,9 @@ function SignupFormContent({
           widget.execute()
           token = await widget.getResponsePromise()
         } catch {
+          captureEvent(posthog, 'signup_failed', {
+            error_code: 'captcha_client_failure',
+          })
           setFormError('Captcha verification failed. Please try again.')
           setIsLoading(false)
           return
@@ -284,7 +275,9 @@ function SignupFormContent({
             logger.error('Signup error:', ctx.error)
             const errorMessage: string[] = ['Failed to create account']
 
+            let errorCode = 'unknown'
             if (ctx.error.code?.includes('USER_ALREADY_EXISTS')) {
+              errorCode = 'user_already_exists'
               errorMessage.push(
                 'An account with this email already exists. Please sign in instead.'
               )
@@ -293,24 +286,30 @@ function SignupFormContent({
               ctx.error.code?.includes('BAD_REQUEST') ||
               ctx.error.message?.includes('Email and password sign up is not enabled')
             ) {
+              errorCode = 'signup_disabled'
               errorMessage.push('Email signup is currently disabled.')
               setEmailError(errorMessage[0])
             } else if (ctx.error.code?.includes('INVALID_EMAIL')) {
+              errorCode = 'invalid_email'
               errorMessage.push('Please enter a valid email address.')
               setEmailError(errorMessage[0])
             } else if (ctx.error.code?.includes('PASSWORD_TOO_SHORT')) {
+              errorCode = 'password_too_short'
               errorMessage.push('Password must be at least 8 characters long.')
               setPasswordErrors(errorMessage)
               setShowValidationError(true)
             } else if (ctx.error.code?.includes('PASSWORD_TOO_LONG')) {
+              errorCode = 'password_too_long'
               errorMessage.push('Password must be less than 128 characters long.')
               setPasswordErrors(errorMessage)
               setShowValidationError(true)
             } else if (ctx.error.code?.includes('network')) {
+              errorCode = 'network_error'
               errorMessage.push('Network error. Please check your connection and try again.')
               setPasswordErrors(errorMessage)
               setShowValidationError(true)
             } else if (ctx.error.code?.includes('rate limit')) {
+              errorCode = 'rate_limited'
               errorMessage.push('Too many requests. Please wait a moment before trying again.')
               setPasswordErrors(errorMessage)
               setShowValidationError(true)
@@ -318,6 +317,8 @@ function SignupFormContent({
               setPasswordErrors(errorMessage)
               setShowValidationError(true)
             }
+
+            captureEvent(posthog, 'signup_failed', { error_code: errorCode })
           },
         }
       )
@@ -400,7 +401,7 @@ function SignupFormContent({
                 />
                 <div
                   className={cn(
-                    'absolute right-0 left-0 z-10 grid transition-[grid-template-rows] duration-200 ease-out',
+                    'grid transition-[grid-template-rows] duration-200 ease-out',
                     showNameValidationError && nameErrors.length > 0
                       ? 'grid-rows-[1fr]'
                       : 'grid-rows-[0fr]'
@@ -438,7 +439,7 @@ function SignupFormContent({
                 />
                 <div
                   className={cn(
-                    'absolute right-0 left-0 z-10 grid transition-[grid-template-rows] duration-200 ease-out',
+                    'grid transition-[grid-template-rows] duration-200 ease-out',
                     (showEmailValidationError && emailErrors.length > 0) ||
                       (emailError && !showEmailValidationError)
                       ? 'grid-rows-[1fr]'
@@ -497,7 +498,7 @@ function SignupFormContent({
                 </div>
                 <div
                   className={cn(
-                    'absolute right-0 left-0 z-10 grid transition-[grid-template-rows] duration-200 ease-out',
+                    'grid transition-[grid-template-rows] duration-200 ease-out',
                     showValidationError && passwordErrors.length > 0
                       ? 'grid-rows-[1fr]'
                       : 'grid-rows-[0fr]'

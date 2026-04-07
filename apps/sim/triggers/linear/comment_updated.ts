@@ -1,5 +1,9 @@
 import { LinearIcon } from '@/components/icons'
-import { buildCommentOutputs, linearSetupInstructions } from '@/triggers/linear/utils'
+import {
+  buildCommentOutputs,
+  buildLinearV2SubBlocks,
+  linearSetupInstructions,
+} from '@/triggers/linear/utils'
 import type { TriggerConfig } from '@/triggers/types'
 
 export const linearCommentUpdatedTrigger: TriggerConfig = {
@@ -67,6 +71,30 @@ export const linearCommentUpdatedTrigger: TriggerConfig = {
 
   outputs: buildCommentOutputs(),
 
+  webhook: {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Linear-Event': 'Comment',
+      'Linear-Delivery': 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+      'Linear-Signature': 'sha256...',
+      'User-Agent': 'Linear-Webhook',
+    },
+  },
+}
+
+export const linearCommentUpdatedV2Trigger: TriggerConfig = {
+  id: 'linear_comment_updated_v2',
+  name: 'Linear Comment Updated',
+  provider: 'linear',
+  description: 'Trigger workflow when a comment is updated in Linear',
+  version: '2.0.0',
+  icon: LinearIcon,
+  subBlocks: buildLinearV2SubBlocks({
+    triggerId: 'linear_comment_updated_v2',
+    eventType: 'Comment (update)',
+  }),
+  outputs: buildCommentOutputs(),
   webhook: {
     method: 'POST',
     headers: {

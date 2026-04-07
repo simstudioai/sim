@@ -88,6 +88,7 @@ const ChatMessageSchema = z.object({
           'docs',
           'table',
           'file',
+          'folder',
         ]),
         label: z.string(),
         chatId: z.string().optional(),
@@ -99,6 +100,7 @@ const ChatMessageSchema = z.object({
         executionId: z.string().optional(),
         tableId: z.string().optional(),
         fileId: z.string().optional(),
+        folderId: z.string().optional(),
       })
     )
     .optional(),

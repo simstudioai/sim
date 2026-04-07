@@ -491,17 +491,35 @@ async function buildTriggerRegistry(): Promise<Map<string, TriggerInfo>> {
     try {
       const content = fs.readFileSync(file, 'utf-8')
 
-      // Each trigger file exports a single TriggerConfig with id, name, description
-      const idMatch = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(content)
-      const nameMatch = /\bname\s*:\s*['"]([^'"]+)['"]/.exec(content)
-      const descMatch = /\bdescription\s*:\s*['"]([^'"]+)['"]/.exec(content)
+      // A file may export multiple TriggerConfig objects (e.g. v1 + v2 in
+      // the same file). Extract all exported configs by splitting on the
+      // export boundaries and parsing each one independently.
+      const exportRegex = /export\s+const\s+\w+\s*:\s*TriggerConfig\s*=\s*\{/g
+      let exportMatch
+      const exportStarts: number[] = []
 
-      if (idMatch && nameMatch) {
-        registry.set(idMatch[1], {
-          id: idMatch[1],
-          name: nameMatch[1],
-          description: descMatch?.[1] ?? '',
-        })
+      while ((exportMatch = exportRegex.exec(content)) !== null) {
+        exportStarts.push(exportMatch.index)
+      }
+
+      // If no typed exports found, fall back to simple regex on whole file
+      const segments =
+        exportStarts.length > 0
+          ? exportStarts.map((start, i) => content.substring(start, exportStarts[i + 1]))
+          : [content]
+
+      for (const segment of segments) {
+        const idMatch = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(segment)
+        const nameMatch = /\bname\s*:\s*['"]([^'"]+)['"]/.exec(segment)
+        const descMatch = /\bdescription\s*:\s*['"]([^'"]+)['"]/.exec(segment)
+
+        if (idMatch && nameMatch) {
+          registry.set(idMatch[1], {
+            id: idMatch[1],
+            name: nameMatch[1],
+            description: descMatch?.[1] ?? '',
+          })
+        }
       }
     } catch {
       // skip unreadable files silently

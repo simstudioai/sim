@@ -36,7 +36,7 @@ const FileAttachmentSchema = z.object({
 })
 
 const ResourceAttachmentSchema = z.object({
-  type: z.enum(['workflow', 'table', 'file', 'knowledgebase']),
+  type: z.enum(['workflow', 'table', 'file', 'knowledgebase', 'folder']),
   id: z.string().min(1),
   title: z.string().optional(),
   active: z.boolean().optional(),
@@ -66,6 +66,7 @@ const MothershipMessageSchema = z.object({
           'docs',
           'table',
           'file',
+          'folder',
         ]),
         label: z.string(),
         chatId: z.string().optional(),
@@ -77,6 +78,7 @@ const MothershipMessageSchema = z.object({
         executionId: z.string().optional(),
         tableId: z.string().optional(),
         fileId: z.string().optional(),
+        folderId: z.string().optional(),
       })
     )
     .optional(),
@@ -224,6 +226,7 @@ export async function POST(req: NextRequest) {
               ...(c.knowledgeId && { knowledgeId: c.knowledgeId }),
               ...(c.tableId && { tableId: c.tableId }),
               ...(c.fileId && { fileId: c.fileId }),
+              ...(c.folderId && { folderId: c.folderId }),
             })),
           }),
       }

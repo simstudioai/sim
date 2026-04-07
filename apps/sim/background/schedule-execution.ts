@@ -13,7 +13,7 @@ import {
   executeWorkflowCore,
   wasExecutionFinalizedByCore,
 } from '@/lib/workflows/executor/execution-core'
-import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
+import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
 import {
   blockExistsInDeployment,
   loadDeployedWorkflowState,
@@ -237,33 +237,13 @@ async function runWorkflowExecution({
         timeoutMs: timeoutController.timeoutMs,
       })
       await loggingSession.markAsFailed(timeoutErrorMessage)
-    } else if (executionResult.status === 'paused') {
-      if (!executionResult.snapshotSeed) {
-        logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
-          executionId,
-        })
-        await loggingSession.markAsFailed('Missing snapshot seed for paused execution')
-      } else {
-        try {
-          await PauseResumeManager.persistPauseResult({
-            workflowId: payload.workflowId,
-            executionId,
-            pausePoints: executionResult.pausePoints || [],
-            snapshotSeed: executionResult.snapshotSeed,
-            executorUserId: executionResult.metadata?.userId,
-          })
-        } catch (pauseError) {
-          logger.error(`[${requestId}] Failed to persist pause result`, {
-            executionId,
-            error: pauseError instanceof Error ? pauseError.message : String(pauseError),
-          })
-          await loggingSession.markAsFailed(
-            `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
-          )
-        }
-      }
     } else {
-      await PauseResumeManager.processQueuedResumes(executionId)
+      await handlePostExecutionPauseState({
+        result: executionResult,
+        workflowId: payload.workflowId,
+        executionId,
+        loggingSession,
+      })
     }
 
     await loggingSession.waitForPostExecution()

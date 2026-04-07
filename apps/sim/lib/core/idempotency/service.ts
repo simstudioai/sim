@@ -6,7 +6,7 @@ import { getRedisClient } from '@/lib/core/config/redis'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getStorageMethod, type StorageMethod } from '@/lib/core/storage'
 import { generateId } from '@/lib/core/utils/uuid'
-import { extractProviderIdentifierFromBody } from '@/lib/webhooks/provider-utils'
+import { extractProviderIdentifierFromBody } from '@/lib/webhooks/providers'
 
 const logger = createLogger('IdempotencyService')
 
@@ -419,7 +419,12 @@ export class IdempotencyService {
       normalizedHeaders?.['x-shopify-webhook-id'] ||
       normalizedHeaders?.['x-github-delivery'] ||
       normalizedHeaders?.['x-event-id'] ||
-      normalizedHeaders?.['x-teams-notification-id']
+      normalizedHeaders?.['x-teams-notification-id'] ||
+      normalizedHeaders?.['svix-id'] ||
+      normalizedHeaders?.['linear-delivery'] ||
+      normalizedHeaders?.['greenhouse-event-id'] ||
+      normalizedHeaders?.['x-zm-request-id'] ||
+      normalizedHeaders?.['idempotency-key']
 
     if (webhookIdHeader) {
       return `${webhookId}:${webhookIdHeader}`

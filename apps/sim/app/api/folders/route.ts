@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, isNull, min } from 'drizzle-orm'
+import { and, asc, eq, isNotNull, isNull, min } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
@@ -47,12 +47,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied to this workspace' }, { status: 403 })
     }
 
-    // If user has workspace permissions, fetch ALL folders in the workspace
-    // This allows shared workspace members to see folders created by other users
+    const scope = searchParams.get('scope') ?? 'active'
+    const archivedFilter =
+      scope === 'archived'
+        ? isNotNull(workflowFolder.archivedAt)
+        : isNull(workflowFolder.archivedAt)
+
     const folders = await db
       .select()
       .from(workflowFolder)
-      .where(eq(workflowFolder.workspaceId, workspaceId))
+      .where(and(eq(workflowFolder.workspaceId, workspaceId), archivedFilter))
       .orderBy(asc(workflowFolder.sortOrder), asc(workflowFolder.createdAt))
 
     return NextResponse.json({ folders })

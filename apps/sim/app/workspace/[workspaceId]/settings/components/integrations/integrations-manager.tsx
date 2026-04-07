@@ -54,6 +54,7 @@ import {
 } from '@/hooks/queries/oauth/oauth-connections'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const logger = createLogger('IntegrationsManager')
 
@@ -246,12 +247,20 @@ export function IntegrationsManager() {
   }, [selectedCredential, selectedDisplayNameDraft])
 
   const isDetailsDirty = isDescriptionDirty || isDisplayNameDirty
-  const [isSavingDetails, setIsSavingDetails] = useState(false)
+
+  const setNavGuardDirty = useSettingsDirtyStore((s) => s.setDirty)
+  const resetNavGuard = useSettingsDirtyStore((s) => s.reset)
+
+  useEffect(() => {
+    setNavGuardDirty(isDetailsDirty)
+  }, [isDetailsDirty, setNavGuardDirty])
+
+  useEffect(() => () => resetNavGuard(), [resetNavGuard])
 
   const handleSaveDetails = async () => {
-    if (!selectedCredential || !isSelectedAdmin || !isDetailsDirty) return
+    if (!selectedCredential || !isSelectedAdmin || !isDetailsDirty || updateCredential.isPending)
+      return
     setDetailsError(null)
-    setIsSavingDetails(true)
 
     try {
       if (isDisplayNameDirty || isDescriptionDirty) {
@@ -263,26 +272,22 @@ export function IntegrationsManager() {
         if (isDisplayNameDirty) setSelectedDisplayNameDraft((v) => v.trim())
         if (isDescriptionDirty) setSelectedDescriptionDraft((v) => v.trim())
       }
-
-      await refetchCredentials()
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to save changes'
       setDetailsError(message)
       logger.error('Failed to save credential details', error)
-    } finally {
-      setIsSavingDetails(false)
     }
   }
 
   const handleBackAttempt = useCallback(() => {
-    if (isDetailsDirty && !isSavingDetails) {
+    if (isDetailsDirty && !updateCredential.isPending) {
       setShowUnsavedChangesAlert(true)
     } else {
       setSelectedCredentialId(null)
       setSelectedDescriptionDraft('')
       setSelectedDisplayNameDraft('')
     }
-  }, [isDetailsDirty, isSavingDetails])
+  }, [isDetailsDirty, updateCredential.isPending])
 
   const handleDiscardChanges = useCallback(() => {
     setShowUnsavedChangesAlert(false)
@@ -1430,9 +1435,9 @@ export function IntegrationsManager() {
                 <Button
                   variant='primary'
                   onClick={handleSaveDetails}
-                  disabled={!isDetailsDirty || isSavingDetails}
+                  disabled={!isDetailsDirty || updateCredential.isPending}
                 >
-                  {isSavingDetails ? 'Saving...' : 'Save'}
+                  {updateCredential.isPending ? 'Saving...' : 'Save'}
                 </Button>
               )}
             </div>

@@ -324,7 +324,7 @@
     "longDescription": "Search across your synced data sources using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results.",
     "bgColor": "#6366F1",
     "iconName": "AirweaveIcon",
-    "docsUrl": "https://docs.airweave.ai",
+    "docsUrl": "https://docs.sim.ai/tools/airweave",
     "operations": [],
     "operationCount": 0,
     "triggers": [],
@@ -4015,8 +4015,14 @@
       }
     ],
     "operationCount": 12,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "gmail_poller",
+        "name": "Gmail Email Trigger",
+        "description": "Triggers when new emails are received in Gmail (requires Gmail credentials)"
+      }
+    ],
+    "triggerCount": 1,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "email",
@@ -4106,8 +4112,19 @@
       }
     ],
     "operationCount": 18,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "gong_webhook",
+        "name": "Gong Webhook",
+        "description": "Generic webhook trigger for all Gong events"
+      },
+      {
+        "id": "gong_call_completed",
+        "name": "Gong Call Completed",
+        "description": "Trigger workflow when a call is completed and processed in Gong"
+      }
+    ],
+    "triggerCount": 2,
     "authType": "none",
     "category": "tools",
     "integrationType": "sales-intelligence",
@@ -5253,8 +5270,49 @@
       }
     ],
     "operationCount": 11,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "greenhouse_candidate_hired",
+        "name": "Greenhouse Candidate Hired",
+        "description": "Trigger workflow when a candidate is hired"
+      },
+      {
+        "id": "greenhouse_new_application",
+        "name": "Greenhouse New Application",
+        "description": "Trigger workflow when a new application is submitted"
+      },
+      {
+        "id": "greenhouse_candidate_stage_change",
+        "name": "Greenhouse Candidate Stage Change",
+        "description": "Trigger workflow when a candidate changes interview stages"
+      },
+      {
+        "id": "greenhouse_candidate_rejected",
+        "name": "Greenhouse Candidate Rejected",
+        "description": "Trigger workflow when a candidate is rejected"
+      },
+      {
+        "id": "greenhouse_offer_created",
+        "name": "Greenhouse Offer Created",
+        "description": "Trigger workflow when a new offer is created"
+      },
+      {
+        "id": "greenhouse_job_created",
+        "name": "Greenhouse Job Created",
+        "description": "Trigger workflow when a new job is created"
+      },
+      {
+        "id": "greenhouse_job_updated",
+        "name": "Greenhouse Job Updated",
+        "description": "Trigger workflow when a job is updated"
+      },
+      {
+        "id": "greenhouse_webhook",
+        "name": "Greenhouse Webhook (Endpoint Events)",
+        "description": "Trigger on whichever event types you select for this URL in Greenhouse. Sim does not filter deliveries for this trigger."
+      }
+    ],
+    "triggerCount": 8,
     "authType": "api-key",
     "category": "tools",
     "integrationType": "hr",
@@ -5518,6 +5576,11 @@
         "description": "Trigger workflow when a contact is deleted in HubSpot"
       },
       {
+        "id": "hubspot_contact_merged",
+        "name": "HubSpot Contact Merged",
+        "description": "Trigger workflow when contacts are merged in HubSpot"
+      },
+      {
         "id": "hubspot_contact_privacy_deleted",
         "name": "HubSpot Contact Privacy Deleted",
         "description": "Trigger workflow when a contact is deleted for privacy compliance (GDPR, CCPA, etc.) in HubSpot"
@@ -5526,6 +5589,11 @@
         "id": "hubspot_contact_property_changed",
         "name": "HubSpot Contact Property Changed",
         "description": "Trigger workflow when any property of a contact is updated in HubSpot"
+      },
+      {
+        "id": "hubspot_contact_restored",
+        "name": "HubSpot Contact Restored",
+        "description": "Trigger workflow when a deleted contact is restored in HubSpot"
       },
       {
         "id": "hubspot_company_created",
@@ -5538,9 +5606,19 @@
         "description": "Trigger workflow when a company is deleted in HubSpot"
       },
       {
+        "id": "hubspot_company_merged",
+        "name": "HubSpot Company Merged",
+        "description": "Trigger workflow when companies are merged in HubSpot"
+      },
+      {
         "id": "hubspot_company_property_changed",
         "name": "HubSpot Company Property Changed",
         "description": "Trigger workflow when any property of a company is updated in HubSpot"
+      },
+      {
+        "id": "hubspot_company_restored",
+        "name": "HubSpot Company Restored",
+        "description": "Trigger workflow when a deleted company is restored in HubSpot"
       },
       {
         "id": "hubspot_conversation_creation",
@@ -5578,9 +5656,19 @@
         "description": "Trigger workflow when a deal is deleted in HubSpot"
       },
       {
+        "id": "hubspot_deal_merged",
+        "name": "HubSpot Deal Merged",
+        "description": "Trigger workflow when deals are merged in HubSpot"
+      },
+      {
         "id": "hubspot_deal_property_changed",
         "name": "HubSpot Deal Property Changed",
         "description": "Trigger workflow when any property of a deal is updated in HubSpot"
+      },
+      {
+        "id": "hubspot_deal_restored",
+        "name": "HubSpot Deal Restored",
+        "description": "Trigger workflow when a deleted deal is restored in HubSpot"
       },
       {
         "id": "hubspot_ticket_created",
@@ -5593,12 +5681,27 @@
         "description": "Trigger workflow when a ticket is deleted in HubSpot"
       },
       {
+        "id": "hubspot_ticket_merged",
+        "name": "HubSpot Ticket Merged",
+        "description": "Trigger workflow when tickets are merged in HubSpot"
+      },
+      {
         "id": "hubspot_ticket_property_changed",
         "name": "HubSpot Ticket Property Changed",
         "description": "Trigger workflow when any property of a ticket is updated in HubSpot"
+      },
+      {
+        "id": "hubspot_ticket_restored",
+        "name": "HubSpot Ticket Restored",
+        "description": "Trigger workflow when a deleted ticket is restored in HubSpot"
+      },
+      {
+        "id": "hubspot_webhook",
+        "name": "HubSpot Webhook (All Events)",
+        "description": "Trigger workflow on any HubSpot webhook event"
       }
     ],
-    "triggerCount": 18,
+    "triggerCount": 27,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "crm",
@@ -6077,8 +6180,39 @@
       }
     ],
     "operationCount": 31,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "intercom_conversation_created",
+        "name": "Intercom Conversation Created",
+        "description": "Trigger workflow when a new conversation is created in Intercom"
+      },
+      {
+        "id": "intercom_conversation_reply",
+        "name": "Intercom Conversation Reply",
+        "description": "Trigger workflow when someone replies to an Intercom conversation"
+      },
+      {
+        "id": "intercom_conversation_closed",
+        "name": "Intercom Conversation Closed",
+        "description": "Trigger workflow when a conversation is closed in Intercom"
+      },
+      {
+        "id": "intercom_contact_created",
+        "name": "Intercom Contact Created",
+        "description": "Trigger workflow when a new lead is created in Intercom"
+      },
+      {
+        "id": "intercom_user_created",
+        "name": "Intercom User Created",
+        "description": "Trigger workflow when a new user is created in Intercom"
+      },
+      {
+        "id": "intercom_webhook",
+        "name": "Intercom Webhook (All Events)",
+        "description": "Trigger workflow on any Intercom webhook event"
+      }
+    ],
+    "triggerCount": 6,
     "authType": "api-key",
     "category": "tools",
     "integrationType": "customer-support",
@@ -6731,7 +6865,7 @@
     "tags": ["sales-engagement", "email-marketing", "automation"]
   },
   {
-    "type": "linear",
+    "type": "linear_v2",
     "slug": "linear",
     "name": "Linear",
     "description": "Interact with Linear issues, projects, and more",
@@ -7056,79 +7190,79 @@
     "operationCount": 78,
     "triggers": [
       {
-        "id": "linear_issue_created",
+        "id": "linear_issue_created_v2",
         "name": "Linear Issue Created",
         "description": "Trigger workflow when a new issue is created in Linear"
       },
       {
-        "id": "linear_issue_updated",
+        "id": "linear_issue_updated_v2",
         "name": "Linear Issue Updated",
         "description": "Trigger workflow when an issue is updated in Linear"
       },
       {
-        "id": "linear_issue_removed",
+        "id": "linear_issue_removed_v2",
         "name": "Linear Issue Removed",
         "description": "Trigger workflow when an issue is removed/deleted in Linear"
       },
       {
-        "id": "linear_comment_created",
+        "id": "linear_comment_created_v2",
         "name": "Linear Comment Created",
         "description": "Trigger workflow when a new comment is created in Linear"
       },
       {
-        "id": "linear_comment_updated",
+        "id": "linear_comment_updated_v2",
         "name": "Linear Comment Updated",
         "description": "Trigger workflow when a comment is updated in Linear"
       },
       {
-        "id": "linear_project_created",
+        "id": "linear_project_created_v2",
         "name": "Linear Project Created",
         "description": "Trigger workflow when a new project is created in Linear"
       },
       {
-        "id": "linear_project_updated",
+        "id": "linear_project_updated_v2",
         "name": "Linear Project Updated",
         "description": "Trigger workflow when a project is updated in Linear"
       },
       {
-        "id": "linear_cycle_created",
+        "id": "linear_cycle_created_v2",
         "name": "Linear Cycle Created",
         "description": "Trigger workflow when a new cycle is created in Linear"
       },
       {
-        "id": "linear_cycle_updated",
+        "id": "linear_cycle_updated_v2",
         "name": "Linear Cycle Updated",
         "description": "Trigger workflow when a cycle is updated in Linear"
       },
       {
-        "id": "linear_label_created",
+        "id": "linear_label_created_v2",
         "name": "Linear Label Created",
         "description": "Trigger workflow when a new label is created in Linear"
       },
       {
-        "id": "linear_label_updated",
+        "id": "linear_label_updated_v2",
         "name": "Linear Label Updated",
         "description": "Trigger workflow when a label is updated in Linear"
       },
       {
-        "id": "linear_project_update_created",
+        "id": "linear_project_update_created_v2",
         "name": "Linear Project Update Created",
         "description": "Trigger workflow when a new project update is posted in Linear"
       },
       {
-        "id": "linear_customer_request_created",
+        "id": "linear_customer_request_created_v2",
         "name": "Linear Customer Request Created",
         "description": "Trigger workflow when a new customer request is created in Linear"
       },
       {
-        "id": "linear_customer_request_updated",
+        "id": "linear_customer_request_updated_v2",
         "name": "Linear Customer Request Updated",
         "description": "Trigger workflow when a customer request is updated in Linear"
       },
       {
-        "id": "linear_webhook",
+        "id": "linear_webhook_v2",
         "name": "Linear Webhook",
-        "description": "Trigger workflow from any Linear webhook event"
+        "description": "Trigger workflow from Linear events you select when creating the webhook in Linear (not guaranteed to be every model or event type)."
       }
     ],
     "triggerCount": 15,
@@ -8138,8 +8272,54 @@
     "docsUrl": "https://docs.sim.ai/tools/notion",
     "operations": [],
     "operationCount": 0,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "notion_page_created",
+        "name": "Notion Page Created",
+        "description": "Trigger workflow when a new page is created in Notion"
+      },
+      {
+        "id": "notion_page_properties_updated",
+        "name": "Notion Page Properties Updated",
+        "description": "Trigger workflow when page properties are modified in Notion"
+      },
+      {
+        "id": "notion_page_content_updated",
+        "name": "Notion Page Content Updated",
+        "description": "Trigger workflow when page content is changed in Notion"
+      },
+      {
+        "id": "notion_page_deleted",
+        "name": "Notion Page Deleted",
+        "description": "Trigger workflow when a page is deleted in Notion"
+      },
+      {
+        "id": "notion_database_created",
+        "name": "Notion Database Created",
+        "description": "Trigger workflow when a new database is created in Notion"
+      },
+      {
+        "id": "notion_database_schema_updated",
+        "name": "Notion Database Schema Updated",
+        "description": "Trigger workflow when a database schema is modified in Notion"
+      },
+      {
+        "id": "notion_database_deleted",
+        "name": "Notion Database Deleted",
+        "description": "Trigger workflow when a database is deleted in Notion"
+      },
+      {
+        "id": "notion_comment_created",
+        "name": "Notion Comment Created",
+        "description": "Trigger workflow when a comment or suggested edit is added in Notion"
+      },
+      {
+        "id": "notion_webhook",
+        "name": "Notion Webhook (All Events)",
+        "description": "Trigger workflow on any Notion webhook event"
+      }
+    ],
+    "triggerCount": 9,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "documents",
@@ -8406,8 +8586,14 @@
       }
     ],
     "operationCount": 9,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "outlook_poller",
+        "name": "Outlook Email Trigger",
+        "description": "Triggers when new emails are received in Outlook (requires Microsoft credentials)"
+      }
+    ],
+    "triggerCount": 1,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "email",
@@ -9428,8 +9614,49 @@
       }
     ],
     "operationCount": 8,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "resend_email_sent",
+        "name": "Resend Email Sent",
+        "description": "Trigger workflow when an email is sent"
+      },
+      {
+        "id": "resend_email_delivered",
+        "name": "Resend Email Delivered",
+        "description": "Trigger workflow when an email is delivered"
+      },
+      {
+        "id": "resend_email_bounced",
+        "name": "Resend Email Bounced",
+        "description": "Trigger workflow when an email bounces"
+      },
+      {
+        "id": "resend_email_complained",
+        "name": "Resend Email Complained",
+        "description": "Trigger workflow when an email is marked as spam"
+      },
+      {
+        "id": "resend_email_opened",
+        "name": "Resend Email Opened",
+        "description": "Trigger workflow when an email is opened"
+      },
+      {
+        "id": "resend_email_clicked",
+        "name": "Resend Email Clicked",
+        "description": "Trigger workflow when a link in an email is clicked"
+      },
+      {
+        "id": "resend_email_failed",
+        "name": "Resend Email Failed",
+        "description": "Trigger workflow when an email fails to send"
+      },
+      {
+        "id": "resend_webhook",
+        "name": "Resend Webhook (All Events)",
+        "description": "Trigger on Resend webhook events we subscribe to (email lifecycle, contacts, domains—see Resend docs). Flattened email fields may be null for non-email events; use <code>data</code> for the full payload."
+      }
+    ],
+    "triggerCount": 8,
     "authType": "none",
     "category": "tools",
     "integrationType": "email",
@@ -10175,8 +10402,39 @@
       }
     ],
     "operationCount": 35,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "salesforce_record_created",
+        "name": "Salesforce Record Created",
+        "description": "Trigger workflow when a Salesforce record is created"
+      },
+      {
+        "id": "salesforce_record_updated",
+        "name": "Salesforce Record Updated",
+        "description": "Trigger workflow when a Salesforce record is updated"
+      },
+      {
+        "id": "salesforce_record_deleted",
+        "name": "Salesforce Record Deleted",
+        "description": "Trigger workflow when a Salesforce record is deleted"
+      },
+      {
+        "id": "salesforce_opportunity_stage_changed",
+        "name": "Salesforce Opportunity Stage Changed",
+        "description": "Trigger workflow when an opportunity stage changes"
+      },
+      {
+        "id": "salesforce_case_status_changed",
+        "name": "Salesforce Case Status Changed",
+        "description": "Trigger workflow when a case status changes"
+      },
+      {
+        "id": "salesforce_webhook",
+        "name": "Salesforce Webhook (All Events)",
+        "description": "Trigger workflow on any Salesforce webhook event"
+      }
+    ],
+    "triggerCount": 6,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "crm",
@@ -10638,6 +10896,41 @@
     "category": "tools",
     "integrationType": "analytics",
     "tags": ["marketing", "data-analytics", "seo"]
+  },
+  {
+    "type": "sixtyfour",
+    "slug": "sixtyfour-ai",
+    "name": "Sixtyfour AI",
+    "description": "Enrich leads and companies with AI-powered research",
+    "longDescription": "Find emails, phone numbers, and enrich lead or company data with contact information, social profiles, and detailed research using Sixtyfour AI.",
+    "bgColor": "#000000",
+    "iconName": "SixtyfourIcon",
+    "docsUrl": "https://docs.sim.ai/tools/sixtyfour",
+    "operations": [
+      {
+        "name": "Find Phone",
+        "description": "Find phone numbers for a lead using Sixtyfour AI."
+      },
+      {
+        "name": "Find Email",
+        "description": "Find email addresses for a lead using Sixtyfour AI."
+      },
+      {
+        "name": "Enrich Lead",
+        "description": "Enrich lead information with contact details, social profiles, and company data using Sixtyfour AI."
+      },
+      {
+        "name": "Enrich Company",
+        "description": "Enrich company data with additional information and find associated people using Sixtyfour AI."
+      }
+    ],
+    "operationCount": 4,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "sales-intelligence",
+    "tags": ["enrichment", "sales-engagement"]
   },
   {
     "type": "slack",
@@ -11930,8 +12223,49 @@
       }
     ],
     "operationCount": 50,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "vercel_deployment_created",
+        "name": "Vercel Deployment Created",
+        "description": "Trigger workflow when a new deployment is created"
+      },
+      {
+        "id": "vercel_deployment_ready",
+        "name": "Vercel Deployment Ready",
+        "description": "Trigger workflow when a deployment is ready to serve traffic"
+      },
+      {
+        "id": "vercel_deployment_error",
+        "name": "Vercel Deployment Error",
+        "description": "Trigger workflow when a deployment fails"
+      },
+      {
+        "id": "vercel_deployment_canceled",
+        "name": "Vercel Deployment Canceled",
+        "description": "Trigger workflow when a deployment is canceled"
+      },
+      {
+        "id": "vercel_project_created",
+        "name": "Vercel Project Created",
+        "description": "Trigger workflow when a new project is created"
+      },
+      {
+        "id": "vercel_project_removed",
+        "name": "Vercel Project Removed",
+        "description": "Trigger workflow when a project is removed"
+      },
+      {
+        "id": "vercel_domain_created",
+        "name": "Vercel Domain Created",
+        "description": "Trigger workflow when a domain is created"
+      },
+      {
+        "id": "vercel_webhook",
+        "name": "Vercel Webhook (Common Events)",
+        "description": "Trigger on a curated set of common Vercel events (deployments, projects, domains, edge config). Pick a specific trigger to listen to one event type only."
+      }
+    ],
+    "triggerCount": 8,
     "authType": "api-key",
     "category": "tools",
     "integrationType": "developer-tools",
@@ -12733,8 +13067,39 @@
       }
     ],
     "operationCount": 10,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "zoom_meeting_started",
+        "name": "Zoom Meeting Started",
+        "description": "Trigger workflow when a Zoom meeting starts"
+      },
+      {
+        "id": "zoom_meeting_ended",
+        "name": "Zoom Meeting Ended",
+        "description": "Trigger workflow when a Zoom meeting ends"
+      },
+      {
+        "id": "zoom_participant_joined",
+        "name": "Zoom Participant Joined",
+        "description": "Trigger workflow when a participant joins a Zoom meeting"
+      },
+      {
+        "id": "zoom_participant_left",
+        "name": "Zoom Participant Left",
+        "description": "Trigger workflow when a participant leaves a Zoom meeting"
+      },
+      {
+        "id": "zoom_recording_completed",
+        "name": "Zoom Recording Completed",
+        "description": "Trigger workflow when a Zoom cloud recording is completed"
+      },
+      {
+        "id": "zoom_webhook",
+        "name": "Zoom Webhook (All Events)",
+        "description": "Trigger workflow on any Zoom webhook event"
+      }
+    ],
+    "triggerCount": 6,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "communication",

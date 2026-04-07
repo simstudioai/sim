@@ -19,6 +19,7 @@ export interface WorkflowFolder {
   sortOrder: number
   createdAt: Date
   updatedAt: Date
+  archivedAt?: Date | null
 }
 
 export interface FolderTreeNode extends WorkflowFolder {

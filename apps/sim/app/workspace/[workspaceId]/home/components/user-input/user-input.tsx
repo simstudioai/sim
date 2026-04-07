@@ -3,7 +3,7 @@
 import type React from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Database, Table as TableIcon } from '@/components/emcn/icons'
+import { Database, Folder as FolderIcon, Table as TableIcon } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
@@ -108,6 +108,7 @@ interface UserInputProps {
   isInitialView?: boolean
   userId?: string
   onContextAdd?: (context: ChatContext) => void
+  onEnterWhileEmpty?: () => boolean
 }
 
 export function UserInput({
@@ -120,6 +121,7 @@ export function UserInput({
   isInitialView = true,
   userId,
   onContextAdd,
+  onEnterWhileEmpty,
 }: UserInputProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { data: workflowsById = {} } = useWorkflowMap(workspaceId)
@@ -175,6 +177,7 @@ export function UserInput({
       if (ctx.kind === 'knowledge' && ctx.knowledgeId) keys.add(`knowledgebase:${ctx.knowledgeId}`)
       if (ctx.kind === 'table' && ctx.tableId) keys.add(`table:${ctx.tableId}`)
       if (ctx.kind === 'file' && ctx.fileId) keys.add(`file:${ctx.fileId}`)
+      if (ctx.kind === 'folder' && ctx.folderId) keys.add(`folder:${ctx.folderId}`)
     }
     return keys
   }, [contextManagement.selectedContexts])
@@ -207,6 +210,10 @@ export function UserInput({
   filesRef.current = files
   const contextRef = useRef(contextManagement)
   contextRef.current = contextManagement
+  const onEnterWhileEmptyRef = useRef(onEnterWhileEmpty)
+  onEnterWhileEmptyRef.current = onEnterWhileEmpty
+  const isSendingRef = useRef(isSending)
+  isSendingRef.current = isSending
 
   useEffect(() => {
     return () => {
@@ -447,6 +454,10 @@ export function UserInput({
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
         e.preventDefault()
+        if (isSendingRef.current && !valueRef.current.trim()) {
+          onEnterWhileEmptyRef.current?.()
+          return
+        }
         handleSubmit()
         return
       }
@@ -663,6 +674,9 @@ export function UserInput({
             mentionIconNode = <FileDocIcon className={iconClasses} />
             break
           }
+          case 'folder':
+            mentionIconNode = <FolderIcon className={iconClasses} />
+            break
         }
       }
 

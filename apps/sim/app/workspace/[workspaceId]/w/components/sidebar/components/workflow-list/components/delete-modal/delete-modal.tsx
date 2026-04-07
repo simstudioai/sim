@@ -64,7 +64,7 @@ export function DeleteModal({
     title = 'Delete Workspace'
   }
 
-  const restorableTypes = new Set<string>(['workflow'])
+  const restorableTypes = new Set<string>(['workflow', 'folder', 'mixed'])
 
   const renderDescription = () => {
     if (itemType === 'workflow') {
@@ -113,8 +113,7 @@ export function DeleteModal({
             </span>
             ?{' '}
             <span className='text-[var(--text-error)]'>
-              This will permanently remove all workflows, logs, and knowledge bases within these
-              folders.
+              All workflows and contents within these folders will be archived.
             </span>
           </>
         )
@@ -125,7 +124,7 @@ export function DeleteModal({
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>?{' '}
             <span className='text-[var(--text-error)]'>
-              This will permanently remove all associated workflows, logs, and knowledge bases.
+              All associated workflows and contents will be archived.
             </span>
           </>
         )
@@ -134,7 +133,7 @@ export function DeleteModal({
         <>
           Are you sure you want to delete this folder?{' '}
           <span className='text-[var(--text-error)]'>
-            This will permanently remove all associated workflows, logs, and knowledge bases.
+            All associated workflows and contents will be archived.
           </span>
         </>
       )
@@ -186,8 +185,7 @@ export function DeleteModal({
             </span>
             ?{' '}
             <span className='text-[var(--text-error)]'>
-              This will permanently remove all selected workflows and folders, including their
-              contents.
+              All selected workflows and folders, including their contents, will be archived.
             </span>
           </>
         )
@@ -196,8 +194,7 @@ export function DeleteModal({
         <>
           Are you sure you want to delete the selected items?{' '}
           <span className='text-[var(--text-error)]'>
-            This will permanently remove all selected workflows and folders, including their
-            contents.
+            All selected workflows and folders, including their contents, will be archived.
           </span>
         </>
       )
@@ -238,7 +235,7 @@ export function DeleteModal({
                 You can restore it from Recently Deleted in Settings.
               </span>
             ) : (
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              <span className='text-[var(--text-tertiary)]'>This action cannot be undone.</span>
             )}
           </p>
         </ModalBody>

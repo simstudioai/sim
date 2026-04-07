@@ -26,8 +26,7 @@ export async function POST(request: NextRequest) {
     const validationResult = resetPasswordSchema.safeParse(body)
 
     if (!validationResult.success) {
-      const firstError = validationResult.error.errors[0]
-      const errorMessage = firstError?.message || 'Invalid request data'
+      const errorMessage = validationResult.error.errors.map((e) => e.message).join(' ')
 
       logger.warn('Invalid password reset request data', {
         errors: validationResult.error.format(),

@@ -106,17 +106,10 @@ vi.mock('@/lib/webhooks/utils', () => ({
 vi.mock('@/lib/webhooks/utils.server', () => ({
   handleSlackChallenge: vi.fn().mockReturnValue(null),
   handleWhatsAppVerification: vi.fn().mockResolvedValue(null),
-  validateAttioSignature: vi.fn().mockReturnValue(true),
-  validateCalcomSignature: vi.fn().mockReturnValue(true),
-  validateCirclebackSignature: vi.fn().mockReturnValue(true),
-  validateFirefliesSignature: vi.fn().mockReturnValue(true),
-  validateGitHubSignature: vi.fn().mockReturnValue(true),
-  validateJiraSignature: vi.fn().mockReturnValue(true),
-  validateLinearSignature: vi.fn().mockReturnValue(true),
-  validateMicrosoftTeamsSignature: vi.fn().mockReturnValue(true),
-  validateTwilioSignature: vi.fn().mockResolvedValue(true),
-  validateTypeformSignature: vi.fn().mockReturnValue(true),
-  verifyProviderWebhook: vi.fn().mockReturnValue(null),
+}))
+
+vi.mock('@/lib/webhooks/providers', () => ({
+  getProviderHandler: vi.fn().mockReturnValue({}),
 }))
 
 vi.mock('@/background/webhook-execution', () => ({

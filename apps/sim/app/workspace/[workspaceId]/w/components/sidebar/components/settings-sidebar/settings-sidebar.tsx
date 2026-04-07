@@ -1,9 +1,18 @@
 'use client'
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import { ChevronDown, Skeleton } from '@/components/emcn'
+import {
+  Button,
+  ChevronDown,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  Skeleton,
+} from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { isHosted } from '@/lib/core/config/feature-flags'
@@ -23,6 +32,7 @@ import { useOrganizations } from '@/hooks/queries/organization'
 import { prefetchSubscriptionData, useSubscriptionData } from '@/hooks/queries/subscription'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const SKELETON_SECTIONS = [3, 2, 2] as const
 
@@ -41,6 +51,13 @@ export function SettingsSidebar({
   const router = useRouter()
 
   const queryClient = useQueryClient()
+
+  const requestNavigation = useSettingsDirtyStore((s) => s.requestNavigation)
+  const confirmNavigation = useSettingsDirtyStore((s) => s.confirmNavigation)
+  const cancelNavigation = useSettingsDirtyStore((s) => s.cancelNavigation)
+  const isDirty = useSettingsDirtyStore((s) => s.isDirty)
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false)
+
   const { data: session, isPending: sessionLoading } = useSession()
   const { data: organizationsData, isLoading: orgsLoading } = useOrganizations()
   const { data: generalSettings } = useGeneralSettings()
@@ -180,8 +197,27 @@ export function SettingsSidebar({
   const { popSettingsReturnUrl, getSettingsHref } = useSettingsNavigation()
 
   const handleBack = useCallback(() => {
+    if (isDirty) {
+      setShowDiscardDialog(true)
+      return
+    }
     router.push(popSettingsReturnUrl(`/workspace/${workspaceId}/home`))
-  }, [router, popSettingsReturnUrl, workspaceId])
+  }, [router, popSettingsReturnUrl, workspaceId, isDirty])
+
+  const handleConfirmDiscard = useCallback(() => {
+    const section = confirmNavigation()
+    setShowDiscardDialog(false)
+    if (section) {
+      router.replace(getSettingsHref({ section }), { scroll: false })
+    } else {
+      router.push(popSettingsReturnUrl(`/workspace/${workspaceId}/home`))
+    }
+  }, [confirmNavigation, router, getSettingsHref, popSettingsReturnUrl, workspaceId])
+
+  const handleCancelDiscard = useCallback(() => {
+    cancelNavigation()
+    setShowDiscardDialog(false)
+  }, [cancelNavigation])
 
   return (
     <>
@@ -286,11 +322,15 @@ export function SettingsSidebar({
                         className={itemClassName}
                         onMouseEnter={() => handlePrefetch(item.id)}
                         onFocus={() => handlePrefetch(item.id)}
-                        onClick={() =>
-                          router.replace(getSettingsHref({ section: item.id as SettingsSection }), {
-                            scroll: false,
-                          })
-                        }
+                        onClick={() => {
+                          const section = item.id as SettingsSection
+                          if (section === activeSection) return
+                          if (!requestNavigation(section)) {
+                            setShowDiscardDialog(true)
+                            return
+                          }
+                          router.replace(getSettingsHref({ section }), { scroll: false })
+                        }}
                       >
                         {content}
                       </button>
@@ -312,6 +352,25 @@ export function SettingsSidebar({
           })
         )}
       </div>
+
+      <Modal open={showDiscardDialog} onOpenChange={(open) => !open && handleCancelDiscard()}>
+        <ModalContent size='sm'>
+          <ModalHeader>Unsaved Changes</ModalHeader>
+          <ModalBody>
+            <p className='text-[var(--text-secondary)]'>
+              You have unsaved changes. Are you sure you want to discard them?
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant='default' onClick={handleCancelDiscard}>
+              Keep Editing
+            </Button>
+            <Button variant='destructive' onClick={handleConfirmDiscard}>
+              Discard Changes
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </>
   )
 }

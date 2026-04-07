@@ -1,6 +1,6 @@
 'use client'
 
-import { useLayoutEffect, useRef } from 'react'
+import { useCallback, useLayoutEffect, useRef } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
@@ -98,6 +98,18 @@ export function MothershipChat({
   })
   const hasMessages = messages.length > 0
   const initialScrollDoneRef = useRef(false)
+
+  const messageQueueRef = useRef(messageQueue)
+  messageQueueRef.current = messageQueue
+  const onSendQueuedMessageRef = useRef(onSendQueuedMessage)
+  onSendQueuedMessageRef.current = onSendQueuedMessage
+
+  const handleEnterWhileEmpty = useCallback(() => {
+    const topMessage = messageQueueRef.current[0]
+    if (!topMessage) return false
+    void onSendQueuedMessageRef.current(topMessage.id)
+    return true
+  }, [])
 
   useLayoutEffect(() => {
     if (!hasMessages) {
@@ -197,6 +209,7 @@ export function MothershipChat({
             onContextAdd={onContextAdd}
             editValue={editValue}
             onEditValueConsumed={onEditValueConsumed}
+            onEnterWhileEmpty={handleEnterWhileEmpty}
           />
         </div>
       </div>

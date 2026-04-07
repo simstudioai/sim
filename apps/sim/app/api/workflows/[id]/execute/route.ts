@@ -41,7 +41,7 @@ import {
 } from '@/lib/uploads/utils/user-file-base64.server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
-import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
+import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
 import {
   DIRECT_WORKFLOW_JOB_NAME,
   type QueuedWorkflowExecutionPayload,
@@ -903,6 +903,8 @@ async function handleExecutePost(
           abortSignal: timeoutController.signal,
         })
 
+        await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })
+
         if (
           result.status === 'cancelled' &&
           timeoutController.isTimedOut() &&
@@ -1359,31 +1361,7 @@ async function handleExecutePost(
             runFromBlock: resolvedRunFromBlock,
           })
 
-          if (result.status === 'paused') {
-            if (!result.snapshotSeed) {
-              reqLogger.error('Missing snapshot seed for paused execution')
-              await loggingSession.markAsFailed('Missing snapshot seed for paused execution')
-            } else {
-              try {
-                await PauseResumeManager.persistPauseResult({
-                  workflowId,
-                  executionId,
-                  pausePoints: result.pausePoints || [],
-                  snapshotSeed: result.snapshotSeed,
-                  executorUserId: result.metadata?.userId,
-                })
-              } catch (pauseError) {
-                reqLogger.error('Failed to persist pause result', {
-                  error: pauseError instanceof Error ? pauseError.message : String(pauseError),
-                })
-                await loggingSession.markAsFailed(
-                  `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
-                )
-              }
-            }
-          } else {
-            await PauseResumeManager.processQueuedResumes(executionId)
-          }
+          await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })
 
           if (result.status === 'cancelled') {
             if (timeoutController.isTimedOut() && timeoutController.timeoutMs) {
@@ -1422,25 +1400,42 @@ async function handleExecutePost(
             return
           }
 
-          sendEvent({
-            type: 'execution:completed',
-            timestamp: new Date().toISOString(),
-            executionId,
-            workflowId,
-            data: {
-              success: result.success,
-              output: includeFileBase64
-                ? await hydrateUserFilesWithBase64(result.output, {
-                    requestId,
-                    executionId,
-                    maxBytes: base64MaxBytes,
-                  })
-                : result.output,
-              duration: result.metadata?.duration || 0,
-              startTime: result.metadata?.startTime || startTime.toISOString(),
-              endTime: result.metadata?.endTime || new Date().toISOString(),
-            },
-          })
+          const sseOutput = includeFileBase64
+            ? await hydrateUserFilesWithBase64(result.output, {
+                requestId,
+                executionId,
+                maxBytes: base64MaxBytes,
+              })
+            : result.output
+
+          if (result.status === 'paused') {
+            sendEvent({
+              type: 'execution:paused',
+              timestamp: new Date().toISOString(),
+              executionId,
+              workflowId,
+              data: {
+                output: sseOutput,
+                duration: result.metadata?.duration || 0,
+                startTime: result.metadata?.startTime || startTime.toISOString(),
+                endTime: result.metadata?.endTime || new Date().toISOString(),
+              },
+            })
+          } else {
+            sendEvent({
+              type: 'execution:completed',
+              timestamp: new Date().toISOString(),
+              executionId,
+              workflowId,
+              data: {
+                success: result.success,
+                output: sseOutput,
+                duration: result.metadata?.duration || 0,
+                startTime: result.metadata?.startTime || startTime.toISOString(),
+                endTime: result.metadata?.endTime || new Date().toISOString(),
+              },
+            })
+          }
           finalMetaStatus = 'complete'
         } catch (error: unknown) {
           const isTimeout = isTimeoutError(error) || timeoutController.isTimedOut()

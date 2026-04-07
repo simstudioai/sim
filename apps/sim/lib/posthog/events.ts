@@ -14,7 +14,23 @@ export interface PostHogEventMap {
 
   landing_page_viewed: Record<string, never>
 
+  landing_cta_clicked: {
+    label: string
+    section: 'hero' | 'navbar' | 'footer_cta' | 'pricing'
+    destination: string
+  }
+
+  landing_demo_request_submitted: {
+    company_size: string
+  }
+
+  landing_prompt_submitted: Record<string, never>
+
   signup_page_viewed: Record<string, never>
+
+  signup_failed: {
+    error_code: string
+  }
 
   subscription_created: {
     plan: string
@@ -422,6 +438,11 @@ export interface PostHogEventMap {
   }
 
   folder_deleted: {
+    workspace_id: string
+  }
+
+  folder_restored: {
+    folder_id: string
     workspace_id: string
   }
 
