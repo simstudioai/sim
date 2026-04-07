@@ -299,7 +299,7 @@ export async function performRestoreFolder(
         .from(workflowFolder)
         .where(eq(workflowFolder.id, folder.parentId))
 
-      if (parentFolder?.archivedAt) {
+      if (!parentFolder || parentFolder.archivedAt) {
         await tx
           .update(workflowFolder)
           .set({ parentId: null })
