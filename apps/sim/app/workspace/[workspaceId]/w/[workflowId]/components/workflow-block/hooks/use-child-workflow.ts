@@ -11,8 +11,9 @@ export interface UseChildWorkflowReturn {
 
 /**
  * Manages child workflow deployment status for workflow selector blocks.
- * Uses the shared useDeploymentInfo query (same source of truth as the
- * editor header's Deploy button) for consistent deployment detection.
+ * Uses useDeploymentInfo which computes needsRedeployment server-side via
+ * hasWorkflowChanged — the same comparison the deploy button uses — so the
+ * badge stays aligned with the child workflow's Live/Update header.
  */
 export function useChildWorkflow(
   blockId: string,
@@ -39,7 +40,8 @@ export function useChildWorkflow(
   }
 
   const { data, isPending } = useDeploymentInfo(
-    isWorkflowSelector ? (childWorkflowId ?? null) : null
+    isWorkflowSelector ? (childWorkflowId ?? null) : null,
+    { refetchOnMount: 'always' }
   )
 
   const childIsDeployed = data?.isDeployed ?? null

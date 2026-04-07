@@ -83,13 +83,17 @@ async function fetchDeploymentInfo(
  * Hook to fetch deployment info for a workflow.
  * Provides isDeployed status, deployedAt timestamp, apiKey info, and needsRedeployment flag.
  */
-export function useDeploymentInfo(workflowId: string | null, options?: { enabled?: boolean }) {
+export function useDeploymentInfo(
+  workflowId: string | null,
+  options?: { enabled?: boolean; refetchOnMount?: boolean | 'always' }
+) {
   return useQuery({
     queryKey: deploymentKeys.info(workflowId),
     queryFn: ({ signal }) => fetchDeploymentInfo(workflowId!, signal),
     enabled: Boolean(workflowId) && (options?.enabled ?? true),
     staleTime: 30 * 1000, // 30 seconds
     placeholderData: keepPreviousData,
+    ...(options?.refetchOnMount !== undefined && { refetchOnMount: options.refetchOnMount }),
   })
 }
 
