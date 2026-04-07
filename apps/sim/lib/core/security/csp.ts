@@ -187,9 +187,7 @@ export function generateRuntimeCSP(): string {
   const gtmConnect = isHosted
     ? 'https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com'
     : ''
-  const gtmImg = isHosted
-    ? 'https://www.googletagmanager.com https://www.google-analytics.com'
-    : ''
+  const gtmImg = isHosted ? 'https://www.googletagmanager.com https://www.google-analytics.com' : ''
   const gtmFrame = isHosted ? 'https://www.googletagmanager.com' : ''
 
   return `
