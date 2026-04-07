@@ -246,12 +246,11 @@ export function IntegrationsManager() {
   }, [selectedCredential, selectedDisplayNameDraft])
 
   const isDetailsDirty = isDescriptionDirty || isDisplayNameDirty
-  const [isSavingDetails, setIsSavingDetails] = useState(false)
 
   const handleSaveDetails = async () => {
-    if (!selectedCredential || !isSelectedAdmin || !isDetailsDirty) return
+    if (!selectedCredential || !isSelectedAdmin || !isDetailsDirty || updateCredential.isPending)
+      return
     setDetailsError(null)
-    setIsSavingDetails(true)
 
     try {
       if (isDisplayNameDirty || isDescriptionDirty) {
@@ -263,26 +262,22 @@ export function IntegrationsManager() {
         if (isDisplayNameDirty) setSelectedDisplayNameDraft((v) => v.trim())
         if (isDescriptionDirty) setSelectedDescriptionDraft((v) => v.trim())
       }
-
-      await refetchCredentials()
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to save changes'
       setDetailsError(message)
       logger.error('Failed to save credential details', error)
-    } finally {
-      setIsSavingDetails(false)
     }
   }
 
   const handleBackAttempt = useCallback(() => {
-    if (isDetailsDirty && !isSavingDetails) {
+    if (isDetailsDirty && !updateCredential.isPending) {
       setShowUnsavedChangesAlert(true)
     } else {
       setSelectedCredentialId(null)
       setSelectedDescriptionDraft('')
       setSelectedDisplayNameDraft('')
     }
-  }, [isDetailsDirty, isSavingDetails])
+  }, [isDetailsDirty, updateCredential.isPending])
 
   const handleDiscardChanges = useCallback(() => {
     setShowUnsavedChangesAlert(false)
@@ -1430,9 +1425,9 @@ export function IntegrationsManager() {
                 <Button
                   variant='primary'
                   onClick={handleSaveDetails}
-                  disabled={!isDetailsDirty || isSavingDetails}
+                  disabled={!isDetailsDirty || updateCredential.isPending}
                 >
-                  {isSavingDetails ? 'Saving...' : 'Save'}
+                  {updateCredential.isPending ? 'Saving...' : 'Save'}
                 </Button>
               )}
             </div>
