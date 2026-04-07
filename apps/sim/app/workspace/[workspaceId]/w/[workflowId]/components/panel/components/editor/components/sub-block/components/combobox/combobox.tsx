@@ -410,7 +410,7 @@ export const ComboBox = memo(function ComboBox({
     let isActive = true
 
     // Fetch the hydrated option
-    fetchOptionById(blockId, valueToHydrate)
+    fetchOptionById(blockId, subBlockId, valueToHydrate)
       .then((option) => {
         if (isActive) setHydratedOption(option)
       })
@@ -425,6 +425,7 @@ export const ComboBox = memo(function ComboBox({
     fetchOptionById,
     value,
     blockId,
+    subBlockId,
     isPreview,
     disabled,
     fetchedOptions,
