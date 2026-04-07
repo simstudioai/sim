@@ -109,10 +109,13 @@ export function BaseCard({
   const actionTakenRef = useRef(false)
   const withActionGuard = useCallback((fn: () => void) => {
     actionTakenRef.current = true
-    fn()
-    setTimeout(() => {
-      actionTakenRef.current = false
-    }, 0)
+    try {
+      fn()
+    } finally {
+      setTimeout(() => {
+        actionTakenRef.current = false
+      }, 0)
+    }
   }, [])
 
   const searchParams = new URLSearchParams({
