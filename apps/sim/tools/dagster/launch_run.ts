@@ -11,6 +11,8 @@ interface LaunchRunResult {
   /** Present when type === 'InvalidOutputError' */
   stepKey?: string
   invalidOutputName?: string
+  /** Present when type === 'RunConfigValidationInvalid' */
+  errors?: Array<{ message: string }>
 }
 
 function buildLaunchRunMutation(hasConfig: boolean, hasTags: boolean) {
@@ -45,10 +47,6 @@ function buildLaunchRunMutation(hasConfig: boolean, hasTags: boolean) {
             runId
           }
         }
-        ... on Error {
-          __typename
-          message
-        }
         ... on InvalidStepError {
           __typename
           invalidStepKey
@@ -57,6 +55,23 @@ function buildLaunchRunMutation(hasConfig: boolean, hasTags: boolean) {
           __typename
           stepKey
           invalidOutputName
+        }
+        ... on RunConfigValidationInvalid {
+          errors {
+            message
+          }
+        }
+        ... on PipelineNotFoundError {
+          message
+        }
+        ... on RunConflict {
+          message
+        }
+        ... on UnauthorizedError {
+          message
+        }
+        ... on PythonError {
+          message
         }
       }
     }
@@ -170,14 +185,17 @@ export const launchRunTool: ToolConfig<DagsterLaunchRunParams, DagsterLaunchRunR
       }
     }
 
-    // InvalidStepError and InvalidOutputError don't implement the Error interface
-    // so they have no message field — build a descriptive message from their fields.
     if (result.type === 'InvalidStepError' && result.invalidStepKey) {
       throw new Error(`InvalidStepError: invalid step key "${result.invalidStepKey}"`)
     }
     if (result.type === 'InvalidOutputError' && result.stepKey) {
       throw new Error(
         `InvalidOutputError: invalid output "${result.invalidOutputName ?? 'unknown'}" on step "${result.stepKey}"`
+      )
+    }
+    if (result.type === 'RunConfigValidationInvalid' && result.errors?.length) {
+      throw new Error(
+        `RunConfigValidationInvalid: ${result.errors.map((e) => e.message).join('; ')}`
       )
     }
     throw new Error(`${result.type}: ${dagsterUnionErrorMessage(result, 'Launch run failed')}`)
