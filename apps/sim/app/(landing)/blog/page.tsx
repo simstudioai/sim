@@ -81,12 +81,12 @@ export default async function BlogIndex({
         {/* Featured posts */}
         {featured.length > 0 && (
           <>
-            <div className='flex'>
+            <div className='flex flex-col sm:flex-row'>
               {featured.map((p, index) => (
                 <Link
                   key={p.slug}
                   href={`/blog/${p.slug}`}
-                  className='group flex flex-1 flex-col gap-4 border-[var(--landing-bg-elevated)] p-6 transition-colors hover:bg-[var(--landing-bg-elevated)] md:border-l md:first:border-l-0'
+                  className='group flex flex-1 flex-col gap-4 border-[var(--landing-bg-elevated)] border-t p-6 transition-colors first:border-t-0 hover:bg-[var(--landing-bg-elevated)] sm:border-t-0 sm:border-l sm:first:border-l-0'
                 >
                   <div className='relative aspect-video w-full overflow-hidden rounded-[5px]'>
                     <img
