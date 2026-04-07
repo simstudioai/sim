@@ -10,7 +10,7 @@ import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateId } from '@/lib/core/utils/uuid'
 import { syncPersonalEnvCredentialsForUser } from '@/lib/credentials/environment'
-import type { EnvironmentVariable } from '@/stores/settings/environment'
+import type { EnvironmentVariable } from '@/lib/environment/api'
 
 const logger = createLogger('EnvironmentAPI')
 

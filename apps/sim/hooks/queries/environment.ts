@@ -1,13 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
+import type { EnvironmentVariable, WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { fetchPersonalEnvironment, fetchWorkspaceEnvironment } from '@/lib/environment/api'
 import { workspaceCredentialKeys } from '@/hooks/queries/credentials'
 import { API_ENDPOINTS } from '@/stores/constants'
-import type { EnvironmentVariable } from '@/stores/settings/environment'
 
-export type { WorkspaceEnvironmentData } from '@/lib/environment/api'
-export type { EnvironmentVariable } from '@/stores/settings/environment'
+export type { EnvironmentVariable, WorkspaceEnvironmentData } from '@/lib/environment/api'
 
 const logger = createLogger('EnvironmentQueries')
 

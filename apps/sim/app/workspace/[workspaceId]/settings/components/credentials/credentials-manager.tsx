@@ -51,6 +51,7 @@ import {
   type WorkspaceEnvironmentData,
 } from '@/hooks/queries/environment'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const logger = createLogger('SecretsManager')
 
@@ -481,6 +482,15 @@ export function CredentialsManager() {
 
   hasChangesRef.current = hasChanges
   shouldBlockNavRef.current = hasChanges || isDetailsDirty
+
+  const setNavGuardDirty = useSettingsDirtyStore((s) => s.setDirty)
+  const resetNavGuard = useSettingsDirtyStore((s) => s.reset)
+
+  useEffect(() => {
+    setNavGuardDirty(hasChanges || isDetailsDirty)
+  }, [hasChanges, isDetailsDirty, setNavGuardDirty])
+
+  useEffect(() => () => resetNavGuard(), [resetNavGuard])
 
   // --- Effects ---
   useEffect(() => {
@@ -981,6 +991,7 @@ export function CredentialsManager() {
 
   const handleDiscardAndNavigate = useCallback(() => {
     shouldBlockNavRef.current = false
+    resetNavGuard()
     resetToSaved()
     setSelectedCredentialId(null)
 
@@ -989,7 +1000,7 @@ export function CredentialsManager() {
       pendingNavigationUrlRef.current = null
       router.push(url)
     }
-  }, [router, resetToSaved])
+  }, [router, resetToSaved, resetNavGuard])
 
   const renderEnvVarRow = useCallback(
     (envVar: UIEnvironmentVariable, originalIndex: number) => {
