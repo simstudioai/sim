@@ -358,9 +358,6 @@ function SignupFormContent({
       router.push('/verify?fromSignup=true')
     } catch (error) {
       logger.error('Signup error:', error)
-      captureEvent(posthog, 'signup_failed', {
-        error_code: 'unexpected_error',
-      })
       setIsLoading(false)
     }
   }
