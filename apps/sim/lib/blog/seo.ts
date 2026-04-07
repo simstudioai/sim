@@ -169,13 +169,3 @@ export function buildCollectionPageJsonLd() {
     },
   }
 }
-
-export function buildBlogJsonLd() {
-  return {
-    '@context': 'https://schema.org',
-    '@type': 'Blog',
-    name: 'Sim Blog',
-    url: 'https://sim.ai/blog',
-    description: 'Announcements, insights, and guides for building AI agent workflows.',
-  }
-}

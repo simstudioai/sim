@@ -35,7 +35,6 @@ export const BlogFrontmatterSchema = z
       )
       .optional(),
     canonical: z.string().url(),
-    wordCount: z.number().int().positive().optional(),
     draft: z.boolean().default(false),
     featured: z.boolean().default(false),
   })
