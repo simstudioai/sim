@@ -712,6 +712,16 @@ export async function executeTool(
         if (workflowId) {
           tokenPayload.workflowId = workflowId
         }
+        if (contextParams.impersonateUserEmail) {
+          tokenPayload.impersonateEmail = contextParams.impersonateUserEmail as string
+        }
+        if (tool?.oauth?.provider) {
+          const { getCanonicalScopesForProvider } = await import('@/lib/oauth/utils')
+          const providerScopes = getCanonicalScopesForProvider(tool.oauth.provider)
+          if (providerScopes.length > 0) {
+            tokenPayload.scopes = providerScopes
+          }
+        }
 
         logger.info(`[${requestId}] Fetching access token from ${baseUrl}/api/auth/oauth/token`)
 
@@ -778,6 +788,7 @@ export async function executeTool(
         }
         // Clean up params we don't need to pass to the actual tool
         contextParams.credential = undefined
+        contextParams.impersonateUserEmail = undefined
         if (contextParams.workflowId) contextParams.workflowId = undefined
       } catch (error: any) {
         logger.error(`[${requestId}] Error fetching access token for ${toolId}:`, {
@@ -1541,11 +1552,13 @@ async function executeMcpTool(
 
     const baseUrl = getInternalApiBaseUrl()
 
+    const mcpScope = resolveToolScope(params, executionContext)
+
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
 
     if (typeof window === 'undefined') {
       try {
-        const internalToken = await generateInternalToken(executionContext?.userId)
+        const internalToken = await generateInternalToken(mcpScope.userId)
         headers.Authorization = `Bearer ${internalToken}`
       } catch (error) {
         logger.error(`[${actualRequestId}] Failed to generate internal token:`, error)
@@ -1575,8 +1588,6 @@ async function executeMcpTool(
         Object.entries(params).filter(([key]) => !MCP_SYSTEM_PARAMETERS.has(key))
       )
     }
-
-    const mcpScope = resolveToolScope(params, executionContext)
 
     if (mcpScope.callChain && mcpScope.callChain.length > 0) {
       headers[SIM_VIA_HEADER] = serializeCallChain(mcpScope.callChain)

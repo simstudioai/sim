@@ -30,6 +30,7 @@ import {
   type PendingCredentialCreateRequest,
   readPendingCredentialCreateRequest,
 } from '@/lib/credentials/client-state'
+import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { isValidEnvVarName } from '@/executor/constants'
 import {
@@ -48,9 +49,9 @@ import {
   useSavePersonalEnvironment,
   useUpsertWorkspaceEnvironment,
   useWorkspaceEnvironment,
-  type WorkspaceEnvironmentData,
 } from '@/hooks/queries/environment'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const logger = createLogger('SecretsManager')
 
@@ -323,7 +324,6 @@ export function CredentialsManager() {
   const [selectedDescriptionDraft, setSelectedDescriptionDraft] = useState('')
   const [copyIdSuccess, setCopyIdSuccess] = useState(false)
   const [detailsError, setDetailsError] = useState<string | null>(null)
-  const [isSavingDetails, setIsSavingDetails] = useState(false)
   const [showDetailUnsavedChanges, setShowDetailUnsavedChanges] = useState(false)
   const [memberUserId, setMemberUserId] = useState('')
   const [memberRole, setMemberRole] = useState<WorkspaceCredentialRole>('member')
@@ -350,8 +350,9 @@ export function CredentialsManager() {
     [envCredentials, selectedCredentialId]
   )
 
-  if (selectedCredential?.id !== prevSelectedCredentialId) {
-    setPrevSelectedCredentialId(selectedCredential?.id ?? null)
+  const currentCredentialId = selectedCredential?.id ?? null
+  if (currentCredentialId !== prevSelectedCredentialId) {
+    setPrevSelectedCredentialId(currentCredentialId)
     if (!selectedCredential) {
       setSelectedDescriptionDraft('')
       setSelectedDisplayNameDraft('')
@@ -474,8 +475,22 @@ export function CredentialsManager() {
     return personalInvalid || workspaceInvalid
   }, [envVars, newWorkspaceRows])
 
+  const isListSaving =
+    savePersonalMutation.isPending ||
+    upsertWorkspaceMutation.isPending ||
+    removeWorkspaceMutation.isPending
+
   hasChangesRef.current = hasChanges
   shouldBlockNavRef.current = hasChanges || isDetailsDirty
+
+  const setNavGuardDirty = useSettingsDirtyStore((s) => s.setDirty)
+  const resetNavGuard = useSettingsDirtyStore((s) => s.reset)
+
+  useEffect(() => {
+    setNavGuardDirty(hasChanges || isDetailsDirty)
+  }, [hasChanges, isDetailsDirty, setNavGuardDirty])
+
+  useEffect(() => () => resetNavGuard(), [resetNavGuard])
 
   // --- Effects ---
   useEffect(() => {
@@ -652,12 +667,12 @@ export function CredentialsManager() {
   )
 
   const handleBackAttempt = useCallback(() => {
-    if (isDetailsDirty && !isSavingDetails) {
+    if (isDetailsDirty && !updateCredential.isPending) {
       setShowDetailUnsavedChanges(true)
     } else {
       setSelectedCredentialId(null)
     }
-  }, [isDetailsDirty, isSavingDetails])
+  }, [isDetailsDirty, updateCredential.isPending])
 
   const handleDiscardDetailChanges = useCallback(() => {
     setShowDetailUnsavedChanges(false)
@@ -667,9 +682,9 @@ export function CredentialsManager() {
   }, [selectedCredential])
 
   const handleSaveDetails = useCallback(async () => {
-    if (!selectedCredential || !isSelectedAdmin || !isDetailsDirty) return
+    if (!selectedCredential || !isSelectedAdmin || !isDetailsDirty || updateCredential.isPending)
+      return
     setDetailsError(null)
-    setIsSavingDetails(true)
 
     try {
       if (isDisplayNameDirty || isDescriptionDirty) {
@@ -683,8 +698,6 @@ export function CredentialsManager() {
       const message = error instanceof Error ? error.message : 'Failed to save changes'
       setDetailsError(message)
       logger.error('Failed to save secret details', error)
-    } finally {
-      setIsSavingDetails(false)
     }
   }, [
     selectedCredential,
@@ -906,6 +919,8 @@ export function CredentialsManager() {
   const handleCancel = resetToSaved
 
   const handleSave = useCallback(async () => {
+    if (isListSaving) return
+
     const prevInitialVars = [...initialVarsRef.current]
     const prevInitialWorkspaceVars = { ...initialWorkspaceVarsRef.current }
 
@@ -964,6 +979,7 @@ export function CredentialsManager() {
       logger.error('Failed to save environment variables:', error)
     }
   }, [
+    isListSaving,
     envVars,
     workspaceVars,
     newWorkspaceRows,
@@ -975,6 +991,7 @@ export function CredentialsManager() {
 
   const handleDiscardAndNavigate = useCallback(() => {
     shouldBlockNavRef.current = false
+    resetNavGuard()
     resetToSaved()
     setSelectedCredentialId(null)
 
@@ -983,7 +1000,7 @@ export function CredentialsManager() {
       pendingNavigationUrlRef.current = null
       router.push(url)
     }
-  }, [router, resetToSaved])
+  }, [router, resetToSaved, resetNavGuard])
 
   const renderEnvVarRow = useCallback(
     (envVar: UIEnvironmentVariable, originalIndex: number) => {
@@ -1316,9 +1333,9 @@ export function CredentialsManager() {
                 <Button
                   variant='primary'
                   onClick={handleSaveDetails}
-                  disabled={!isDetailsDirty || isSavingDetails}
+                  disabled={!isDetailsDirty || updateCredential.isPending}
                 >
-                  {isSavingDetails ? 'Saving...' : 'Save'}
+                  {updateCredential.isPending ? 'Saving...' : 'Save'}
                 </Button>
               )}
             </div>
@@ -1416,11 +1433,13 @@ export function CredentialsManager() {
             <Tooltip.Trigger asChild>
               <Button
                 onClick={handleSave}
-                disabled={isLoading || !hasChanges || hasConflicts || hasInvalidKeys}
+                disabled={
+                  isLoading || !hasChanges || hasConflicts || hasInvalidKeys || isListSaving
+                }
                 variant='primary'
                 className={`${hasConflicts || hasInvalidKeys ? 'cursor-not-allowed opacity-50' : ''}`}
               >
-                Save
+                {isListSaving ? 'Saving...' : 'Save'}
               </Button>
             </Tooltip.Trigger>
             {hasConflicts && <Tooltip.Content>Resolve all conflicts before saving</Tooltip.Content>}

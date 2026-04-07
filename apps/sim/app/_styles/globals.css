@@ -10,7 +10,7 @@
  * @see stores/constants.ts for the source of truth
  */
 :root {
-  --sidebar-width: 248px; /* SIDEBAR_WIDTH.DEFAULT */
+  --sidebar-width: 0px; /* 0 outside workspace; blocking script always sets actual value on workspace pages */
   --panel-width: 320px; /* PANEL_WIDTH.DEFAULT */
   --toolbar-triggers-height: 300px; /* TOOLBAR_TRIGGERS_HEIGHT.DEFAULT */
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */

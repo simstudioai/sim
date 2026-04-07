@@ -5,16 +5,19 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getWorkspaceMemberUserIds } from '@/lib/credentials/environment'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { isValidEnvVarName } from '@/executor/constants'
 
 const logger = createLogger('CredentialsAPI')
 
-const credentialTypeSchema = z.enum(['oauth', 'env_workspace', 'env_personal'])
+const credentialTypeSchema = z.enum(['oauth', 'env_workspace', 'env_personal', 'service_account'])
 
 function normalizeEnvKeyInput(raw: string): string {
   const trimmed = raw.trim()
@@ -29,6 +32,56 @@ const listCredentialsSchema = z.object({
   credentialId: z.string().optional(),
 })
 
+const serviceAccountJsonSchema = z
+  .string()
+  .min(1, 'Service account JSON key is required')
+  .transform((val, ctx) => {
+    try {
+      const parsed = JSON.parse(val)
+      if (parsed.type !== 'service_account') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'JSON key must have type "service_account"',
+        })
+        return z.NEVER
+      }
+      if (!parsed.client_email || typeof parsed.client_email !== 'string') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'JSON key must contain a valid client_email',
+        })
+        return z.NEVER
+      }
+      if (!parsed.private_key || typeof parsed.private_key !== 'string') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'JSON key must contain a valid private_key',
+        })
+        return z.NEVER
+      }
+      if (!parsed.project_id || typeof parsed.project_id !== 'string') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'JSON key must contain a valid project_id',
+        })
+        return z.NEVER
+      }
+      return parsed as {
+        type: 'service_account'
+        client_email: string
+        private_key: string
+        project_id: string
+        [key: string]: unknown
+      }
+    } catch {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Invalid JSON format',
+      })
+      return z.NEVER
+    }
+  })
+
 const createCredentialSchema = z
   .object({
     workspaceId: z.string().uuid('Workspace ID must be a valid UUID'),
@@ -39,6 +92,7 @@ const createCredentialSchema = z
     accountId: z.string().trim().min(1).optional(),
     envKey: z.string().trim().min(1).optional(),
     envOwnerUserId: z.string().trim().min(1).optional(),
+    serviceAccountJson: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.type === 'oauth') {
@@ -66,6 +120,17 @@ const createCredentialSchema = z
       return
     }
 
+    if (data.type === 'service_account') {
+      if (!data.serviceAccountJson) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'serviceAccountJson is required for service account credentials',
+          path: ['serviceAccountJson'],
+        })
+      }
+      return
+    }
+
     const normalizedEnvKey = data.envKey ? normalizeEnvKeyInput(data.envKey) : ''
     if (!normalizedEnvKey) {
       ctx.addIssue({
@@ -87,14 +152,16 @@ const createCredentialSchema = z
 
 interface ExistingCredentialSourceParams {
   workspaceId: string
-  type: 'oauth' | 'env_workspace' | 'env_personal'
+  type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
   accountId?: string | null
   envKey?: string | null
   envOwnerUserId?: string | null
+  displayName?: string | null
+  providerId?: string | null
 }
 
 async function findExistingCredentialBySource(params: ExistingCredentialSourceParams) {
-  const { workspaceId, type, accountId, envKey, envOwnerUserId } = params
+  const { workspaceId, type, accountId, envKey, envOwnerUserId, displayName, providerId } = params
 
   if (type === 'oauth' && accountId) {
     const [row] = await db
@@ -136,6 +203,22 @@ async function findExistingCredentialBySource(params: ExistingCredentialSourcePa
           eq(credential.type, 'env_personal'),
           eq(credential.envKey, envKey),
           eq(credential.envOwnerUserId, envOwnerUserId)
+        )
+      )
+      .limit(1)
+    return row ?? null
+  }
+
+  if (type === 'service_account' && displayName && providerId) {
+    const [row] = await db
+      .select()
+      .from(credential)
+      .where(
+        and(
+          eq(credential.workspaceId, workspaceId),
+          eq(credential.type, 'service_account'),
+          eq(credential.providerId, providerId),
+          eq(credential.displayName, displayName)
         )
       )
       .limit(1)
@@ -288,6 +371,7 @@ export async function POST(request: NextRequest) {
       accountId,
       envKey,
       envOwnerUserId,
+      serviceAccountJson,
     } = parseResult.data
 
     const workspaceAccess = await checkWorkspaceAccess(workspaceId, session.user.id)
@@ -301,6 +385,7 @@ export async function POST(request: NextRequest) {
     let resolvedAccountId: string | null = accountId ?? null
     const resolvedEnvKey: string | null = envKey ? normalizeEnvKeyInput(envKey) : null
     let resolvedEnvOwnerUserId: string | null = null
+    let resolvedEncryptedServiceAccountKey: string | null = null
 
     if (type === 'oauth') {
       const [accountRow] = await db
@@ -335,6 +420,33 @@ export async function POST(request: NextRequest) {
         resolvedDisplayName =
           getServiceConfigByProviderId(accountRow.providerId)?.name || accountRow.providerId
       }
+    } else if (type === 'service_account') {
+      if (!serviceAccountJson) {
+        return NextResponse.json(
+          { error: 'serviceAccountJson is required for service account credentials' },
+          { status: 400 }
+        )
+      }
+
+      const jsonParseResult = serviceAccountJsonSchema.safeParse(serviceAccountJson)
+      if (!jsonParseResult.success) {
+        return NextResponse.json(
+          { error: jsonParseResult.error.errors[0]?.message || 'Invalid service account JSON' },
+          { status: 400 }
+        )
+      }
+
+      const parsed = jsonParseResult.data
+      resolvedProviderId = 'google-service-account'
+      resolvedAccountId = null
+      resolvedEnvOwnerUserId = null
+
+      if (!resolvedDisplayName) {
+        resolvedDisplayName = parsed.client_email
+      }
+
+      const { encrypted } = await encryptSecret(serviceAccountJson)
+      resolvedEncryptedServiceAccountKey = encrypted
     } else if (type === 'env_personal') {
       resolvedEnvOwnerUserId = envOwnerUserId ?? session.user.id
       if (resolvedEnvOwnerUserId !== session.user.id) {
@@ -363,6 +475,8 @@ export async function POST(request: NextRequest) {
       accountId: resolvedAccountId,
       envKey: resolvedEnvKey,
       envOwnerUserId: resolvedEnvOwnerUserId,
+      displayName: resolvedDisplayName,
+      providerId: resolvedProviderId,
     })
 
     if (existingCredential) {
@@ -423,7 +537,7 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date()
-    const credentialId = crypto.randomUUID()
+    const credentialId = generateId()
     const [workspaceRow] = await db
       .select({ ownerId: workspace.ownerId })
       .from(workspace)
@@ -441,17 +555,18 @@ export async function POST(request: NextRequest) {
         accountId: resolvedAccountId,
         envKey: resolvedEnvKey,
         envOwnerUserId: resolvedEnvOwnerUserId,
+        encryptedServiceAccountKey: resolvedEncryptedServiceAccountKey,
         createdBy: session.user.id,
         createdAt: now,
         updatedAt: now,
       })
 
-      if (type === 'env_workspace' && workspaceRow?.ownerId) {
+      if ((type === 'env_workspace' || type === 'service_account') && workspaceRow?.ownerId) {
         const workspaceUserIds = await getWorkspaceMemberUserIds(workspaceId)
         if (workspaceUserIds.length > 0) {
           for (const memberUserId of workspaceUserIds) {
             await tx.insert(credentialMember).values({
-              id: crypto.randomUUID(),
+              id: generateId(),
               credentialId,
               userId: memberUserId,
               role:
@@ -468,7 +583,7 @@ export async function POST(request: NextRequest) {
         }
       } else {
         await tx.insert(credentialMember).values({
-          id: crypto.randomUUID(),
+          id: generateId(),
           credentialId,
           userId: session.user.id,
           role: 'admin',
@@ -486,6 +601,16 @@ export async function POST(request: NextRequest) {
       .from(credential)
       .where(eq(credential.id, credentialId))
       .limit(1)
+
+    captureServerEvent(
+      session.user.id,
+      'credential_connected',
+      { credential_type: type, provider_id: resolvedProviderId ?? type, workspace_id: workspaceId },
+      {
+        groups: { workspace: workspaceId },
+        setOnce: { first_credential_connected_at: new Date().toISOString() },
+      }
+    )
 
     return NextResponse.json({ credential: created }, { status: 201 })
   } catch (error: any) {

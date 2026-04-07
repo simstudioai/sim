@@ -9,11 +9,14 @@ export function BYOKKeySkeleton() {
       <div className='flex items-center gap-3'>
         <Skeleton className='h-9 w-9 flex-shrink-0 rounded-md' />
         <div className='flex min-w-0 flex-col justify-center gap-[1px]'>
-          <Skeleton className='h-[14px] w-[100px]' />
-          <Skeleton className='h-[13px] w-[200px]' />
+          <Skeleton className='h-[16px] w-[100px]' />
+          <Skeleton className='h-[14px] w-[200px]' />
         </div>
       </div>
-      <Skeleton className='h-[32px] w-[72px] rounded-md' />
+      <div className='flex flex-shrink-0 items-center gap-2'>
+        <Skeleton className='h-[32px] w-[72px] rounded-md' />
+        <Skeleton className='h-[32px] w-[64px] rounded-md' />
+      </div>
     </div>
   )
 }

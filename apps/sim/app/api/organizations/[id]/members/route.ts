@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { invitation, member, organization, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -10,6 +9,7 @@ import { getSession } from '@/lib/auth'
 import { getUserUsageData } from '@/lib/billing/core/usage'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
@@ -231,7 +231,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Create invitation
-    const invitationId = randomUUID()
+    const invitationId = generateId()
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 7) // 7 days expiry
 

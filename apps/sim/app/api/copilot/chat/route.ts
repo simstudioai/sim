@@ -27,6 +27,8 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request-helpers'
+import { generateId } from '@/lib/core/utils/uuid'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
   authorizeWorkflowByWorkspacePermission,
   resolveWorkflowIdForUser,
@@ -86,6 +88,7 @@ const ChatMessageSchema = z.object({
           'docs',
           'table',
           'file',
+          'folder',
         ]),
         label: z.string(),
         chatId: z.string().optional(),
@@ -97,6 +100,7 @@ const ChatMessageSchema = z.object({
         executionId: z.string().optional(),
         tableId: z.string().optional(),
         fileId: z.string().optional(),
+        folderId: z.string().optional(),
       })
     )
     .optional(),
@@ -188,7 +192,23 @@ export async function POST(req: NextRequest) {
         .warn('Failed to resolve workspaceId from workflow')
     }
 
-    const userMessageIdToUse = userMessageId || crypto.randomUUID()
+    captureServerEvent(
+      authenticatedUserId,
+      'copilot_chat_sent',
+      {
+        workflow_id: workflowId,
+        workspace_id: resolvedWorkspaceId ?? '',
+        has_file_attachments: Array.isArray(fileAttachments) && fileAttachments.length > 0,
+        has_contexts: Array.isArray(contexts) && contexts.length > 0,
+        mode,
+      },
+      {
+        groups: resolvedWorkspaceId ? { workspace: resolvedWorkspaceId } : undefined,
+        setOnce: { first_copilot_use_at: new Date().toISOString() },
+      }
+    )
+
+    const userMessageIdToUse = userMessageId || generateId()
     const reqLogger = logger.withMetadata({
       requestId: tracker.requestId,
       messageId: userMessageIdToUse,
@@ -389,8 +409,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (stream) {
-      const executionId = crypto.randomUUID()
-      const runId = crypto.randomUUID()
+      const executionId = generateId()
+      const runId = generateId()
       const sseStream = createSSEStream({
         requestPayload,
         userId: authenticatedUserId,
@@ -420,7 +440,7 @@ export async function POST(req: NextRequest) {
             if (!result.success) return
 
             const assistantMessage: Record<string, unknown> = {
-              id: crypto.randomUUID(),
+              id: generateId(),
               role: 'assistant' as const,
               content: result.content,
               timestamp: new Date().toISOString(),
@@ -498,8 +518,8 @@ export async function POST(req: NextRequest) {
       return new Response(sseStream, { headers: SSE_RESPONSE_HEADERS })
     }
 
-    const nsExecutionId = crypto.randomUUID()
-    const nsRunId = crypto.randomUUID()
+    const nsExecutionId = generateId()
+    const nsRunId = generateId()
 
     if (actualChatId) {
       await createRunSegment({
@@ -559,7 +579,7 @@ export async function POST(req: NextRequest) {
       }
 
       const assistantMessage = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         role: 'assistant',
         content: responseData.content,
         timestamp: new Date().toISOString(),

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { v4 as uuidv4 } from 'uuid'
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
+import { generateId } from '@/lib/core/utils/uuid'
 import type { ChatMessage, ChatState } from './types'
 import { MAX_CHAT_HEIGHT, MAX_CHAT_WIDTH, MIN_CHAT_HEIGHT, MIN_CHAT_WIDTH } from './utils'
 
@@ -58,7 +58,7 @@ export const useChatStore = create<ChatState>()(
           set((state) => {
             const newMessage: ChatMessage = {
               ...message,
-              id: (message as any).id ?? crypto.randomUUID(),
+              id: (message as any).id ?? generateId(),
               timestamp: (message as any).timestamp ?? new Date().toISOString(),
             }
 
@@ -78,7 +78,7 @@ export const useChatStore = create<ChatState>()(
 
             if (workflowId) {
               const newConversationIds = { ...state.conversationIds }
-              newConversationIds[workflowId] = uuidv4()
+              newConversationIds[workflowId] = generateId()
               return {
                 ...newState,
                 conversationIds: newConversationIds,
@@ -191,7 +191,7 @@ export const useChatStore = create<ChatState>()(
         },
 
         generateNewConversationId: (workflowId) => {
-          const newId = uuidv4()
+          const newId = generateId()
           set((state) => {
             const newConversationIds = { ...state.conversationIds }
             newConversationIds[workflowId] = newId

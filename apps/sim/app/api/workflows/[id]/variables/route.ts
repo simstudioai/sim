@@ -8,7 +8,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
-import type { Variable } from '@/stores/panel/variables/types'
+import type { Variable } from '@/stores/variables/types'
 
 const logger = createLogger('WorkflowVariablesAPI')
 

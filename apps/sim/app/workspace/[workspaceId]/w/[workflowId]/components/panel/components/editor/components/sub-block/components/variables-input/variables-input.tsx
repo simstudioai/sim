@@ -12,6 +12,7 @@ import {
 } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { cn } from '@/lib/core/utils/cn'
+import { generateId } from '@/lib/core/utils/uuid'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
   checkTagTrigger,
@@ -19,8 +20,8 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-import type { Variable } from '@/stores/panel'
-import { useVariablesStore } from '@/stores/panel'
+import { useVariablesStore } from '@/stores/variables/store'
+import type { Variable } from '@/stores/variables/types'
 
 interface VariableAssignment {
   id: string
@@ -124,7 +125,7 @@ export function VariablesInput({
     if (!isReadOnly && assignments.length === 0 && currentWorkflowVariables.length > 0) {
       const initialAssignment: VariableAssignment = {
         ...DEFAULT_ASSIGNMENT,
-        id: crypto.randomUUID(),
+        id: generateId(),
       }
       setStoreValue([initialAssignment])
     }
@@ -151,7 +152,7 @@ export function VariablesInput({
 
     const newAssignment: VariableAssignment = {
       ...DEFAULT_ASSIGNMENT,
-      id: crypto.randomUUID(),
+      id: generateId(),
     }
     setStoreValue([...assignments, newAssignment])
   }
@@ -160,7 +161,7 @@ export function VariablesInput({
     if (isReadOnly) return
 
     if (assignments.length === 1) {
-      setStoreValue([{ ...DEFAULT_ASSIGNMENT, id: crypto.randomUUID() }])
+      setStoreValue([{ ...DEFAULT_ASSIGNMENT, id: generateId() }])
       return
     }
 

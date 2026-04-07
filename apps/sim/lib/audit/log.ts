@@ -2,7 +2,7 @@ import { auditLog, db } from '@sim/db'
 import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
+import { generateShortId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('AuditLog')
 
@@ -67,6 +67,7 @@ export const AuditAction = {
   FOLDER_CREATED: 'folder.created',
   FOLDER_DELETED: 'folder.deleted',
   FOLDER_DUPLICATED: 'folder.duplicated',
+  FOLDER_RESTORED: 'folder.restored',
 
   // Forms
   FORM_CREATED: 'form.created',
@@ -258,7 +259,7 @@ async function insertAuditLog(params: AuditLogParams): Promise<void> {
   }
 
   await db.insert(auditLog).values({
-    id: nanoid(),
+    id: generateShortId(),
     workspaceId: params.workspaceId || null,
     actorId: params.actorId,
     action: params.action,

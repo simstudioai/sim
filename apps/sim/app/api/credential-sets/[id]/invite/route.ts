@@ -9,6 +9,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 
 const logger = createLogger('CredentialSetInvite')
@@ -105,12 +106,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const body = await req.json()
     const { email } = createInviteSchema.parse(body)
 
-    const token = crypto.randomUUID()
+    const token = generateId()
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 7)
 
     const invitation = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       credentialSetId: id,
       email: email || null,
       token,

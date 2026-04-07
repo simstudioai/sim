@@ -3,6 +3,7 @@ import { workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -14,7 +15,7 @@ const logger = createLogger('V1WorkflowDetailsAPI')
 export const revalidate = 0
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
 
   try {
     const rateLimit = await checkRateLimit(request, 'workflow-detail')

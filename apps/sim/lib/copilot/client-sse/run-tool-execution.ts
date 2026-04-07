@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { v4 as uuidv4 } from 'uuid'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
+import { generateId } from '@/lib/core/utils/uuid'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { useExecutionStore } from '@/stores/execution/store'
 import { clearExecutionPointer, consolePersistence, saveExecutionPointer } from '@/stores/terminal'
@@ -151,7 +151,7 @@ async function doExecuteRunTool(
 
   consolePersistence.executionStarted()
   setIsExecuting(targetWorkflowId, true)
-  const executionId = uuidv4()
+  const executionId = generateId()
   setCurrentExecutionId(targetWorkflowId, executionId)
   saveExecutionPointer({ workflowId: targetWorkflowId, executionId, lastEventId: 0 })
   const executionStartTime = new Date().toISOString()
@@ -320,17 +320,46 @@ async function reportCompletion(
   data?: Record<string, unknown>
 ): Promise<void> {
   try {
+    const body = JSON.stringify({
+      toolCallId,
+      status,
+      message: message || (status === 'success' ? 'Tool completed' : 'Tool failed'),
+      ...(data ? { data } : {}),
+    })
     const res = await fetch(COPILOT_CONFIRM_API_PATH, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        toolCallId,
-        status,
-        message: message || (status === 'success' ? 'Tool completed' : 'Tool failed'),
-        ...(data ? { data } : {}),
-      }),
+      body,
     })
-    if (!res.ok) {
+    // Next.js silently truncates request bodies beyond its body size limit (default 10MB),
+    // corrupting the JSON and causing a server-side parse error (500). When the request fails
+    // and the payload is large, retry without logs (the largest field) to fit under the limit.
+    const LARGE_PAYLOAD_THRESHOLD = 10 * 1024 * 1024
+    const bodySize = new Blob([body]).size
+    if (!res.ok && data && bodySize > LARGE_PAYLOAD_THRESHOLD) {
+      const { logs: _logs, ...dataWithoutLogs } = data
+      logger.warn('[RunTool] reportCompletion failed with large payload, retrying without logs', {
+        toolCallId,
+        status: res.status,
+        bodySize,
+      })
+      const retryRes = await fetch(COPILOT_CONFIRM_API_PATH, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          toolCallId,
+          status,
+          message: message || (status === 'success' ? 'Tool completed' : 'Tool failed'),
+          data: dataWithoutLogs,
+        }),
+      })
+      if (!retryRes.ok) {
+        logger.warn('[RunTool] reportCompletion retry also failed', {
+          toolCallId,
+          status: retryRes.status,
+        })
+      }
+    } else if (!res.ok) {
       logger.warn('[RunTool] reportCompletion failed', { toolCallId, status: res.status })
     }
   } catch (err) {

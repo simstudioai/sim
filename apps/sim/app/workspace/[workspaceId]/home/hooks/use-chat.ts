@@ -20,6 +20,7 @@ import {
 } from '@/lib/copilot/resource-extraction'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resource-types'
 import { isWorkflowToolName } from '@/lib/copilot/workflow-tools'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
@@ -293,6 +294,7 @@ function mapStoredMessage(msg: TaskStoredMessage): ChatMessage {
       ...(c.knowledgeId && { knowledgeId: c.knowledgeId }),
       ...(c.tableId && { tableId: c.tableId }),
       ...(c.fileId && { fileId: c.fileId }),
+      ...(c.folderId && { folderId: c.folderId }),
     }))
   }
 
@@ -377,10 +379,11 @@ export interface UseChatOptions {
   onToolResult?: (toolName: string, success: boolean, result: unknown) => void
   onTitleUpdate?: () => void
   onStreamEnd?: (chatId: string, messages: ChatMessage[]) => void
+  initialActiveResourceId?: string | null
 }
 
 export function getMothershipUseChatOptions(
-  options: Pick<UseChatOptions, 'onResourceEvent' | 'onStreamEnd'> = {}
+  options: Pick<UseChatOptions, 'onResourceEvent' | 'onStreamEnd' | 'initialActiveResourceId'> = {}
 ): UseChatOptions {
   return {
     apiPath: MOTHERSHIP_CHAT_API_PATH,
@@ -416,6 +419,7 @@ export function useChat(
   const [resolvedChatId, setResolvedChatId] = useState<string | undefined>(initialChatId)
   const [resources, setResources] = useState<MothershipResource[]>([])
   const [activeResourceId, setActiveResourceId] = useState<string | null>(null)
+  const initialActiveResourceIdRef = useRef(options?.initialActiveResourceId)
   const onResourceEventRef = useRef(options?.onResourceEvent)
   onResourceEventRef.current = options?.onResourceEvent
   const apiPathRef = useRef(options?.apiPath ?? MOTHERSHIP_CHAT_API_PATH)
@@ -845,7 +849,12 @@ export function useChat(
       const persistedResources = history.resources.filter((r) => r.id !== 'streaming-file')
       if (persistedResources.length > 0) {
         setResources(persistedResources)
-        setActiveResourceId(persistedResources[persistedResources.length - 1].id)
+        const initialId = initialActiveResourceIdRef.current
+        const restoredId =
+          initialId && persistedResources.some((r) => r.id === initialId)
+            ? initialId
+            : persistedResources[persistedResources.length - 1].id
+        setActiveResourceId(restoredId)
 
         for (const resource of persistedResources) {
           if (resource.type !== 'workflow') continue
@@ -901,7 +910,7 @@ export function useChat(
       streamingBlocksRef.current = []
       clientExecutionStartedRef.current = extractToolCallIdsFromSnapshot(snapshot)
 
-      const assistantId = crypto.randomUUID()
+      const assistantId = generateId()
 
       const reconnect = async () => {
         const succeeded = await retryReconnectRef.current({
@@ -1407,17 +1416,6 @@ export function useChat(
                     const output = tc.result?.output as Record<string, unknown> | undefined
                     const deployedWorkflowId = (output?.workflowId as string) ?? undefined
                     if (deployedWorkflowId && typeof output?.isDeployed === 'boolean') {
-                      const isDeployed = output.isDeployed as boolean
-                      const serverDeployedAt = output.deployedAt
-                        ? new Date(output.deployedAt as string)
-                        : undefined
-                      useWorkflowRegistry
-                        .getState()
-                        .setDeploymentStatus(
-                          deployedWorkflowId,
-                          isDeployed,
-                          isDeployed ? (serverDeployedAt ?? new Date()) : undefined
-                        )
                       queryClient.invalidateQueries({
                         queryKey: deploymentKeys.info(deployedWorkflowId),
                       })
@@ -1890,7 +1888,7 @@ export function useChat(
 
       if (sendingRef.current) {
         const queued: QueuedMessage = {
-          id: crypto.randomUUID(),
+          id: generateId(),
           content: message,
           fileAttachments,
           contexts,
@@ -1905,8 +1903,8 @@ export function useChat(
       setIsSending(true)
       sendingRef.current = true
 
-      const userMessageId = crypto.randomUUID()
-      const assistantId = crypto.randomUUID()
+      const userMessageId = generateId()
+      const assistantId = generateId()
 
       pendingUserMsgRef.current = { id: userMessageId, content: message }
       streamIdRef.current = userMessageId
@@ -1956,6 +1954,7 @@ export function useChat(
         ...('knowledgeId' in c && c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
         ...('tableId' in c && c.tableId ? { tableId: c.tableId } : {}),
         ...('fileId' in c && c.fileId ? { fileId: c.fileId } : {}),
+        ...('folderId' in c && c.folderId ? { folderId: c.folderId } : {}),
       }))
 
       setMessages((prev) => [
@@ -2042,7 +2041,7 @@ export function useChat(
           }
           setMessages(previousMessages)
           const queuedMessage: QueuedMessage = {
-            id: crypto.randomUUID(),
+            id: generateId(),
             content: message,
             fileAttachments,
             contexts,

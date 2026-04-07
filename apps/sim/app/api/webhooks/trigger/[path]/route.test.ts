@@ -97,7 +97,6 @@ const {
   handleSlackChallengeMock,
   processWhatsAppDeduplicationMock,
   processGenericDeduplicationMock,
-  fetchAndProcessAirtablePayloadsMock,
   processWebhookMock,
   executeMock,
   getWorkspaceBilledAccountUserIdMock,
@@ -109,7 +108,6 @@ const {
   handleSlackChallengeMock: vi.fn().mockReturnValue(null),
   processWhatsAppDeduplicationMock: vi.fn().mockResolvedValue(null),
   processGenericDeduplicationMock: vi.fn().mockResolvedValue(null),
-  fetchAndProcessAirtablePayloadsMock: vi.fn().mockResolvedValue(undefined),
   processWebhookMock: vi.fn().mockResolvedValue(new Response('Webhook processed', { status: 200 })),
   executeMock: vi.fn().mockResolvedValue({
     success: true,
@@ -156,10 +154,8 @@ vi.mock('@/background/logs-webhook-delivery', () => ({
 vi.mock('@/lib/webhooks/utils', () => ({
   handleWhatsAppVerification: handleWhatsAppVerificationMock,
   handleSlackChallenge: handleSlackChallengeMock,
-  verifyProviderWebhook: vi.fn().mockReturnValue(null),
   processWhatsAppDeduplication: processWhatsAppDeduplicationMock,
   processGenericDeduplication: processGenericDeduplicationMock,
-  fetchAndProcessAirtablePayloads: fetchAndProcessAirtablePayloadsMock,
   processWebhook: processWebhookMock,
 }))
 
@@ -414,12 +410,6 @@ describe('Webhook Trigger API Route', () => {
     handleWhatsAppVerificationMock.mockResolvedValue(null)
     processGenericDeduplicationMock.mockResolvedValue(null)
     processWebhookMock.mockResolvedValue(new Response('Webhook processed', { status: 200 }))
-
-    if ((global as any).crypto?.randomUUID) {
-      vi.spyOn(crypto, 'randomUUID').mockRestore()
-    }
-
-    vi.spyOn(crypto, 'randomUUID').mockReturnValue('mock-uuid-12345')
   })
 
   afterEach(() => {

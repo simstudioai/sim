@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@/lib/core/utils/uuid'
 import {
   type ExportWorkflowState,
   sanitizeForExport,
@@ -710,7 +711,7 @@ export async function persistImportedWorkflow({
 
       for (const variable of variablesArray) {
         const id =
-          typeof variable.id === 'string' && variable.id.trim() ? variable.id : crypto.randomUUID()
+          typeof variable.id === 'string' && variable.id.trim() ? variable.id : generateId()
 
         variablesRecord[id] = {
           id,

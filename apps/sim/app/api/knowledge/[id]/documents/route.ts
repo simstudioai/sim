@@ -1,10 +1,10 @@
-import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { generateId } from '@/lib/core/utils/uuid'
 import {
   bulkDocumentOperation,
   bulkDocumentOperationByFilter,
@@ -16,6 +16,7 @@ import {
   type TagFilterCondition,
 } from '@/lib/knowledge/documents/service'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { checkKnowledgeBaseAccess, checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
@@ -65,7 +66,7 @@ const BulkUpdateDocumentsSchema = z
   })
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   const { id: knowledgeBaseId } = await params
 
   try {
@@ -163,7 +164,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   const { id: knowledgeBaseId } = await params
 
   try {
@@ -214,6 +215,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const kbWorkspaceId = accessCheck.knowledgeBase?.workspaceId
+
     if (body.bulk === true) {
       try {
         const validatedData = BulkCreateDocumentsSchema.parse(body)
@@ -239,6 +242,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         } catch (_e) {
           // Silently fail
         }
+
+        captureServerEvent(
+          userId,
+          'knowledge_base_document_uploaded',
+          {
+            knowledge_base_id: knowledgeBaseId,
+            workspace_id: kbWorkspaceId ?? '',
+            document_count: createdDocuments.length,
+            upload_type: 'bulk',
+          },
+          {
+            ...(kbWorkspaceId ? { groups: { workspace: kbWorkspaceId } } : {}),
+            setOnce: { first_document_uploaded_at: new Date().toISOString() },
+          }
+        )
 
         processDocumentsWithQueue(
           createdDocuments,
@@ -314,6 +332,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           // Silently fail
         }
 
+        captureServerEvent(
+          userId,
+          'knowledge_base_document_uploaded',
+          {
+            knowledge_base_id: knowledgeBaseId,
+            workspace_id: kbWorkspaceId ?? '',
+            document_count: 1,
+            upload_type: 'single',
+          },
+          {
+            ...(kbWorkspaceId ? { groups: { workspace: kbWorkspaceId } } : {}),
+            setOnce: { first_document_uploaded_at: new Date().toISOString() },
+          }
+        )
+
         recordAudit({
           workspaceId: accessCheck.knowledgeBase?.workspaceId ?? null,
           actorId: userId,
@@ -365,7 +398,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   const { id: knowledgeBaseId } = await params
 
   try {

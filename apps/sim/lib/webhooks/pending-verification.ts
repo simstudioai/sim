@@ -47,6 +47,7 @@ const pendingWebhookVerificationRegistrationMatchers: Record<
   ashby: () => true,
   grain: () => true,
   generic: (registration) => registration.metadata?.verifyTestEvents === true,
+  salesforce: () => true,
 }
 
 const pendingWebhookVerificationProbeMatchers: Record<
@@ -59,6 +60,10 @@ const pendingWebhookVerificationProbeMatchers: Record<
     method === 'HEAD' ||
     (method === 'POST' && (!body || Object.keys(body).length === 0 || !body.type)),
   generic: ({ method, body }) =>
+    method === 'GET' ||
+    method === 'HEAD' ||
+    (method === 'POST' && (!body || Object.keys(body).length === 0)),
+  salesforce: ({ method, body }) =>
     method === 'GET' ||
     method === 'HEAD' ||
     (method === 'POST' && (!body || Object.keys(body).length === 0)),

@@ -40,6 +40,7 @@ import * as React from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as TabsPrimitive from '@radix-ui/react-tabs'
 import { X } from 'lucide-react'
+import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
 import { Button } from '../button/button'
 
@@ -49,13 +50,6 @@ import { Button } from '../button/button'
  */
 const ANIMATION_CLASSES =
   'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=open]:animate-in motion-reduce:animate-none'
-
-/**
- * Modal content animation classes.
- * We keep only the slide animations (no zoom) to stabilize positioning while avoiding scale effects.
- */
-const CONTENT_ANIMATION_CLASSES =
-  'data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[50%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[50%] motion-reduce:animate-none'
 
 /**
  * Root modal component. Manages open state.
@@ -145,6 +139,8 @@ const ModalContent = React.forwardRef<
   ModalContentProps
 >(({ className, children, showClose = true, size = 'md', style, ...props }, ref) => {
   const [isInteractionReady, setIsInteractionReady] = React.useState(false)
+  const pathname = usePathname()
+  const isWorkflowPage = pathname?.includes('/w/') ?? false
 
   React.useEffect(() => {
     const timer = setTimeout(() => setIsInteractionReady(true), 100)
@@ -154,36 +150,42 @@ const ModalContent = React.forwardRef<
   return (
     <ModalPortal>
       <ModalOverlay />
-      <DialogPrimitive.Content
-        ref={ref}
-        className={cn(
-          ANIMATION_CLASSES,
-          CONTENT_ANIMATION_CLASSES,
-          'fixed top-[50%] z-[var(--z-modal)] flex max-h-[84vh] translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden rounded-xl bg-[var(--bg)] text-small ring-1 ring-foreground/10 duration-200',
-          MODAL_SIZES[size],
-          className
-        )}
+      <div
+        className='pointer-events-none fixed inset-0 z-[var(--z-modal)] flex items-center justify-center'
         style={{
-          left: '50%',
-          ...style,
+          paddingLeft: isWorkflowPage
+            ? 'calc(var(--sidebar-width) - var(--panel-width))'
+            : 'var(--sidebar-width)',
         }}
-        onEscapeKeyDown={(e) => {
-          if (!isInteractionReady) {
-            e.preventDefault()
-            return
-          }
-          e.stopPropagation()
-        }}
-        onPointerDown={(e) => {
-          e.stopPropagation()
-        }}
-        onPointerUp={(e) => {
-          e.stopPropagation()
-        }}
-        {...props}
       >
-        {children}
-      </DialogPrimitive.Content>
+        <DialogPrimitive.Content
+          ref={ref}
+          className={cn(
+            'pointer-events-auto flex max-h-[84vh] flex-col overflow-hidden rounded-xl bg-[var(--bg)] text-small ring-1 ring-foreground/10',
+            ANIMATION_CLASSES,
+            'data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-200',
+            MODAL_SIZES[size],
+            className
+          )}
+          style={style}
+          onEscapeKeyDown={(e) => {
+            if (!isInteractionReady) {
+              e.preventDefault()
+              return
+            }
+            e.stopPropagation()
+          }}
+          onPointerDown={(e) => {
+            e.stopPropagation()
+          }}
+          onPointerUp={(e) => {
+            e.stopPropagation()
+          }}
+          {...props}
+        >
+          {children}
+        </DialogPrimitive.Content>
+      </div>
     </ModalPortal>
   )
 })

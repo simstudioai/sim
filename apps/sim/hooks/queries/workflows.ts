@@ -10,8 +10,8 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
-import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { deploymentKeys } from '@/hooks/queries/deployments'
 import { fetchDeploymentVersionState } from '@/hooks/queries/utils/fetch-deployment-version-state'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
@@ -105,6 +105,7 @@ interface CreateWorkflowResult {
   workspaceId: string
   folderId?: string | null
   sortOrder: number
+  subBlockValues?: Record<string, Record<string, unknown>>
 }
 
 export function useCreateWorkflow() {
@@ -144,19 +145,6 @@ export function useCreateWorkflow() {
 
       logger.info(`Successfully created workflow ${workflowId}`)
 
-      const { workflowState } = buildDefaultWorkflowArtifacts()
-
-      const stateResponse = await fetch(`/api/workflows/${workflowId}/state`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(workflowState),
-      })
-
-      if (!stateResponse.ok) {
-        const text = await stateResponse.text()
-        logger.error('Failed to persist default workflow state:', text)
-      }
-
       return {
         id: workflowId,
         name: createdWorkflow.name,
@@ -165,6 +153,7 @@ export function useCreateWorkflow() {
         workspaceId,
         folderId: createdWorkflow.folderId,
         sortOrder: createdWorkflow.sortOrder ?? 0,
+        subBlockValues: createdWorkflow.subBlockValues,
       }
     },
     onMutate: async (variables) => {
@@ -176,7 +165,7 @@ export function useCreateWorkflow() {
         workflowKeys.list(variables.workspaceId, 'active')
       )
 
-      const tempId = variables.id ?? crypto.randomUUID()
+      const tempId = variables.id ?? generateId()
       let sortOrder: number
       if (variables.sortOrder !== undefined) {
         sortOrder = variables.sortOrder
@@ -247,15 +236,18 @@ export function useCreateWorkflow() {
         })
       }
 
-      const { subBlockValues } = buildDefaultWorkflowArtifacts()
-      useSubBlockStore.setState((state) => ({
-        workflowValues: {
-          ...state.workflowValues,
-          [data.id]: subBlockValues,
-        },
-      }))
+      if (data.subBlockValues) {
+        useSubBlockStore.setState((state) => ({
+          workflowValues: {
+            ...state.workflowValues,
+            [data.id]: data.subBlockValues!,
+          },
+        }))
+      }
 
       logger.info(`[CreateWorkflow] Success, replaced temp entry ${tempId}`)
+
+      useWorkflowRegistry.getState().markWorkflowCreated(data.id)
     },
     onError: (_error, variables, context) => {
       if (context?.snapshot) {
@@ -265,6 +257,8 @@ export function useCreateWorkflow() {
         )
         logger.info('[CreateWorkflow] Rolled back to previous state')
       }
+
+      useWorkflowRegistry.getState().markWorkflowCreated(null)
     },
     onSettled: (_data, _error, variables) => {
       return invalidateWorkflowLists(queryClient, variables.workspaceId, ['active', 'archived'])
@@ -351,7 +345,7 @@ export function useDuplicateWorkflowMutation() {
       const snapshot = queryClient.getQueryData<WorkflowMetadata[]>(
         workflowKeys.list(variables.workspaceId, 'active')
       )
-      const tempId = variables.newId ?? crypto.randomUUID()
+      const tempId = variables.newId ?? generateId()
 
       const currentWorkflows = Object.fromEntries(
         getWorkflows(variables.workspaceId).map((w) => [w.id, w])

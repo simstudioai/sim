@@ -7,6 +7,7 @@ export interface BaseCursorParams {
 export interface ListAgentsParams extends BaseCursorParams {
   limit?: number
   cursor?: string
+  prUrl?: string
 }
 
 export interface GetAgentParams extends BaseCursorParams {
@@ -60,7 +61,7 @@ interface AgentTarget {
 interface AgentMetadata {
   id: string
   name: string
-  status: 'RUNNING' | 'FINISHED' | 'STOPPED' | 'FAILED'
+  status: 'CREATING' | 'RUNNING' | 'FINISHED' | 'STOPPED' | 'FAILED'
   source: AgentSource
   target: AgentTarget
   summary?: string
@@ -174,6 +175,47 @@ export interface ListRepositoriesResponse extends ToolResponse {
   }
 }
 
+export interface ListArtifactsParams extends BaseCursorParams {
+  agentId: string
+}
+
+export interface ArtifactMetadata {
+  path: string
+  size?: number
+}
+
+export interface ListArtifactsResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: {
+      artifacts: ArtifactMetadata[]
+    }
+  }
+}
+
+export interface DownloadArtifactParams extends BaseCursorParams {
+  agentId: string
+  path: string
+}
+
+export interface DownloadArtifactResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: Record<string, unknown>
+  }
+}
+
+export interface DownloadArtifactV2Response extends ToolResponse {
+  output: {
+    file: {
+      name: string
+      mimeType: string
+      data: string
+      size: number
+    }
+  }
+}
+
 export type CursorResponse =
   | ListAgentsResponse
   | GetAgentResponse
@@ -185,3 +227,6 @@ export type CursorResponse =
   | GetApiKeyInfoResponse
   | ListModelsResponse
   | ListRepositoriesResponse
+  | ListArtifactsResponse
+  | DownloadArtifactResponse
+  | DownloadArtifactV2Response

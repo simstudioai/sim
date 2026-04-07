@@ -1,7 +1,14 @@
 import { render } from '@react-email/components'
-import { OTPVerificationEmail, ResetPasswordEmail, WelcomeEmail } from '@/components/emails/auth'
 import {
+  OnboardingFollowupEmail,
+  OTPVerificationEmail,
+  ResetPasswordEmail,
+  WelcomeEmail,
+} from '@/components/emails/auth'
+import {
+  AbandonedCheckoutEmail,
   CreditPurchaseEmail,
+  CreditsExhaustedEmail,
   EnterpriseSubscriptionEmail,
   FreeTierUpgradeEmail,
   PaymentFailedEmail,
@@ -157,6 +164,22 @@ export async function renderPlanWelcomeEmail(params: {
 
 export async function renderWelcomeEmail(userName?: string): Promise<string> {
   return await render(WelcomeEmail({ userName }))
+}
+
+export async function renderOnboardingFollowupEmail(userName?: string): Promise<string> {
+  return await render(OnboardingFollowupEmail({ userName }))
+}
+
+export async function renderAbandonedCheckoutEmail(userName?: string): Promise<string> {
+  return await render(AbandonedCheckoutEmail({ userName }))
+}
+
+export async function renderCreditsExhaustedEmail(params: {
+  userName?: string
+  limit: number
+  upgradeLink: string
+}): Promise<string> {
+  return await render(CreditsExhaustedEmail(params))
 }
 
 export async function renderCreditPurchaseEmail(params: {

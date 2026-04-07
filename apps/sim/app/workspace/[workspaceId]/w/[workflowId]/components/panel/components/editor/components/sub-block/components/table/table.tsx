@@ -5,6 +5,7 @@ import { Button } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/core/utils/cn'
+import { generateId } from '@/lib/core/utils/uuid'
 import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
@@ -74,7 +75,7 @@ export function Table({
   useEffect(() => {
     if (!isPreview && !disabled && (!Array.isArray(storeValue) || storeValue.length === 0)) {
       const initialRow: WorkflowTableRow = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         cells: { ...emptyCellsTemplate },
       }
       setStoreValue([initialRow])
@@ -86,7 +87,7 @@ export function Table({
     if (!Array.isArray(value) || value.length === 0) {
       return [
         {
-          id: crypto.randomUUID(),
+          id: generateId(),
           cells: { ...emptyCellsTemplate },
         },
       ]
@@ -105,7 +106,7 @@ export function Table({
       }
 
       return {
-        id: row?.id ?? crypto.randomUUID(),
+        id: row?.id ?? generateId(),
         cells: normalizedCells,
       }
     })
@@ -133,7 +134,7 @@ export function Table({
 
     if (rowIndex === rows.length - 1 && newValue !== '') {
       updatedRows.push({
-        id: crypto.randomUUID(),
+        id: generateId(),
         cells: { ...emptyCellsTemplate },
       })
     }

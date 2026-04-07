@@ -26,6 +26,7 @@ export function NavTour() {
     steps: navTourSteps,
     triggerEvent: START_NAV_TOUR_EVENT,
     tourName: 'Navigation tour',
+    tourType: 'nav',
     disabled: isWorkflowPage,
   })
 

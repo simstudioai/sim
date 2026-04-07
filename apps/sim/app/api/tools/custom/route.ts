@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { upsertCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -34,6 +35,7 @@ const CustomToolSchema = z.object({
     })
   ),
   workspaceId: z.string().optional(),
+  source: z.enum(['settings', 'tool_input']).optional(),
 })
 
 // GET - Fetch all custom tools for the workspace
@@ -135,7 +137,7 @@ export async function POST(req: NextRequest) {
 
     try {
       // Validate the request body
-      const { tools, workspaceId } = CustomToolSchema.parse(body)
+      const { tools, workspaceId, source } = CustomToolSchema.parse(body)
 
       if (!workspaceId) {
         logger.warn(`[${requestId}] Missing workspaceId in request body`)
@@ -168,6 +170,16 @@ export async function POST(req: NextRequest) {
       })
 
       for (const tool of resultTools) {
+        captureServerEvent(
+          userId,
+          'custom_tool_saved',
+          { tool_id: tool.id, workspace_id: workspaceId, tool_name: tool.title, source },
+          {
+            groups: { workspace: workspaceId },
+            setOnce: { first_custom_tool_saved_at: new Date().toISOString() },
+          }
+        )
+
         recordAudit({
           workspaceId,
           actorId: userId,
@@ -205,6 +217,9 @@ export async function DELETE(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const toolId = searchParams.get('id')
   const workspaceId = searchParams.get('workspaceId')
+  const sourceParam = searchParams.get('source')
+  const source =
+    sourceParam === 'settings' || sourceParam === 'tool_input' ? sourceParam : undefined
 
   if (!toolId) {
     logger.warn(`[${requestId}] Missing tool ID for deletion`)
@@ -277,6 +292,14 @@ export async function DELETE(request: NextRequest) {
 
     // Delete the tool
     await db.delete(customTools).where(eq(customTools.id, toolId))
+
+    const toolWorkspaceId = tool.workspaceId ?? workspaceId ?? ''
+    captureServerEvent(
+      userId,
+      'custom_tool_deleted',
+      { tool_id: toolId, workspace_id: toolWorkspaceId, source },
+      toolWorkspaceId ? { groups: { workspace: toolWorkspaceId } } : undefined
+    )
 
     recordAudit({
       workspaceId: tool.workspaceId || undefined,

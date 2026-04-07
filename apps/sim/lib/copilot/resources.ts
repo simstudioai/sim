@@ -41,7 +41,7 @@ export async function persistChatResources(
 
     const existing = Array.isArray(chat.resources) ? (chat.resources as MothershipResource[]) : []
     const map = new Map<string, MothershipResource>()
-    const GENERIC = new Set(['Table', 'File', 'Workflow', 'Knowledge Base'])
+    const GENERIC = new Set(['Table', 'File', 'Workflow', 'Knowledge Base', 'Folder'])
 
     for (const r of existing) {
       map.set(`${r.type}:${r.id}`, r)

@@ -8,6 +8,7 @@ import { isHosted } from '@/lib/core/config/feature-flags'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 import { getHostedModels } from '@/providers/models'
+import { PROVIDER_PLACEHOLDER_KEY } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 import type { BYOKProviderId } from '@/tools/types'
 
@@ -95,7 +96,15 @@ export async function getApiKeyWithBYOK(
 
   const isBedrockModel = provider === 'bedrock' || model.startsWith('bedrock/')
   if (isBedrockModel) {
-    return { apiKey: 'bedrock-uses-own-credentials', isBYOK: false }
+    return { apiKey: PROVIDER_PLACEHOLDER_KEY, isBYOK: false }
+  }
+
+  if (provider === 'azure-openai') {
+    return { apiKey: userProvidedKey || env.AZURE_OPENAI_API_KEY || '', isBYOK: false }
+  }
+
+  if (provider === 'azure-anthropic') {
+    return { apiKey: userProvidedKey || env.AZURE_ANTHROPIC_API_KEY || '', isBYOK: false }
   }
 
   const isOpenAIModel = provider === 'openai'

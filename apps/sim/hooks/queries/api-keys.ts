@@ -89,6 +89,7 @@ interface CreateApiKeyParams {
   workspaceId: string
   name: string
   keyType: 'personal' | 'workspace'
+  source?: 'settings' | 'deploy_modal'
 }
 
 /**
@@ -98,16 +99,19 @@ export function useCreateApiKey() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, name, keyType }: CreateApiKeyParams) => {
+    mutationFn: async ({ workspaceId, name, keyType, source }: CreateApiKeyParams) => {
       const url =
         keyType === 'workspace'
           ? `/api/workspaces/${workspaceId}/api-keys`
           : '/api/users/me/api-keys'
 
+      const body: Record<string, unknown> = { name: name.trim() }
+      if (keyType === 'workspace' && source) body.source = source
+
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim() }),
+        body: JSON.stringify(body),
       })
 
       if (!response.ok) {

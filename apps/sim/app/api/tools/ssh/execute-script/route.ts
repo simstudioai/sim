@@ -1,8 +1,8 @@
-import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { generateId } from '@/lib/core/utils/uuid'
 import { createSSHConnection, escapeShellArg, executeSSHCommand } from '@/app/api/tools/ssh/utils'
 
 const logger = createLogger('SSHExecuteScriptAPI')
@@ -20,7 +20,7 @@ const ExecuteScriptSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
 
   try {
     const auth = await checkInternalAuth(request)
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       const escapedScriptPath = escapeShellArg(scriptPath)
       const escapedInterpreter = escapeShellArg(params.interpreter)
 
-      const heredocDelimiter = `SIMEOF_${randomUUID().replace(/-/g, '')}`
+      const heredocDelimiter = `SIMEOF_${generateId().replace(/-/g, '')}`
       let command = `cat > '${escapedScriptPath}' << '${heredocDelimiter}'
 ${params.script}
 ${heredocDelimiter}

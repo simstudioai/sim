@@ -3,11 +3,12 @@ import {
   buildCanonicalIndex,
   evaluateSubBlockCondition,
   isSubBlockFeatureEnabled,
-  isSubBlockHiddenByHostedKey,
+  isSubBlockHidden,
   isSubBlockVisibleForMode,
 } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig, SubBlockType } from '@/blocks/types'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useReactiveConditions } from '@/hooks/use-reactive-conditions'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -38,6 +39,14 @@ export function useEditorSubblockLayout(
     useCallback((state) => state.blocks?.[blockId]?.data, [blockId])
   )
   const { config: permissionConfig } = usePermissionConfig()
+
+  // Evaluate reactive conditions (hooks-based, must be called before useMemo)
+  const hiddenByReactiveCondition = useReactiveConditions(
+    config?.subBlocks || [],
+    blockId,
+    activeWorkflowId,
+    blockDataFromStore?.canonicalModes
+  )
 
   return useMemo(() => {
     // Guard against missing config or block selection
@@ -100,8 +109,17 @@ export function useEditorSubblockLayout(
     const effectiveAdvanced = displayAdvancedMode
     const canonicalModeOverrides = blockData?.canonicalModes
 
+    // Expose canonical mode overrides to condition functions so they can
+    // react to basic/advanced credential toggles (e.g. SERVICE_ACCOUNT_SUBBLOCKS).
+    if (canonicalModeOverrides) {
+      rawValues.__canonicalModes = canonicalModeOverrides
+    }
+
     const visibleSubBlocks = (config.subBlocks || []).filter((block) => {
       if (block.hidden) return false
+
+      // Filter by reactive condition (evaluated via hooks before useMemo)
+      if (hiddenByReactiveCondition.has(block.id)) return false
 
       // Hide skill-input subblock when skills are disabled via permissions
       if (block.type === 'skill-input' && permissionConfig.disableSkills) return false
@@ -109,8 +127,8 @@ export function useEditorSubblockLayout(
       // Check required feature if specified - declarative feature gating
       if (!isSubBlockFeatureEnabled(block)) return false
 
-      // Hide tool API key fields when hosted
-      if (isSubBlockHiddenByHostedKey(block)) return false
+      // Hide tool API key fields when hosted or when env var is set
+      if (isSubBlockHidden(block)) return false
 
       // Special handling for trigger-config type (legacy trigger configuration UI)
       if (block.type === ('trigger-config' as SubBlockType)) {
@@ -158,6 +176,7 @@ export function useEditorSubblockLayout(
     activeWorkflowId,
     isSnapshotView,
     blockDataFromStore,
+    hiddenByReactiveCondition,
     permissionConfig.disableSkills,
   ])
 }

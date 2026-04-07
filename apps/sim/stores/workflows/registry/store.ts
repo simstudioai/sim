@@ -3,14 +3,12 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import type { WorkflowDeploymentInfo } from '@/hooks/queries/deployments'
+import { deploymentKeys } from '@/hooks/queries/deployments'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
-import { useVariablesStore } from '@/stores/panel/variables/store'
-import type { Variable } from '@/stores/panel/variables/types'
-import type {
-  DeploymentStatus,
-  HydrationState,
-  WorkflowRegistry,
-} from '@/stores/workflows/registry/types'
+import { useVariablesStore } from '@/stores/variables/store'
+import type { Variable } from '@/stores/variables/types'
+import type { HydrationState, WorkflowRegistry } from '@/stores/workflows/registry/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { getUniqueBlockName, regenerateBlockIds } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -34,7 +32,6 @@ function resetWorkflowStores() {
     edges: [],
     loops: {},
     parallels: {},
-    deploymentStatuses: {},
     lastSaved: Date.now(),
   })
 
@@ -48,7 +45,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
     (set, get) => ({
       activeWorkflowId: null,
       error: null,
-      deploymentStatuses: {},
       hydration: initialHydration,
       clipboard: null,
       pendingSelection: null,
@@ -61,7 +57,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
         set({
           activeWorkflowId: null,
-          deploymentStatuses: {},
           error: null,
           hydration: {
             phase: 'idle',
@@ -71,74 +66,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             error: null,
           },
         })
-      },
-
-      getWorkflowDeploymentStatus: (workflowId: string | null): DeploymentStatus | null => {
-        if (!workflowId) {
-          workflowId = get().activeWorkflowId
-          if (!workflowId) return null
-        }
-
-        const { deploymentStatuses = {} } = get()
-
-        if (deploymentStatuses[workflowId]) {
-          return deploymentStatuses[workflowId]
-        }
-
-        return null
-      },
-
-      setDeploymentStatus: (
-        workflowId: string | null,
-        isDeployed: boolean,
-        deployedAt?: Date,
-        apiKey?: string
-      ) => {
-        if (!workflowId) {
-          workflowId = get().activeWorkflowId
-          if (!workflowId) return
-        }
-
-        set((state) => ({
-          deploymentStatuses: {
-            ...state.deploymentStatuses,
-            [workflowId as string]: {
-              isDeployed,
-              deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
-              apiKey,
-              needsRedeployment: isDeployed
-                ? false
-                : (state.deploymentStatuses?.[workflowId as string]?.needsRedeployment ?? false),
-            },
-          },
-        }))
-      },
-
-      setWorkflowNeedsRedeployment: (workflowId: string | null, needsRedeployment: boolean) => {
-        if (!workflowId) {
-          workflowId = get().activeWorkflowId
-          if (!workflowId) return
-        }
-
-        set((state) => {
-          const deploymentStatuses = state.deploymentStatuses || {}
-          const currentStatus = deploymentStatuses[workflowId as string] || { isDeployed: false }
-
-          return {
-            deploymentStatuses: {
-              ...deploymentStatuses,
-              [workflowId as string]: {
-                ...currentStatus,
-                needsRedeployment,
-              },
-            },
-          }
-        })
-
-        const { activeWorkflowId } = get()
-        if (workflowId === activeWorkflowId) {
-          useWorkflowStore.getState().setNeedsRedeploymentFlag(needsRedeployment)
-        }
       },
 
       loadWorkflowState: async (workflowId: string) => {
@@ -170,20 +97,19 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           }
 
           const workflowData = (await response.json()).data
-          const nextDeploymentStatuses =
-            workflowData?.isDeployed || workflowData?.deployedAt
-              ? {
-                  ...get().deploymentStatuses,
-                  [workflowId]: {
-                    isDeployed: workflowData.isDeployed || false,
-                    deployedAt: workflowData.deployedAt
-                      ? new Date(workflowData.deployedAt)
-                      : undefined,
-                    apiKey: workflowData.apiKey || undefined,
-                    needsRedeployment: false,
-                  },
-                }
-              : get().deploymentStatuses
+
+          if (workflowData?.isDeployed !== undefined) {
+            getQueryClient().setQueryData<WorkflowDeploymentInfo>(
+              deploymentKeys.info(workflowId),
+              (prev) => ({
+                isDeployed: workflowData.isDeployed ?? false,
+                deployedAt: workflowData.deployedAt ?? null,
+                apiKey: workflowData.apiKey ?? prev?.apiKey ?? null,
+                needsRedeployment: prev?.needsRedeployment ?? false,
+                isPublicApi: prev?.isPublicApi ?? false,
+              })
+            )
+          }
 
           let workflowState: WorkflowState
 
@@ -195,7 +121,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               loops: workflowData.state.loops || {},
               parallels: workflowData.state.parallels || {},
               lastSaved: Date.now(),
-              deploymentStatuses: nextDeploymentStatuses,
             }
           } else {
             workflowState = {
@@ -204,7 +129,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               edges: [],
               loops: {},
               parallels: {},
-              deploymentStatuses: nextDeploymentStatuses,
               lastSaved: Date.now(),
             }
 
@@ -250,7 +174,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           set((state) => ({
             activeWorkflowId: workflowId,
             error: null,
-            deploymentStatuses: nextDeploymentStatuses,
             hydration: {
               phase: 'ready',
               workspaceId: state.hydration.workspaceId,
@@ -267,6 +190,16 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               ? error.message
               : `Failed to load workflow ${workflowId}: Unknown error`
           logger.error(message)
+
+          const currentHydration = get().hydration
+          if (
+            currentHydration.requestId !== requestId ||
+            currentHydration.workflowId !== workflowId
+          ) {
+            logger.info('Discarding stale workflow error', { workflowId, requestId })
+            return
+          }
+
           set((state) => ({
             error: message,
             hydration: {
@@ -301,6 +234,52 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         await get().loadWorkflowState(id)
       },
 
+      markWorkflowCreating: (workflowId: string) => {
+        set((state) => ({
+          error: null,
+          hydration: {
+            phase: 'creating' as const,
+            workspaceId: state.hydration.workspaceId,
+            workflowId,
+            requestId: null,
+            error: null,
+          },
+        }))
+        logger.info(`Marked workflow ${workflowId} as creating`)
+      },
+
+      markWorkflowCreated: (workflowId: string | null) => {
+        const { hydration } = get()
+
+        if (!workflowId) {
+          if (hydration.phase === 'creating') {
+            set((state) => ({
+              hydration: {
+                ...state.hydration,
+                phase: 'idle' as const,
+                workflowId: null,
+                error: null,
+              },
+            }))
+          }
+          return
+        }
+
+        if (hydration.phase !== 'creating' || hydration.workflowId !== workflowId) {
+          logger.info(
+            `Ignoring markWorkflowCreated for ${workflowId} — hydration is ${hydration.phase}/${hydration.workflowId}`
+          )
+          return
+        }
+
+        logger.info(`Workflow ${workflowId} created, loading state`)
+        get()
+          .loadWorkflowState(workflowId)
+          .catch((error) => {
+            logger.error(`Failed to load newly created workflow ${workflowId}:`, error)
+          })
+      },
+
       logout: () => {
         logger.info('Logging out - clearing all workflow data')
 
@@ -311,7 +290,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
         set({
           activeWorkflowId: null,
-          deploymentStatuses: {},
           error: null,
           hydration: initialHydration,
           clipboard: null,

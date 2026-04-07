@@ -304,7 +304,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
           loops: {},
           parallels: {},
           isDeployed: true,
-          deploymentStatuses: { production: 'deployed' },
         },
       }
 
@@ -349,7 +348,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
             loops: {},
             parallels: {},
             isDeployed: true,
-            deploymentStatuses: { production: 'deployed' },
             lastSaved: 1640995200000,
           },
         },
@@ -370,7 +368,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
             loops: {},
             parallels: {},
             isDeployed: true,
-            deploymentStatuses: { production: 'deployed' },
             lastSaved: 1640995200000,
           }),
         }
@@ -473,7 +470,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
           edges: undefined,
           loops: null,
           parallels: undefined,
-          deploymentStatuses: null,
         },
       }
 
@@ -508,7 +504,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
         loops: {},
         parallels: {},
         isDeployed: false,
-        deploymentStatuses: {},
         lastSaved: 1640995200000,
       })
     })
@@ -768,10 +763,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
             parallel1: { branches: ['branch1', 'branch2'] },
           },
           isDeployed: true,
-          deploymentStatuses: {
-            production: 'deployed',
-            staging: 'pending',
-          },
           deployedAt: '2024-01-01T10:00:00.000Z',
         },
       }
@@ -816,10 +807,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
           parallel1: { branches: ['branch1', 'branch2'] },
         },
         isDeployed: true,
-        deploymentStatuses: {
-          production: 'deployed',
-          staging: 'pending',
-        },
         deployedAt: '2024-01-01T10:00:00.000Z',
         lastSaved: 1640995200000,
       })

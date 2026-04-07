@@ -12,6 +12,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { getTableById, queryRows } from '@/lib/table/service'
 import {
   downloadWorkspaceFile,
@@ -97,7 +98,10 @@ export async function executeIntegrationToolDirect(
       }
 
       const accessibleCreds = await getAccessibleOAuthCredentials(workspaceId, userId)
-      const match = accessibleCreds.find((c) => c.providerId === provider)
+      const saProviderId = getServiceAccountProviderForProviderId(provider)
+      const match =
+        accessibleCreds.find((c) => c.providerId === provider) ||
+        (saProviderId ? accessibleCreds.find((c) => c.providerId === saProviderId) : undefined)
 
       if (!match) {
         return {
@@ -110,34 +114,39 @@ export async function executeIntegrationToolDirect(
     }
 
     const matchCtx = await getCredentialActorContext(resolvedCredentialId, userId)
-    const accountId = matchCtx.credential?.accountId
-    if (!accountId) {
-      return {
-        success: false,
-        error: `OAuth account for ${provider} not found. Please reconnect your account.`,
+
+    if (matchCtx.credential?.type === 'service_account') {
+      executionParams.oauthCredential = resolvedCredentialId
+    } else {
+      const accountId = matchCtx.credential?.accountId
+      if (!accountId) {
+        return {
+          success: false,
+          error: `OAuth account for ${provider} not found. Please reconnect your account.`,
+        }
       }
-    }
 
-    const [acc] = await db.select().from(account).where(eq(account.id, accountId)).limit(1)
+      const [acc] = await db.select().from(account).where(eq(account.id, accountId)).limit(1)
 
-    if (!acc) {
-      return {
-        success: false,
-        error: `OAuth account for ${provider} not found. Please reconnect your account.`,
+      if (!acc) {
+        return {
+          success: false,
+          error: `OAuth account for ${provider} not found. Please reconnect your account.`,
+        }
       }
-    }
 
-    const requestId = generateRequestId()
-    const { accessToken } = await refreshTokenIfNeeded(requestId, acc, acc.id)
+      const requestId = generateRequestId()
+      const { accessToken } = await refreshTokenIfNeeded(requestId, acc, acc.id)
 
-    if (!accessToken) {
-      return {
-        success: false,
-        error: `OAuth token not available for ${provider}. Please reconnect your account.`,
+      if (!accessToken) {
+        return {
+          success: false,
+          error: `OAuth token not available for ${provider}. Please reconnect your account.`,
+        }
       }
-    }
 
-    executionParams.accessToken = accessToken
+      executionParams.accessToken = accessToken
+    }
   }
 
   const hasHostedKeySupport = isHosted && !!toolConfig.hosting

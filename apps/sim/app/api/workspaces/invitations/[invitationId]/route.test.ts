@@ -143,8 +143,12 @@ vi.mock('drizzle-orm', () => ({
   isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
 }))
 
-vi.mock('crypto', () => ({
-  randomUUID: vi.fn().mockReturnValue('mock-uuid-1234'),
+vi.mock('@/lib/core/utils/uuid', () => ({
+  generateId: vi.fn().mockReturnValue('mock-uuid-1234'),
+  generateShortId: vi.fn(() => 'mock-short-id'),
+  isValidUuid: vi.fn((v: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
+  ),
 }))
 
 import { DELETE, GET } from './route'

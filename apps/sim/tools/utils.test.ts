@@ -21,24 +21,23 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
   secureFetchWithPinnedIP: vi.fn(),
 }))
 
-vi.mock('@/stores/settings/environment', () => {
-  const mockStore = {
-    getAllVariables: vi.fn().mockReturnValue({
-      API_KEY: { value: 'mock-api-key' },
-      BASE_URL: { value: 'https://example.com' },
-    }),
-  }
+const { mockGetQueryData } = vi.hoisted(() => ({
+  mockGetQueryData: vi.fn(),
+}))
 
-  return {
-    useEnvironmentStore: {
-      getState: vi.fn().mockImplementation(() => mockStore),
-    },
-  }
-})
+vi.mock('@/app/_shell/providers/get-query-client', () => ({
+  getQueryClient: () => ({
+    getQueryData: mockGetQueryData,
+  }),
+}))
 
 const originalWindow = global.window
 beforeEach(() => {
   global.window = {} as any
+  mockGetQueryData.mockReturnValue({
+    API_KEY: { key: 'API_KEY', value: 'mock-api-key' },
+    BASE_URL: { key: 'BASE_URL', value: 'https://example.com' },
+  })
 })
 
 afterEach(() => {
@@ -651,15 +650,8 @@ describe('createParamSchema', () => {
 })
 
 describe('getClientEnvVars', () => {
-  it.concurrent('should return environment variables from store in browser environment', () => {
-    const mockStoreGetter = () => ({
-      getAllVariables: () => ({
-        API_KEY: { value: 'mock-api-key' },
-        BASE_URL: { value: 'https://example.com' },
-      }),
-    })
-
-    const result = getClientEnvVars(mockStoreGetter)
+  it('should return environment variables from React Query cache in browser environment', () => {
+    const result = getClientEnvVars()
 
     expect(result).toEqual({
       API_KEY: 'mock-api-key',
@@ -667,7 +659,7 @@ describe('getClientEnvVars', () => {
     })
   })
 
-  it.concurrent('should return empty object in server environment', () => {
+  it('should return empty object in server environment', () => {
     global.window = undefined as any
 
     const result = getClientEnvVars()
@@ -677,7 +669,7 @@ describe('getClientEnvVars', () => {
 })
 
 describe('createCustomToolRequestBody', () => {
-  it.concurrent('should create request body function for client-side execution', () => {
+  it('should create request body function for client-side execution', () => {
     const customTool = {
       code: 'return a + b',
       schema: {
@@ -687,14 +679,7 @@ describe('createCustomToolRequestBody', () => {
       },
     }
 
-    const mockStoreGetter = () => ({
-      getAllVariables: () => ({
-        API_KEY: { value: 'mock-api-key' },
-        BASE_URL: { value: 'https://example.com' },
-      }),
-    })
-
-    const bodyFn = createCustomToolRequestBody(customTool, true, undefined, mockStoreGetter)
+    const bodyFn = createCustomToolRequestBody(customTool, true)
     const result = bodyFn({ a: 5, b: 3 })
 
     expect(result).toEqual({

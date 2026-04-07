@@ -15,13 +15,19 @@ import type { ChatResource, ResourceType } from '@/lib/copilot/resources'
 
 const logger = createLogger('CopilotChatResourcesAPI')
 
-const VALID_RESOURCE_TYPES = new Set<ResourceType>(['table', 'file', 'workflow', 'knowledgebase'])
-const GENERIC_TITLES = new Set(['Table', 'File', 'Workflow', 'Knowledge Base'])
+const VALID_RESOURCE_TYPES = new Set<ResourceType>([
+  'table',
+  'file',
+  'workflow',
+  'knowledgebase',
+  'folder',
+])
+const GENERIC_TITLES = new Set(['Table', 'File', 'Workflow', 'Knowledge Base', 'Folder'])
 
 const AddResourceSchema = z.object({
   chatId: z.string(),
   resource: z.object({
-    type: z.enum(['table', 'file', 'workflow', 'knowledgebase']),
+    type: z.enum(['table', 'file', 'workflow', 'knowledgebase', 'folder']),
     id: z.string(),
     title: z.string(),
   }),
@@ -29,7 +35,7 @@ const AddResourceSchema = z.object({
 
 const RemoveResourceSchema = z.object({
   chatId: z.string(),
-  resourceType: z.enum(['table', 'file', 'workflow', 'knowledgebase']),
+  resourceType: z.enum(['table', 'file', 'workflow', 'knowledgebase', 'folder']),
   resourceId: z.string(),
 })
 
@@ -37,7 +43,7 @@ const ReorderResourcesSchema = z.object({
   chatId: z.string(),
   resources: z.array(
     z.object({
-      type: z.enum(['table', 'file', 'workflow', 'knowledgebase']),
+      type: z.enum(['table', 'file', 'workflow', 'knowledgebase', 'folder']),
       id: z.string(),
       title: z.string(),
     })

@@ -75,7 +75,7 @@ export const imapPollingTrigger: TriggerConfig = {
         'Choose which mailbox/folder(s) to monitor for new emails. Leave empty to monitor INBOX.',
       required: false,
       options: [],
-      fetchOptions: async (blockId: string, _subBlockId: string) => {
+      fetchOptions: async (blockId: string) => {
         const store = useSubBlockStore.getState()
         const host = store.getValue(blockId, 'host') as string | null
         const port = store.getValue(blockId, 'port') as string | null

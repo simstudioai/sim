@@ -1,8 +1,8 @@
-import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { generateId } from '@/lib/core/utils/uuid'
 import { deleteChunk, updateChunk } from '@/lib/knowledge/chunks/service'
 import { checkChunkAccess } from '@/app/api/knowledge/utils'
 
@@ -17,7 +17,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string; chunkId: string }> }
 ) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   const { id: knowledgeBaseId, documentId, chunkId } = await params
 
   try {
@@ -65,7 +65,7 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string; chunkId: string }> }
 ) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   const { id: knowledgeBaseId, documentId, chunkId } = await params
 
   try {
@@ -147,7 +147,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string; chunkId: string }> }
 ) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   const { id: knowledgeBaseId, documentId, chunkId } = await params
 
   try {

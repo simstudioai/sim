@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { ZodError } from 'zod'
+import { generateId } from '@/lib/core/utils/uuid'
 import {
   BLOCK_OPERATIONS,
   BLOCKS_OPERATIONS,
@@ -152,7 +153,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           userName: session.userName,
           metadata: {
             workflowId,
-            operationId: crypto.randomUUID(),
+            operationId: generateId(),
             isPositionUpdate: true,
           },
         }
@@ -206,7 +207,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           senderId: socket.id,
           userId: session.userId,
           userName: session.userName,
-          metadata: { workflowId, operationId: crypto.randomUUID(), isBatchPositionUpdate: true },
+          metadata: { workflowId, operationId: generateId(), isBatchPositionUpdate: true },
         })
 
         try {
@@ -262,7 +263,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           userName: session.userName,
           metadata: {
             workflowId,
-            operationId: crypto.randomUUID(),
+            operationId: generateId(),
           },
         }
 
@@ -302,7 +303,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           userName: session.userName,
           metadata: {
             workflowId,
-            operationId: crypto.randomUUID(),
+            operationId: generateId(),
           },
         }
 
@@ -337,7 +338,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           senderId: socket.id,
           userId: session.userId,
           userName: session.userName,
-          metadata: { workflowId, operationId: crypto.randomUUID() },
+          metadata: { workflowId, operationId: generateId() },
         })
 
         if (operationId) {
@@ -369,7 +370,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           senderId: socket.id,
           userId: session.userId,
           userName: session.userName,
-          metadata: { workflowId, operationId: crypto.randomUUID() },
+          metadata: { workflowId, operationId: generateId() },
         })
 
         if (operationId) {
@@ -398,7 +399,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           senderId: socket.id,
           userId: session.userId,
           userName: session.userName,
-          metadata: { workflowId, operationId: crypto.randomUUID() },
+          metadata: { workflowId, operationId: generateId() },
         })
 
         if (operationId) {
@@ -430,7 +431,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           senderId: socket.id,
           userId: session.userId,
           userName: session.userName,
-          metadata: { workflowId, operationId: crypto.randomUUID() },
+          metadata: { workflowId, operationId: generateId() },
         })
 
         if (operationId) {
@@ -462,7 +463,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           senderId: socket.id,
           userId: session.userId,
           userName: session.userName,
-          metadata: { workflowId, operationId: crypto.randomUUID() },
+          metadata: { workflowId, operationId: generateId() },
         })
 
         if (operationId) {
@@ -494,7 +495,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           senderId: socket.id,
           userId: session.userId,
           userName: session.userName,
-          metadata: { workflowId, operationId: crypto.randomUUID() },
+          metadata: { workflowId, operationId: generateId() },
         })
 
         if (operationId) {
@@ -523,7 +524,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
           senderId: socket.id,
           userId: session.userId,
           userName: session.userName,
-          metadata: { workflowId, operationId: crypto.randomUUID() },
+          metadata: { workflowId, operationId: generateId() },
         })
 
         if (operationId) {
@@ -554,7 +555,7 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
         userName: session.userName,
         metadata: {
           workflowId,
-          operationId: crypto.randomUUID(),
+          operationId: generateId(),
         },
       }
 

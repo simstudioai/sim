@@ -1,0 +1,180 @@
+---
+title: CloudWatch
+description: Query and monitor AWS CloudWatch logs, metrics, and alarms
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="cloudwatch"
+  color="linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
+/>
+
+## Usage Instructions
+
+Integrate AWS CloudWatch into workflows. Run Log Insights queries, list log groups, retrieve log events, list and get metrics, and monitor alarms. Requires AWS access key and secret access key.
+
+
+
+## Tools
+
+### `cloudwatch_query_logs`
+
+Run a CloudWatch Log Insights query against one or more log groups
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `logGroupNames` | array | Yes | Log group names to query |
+| `queryString` | string | Yes | CloudWatch Log Insights query string |
+| `startTime` | number | Yes | Start time as Unix epoch seconds |
+| `endTime` | number | Yes | End time as Unix epoch seconds |
+| `limit` | number | No | Maximum number of results to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Query result rows |
+| `statistics` | object | Query statistics \(bytesScanned, recordsMatched, recordsScanned\) |
+| `status` | string | Query completion status |
+
+### `cloudwatch_describe_log_groups`
+
+List available CloudWatch log groups
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `prefix` | string | No | Filter log groups by name prefix |
+| `limit` | number | No | Maximum number of log groups to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `logGroups` | array | List of CloudWatch log groups with metadata |
+
+### `cloudwatch_get_log_events`
+
+Retrieve log events from a specific CloudWatch log stream
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `logGroupName` | string | Yes | CloudWatch log group name |
+| `logStreamName` | string | Yes | CloudWatch log stream name |
+| `startTime` | number | No | Start time as Unix epoch seconds |
+| `endTime` | number | No | End time as Unix epoch seconds |
+| `limit` | number | No | Maximum number of events to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | Log events with timestamp, message, and ingestion time |
+
+### `cloudwatch_describe_log_streams`
+
+List log streams within a CloudWatch log group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `logGroupName` | string | Yes | CloudWatch log group name |
+| `prefix` | string | No | Filter log streams by name prefix |
+| `limit` | number | No | Maximum number of log streams to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `logStreams` | array | List of log streams with metadata |
+
+### `cloudwatch_list_metrics`
+
+List available CloudWatch metrics
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `namespace` | string | No | Filter by namespace \(e.g., AWS/EC2, AWS/Lambda\) |
+| `metricName` | string | No | Filter by metric name |
+| `recentlyActive` | boolean | No | Only show metrics active in the last 3 hours |
+| `limit` | number | No | Maximum number of metrics to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `metrics` | array | List of metrics with namespace, name, and dimensions |
+
+### `cloudwatch_get_metric_statistics`
+
+Get statistics for a CloudWatch metric over a time range
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `namespace` | string | Yes | Metric namespace \(e.g., AWS/EC2, AWS/Lambda\) |
+| `metricName` | string | Yes | Metric name \(e.g., CPUUtilization, Invocations\) |
+| `startTime` | number | Yes | Start time as Unix epoch seconds |
+| `endTime` | number | Yes | End time as Unix epoch seconds |
+| `period` | number | Yes | Granularity in seconds \(e.g., 60, 300, 3600\) |
+| `statistics` | array | Yes | Statistics to retrieve \(Average, Sum, Minimum, Maximum, SampleCount\) |
+| `dimensions` | string | No | Dimensions as JSON \(e.g., \{"InstanceId": "i-1234"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `label` | string | Metric label |
+| `datapoints` | array | Datapoints with timestamp and statistics values |
+
+### `cloudwatch_describe_alarms`
+
+List and filter CloudWatch alarms
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `alarmNamePrefix` | string | No | Filter alarms by name prefix |
+| `stateValue` | string | No | Filter by alarm state \(OK, ALARM, INSUFFICIENT_DATA\) |
+| `alarmType` | string | No | Filter by alarm type \(MetricAlarm, CompositeAlarm\) |
+| `limit` | number | No | Maximum number of alarms to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alarms` | array | List of CloudWatch alarms with state and configuration |
+
+

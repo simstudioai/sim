@@ -353,7 +353,17 @@ const TemplateCard = memo(function TemplateCard({ template, onSelect }: Template
   return (
     <button
       type='button'
-      onClick={() => onSelect(template.prompt)}
+      onClick={() => {
+        import('@/lib/posthog/client')
+          .then(({ captureClientEvent }) => {
+            captureClientEvent('template_used', {
+              template_title: template.title,
+              template_modules: template.modules.join(' '),
+            })
+          })
+          .catch(() => {})
+        onSelect(template.prompt)
+      }}
       aria-label={`Select template: ${template.title}`}
       className='group flex cursor-pointer flex-col text-left'
     >

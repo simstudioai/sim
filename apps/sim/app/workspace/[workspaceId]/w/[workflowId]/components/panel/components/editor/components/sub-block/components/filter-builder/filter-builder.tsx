@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo } from 'react'
 import type { ComboboxOption } from '@/components/emcn'
+import { generateId } from '@/lib/core/utils/uuid'
 import { useTableColumns } from '@/lib/table/hooks'
 import type { FilterRule } from '@/lib/table/query-builder/constants'
 import { useFilterBuilder } from '@/lib/table/query-builder/use-query-builder'
@@ -20,7 +21,7 @@ interface FilterBuilderProps {
 }
 
 const createDefaultRule = (columns: ComboboxOption[]): FilterRule => ({
-  id: crypto.randomUUID(),
+  id: generateId(),
   logicalOperator: 'and',
   column: columns[0]?.value || '',
   operator: 'eq',

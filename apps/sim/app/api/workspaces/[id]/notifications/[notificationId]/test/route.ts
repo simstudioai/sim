@@ -4,7 +4,6 @@ import { account, workspaceNotificationSubscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
 import {
   type EmailRateLimitsData,
   type EmailUsageData,
@@ -14,6 +13,7 @@ import { getSession } from '@/lib/auth'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -41,8 +41,8 @@ function generateSignature(secret: string, timestamp: number, body: string): str
 
 function buildTestPayload(subscription: typeof workspaceNotificationSubscription.$inferSelect) {
   const timestamp = Date.now()
-  const eventId = `evt_test_${uuidv4()}`
-  const executionId = `exec_test_${uuidv4()}`
+  const eventId = `evt_test_${generateId()}`
+  const executionId = `exec_test_${generateId()}`
 
   const payload: Record<string, unknown> = {
     id: eventId,
@@ -120,7 +120,7 @@ async function testWebhook(subscription: typeof workspaceNotificationSubscriptio
 
   const { payload, timestamp } = buildTestPayload(subscription)
   const body = JSON.stringify(payload)
-  const deliveryId = `delivery_test_${uuidv4()}`
+  const deliveryId = `delivery_test_${generateId()}`
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

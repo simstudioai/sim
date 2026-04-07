@@ -11,6 +11,7 @@ import { and, eq, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import {
@@ -149,7 +150,7 @@ export async function dispatchSync(
   connectorId: string,
   options?: { fullSync?: boolean; requestId?: string }
 ): Promise<void> {
-  const requestId = options?.requestId ?? crypto.randomUUID()
+  const requestId = options?.requestId ?? generateId()
 
   if (isTriggerAvailable()) {
     const connectorRows = await db
@@ -328,7 +329,7 @@ export async function executeSync(
     return result
   }
 
-  const syncLogId = crypto.randomUUID()
+  const syncLogId = generateId()
   const syncStartedAt = new Date()
   await db.insert(knowledgeConnectorSyncLog).values({
     id: syncLogId,
@@ -343,7 +344,7 @@ export async function executeSync(
     const externalDocs: ExternalDocument[] = []
     let cursor: string | undefined
     let hasMore = true
-    const syncContext: Record<string, unknown> = { syncRunId: crypto.randomUUID() }
+    const syncContext: Record<string, unknown> = { syncRunId: generateId() }
 
     // Determine if this sync should be incremental
     const isIncremental =
@@ -589,12 +590,7 @@ export async function executeSync(
 
       if (batchDocs.length > 0) {
         try {
-          await processDocumentsWithQueue(
-            batchDocs,
-            connector.knowledgeBaseId,
-            {},
-            crypto.randomUUID()
-          )
+          await processDocumentsWithQueue(batchDocs, connector.knowledgeBaseId, {}, generateId())
         } catch (error) {
           logger.warn('Failed to enqueue batch for processing — will retry on next sync', {
             connectorId,
@@ -703,7 +699,7 @@ export async function executeSync(
           })),
           connector.knowledgeBaseId,
           {},
-          crypto.randomUUID()
+          generateId()
         )
       } catch (error) {
         logger.warn('Failed to enqueue stuck documents for reprocessing', {
@@ -859,7 +855,7 @@ async function addDocument(
   if (await isKnowledgeBaseDeleted(knowledgeBaseId)) {
     throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
   }
-  const documentId = crypto.randomUUID()
+  const documentId = generateId()
   const contentBuffer = Buffer.from(extDoc.content, 'utf-8')
   const safeTitle = sanitizeStorageTitle(extDoc.title)
   const customKey = `kb/${Date.now()}-${documentId}-${safeTitle}.txt`

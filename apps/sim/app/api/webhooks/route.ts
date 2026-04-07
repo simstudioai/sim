@@ -2,26 +2,23 @@ import { db } from '@sim/db'
 import { permissions, webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId, generateShortId } from '@/lib/core/utils/uuid'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import {
   cleanupExternalWebhook,
   createExternalWebhookSubscription,
   shouldRecreateExternalWebhookSubscription,
 } from '@/lib/webhooks/provider-subscriptions'
+import { getProviderHandler } from '@/lib/webhooks/providers'
 import { mergeNonUserFields } from '@/lib/webhooks/utils'
-import {
-  configureGmailPolling,
-  configureOutlookPolling,
-  configureRssPolling,
-  syncWebhooksForCredentialSet,
-} from '@/lib/webhooks/utils.server'
+import { syncWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { extractCredentialSetId, isCredentialSetValue } from '@/executor/constants'
 
@@ -246,7 +243,7 @@ export async function POST(request: NextRequest) {
 
         // If still no path, generate a new dummy path (first-time save)
         if (!finalPath || finalPath.trim() === '') {
-          finalPath = `${provider}-${crypto.randomUUID()}`
+          finalPath = `${provider}-${generateId()}`
           logger.info(`[${requestId}] Generated webhook path for ${provider} trigger: ${finalPath}`)
         }
       } else {
@@ -347,7 +344,6 @@ export async function POST(request: NextRequest) {
       workflowRecord.workspaceId || undefined
     )
 
-    // --- Credential Set Handling ---
     // For credential sets, we fan out to create one webhook per credential at save time.
     // This applies to all OAuth-based triggers, not just polling ones.
     // Check for credentialSetId directly (frontend may already extract it) or credential set value in credential fields
@@ -401,16 +397,13 @@ export async function POST(request: NextRequest) {
             )
           }
 
-          const needsConfiguration = provider === 'gmail' || provider === 'outlook'
+          const providerHandler = getProviderHandler(provider)
 
-          if (needsConfiguration) {
-            const configureFunc =
-              provider === 'gmail' ? configureGmailPolling : configureOutlookPolling
+          if (providerHandler.configurePolling) {
             const configureErrors: string[] = []
 
             for (const wh of syncResult.webhooks) {
               if (wh.isNew) {
-                // Fetch the webhook data for configuration
                 const webhookRows = await db
                   .select()
                   .from(webhook)
@@ -418,7 +411,10 @@ export async function POST(request: NextRequest) {
                   .limit(1)
 
                 if (webhookRows.length > 0) {
-                  const success = await configureFunc(webhookRows[0], requestId)
+                  const success = await providerHandler.configurePolling({
+                    webhook: webhookRows[0],
+                    requestId,
+                  })
                   if (!success) {
                     configureErrors.push(
                       `Failed to configure webhook for credential ${wh.credentialId}`
@@ -435,7 +431,6 @@ export async function POST(request: NextRequest) {
               configureErrors.length > 0 &&
               configureErrors.length === syncResult.webhooks.length
             ) {
-              // All configurations failed - roll back
               logger.error(`[${requestId}] All webhook configurations failed, rolling back`)
               for (const wh of syncResult.webhooks) {
                 await db.delete(webhook).where(eq(webhook.id, wh.id))
@@ -487,11 +482,9 @@ export async function POST(request: NextRequest) {
         }
       }
     }
-    // --- End Credential Set Handling ---
-
     let externalSubscriptionCreated = false
     const createTempWebhookData = (providerConfigOverride = resolvedProviderConfig) => ({
-      id: targetWebhookId || nanoid(),
+      id: targetWebhookId || generateShortId(),
       path: finalPath,
       provider,
       providerConfig: providerConfigOverride,
@@ -578,7 +571,7 @@ export async function POST(request: NextRequest) {
         })
       } else {
         // Create a new webhook
-        const webhookId = nanoid()
+        const webhookId = generateShortId()
         logger.info(`[${requestId}] Creating new webhook with ID: ${webhookId}`)
         const newResult = await db
           .insert(webhook)
@@ -628,115 +621,49 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // --- Gmail/Outlook webhook setup (these don't require external subscriptions, configure after DB save) ---
-    if (savedWebhook && provider === 'gmail') {
-      logger.info(`[${requestId}] Gmail provider detected. Setting up Gmail webhook configuration.`)
-      try {
-        const success = await configureGmailPolling(savedWebhook, requestId)
+    if (savedWebhook) {
+      const pollingHandler = getProviderHandler(provider)
+      if (pollingHandler.configurePolling) {
+        logger.info(
+          `[${requestId}] ${provider} provider detected. Setting up polling configuration.`
+        )
+        try {
+          const success = await pollingHandler.configurePolling({
+            webhook: savedWebhook,
+            requestId,
+          })
 
-        if (!success) {
-          logger.error(`[${requestId}] Failed to configure Gmail polling, rolling back webhook`)
+          if (!success) {
+            logger.error(
+              `[${requestId}] Failed to configure ${provider} polling, rolling back webhook`
+            )
+            await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
+            return NextResponse.json(
+              {
+                error: `Failed to configure ${provider} polling`,
+                details: 'Please check your account permissions and try again',
+              },
+              { status: 500 }
+            )
+          }
+
+          logger.info(`[${requestId}] Successfully configured ${provider} polling`)
+        } catch (err) {
+          logger.error(
+            `[${requestId}] Error setting up ${provider} webhook configuration, rolling back webhook`,
+            err
+          )
           await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
           return NextResponse.json(
             {
-              error: 'Failed to configure Gmail polling',
-              details: 'Please check your Gmail account permissions and try again',
+              error: `Failed to configure ${provider} webhook`,
+              details: err instanceof Error ? err.message : 'Unknown error',
             },
             { status: 500 }
           )
         }
-
-        logger.info(`[${requestId}] Successfully configured Gmail polling`)
-      } catch (err) {
-        logger.error(
-          `[${requestId}] Error setting up Gmail webhook configuration, rolling back webhook`,
-          err
-        )
-        await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
-        return NextResponse.json(
-          {
-            error: 'Failed to configure Gmail webhook',
-            details: err instanceof Error ? err.message : 'Unknown error',
-          },
-          { status: 500 }
-        )
       }
     }
-    // --- End Gmail specific logic ---
-
-    // --- Outlook webhook setup ---
-    if (savedWebhook && provider === 'outlook') {
-      logger.info(
-        `[${requestId}] Outlook provider detected. Setting up Outlook webhook configuration.`
-      )
-      try {
-        const success = await configureOutlookPolling(savedWebhook, requestId)
-
-        if (!success) {
-          logger.error(`[${requestId}] Failed to configure Outlook polling, rolling back webhook`)
-          await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
-          return NextResponse.json(
-            {
-              error: 'Failed to configure Outlook polling',
-              details: 'Please check your Outlook account permissions and try again',
-            },
-            { status: 500 }
-          )
-        }
-
-        logger.info(`[${requestId}] Successfully configured Outlook polling`)
-      } catch (err) {
-        logger.error(
-          `[${requestId}] Error setting up Outlook webhook configuration, rolling back webhook`,
-          err
-        )
-        await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
-        return NextResponse.json(
-          {
-            error: 'Failed to configure Outlook webhook',
-            details: err instanceof Error ? err.message : 'Unknown error',
-          },
-          { status: 500 }
-        )
-      }
-    }
-    // --- End Outlook specific logic ---
-
-    // --- RSS webhook setup ---
-    if (savedWebhook && provider === 'rss') {
-      logger.info(`[${requestId}] RSS provider detected. Setting up RSS webhook configuration.`)
-      try {
-        const success = await configureRssPolling(savedWebhook, requestId)
-
-        if (!success) {
-          logger.error(`[${requestId}] Failed to configure RSS polling, rolling back webhook`)
-          await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
-          return NextResponse.json(
-            {
-              error: 'Failed to configure RSS polling',
-              details: 'Please try again',
-            },
-            { status: 500 }
-          )
-        }
-
-        logger.info(`[${requestId}] Successfully configured RSS polling`)
-      } catch (err) {
-        logger.error(
-          `[${requestId}] Error setting up RSS webhook configuration, rolling back webhook`,
-          err
-        )
-        await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
-        return NextResponse.json(
-          {
-            error: 'Failed to configure RSS webhook',
-            details: err instanceof Error ? err.message : 'Unknown error',
-          },
-          { status: 500 }
-        )
-      }
-    }
-    // --- End RSS specific logic ---
 
     if (!targetWebhookId && savedWebhook) {
       try {
@@ -763,6 +690,19 @@ export async function POST(request: NextRequest) {
         metadata: { provider, workflowId },
         request,
       })
+
+      const wsId = workflowRecord.workspaceId || undefined
+      captureServerEvent(
+        userId,
+        'webhook_trigger_created',
+        {
+          webhook_id: savedWebhook.id,
+          workflow_id: workflowId,
+          provider: provider || 'generic',
+          workspace_id: wsId ?? '',
+        },
+        wsId ? { groups: { workspace: wsId } } : undefined
+      )
     }
 
     const status = targetWebhookId ? 200 : 201

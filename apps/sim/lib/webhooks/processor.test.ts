@@ -6,14 +6,14 @@ import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockUuidV4,
+  mockGenerateId,
   mockPreprocessExecution,
   mockEnqueue,
   mockEnqueueWorkspaceDispatch,
   mockGetJobQueue,
   mockShouldExecuteInline,
 } = vi.hoisted(() => ({
-  mockUuidV4: vi.fn(),
+  mockGenerateId: vi.fn(),
   mockPreprocessExecution: vi.fn(),
   mockEnqueue: vi.fn(),
   mockEnqueueWorkspaceDispatch: vi.fn(),
@@ -49,8 +49,12 @@ vi.mock('drizzle-orm', () => ({
   or: vi.fn(),
 }))
 
-vi.mock('uuid', () => ({
-  v4: mockUuidV4,
+vi.mock('@/lib/core/utils/uuid', () => ({
+  generateId: mockGenerateId,
+  generateShortId: vi.fn(() => 'mock-short-id'),
+  isValidUuid: vi.fn((v: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
+  ),
 }))
 
 vi.mock('@/lib/billing/subscriptions/utils', () => ({
@@ -102,17 +106,10 @@ vi.mock('@/lib/webhooks/utils', () => ({
 vi.mock('@/lib/webhooks/utils.server', () => ({
   handleSlackChallenge: vi.fn().mockReturnValue(null),
   handleWhatsAppVerification: vi.fn().mockResolvedValue(null),
-  validateAttioSignature: vi.fn().mockReturnValue(true),
-  validateCalcomSignature: vi.fn().mockReturnValue(true),
-  validateCirclebackSignature: vi.fn().mockReturnValue(true),
-  validateFirefliesSignature: vi.fn().mockReturnValue(true),
-  validateGitHubSignature: vi.fn().mockReturnValue(true),
-  validateJiraSignature: vi.fn().mockReturnValue(true),
-  validateLinearSignature: vi.fn().mockReturnValue(true),
-  validateMicrosoftTeamsSignature: vi.fn().mockReturnValue(true),
-  validateTwilioSignature: vi.fn().mockResolvedValue(true),
-  validateTypeformSignature: vi.fn().mockReturnValue(true),
-  verifyProviderWebhook: vi.fn().mockReturnValue(null),
+}))
+
+vi.mock('@/lib/webhooks/providers', () => ({
+  getProviderHandler: vi.fn().mockReturnValue({}),
 }))
 
 vi.mock('@/background/webhook-execution', () => ({
@@ -156,7 +153,7 @@ describe('webhook processor execution identity', () => {
     mockEnqueueWorkspaceDispatch.mockResolvedValue('job-1')
     mockGetJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
     mockShouldExecuteInline.mockReturnValue(false)
-    mockUuidV4.mockReturnValue('generated-execution-id')
+    mockGenerateId.mockReturnValue('generated-execution-id')
   })
 
   it('reuses preprocessing execution identity when queueing a polling webhook', async () => {
@@ -213,7 +210,7 @@ describe('webhook processor execution identity', () => {
       }
     )
 
-    expect(mockUuidV4).toHaveBeenCalledTimes(1)
+    expect(mockGenerateId).toHaveBeenCalledTimes(1)
     expect(mockEnqueueWorkspaceDispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'generated-execution-id',

@@ -1,7 +1,9 @@
+import { createSign } from 'crypto'
 import { db } from '@sim/db'
 import { account, credential, credentialSetMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray } from 'drizzle-orm'
+import { decryptSecret } from '@/lib/core/security/encryption'
 import { refreshOAuthToken } from '@/lib/oauth'
 import {
   getMicrosoftRefreshTokenExpiry,
@@ -10,6 +12,16 @@ import {
 } from '@/lib/oauth/microsoft'
 
 const logger = createLogger('OAuthUtilsAPI')
+
+export class ServiceAccountTokenError extends Error {
+  constructor(
+    public readonly statusCode: number,
+    public readonly errorDescription: string
+  ) {
+    super(errorDescription)
+    this.name = 'ServiceAccountTokenError'
+  }
+}
 
 interface AccountInsertData {
   id: string
@@ -25,16 +37,26 @@ interface AccountInsertData {
   accessTokenExpiresAt?: Date
 }
 
+export interface ResolvedCredential {
+  accountId: string
+  workspaceId?: string
+  usedCredentialTable: boolean
+  credentialType?: string
+  credentialId?: string
+}
+
 /**
  * Resolves a credential ID to its underlying account ID.
  * If `credentialId` matches a `credential` row, returns its `accountId` and `workspaceId`.
+ * For service_account credentials, returns credentialId and type instead of accountId.
  * Otherwise assumes `credentialId` is already a raw `account.id` (legacy).
  */
 export async function resolveOAuthAccountId(
   credentialId: string
-): Promise<{ accountId: string; workspaceId?: string; usedCredentialTable: boolean } | null> {
+): Promise<ResolvedCredential | null> {
   const [credentialRow] = await db
     .select({
+      id: credential.id,
       type: credential.type,
       accountId: credential.accountId,
       workspaceId: credential.workspaceId,
@@ -44,6 +66,16 @@ export async function resolveOAuthAccountId(
     .limit(1)
 
   if (credentialRow) {
+    if (credentialRow.type === 'service_account') {
+      return {
+        accountId: '',
+        credentialId: credentialRow.id,
+        credentialType: 'service_account',
+        workspaceId: credentialRow.workspaceId,
+        usedCredentialTable: true,
+      }
+    }
+
     if (credentialRow.type !== 'oauth' || !credentialRow.accountId) {
       return null
     }
@@ -55,6 +87,124 @@ export async function resolveOAuthAccountId(
   }
 
   return { accountId: credentialId, usedCredentialTable: false }
+}
+
+/**
+ * Userinfo scopes are excluded because service accounts don't represent a user
+ * and cannot request user identity information. Google rejects token requests
+ * that include these scopes for service account credentials.
+ */
+const SA_EXCLUDED_SCOPES = new Set([
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile',
+])
+
+/**
+ * Generates a short-lived access token for a Google service account credential
+ * using the two-legged OAuth JWT flow (RFC 7523).
+ *
+ * @param impersonateEmail - Optional. Required for Google Workspace APIs (Gmail, Drive, Calendar, etc.)
+ *   where the service account must impersonate a domain user via domain-wide delegation.
+ *   Not needed for project-scoped APIs like BigQuery or Vertex AI where the service account
+ *   authenticates directly with its own IAM permissions.
+ */
+export async function getServiceAccountToken(
+  credentialId: string,
+  scopes: string[],
+  impersonateEmail?: string
+): Promise<string> {
+  const [credentialRow] = await db
+    .select({
+      encryptedServiceAccountKey: credential.encryptedServiceAccountKey,
+    })
+    .from(credential)
+    .where(eq(credential.id, credentialId))
+    .limit(1)
+
+  if (!credentialRow?.encryptedServiceAccountKey) {
+    throw new Error('Service account key not found')
+  }
+
+  const { decrypted } = await decryptSecret(credentialRow.encryptedServiceAccountKey)
+  const keyData = JSON.parse(decrypted) as {
+    client_email: string
+    private_key: string
+    token_uri?: string
+  }
+
+  const filteredScopes = scopes.filter((s) => !SA_EXCLUDED_SCOPES.has(s))
+
+  const now = Math.floor(Date.now() / 1000)
+  const ALLOWED_TOKEN_URIS = new Set(['https://oauth2.googleapis.com/token'])
+  const tokenUri =
+    keyData.token_uri && ALLOWED_TOKEN_URIS.has(keyData.token_uri)
+      ? keyData.token_uri
+      : 'https://oauth2.googleapis.com/token'
+
+  const header = { alg: 'RS256', typ: 'JWT' }
+  const payload: Record<string, unknown> = {
+    iss: keyData.client_email,
+    scope: filteredScopes.join(' '),
+    aud: tokenUri,
+    iat: now,
+    exp: now + 3600,
+  }
+
+  if (impersonateEmail) {
+    payload.sub = impersonateEmail
+  }
+
+  logger.info('Service account JWT payload', {
+    iss: keyData.client_email,
+    sub: impersonateEmail || '(none)',
+    scopes: filteredScopes.join(' '),
+    aud: tokenUri,
+  })
+
+  const toBase64Url = (obj: unknown) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+
+  const signingInput = `${toBase64Url(header)}.${toBase64Url(payload)}`
+
+  const signer = createSign('RSA-SHA256')
+  signer.update(signingInput)
+  const signature = signer.sign(keyData.private_key, 'base64url')
+
+  const jwt = `${signingInput}.${signature}`
+
+  const response = await fetch(tokenUri, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwt,
+    }),
+  })
+
+  if (!response.ok) {
+    const errorBody = await response.text()
+    logger.error('Service account token exchange failed', {
+      status: response.status,
+      body: errorBody,
+    })
+    let description = `Token exchange failed: ${response.status}`
+    try {
+      const parsed = JSON.parse(errorBody) as { error_description?: string }
+      if (parsed.error_description) {
+        const raw = parsed.error_description
+        if (raw.includes('SignatureException') || raw.includes('Invalid signature')) {
+          description = 'Invalid account credentials.'
+        } else {
+          description = raw
+        }
+      }
+    } catch {
+      // use default description
+    }
+    throw new ServiceAccountTokenError(response.status, description)
+  }
+
+  const tokenData = (await response.json()) as { access_token: string }
+  return tokenData.access_token
 }
 
 /**
@@ -81,19 +231,13 @@ export async function safeAccountInsert(
 }
 
 /**
- * Get a credential by ID and verify it belongs to the user
+ * Get a credential by resolved account ID and verify it belongs to the user.
  */
-export async function getCredential(requestId: string, credentialId: string, userId: string) {
-  const resolved = await resolveOAuthAccountId(credentialId)
-  if (!resolved) {
-    logger.warn(`[${requestId}] Credential is not an OAuth credential`)
-    return undefined
-  }
-
+async function getCredentialByAccountId(requestId: string, accountId: string, userId: string) {
   const credentials = await db
     .select()
     .from(account)
-    .where(and(eq(account.id, resolved.accountId), eq(account.userId, userId)))
+    .where(and(eq(account.id, accountId), eq(account.userId, userId)))
     .limit(1)
 
   if (!credentials.length) {
@@ -103,8 +247,20 @@ export async function getCredential(requestId: string, credentialId: string, use
 
   return {
     ...credentials[0],
-    resolvedCredentialId: resolved.accountId,
+    resolvedCredentialId: accountId,
   }
+}
+
+/**
+ * Get a credential by ID and verify it belongs to the user.
+ */
+export async function getCredential(requestId: string, credentialId: string, userId: string) {
+  const resolved = await resolveOAuthAccountId(credentialId)
+  if (!resolved) {
+    logger.warn(`[${requestId}] Credential is not an OAuth credential`)
+    return undefined
+  }
+  return getCredentialByAccountId(requestId, resolved.accountId, userId)
 }
 
 export async function getOAuthToken(userId: string, providerId: string): Promise<string | null> {
@@ -196,19 +352,36 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
 }
 
 /**
- * Refreshes an OAuth token if needed based on credential information
+ * Refreshes an OAuth token if needed based on credential information.
+ * Also handles service account credentials by generating a JWT-based token.
  * @param credentialId The ID of the credential to check and potentially refresh
  * @param userId The user ID who owns the credential (for security verification)
  * @param requestId Request ID for log correlation
+ * @param scopes Optional scopes for service account token generation
  * @returns The valid access token or null if refresh fails
  */
 export async function refreshAccessTokenIfNeeded(
   credentialId: string,
   userId: string,
-  requestId: string
+  requestId: string,
+  scopes?: string[],
+  impersonateEmail?: string
 ): Promise<string | null> {
-  // Get the credential directly using the getCredential helper
-  const credential = await getCredential(requestId, credentialId, userId)
+  const resolved = await resolveOAuthAccountId(credentialId)
+  if (!resolved) {
+    return null
+  }
+
+  if (resolved.credentialType === 'service_account' && resolved.credentialId) {
+    if (!scopes?.length) {
+      throw new Error('Scopes are required for service account credentials')
+    }
+    logger.info(`[${requestId}] Using service account token for credential`)
+    return getServiceAccountToken(resolved.credentialId, scopes, impersonateEmail)
+  }
+
+  // Use the already-resolved account ID to avoid a redundant resolveOAuthAccountId query
+  const credential = await getCredentialByAccountId(requestId, resolved.accountId, userId)
 
   if (!credential) {
     return null

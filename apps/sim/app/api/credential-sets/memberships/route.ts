@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
+import { generateId } from '@/lib/core/utils/uuid'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 
 const logger = createLogger('CredentialSetMemberships')
@@ -60,7 +61,7 @@ export async function DELETE(req: NextRequest) {
   }
 
   try {
-    const requestId = crypto.randomUUID().slice(0, 8)
+    const requestId = generateId().slice(0, 8)
 
     // Use transaction to ensure revocation + webhook sync are atomic
     await db.transaction(async (tx) => {

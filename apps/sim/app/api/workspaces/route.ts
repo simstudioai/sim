@@ -7,6 +7,8 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { generateId } from '@/lib/core/utils/uuid'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { getRandomWorkspaceColor } from '@/lib/workspaces/colors'
@@ -96,6 +98,16 @@ export async function POST(req: Request) {
 
     const newWorkspace = await createWorkspace(session.user.id, name, skipDefaultWorkflow, color)
 
+    captureServerEvent(
+      session.user.id,
+      'workspace_created',
+      { workspace_id: newWorkspace.id, name: newWorkspace.name },
+      {
+        groups: { workspace: newWorkspace.id },
+        setOnce: { first_workspace_created_at: new Date().toISOString() },
+      }
+    )
+
     recordAudit({
       workspaceId: newWorkspace.id,
       actorId: session.user.id,
@@ -129,8 +141,8 @@ async function createWorkspace(
   skipDefaultWorkflow = false,
   explicitColor?: string
 ) {
-  const workspaceId = crypto.randomUUID()
-  const workflowId = crypto.randomUUID()
+  const workspaceId = generateId()
+  const workflowId = generateId()
   const now = new Date()
   const color = explicitColor || getRandomWorkspaceColor()
 
@@ -148,7 +160,7 @@ async function createWorkspace(
       })
 
       await tx.insert(permissions).values({
-        id: crypto.randomUUID(),
+        id: generateId(),
         entityType: 'workspace' as const,
         entityId: workspaceId,
         userId: userId,
@@ -173,6 +185,9 @@ async function createWorkspace(
           runCount: 0,
           variables: {},
         })
+
+        const { workflowState } = buildDefaultWorkflowArtifacts()
+        await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
       }
 
       logger.info(
@@ -181,15 +196,6 @@ async function createWorkspace(
           : `Created workspace ${workspaceId} with initial workflow ${workflowId} for user ${userId}`
       )
     })
-
-    if (!skipDefaultWorkflow) {
-      const { workflowState } = buildDefaultWorkflowArtifacts()
-      const seedResult = await saveWorkflowToNormalizedTables(workflowId, workflowState)
-
-      if (!seedResult.success) {
-        throw new Error(seedResult.error || 'Failed to seed default workflow state')
-      }
-    }
   } catch (error) {
     logger.error(`Failed to create workspace ${workspaceId}:`, error)
     throw error

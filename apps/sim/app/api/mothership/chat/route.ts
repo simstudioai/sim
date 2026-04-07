@@ -17,6 +17,7 @@ import { processContextsServer, resolveActiveResourceContext } from '@/lib/copil
 import { createRequestTracker, createUnauthorizedResponse } from '@/lib/copilot/request-helpers'
 import { taskPubSub } from '@/lib/copilot/task-events'
 import { generateWorkspaceContext } from '@/lib/copilot/workspace-context'
+import { generateId } from '@/lib/core/utils/uuid'
 import {
   assertActiveWorkspaceAccess,
   getUserEntityPermissions,
@@ -35,7 +36,7 @@ const FileAttachmentSchema = z.object({
 })
 
 const ResourceAttachmentSchema = z.object({
-  type: z.enum(['workflow', 'table', 'file', 'knowledgebase']),
+  type: z.enum(['workflow', 'table', 'file', 'knowledgebase', 'folder']),
   id: z.string().min(1),
   title: z.string().optional(),
   active: z.boolean().optional(),
@@ -65,6 +66,7 @@ const MothershipMessageSchema = z.object({
           'docs',
           'table',
           'file',
+          'folder',
         ]),
         label: z.string(),
         chatId: z.string().optional(),
@@ -76,6 +78,7 @@ const MothershipMessageSchema = z.object({
         executionId: z.string().optional(),
         tableId: z.string().optional(),
         fileId: z.string().optional(),
+        folderId: z.string().optional(),
       })
     )
     .optional(),
@@ -109,7 +112,7 @@ export async function POST(req: NextRequest) {
       userTimezone,
     } = MothershipMessageSchema.parse(body)
 
-    const userMessageId = providedMessageId || crypto.randomUUID()
+    const userMessageId = providedMessageId || generateId()
     userMessageIdForLogs = userMessageId
     const reqLogger = logger.withMetadata({
       requestId: tracker.requestId,
@@ -223,6 +226,7 @@ export async function POST(req: NextRequest) {
               ...(c.knowledgeId && { knowledgeId: c.knowledgeId }),
               ...(c.tableId && { tableId: c.tableId }),
               ...(c.fileId && { fileId: c.fileId }),
+              ...(c.folderId && { folderId: c.folderId }),
             })),
           }),
       }
@@ -280,8 +284,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const executionId = crypto.randomUUID()
-    const runId = crypto.randomUUID()
+    const executionId = generateId()
+    const runId = generateId()
     const stream = createSSEStream({
       requestPayload,
       userId: authenticatedUserId,
@@ -310,7 +314,7 @@ export async function POST(req: NextRequest) {
           if (!result.success) return
 
           const assistantMessage: Record<string, unknown> = {
-            id: crypto.randomUUID(),
+            id: generateId(),
             role: 'assistant' as const,
             content: result.content,
             timestamp: new Date().toISOString(),

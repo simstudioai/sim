@@ -1,13 +1,6 @@
 import type { Edge } from 'reactflow'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 
-export interface DeploymentStatus {
-  isDeployed: boolean
-  deployedAt?: Date
-  apiKey?: string
-  needsRedeployment?: boolean
-}
-
 export interface ClipboardData {
   blocks: Record<string, BlockState>
   edges: Edge[]
@@ -32,7 +25,7 @@ export interface WorkflowMetadata {
   isSandbox?: boolean
 }
 
-export type HydrationPhase = 'idle' | 'state-loading' | 'ready' | 'error'
+export type HydrationPhase = 'idle' | 'creating' | 'state-loading' | 'ready' | 'error'
 
 export interface HydrationState {
   phase: HydrationPhase
@@ -45,7 +38,6 @@ export interface HydrationState {
 export interface WorkflowRegistryState {
   activeWorkflowId: string | null
   error: string | null
-  deploymentStatuses: Record<string, DeploymentStatus>
   hydration: HydrationState
   clipboard: ClipboardData | null
   pendingSelection: string[] | null
@@ -55,14 +47,8 @@ export interface WorkflowRegistryActions {
   setActiveWorkflow: (id: string) => Promise<void>
   loadWorkflowState: (workflowId: string) => Promise<void>
   switchToWorkspace: (id: string) => void
-  getWorkflowDeploymentStatus: (workflowId: string | null) => DeploymentStatus | null
-  setDeploymentStatus: (
-    workflowId: string | null,
-    isDeployed: boolean,
-    deployedAt?: Date,
-    apiKey?: string
-  ) => void
-  setWorkflowNeedsRedeployment: (workflowId: string | null, needsRedeployment: boolean) => void
+  markWorkflowCreating: (workflowId: string) => void
+  markWorkflowCreated: (workflowId: string | null) => void
   copyBlocks: (blockIds: string[]) => void
   preparePasteData: (positionOffset?: { x: number; y: number }) => {
     blocks: Record<string, BlockState>

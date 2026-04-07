@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import {
   db,
   workflow,
@@ -12,7 +11,7 @@ import { createLogger } from '@sim/logger'
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
-import { v4 as uuidv4 } from 'uuid'
+import { generateId } from '@/lib/core/utils/uuid'
 import type { DbOrTx } from '@/lib/db/types'
 import { getActiveWorkflowContext } from '@/lib/workflows/active-context'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
@@ -531,88 +530,89 @@ export async function loadWorkflowFromNormalizedTables(
  */
 export async function saveWorkflowToNormalizedTables(
   workflowId: string,
-  state: WorkflowState
+  state: WorkflowState,
+  externalTx?: DbOrTx
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    const blockRecords = state.blocks as Record<string, BlockState>
-    const canonicalLoops = generateLoopBlocks(blockRecords)
-    const canonicalParallels = generateParallelBlocks(blockRecords)
+  const blockRecords = state.blocks as Record<string, BlockState>
+  const canonicalLoops = generateLoopBlocks(blockRecords)
+  const canonicalParallels = generateParallelBlocks(blockRecords)
 
-    // Start a transaction
-    await db.transaction(async (tx) => {
-      await Promise.all([
-        tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
-        tx.delete(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)),
-        tx.delete(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId)),
-      ])
+  const execute = async (tx: DbOrTx) => {
+    await Promise.all([
+      tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
+      tx.delete(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)),
+      tx.delete(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId)),
+    ])
 
-      // Insert blocks
-      if (Object.keys(state.blocks).length > 0) {
-        const blockInserts = Object.values(state.blocks).map((block) => ({
-          id: block.id,
-          workflowId: workflowId,
-          type: block.type,
-          name: block.name || '',
-          positionX: String(block.position?.x || 0),
-          positionY: String(block.position?.y || 0),
-          enabled: block.enabled ?? true,
-          horizontalHandles: block.horizontalHandles ?? true,
-          advancedMode: block.advancedMode ?? false,
-          triggerMode: block.triggerMode ?? false,
-          height: String(block.height || 0),
-          subBlocks: block.subBlocks || {},
-          outputs: block.outputs || {},
-          data: block.data || {},
-          parentId: block.data?.parentId || null,
-          extent: block.data?.extent || null,
-          locked: block.locked ?? false,
-        }))
+    if (Object.keys(state.blocks).length > 0) {
+      const blockInserts = Object.values(state.blocks).map((block) => ({
+        id: block.id,
+        workflowId: workflowId,
+        type: block.type,
+        name: block.name || '',
+        positionX: String(block.position?.x || 0),
+        positionY: String(block.position?.y || 0),
+        enabled: block.enabled ?? true,
+        horizontalHandles: block.horizontalHandles ?? true,
+        advancedMode: block.advancedMode ?? false,
+        triggerMode: block.triggerMode ?? false,
+        height: String(block.height || 0),
+        subBlocks: block.subBlocks || {},
+        outputs: block.outputs || {},
+        data: block.data || {},
+        parentId: block.data?.parentId || null,
+        extent: block.data?.extent || null,
+        locked: block.locked ?? false,
+      }))
 
-        await tx.insert(workflowBlocks).values(blockInserts)
-      }
+      await tx.insert(workflowBlocks).values(blockInserts)
+    }
 
-      // Insert edges
-      if (state.edges.length > 0) {
-        const edgeInserts = state.edges.map((edge) => ({
-          id: edge.id,
-          workflowId: workflowId,
-          sourceBlockId: edge.source,
-          targetBlockId: edge.target,
-          sourceHandle: edge.sourceHandle || null,
-          targetHandle: edge.targetHandle || null,
-        }))
+    if (state.edges.length > 0) {
+      const edgeInserts = state.edges.map((edge) => ({
+        id: edge.id,
+        workflowId: workflowId,
+        sourceBlockId: edge.source,
+        targetBlockId: edge.target,
+        sourceHandle: edge.sourceHandle || null,
+        targetHandle: edge.targetHandle || null,
+      }))
 
-        await tx.insert(workflowEdges).values(edgeInserts)
-      }
+      await tx.insert(workflowEdges).values(edgeInserts)
+    }
 
-      // Insert subflows (loops and parallels)
-      const subflowInserts: SubflowInsert[] = []
+    const subflowInserts: SubflowInsert[] = []
 
-      // Add loops
-      Object.values(canonicalLoops).forEach((loop) => {
-        subflowInserts.push({
-          id: loop.id,
-          workflowId: workflowId,
-          type: SUBFLOW_TYPES.LOOP,
-          config: loop,
-        })
+    Object.values(canonicalLoops).forEach((loop) => {
+      subflowInserts.push({
+        id: loop.id,
+        workflowId: workflowId,
+        type: SUBFLOW_TYPES.LOOP,
+        config: loop,
       })
-
-      // Add parallels
-      Object.values(canonicalParallels).forEach((parallel) => {
-        subflowInserts.push({
-          id: parallel.id,
-          workflowId: workflowId,
-          type: SUBFLOW_TYPES.PARALLEL,
-          config: parallel,
-        })
-      })
-
-      if (subflowInserts.length > 0) {
-        await tx.insert(workflowSubflows).values(subflowInserts)
-      }
     })
 
+    Object.values(canonicalParallels).forEach((parallel) => {
+      subflowInserts.push({
+        id: parallel.id,
+        workflowId: workflowId,
+        type: SUBFLOW_TYPES.PARALLEL,
+        config: parallel,
+      })
+    })
+
+    if (subflowInserts.length > 0) {
+      await tx.insert(workflowSubflows).values(subflowInserts)
+    }
+  }
+
+  if (externalTx) {
+    await execute(externalTx)
+    return { success: true }
+  }
+
+  try {
+    await db.transaction(execute)
     return { success: true }
   } catch (error) {
     logger.error(`Error saving workflow ${workflowId} to normalized tables:`, error)
@@ -690,7 +690,7 @@ export async function deployWorkflow(params: {
         .where(eq(workflowDeploymentVersion.workflowId, workflowId))
 
       const nextVersion = Number(maxVersion) + 1
-      const deploymentVersionId = uuidv4()
+      const deploymentVersionId = generateId()
 
       // Deactivate all existing versions
       await tx
@@ -802,23 +802,23 @@ export function regenerateWorkflowStateIds(state: RegenerateStateInput): Regener
   // First pass: Create all ID mappings
   // Map block IDs
   Object.keys(state.blocks || {}).forEach((oldId) => {
-    blockIdMapping.set(oldId, crypto.randomUUID())
+    blockIdMapping.set(oldId, generateId())
   })
 
   // Map edge IDs
 
   ;(state.edges || []).forEach((edge: Edge) => {
-    edgeIdMapping.set(edge.id, crypto.randomUUID())
+    edgeIdMapping.set(edge.id, generateId())
   })
 
   // Map loop IDs
   Object.keys(state.loops || {}).forEach((oldId) => {
-    loopIdMapping.set(oldId, crypto.randomUUID())
+    loopIdMapping.set(oldId, generateId())
   })
 
   // Map parallel IDs
   Object.keys(state.parallels || {}).forEach((oldId) => {
-    parallelIdMapping.set(oldId, crypto.randomUUID())
+    parallelIdMapping.set(oldId, generateId())
   })
 
   // Second pass: Create new state with regenerated IDs and updated references

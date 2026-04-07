@@ -4,7 +4,8 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { getScopesForService } from '@/lib/oauth/utils'
+import { refreshAccessTokenIfNeeded, ServiceAccountTokenError } from '@/app/api/auth/oauth/utils'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GoogleDriveFilesAPI')
@@ -85,6 +86,7 @@ export async function GET(request: NextRequest) {
     const query = searchParams.get('query') || ''
     const folderId = searchParams.get('folderId') || searchParams.get('parentId') || ''
     const workflowId = searchParams.get('workflowId') || undefined
+    const impersonateEmail = searchParams.get('impersonateEmail') || undefined
 
     if (!credentialId) {
       logger.warn(`[${requestId}] Missing credential ID`)
@@ -100,7 +102,9 @@ export async function GET(request: NextRequest) {
     const accessToken = await refreshAccessTokenIfNeeded(
       credentialId!,
       authz.credentialOwnerUserId,
-      requestId
+      requestId,
+      getScopesForService('google-drive'),
+      impersonateEmail
     )
 
     if (!accessToken) {
@@ -175,6 +179,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ files }, { status: 200 })
   } catch (error) {
+    if (error instanceof ServiceAccountTokenError) {
+      logger.warn(`[${requestId}] Service account token error`, { message: error.message })
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     logger.error(`[${requestId}] Error fetching files from Google Drive`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

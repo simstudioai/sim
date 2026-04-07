@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@/lib/core/utils/uuid'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
@@ -29,7 +30,7 @@ export class MothershipBlockHandler implements BlockHandler {
       throw new Error('Prompt input is required')
     }
     const messages = [{ role: 'user' as const, content: prompt }]
-    const chatId = crypto.randomUUID()
+    const chatId = generateId()
 
     const url = buildAPIUrl('/api/mothership/execute')
     const headers = await buildAuthHeaders(ctx.userId)

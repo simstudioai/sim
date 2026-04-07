@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { SUPPORTED_CODE_EXTENSIONS } from '@/lib/uploads/utils/validation'
 import {
   useUpdateWorkspaceFileContent,
   useWorkspaceFileBinary,
@@ -14,6 +15,7 @@ import {
 } from '@/hooks/queries/workspace-files'
 import { useAutosave } from '@/hooks/use-autosave'
 import { useStreamingText } from '@/hooks/use-streaming-text'
+import { DataTable } from './data-table'
 import { PreviewPanel, resolvePreviewType } from './preview-panel'
 
 const logger = createLogger('FileViewer')
@@ -29,6 +31,16 @@ const TEXT_EDITABLE_MIME_TYPES = new Set([
   'application/x-yaml',
   'text/csv',
   'text/html',
+  'text/xml',
+  'application/xml',
+  'text/css',
+  'text/javascript',
+  'application/javascript',
+  'application/typescript',
+  'application/toml',
+  'text/x-python',
+  'text/x-sh',
+  'text/x-sql',
   'image/svg+xml',
 ])
 
@@ -42,6 +54,7 @@ const TEXT_EDITABLE_EXTENSIONS = new Set([
   'html',
   'htm',
   'svg',
+  ...SUPPORTED_CODE_EXTENSIONS,
 ])
 
 const IFRAME_PREVIEWABLE_MIME_TYPES = new Set(['application/pdf'])
@@ -55,11 +68,23 @@ const PPTX_PREVIEWABLE_MIME_TYPES = new Set([
 ])
 const PPTX_PREVIEWABLE_EXTENSIONS = new Set(['pptx'])
 
+const DOCX_PREVIEWABLE_MIME_TYPES = new Set([
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+])
+const DOCX_PREVIEWABLE_EXTENSIONS = new Set(['docx'])
+
+const XLSX_PREVIEWABLE_MIME_TYPES = new Set([
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+])
+const XLSX_PREVIEWABLE_EXTENSIONS = new Set(['xlsx'])
+
 type FileCategory =
   | 'text-editable'
   | 'iframe-previewable'
   | 'image-previewable'
   | 'pptx-previewable'
+  | 'docx-previewable'
+  | 'xlsx-previewable'
   | 'unsupported'
 
 function resolveFileCategory(mimeType: string | null, filename: string): FileCategory {
@@ -67,12 +92,17 @@ function resolveFileCategory(mimeType: string | null, filename: string): FileCat
   if (mimeType && IFRAME_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'iframe-previewable'
   if (mimeType && IMAGE_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'image-previewable'
   if (mimeType && PPTX_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'pptx-previewable'
+  if (mimeType && DOCX_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'docx-previewable'
+  if (mimeType && XLSX_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'xlsx-previewable'
 
   const ext = getFileExtension(filename)
-  if (TEXT_EDITABLE_EXTENSIONS.has(ext)) return 'text-editable'
+  const nameKey = ext || filename.toLowerCase()
+  if (TEXT_EDITABLE_EXTENSIONS.has(nameKey)) return 'text-editable'
   if (IFRAME_PREVIEWABLE_EXTENSIONS.has(ext)) return 'iframe-previewable'
   if (IMAGE_PREVIEWABLE_EXTENSIONS.has(ext)) return 'image-previewable'
   if (PPTX_PREVIEWABLE_EXTENSIONS.has(ext)) return 'pptx-previewable'
+  if (DOCX_PREVIEWABLE_EXTENSIONS.has(ext)) return 'docx-previewable'
+  if (XLSX_PREVIEWABLE_EXTENSIONS.has(ext)) return 'xlsx-previewable'
 
   return 'unsupported'
 }
@@ -140,6 +170,14 @@ export function FileViewer({
 
   if (category === 'pptx-previewable') {
     return <PptxPreview file={file} workspaceId={workspaceId} streamingContent={streamingContent} />
+  }
+
+  if (category === 'docx-previewable') {
+    return <DocxPreview file={file} workspaceId={workspaceId} />
+  }
+
+  if (category === 'xlsx-previewable') {
+    return <XlsxPreview file={file} workspaceId={workspaceId} />
   }
 
   return <UnsupportedPreview file={file} />
@@ -339,16 +377,7 @@ function TextEditor({
   }, [isStreaming, revealedContent])
 
   if (streamingContent === undefined) {
-    if (isLoading) {
-      return (
-        <div className='flex flex-1 flex-col gap-[8px] p-[24px]'>
-          <Skeleton className='h-[16px] w-[60%]' />
-          <Skeleton className='h-[16px] w-[80%]' />
-          <Skeleton className='h-[16px] w-[40%]' />
-          <Skeleton className='h-[16px] w-[70%]' />
-        </div>
-      )
-    }
+    if (isLoading) return DOCUMENT_SKELETON
 
     if (error) {
       return (
@@ -550,6 +579,29 @@ const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileR
     </div>
   )
 })
+
+function resolvePreviewError(fetchError: Error | null, renderError: string | null): string | null {
+  if (fetchError) return fetchError.message
+  return renderError
+}
+
+function PreviewError({ label, error }: { label: string; error: string }) {
+  return (
+    <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
+      <p className='font-medium text-[14px] text-[var(--text-body)]'>Failed to preview {label}</p>
+      <p className='text-[13px] text-[var(--text-muted)]'>{error}</p>
+    </div>
+  )
+}
+
+const DOCUMENT_SKELETON = (
+  <div className='flex flex-1 flex-col gap-[8px] p-[24px]'>
+    <Skeleton className='h-[16px] w-[60%]' />
+    <Skeleton className='h-[16px] w-[80%]' />
+    <Skeleton className='h-[16px] w-[40%]' />
+    <Skeleton className='h-[16px] w-[70%]' />
+  </div>
+)
 
 const pptxSlideCache = new Map<string, string[]>()
 
@@ -769,23 +821,10 @@ function PptxPreview({
     }
   }, [fileData, dataUpdatedAt, streamingContent, cacheKey, workspaceId])
 
-  const error = fetchError
-    ? fetchError instanceof Error
-      ? fetchError.message
-      : 'Failed to load file'
-    : renderError
+  const error = resolvePreviewError(fetchError, renderError)
   const loading = isFetching || rendering
 
-  if (error) {
-    return (
-      <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
-        <p className='font-medium text-[14px] text-[var(--text-body)]'>
-          Failed to preview presentation
-        </p>
-        <p className='text-[13px] text-[var(--text-muted)]'>{error}</p>
-      </div>
-    )
-  }
+  if (error) return <PreviewError label='presentation' error={error} />
 
   if (loading && slides.length === 0) {
     return (
@@ -825,6 +864,211 @@ function toggleMarkdownCheckbox(markdown: string, targetIndex: number, checked: 
     return `${prefix}[${checked ? 'x' : ' '}]`
   })
 }
+
+const DocxPreview = memo(function DocxPreview({
+  file,
+  workspaceId,
+}: {
+  file: WorkspaceFileRecord
+  workspaceId: string
+}) {
+  const {
+    data: fileData,
+    isLoading,
+    error: fetchError,
+  } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
+
+  const [html, setHtml] = useState<string | null>(null)
+  const [renderError, setRenderError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!fileData) return
+    const data = fileData
+
+    let cancelled = false
+
+    async function convert() {
+      try {
+        setRenderError(null)
+        const mammoth = await import('mammoth')
+        const result = await mammoth.convertToHtml({ arrayBuffer: data })
+        if (!cancelled) setHtml(result.value)
+      } catch (err) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : 'Failed to render document'
+          logger.error('DOCX render failed', { error: msg })
+          setRenderError(msg)
+        }
+      }
+    }
+
+    convert()
+    return () => {
+      cancelled = true
+    }
+  }, [fileData])
+
+  const error = resolvePreviewError(fetchError, renderError)
+  if (error) return <PreviewError label='document' error={error} />
+  if (isLoading || html === null) return DOCUMENT_SKELETON
+
+  return (
+    <div className='flex flex-1 overflow-hidden'>
+      <iframe
+        srcDoc={buildDocxPreviewHtml(html)}
+        sandbox=''
+        title={file.name}
+        className='h-full w-full border-0'
+      />
+    </div>
+  )
+})
+
+/** Wraps mammoth HTML output with base styles. Uses raw hex colors because iframes cannot inherit CSS variables from the parent document. */
+function buildDocxPreviewHtml(html: string): string {
+  return `<!DOCTYPE html><html><head><style>
+body { margin: 0; padding: 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; line-height: 1.6; color: #e4e4e7; background: transparent; }
+table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+td, th { border: 1px solid #3f3f46; padding: 6px 10px; }
+img { max-width: 100%; height: auto; }
+p { margin: 0 0 8px; }
+h1, h2, h3, h4, h5, h6 { margin: 16px 0 8px; }
+</style></head><body>${html}</body></html>`
+}
+
+const XLSX_MAX_ROWS = 1_000
+
+interface XlsxSheet {
+  name: string
+  headers: string[]
+  rows: string[][]
+  truncated: boolean
+}
+
+const XlsxPreview = memo(function XlsxPreview({
+  file,
+  workspaceId,
+}: {
+  file: WorkspaceFileRecord
+  workspaceId: string
+}) {
+  const {
+    data: fileData,
+    isLoading,
+    error: fetchError,
+  } = useWorkspaceFileBinary(workspaceId, file.id, file.key)
+
+  const [sheetNames, setSheetNames] = useState<string[]>([])
+  const [activeSheet, setActiveSheet] = useState(0)
+  const [currentSheet, setCurrentSheet] = useState<XlsxSheet | null>(null)
+  const [renderError, setRenderError] = useState<string | null>(null)
+  const workbookRef = useRef<import('xlsx').WorkBook | null>(null)
+
+  useEffect(() => {
+    if (!fileData) return
+    const data = fileData
+
+    let cancelled = false
+
+    async function parse() {
+      try {
+        setRenderError(null)
+        const XLSX = await import('xlsx')
+        const workbook = XLSX.read(new Uint8Array(data), { type: 'array' })
+        if (!cancelled) {
+          workbookRef.current = workbook
+          setSheetNames(workbook.SheetNames)
+          setActiveSheet(0)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : 'Failed to parse spreadsheet'
+          logger.error('XLSX parse failed', { error: msg })
+          setRenderError(msg)
+        }
+      }
+    }
+
+    parse()
+    return () => {
+      cancelled = true
+    }
+  }, [fileData])
+
+  useEffect(() => {
+    if (sheetNames.length === 0 || !workbookRef.current) return
+
+    let cancelled = false
+
+    async function parseSheet() {
+      try {
+        const XLSX = await import('xlsx')
+        const workbook = workbookRef.current!
+        const name = sheetNames[activeSheet]
+        const sheet = workbook.Sheets[name]
+        const allRows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 })
+        const headers = allRows[0] ?? []
+        const dataRows = allRows.slice(1)
+        const truncated = dataRows.length > XLSX_MAX_ROWS
+        if (!cancelled) {
+          setCurrentSheet({
+            name,
+            headers,
+            rows: truncated ? dataRows.slice(0, XLSX_MAX_ROWS) : dataRows,
+            truncated,
+          })
+        }
+      } catch (err) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : 'Failed to parse sheet'
+          logger.error('XLSX sheet parse failed', { error: msg })
+          setRenderError(msg)
+        }
+      }
+    }
+
+    parseSheet()
+    return () => {
+      cancelled = true
+    }
+  }, [sheetNames, activeSheet])
+
+  const error = resolvePreviewError(fetchError, renderError)
+  if (error) return <PreviewError label='spreadsheet' error={error} />
+  if (isLoading || currentSheet === null) return DOCUMENT_SKELETON
+
+  return (
+    <div className='flex flex-1 flex-col overflow-hidden'>
+      {sheetNames.length > 1 && (
+        <div className='flex shrink-0 gap-0 border-[var(--border)] border-b bg-[var(--surface-1)]'>
+          {sheetNames.map((name, i) => (
+            <button
+              key={name}
+              type='button'
+              onClick={() => setActiveSheet(i)}
+              className={cn(
+                'px-3 py-1.5 text-[12px] transition-colors',
+                i === activeSheet
+                  ? 'border-[var(--brand-secondary)] border-b-2 font-medium text-[var(--text-primary)]'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+              )}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className='flex-1 overflow-auto p-6'>
+        <DataTable headers={currentSheet.headers} rows={currentSheet.rows} />
+        {currentSheet.truncated && (
+          <p className='mt-3 text-center text-[12px] text-[var(--text-muted)]'>
+            Showing first {XLSX_MAX_ROWS.toLocaleString()} rows. Download the file to view all data.
+          </p>
+        )}
+      </div>
+    </div>
+  )
+})
 
 const UnsupportedPreview = memo(function UnsupportedPreview({
   file,

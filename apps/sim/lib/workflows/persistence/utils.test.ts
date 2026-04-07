@@ -985,7 +985,6 @@ describe('Database Helpers', () => {
         edges: loadedState!.edges,
         loops: {},
         parallels: {},
-        deploymentStatuses: {},
       }
 
       const mockTransaction = vi.fn().mockImplementation(async (callback) => {

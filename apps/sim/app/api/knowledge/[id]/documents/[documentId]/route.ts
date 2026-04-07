@@ -10,6 +10,7 @@ import {
   retryDocumentProcessing,
   updateDocument,
 } from '@/lib/knowledge/documents/service'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { checkDocumentAccess, checkDocumentWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('DocumentByIdAPI')
@@ -284,6 +285,14 @@ export async function DELETE(
       metadata: { fileName: accessCheck.document?.filename },
       request: req,
     })
+
+    const kbWorkspaceId = accessCheck.knowledgeBase?.workspaceId ?? ''
+    captureServerEvent(
+      userId,
+      'knowledge_base_document_deleted',
+      { knowledge_base_id: knowledgeBaseId, workspace_id: kbWorkspaceId },
+      kbWorkspaceId ? { groups: { workspace: kbWorkspaceId } } : undefined
+    )
 
     return NextResponse.json({
       success: true,

@@ -76,7 +76,7 @@ async function handleWebhookPost(
 
   const { body, rawBody } = parseResult
 
-  const challengeResponse = await handleProviderChallenges(body, request, requestId, path)
+  const challengeResponse = await handleProviderChallenges(body, request, requestId, path, rawBody)
   if (challengeResponse) {
     return challengeResponse
   }
@@ -87,7 +87,7 @@ async function handleWebhookPost(
   if (webhooksForPath.length === 0) {
     const verificationResponse = await handlePreLookupWebhookVerification(
       request.method,
-      body,
+      body as Record<string, unknown> | undefined,
       requestId,
       path
     )

@@ -113,13 +113,24 @@ app:
     # Google Vertex AI Configuration
     VERTEX_PROJECT: ""                                    # Google Cloud project ID for Vertex AI
     VERTEX_LOCATION: "us-central1"                        # Google Cloud region for Vertex AI (e.g., "us-central1")
-    
+
+    # Azure OpenAI Configuration (leave empty if not using Azure OpenAI)
+    AZURE_OPENAI_ENDPOINT: ""                             # Azure OpenAI service endpoint (e.g., https://your-resource.openai.azure.com)
+    AZURE_OPENAI_API_KEY: ""                              # Azure OpenAI API key
+    AZURE_OPENAI_API_VERSION: ""                          # Azure OpenAI API version (e.g., 2024-07-01-preview)
+
+    # Azure Anthropic Configuration (leave empty if not using Azure Anthropic via AI Foundry)
+    AZURE_ANTHROPIC_ENDPOINT: ""                          # Azure AI Foundry endpoint for Anthropic models
+    AZURE_ANTHROPIC_API_KEY: ""                           # Azure Anthropic API key
+    AZURE_ANTHROPIC_API_VERSION: ""                       # Azure Anthropic API version (e.g., 2023-06-01)
+
     # AI Provider API Keys (leave empty if not using)
     OPENAI_API_KEY: ""                                    # Primary OpenAI API key
     OPENAI_API_KEY_1: ""                                  # Additional OpenAI API key for load balancing
     OPENAI_API_KEY_2: ""                                  # Additional OpenAI API key for load balancing
     OPENAI_API_KEY_3: ""                                  # Additional OpenAI API key for load balancing
     MISTRAL_API_KEY: ""                                   # Mistral AI API key
+    FIREWORKS_API_KEY: ""                                 # Fireworks AI API key (for hosted model access)
     ANTHROPIC_API_KEY_1: ""                               # Primary Anthropic Claude API key
     ANTHROPIC_API_KEY_2: ""                               # Additional Anthropic API key for load balancing
     ANTHROPIC_API_KEY_3: ""                               # Additional Anthropic API key for load balancing
@@ -222,6 +233,18 @@ app:
     # Set to "true" AFTER running the SSO registration script
     SSO_ENABLED: ""                                       # Enable SSO authentication ("true" to enable)
     NEXT_PUBLIC_SSO_ENABLED: ""                           # Show SSO login button in UI ("true" to enable)
+
+    # AWS Bedrock Credential Mode
+    # Set to "true" when the deployment uses AWS default credential chain (IAM roles, instance
+    # profiles, ECS task roles, IRSA, etc.) instead of explicit access key/secret per workflow.
+    # When enabled, the AWS Access Key ID and Secret fields are hidden in the Agent block UI.
+    NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS: ""           # Set to "true" to hide Bedrock credential fields
+
+    # Azure Provider Credential Mode
+    # Set to "true" when AZURE_OPENAI_ENDPOINT/API_KEY (and/or AZURE_ANTHROPIC_*) are configured
+    # server-side. When enabled, the Azure endpoint, API key, and API version fields are hidden
+    # in the Agent block UI — users just pick an Azure model and run.
+    NEXT_PUBLIC_AZURE_CONFIGURED: ""                      # Set to "true" to hide Azure credential fields
 
     # AWS S3 Cloud Storage Configuration (optional - for file storage)
     # If configured, files will be stored in S3 instead of local storage

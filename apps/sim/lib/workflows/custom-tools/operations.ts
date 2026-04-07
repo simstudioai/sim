@@ -2,8 +2,8 @@ import { db } from '@sim/db'
 import { customTools } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, isNull, or } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateShortId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('CustomToolsOperations')
 
@@ -87,7 +87,7 @@ export async function upsertCustomTools(params: {
       }
 
       await tx.insert(customTools).values({
-        id: nanoid(),
+        id: generateShortId(),
         workspaceId,
         userId,
         title: tool.title,
@@ -154,6 +154,32 @@ export async function getCustomToolById(params: {
         eq(customTools.userId, userId)
       )
     )
+    .limit(1)
+  return legacyTool[0] || null
+}
+
+export async function getCustomToolByIdOrTitle(params: {
+  identifier: string
+  userId: string
+  workspaceId?: string
+}) {
+  const { identifier, userId, workspaceId } = params
+
+  const conditions = [or(eq(customTools.id, identifier), eq(customTools.title, identifier))]
+
+  if (workspaceId) {
+    const workspaceTool = await db
+      .select()
+      .from(customTools)
+      .where(and(eq(customTools.workspaceId, workspaceId), ...conditions))
+      .limit(1)
+    if (workspaceTool[0]) return workspaceTool[0]
+  }
+
+  const legacyTool = await db
+    .select()
+    .from(customTools)
+    .where(and(isNull(customTools.workspaceId), eq(customTools.userId, userId), ...conditions))
     .limit(1)
   return legacyTool[0] || null
 }

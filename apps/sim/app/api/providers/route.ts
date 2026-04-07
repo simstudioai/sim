@@ -6,7 +6,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
-import { refreshTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
+import {
+  getServiceAccountToken,
+  refreshTokenIfNeeded,
+  resolveOAuthAccountId,
+} from '@/app/api/auth/oauth/utils'
 import type { StreamingExecution } from '@/executor/types'
 import { executeProviderRequest } from '@/providers'
 
@@ -363,6 +367,14 @@ async function resolveVertexCredential(requestId: string, credentialId: string):
   const resolved = await resolveOAuthAccountId(credentialId)
   if (!resolved) {
     throw new Error(`Vertex AI credential not found: ${credentialId}`)
+  }
+
+  if (resolved.credentialType === 'service_account' && resolved.credentialId) {
+    const accessToken = await getServiceAccountToken(resolved.credentialId, [
+      'https://www.googleapis.com/auth/cloud-platform',
+    ])
+    logger.info(`[${requestId}] Successfully resolved Vertex AI service account credential`)
+    return accessToken
   }
 
   const credential = await db.query.account.findFirst({

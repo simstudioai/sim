@@ -14,7 +14,9 @@ import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import type { Socket } from 'socket.io-client'
 import { getEnv } from '@/lib/core/config/env'
+import { generateId } from '@/lib/core/utils/uuid'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
+import { useWorkflowRegistry as useWorkflowRegistryStore } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('SocketContext')
 
@@ -25,7 +27,7 @@ function getTabSessionId(): string {
 
   let tabSessionId = sessionStorage.getItem(TAB_SESSION_ID_KEY)
   if (!tabSessionId) {
-    tabSessionId = crypto.randomUUID()
+    tabSessionId = generateId()
     sessionStorage.setItem(TAB_SESSION_ID_KEY, tabSessionId)
   }
   return tabSessionId
@@ -89,6 +91,7 @@ interface SocketContextType {
   onSelectionUpdate: (handler: (data: any) => void) => void
   onWorkflowDeleted: (handler: (data: any) => void) => void
   onWorkflowReverted: (handler: (data: any) => void) => void
+  onWorkflowUpdated: (handler: (data: any) => void) => void
   onOperationConfirmed: (handler: (data: any) => void) => void
   onOperationFailed: (handler: (data: any) => void) => void
 }
@@ -117,6 +120,7 @@ const SocketContext = createContext<SocketContextType>({
   onSelectionUpdate: () => {},
   onWorkflowDeleted: () => {},
   onWorkflowReverted: () => {},
+  onWorkflowUpdated: () => {},
   onOperationConfirmed: () => {},
   onOperationFailed: () => {},
 })
@@ -154,6 +158,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     selectionUpdate?: (data: any) => void
     workflowDeleted?: (data: any) => void
     workflowReverted?: (data: any) => void
+    workflowUpdated?: (data: any) => void
     operationConfirmed?: (data: any) => void
     operationFailed?: (data: any) => void
   }>({})
@@ -161,6 +166,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const positionUpdateTimeouts = useRef<Map<string, number>>(new Map())
   const isRejoiningRef = useRef<boolean>(false)
   const pendingPositionUpdates = useRef<Map<string, any>>(new Map())
+  const deletedWorkflowIdRef = useRef<string | null>(null)
 
   const generateSocketToken = async (): Promise<string> => {
     const res = await fetch('/api/auth/socket-token', {
@@ -333,7 +339,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         socketInstance.on('join-workflow-success', ({ workflowId, presenceUsers }) => {
           isRejoiningRef.current = false
           // Ignore stale success responses from previous navigation
-          if (workflowId !== urlWorkflowIdRef.current) {
+          if (urlWorkflowIdRef.current && workflowId !== urlWorkflowIdRef.current) {
             logger.debug(`Ignoring stale join-workflow-success for ${workflowId}`)
             return
           }
@@ -366,6 +372,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
         socketInstance.on('workflow-deleted', (data) => {
           logger.warn(`Workflow ${data.workflowId} has been deleted`)
+          deletedWorkflowIdRef.current = data.workflowId
           setCurrentWorkflowId((current) => {
             if (current === data.workflowId) {
               setPresenceUsers([])
@@ -381,19 +388,22 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           eventHandlers.current.workflowReverted?.(data)
         })
 
+        socketInstance.on('workflow-updated', (data) => {
+          logger.info(`Workflow ${data.workflowId} has been updated externally`)
+          eventHandlers.current.workflowUpdated?.(data)
+        })
+
         const rehydrateWorkflowStores = async (workflowId: string, workflowState: any) => {
           const [
             { useOperationQueueStore },
             { useWorkflowRegistry },
             { useWorkflowStore },
             { useSubBlockStore },
-            { useWorkflowDiffStore },
           ] = await Promise.all([
             import('@/stores/operation-queue/store'),
             import('@/stores/workflows/registry/store'),
             import('@/stores/workflows/workflow/store'),
             import('@/stores/workflows/subblock/store'),
-            import('@/stores/workflow-diff/store'),
           ])
 
           const { activeWorkflowId } = useWorkflowRegistry.getState()
@@ -425,7 +435,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             loops: workflowState.loops || {},
             parallels: workflowState.parallels || {},
             lastSaved: workflowState.lastSaved || Date.now(),
-            deploymentStatuses: workflowState.deploymentStatuses || {},
           })
 
           useSubBlockStore.setState((state: any) => ({
@@ -493,7 +502,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           if (error?.type === 'SESSION_ERROR') {
             const workflowId = urlWorkflowIdRef.current
 
-            if (workflowId && !isRejoiningRef.current) {
+            if (
+              workflowId &&
+              !isRejoiningRef.current &&
+              deletedWorkflowIdRef.current !== workflowId
+            ) {
               isRejoiningRef.current = true
               logger.info(`Session expired, rejoining workflow: ${workflowId}`)
               socketInstance.emit('join-workflow', {
@@ -542,11 +555,27 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     }
   }, [user?.id, authFailed])
 
+  const hydrationPhase = useWorkflowRegistryStore((s) => s.hydration.phase)
+
   useEffect(() => {
-    if (!socket || !isConnected || !urlWorkflowId) return
+    if (!socket || !isConnected || !urlWorkflowId) {
+      if (!urlWorkflowId) {
+        deletedWorkflowIdRef.current = null
+      }
+      return
+    }
+
+    if (hydrationPhase === 'creating') return
 
     // Skip if already in the correct room
     if (currentWorkflowId === urlWorkflowId) return
+
+    // Prevent rejoining a workflow that was just deleted. The URL param may
+    // still reference the old workflow while router.push() propagates.
+    if (deletedWorkflowIdRef.current === urlWorkflowId) {
+      return
+    }
+    deletedWorkflowIdRef.current = null
 
     logger.info(
       `URL workflow changed from ${currentWorkflowId} to ${urlWorkflowId}, switching rooms`
@@ -562,7 +591,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       workflowId: urlWorkflowId,
       tabSessionId: getTabSessionId(),
     })
-  }, [socket, isConnected, urlWorkflowId, currentWorkflowId])
+  }, [socket, isConnected, urlWorkflowId, currentWorkflowId, hydrationPhase])
 
   const joinWorkflow = useCallback(
     (workflowId: string) => {
@@ -801,6 +830,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     eventHandlers.current.workflowReverted = handler
   }, [])
 
+  const onWorkflowUpdated = useCallback((handler: (data: any) => void) => {
+    eventHandlers.current.workflowUpdated = handler
+  }, [])
+
   const onOperationConfirmed = useCallback((handler: (data: any) => void) => {
     eventHandlers.current.operationConfirmed = handler
   }, [])
@@ -834,6 +867,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       onSelectionUpdate,
       onWorkflowDeleted,
       onWorkflowReverted,
+      onWorkflowUpdated,
       onOperationConfirmed,
       onOperationFailed,
     }),
@@ -861,6 +895,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       onSelectionUpdate,
       onWorkflowDeleted,
       onWorkflowReverted,
+      onWorkflowUpdated,
       onOperationConfirmed,
       onOperationFailed,
     ]

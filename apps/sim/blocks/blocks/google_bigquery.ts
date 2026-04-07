@@ -51,7 +51,6 @@ export const GoogleBigQueryBlock: BlockConfig = {
       placeholder: 'Enter credential ID',
       required: true,
     },
-
     {
       id: 'projectId',
       title: 'Project ID',

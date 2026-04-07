@@ -3,6 +3,7 @@ import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
 import type { NotionResponse } from '@/tools/notion/types'
+import { getTrigger } from '@/triggers'
 
 // Legacy block - hidden from toolbar
 export const NotionBlock: BlockConfig<NotionResponse> = {
@@ -436,7 +437,34 @@ export const NotionV2Block: BlockConfig<any> = {
   bgColor: '#181C1E',
   icon: NotionIcon,
   hideFromToolbar: false,
-  subBlocks: NotionBlock.subBlocks,
+  subBlocks: [
+    ...NotionBlock.subBlocks,
+
+    // Trigger subBlocks
+    ...getTrigger('notion_page_created').subBlocks,
+    ...getTrigger('notion_page_properties_updated').subBlocks,
+    ...getTrigger('notion_page_content_updated').subBlocks,
+    ...getTrigger('notion_page_deleted').subBlocks,
+    ...getTrigger('notion_database_created').subBlocks,
+    ...getTrigger('notion_database_schema_updated').subBlocks,
+    ...getTrigger('notion_database_deleted').subBlocks,
+    ...getTrigger('notion_comment_created').subBlocks,
+    ...getTrigger('notion_webhook').subBlocks,
+  ],
+  triggers: {
+    enabled: true,
+    available: [
+      'notion_page_created',
+      'notion_page_properties_updated',
+      'notion_page_content_updated',
+      'notion_page_deleted',
+      'notion_database_created',
+      'notion_database_schema_updated',
+      'notion_database_deleted',
+      'notion_comment_created',
+      'notion_webhook',
+    ],
+  },
   tools: {
     access: [
       'notion_read_v2',

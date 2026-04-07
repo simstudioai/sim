@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import {
   Badge,
   Button,
+  Code,
   Input,
   Label,
   Table,
@@ -24,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import Navbar from '@/app/(home)/components/navbar/navbar'
+import Navbar from '@/app/(landing)/components/navbar/navbar'
 import { useBrandConfig } from '@/ee/whitelabeling'
 import type { ResumeStatus } from '@/executor/types'
 
@@ -155,12 +156,52 @@ function getBlockNameFromSnapshot(
     const parsed = JSON.parse(executionSnapshot.snapshot)
     const workflowState = parsed?.workflow
     if (!workflowState?.blocks || !Array.isArray(workflowState.blocks)) return null
-    // Blocks are stored as an array of serialized blocks with id and metadata.name
     const block = workflowState.blocks.find((b: { id: string }) => b.id === blockId)
     return block?.metadata?.name || null
   } catch {
     return null
   }
+}
+
+function renderStructuredValuePreview(value: unknown) {
+  if (value === null || value === undefined) {
+    return <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>—</span>
+  }
+
+  if (typeof value === 'object') {
+    return (
+      <div style={{ minWidth: '220px' }}>
+        <Code.Viewer
+          code={JSON.stringify(value, null, 2)}
+          language='json'
+          wrapText
+          className='max-h-[220px]'
+        />
+      </div>
+    )
+  }
+
+  const stringValue = String(value)
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        maxWidth: '100%',
+        borderRadius: '6px',
+        border: '1px solid var(--border)',
+        background: 'var(--surface-5)',
+        padding: '4px 8px',
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+        fontFamily: 'var(--font-mono, monospace)',
+        fontSize: '12px',
+        lineHeight: '16px',
+        color: 'var(--text-primary)',
+      }}
+    >
+      {stringValue}
+    </div>
+  )
 }
 
 export default function ResumeExecutionPage({
@@ -874,8 +915,11 @@ export default function ResumeExecutionPage({
               <Tooltip.Trigger asChild>
                 <Button
                   variant='outline'
+                  size='sm'
                   onClick={refreshExecutionDetail}
                   disabled={refreshingExecution}
+                  className='gap-1.5 px-2.5'
+                  aria-label='Refresh execution details'
                 >
                   <RefreshCw
                     style={{
@@ -884,6 +928,7 @@ export default function ResumeExecutionPage({
                       animation: refreshingExecution ? 'spin 1s linear infinite' : undefined,
                     }}
                   />
+                  Refresh
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content>Refresh</Tooltip.Content>
@@ -1123,11 +1168,7 @@ export default function ResumeExecutionPage({
                                   <TableRow key={row.id}>
                                     <TableCell>{row.name}</TableCell>
                                     <TableCell>{row.type}</TableCell>
-                                    <TableCell>
-                                      <code style={{ fontSize: '12px' }}>
-                                        {formatStructureValue(row.value)}
-                                      </code>
-                                    </TableCell>
+                                    <TableCell>{renderStructuredValuePreview(row.value)}</TableCell>
                                   </TableRow>
                                 ))}
                               </TableBody>
@@ -1243,6 +1284,8 @@ export default function ResumeExecutionPage({
                               }}
                               placeholder='{"example": "value"}'
                               rows={6}
+                              spellCheck={false}
+                              className='min-h-[180px] border-[var(--border-1)] bg-[var(--surface-3)] font-mono text-[12px] leading-5'
                             />
                           </div>
                         </div>
@@ -1267,10 +1310,10 @@ export default function ResumeExecutionPage({
         {/* Footer */}
         <div
           style={{
-            marginTop: '32px',
-            padding: '16px',
+            maxWidth: '1200px',
+            margin: '24px auto 0',
+            padding: '0 24px 24px',
             textAlign: 'center',
-            borderTop: '1px solid var(--border)',
             fontSize: '13px',
             color: 'var(--text-muted)',
           }}

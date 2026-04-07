@@ -392,7 +392,6 @@ describe('Model Capabilities', () => {
       expect(supportsThinking('claude-sonnet-4-5')).toBe(true)
       expect(supportsThinking('claude-sonnet-4-0')).toBe(true)
       expect(supportsThinking('claude-haiku-4-5')).toBe(true)
-      expect(supportsThinking('gemini-3-pro-preview')).toBe(true)
       expect(supportsThinking('gemini-3-flash-preview')).toBe(true)
     })
 
@@ -511,7 +510,6 @@ describe('Model Capabilities', () => {
       expect(MODELS_WITH_THINKING).toContain('claude-sonnet-4-5')
       expect(MODELS_WITH_THINKING).toContain('claude-sonnet-4-0')
 
-      expect(MODELS_WITH_THINKING).toContain('gemini-3-pro-preview')
       expect(MODELS_WITH_THINKING).toContain('gemini-3-flash-preview')
 
       expect(MODELS_WITH_THINKING).toContain('claude-haiku-4-5')
@@ -523,7 +521,12 @@ describe('Model Capabilities', () => {
 
     it.concurrent('should have GPT-5 models in both reasoning effort and verbosity arrays', () => {
       const gpt5ModelsWithReasoningEffort = MODELS_WITH_REASONING_EFFORT.filter(
-        (m) => m.includes('gpt-5') && !m.includes('chat-latest') && !m.includes('gpt-5.4-pro')
+        (m) =>
+          m.includes('gpt-5') &&
+          !m.includes('chat-latest') &&
+          !m.includes('gpt-5.4-pro') &&
+          !m.includes('gpt-5.2-pro') &&
+          !m.includes('gpt-5-pro')
       )
       const gpt5ModelsWithVerbosity = MODELS_WITH_VERBOSITY.filter(
         (m) => m.includes('gpt-5') && !m.includes('chat-latest')
@@ -532,6 +535,12 @@ describe('Model Capabilities', () => {
 
       expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.4-pro')
       expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5.4-pro')
+
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.2-pro')
+      expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5.2-pro')
+
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5-pro')
+      expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5-pro')
 
       expect(MODELS_WITH_REASONING_EFFORT).toContain('o1')
       expect(MODELS_WITH_VERBOSITY).not.toContain('o1')
@@ -629,11 +638,6 @@ describe('Model Capabilities', () => {
     })
 
     it.concurrent('should return correct levels for Gemini 3 models', () => {
-      const proLevels = getThinkingLevelsForModel('gemini-3-pro-preview')
-      expect(proLevels).toBeDefined()
-      expect(proLevels).toContain('low')
-      expect(proLevels).toContain('high')
-
       const flashLevels = getThinkingLevelsForModel('gemini-3-flash-preview')
       expect(flashLevels).toBeDefined()
       expect(flashLevels).toContain('minimal')
@@ -660,6 +664,45 @@ describe('Model Capabilities', () => {
 
 describe('Max Output Tokens', () => {
   describe('getMaxOutputTokensForModel', () => {
+    it.concurrent('should return published max for OpenAI GPT-4o', () => {
+      expect(getMaxOutputTokensForModel('gpt-4o')).toBe(16384)
+    })
+
+    it.concurrent('should return published max for OpenAI GPT-5.1', () => {
+      expect(getMaxOutputTokensForModel('gpt-5.1')).toBe(128000)
+    })
+
+    it.concurrent('should return published max for OpenAI GPT-5 Chat', () => {
+      expect(getMaxOutputTokensForModel('gpt-5-chat-latest')).toBe(16384)
+    })
+
+    it.concurrent('should return published max for OpenAI o1', () => {
+      expect(getMaxOutputTokensForModel('o1')).toBe(100000)
+    })
+
+    it.concurrent('should return updated max for Claude Sonnet 4.6', () => {
+      expect(getMaxOutputTokensForModel('claude-sonnet-4-6')).toBe(64000)
+    })
+
+    it.concurrent('should return published max for Gemini 2.5 Pro', () => {
+      expect(getMaxOutputTokensForModel('gemini-2.5-pro')).toBe(65536)
+    })
+
+    it.concurrent('should return published max for Azure GPT-5.2', () => {
+      expect(getMaxOutputTokensForModel('azure/gpt-5.2')).toBe(128000)
+    })
+
+    it.concurrent('should return standard default for models without maxOutputTokens', () => {
+      expect(getMaxOutputTokensForModel('deepseek-reasoner')).toBe(4096)
+      expect(getMaxOutputTokensForModel('grok-4-latest')).toBe(4096)
+    })
+
+    it.concurrent('should return published max for Bedrock Claude Opus 4.1', () => {
+      expect(getMaxOutputTokensForModel('bedrock/anthropic.claude-opus-4-1-20250805-v1:0')).toBe(
+        64000
+      )
+    })
+
     it.concurrent('should return correct max for Claude Opus 4.6', () => {
       expect(getMaxOutputTokensForModel('claude-opus-4-6')).toBe(128000)
     })
@@ -669,11 +712,7 @@ describe('Max Output Tokens', () => {
     })
 
     it.concurrent('should return correct max for Claude Opus 4.1', () => {
-      expect(getMaxOutputTokensForModel('claude-opus-4-1')).toBe(64000)
-    })
-
-    it.concurrent('should return standard default for models without maxOutputTokens', () => {
-      expect(getMaxOutputTokensForModel('gpt-4o')).toBe(4096)
+      expect(getMaxOutputTokensForModel('claude-opus-4-1')).toBe(32000)
     })
 
     it.concurrent('should return standard default for unknown models', () => {

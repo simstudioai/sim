@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
   createTable,
   getWorkspaceTableLimits,
@@ -139,6 +140,20 @@ export async function POST(request: NextRequest) {
         initialRowCount: params.initialRowCount,
       },
       requestId
+    )
+
+    captureServerEvent(
+      authResult.userId,
+      'table_created',
+      {
+        table_id: table.id,
+        workspace_id: params.workspaceId,
+        column_count: params.schema.columns.length,
+      },
+      {
+        groups: { workspace: params.workspaceId },
+        setOnce: { first_table_created_at: new Date().toISOString() },
+      }
     )
 
     return NextResponse.json({

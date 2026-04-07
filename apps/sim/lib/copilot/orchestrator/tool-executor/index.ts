@@ -12,6 +12,7 @@ import type {
 import { routeExecution } from '@/lib/copilot/tools/server/router'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { getKnowledgeBaseById } from '@/lib/knowledge/service'
 import { validateMcpDomain } from '@/lib/mcp/domain-check'
@@ -929,7 +930,7 @@ async function generateOAuthLink(
   await db
     .insert(pendingCredentialDraft)
     .values({
-      id: crypto.randomUUID(),
+      id: generateId(),
       userId,
       workspaceId,
       providerId,
@@ -954,10 +955,10 @@ async function generateOAuthLink(
   const { headers: getHeaders } = await import('next/headers')
   const reqHeaders = await getHeaders()
 
-  const data = (await auth.api.oAuth2LinkAccount({
+  const data = await auth.api.oAuth2LinkAccount({
     body: { providerId, callbackURL },
     headers: reqHeaders,
-  })) as { url?: string; redirect?: boolean }
+  })
 
   if (!data?.url) {
     throw new Error('oAuth2LinkAccount did not return an authorization URL')

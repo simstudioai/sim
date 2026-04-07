@@ -17,6 +17,7 @@ import {
 } from '@a2a-js/sdk/client'
 import { createLogger } from '@sim/logger'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import { generateId } from '@/lib/core/utils/uuid'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { A2A_TERMINAL_STATES } from './constants'
 
@@ -201,7 +202,7 @@ export function createTextPart(text: string): Part {
 export function createUserMessage(text: string): Message {
   return {
     kind: 'message',
-    messageId: crypto.randomUUID(),
+    messageId: generateId(),
     role: 'user',
     parts: [{ kind: 'text', text }],
   }
@@ -210,7 +211,7 @@ export function createUserMessage(text: string): Message {
 export function createAgentMessage(text: string): Message {
   return {
     kind: 'message',
-    messageId: crypto.randomUUID(),
+    messageId: generateId(),
     role: 'agent',
     parts: [{ kind: 'text', text }],
   }
@@ -263,7 +264,7 @@ export interface ParsedSSEChunk {
   /** Final success flag if this chunk contains the final event */
   finalSuccess?: boolean
   /** Terminal task state if known */
-  terminalState?: 'completed' | 'failed' | 'canceled'
+  terminalState?: 'completed' | 'failed' | 'canceled' | 'input-required'
   /** Final artifacts if present on terminal event */
   finalArtifacts?: Artifact[]
   /** Whether this chunk indicates the stream is done */
@@ -324,6 +325,15 @@ export function parseWorkflowSSEChunk(chunk: string): ParsedSSEChunk {
         result.finalArtifacts = (parsed.data?.output?.artifacts as Artifact[] | undefined) || []
         result.finalSuccess = parsed.data?.success !== false
         result.terminalState = result.finalSuccess ? 'completed' : 'failed'
+        result.isDone = true
+      } else if (parsed.type === 'execution:paused') {
+        if (parsed.data?.output?.content) {
+          result.finalContent = parsed.data.output.content
+        } else if (parsed.data?.output) {
+          result.finalContent = JSON.stringify(parsed.data.output)
+        }
+        result.finalSuccess = true
+        result.terminalState = 'input-required'
         result.isDone = true
       } else if (parsed.type === 'execution:cancelled') {
         result.finalSuccess = false

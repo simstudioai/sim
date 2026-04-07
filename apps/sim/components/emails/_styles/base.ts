@@ -267,3 +267,24 @@ export const baseStyles = {
     margin: '8px 0',
   },
 }
+
+/** Styles for plain personal emails (no branding, no EmailLayout) */
+export const plainEmailStyles = {
+  body: {
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    backgroundColor: '#ffffff',
+    margin: '0',
+    padding: '0',
+  },
+  container: {
+    maxWidth: '560px',
+    margin: '40px auto',
+    padding: '0 24px',
+  },
+  p: {
+    fontSize: '15px',
+    lineHeight: '1.6',
+    color: '#1a1a1a',
+    margin: '0 0 16px',
+  },
+} as const

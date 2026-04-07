@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
@@ -193,7 +194,7 @@ export const POST = withMcpAuth<RouteParams>('write')(
           ? body.parameterSchema
           : await generateParameterSchemaForWorkflow(body.workflowId)
 
-      const toolId = crypto.randomUUID()
+      const toolId = generateId()
       const [tool] = await db
         .insert(workflowMcpTool)
         .values({

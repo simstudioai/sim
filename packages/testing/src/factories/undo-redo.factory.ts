@@ -1,4 +1,4 @@
-import { nanoid } from 'nanoid'
+import { shortId } from './id'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -137,7 +137,12 @@ interface OperationEntryOptions {
  * Creates a mock batch-add-blocks operation entry.
  */
 export function createAddBlockEntry(blockId: string, options: OperationEntryOptions = {}): any {
-  const { id = nanoid(8), workflowId = 'wf-1', userId = 'user-1', createdAt = Date.now() } = options
+  const {
+    id = shortId(8),
+    workflowId = 'wf-1',
+    userId = 'user-1',
+    createdAt = Date.now(),
+  } = options
   const timestamp = Date.now()
 
   const mockBlockSnapshot = {
@@ -151,7 +156,7 @@ export function createAddBlockEntry(blockId: string, options: OperationEntryOpti
     id,
     createdAt,
     operation: {
-      id: nanoid(8),
+      id: shortId(8),
       type: 'batch-add-blocks',
       timestamp,
       workflowId,
@@ -163,7 +168,7 @@ export function createAddBlockEntry(blockId: string, options: OperationEntryOpti
       },
     },
     inverse: {
-      id: nanoid(8),
+      id: shortId(8),
       type: 'batch-remove-blocks',
       timestamp,
       workflowId,
@@ -185,7 +190,12 @@ export function createRemoveBlockEntry(
   blockSnapshot: any = null,
   options: OperationEntryOptions = {}
 ): any {
-  const { id = nanoid(8), workflowId = 'wf-1', userId = 'user-1', createdAt = Date.now() } = options
+  const {
+    id = shortId(8),
+    workflowId = 'wf-1',
+    userId = 'user-1',
+    createdAt = Date.now(),
+  } = options
   const timestamp = Date.now()
 
   const snapshotToUse = blockSnapshot || {
@@ -199,7 +209,7 @@ export function createRemoveBlockEntry(
     id,
     createdAt,
     operation: {
-      id: nanoid(8),
+      id: shortId(8),
       type: 'batch-remove-blocks',
       timestamp,
       workflowId,
@@ -211,7 +221,7 @@ export function createRemoveBlockEntry(
       },
     },
     inverse: {
-      id: nanoid(8),
+      id: shortId(8),
       type: 'batch-add-blocks',
       timestamp,
       workflowId,
@@ -233,7 +243,12 @@ export function createAddEdgeEntry(
   edgeSnapshot: any = null,
   options: OperationEntryOptions = {}
 ): any {
-  const { id = nanoid(8), workflowId = 'wf-1', userId = 'user-1', createdAt = Date.now() } = options
+  const {
+    id = shortId(8),
+    workflowId = 'wf-1',
+    userId = 'user-1',
+    createdAt = Date.now(),
+  } = options
   const timestamp = Date.now()
 
   const snapshot = edgeSnapshot || { id: edgeId, source: 'block-1', target: 'block-2' }
@@ -242,7 +257,7 @@ export function createAddEdgeEntry(
     id,
     createdAt,
     operation: {
-      id: nanoid(8),
+      id: shortId(8),
       type: 'batch-add-edges',
       timestamp,
       workflowId,
@@ -250,7 +265,7 @@ export function createAddEdgeEntry(
       data: { edgeSnapshots: [snapshot] },
     },
     inverse: {
-      id: nanoid(8),
+      id: shortId(8),
       type: 'batch-remove-edges',
       timestamp,
       workflowId,
@@ -267,14 +282,19 @@ export function createBatchRemoveEdgesEntry(
   edgeSnapshots: any[],
   options: OperationEntryOptions = {}
 ): any {
-  const { id = nanoid(8), workflowId = 'wf-1', userId = 'user-1', createdAt = Date.now() } = options
+  const {
+    id = shortId(8),
+    workflowId = 'wf-1',
+    userId = 'user-1',
+    createdAt = Date.now(),
+  } = options
   const timestamp = Date.now()
 
   return {
     id,
     createdAt,
     operation: {
-      id: nanoid(8),
+      id: shortId(8),
       type: 'batch-remove-edges',
       timestamp,
       workflowId,
@@ -282,7 +302,7 @@ export function createBatchRemoveEdgesEntry(
       data: { edgeSnapshots },
     },
     inverse: {
-      id: nanoid(8),
+      id: shortId(8),
       type: 'batch-add-edges',
       timestamp,
       workflowId,
@@ -302,7 +322,7 @@ interface MoveBlockOptions extends OperationEntryOptions {
  */
 export function createMoveBlockEntry(blockId: string, options: MoveBlockOptions = {}): any {
   const {
-    id = nanoid(8),
+    id = shortId(8),
     workflowId = 'wf-1',
     userId = 'user-1',
     createdAt = Date.now(),
@@ -315,7 +335,7 @@ export function createMoveBlockEntry(blockId: string, options: MoveBlockOptions 
     id,
     createdAt,
     operation: {
-      id: nanoid(8),
+      id: shortId(8),
       type: 'batch-move-blocks',
       timestamp,
       workflowId,
@@ -323,7 +343,7 @@ export function createMoveBlockEntry(blockId: string, options: MoveBlockOptions 
       data: { moves: [{ blockId, before, after }] },
     },
     inverse: {
-      id: nanoid(8),
+      id: shortId(8),
       type: 'batch-move-blocks',
       timestamp,
       workflowId,
@@ -346,7 +366,7 @@ export function createUpdateParentEntry(
   } = {}
 ): any {
   const {
-    id = nanoid(8),
+    id = shortId(8),
     workflowId = 'wf-1',
     userId = 'user-1',
     createdAt = Date.now(),
@@ -361,7 +381,7 @@ export function createUpdateParentEntry(
     id,
     createdAt,
     operation: {
-      id: nanoid(8),
+      id: shortId(8),
       type: 'update-parent',
       timestamp,
       workflowId,
@@ -369,7 +389,7 @@ export function createUpdateParentEntry(
       data: { blockId, oldParentId, newParentId, oldPosition, newPosition },
     },
     inverse: {
-      id: nanoid(8),
+      id: shortId(8),
       type: 'update-parent',
       timestamp,
       workflowId,
@@ -401,7 +421,7 @@ interface BatchUpdateParentOptions extends OperationEntryOptions {
  */
 export function createBatchUpdateParentEntry(options: BatchUpdateParentOptions = {}): any {
   const {
-    id = nanoid(8),
+    id = shortId(8),
     workflowId = 'wf-1',
     userId = 'user-1',
     createdAt = Date.now(),
@@ -430,7 +450,7 @@ export function createBatchUpdateParentEntry(options: BatchUpdateParentOptions =
     id,
     createdAt,
     operation: {
-      id: nanoid(8),
+      id: shortId(8),
       type: 'batch-update-parent',
       timestamp,
       workflowId,
@@ -438,7 +458,7 @@ export function createBatchUpdateParentEntry(options: BatchUpdateParentOptions =
       data: { updates: processedUpdates },
     },
     inverse: {
-      id: nanoid(8),
+      id: shortId(8),
       type: 'batch-update-parent',
       timestamp,
       workflowId,

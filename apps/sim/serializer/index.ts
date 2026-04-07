@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
+import { generateId } from '@/lib/core/utils/uuid'
 import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import {
   buildCanonicalIndex,
@@ -9,7 +10,7 @@ import {
   isCanonicalPair,
   isNonEmptyValue,
   isSubBlockFeatureEnabled,
-  isSubBlockHiddenByHostedKey,
+  isSubBlockHidden,
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
@@ -49,7 +50,7 @@ function shouldSerializeSubBlock(
   canonicalModeOverrides?: CanonicalModeOverrides
 ): boolean {
   if (!isSubBlockFeatureEnabled(subBlockConfig)) return false
-  if (isSubBlockHiddenByHostedKey(subBlockConfig)) return false
+  if (isSubBlockHidden(subBlockConfig)) return false
 
   if (subBlockConfig.mode === 'trigger') {
     if (!isTriggerContext && !isTriggerCategory) return false
@@ -565,7 +566,7 @@ export class Serializer {
     // Deserialize connections
     workflow.connections.forEach((connection) => {
       edges.push({
-        id: crypto.randomUUID(),
+        id: generateId(),
         source: connection.source,
         target: connection.target,
         sourceHandle: connection.sourceHandle,

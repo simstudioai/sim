@@ -35,9 +35,8 @@ import {
   type OAuthProvider,
 } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
+import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal'
-import { ConnectCredentialModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/connect-credential-modal'
-import { OAuthRequiredModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/oauth-required-modal'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import type { ConnectorData, SyncLogData } from '@/hooks/queries/kb/connectors'
 import {
@@ -520,7 +519,8 @@ function ConnectorCard({
       )}
 
       {showOAuthModal && serviceId && providerId && !connector.credentialId && (
-        <ConnectCredentialModal
+        <OAuthModal
+          mode='connect'
           isOpen={showOAuthModal}
           onClose={() => {
             consumeOAuthReturnContext()
@@ -535,7 +535,8 @@ function ConnectorCard({
       )}
 
       {showOAuthModal && serviceId && providerId && connector.credentialId && (
-        <OAuthRequiredModal
+        <OAuthModal
+          mode='reauthorize'
           isOpen={showOAuthModal}
           onClose={() => {
             consumeOAuthReturnContext()

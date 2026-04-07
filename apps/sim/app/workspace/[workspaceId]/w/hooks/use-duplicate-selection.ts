@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getChildFolders, getFolderById } from '@/lib/folders/tree'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { useDuplicateFolderMutation } from '@/hooks/queries/folders'
@@ -90,7 +91,7 @@ export function useDuplicateSelection({ workspaceId, onSuccess }: UseDuplicateSe
             name: duplicateName,
             parentId: folder.parentId,
             color: folder.color,
-            newId: crypto.randomUUID(),
+            newId: generateId(),
           })
 
           if (result?.id) {
@@ -112,7 +113,7 @@ export function useDuplicateSelection({ workspaceId, onSuccess }: UseDuplicateSe
             description: workflow.description,
             color: getNextWorkflowColor(),
             folderId: workflow.folderId,
-            newId: crypto.randomUUID(),
+            newId: generateId(),
           })
 
           duplicatedWorkflowIds.push(result.id)

@@ -160,7 +160,12 @@ describe('OAuth Utils', () => {
 
   describe('refreshAccessTokenIfNeeded', () => {
     it('should return valid access token without refresh if not expired', async () => {
-      const mockCredentialRow = { type: 'oauth', accountId: 'account-id' }
+      const mockResolvedCredential = {
+        id: 'credential-id',
+        type: 'oauth',
+        accountId: 'account-id',
+        workspaceId: 'workspace-id',
+      }
       const mockAccountRow = {
         id: 'account-id',
         accessToken: 'valid-token',
@@ -169,7 +174,7 @@ describe('OAuth Utils', () => {
         providerId: 'google',
         userId: 'test-user-id',
       }
-      mockSelectChain([mockCredentialRow])
+      mockSelectChain([mockResolvedCredential])
       mockSelectChain([mockAccountRow])
 
       const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
@@ -179,7 +184,12 @@ describe('OAuth Utils', () => {
     })
 
     it('should refresh token when expired', async () => {
-      const mockCredentialRow = { type: 'oauth', accountId: 'account-id' }
+      const mockResolvedCredential = {
+        id: 'credential-id',
+        type: 'oauth',
+        accountId: 'account-id',
+        workspaceId: 'workspace-id',
+      }
       const mockAccountRow = {
         id: 'account-id',
         accessToken: 'expired-token',
@@ -188,7 +198,7 @@ describe('OAuth Utils', () => {
         providerId: 'google',
         userId: 'test-user-id',
       }
-      mockSelectChain([mockCredentialRow])
+      mockSelectChain([mockResolvedCredential])
       mockSelectChain([mockAccountRow])
       mockUpdateChain()
 
@@ -215,7 +225,12 @@ describe('OAuth Utils', () => {
     })
 
     it('should return null if refresh fails', async () => {
-      const mockCredentialRow = { type: 'oauth', accountId: 'account-id' }
+      const mockResolvedCredential = {
+        id: 'credential-id',
+        type: 'oauth',
+        accountId: 'account-id',
+        workspaceId: 'workspace-id',
+      }
       const mockAccountRow = {
         id: 'account-id',
         accessToken: 'expired-token',
@@ -224,7 +239,7 @@ describe('OAuth Utils', () => {
         providerId: 'google',
         userId: 'test-user-id',
       }
-      mockSelectChain([mockCredentialRow])
+      mockSelectChain([mockResolvedCredential])
       mockSelectChain([mockAccountRow])
 
       mockRefreshOAuthToken.mockResolvedValueOnce(null)

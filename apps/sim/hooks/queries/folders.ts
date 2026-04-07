@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
-import { folderKeys } from '@/hooks/queries/utils/folder-keys'
+import { type FolderQueryScope, folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import {
   createOptimisticMutationHandlers,
@@ -25,11 +26,16 @@ function mapFolder(folder: any): WorkflowFolder {
     sortOrder: folder.sortOrder,
     createdAt: new Date(folder.createdAt),
     updatedAt: new Date(folder.updatedAt),
+    archivedAt: folder.archivedAt ? new Date(folder.archivedAt) : null,
   }
 }
 
-async function fetchFolders(workspaceId: string, signal?: AbortSignal): Promise<WorkflowFolder[]> {
-  const response = await fetch(`/api/folders?workspaceId=${workspaceId}`, { signal })
+async function fetchFolders(
+  workspaceId: string,
+  scope: FolderQueryScope = 'active',
+  signal?: AbortSignal
+): Promise<WorkflowFolder[]> {
+  const response = await fetch(`/api/folders?workspaceId=${workspaceId}&scope=${scope}`, { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch folders')
@@ -39,10 +45,11 @@ async function fetchFolders(workspaceId: string, signal?: AbortSignal): Promise<
   return folders.map(mapFolder)
 }
 
-export function useFolders(workspaceId?: string) {
+export function useFolders(workspaceId?: string, options?: { scope?: FolderQueryScope }) {
+  const scope = options?.scope ?? 'active'
   return useQuery({
-    queryKey: folderKeys.list(workspaceId),
-    queryFn: ({ signal }) => fetchFolders(workspaceId as string, signal),
+    queryKey: folderKeys.list(workspaceId, scope),
+    queryFn: ({ signal }) => fetchFolders(workspaceId as string, scope, signal),
     enabled: Boolean(workspaceId),
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
@@ -52,7 +59,7 @@ export function useFolders(workspaceId?: string) {
 export function useFolderMap(workspaceId?: string) {
   return useQuery({
     queryKey: folderKeys.list(workspaceId),
-    queryFn: ({ signal }) => fetchFolders(workspaceId as string, signal),
+    queryFn: ({ signal }) => fetchFolders(workspaceId as string, 'active', signal),
     enabled: Boolean(workspaceId),
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
@@ -157,9 +164,10 @@ export function useCreateFolder() {
           ),
         createdAt: new Date(),
         updatedAt: new Date(),
+        archivedAt: null,
       }
     },
-    (variables) => variables.id ?? crypto.randomUUID()
+    (variables) => variables.id ?? generateId()
   )
 
   return useMutation({
@@ -222,7 +230,37 @@ export function useDeleteFolderMutation() {
       return response.json()
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: folderKeys.list(variables.workspaceId) })
+      queryClient.invalidateQueries({ queryKey: folderKeys.lists() })
+      return invalidateWorkflowLists(queryClient, variables.workspaceId, ['active', 'archived'])
+    },
+  })
+}
+
+interface RestoreFolderVariables {
+  workspaceId: string
+  folderId: string
+}
+
+export function useRestoreFolder() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ workspaceId, folderId }: RestoreFolderVariables) => {
+      const response = await fetch(`/api/folders/${folderId}/restore`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error.error || 'Failed to restore folder')
+      }
+
+      return response.json()
+    },
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({ queryKey: folderKeys.lists() })
       return invalidateWorkflowLists(queryClient, variables.workspaceId, ['active', 'archived'])
     },
   })
@@ -257,9 +295,10 @@ export function useDuplicateFolderMutation() {
         ),
         createdAt: new Date(),
         updatedAt: new Date(),
+        archivedAt: null,
       }
     },
-    (variables) => variables.newId ?? crypto.randomUUID()
+    (variables) => variables.newId ?? generateId()
   )
 
   return useMutation({

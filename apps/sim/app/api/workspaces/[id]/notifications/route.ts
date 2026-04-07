@@ -3,11 +3,12 @@ import { workflow, workspaceNotificationSubscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { generateId } from '@/lib/core/utils/uuid'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { MAX_EMAIL_RECIPIENTS, MAX_NOTIFICATIONS_PER_TYPE, MAX_WORKFLOW_IDS } from './constants'
 
@@ -231,7 +232,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const [subscription] = await db
       .insert(workspaceNotificationSubscription)
       .values({
-        id: uuidv4(),
+        id: generateId(),
         workspaceId,
         notificationType: data.notificationType,
         workflowIds: data.workflowIds,
@@ -255,6 +256,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       subscriptionId: subscription.id,
       type: data.notificationType,
     })
+
+    captureServerEvent(
+      session.user.id,
+      'notification_channel_created',
+      {
+        workspace_id: workspaceId,
+        notification_type: data.notificationType,
+        alert_rule: data.alertConfig?.rule ?? null,
+      },
+      { groups: { workspace: workspaceId } }
+    )
 
     recordAudit({
       workspaceId,

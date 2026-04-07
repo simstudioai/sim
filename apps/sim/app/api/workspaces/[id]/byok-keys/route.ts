@@ -2,13 +2,14 @@ import { db } from '@sim/db'
 import { workspaceBYOKKeys } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateShortId } from '@/lib/core/utils/uuid'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceBYOKKeysAPI')
@@ -185,7 +186,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const [newKey] = await db
       .insert(workspaceBYOKKeys)
       .values({
-        id: nanoid(),
+        id: generateShortId(),
         workspaceId,
         providerId,
         encryptedApiKey: encrypted,
@@ -200,6 +201,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       })
 
     logger.info(`[${requestId}] Created BYOK key for ${providerId} in workspace ${workspaceId}`)
+
+    captureServerEvent(
+      userId,
+      'byok_key_added',
+      { workspace_id: workspaceId, provider_id: providerId },
+      {
+        groups: { workspace: workspaceId },
+        setOnce: { first_byok_key_added_at: new Date().toISOString() },
+      }
+    )
 
     recordAudit({
       workspaceId,
@@ -271,6 +282,13 @@ export async function DELETE(
       )
 
     logger.info(`[${requestId}] Deleted BYOK key for ${providerId} from workspace ${workspaceId}`)
+
+    captureServerEvent(
+      userId,
+      'byok_key_removed',
+      { workspace_id: workspaceId, provider_id: providerId },
+      { groups: { workspace: workspaceId } }
+    )
 
     recordAudit({
       workspaceId,

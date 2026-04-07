@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getChildFolders, getFolderById } from '@/lib/folders/tree'
 import { useDuplicateFolderMutation } from '@/hooks/queries/folders'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
@@ -79,7 +80,7 @@ export function useDuplicateFolder({ workspaceId, folderIds, onSuccess }: UseDup
           name: duplicateName,
           parentId: folder.parentId,
           color: folder.color,
-          newId: crypto.randomUUID(),
+          newId: generateId(),
         })
         const newFolderId = result?.id
         if (newFolderId) {

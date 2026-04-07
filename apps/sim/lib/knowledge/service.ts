@@ -1,10 +1,10 @@
-import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { document, knowledgeBase, knowledgeConnector, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
 import { getPostgresErrorCode } from '@/lib/core/utils/pg-error'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
+import { generateId } from '@/lib/core/utils/uuid'
 import type {
   ChunkingConfig,
   CreateKnowledgeBaseData,
@@ -143,7 +143,7 @@ export async function createKnowledgeBase(
   data: CreateKnowledgeBaseData,
   requestId: string
 ): Promise<KnowledgeBaseWithCounts> {
-  const kbId = randomUUID()
+  const kbId = generateId()
   const now = new Date()
 
   const hasPermission = await getUserEntityPermissions(data.userId, 'workspace', data.workspaceId)

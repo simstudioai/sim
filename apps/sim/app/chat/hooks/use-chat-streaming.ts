@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
+import { generateId } from '@/lib/core/utils/uuid'
 import type { ChatFile, ChatMessage } from '@/app/chat/components/message/message'
 import { CHAT_ERROR_MESSAGES } from '@/app/chat/constants'
 
@@ -136,7 +137,7 @@ export function useChatStreaming() {
     let lastAudioPosition = 0
 
     const messageIdMap = new Map<string, string>()
-    const messageId = crypto.randomUUID()
+    const messageId = generateId()
 
     const UI_BATCH_MAX_MS = 50
     let uiDirty = false

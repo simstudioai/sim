@@ -8,8 +8,8 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, gte, inArray, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { generateId } from '@/lib/core/utils/uuid'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
 import {
   enqueueNotificationDeliveryDispatch,
@@ -150,7 +150,7 @@ async function checkWorkflowInactivity(
     .set({ lastAlertAt: new Date() })
     .where(eq(workspaceNotificationSubscription.id, subscription.id))
 
-  const deliveryId = uuidv4()
+  const deliveryId = generateId()
 
   await db.insert(workspaceNotificationDelivery).values({
     id: deliveryId,
@@ -164,7 +164,7 @@ async function checkWorkflowInactivity(
 
   const now = new Date().toISOString()
   const mockLog = {
-    id: `inactivity_log_${uuidv4()}`,
+    id: `inactivity_log_${generateId()}`,
     workflowId,
     executionId: `inactivity_${Date.now()}`,
     stateSnapshotId: '',

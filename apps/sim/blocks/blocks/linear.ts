@@ -8,8 +8,9 @@ import { getTrigger } from '@/triggers'
 
 export const LinearBlock: BlockConfig<LinearResponse> = {
   type: 'linear',
-  name: 'Linear',
+  name: 'Linear (Legacy)',
   description: 'Interact with Linear issues, projects, and more',
+  hideFromToolbar: true,
   authMode: AuthMode.OAuth,
   triggerAllowed: true,
   longDescription:
@@ -2540,6 +2541,65 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       'linear_customer_request_created',
       'linear_customer_request_updated',
       'linear_webhook',
+    ],
+  },
+}
+
+/**
+ * Linear V2 Block
+ *
+ * Uses automatic webhook registration via the Linear GraphQL API.
+ * Inherits all tool operations from the legacy block.
+ */
+export const LinearV2Block: BlockConfig<LinearResponse> = {
+  ...LinearBlock,
+  type: 'linear_v2',
+  name: 'Linear',
+  hideFromToolbar: false,
+  subBlocks: [
+    ...LinearBlock.subBlocks.filter(
+      (sb) =>
+        !sb.id?.startsWith('webhookUrlDisplay') &&
+        !sb.id?.startsWith('webhookSecret') &&
+        !sb.id?.startsWith('triggerSave') &&
+        !sb.id?.startsWith('triggerInstructions') &&
+        !sb.id?.startsWith('selectedTriggerId')
+    ),
+    // V2 Trigger SubBlocks
+    ...getTrigger('linear_issue_created_v2').subBlocks,
+    ...getTrigger('linear_issue_updated_v2').subBlocks,
+    ...getTrigger('linear_issue_removed_v2').subBlocks,
+    ...getTrigger('linear_comment_created_v2').subBlocks,
+    ...getTrigger('linear_comment_updated_v2').subBlocks,
+    ...getTrigger('linear_project_created_v2').subBlocks,
+    ...getTrigger('linear_project_updated_v2').subBlocks,
+    ...getTrigger('linear_cycle_created_v2').subBlocks,
+    ...getTrigger('linear_cycle_updated_v2').subBlocks,
+    ...getTrigger('linear_label_created_v2').subBlocks,
+    ...getTrigger('linear_label_updated_v2').subBlocks,
+    ...getTrigger('linear_project_update_created_v2').subBlocks,
+    ...getTrigger('linear_customer_request_created_v2').subBlocks,
+    ...getTrigger('linear_customer_request_updated_v2').subBlocks,
+    ...getTrigger('linear_webhook_v2').subBlocks,
+  ],
+  triggers: {
+    enabled: true,
+    available: [
+      'linear_issue_created_v2',
+      'linear_issue_updated_v2',
+      'linear_issue_removed_v2',
+      'linear_comment_created_v2',
+      'linear_comment_updated_v2',
+      'linear_project_created_v2',
+      'linear_project_updated_v2',
+      'linear_cycle_created_v2',
+      'linear_cycle_updated_v2',
+      'linear_label_created_v2',
+      'linear_label_updated_v2',
+      'linear_project_update_created_v2',
+      'linear_customer_request_created_v2',
+      'linear_customer_request_updated_v2',
+      'linear_webhook_v2',
     ],
   },
 }

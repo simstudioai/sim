@@ -19,39 +19,44 @@ import {
   ModalHeader,
   Tooltip,
 } from '@/components/emcn'
+import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { consumeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { getProviderIdFromServiceId, type OAuthProvider } from '@/lib/oauth'
+import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/components/connector-selector-field'
-import { ConnectCredentialModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/components/connect-credential-modal'
+import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
+import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
+import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { getDependsOnFields } from '@/blocks/utils'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfig, ConnectorConfigField } from '@/connectors/types'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
+import { useSubscriptionData } from '@/hooks/queries/subscription'
 import type { SelectorKey } from '@/hooks/selectors/types'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
-
-const SYNC_INTERVALS = [
-  { label: 'Every hour', value: 60 },
-  { label: 'Every 6 hours', value: 360 },
-  { label: 'Daily', value: 1440 },
-  { label: 'Weekly', value: 10080 },
-  { label: 'Manual only', value: 0 },
-] as const
 
 const CONNECTOR_ENTRIES = Object.entries(CONNECTOR_REGISTRY)
 
 interface AddConnectorModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  onConnectorTypeChange?: (connectorType: string | null) => void
   knowledgeBaseId: string
+  initialConnectorType?: string | null
 }
 
 type Step = 'select-type' | 'configure'
 
-export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddConnectorModalProps) {
-  const [step, setStep] = useState<Step>('select-type')
-  const [selectedType, setSelectedType] = useState<string | null>(null)
+export function AddConnectorModal({
+  open,
+  onOpenChange,
+  onConnectorTypeChange,
+  knowledgeBaseId,
+  initialConnectorType,
+}: AddConnectorModalProps) {
+  const [step, setStep] = useState<Step>(() => (initialConnectorType ? 'configure' : 'select-type'))
+  const [selectedType, setSelectedType] = useState<string | null>(initialConnectorType ?? null)
   const [sourceConfig, setSourceConfig] = useState<Record<string, string>>({})
   const [syncInterval, setSyncInterval] = useState(1440)
   const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null)
@@ -66,6 +71,10 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
 
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { mutate: createConnector, isPending: isCreating } = useCreateConnector()
+
+  const { data: subscriptionResponse } = useSubscriptionData({ enabled: isBillingEnabled })
+  const subscriptionAccess = getSubscriptionAccessState(subscriptionResponse?.data)
+  const hasMaxAccess = !isBillingEnabled || subscriptionAccess.hasUsableMaxAccess
 
   const connectorConfig = selectedType ? CONNECTOR_REGISTRY[selectedType] : null
   const isApiKeyMode = connectorConfig?.auth.mode === 'apiKey'
@@ -151,6 +160,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
     setError(null)
     setSearchTerm('')
     setStep('configure')
+    onConnectorTypeChange?.(type)
   }
 
   const handleFieldChange = useCallback(
@@ -286,7 +296,10 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
               <Button
                 variant='ghost'
                 className='mr-2 h-6 w-6 p-0'
-                onClick={() => setStep('select-type')}
+                onClick={() => {
+                  setStep('select-type')
+                  onConnectorTypeChange?.('')
+                }}
               >
                 <ArrowLeft className='h-4 w-4' />
               </Button>
@@ -516,8 +529,13 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
                     onValueChange={(val) => setSyncInterval(Number(val))}
                   >
                     {SYNC_INTERVALS.map((interval) => (
-                      <ButtonGroupItem key={interval.value} value={String(interval.value)}>
+                      <ButtonGroupItem
+                        key={interval.value}
+                        value={String(interval.value)}
+                        disabled={interval.requiresMax && !hasMaxAccess}
+                      >
                         {interval.label}
+                        {interval.requiresMax && !hasMaxAccess && <MaxBadge />}
                       </ButtonGroupItem>
                     ))}
                   </ButtonGroup>
@@ -553,7 +571,8 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
         connectorConfig &&
         connectorConfig.auth.mode === 'oauth' &&
         connectorProviderId && (
-          <ConnectCredentialModal
+          <OAuthModal
+            mode='connect'
             isOpen={showOAuthModal}
             onClose={() => {
               consumeOAuthReturnContext()
@@ -564,6 +583,7 @@ export function AddConnectorModal({ open, onOpenChange, knowledgeBaseId }: AddCo
             workspaceId={workspaceId}
             knowledgeBaseId={knowledgeBaseId}
             credentialCount={credentials.length}
+            connectorType={selectedType ?? undefined}
           />
         )}
     </>

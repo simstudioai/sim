@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { releasePendingChatStream } from '@/lib/copilot/chat-streaming'
 import { taskPubSub } from '@/lib/copilot/task-events'
+import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('MothershipChatStopAPI')
 
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
 
     if (hasContent || hasBlocks) {
       const assistantMessage: Record<string, unknown> = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         role: 'assistant' as const,
         content,
         timestamp: new Date().toISOString(),

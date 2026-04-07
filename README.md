@@ -269,6 +269,7 @@ Sim supports [vLLM](https://docs.vllm.ai/) for self-hosted models. Set `VLLM_BAS
 git clone https://github.com/simstudioai/sim.git
 cd sim
 bun install
+bun run prepare  # Set up pre-commit hooks
 ```
 
 2. Set up PostgreSQL with pgvector:
@@ -283,6 +284,11 @@ Or install manually via the [pgvector guide](https://github.com/pgvector/pgvecto
 
 ```bash
 cp apps/sim/.env.example apps/sim/.env
+# Create your secrets
+perl -i -pe "s/your_encryption_key/$(openssl rand -hex 32)/" apps/sim/.env
+perl -i -pe "s/your_internal_api_secret/$(openssl rand -hex 32)/" apps/sim/.env
+perl -i -pe "s/your_api_encryption_key/$(openssl rand -hex 32)/" apps/sim/.env
+# DB configs for migration
 cp packages/db/.env.example packages/db/.env
 # Edit both .env files to set DATABASE_URL="postgresql://postgres:your_password@localhost:5432/simstudio"
 ```
@@ -310,7 +316,7 @@ docker compose -f docker-compose.local.yml -f docker-compose.opencode.local.yml 
 4. Run migrations:
 
 ```bash
-cd packages/db && bunx drizzle-kit migrate --config=./drizzle.config.ts
+cd packages/db && bun run db:migrate
 ```
 
 5. Start development servers:

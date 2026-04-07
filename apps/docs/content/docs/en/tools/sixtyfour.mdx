@@ -1,0 +1,128 @@
+---
+title: Sixtyfour AI
+description: Enrich leads and companies with AI-powered research
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sixtyfour"
+  color="#000000"
+/>
+
+## Usage Instructions
+
+Find emails, phone numbers, and enrich lead or company data with contact information, social profiles, and detailed research using Sixtyfour AI.
+
+
+
+## Tools
+
+### `sixtyfour_find_phone`
+
+Find phone numbers for a lead using Sixtyfour AI.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sixtyfour API key |
+| `name` | string | Yes | Full name of the person |
+| `company` | string | No | Company name |
+| `linkedinUrl` | string | No | LinkedIn profile URL |
+| `domain` | string | No | Company website domain |
+| `email` | string | No | Email address |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Name of the person |
+| `company` | string | Company name |
+| `phone` | string | Phone number\(s\) found |
+| `linkedinUrl` | string | LinkedIn profile URL |
+
+### `sixtyfour_find_email`
+
+Find email addresses for a lead using Sixtyfour AI.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sixtyfour API key |
+| `name` | string | Yes | Full name of the person |
+| `company` | string | No | Company name |
+| `linkedinUrl` | string | No | LinkedIn profile URL |
+| `domain` | string | No | Company website domain |
+| `phone` | string | No | Phone number |
+| `title` | string | No | Job title |
+| `mode` | string | No | Email discovery mode: PROFESSIONAL \(default\) or PERSONAL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Name of the person |
+| `company` | string | Company name |
+| `title` | string | Job title |
+| `phone` | string | Phone number |
+| `linkedinUrl` | string | LinkedIn profile URL |
+| `emails` | json | Professional email addresses found |
+|   ↳ `address` | string | Email address |
+|   ↳ `status` | string | Validation status \(OK or UNKNOWN\) |
+|   ↳ `type` | string | Email type \(COMPANY or PERSONAL\) |
+| `personalEmails` | json | Personal email addresses found \(only in PERSONAL mode\) |
+|   ↳ `address` | string | Email address |
+|   ↳ `status` | string | Validation status \(OK or UNKNOWN\) |
+|   ↳ `type` | string | Email type \(COMPANY or PERSONAL\) |
+
+### `sixtyfour_enrich_lead`
+
+Enrich lead information with contact details, social profiles, and company data using Sixtyfour AI.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sixtyfour API key |
+| `leadInfo` | string | Yes | Lead information as JSON object with key-value pairs \(e.g. name, company, title, linkedin\) |
+| `struct` | string | Yes | Fields to collect as JSON object. Keys are field names, values are descriptions \(e.g. \{"email": "The individual\'s email address", "phone": "Phone number"\}\) |
+| `researchPlan` | string | No | Optional research plan to guide enrichment strategy |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `notes` | string | Research notes about the lead |
+| `structuredData` | json | Enriched lead data matching the requested struct fields |
+| `references` | json | Source URLs and descriptions used for enrichment |
+| `confidenceScore` | number | Quality score for the returned data \(0-10\) |
+
+### `sixtyfour_enrich_company`
+
+Enrich company data with additional information and find associated people using Sixtyfour AI.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sixtyfour API key |
+| `targetCompany` | string | Yes | Company data as JSON object \(e.g. \{"name": "Acme Inc", "domain": "acme.com"\}\) |
+| `struct` | string | Yes | Fields to collect as JSON object. Keys are field names, values are descriptions \(e.g. \{"website": "Company website URL", "num_employees": "Employee count"\}\) |
+| `findPeople` | boolean | No | Whether to find people associated with the company |
+| `fullOrgChart` | boolean | No | Whether to retrieve the full organizational chart |
+| `researchPlan` | string | No | Optional strategy describing how the agent should search for information |
+| `peopleFocusPrompt` | string | No | Description of people to find \(roles, responsibilities\) |
+| `leadStruct` | string | No | Custom schema for returned lead data as JSON object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `notes` | string | Research notes about the company |
+| `structuredData` | json | Enriched company data matching the requested struct fields |
+| `references` | json | Source URLs and descriptions used for enrichment |
+| `confidenceScore` | number | Quality score for the returned data \(0-10\) |
+
+

@@ -21,6 +21,7 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
   isEmailVerificationEnabled: false,
   isBillingEnabled: false,
   isOrganizationsEnabled: false,
+  isAccessControlEnabled: false,
 }))
 
 vi.mock('@/providers/utils', () => ({
@@ -108,6 +109,12 @@ vi.mock('@sim/db/schema', () => ({
     connectionStatus: 'connectionStatus',
     deletedAt: 'deletedAt',
   },
+}))
+
+const mockGetCustomToolById = vi.fn()
+
+vi.mock('@/lib/workflows/custom-tools/operations', () => ({
+  getCustomToolById: (...args: unknown[]) => mockGetCustomToolById(...args),
 }))
 
 setupGlobalFetchMock()
@@ -1957,49 +1964,22 @@ describe('AgentBlockHandler', () => {
       const staleInlineCode = 'return { title, content };'
       const dbCode = 'return { title, content, format };'
 
-      function mockFetchForCustomTool(toolId: string) {
-        mockFetch.mockImplementation((url: string) => {
-          if (typeof url === 'string' && url.includes('/api/tools/custom')) {
+      function mockDBForCustomTool(toolId: string) {
+        mockGetCustomToolById.mockImplementation(({ toolId: id }: { toolId: string }) => {
+          if (id === toolId) {
             return Promise.resolve({
-              ok: true,
-              headers: { get: () => null },
-              json: () =>
-                Promise.resolve({
-                  data: [
-                    {
-                      id: toolId,
-                      title: 'formatReport',
-                      schema: dbSchema,
-                      code: dbCode,
-                    },
-                  ],
-                }),
+              id: toolId,
+              title: 'formatReport',
+              schema: dbSchema,
+              code: dbCode,
             })
           }
-          return Promise.resolve({
-            ok: true,
-            headers: { get: () => null },
-            json: () => Promise.resolve({}),
-          })
+          return Promise.resolve(null)
         })
       }
 
-      function mockFetchFailure() {
-        mockFetch.mockImplementation((url: string) => {
-          if (typeof url === 'string' && url.includes('/api/tools/custom')) {
-            return Promise.resolve({
-              ok: false,
-              status: 500,
-              headers: { get: () => null },
-              json: () => Promise.resolve({}),
-            })
-          }
-          return Promise.resolve({
-            ok: true,
-            headers: { get: () => null },
-            json: () => Promise.resolve({}),
-          })
-        })
+      function mockDBFailure() {
+        mockGetCustomToolById.mockRejectedValue(new Error('DB connection failed'))
       }
 
       beforeEach(() => {
@@ -2008,11 +1988,13 @@ describe('AgentBlockHandler', () => {
           writable: true,
           configurable: true,
         })
+        mockGetCustomToolById.mockReset()
+        mockContext.userId = 'test-user'
       })
 
       it('should always fetch latest schema from DB when customToolId is present', async () => {
         const toolId = 'custom-tool-123'
-        mockFetchForCustomTool(toolId)
+        mockDBForCustomTool(toolId)
 
         const inputs = {
           model: 'gpt-4o',
@@ -2046,7 +2028,7 @@ describe('AgentBlockHandler', () => {
 
       it('should fetch from DB when customToolId has no inline schema', async () => {
         const toolId = 'custom-tool-123'
-        mockFetchForCustomTool(toolId)
+        mockDBForCustomTool(toolId)
 
         const inputs = {
           model: 'gpt-4o',
@@ -2075,7 +2057,7 @@ describe('AgentBlockHandler', () => {
       })
 
       it('should fall back to inline schema when DB fetch fails and inline exists', async () => {
-        mockFetchFailure()
+        mockDBFailure()
 
         const inputs = {
           model: 'gpt-4o',
@@ -2107,7 +2089,7 @@ describe('AgentBlockHandler', () => {
       })
 
       it('should return null when DB fetch fails and no inline schema exists', async () => {
-        mockFetchFailure()
+        mockDBFailure()
 
         const inputs = {
           model: 'gpt-4o',
@@ -2135,7 +2117,7 @@ describe('AgentBlockHandler', () => {
 
       it('should use DB schema when customToolId resolves', async () => {
         const toolId = 'custom-tool-123'
-        mockFetchForCustomTool(toolId)
+        mockDBForCustomTool(toolId)
 
         const inputs = {
           model: 'gpt-4o',
@@ -2185,10 +2167,7 @@ describe('AgentBlockHandler', () => {
 
         await handler.execute(mockContext, mockBlock, inputs)
 
-        const customToolFetches = mockFetch.mock.calls.filter(
-          (call: any[]) => typeof call[0] === 'string' && call[0].includes('/api/tools/custom')
-        )
-        expect(customToolFetches.length).toBe(0)
+        expect(mockGetCustomToolById).not.toHaveBeenCalled()
 
         expect(mockExecuteProviderRequest).toHaveBeenCalled()
         const providerCall = mockExecuteProviderRequest.mock.calls[0]
