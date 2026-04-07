@@ -78,9 +78,12 @@ describe('Salesforce webhook provider', () => {
     const { input } = await salesforceHandler.formatInput!({
       body: {
         eventType: 'created',
+        simEventType: 'after_insert',
         objectType: 'Lead',
         Id: '00Q1',
         Name: 'Test',
+        OwnerId: '005OWNER',
+        SystemModstamp: '2024-01-01T00:00:00.000Z',
       },
       headers: {},
       requestId: 't4',
@@ -89,8 +92,12 @@ describe('Salesforce webhook provider', () => {
     })
     const i = input as Record<string, unknown>
     expect(i.eventType).toBe('created')
+    expect(i.simEventType).toBe('after_insert')
     expect(i.objectType).toBe('Lead')
     expect(i.recordId).toBe('00Q1')
+    const rec = i.record as Record<string, unknown>
+    expect(rec.OwnerId).toBe('005OWNER')
+    expect(rec.SystemModstamp).toBe('2024-01-01T00:00:00.000Z')
   })
 
   it('extractIdempotencyId includes record id', () => {

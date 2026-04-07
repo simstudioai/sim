@@ -96,6 +96,11 @@ function pickRecordId(body: Record<string, unknown>, record: Record<string, unkn
   return id
 }
 
+function pickStr(record: Record<string, unknown>, key: string): string {
+  const v = record[key]
+  return typeof v === 'string' ? v : ''
+}
+
 export const salesforceHandler: WebhookProviderHandler = {
   verifyAuth({ request, requestId, providerConfig }: AuthContext): NextResponse | null {
     const secret = providerConfig.webhookSecret as string | undefined
@@ -157,6 +162,7 @@ export const salesforceHandler: WebhookProviderHandler = {
       (typeof body.eventType === 'string' && body.eventType) ||
       (typeof body.simEventType === 'string' && body.simEventType) ||
       ''
+    const simEventTypeRaw = typeof body.simEventType === 'string' ? body.simEventType : ''
 
     if (id === 'salesforce_webhook') {
       return {
@@ -165,6 +171,7 @@ export const salesforceHandler: WebhookProviderHandler = {
           objectType: objectType || '',
           recordId,
           timestamp,
+          simEventType: simEventTypeRaw,
           record: Object.keys(record).length > 0 ? record : body,
           payload: ctx.body,
         },
@@ -183,12 +190,15 @@ export const salesforceHandler: WebhookProviderHandler = {
           objectType: objectType || '',
           recordId,
           timestamp,
+          simEventType: simEventTypeRaw,
           record: {
             Id: typeof record.Id === 'string' ? record.Id : recordId,
             Name: typeof record.Name === 'string' ? record.Name : '',
             CreatedDate: typeof record.CreatedDate === 'string' ? record.CreatedDate : '',
             LastModifiedDate:
               typeof record.LastModifiedDate === 'string' ? record.LastModifiedDate : '',
+            OwnerId: pickStr(record, 'OwnerId'),
+            SystemModstamp: pickStr(record, 'SystemModstamp'),
           },
           changedFields: changedFields !== undefined ? changedFields : null,
           payload: ctx.body,
@@ -203,6 +213,7 @@ export const salesforceHandler: WebhookProviderHandler = {
           objectType: objectType || 'Opportunity',
           recordId,
           timestamp,
+          simEventType: simEventTypeRaw,
           record: {
             Id: typeof record.Id === 'string' ? record.Id : recordId,
             Name: typeof record.Name === 'string' ? record.Name : '',
@@ -210,6 +221,8 @@ export const salesforceHandler: WebhookProviderHandler = {
             Amount: record.Amount !== undefined ? String(record.Amount) : '',
             CloseDate: typeof record.CloseDate === 'string' ? record.CloseDate : '',
             Probability: record.Probability !== undefined ? String(record.Probability) : '',
+            AccountId: pickStr(record, 'AccountId'),
+            OwnerId: pickStr(record, 'OwnerId'),
           },
           previousStage:
             typeof body.previousStage === 'string'
@@ -235,12 +248,16 @@ export const salesforceHandler: WebhookProviderHandler = {
           objectType: objectType || 'Case',
           recordId,
           timestamp,
+          simEventType: simEventTypeRaw,
           record: {
             Id: typeof record.Id === 'string' ? record.Id : recordId,
             Subject: typeof record.Subject === 'string' ? record.Subject : '',
             Status: typeof record.Status === 'string' ? record.Status : '',
             Priority: typeof record.Priority === 'string' ? record.Priority : '',
             CaseNumber: typeof record.CaseNumber === 'string' ? record.CaseNumber : '',
+            AccountId: pickStr(record, 'AccountId'),
+            ContactId: pickStr(record, 'ContactId'),
+            OwnerId: pickStr(record, 'OwnerId'),
           },
           previousStatus:
             typeof body.previousStatus === 'string'
@@ -265,6 +282,7 @@ export const salesforceHandler: WebhookProviderHandler = {
         objectType: objectType || '',
         recordId,
         timestamp,
+        simEventType: simEventTypeRaw,
         record: Object.keys(record).length > 0 ? record : body,
         payload: ctx.body,
       },

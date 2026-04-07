@@ -194,8 +194,8 @@ export function buildLinearV2SubBlocks(options: {
 }
 
 /**
- * Shared user/actor output schema
- * Note: Linear webhooks only include id, name, and type in actor objects
+ * Shared user/actor output schema (Linear data-change webhook `actor` object).
+ * @see https://linear.app/developers/webhooks — actor may be a User, OauthClient, or Integration; `type` is mapped to `actorType` (TriggerOutput reserves nested `type` for field kinds).
  */
 export const userOutputs = {
   id: {
@@ -210,6 +210,14 @@ export const userOutputs = {
   actorType: {
     type: 'string',
     description: 'Actor type from Linear (e.g. user, OauthClient, Integration)',
+  },
+  email: {
+    type: 'string',
+    description: 'Actor email (present for user actors in Linear webhook payloads)',
+  },
+  url: {
+    type: 'string',
+    description: 'Actor profile URL in Linear (distinct from the top-level subject entity `url`)',
   },
 } as const
 
@@ -494,6 +502,10 @@ export function buildCommentOutputs(): Record<string, TriggerOutput> {
       body: {
         type: 'string',
         description: 'Comment body text',
+      },
+      edited: {
+        type: 'boolean',
+        description: 'Whether the comment body has been edited (Linear webhook payload field)',
       },
       url: {
         type: 'string',

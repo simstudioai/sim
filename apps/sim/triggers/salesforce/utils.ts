@@ -234,6 +234,12 @@ export function buildSalesforceRecordOutputs(): Record<string, TriggerOutput> {
       type: 'string',
       description: 'The type of event (e.g., created, updated, deleted)',
     },
+    /** Present when the Flow JSON body uses `simEventType` instead of or in addition to `eventType`. */
+    simEventType: {
+      type: 'string',
+      description:
+        'Optional alias from the payload (`simEventType`). Empty when only `eventType` is sent.',
+    },
     objectType: {
       type: 'string',
       description: 'Salesforce object type (e.g., Account, Contact, Lead)',
@@ -245,6 +251,14 @@ export function buildSalesforceRecordOutputs(): Record<string, TriggerOutput> {
       Name: { type: 'string', description: 'Record name' },
       CreatedDate: { type: 'string', description: 'Record creation date' },
       LastModifiedDate: { type: 'string', description: 'Last modification date' },
+      OwnerId: {
+        type: 'string',
+        description: 'Record owner ID (standard field when sent in the Flow body)',
+      },
+      SystemModstamp: {
+        type: 'string',
+        description: 'System modstamp from the record (ISO 8601) when included in the payload',
+      },
     },
     changedFields: { type: 'json', description: 'Fields that were changed (for update events)' },
     payload: { type: 'json', description: 'Full webhook payload' },
@@ -257,6 +271,11 @@ export function buildSalesforceRecordOutputs(): Record<string, TriggerOutput> {
 export function buildSalesforceOpportunityStageOutputs(): Record<string, TriggerOutput> {
   return {
     eventType: { type: 'string', description: 'The type of event' },
+    simEventType: {
+      type: 'string',
+      description:
+        'Optional alias from the payload (`simEventType`). Empty when only `eventType` is sent.',
+    },
     objectType: { type: 'string', description: 'Salesforce object type (Opportunity)' },
     recordId: { type: 'string', description: 'Opportunity ID' },
     timestamp: { type: 'string', description: 'When the event occurred (ISO 8601)' },
@@ -267,6 +286,8 @@ export function buildSalesforceOpportunityStageOutputs(): Record<string, Trigger
       Amount: { type: 'string', description: 'Deal amount' },
       CloseDate: { type: 'string', description: 'Expected close date' },
       Probability: { type: 'string', description: 'Win probability' },
+      AccountId: { type: 'string', description: 'Related Account ID (standard Opportunity field)' },
+      OwnerId: { type: 'string', description: 'Opportunity owner ID' },
     },
     previousStage: { type: 'string', description: 'Previous stage name' },
     newStage: { type: 'string', description: 'New stage name' },
@@ -280,6 +301,11 @@ export function buildSalesforceOpportunityStageOutputs(): Record<string, Trigger
 export function buildSalesforceCaseStatusOutputs(): Record<string, TriggerOutput> {
   return {
     eventType: { type: 'string', description: 'The type of event' },
+    simEventType: {
+      type: 'string',
+      description:
+        'Optional alias from the payload (`simEventType`). Empty when only `eventType` is sent.',
+    },
     objectType: { type: 'string', description: 'Salesforce object type (Case)' },
     recordId: { type: 'string', description: 'Case ID' },
     timestamp: { type: 'string', description: 'When the event occurred (ISO 8601)' },
@@ -289,6 +315,9 @@ export function buildSalesforceCaseStatusOutputs(): Record<string, TriggerOutput
       Status: { type: 'string', description: 'Current case status' },
       Priority: { type: 'string', description: 'Case priority' },
       CaseNumber: { type: 'string', description: 'Case number' },
+      AccountId: { type: 'string', description: 'Related Account ID' },
+      ContactId: { type: 'string', description: 'Related Contact ID' },
+      OwnerId: { type: 'string', description: 'Case owner ID' },
     },
     previousStatus: { type: 'string', description: 'Previous case status' },
     newStatus: { type: 'string', description: 'New case status' },
@@ -302,6 +331,11 @@ export function buildSalesforceCaseStatusOutputs(): Record<string, TriggerOutput
 export function buildSalesforceWebhookOutputs(): Record<string, TriggerOutput> {
   return {
     eventType: { type: 'string', description: 'The type of event' },
+    simEventType: {
+      type: 'string',
+      description:
+        'Optional alias from the payload (`simEventType`). Empty when only `eventType` is sent.',
+    },
     objectType: { type: 'string', description: 'Salesforce object type' },
     recordId: { type: 'string', description: 'ID of the affected record' },
     timestamp: { type: 'string', description: 'When the event occurred (ISO 8601)' },
