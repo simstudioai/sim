@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import { webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, or, sql } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import Parser from 'rss-parser'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import {
@@ -10,6 +9,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { generateShortId } from '@/lib/core/utils/uuid'
 import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
 const logger = createLogger('RssPollingService')
@@ -160,7 +160,7 @@ export async function pollRssWebhooks() {
 
     const enqueue = async (webhookData: (typeof activeWebhooks)[number]) => {
       const webhookId = webhookData.id
-      const requestId = nanoid()
+      const requestId = generateShortId()
 
       try {
         const config = webhookData.providerConfig as unknown as RssWebhookConfig

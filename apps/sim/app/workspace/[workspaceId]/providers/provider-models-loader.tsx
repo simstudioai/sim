@@ -2,8 +2,10 @@
 
 import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
+import { useParams } from 'next/navigation'
 import { useProviderModels } from '@/hooks/queries/providers'
 import {
+  updateFireworksProviderModels,
   updateOllamaProviderModels,
   updateOpenRouterProviderModels,
   updateVLLMProviderModels,
@@ -12,11 +14,11 @@ import { type ProviderName, useProvidersStore } from '@/stores/providers'
 
 const logger = createLogger('ProviderModelsLoader')
 
-function useSyncProvider(provider: ProviderName) {
+function useSyncProvider(provider: ProviderName, workspaceId?: string) {
   const setProviderModels = useProvidersStore((state) => state.setProviderModels)
   const setProviderLoading = useProvidersStore((state) => state.setProviderLoading)
   const setOpenRouterModelInfo = useProvidersStore((state) => state.setOpenRouterModelInfo)
-  const { data, isLoading, isFetching, error } = useProviderModels(provider)
+  const { data, isLoading, isFetching, error } = useProviderModels(provider, workspaceId)
 
   useEffect(() => {
     setProviderLoading(provider, isLoading || isFetching)
@@ -35,6 +37,8 @@ function useSyncProvider(provider: ProviderName) {
         if (data.modelInfo) {
           setOpenRouterModelInfo(data.modelInfo)
         }
+      } else if (provider === 'fireworks') {
+        void updateFireworksProviderModels(data.models)
       }
     } catch (syncError) {
       logger.warn(`Failed to sync provider definitions for ${provider}`, syncError as Error)
@@ -51,9 +55,13 @@ function useSyncProvider(provider: ProviderName) {
 }
 
 export function ProviderModelsLoader() {
+  const params = useParams()
+  const workspaceId = params?.workspaceId as string | undefined
+
   useSyncProvider('base')
   useSyncProvider('ollama')
   useSyncProvider('vllm')
   useSyncProvider('openrouter')
+  useSyncProvider('fireworks', workspaceId)
   return null
 }

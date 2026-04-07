@@ -1,24 +1,35 @@
 import { db } from '@sim/db'
 import { permissions, workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, inArray, isNull, min } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, min, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId } from '@/lib/core/utils/uuid'
+import { captureServerEvent } from '@/lib/posthog/server'
+import { getNextWorkflowColor } from '@/lib/workflows/colors'
+import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
+import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { deduplicateWorkflowName, listWorkflows, type WorkflowScope } from '@/lib/workflows/utils'
 import { getUserEntityPermissions, workspaceExists } from '@/lib/workspaces/permissions/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
 const logger = createLogger('WorkflowAPI')
 
 const CreateWorkflowSchema = z.object({
+  id: z.string().uuid().optional(),
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional().default(''),
-  color: z.string().optional().default('#3972F6'),
+  color: z
+    .string()
+    .optional()
+    .transform((c) => c || getNextWorkflowColor()),
   workspaceId: z.string().optional(),
   folderId: z.string().nullable().optional(),
   sortOrder: z.number().int().optional(),
+  deduplicate: z.boolean().optional(),
 })
 
 // GET /api/workflows - Get workflows for user (optionally filtered by workspaceId)
@@ -27,6 +38,7 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now()
   const url = new URL(request.url)
   const workspaceId = url.searchParams.get('workspaceId')
+  const scope = (url.searchParams.get('scope') ?? 'active') as WorkflowScope
 
   try {
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
@@ -62,16 +74,16 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    if (!['active', 'archived', 'all'].includes(scope)) {
+      return NextResponse.json({ error: 'Invalid scope' }, { status: 400 })
+    }
+
     let workflows
 
     const orderByClause = [asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id)]
 
     if (workspaceId) {
-      workflows = await db
-        .select()
-        .from(workflow)
-        .where(eq(workflow.workspaceId, workspaceId))
-        .orderBy(...orderByClause)
+      workflows = await listWorkflows(workspaceId, { scope })
     } else {
       const workspacePermissionRows = await db
         .select({ workspaceId: permissions.entityId })
@@ -84,7 +96,16 @@ export async function GET(request: NextRequest) {
       workflows = await db
         .select()
         .from(workflow)
-        .where(inArray(workflow.workspaceId, workspaceIds))
+        .where(
+          scope === 'all'
+            ? inArray(workflow.workspaceId, workspaceIds)
+            : scope === 'archived'
+              ? and(
+                  inArray(workflow.workspaceId, workspaceIds),
+                  sql`${workflow.archivedAt} IS NOT NULL`
+                )
+              : and(inArray(workflow.workspaceId, workspaceIds), isNull(workflow.archivedAt))
+        )
         .orderBy(...orderByClause)
     }
 
@@ -109,12 +130,14 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const {
-      name,
+      id: clientId,
+      name: requestedName,
       description,
       color,
       workspaceId,
       folderId,
       sortOrder: providedSortOrder,
+      deduplicate,
     } = CreateWorkflowSchema.parse(body)
 
     if (!workspaceId) {
@@ -140,23 +163,10 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const workflowId = crypto.randomUUID()
+    const workflowId = clientId || generateId()
     const now = new Date()
 
     logger.info(`[${requestId}] Creating workflow ${workflowId} for user ${userId}`)
-
-    import('@/lib/core/telemetry')
-      .then(({ PlatformEvents }) => {
-        PlatformEvents.workflowCreated({
-          workflowId,
-          name,
-          workspaceId: workspaceId || undefined,
-          folderId: folderId || undefined,
-        })
-      })
-      .catch(() => {
-        // Silently fail
-      })
 
     let sortOrder: number
     if (providedSortOrder !== undefined) {
@@ -173,7 +183,13 @@ export async function POST(req: NextRequest) {
         db
           .select({ minOrder: min(workflow.sortOrder) })
           .from(workflow)
-          .where(and(eq(workflow.workspaceId, workspaceId), workflowParentCondition)),
+          .where(
+            and(
+              eq(workflow.workspaceId, workspaceId),
+              workflowParentCondition,
+              isNull(workflow.archivedAt)
+            )
+          ),
         db
           .select({ minOrder: min(workflowFolder.sortOrder) })
           .from(workflowFolder)
@@ -191,24 +207,84 @@ export async function POST(req: NextRequest) {
       sortOrder = minSortOrder != null ? minSortOrder - 1 : 0
     }
 
-    await db.insert(workflow).values({
-      id: workflowId,
-      userId,
-      workspaceId,
-      folderId: folderId || null,
-      sortOrder,
-      name,
-      description,
-      color,
-      lastSynced: now,
-      createdAt: now,
-      updatedAt: now,
-      isDeployed: false,
-      runCount: 0,
-      variables: {},
+    let name = requestedName
+
+    if (deduplicate) {
+      name = await deduplicateWorkflowName(requestedName, workspaceId, folderId)
+    } else {
+      const duplicateConditions = [
+        eq(workflow.workspaceId, workspaceId),
+        isNull(workflow.archivedAt),
+        eq(workflow.name, requestedName),
+      ]
+
+      if (folderId) {
+        duplicateConditions.push(eq(workflow.folderId, folderId))
+      } else {
+        duplicateConditions.push(isNull(workflow.folderId))
+      }
+
+      const [duplicateWorkflow] = await db
+        .select({ id: workflow.id })
+        .from(workflow)
+        .where(and(...duplicateConditions))
+        .limit(1)
+
+      if (duplicateWorkflow) {
+        return NextResponse.json(
+          { error: `A workflow named "${requestedName}" already exists in this folder` },
+          { status: 409 }
+        )
+      }
+    }
+
+    import('@/lib/core/telemetry')
+      .then(({ PlatformEvents }) => {
+        PlatformEvents.workflowCreated({
+          workflowId,
+          name,
+          workspaceId: workspaceId || undefined,
+          folderId: folderId || undefined,
+        })
+      })
+      .catch(() => {
+        // Silently fail
+      })
+
+    const { workflowState, subBlockValues, startBlockId } = buildDefaultWorkflowArtifacts()
+
+    await db.transaction(async (tx) => {
+      await tx.insert(workflow).values({
+        id: workflowId,
+        userId,
+        workspaceId,
+        folderId: folderId || null,
+        sortOrder,
+        name,
+        description,
+        color,
+        lastSynced: now,
+        createdAt: now,
+        updatedAt: now,
+        isDeployed: false,
+        runCount: 0,
+        variables: {},
+      })
+
+      await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
     })
 
-    logger.info(`[${requestId}] Successfully created empty workflow ${workflowId}`)
+    logger.info(`[${requestId}] Successfully created workflow ${workflowId} with default blocks`)
+
+    captureServerEvent(
+      userId,
+      'workflow_created',
+      { workflow_id: workflowId, workspace_id: workspaceId ?? '', name },
+      {
+        groups: workspaceId ? { workspace: workspaceId } : undefined,
+        setOnce: { first_workflow_created_at: new Date().toISOString() },
+      }
+    )
 
     recordAudit({
       workspaceId,
@@ -234,6 +310,8 @@ export async function POST(req: NextRequest) {
       sortOrder,
       createdAt: now,
       updatedAt: now,
+      startBlockId,
+      subBlockValues,
     })
   } catch (error) {
     if (error instanceof z.ZodError) {

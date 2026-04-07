@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import {
   db,
   workflow,
@@ -12,8 +11,10 @@ import { createLogger } from '@sim/logger'
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
-import { v4 as uuidv4 } from 'uuid'
+import { generateId } from '@/lib/core/utils/uuid'
 import type { DbOrTx } from '@/lib/db/types'
+import { getActiveWorkflowContext } from '@/lib/workflows/active-context'
+import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import {
   backfillCanonicalModes,
   migrateSubblockIds,
@@ -109,12 +110,8 @@ export async function loadDeployedWorkflowState(
 
     let resolvedWorkspaceId = providedWorkspaceId
     if (!resolvedWorkspaceId) {
-      const [wfRow] = await db
-        .select({ workspaceId: workflow.workspaceId })
-        .from(workflow)
-        .where(eq(workflow.id, workflowId))
-        .limit(1)
-      resolvedWorkspaceId = wfRow?.workspaceId ?? undefined
+      const workflowContext = await getActiveWorkflowContext(workflowId)
+      resolvedWorkspaceId = workflowContext?.workspaceId
     }
 
     if (!resolvedWorkspaceId) {
@@ -533,88 +530,89 @@ export async function loadWorkflowFromNormalizedTables(
  */
 export async function saveWorkflowToNormalizedTables(
   workflowId: string,
-  state: WorkflowState
+  state: WorkflowState,
+  externalTx?: DbOrTx
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    const blockRecords = state.blocks as Record<string, BlockState>
-    const canonicalLoops = generateLoopBlocks(blockRecords)
-    const canonicalParallels = generateParallelBlocks(blockRecords)
+  const blockRecords = state.blocks as Record<string, BlockState>
+  const canonicalLoops = generateLoopBlocks(blockRecords)
+  const canonicalParallels = generateParallelBlocks(blockRecords)
 
-    // Start a transaction
-    await db.transaction(async (tx) => {
-      await Promise.all([
-        tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
-        tx.delete(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)),
-        tx.delete(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId)),
-      ])
+  const execute = async (tx: DbOrTx) => {
+    await Promise.all([
+      tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
+      tx.delete(workflowEdges).where(eq(workflowEdges.workflowId, workflowId)),
+      tx.delete(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId)),
+    ])
 
-      // Insert blocks
-      if (Object.keys(state.blocks).length > 0) {
-        const blockInserts = Object.values(state.blocks).map((block) => ({
-          id: block.id,
-          workflowId: workflowId,
-          type: block.type,
-          name: block.name || '',
-          positionX: String(block.position?.x || 0),
-          positionY: String(block.position?.y || 0),
-          enabled: block.enabled ?? true,
-          horizontalHandles: block.horizontalHandles ?? true,
-          advancedMode: block.advancedMode ?? false,
-          triggerMode: block.triggerMode ?? false,
-          height: String(block.height || 0),
-          subBlocks: block.subBlocks || {},
-          outputs: block.outputs || {},
-          data: block.data || {},
-          parentId: block.data?.parentId || null,
-          extent: block.data?.extent || null,
-          locked: block.locked ?? false,
-        }))
+    if (Object.keys(state.blocks).length > 0) {
+      const blockInserts = Object.values(state.blocks).map((block) => ({
+        id: block.id,
+        workflowId: workflowId,
+        type: block.type,
+        name: block.name || '',
+        positionX: String(block.position?.x || 0),
+        positionY: String(block.position?.y || 0),
+        enabled: block.enabled ?? true,
+        horizontalHandles: block.horizontalHandles ?? true,
+        advancedMode: block.advancedMode ?? false,
+        triggerMode: block.triggerMode ?? false,
+        height: String(block.height || 0),
+        subBlocks: block.subBlocks || {},
+        outputs: block.outputs || {},
+        data: block.data || {},
+        parentId: block.data?.parentId || null,
+        extent: block.data?.extent || null,
+        locked: block.locked ?? false,
+      }))
 
-        await tx.insert(workflowBlocks).values(blockInserts)
-      }
+      await tx.insert(workflowBlocks).values(blockInserts)
+    }
 
-      // Insert edges
-      if (state.edges.length > 0) {
-        const edgeInserts = state.edges.map((edge) => ({
-          id: edge.id,
-          workflowId: workflowId,
-          sourceBlockId: edge.source,
-          targetBlockId: edge.target,
-          sourceHandle: edge.sourceHandle || null,
-          targetHandle: edge.targetHandle || null,
-        }))
+    if (state.edges.length > 0) {
+      const edgeInserts = state.edges.map((edge) => ({
+        id: edge.id,
+        workflowId: workflowId,
+        sourceBlockId: edge.source,
+        targetBlockId: edge.target,
+        sourceHandle: edge.sourceHandle || null,
+        targetHandle: edge.targetHandle || null,
+      }))
 
-        await tx.insert(workflowEdges).values(edgeInserts)
-      }
+      await tx.insert(workflowEdges).values(edgeInserts)
+    }
 
-      // Insert subflows (loops and parallels)
-      const subflowInserts: SubflowInsert[] = []
+    const subflowInserts: SubflowInsert[] = []
 
-      // Add loops
-      Object.values(canonicalLoops).forEach((loop) => {
-        subflowInserts.push({
-          id: loop.id,
-          workflowId: workflowId,
-          type: SUBFLOW_TYPES.LOOP,
-          config: loop,
-        })
+    Object.values(canonicalLoops).forEach((loop) => {
+      subflowInserts.push({
+        id: loop.id,
+        workflowId: workflowId,
+        type: SUBFLOW_TYPES.LOOP,
+        config: loop,
       })
-
-      // Add parallels
-      Object.values(canonicalParallels).forEach((parallel) => {
-        subflowInserts.push({
-          id: parallel.id,
-          workflowId: workflowId,
-          type: SUBFLOW_TYPES.PARALLEL,
-          config: parallel,
-        })
-      })
-
-      if (subflowInserts.length > 0) {
-        await tx.insert(workflowSubflows).values(subflowInserts)
-      }
     })
 
+    Object.values(canonicalParallels).forEach((parallel) => {
+      subflowInserts.push({
+        id: parallel.id,
+        workflowId: workflowId,
+        type: SUBFLOW_TYPES.PARALLEL,
+        config: parallel,
+      })
+    })
+
+    if (subflowInserts.length > 0) {
+      await tx.insert(workflowSubflows).values(subflowInserts)
+    }
+  }
+
+  if (externalTx) {
+    await execute(externalTx)
+    return { success: true }
+  }
+
+  try {
+    await db.transaction(execute)
     return { success: true }
   } catch (error) {
     logger.error(`Error saving workflow ${workflowId} to normalized tables:`, error)
@@ -692,7 +690,7 @@ export async function deployWorkflow(params: {
         .where(eq(workflowDeploymentVersion.workflowId, workflowId))
 
       const nextVersion = Number(maxVersion) + 1
-      const deploymentVersionId = uuidv4()
+      const deploymentVersionId = generateId()
 
       // Deactivate all existing versions
       await tx
@@ -804,23 +802,23 @@ export function regenerateWorkflowStateIds(state: RegenerateStateInput): Regener
   // First pass: Create all ID mappings
   // Map block IDs
   Object.keys(state.blocks || {}).forEach((oldId) => {
-    blockIdMapping.set(oldId, crypto.randomUUID())
+    blockIdMapping.set(oldId, generateId())
   })
 
   // Map edge IDs
 
   ;(state.edges || []).forEach((edge: Edge) => {
-    edgeIdMapping.set(edge.id, crypto.randomUUID())
+    edgeIdMapping.set(edge.id, generateId())
   })
 
   // Map loop IDs
   Object.keys(state.loops || {}).forEach((oldId) => {
-    loopIdMapping.set(oldId, crypto.randomUUID())
+    loopIdMapping.set(oldId, generateId())
   })
 
   // Map parallel IDs
   Object.keys(state.parallels || {}).forEach((oldId) => {
-    parallelIdMapping.set(oldId, crypto.randomUUID())
+    parallelIdMapping.set(oldId, generateId())
   })
 
   // Second pass: Create new state with regenerated IDs and updated references
@@ -833,7 +831,12 @@ export function regenerateWorkflowStateIds(state: RegenerateStateInput): Regener
   Object.entries(state.blocks || {}).forEach(([oldId, block]) => {
     const newId = blockIdMapping.get(oldId)!
     // Duplicated blocks are always unlocked so users can edit them
-    const newBlock: BlockState = { ...block, id: newId, locked: false }
+    const newBlock: BlockState = {
+      ...block,
+      id: newId,
+      subBlocks: JSON.parse(JSON.stringify(block.subBlocks)),
+      locked: false,
+    }
 
     // Update parentId reference if it exists
     if (newBlock.data?.parentId) {
@@ -857,6 +860,21 @@ export function regenerateWorkflowStateIds(state: RegenerateStateInput): Regener
           updatedSubBlock.value = blockIdMapping.get(updatedSubBlock.value) ?? updatedSubBlock.value
         }
 
+        // Remap condition/router IDs embedded in condition-input/router-input subBlocks
+        if (
+          (updatedSubBlock.type === 'condition-input' || updatedSubBlock.type === 'router-input') &&
+          typeof updatedSubBlock.value === 'string'
+        ) {
+          try {
+            const parsed = JSON.parse(updatedSubBlock.value)
+            if (Array.isArray(parsed) && remapConditionBlockIds(parsed, oldId, newId)) {
+              updatedSubBlock.value = JSON.stringify(parsed)
+            }
+          } catch {
+            // Not valid JSON, skip
+          }
+        }
+
         updatedSubBlocks[subId] = updatedSubBlock
       })
       newBlock.subBlocks = updatedSubBlocks
@@ -871,12 +889,17 @@ export function regenerateWorkflowStateIds(state: RegenerateStateInput): Regener
     const newId = edgeIdMapping.get(edge.id)!
     const newSource = blockIdMapping.get(edge.source) || edge.source
     const newTarget = blockIdMapping.get(edge.target) || edge.target
+    const newSourceHandle =
+      edge.sourceHandle && blockIdMapping.has(edge.source)
+        ? remapConditionEdgeHandle(edge.sourceHandle, edge.source, newSource)
+        : edge.sourceHandle
 
     newEdges.push({
       ...edge,
       id: newId,
       source: newSource,
       target: newTarget,
+      sourceHandle: newSourceHandle,
     })
   })
 
@@ -1033,6 +1056,76 @@ export async function activateWorkflowVersion(params: {
     }
   } catch (error) {
     logger.error(`Error activating version ${version} for workflow ${workflowId}:`, error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to activate version',
+    }
+  }
+}
+
+export async function activateWorkflowVersionById(params: {
+  workflowId: string
+  deploymentVersionId: string
+}): Promise<{
+  success: boolean
+  deployedAt?: Date
+  state?: unknown
+  error?: string
+}> {
+  const { workflowId, deploymentVersionId } = params
+
+  try {
+    const [versionData] = await db
+      .select({ id: workflowDeploymentVersion.id, state: workflowDeploymentVersion.state })
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, workflowId),
+          eq(workflowDeploymentVersion.id, deploymentVersionId)
+        )
+      )
+      .limit(1)
+
+    if (!versionData) {
+      return { success: false, error: 'Deployment version not found' }
+    }
+
+    const now = new Date()
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(workflowDeploymentVersion)
+        .set({ isActive: false })
+        .where(eq(workflowDeploymentVersion.workflowId, workflowId))
+
+      await tx
+        .update(workflowDeploymentVersion)
+        .set({ isActive: true })
+        .where(
+          and(
+            eq(workflowDeploymentVersion.workflowId, workflowId),
+            eq(workflowDeploymentVersion.id, deploymentVersionId)
+          )
+        )
+
+      await tx
+        .update(workflow)
+        .set({ isDeployed: true, deployedAt: now })
+        .where(eq(workflow.id, workflowId))
+    })
+
+    logger.info(`Activated deployment version ${deploymentVersionId} for workflow ${workflowId}`)
+
+    return {
+      success: true,
+      deployedAt: now,
+      state: versionData.state,
+    }
+  } catch (error) {
+    logger.error(
+      `Error activating deployment version ${deploymentVersionId} for workflow ${workflowId}:`,
+      error
+    )
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to activate version',

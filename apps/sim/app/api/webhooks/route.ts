@@ -2,31 +2,58 @@ import { db } from '@sim/db'
 import { permissions, webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId, generateShortId } from '@/lib/core/utils/uuid'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import {
   cleanupExternalWebhook,
   createExternalWebhookSubscription,
+  shouldRecreateExternalWebhookSubscription,
 } from '@/lib/webhooks/provider-subscriptions'
+import { getProviderHandler } from '@/lib/webhooks/providers'
 import { mergeNonUserFields } from '@/lib/webhooks/utils'
-import {
-  configureGmailPolling,
-  configureOutlookPolling,
-  configureRssPolling,
-  syncWebhooksForCredentialSet,
-} from '@/lib/webhooks/utils.server'
+import { syncWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { extractCredentialSetId, isCredentialSetValue } from '@/executor/constants'
 
 const logger = createLogger('WebhooksAPI')
 
 export const dynamic = 'force-dynamic'
+
+async function revertSavedWebhook(
+  savedWebhook: any,
+  existingWebhook: any,
+  requestId: string
+): Promise<void> {
+  if (existingWebhook) {
+    await db
+      .update(webhook)
+      .set({
+        workflowId: existingWebhook.workflowId,
+        blockId: existingWebhook.blockId,
+        path: existingWebhook.path,
+        provider: existingWebhook.provider,
+        providerConfig: existingWebhook.providerConfig,
+        credentialSetId: existingWebhook.credentialSetId,
+        isActive: existingWebhook.isActive,
+        archivedAt: existingWebhook.archivedAt,
+        updatedAt: existingWebhook.updatedAt,
+      })
+      .where(eq(webhook.id, savedWebhook.id))
+    logger.info(`[${requestId}] Restored previous webhook configuration after failed re-save`, {
+      webhookId: savedWebhook.id,
+    })
+    return
+  }
+
+  await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
+}
 
 // Get all webhooks for the current user
 export async function GET(request: NextRequest) {
@@ -93,6 +120,7 @@ export async function GET(request: NextRequest) {
           and(
             eq(webhook.workflowId, workflowId),
             eq(webhook.blockId, blockId),
+            isNull(webhook.archivedAt),
             or(
               eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
               and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
@@ -132,7 +160,7 @@ export async function GET(request: NextRequest) {
       })
       .from(webhook)
       .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .where(inArray(workflow.workspaceId, workspaceIds))
+      .where(and(inArray(workflow.workspaceId, workspaceIds), isNull(webhook.archivedAt)))
 
     logger.info(`[${requestId}] Retrieved ${webhooks.length} workspace-accessible webhooks`)
     return NextResponse.json({ webhooks }, { status: 200 })
@@ -196,6 +224,7 @@ export async function POST(request: NextRequest) {
               and(
                 eq(webhook.workflowId, workflowId),
                 eq(webhook.blockId, blockId),
+                isNull(webhook.archivedAt),
                 or(
                   eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
                   and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
@@ -214,7 +243,7 @@ export async function POST(request: NextRequest) {
 
         // If still no path, generate a new dummy path (first-time save)
         if (!finalPath || finalPath.trim() === '') {
-          finalPath = `${provider}-${crypto.randomUUID()}`
+          finalPath = `${provider}-${generateId()}`
           logger.info(`[${requestId}] Generated webhook path for ${provider} trigger: ${finalPath}`)
         }
       } else {
@@ -275,6 +304,7 @@ export async function POST(request: NextRequest) {
           and(
             eq(webhook.workflowId, workflowId),
             eq(webhook.blockId, blockId),
+            isNull(webhook.archivedAt),
             or(
               eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
               and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
@@ -290,7 +320,7 @@ export async function POST(request: NextRequest) {
       const existingByPath = await db
         .select({ id: webhook.id, workflowId: webhook.workflowId })
         .from(webhook)
-        .where(eq(webhook.path, finalPath))
+        .where(and(eq(webhook.path, finalPath), isNull(webhook.archivedAt)))
         .limit(1)
       if (existingByPath.length > 0) {
         // If a webhook with the same path exists but belongs to a different workflow, return an error
@@ -306,6 +336,7 @@ export async function POST(request: NextRequest) {
     }
 
     let savedWebhook: any = null
+    let existingWebhook: any = null
     const originalProviderConfig = providerConfig || {}
     let resolvedProviderConfig = await resolveEnvVarsInObject(
       originalProviderConfig,
@@ -313,7 +344,6 @@ export async function POST(request: NextRequest) {
       workflowRecord.workspaceId || undefined
     )
 
-    // --- Credential Set Handling ---
     // For credential sets, we fan out to create one webhook per credential at save time.
     // This applies to all OAuth-based triggers, not just polling ones.
     // Check for credentialSetId directly (frontend may already extract it) or credential set value in credential fields
@@ -367,26 +397,24 @@ export async function POST(request: NextRequest) {
             )
           }
 
-          // Configure each new webhook (for providers that need configuration)
-          const pollingProviders = ['gmail', 'outlook']
-          const needsConfiguration = pollingProviders.includes(provider)
+          const providerHandler = getProviderHandler(provider)
 
-          if (needsConfiguration) {
-            const configureFunc =
-              provider === 'gmail' ? configureGmailPolling : configureOutlookPolling
+          if (providerHandler.configurePolling) {
             const configureErrors: string[] = []
 
             for (const wh of syncResult.webhooks) {
               if (wh.isNew) {
-                // Fetch the webhook data for configuration
                 const webhookRows = await db
                   .select()
                   .from(webhook)
-                  .where(eq(webhook.id, wh.id))
+                  .where(and(eq(webhook.id, wh.id), isNull(webhook.archivedAt)))
                   .limit(1)
 
                 if (webhookRows.length > 0) {
-                  const success = await configureFunc(webhookRows[0], requestId)
+                  const success = await providerHandler.configurePolling({
+                    webhook: webhookRows[0],
+                    requestId,
+                  })
                   if (!success) {
                     configureErrors.push(
                       `Failed to configure webhook for credential ${wh.credentialId}`
@@ -403,7 +431,6 @@ export async function POST(request: NextRequest) {
               configureErrors.length > 0 &&
               configureErrors.length === syncResult.webhooks.length
             ) {
-              // All configurations failed - roll back
               logger.error(`[${requestId}] All webhook configurations failed, rolling back`)
               for (const wh of syncResult.webhooks) {
                 await db.delete(webhook).where(eq(webhook.id, wh.id))
@@ -427,7 +454,7 @@ export async function POST(request: NextRequest) {
           const primaryWebhookRows = await db
             .select()
             .from(webhook)
-            .where(eq(webhook.id, syncResult.webhooks[0].id))
+            .where(and(eq(webhook.id, syncResult.webhooks[0].id), isNull(webhook.archivedAt)))
             .limit(1)
 
           return NextResponse.json(
@@ -455,11 +482,9 @@ export async function POST(request: NextRequest) {
         }
       }
     }
-    // --- End Credential Set Handling ---
-
     let externalSubscriptionCreated = false
     const createTempWebhookData = (providerConfigOverride = resolvedProviderConfig) => ({
-      id: targetWebhookId || nanoid(),
+      id: targetWebhookId || generateShortId(),
       path: finalPath,
       provider,
       providerConfig: providerConfigOverride,
@@ -468,26 +493,53 @@ export async function POST(request: NextRequest) {
     const userProvided = originalProviderConfig as Record<string, unknown>
     const configToSave: Record<string, unknown> = { ...userProvided }
 
-    try {
-      const result = await createExternalWebhookSubscription(
-        request,
-        createTempWebhookData(),
-        workflowRecord,
-        userId,
-        requestId
-      )
-      const updatedConfig = result.updatedProviderConfig as Record<string, unknown>
-      mergeNonUserFields(configToSave, updatedConfig, userProvided)
-      resolvedProviderConfig = updatedConfig
-      externalSubscriptionCreated = result.externalSubscriptionCreated
-    } catch (err) {
-      logger.error(`[${requestId}] Error creating external webhook subscription`, err)
-      return NextResponse.json(
-        {
-          error: 'Failed to create external webhook subscription',
-          details: err instanceof Error ? err.message : 'Unknown error',
-        },
-        { status: 500 }
+    if (targetWebhookId) {
+      const existingRows = await db
+        .select()
+        .from(webhook)
+        .where(eq(webhook.id, targetWebhookId))
+        .limit(1)
+      existingWebhook = existingRows[0] || null
+    }
+
+    const shouldRecreateSubscription =
+      existingWebhook &&
+      shouldRecreateExternalWebhookSubscription({
+        previousProvider: existingWebhook.provider as string,
+        nextProvider: provider,
+        previousConfig: ((existingWebhook.providerConfig as Record<string, unknown>) ||
+          {}) as Record<string, unknown>,
+        nextConfig: resolvedProviderConfig,
+      })
+
+    if (!existingWebhook || shouldRecreateSubscription) {
+      try {
+        const result = await createExternalWebhookSubscription(
+          request,
+          createTempWebhookData(),
+          workflowRecord,
+          userId,
+          requestId
+        )
+        const updatedConfig = result.updatedProviderConfig as Record<string, unknown>
+        mergeNonUserFields(configToSave, updatedConfig, userProvided)
+        resolvedProviderConfig = updatedConfig
+        externalSubscriptionCreated = result.externalSubscriptionCreated
+      } catch (err) {
+        logger.error(`[${requestId}] Error creating external webhook subscription`, err)
+        return NextResponse.json(
+          {
+            error: 'Failed to create external webhook subscription',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
+        )
+      }
+    } else {
+      mergeNonUserFields(
+        configToSave,
+        (existingWebhook.providerConfig as Record<string, unknown>) || {},
+        userProvided
       )
     }
 
@@ -519,7 +571,7 @@ export async function POST(request: NextRequest) {
         })
       } else {
         // Create a new webhook
-        const webhookId = nanoid()
+        const webhookId = generateShortId()
         logger.info(`[${requestId}] Creating new webhook with ID: ${webhookId}`)
         const newResult = await db
           .insert(webhook)
@@ -558,115 +610,60 @@ export async function POST(request: NextRequest) {
       throw dbError
     }
 
-    // --- Gmail/Outlook webhook setup (these don't require external subscriptions, configure after DB save) ---
-    if (savedWebhook && provider === 'gmail') {
-      logger.info(`[${requestId}] Gmail provider detected. Setting up Gmail webhook configuration.`)
+    if (existingWebhook && shouldRecreateSubscription) {
       try {
-        const success = await configureGmailPolling(savedWebhook, requestId)
+        await cleanupExternalWebhook(existingWebhook, workflowRecord, requestId)
+      } catch (cleanupError) {
+        logger.warn(
+          `[${requestId}] Failed to cleanup previous external webhook subscription ${existingWebhook.id}`,
+          cleanupError
+        )
+      }
+    }
 
-        if (!success) {
-          logger.error(`[${requestId}] Failed to configure Gmail polling, rolling back webhook`)
-          await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
+    if (savedWebhook) {
+      const pollingHandler = getProviderHandler(provider)
+      if (pollingHandler.configurePolling) {
+        logger.info(
+          `[${requestId}] ${provider} provider detected. Setting up polling configuration.`
+        )
+        try {
+          const success = await pollingHandler.configurePolling({
+            webhook: savedWebhook,
+            requestId,
+          })
+
+          if (!success) {
+            logger.error(
+              `[${requestId}] Failed to configure ${provider} polling, rolling back webhook`
+            )
+            await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
+            return NextResponse.json(
+              {
+                error: `Failed to configure ${provider} polling`,
+                details: 'Please check your account permissions and try again',
+              },
+              { status: 500 }
+            )
+          }
+
+          logger.info(`[${requestId}] Successfully configured ${provider} polling`)
+        } catch (err) {
+          logger.error(
+            `[${requestId}] Error setting up ${provider} webhook configuration, rolling back webhook`,
+            err
+          )
+          await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
           return NextResponse.json(
             {
-              error: 'Failed to configure Gmail polling',
-              details: 'Please check your Gmail account permissions and try again',
+              error: `Failed to configure ${provider} webhook`,
+              details: err instanceof Error ? err.message : 'Unknown error',
             },
             { status: 500 }
           )
         }
-
-        logger.info(`[${requestId}] Successfully configured Gmail polling`)
-      } catch (err) {
-        logger.error(
-          `[${requestId}] Error setting up Gmail webhook configuration, rolling back webhook`,
-          err
-        )
-        await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
-        return NextResponse.json(
-          {
-            error: 'Failed to configure Gmail webhook',
-            details: err instanceof Error ? err.message : 'Unknown error',
-          },
-          { status: 500 }
-        )
       }
     }
-    // --- End Gmail specific logic ---
-
-    // --- Outlook webhook setup ---
-    if (savedWebhook && provider === 'outlook') {
-      logger.info(
-        `[${requestId}] Outlook provider detected. Setting up Outlook webhook configuration.`
-      )
-      try {
-        const success = await configureOutlookPolling(savedWebhook, requestId)
-
-        if (!success) {
-          logger.error(`[${requestId}] Failed to configure Outlook polling, rolling back webhook`)
-          await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
-          return NextResponse.json(
-            {
-              error: 'Failed to configure Outlook polling',
-              details: 'Please check your Outlook account permissions and try again',
-            },
-            { status: 500 }
-          )
-        }
-
-        logger.info(`[${requestId}] Successfully configured Outlook polling`)
-      } catch (err) {
-        logger.error(
-          `[${requestId}] Error setting up Outlook webhook configuration, rolling back webhook`,
-          err
-        )
-        await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
-        return NextResponse.json(
-          {
-            error: 'Failed to configure Outlook webhook',
-            details: err instanceof Error ? err.message : 'Unknown error',
-          },
-          { status: 500 }
-        )
-      }
-    }
-    // --- End Outlook specific logic ---
-
-    // --- RSS webhook setup ---
-    if (savedWebhook && provider === 'rss') {
-      logger.info(`[${requestId}] RSS provider detected. Setting up RSS webhook configuration.`)
-      try {
-        const success = await configureRssPolling(savedWebhook, requestId)
-
-        if (!success) {
-          logger.error(`[${requestId}] Failed to configure RSS polling, rolling back webhook`)
-          await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
-          return NextResponse.json(
-            {
-              error: 'Failed to configure RSS polling',
-              details: 'Please try again',
-            },
-            { status: 500 }
-          )
-        }
-
-        logger.info(`[${requestId}] Successfully configured RSS polling`)
-      } catch (err) {
-        logger.error(
-          `[${requestId}] Error setting up RSS webhook configuration, rolling back webhook`,
-          err
-        )
-        await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
-        return NextResponse.json(
-          {
-            error: 'Failed to configure RSS webhook',
-            details: err instanceof Error ? err.message : 'Unknown error',
-          },
-          { status: 500 }
-        )
-      }
-    }
-    // --- End RSS specific logic ---
 
     if (!targetWebhookId && savedWebhook) {
       try {
@@ -693,6 +690,19 @@ export async function POST(request: NextRequest) {
         metadata: { provider, workflowId },
         request,
       })
+
+      const wsId = workflowRecord.workspaceId || undefined
+      captureServerEvent(
+        userId,
+        'webhook_trigger_created',
+        {
+          webhook_id: savedWebhook.id,
+          workflow_id: workflowId,
+          provider: provider || 'generic',
+          workspace_id: wsId ?? '',
+        },
+        wsId ? { groups: { workspace: wsId } } : undefined
+      )
     }
 
     const status = targetWebhookId ? 200 : 201

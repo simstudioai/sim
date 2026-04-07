@@ -1,0 +1,192 @@
+---
+title: Google Ads
+description: Query campaigns, ad groups, and performance metrics
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="google_ads"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Ads](https://ads.google.com) is Google's online advertising platform that lets businesses create ads to reach customers across Google Search, YouTube, Gmail, and millions of partner websites. It supports campaign types including Search, Display, Video, Shopping, and Performance Max, with detailed targeting, bidding strategies, and performance analytics.
+
+In Sim, the Google Ads integration enables your agents to query campaign data, monitor ad group performance, and pull detailed metrics using the Google Ads Query Language (GAQL). This supports use cases such as automated performance reporting, budget monitoring, campaign health checks, and data-driven optimization workflows. By connecting Sim with Google Ads, your agents can retrieve real-time advertising data and act on insights without manual dashboard navigation.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Connect to Google Ads to list accessible accounts, list campaigns, view ad group details, get performance metrics, and run custom GAQL queries.
+
+
+
+## Tools
+
+### `google_ads_list_customers`
+
+List all Google Ads customer accounts accessible by the authenticated user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `developerToken` | string | Yes | Google Ads API developer token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customerIds` | array | List of accessible customer IDs |
+| `totalCount` | number | Total number of accessible customer accounts |
+
+### `google_ads_search`
+
+Run a custom Google Ads Query Language (GAQL) query
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Yes | Google Ads customer ID \(numeric, no dashes\) |
+| `developerToken` | string | Yes | Google Ads API developer token |
+| `managerCustomerId` | string | No | Manager account customer ID \(if accessing via manager account\) |
+| `query` | string | Yes | GAQL query to execute |
+| `pageToken` | string | No | Page token for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Array of result objects from the GAQL query |
+| `totalResultsCount` | number | Total number of matching results |
+| `nextPageToken` | string | Token for the next page of results |
+
+### `google_ads_list_campaigns`
+
+List campaigns in a Google Ads account with optional status filtering
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Yes | Google Ads customer ID \(numeric, no dashes\) |
+| `developerToken` | string | Yes | Google Ads API developer token |
+| `managerCustomerId` | string | No | Manager account customer ID \(if accessing via manager account\) |
+| `status` | string | No | Filter by campaign status \(ENABLED, PAUSED, REMOVED\) |
+| `limit` | number | No | Maximum number of campaigns to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | List of campaigns in the account |
+|   ↳ `id` | string | Campaign ID |
+|   ↳ `name` | string | Campaign name |
+|   ↳ `status` | string | Campaign status \(ENABLED, PAUSED, REMOVED\) |
+|   ↳ `channelType` | string | Advertising channel type \(SEARCH, DISPLAY, SHOPPING, VIDEO, PERFORMANCE_MAX\) |
+|   ↳ `startDate` | string | Campaign start date \(YYYY-MM-DD\) |
+|   ↳ `endDate` | string | Campaign end date \(YYYY-MM-DD\) |
+|   ↳ `budgetAmountMicros` | string | Daily budget in micros \(divide by 1,000,000 for currency value\) |
+| `totalCount` | number | Total number of campaigns returned |
+
+### `google_ads_campaign_performance`
+
+Get performance metrics for Google Ads campaigns over a date range
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Yes | Google Ads customer ID \(numeric, no dashes\) |
+| `developerToken` | string | Yes | Google Ads API developer token |
+| `managerCustomerId` | string | No | Manager account customer ID \(if accessing via manager account\) |
+| `campaignId` | string | No | Filter by specific campaign ID |
+| `dateRange` | string | No | Predefined date range \(LAST_7_DAYS, LAST_30_DAYS, THIS_MONTH, LAST_MONTH, TODAY, YESTERDAY\) |
+| `startDate` | string | No | Custom start date in YYYY-MM-DD format |
+| `endDate` | string | No | Custom end date in YYYY-MM-DD format |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `campaigns` | array | Campaign performance data broken down by date |
+|   ↳ `id` | string | Campaign ID |
+|   ↳ `name` | string | Campaign name |
+|   ↳ `status` | string | Campaign status |
+|   ↳ `impressions` | string | Number of impressions |
+|   ↳ `clicks` | string | Number of clicks |
+|   ↳ `costMicros` | string | Cost in micros \(divide by 1,000,000 for currency value\) |
+|   ↳ `ctr` | number | Click-through rate \(0.0 to 1.0\) |
+|   ↳ `conversions` | number | Number of conversions |
+|   ↳ `date` | string | Date for this row \(YYYY-MM-DD\) |
+| `totalCount` | number | Total number of result rows |
+
+### `google_ads_list_ad_groups`
+
+List ad groups in a Google Ads campaign
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Yes | Google Ads customer ID \(numeric, no dashes\) |
+| `developerToken` | string | Yes | Google Ads API developer token |
+| `managerCustomerId` | string | No | Manager account customer ID \(if accessing via manager account\) |
+| `campaignId` | string | Yes | Campaign ID to list ad groups for |
+| `status` | string | No | Filter by ad group status \(ENABLED, PAUSED, REMOVED\) |
+| `limit` | number | No | Maximum number of ad groups to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `adGroups` | array | List of ad groups in the campaign |
+|   ↳ `id` | string | Ad group ID |
+|   ↳ `name` | string | Ad group name |
+|   ↳ `status` | string | Ad group status \(ENABLED, PAUSED, REMOVED\) |
+|   ↳ `type` | string | Ad group type \(SEARCH_STANDARD, DISPLAY_STANDARD, SHOPPING_PRODUCT_ADS\) |
+|   ↳ `campaignId` | string | Parent campaign ID |
+|   ↳ `campaignName` | string | Parent campaign name |
+| `totalCount` | number | Total number of ad groups returned |
+
+### `google_ads_ad_performance`
+
+Get performance metrics for individual ads over a date range
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `customerId` | string | Yes | Google Ads customer ID \(numeric, no dashes\) |
+| `developerToken` | string | Yes | Google Ads API developer token |
+| `managerCustomerId` | string | No | Manager account customer ID \(if accessing via manager account\) |
+| `campaignId` | string | No | Filter by campaign ID |
+| `adGroupId` | string | No | Filter by ad group ID |
+| `dateRange` | string | No | Predefined date range \(LAST_7_DAYS, LAST_30_DAYS, THIS_MONTH, LAST_MONTH, TODAY, YESTERDAY\) |
+| `startDate` | string | No | Custom start date in YYYY-MM-DD format |
+| `endDate` | string | No | Custom end date in YYYY-MM-DD format |
+| `limit` | number | No | Maximum number of results to return |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ads` | array | Ad performance data broken down by date |
+|   ↳ `adId` | string | Ad ID |
+|   ↳ `adGroupId` | string | Parent ad group ID |
+|   ↳ `adGroupName` | string | Parent ad group name |
+|   ↳ `campaignId` | string | Parent campaign ID |
+|   ↳ `campaignName` | string | Parent campaign name |
+|   ↳ `adType` | string | Ad type \(RESPONSIVE_SEARCH_AD, EXPANDED_TEXT_AD, etc.\) |
+|   ↳ `impressions` | string | Number of impressions |
+|   ↳ `clicks` | string | Number of clicks |
+|   ↳ `costMicros` | string | Cost in micros \(divide by 1,000,000 for currency value\) |
+|   ↳ `ctr` | number | Click-through rate \(0.0 to 1.0\) |
+|   ↳ `conversions` | number | Number of conversions |
+|   ↳ `date` | string | Date for this row \(YYYY-MM-DD\) |
+| `totalCount` | number | Total number of result rows |
+
+

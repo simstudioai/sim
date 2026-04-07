@@ -1,0 +1,282 @@
+---
+title: Evernote
+description: Manage notes, notebooks, and tags in Evernote
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="evernote"
+  color="#E0E0E0"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Evernote](https://evernote.com/) is a note-taking and organization platform that helps individuals and teams capture ideas, manage projects, and store information across devices. With notebooks, tags, and powerful search, Evernote serves as a central hub for knowledge management.
+
+With the Sim Evernote integration, you can:
+
+- **Create and update notes**: Programmatically create new notes with content and tags, or update existing notes in any notebook.
+- **Search and retrieve notes**: Use Evernote's search grammar to find notes by keyword, tag, notebook, or other criteria, and retrieve full note content.
+- **Organize with notebooks and tags**: Create notebooks and tags, list existing ones, and move or copy notes between notebooks.
+- **Delete and manage notes**: Move notes to trash or copy them to different notebooks as part of automated workflows.
+
+**How it works in Sim:**
+Add an Evernote block to your workflow and select an operation (e.g., create note, search notes, list notebooks). Provide your Evernote developer token and any required parameters. The block calls the Evernote API and returns structured data you can pass to downstream blocks — for example, searching for meeting notes and sending summaries to Slack, or creating notes from AI-generated content.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate with Evernote to manage notes, notebooks, and tags. Create, read, update, copy, search, and delete notes. Create and list notebooks and tags.
+
+
+
+## Tools
+
+### `evernote_copy_note`
+
+Copy a note to another notebook in Evernote
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Evernote developer token |
+| `noteGuid` | string | Yes | GUID of the note to copy |
+| `toNotebookGuid` | string | Yes | GUID of the destination notebook |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `note` | object | The copied note metadata |
+|   ↳ `guid` | string | New note GUID |
+|   ↳ `title` | string | Note title |
+|   ↳ `notebookGuid` | string | GUID of the destination notebook |
+|   ↳ `created` | number | Creation timestamp in milliseconds |
+|   ↳ `updated` | number | Last updated timestamp in milliseconds |
+
+### `evernote_create_note`
+
+Create a new note in Evernote
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Evernote developer token |
+| `title` | string | Yes | Title of the note |
+| `content` | string | Yes | Content of the note \(plain text or ENML\) |
+| `notebookGuid` | string | No | GUID of the notebook to create the note in \(defaults to default notebook\) |
+| `tagNames` | string | No | Comma-separated list of tag names to apply |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `note` | object | The created note |
+|   ↳ `guid` | string | Unique identifier of the note |
+|   ↳ `title` | string | Title of the note |
+|   ↳ `content` | string | ENML content of the note |
+|   ↳ `notebookGuid` | string | GUID of the containing notebook |
+|   ↳ `tagNames` | array | Tag names applied to the note |
+|   ↳ `created` | number | Creation timestamp in milliseconds |
+|   ↳ `updated` | number | Last updated timestamp in milliseconds |
+
+### `evernote_create_notebook`
+
+Create a new notebook in Evernote
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Evernote developer token |
+| `name` | string | Yes | Name for the new notebook |
+| `stack` | string | No | Stack name to group the notebook under |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `notebook` | object | The created notebook |
+|   ↳ `guid` | string | Notebook GUID |
+|   ↳ `name` | string | Notebook name |
+|   ↳ `defaultNotebook` | boolean | Whether this is the default notebook |
+|   ↳ `serviceCreated` | number | Creation timestamp in milliseconds |
+|   ↳ `serviceUpdated` | number | Last updated timestamp in milliseconds |
+|   ↳ `stack` | string | Notebook stack name |
+
+### `evernote_create_tag`
+
+Create a new tag in Evernote
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Evernote developer token |
+| `name` | string | Yes | Name for the new tag |
+| `parentGuid` | string | No | GUID of the parent tag for hierarchy |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tag` | object | The created tag |
+|   ↳ `guid` | string | Tag GUID |
+|   ↳ `name` | string | Tag name |
+|   ↳ `parentGuid` | string | Parent tag GUID |
+|   ↳ `updateSequenceNum` | number | Update sequence number |
+
+### `evernote_delete_note`
+
+Move a note to the trash in Evernote
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Evernote developer token |
+| `noteGuid` | string | Yes | GUID of the note to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the note was successfully deleted |
+| `noteGuid` | string | GUID of the deleted note |
+
+### `evernote_get_note`
+
+Retrieve a note from Evernote by its GUID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Evernote developer token |
+| `noteGuid` | string | Yes | GUID of the note to retrieve |
+| `withContent` | boolean | No | Whether to include note content \(default: true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `note` | object | The retrieved note |
+|   ↳ `guid` | string | Unique identifier of the note |
+|   ↳ `title` | string | Title of the note |
+|   ↳ `content` | string | ENML content of the note |
+|   ↳ `contentLength` | number | Length of the note content |
+|   ↳ `notebookGuid` | string | GUID of the containing notebook |
+|   ↳ `tagGuids` | array | GUIDs of tags on the note |
+|   ↳ `tagNames` | array | Names of tags on the note |
+|   ↳ `created` | number | Creation timestamp in milliseconds |
+|   ↳ `updated` | number | Last updated timestamp in milliseconds |
+|   ↳ `active` | boolean | Whether the note is active \(not in trash\) |
+
+### `evernote_get_notebook`
+
+Retrieve a notebook from Evernote by its GUID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Evernote developer token |
+| `notebookGuid` | string | Yes | GUID of the notebook to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `notebook` | object | The retrieved notebook |
+|   ↳ `guid` | string | Notebook GUID |
+|   ↳ `name` | string | Notebook name |
+|   ↳ `defaultNotebook` | boolean | Whether this is the default notebook |
+|   ↳ `serviceCreated` | number | Creation timestamp in milliseconds |
+|   ↳ `serviceUpdated` | number | Last updated timestamp in milliseconds |
+|   ↳ `stack` | string | Notebook stack name |
+
+### `evernote_list_notebooks`
+
+List all notebooks in an Evernote account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Evernote developer token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `notebooks` | array | List of notebooks |
+
+### `evernote_list_tags`
+
+List all tags in an Evernote account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Evernote developer token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | array | List of tags |
+
+### `evernote_search_notes`
+
+Search for notes in Evernote using the Evernote search grammar
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Evernote developer token |
+| `query` | string | Yes | Search query using Evernote search grammar \(e.g., "tag:work intitle:meeting"\) |
+| `notebookGuid` | string | No | Restrict search to a specific notebook by GUID |
+| `offset` | number | No | Starting index for results \(default: 0\) |
+| `maxNotes` | number | No | Maximum number of notes to return \(default: 25\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `totalNotes` | number | Total number of matching notes |
+| `notes` | array | List of matching note metadata |
+
+### `evernote_update_note`
+
+Update an existing note in Evernote
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Evernote developer token |
+| `noteGuid` | string | Yes | GUID of the note to update |
+| `title` | string | No | New title for the note |
+| `content` | string | No | New content for the note \(plain text or ENML\) |
+| `notebookGuid` | string | No | GUID of the notebook to move the note to |
+| `tagNames` | string | No | Comma-separated list of tag names \(replaces existing tags\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `note` | object | The updated note |
+|   ↳ `guid` | string | Unique identifier of the note |
+|   ↳ `title` | string | Title of the note |
+|   ↳ `content` | string | ENML content of the note |
+|   ↳ `notebookGuid` | string | GUID of the containing notebook |
+|   ↳ `tagNames` | array | Tag names on the note |
+|   ↳ `created` | number | Creation timestamp in milliseconds |
+|   ↳ `updated` | number | Last updated timestamp in milliseconds |
+
+

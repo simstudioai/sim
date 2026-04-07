@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Star, User } from 'lucide-react'
+import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import { VerifiedBadge } from '@/components/ui/verified-badge'
 import { cn } from '@/lib/core/utils/cn'
@@ -28,26 +29,26 @@ interface TemplateCardProps {
 
 export function TemplateCardSkeleton({ className }: { className?: string }) {
   return (
-    <div className={cn('h-[268px] w-full rounded-[8px] bg-[var(--surface-3)] p-[8px]', className)}>
-      <div className='h-[180px] w-full animate-pulse rounded-[6px] bg-[var(--surface-5)]' />
-      <div className='mt-[14px] flex items-center justify-between'>
+    <div className={cn('h-[268px] w-full rounded-lg bg-[var(--surface-3)] p-2', className)}>
+      <div className='h-[180px] w-full animate-pulse rounded-md bg-[var(--surface-5)]' />
+      <div className='mt-3.5 flex items-center justify-between'>
         <div className='h-4 w-32 animate-pulse rounded bg-[var(--surface-5)]' />
         <div className='flex items-center gap-[-4px]'>
           {Array.from({ length: 3 }).map((_, index) => (
             <div
               key={index}
-              className='h-[18px] w-[18px] animate-pulse rounded-[4px] bg-[var(--surface-5)]'
+              className='h-[18px] w-[18px] animate-pulse rounded-sm bg-[var(--surface-5)]'
             />
           ))}
         </div>
       </div>
 
-      <div className='mt-[14px] flex items-center justify-between'>
-        <div className='flex items-center gap-[6px]'>
+      <div className='mt-3.5 flex items-center justify-between'>
+        <div className='flex items-center gap-1.5'>
           <div className='h-[20px] w-[20px] animate-pulse rounded-full bg-[var(--surface-5)]' />
           <div className='h-3 w-20 animate-pulse rounded bg-[var(--surface-5)]' />
         </div>
-        <div className='flex items-center gap-[6px]'>
+        <div className='flex items-center gap-1.5'>
           <div className='h-3 w-3 animate-pulse rounded bg-[var(--surface-5)]' />
           <div className='h-3 w-6 animate-pulse rounded bg-[var(--surface-5)]' />
           <div className='h-3 w-3 animate-pulse rounded bg-[var(--surface-5)]' />
@@ -107,8 +108,6 @@ function normalizeWorkflowState(input?: any): WorkflowState | null {
     lastUpdate: input.lastUpdate,
     metadata: input.metadata,
     variables: input.variables,
-    deploymentStatuses: input.deploymentStatuses,
-    needsRedeployment: input.needsRedeployment,
     dragStartPosition: input.dragStartPosition ?? null,
   }
 
@@ -195,11 +194,11 @@ function TemplateCardInner({
   return (
     <div
       onClick={handleCardClick}
-      className={cn('w-full cursor-pointer rounded-[8px] bg-[var(--surface-3)] p-[8px]', className)}
+      className={cn('w-full cursor-pointer rounded-lg bg-[var(--surface-3)] p-2', className)}
     >
       <div
         ref={previewRef}
-        className='pointer-events-none h-[180px] w-full cursor-pointer overflow-hidden rounded-[6px]'
+        className='pointer-events-none h-[180px] w-full cursor-pointer overflow-hidden rounded-md'
       >
         {normalizedState && isInView ? (
           <PreviewWorkflow
@@ -216,8 +215,8 @@ function TemplateCardInner({
         )}
       </div>
 
-      <div className='mt-[10px] flex items-center justify-between'>
-        <h3 className='truncate pr-[8px] pl-[2px] font-medium text-[16px] text-[var(--text-primary)]'>
+      <div className='mt-2.5 flex items-center justify-between'>
+        <h3 className='truncate pr-2 pl-0.5 font-medium text-[var(--text-primary)] text-md'>
           {title}
         </h3>
 
@@ -231,7 +230,7 @@ function TemplateCardInner({
                 return (
                   <div
                     key={index}
-                    className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px]'
+                    className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm'
                     style={{
                       background: blockConfig.bgColor || 'gray',
                       marginLeft: index > 0 ? '-4px' : '0',
@@ -242,10 +241,10 @@ function TemplateCardInner({
                 )
               })}
               <div
-                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px] bg-[var(--surface-7)]'
+                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm bg-[var(--surface-7)]'
                 style={{ marginLeft: '-4px' }}
               >
-                <span className='font-medium text-[10px] text-[var(--text-primary)]'>
+                <span className='font-medium text-[var(--text-primary)] text-micro'>
                   +{blockTypes.length - 3}
                 </span>
               </div>
@@ -258,7 +257,7 @@ function TemplateCardInner({
               return (
                 <div
                   key={index}
-                  className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[4px]'
+                  className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm'
                   style={{
                     background: blockConfig.bgColor || 'gray',
                     marginLeft: index > 0 ? '-4px' : '0',
@@ -273,31 +272,36 @@ function TemplateCardInner({
       </div>
 
       {description && (
-        <p className='mt-[4px] truncate pl-[2px] text-[12px] text-[var(--text-tertiary)]'>
+        <p className='mt-1 truncate pl-0.5 text-[var(--text-tertiary)] text-caption'>
           {description}
         </p>
       )}
 
-      <div className='mt-[10px] flex items-center justify-between'>
-        <div className='flex min-w-0 items-center gap-[8px]'>
+      <div className='mt-2.5 flex items-center justify-between'>
+        <div className='flex min-w-0 items-center gap-2'>
           {authorImageUrl ? (
-            <div className='h-[20px] w-[20px] flex-shrink-0 overflow-hidden rounded-full'>
-              <img src={authorImageUrl} alt={author} className='h-full w-full object-cover' />
-            </div>
+            <Image
+              src={authorImageUrl}
+              alt={author}
+              width={20}
+              height={20}
+              className='flex-shrink-0 rounded-full object-cover'
+              unoptimized
+            />
           ) : (
             <div className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--surface-7)]'>
               <User className='h-[12px] w-[12px] text-[var(--text-muted)]' />
             </div>
           )}
-          <div className='flex min-w-0 items-center gap-[4px]'>
-            <span className='truncate font-medium text-[12px] text-[var(--text-muted)]'>
+          <div className='flex min-w-0 items-center gap-1'>
+            <span className='truncate font-medium text-[var(--text-muted)] text-caption'>
               {author}
             </span>
             {isVerified && <VerifiedBadge size='sm' />}
           </div>
         </div>
 
-        <div className='flex flex-shrink-0 items-center gap-[6px] font-medium text-[12px] text-[var(--text-muted)]'>
+        <div className='flex flex-shrink-0 items-center gap-1.5 font-medium text-[var(--text-muted)] text-caption'>
           <User className='h-[12px] w-[12px]' />
           <span>{usageCount}</span>
           <Star

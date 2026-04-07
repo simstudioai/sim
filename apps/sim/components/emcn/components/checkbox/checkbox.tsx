@@ -24,8 +24,9 @@ import { cn } from '@/lib/core/utils/cn'
  */
 const checkboxVariants = cva(
   [
-    'peer shrink-0 cursor-pointer rounded-[4px] border transition-colors',
+    'relative peer flex shrink-0 cursor-pointer items-center justify-center rounded-sm border transition-colors',
     'border-[var(--border-1)] bg-transparent',
+    'before:absolute before:inset-[-12px] before:content-[""]',
     'focus-visible:outline-none',
     'data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50',
     'data-[state=checked]:border-[var(--text-primary)] data-[state=checked]:bg-[var(--text-primary)]',
@@ -82,17 +83,19 @@ export interface CheckboxProps
  * </div>
  * ```
  */
-const Checkbox = React.forwardRef<React.ElementRef<typeof CheckboxPrimitive.Root>, CheckboxProps>(
-  ({ className, size, ...props }, ref) => (
-    <CheckboxPrimitive.Root
-      ref={ref}
-      className={cn(checkboxVariants({ size }), className)}
-      {...props}
-    >
-      <CheckboxPrimitive.Indicator className='flex items-center justify-center text-[var(--white)]'>
-        <Check className={cn(checkboxIconVariants({ size }))} />
-      </CheckboxPrimitive.Indicator>
-    </CheckboxPrimitive.Root>
+const Checkbox = React.memo(
+  React.forwardRef<React.ElementRef<typeof CheckboxPrimitive.Root>, CheckboxProps>(
+    ({ className, size, ...props }, ref) => (
+      <CheckboxPrimitive.Root
+        ref={ref}
+        className={cn(checkboxVariants({ size }), className)}
+        {...props}
+      >
+        <CheckboxPrimitive.Indicator className='flex items-center justify-center text-[var(--surface-2)]'>
+          <Check className={cn(checkboxIconVariants({ size }))} />
+        </CheckboxPrimitive.Indicator>
+      </CheckboxPrimitive.Root>
+    )
   )
 )
 Checkbox.displayName = CheckboxPrimitive.Root.displayName

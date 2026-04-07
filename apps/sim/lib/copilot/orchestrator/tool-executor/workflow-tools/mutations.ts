@@ -1,36 +1,105 @@
-import crypto from 'crypto'
-import { db } from '@sim/db'
-import { apiKey, workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull, max } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
-import { createApiKey } from '@/lib/api-key/auth'
+import { createWorkspaceApiKey } from '@/lib/api-key/auth'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/orchestrator/types'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
+import { generateId } from '@/lib/core/utils/uuid'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import {
   getExecutionState,
   getLatestExecutionState,
 } from '@/lib/workflows/executor/execution-state'
-import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { performDeleteFolder, performDeleteWorkflow } from '@/lib/workflows/orchestration'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
+import {
+  checkForCircularReference,
+  createFolderRecord,
+  createWorkflowRecord,
+  listFolders,
+  setWorkflowVariables,
+  updateFolderRecord,
+  updateWorkflowRecord,
+} from '@/lib/workflows/utils'
+import { hasExecutionResult } from '@/executor/utils/errors'
 import { ensureWorkflowAccess, ensureWorkspaceAccess, getDefaultWorkspaceId } from '../access'
+
+function stripBinaryFields(value: unknown): unknown {
+  if (value === null || value === undefined) return value
+  if (typeof value !== 'object') return value
+  if (Array.isArray(value)) return value.map(stripBinaryFields)
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (k === 'base64') continue
+    out[k] = stripBinaryFields(v)
+  }
+  return out
+}
+
+function buildExecutionOutput(
+  result: {
+    success: boolean
+    metadata?: { executionId?: string }
+    output?: unknown
+    logs?: unknown[]
+    error?: string
+  },
+  extra?: Record<string, unknown>
+): ToolCallResult {
+  return {
+    success: result.success,
+    output: {
+      executionId: result.metadata?.executionId,
+      success: result.success,
+      ...extra,
+      output: stripBinaryFields(result.output),
+      logs: stripBinaryFields(result.logs),
+    },
+    error: result.success ? undefined : result.error || 'Workflow execution failed',
+  }
+}
+
+function buildExecutionError(error: unknown): ToolCallResult {
+  const message = error instanceof Error ? error.message : String(error)
+  if (hasExecutionResult(error)) {
+    return buildExecutionOutput({
+      ...error.executionResult,
+      success: false,
+      error: error.executionResult.error || message,
+    })
+  }
+  return { success: false, error: message }
+}
+
 import type {
   CreateFolderParams,
   CreateWorkflowParams,
+  DeleteFolderParams,
+  DeleteWorkflowParams,
   GenerateApiKeyParams,
   MoveFolderParams,
   MoveWorkflowParams,
+  RenameFolderParams,
   RenameWorkflowParams,
   RunBlockParams,
   RunFromBlockParams,
   RunWorkflowParams,
   RunWorkflowUntilBlockParams,
   SetGlobalWorkflowVariablesParams,
+  UpdateWorkflowParams,
   VariableOperation,
 } from '../param-types'
 
 const logger = createLogger('WorkflowMutations')
+
+function assertWorkflowMutationNotAborted(
+  context: ExecutionContext,
+  message = 'Request aborted before workflow mutation could be applied.'
+): void {
+  if (context.abortSignal?.aborted) {
+    throw new Error(message)
+  }
+}
 
 export async function executeCreateWorkflow(
   params: CreateWorkflowParams,
@@ -49,51 +118,62 @@ export async function executeCreateWorkflow(
       return { success: false, error: 'Description must be 2000 characters or less' }
     }
 
-    const workspaceId = params?.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    const workspaceId =
+      params?.workspaceId || context.workspaceId || (await getDefaultWorkspaceId(context.userId))
     const folderId = params?.folderId || null
 
-    await ensureWorkspaceAccess(workspaceId, context.userId, true)
+    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    assertWorkflowMutationNotAborted(context)
 
-    const workflowId = crypto.randomUUID()
-    const now = new Date()
-
-    const folderCondition = folderId ? eq(workflow.folderId, folderId) : isNull(workflow.folderId)
-    const [maxResult] = await db
-      .select({ maxOrder: max(workflow.sortOrder) })
-      .from(workflow)
-      .where(and(eq(workflow.workspaceId, workspaceId), folderCondition))
-    const sortOrder = (maxResult?.maxOrder ?? 0) + 1
-
-    await db.insert(workflow).values({
-      id: workflowId,
+    const result = await createWorkflowRecord({
       userId: context.userId,
       workspaceId,
-      folderId,
-      sortOrder,
       name,
       description,
-      color: '#3972F6',
-      lastSynced: now,
-      createdAt: now,
-      updatedAt: now,
-      isDeployed: false,
-      runCount: 0,
-      variables: {},
+      folderId,
     })
 
-    const { workflowState } = buildDefaultWorkflowArtifacts()
-    const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState)
-    if (!saveResult.success) {
-      throw new Error(saveResult.error || 'Failed to save workflow state')
+    recordAudit({
+      workspaceId,
+      actorId: context.userId,
+      action: AuditAction.WORKFLOW_CREATED,
+      resourceType: AuditResourceType.WORKFLOW,
+      resourceId: result.workflowId,
+      resourceName: name,
+      description: `Created workflow "${name}"`,
+    })
+
+    try {
+      const { PlatformEvents } = await import('@/lib/core/telemetry')
+      PlatformEvents.workflowCreated({
+        workflowId: result.workflowId,
+        name,
+        workspaceId,
+        folderId: folderId ?? undefined,
+      })
+    } catch (_e) {
+      // Telemetry is best-effort
+    }
+
+    const normalized = await loadWorkflowFromNormalizedTables(result.workflowId)
+    let copilotSanitizedWorkflowState: unknown
+    if (normalized) {
+      copilotSanitizedWorkflowState = sanitizeForCopilot({
+        blocks: normalized.blocks || {},
+        edges: normalized.edges || [],
+        loops: normalized.loops || {},
+        parallels: normalized.parallels || {},
+      } as any)
     }
 
     return {
       success: true,
       output: {
-        workflowId,
-        workflowName: name,
-        workspaceId,
-        folderId,
+        workflowId: result.workflowId,
+        workflowName: result.name,
+        workspaceId: result.workspaceId,
+        folderId: result.folderId,
+        ...(copilotSanitizedWorkflowState ? { copilotSanitizedWorkflowState } : {}),
       },
     }
   } catch (error) {
@@ -114,35 +194,31 @@ export async function executeCreateFolder(
       return { success: false, error: 'Folder name must be 200 characters or less' }
     }
 
-    const workspaceId = params?.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    const workspaceId =
+      params?.workspaceId || context.workspaceId || (await getDefaultWorkspaceId(context.userId))
     const parentId = params?.parentId || null
 
-    await ensureWorkspaceAccess(workspaceId, context.userId, true)
+    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    assertWorkflowMutationNotAborted(context)
 
-    const [maxResult] = await db
-      .select({ maxOrder: max(workflowFolder.sortOrder) })
-      .from(workflowFolder)
-      .where(
-        and(
-          eq(workflowFolder.workspaceId, workspaceId),
-          parentId ? eq(workflowFolder.parentId, parentId) : isNull(workflowFolder.parentId)
-        )
-      )
-    const sortOrder = (maxResult?.maxOrder ?? 0) + 1
-
-    const folderId = crypto.randomUUID()
-    await db.insert(workflowFolder).values({
-      id: folderId,
+    const result = await createFolderRecord({
       userId: context.userId,
       workspaceId,
-      parentId,
       name,
-      sortOrder,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      parentId,
     })
 
-    return { success: true, output: { folderId, name, workspaceId, parentId } }
+    recordAudit({
+      workspaceId,
+      actorId: context.userId,
+      action: AuditAction.FOLDER_CREATED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: result.folderId,
+      resourceName: name,
+      description: `Created folder "${name}"`,
+    })
+
+    return { success: true, output: result }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
@@ -158,7 +234,11 @@ export async function executeRunWorkflow(
       return { success: false, error: 'workflowId is required' }
     }
 
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(
+      workflowId,
+      context.userId,
+      'write'
+    )
 
     const useDraftState = !params.useDeployedState
 
@@ -175,18 +255,9 @@ export async function executeRunWorkflow(
       { enabled: true, useDraftState, workflowTriggerType: 'copilot' }
     )
 
-    return {
-      success: result.success,
-      output: {
-        executionId: result.metadata?.executionId,
-        success: result.success,
-        output: result.output,
-        logs: result.logs,
-      },
-      error: result.success ? undefined : result.error || 'Workflow execution failed',
-    }
+    return buildExecutionOutput(result)
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return buildExecutionError(error)
   }
 }
 
@@ -202,7 +273,11 @@ export async function executeSetGlobalWorkflowVariables(
     const operations: VariableOperation[] = Array.isArray(params.operations)
       ? params.operations
       : []
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(
+      workflowId,
+      context.userId,
+      'write'
+    )
 
     interface WorkflowVariable {
       id: string
@@ -259,7 +334,7 @@ export async function executeSetGlobalWorkflowVariables(
       const typedValue = coerceValue(op.value, nextType)
       if (op.operation === 'add') {
         byName[key] = {
-          id: crypto.randomUUID(),
+          id: generateId(),
           workflowId,
           name: key,
           type: nextType,
@@ -270,7 +345,7 @@ export async function executeSetGlobalWorkflowVariables(
       if (op.operation === 'edit') {
         if (!byName[key]) {
           byName[key] = {
-            id: crypto.randomUUID(),
+            id: generateId(),
             workflowId,
             name: key,
             type: nextType,
@@ -288,10 +363,16 @@ export async function executeSetGlobalWorkflowVariables(
 
     const nextVarsRecord = Object.fromEntries(Object.values(byName).map((v) => [String(v.id), v]))
 
-    await db
-      .update(workflow)
-      .set({ variables: nextVarsRecord, updatedAt: new Date() })
-      .where(eq(workflow.id, workflowId))
+    assertWorkflowMutationNotAborted(context)
+    await setWorkflowVariables(workflowId, nextVarsRecord)
+
+    recordAudit({
+      actorId: context.userId,
+      action: AuditAction.WORKFLOW_VARIABLES_UPDATED,
+      resourceType: AuditResourceType.WORKFLOW,
+      resourceId: workflowId,
+      description: `Updated workflow variables`,
+    })
 
     return { success: true, output: { updated: Object.values(byName).length } }
   } catch (error) {
@@ -316,12 +397,9 @@ export async function executeRenameWorkflow(
       return { success: false, error: 'Workflow name must be 200 characters or less' }
     }
 
-    await ensureWorkflowAccess(workflowId, context.userId)
-
-    await db
-      .update(workflow)
-      .set({ name, updatedAt: new Date() })
-      .where(eq(workflow.id, workflowId))
+    await ensureWorkflowAccess(workflowId, context.userId, 'write')
+    assertWorkflowMutationNotAborted(context)
+    await updateWorkflowRecord(workflowId, { name })
 
     return { success: true, output: { workflowId, name } }
   } catch (error) {
@@ -339,14 +417,10 @@ export async function executeMoveWorkflow(
       return { success: false, error: 'workflowId is required' }
     }
 
-    await ensureWorkflowAccess(workflowId, context.userId)
-
+    await ensureWorkflowAccess(workflowId, context.userId, 'write')
     const folderId = params.folderId || null
-
-    await db
-      .update(workflow)
-      .set({ folderId, updatedAt: new Date() })
-      .where(eq(workflow.id, workflowId))
+    assertWorkflowMutationNotAborted(context)
+    await updateWorkflowRecord(workflowId, { folderId })
 
     return { success: true, output: { workflowId, folderId } }
   } catch (error) {
@@ -370,10 +444,17 @@ export async function executeMoveFolder(
       return { success: false, error: 'A folder cannot be moved into itself' }
     }
 
-    await db
-      .update(workflowFolder)
-      .set({ parentId, updatedAt: new Date() })
-      .where(eq(workflowFolder.id, folderId))
+    if (parentId) {
+      const wouldCreateCycle = await checkForCircularReference(folderId, parentId)
+      if (wouldCreateCycle) {
+        return { success: false, error: 'Cannot create circular folder reference' }
+      }
+    }
+
+    const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    assertWorkflowMutationNotAborted(context)
+    await updateFolderRecord(folderId, { parentId })
 
     return { success: true, output: { folderId, parentId } }
   } catch (error) {
@@ -394,7 +475,11 @@ export async function executeRunWorkflowUntilBlock(
       return { success: false, error: 'stopAfterBlockId is required' }
     }
 
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(
+      workflowId,
+      context.userId,
+      'write'
+    )
 
     const useDraftState = !params.useDeployedState
 
@@ -416,19 +501,9 @@ export async function executeRunWorkflowUntilBlock(
       }
     )
 
-    return {
-      success: result.success,
-      output: {
-        executionId: result.metadata?.executionId,
-        success: result.success,
-        stoppedAfterBlockId: params.stopAfterBlockId,
-        output: result.output,
-        logs: result.logs,
-      },
-      error: result.success ? undefined : result.error || 'Workflow execution failed',
-    }
+    return buildExecutionOutput(result, { stoppedAfterBlockId: params.stopAfterBlockId })
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return buildExecutionError(error)
   }
 }
 
@@ -445,54 +520,31 @@ export async function executeGenerateApiKey(
       return { success: false, error: 'API key name must be 200 characters or less' }
     }
 
-    const workspaceId = params.workspaceId || (await getDefaultWorkspaceId(context.userId))
-    await ensureWorkspaceAccess(workspaceId, context.userId, true)
+    const workspaceId =
+      params.workspaceId || context.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    await ensureWorkspaceAccess(workspaceId, context.userId, 'admin')
+    assertWorkflowMutationNotAborted(context)
 
-    const existingKey = await db
-      .select({ id: apiKey.id })
-      .from(apiKey)
-      .where(
-        and(
-          eq(apiKey.workspaceId, workspaceId),
-          eq(apiKey.name, name),
-          eq(apiKey.type, 'workspace')
-        )
-      )
-      .limit(1)
+    const newKey = await createWorkspaceApiKey({
+      workspaceId,
+      userId: context.userId,
+      name,
+    })
 
-    if (existingKey.length > 0) {
-      return {
-        success: false,
-        error: `A workspace API key named "${name}" already exists. Choose a different name.`,
-      }
-    }
-
-    const { key: plainKey, encryptedKey } = await createApiKey(true)
-    if (!encryptedKey) {
-      return { success: false, error: 'Failed to encrypt API key for storage' }
-    }
-
-    const [newKey] = await db
-      .insert(apiKey)
-      .values({
-        id: nanoid(),
-        workspaceId,
-        userId: context.userId,
-        createdBy: context.userId,
-        name,
-        key: encryptedKey,
-        type: 'workspace',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .returning({ id: apiKey.id, name: apiKey.name, createdAt: apiKey.createdAt })
+    recordAudit({
+      workspaceId,
+      actorId: context.userId,
+      action: AuditAction.API_KEY_CREATED,
+      resourceType: AuditResourceType.API_KEY,
+      description: `Generated API key for workspace`,
+    })
 
     return {
       success: true,
       output: {
         id: newKey.id,
         name: newKey.name,
-        key: plainKey,
+        key: newKey.key,
         workspaceId,
         message:
           'API key created successfully. Copy this key now — it will not be shown again. Use this key in the x-api-key header when calling workflow API endpoints.',
@@ -529,7 +581,11 @@ export async function executeRunFromBlock(
       }
     }
 
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(
+      workflowId,
+      context.userId,
+      'write'
+    )
     const useDraftState = !params.useDeployedState
 
     const result = await executeWorkflow(
@@ -550,17 +606,148 @@ export async function executeRunFromBlock(
       }
     )
 
-    return {
-      success: result.success,
-      output: {
-        executionId: result.metadata?.executionId,
-        success: result.success,
-        startBlockId: params.startBlockId,
-        output: result.output,
-        logs: result.logs,
-      },
-      error: result.success ? undefined : result.error || 'Workflow execution failed',
+    return buildExecutionOutput(result, { startBlockId: params.startBlockId })
+  } catch (error) {
+    return buildExecutionError(error)
+  }
+}
+
+export async function executeUpdateWorkflow(
+  params: UpdateWorkflowParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const workflowId = params.workflowId
+    if (!workflowId) {
+      return { success: false, error: 'workflowId is required' }
     }
+
+    const updates: { name?: string; description?: string } = {}
+
+    if (typeof params.name === 'string') {
+      const name = params.name.trim()
+      if (!name) return { success: false, error: 'name cannot be empty' }
+      if (name.length > 200)
+        return { success: false, error: 'Workflow name must be 200 characters or less' }
+      updates.name = name
+    }
+
+    if (typeof params.description === 'string') {
+      if (params.description.length > 2000) {
+        return { success: false, error: 'Description must be 2000 characters or less' }
+      }
+      updates.description = params.description
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return { success: false, error: 'At least one of name or description is required' }
+    }
+
+    await ensureWorkflowAccess(workflowId, context.userId, 'write')
+    assertWorkflowMutationNotAborted(context)
+    await updateWorkflowRecord(workflowId, updates)
+
+    return {
+      success: true,
+      output: { workflowId, ...updates },
+    }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function executeDeleteWorkflow(
+  params: DeleteWorkflowParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const workflowId = params.workflowId
+    if (!workflowId) {
+      return { success: false, error: 'workflowId is required' }
+    }
+
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(
+      workflowId,
+      context.userId,
+      'admin'
+    )
+    assertWorkflowMutationNotAborted(context)
+
+    const result = await performDeleteWorkflow({ workflowId, userId: context.userId })
+    if (!result.success) {
+      return { success: false, error: result.error || 'Failed to delete workflow' }
+    }
+
+    return {
+      success: true,
+      output: { workflowId, name: workflowRecord.name, deleted: true },
+    }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function executeDeleteFolder(
+  params: DeleteFolderParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const folderId = params.folderId
+    if (!folderId) {
+      return { success: false, error: 'folderId is required' }
+    }
+
+    const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    await ensureWorkspaceAccess(workspaceId, context.userId, 'admin')
+
+    const folders = await listFolders(workspaceId)
+    const folder = folders.find((f) => f.folderId === folderId)
+    if (!folder) {
+      return { success: false, error: 'Folder not found' }
+    }
+
+    assertWorkflowMutationNotAborted(context)
+
+    const result = await performDeleteFolder({
+      folderId,
+      workspaceId,
+      userId: context.userId,
+      folderName: folder.folderName,
+    })
+
+    if (!result.success) {
+      return { success: false, error: result.error || 'Failed to delete folder' }
+    }
+
+    return { success: true, output: { folderId, deleted: true, ...result.deletedItems } }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export async function executeRenameFolder(
+  params: RenameFolderParams,
+  context: ExecutionContext
+): Promise<ToolCallResult> {
+  try {
+    const folderId = params.folderId
+    if (!folderId) {
+      return { success: false, error: 'folderId is required' }
+    }
+    const name = typeof params.name === 'string' ? params.name.trim() : ''
+    if (!name) {
+      return { success: false, error: 'name is required' }
+    }
+    if (name.length > 200) {
+      return { success: false, error: 'Folder name must be 200 characters or less' }
+    }
+
+    const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    assertWorkflowMutationNotAborted(context)
+    await updateFolderRecord(folderId, { name })
+
+    return { success: true, output: { folderId, name } }
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
@@ -592,7 +779,11 @@ export async function executeRunBlock(
       }
     }
 
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(
+      workflowId,
+      context.userId,
+      'write'
+    )
     const useDraftState = !params.useDeployedState
 
     const result = await executeWorkflow(
@@ -614,18 +805,8 @@ export async function executeRunBlock(
       }
     )
 
-    return {
-      success: result.success,
-      output: {
-        executionId: result.metadata?.executionId,
-        success: result.success,
-        blockId: params.blockId,
-        output: result.output,
-        logs: result.logs,
-      },
-      error: result.success ? undefined : result.error || 'Workflow execution failed',
-    }
+    return buildExecutionOutput(result, { blockId: params.blockId })
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return buildExecutionError(error)
   }
 }

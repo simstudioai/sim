@@ -1,47 +1,34 @@
 import { db } from '@sim/db'
-import { permissions, workflow, workspace } from '@sim/db/schema'
-import { and, asc, desc, eq, inArray } from 'drizzle-orm'
+import { permissions, workspace } from '@sim/db/schema'
+import { and, desc, eq, isNull } from 'drizzle-orm'
+import { authorizeWorkflowByWorkspacePermission, type getWorkflowById } from '@/lib/workflows/utils'
+import { checkWorkspaceAccess, getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
-type WorkflowRecord = typeof workflow.$inferSelect
+type WorkflowRecord = NonNullable<Awaited<ReturnType<typeof getWorkflowById>>>
 
 export async function ensureWorkflowAccess(
   workflowId: string,
-  userId: string
+  userId: string,
+  action: 'read' | 'write' | 'admin' = 'read'
 ): Promise<{
   workflow: WorkflowRecord
   workspaceId?: string | null
 }> {
-  const [workflowRecord] = await db
-    .select()
-    .from(workflow)
-    .where(eq(workflow.id, workflowId))
-    .limit(1)
-  if (!workflowRecord) {
+  const result = await authorizeWorkflowByWorkspacePermission({
+    workflowId,
+    userId,
+    action,
+  })
+
+  if (!result.workflow) {
     throw new Error(`Workflow ${workflowId} not found`)
   }
 
-  if (!workflowRecord.workspaceId) {
-    throw new Error(
-      'This workflow is not attached to a workspace. Personal workflows are deprecated and cannot be accessed.'
-    )
+  if (!result.allowed) {
+    throw new Error(result.message || 'Unauthorized workflow access')
   }
 
-  const [permissionRow] = await db
-    .select({ permissionType: permissions.permissionType })
-    .from(permissions)
-    .where(
-      and(
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, workflowRecord.workspaceId),
-        eq(permissions.userId, userId)
-      )
-    )
-    .limit(1)
-  if (permissionRow) {
-    return { workflow: workflowRecord, workspaceId: workflowRecord.workspaceId }
-  }
-
-  throw new Error('Unauthorized workflow access')
+  return { workflow: result.workflow, workspaceId: result.workflow.workspaceId }
 }
 
 export async function getDefaultWorkspaceId(userId: string): Promise<string> {
@@ -49,7 +36,13 @@ export async function getDefaultWorkspaceId(userId: string): Promise<string> {
     .select({ workspaceId: workspace.id })
     .from(permissions)
     .innerJoin(workspace, eq(permissions.entityId, workspace.id))
-    .where(and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace')))
+    .where(
+      and(
+        eq(permissions.userId, userId),
+        eq(permissions.entityType, 'workspace'),
+        isNull(workspace.archivedAt)
+      )
+    )
     .orderBy(desc(workspace.createdAt))
     .limit(1)
 
@@ -64,67 +57,25 @@ export async function getDefaultWorkspaceId(userId: string): Promise<string> {
 export async function ensureWorkspaceAccess(
   workspaceId: string,
   userId: string,
-  requireWrite: boolean
+  level: 'read' | 'write' | 'admin' = 'read'
 ): Promise<void> {
-  const [row] = await db
-    .select({
-      permissionType: permissions.permissionType,
-    })
-    .from(permissions)
-    .where(
-      and(
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, workspaceId),
-        eq(permissions.userId, userId)
-      )
-    )
-    .limit(1)
-
-  if (!row) {
+  const access = await checkWorkspaceAccess(workspaceId, userId)
+  if (!access.exists || !access.hasAccess) {
     throw new Error(`Workspace ${workspaceId} not found`)
   }
 
-  const permissionType = row.permissionType
-  const canWrite = permissionType === 'admin' || permissionType === 'write'
+  if (level === 'read') return
 
-  if (requireWrite && !canWrite) {
+  if (level === 'admin') {
+    if (access.workspace?.ownerId === userId) return
+    const perm = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+    if (perm !== 'admin') {
+      throw new Error('Admin access required for this workspace')
+    }
+    return
+  }
+
+  if (!access.canWrite) {
     throw new Error('Write or admin access required for this workspace')
   }
-
-  if (!requireWrite && !canWrite && permissionType !== 'read') {
-    throw new Error('Access denied to workspace')
-  }
-}
-
-export async function getAccessibleWorkflowsForUser(
-  userId: string,
-  options?: { workspaceId?: string; folderId?: string }
-) {
-  const workspaceIds = await db
-    .select({ entityId: permissions.entityId })
-    .from(permissions)
-    .where(and(eq(permissions.userId, userId), eq(permissions.entityType, 'workspace')))
-
-  const workspaceIdList = workspaceIds.map((row) => row.entityId)
-  if (workspaceIdList.length === 0) {
-    return []
-  }
-
-  if (options?.workspaceId && !workspaceIdList.includes(options.workspaceId)) {
-    return []
-  }
-
-  const workflowConditions = [inArray(workflow.workspaceId, workspaceIdList)]
-  if (options?.workspaceId) {
-    workflowConditions.push(eq(workflow.workspaceId, options.workspaceId))
-  }
-  if (options?.folderId) {
-    workflowConditions.push(eq(workflow.folderId, options.folderId))
-  }
-
-  return db
-    .select()
-    .from(workflow)
-    .where(and(...workflowConditions))
-    .orderBy(asc(workflow.sortOrder), asc(workflow.createdAt), asc(workflow.id))
 }

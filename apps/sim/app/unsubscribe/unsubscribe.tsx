@@ -3,10 +3,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
-import { inter } from '@/app/_styles/fonts/inter/inter'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
-import { SupportFooter } from '@/app/(auth)/components/support-footer'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { InviteLayout } from '@/app/invite/components'
 
 interface UnsubscribeData {
@@ -122,17 +119,16 @@ function UnsubscribeContent() {
     return (
       <InviteLayout>
         <div className='space-y-1 text-center'>
-          <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+          <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
             Loading
           </h1>
-          <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+          <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>
             Validating your unsubscribe link...
           </p>
         </div>
-        <div className={`${inter.className} mt-8 flex w-full items-center justify-center py-8`}>
-          <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
+        <div className={'mt-8 flex w-full items-center justify-center py-8'}>
+          <Loader2 className='h-8 w-8 animate-spin text-[var(--landing-text-muted)]' />
         </div>
-        <SupportFooter position='absolute' />
       </InviteLayout>
     )
   }
@@ -141,19 +137,17 @@ function UnsubscribeContent() {
     return (
       <InviteLayout>
         <div className='space-y-1 text-center'>
-          <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+          <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
             Invalid Unsubscribe Link
           </h1>
-          <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
-            {error}
-          </p>
+          <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>{error}</p>
         </div>
 
-        <div className={`${inter.className} mt-8 w-full max-w-[410px] space-y-3`}>
-          <BrandedButton onClick={() => window.history.back()}>Go Back</BrandedButton>
+        <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
+          <button onClick={() => window.history.back()} className={AUTH_SUBMIT_BTN}>
+            Go Back
+          </button>
         </div>
-
-        <SupportFooter position='absolute' />
       </InviteLayout>
     )
   }
@@ -162,20 +156,20 @@ function UnsubscribeContent() {
     return (
       <InviteLayout>
         <div className='space-y-1 text-center'>
-          <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+          <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
             Important Account Emails
           </h1>
-          <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+          <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>
             Transactional emails like password resets, account confirmations, and security alerts
             cannot be unsubscribed from as they contain essential information for your account.
           </p>
         </div>
 
-        <div className={`${inter.className} mt-8 w-full max-w-[410px] space-y-3`}>
-          <BrandedButton onClick={() => window.close()}>Close</BrandedButton>
+        <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
+          <button onClick={() => window.close()} className={AUTH_SUBMIT_BTN}>
+            Close
+          </button>
         </div>
-
-        <SupportFooter position='absolute' />
       </InviteLayout>
     )
   }
@@ -184,20 +178,20 @@ function UnsubscribeContent() {
     return (
       <InviteLayout>
         <div className='space-y-1 text-center'>
-          <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+          <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
             Successfully Unsubscribed
           </h1>
-          <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+          <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>
             You have been unsubscribed from our emails. You will stop receiving emails within 48
             hours.
           </p>
         </div>
 
-        <div className={`${inter.className} mt-8 w-full max-w-[410px] space-y-3`}>
-          <BrandedButton onClick={() => window.close()}>Close</BrandedButton>
+        <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
+          <button onClick={() => window.close()} className={AUTH_SUBMIT_BTN}>
+            Close
+          </button>
         </div>
-
-        <SupportFooter position='absolute' />
       </InviteLayout>
     )
   }
@@ -207,83 +201,88 @@ function UnsubscribeContent() {
   return (
     <InviteLayout>
       <div className='space-y-1 text-center'>
-        <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+        <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
           Email Preferences
         </h1>
-        <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+        <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>
           Choose which emails you'd like to stop receiving.
         </p>
-        <p className={`${inter.className} mt-2 font-[380] text-[14px] text-muted-foreground`}>
-          {data?.email}
-        </p>
+        <p className={'mt-2 font-[380] text-[var(--landing-text-muted)] text-sm'}>{data?.email}</p>
       </div>
 
-      <div className={`${inter.className} mt-8 w-full max-w-[410px] space-y-3`}>
-        <BrandedButton
+      <div className={'mt-8 w-full max-w-[410px] space-y-3'}>
+        <button
           onClick={() => handleUnsubscribe('all')}
           disabled={processing || isAlreadyUnsubscribedFromAll}
-          loading={processing}
-          loadingText='Unsubscribing'
+          className={AUTH_SUBMIT_BTN}
         >
-          {isAlreadyUnsubscribedFromAll
-            ? 'Unsubscribed from All Emails'
-            : 'Unsubscribe from All Marketing Emails'}
-        </BrandedButton>
+          {processing ? (
+            <span className='flex items-center gap-2'>
+              <Loader2 className='h-4 w-4 animate-spin' />
+              Unsubscribing...
+            </span>
+          ) : isAlreadyUnsubscribedFromAll ? (
+            'Unsubscribed from All Emails'
+          ) : (
+            'Unsubscribe from All Marketing Emails'
+          )}
+        </button>
 
         <div className='py-2 text-center'>
-          <span className={`${inter.className} font-[380] text-[14px] text-muted-foreground`}>
+          <span className={'font-[380] text-[var(--landing-text-muted)] text-sm'}>
             or choose specific types
           </span>
         </div>
 
-        <BrandedButton
+        <button
           onClick={() => handleUnsubscribe('marketing')}
           disabled={
             processing ||
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeMarketing
           }
+          className={AUTH_SUBMIT_BTN}
         >
           {data?.currentPreferences.unsubscribeMarketing
             ? 'Unsubscribed from Marketing'
             : 'Unsubscribe from Marketing Emails'}
-        </BrandedButton>
+        </button>
 
-        <BrandedButton
+        <button
           onClick={() => handleUnsubscribe('updates')}
           disabled={
             processing ||
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeUpdates
           }
+          className={AUTH_SUBMIT_BTN}
         >
           {data?.currentPreferences.unsubscribeUpdates
             ? 'Unsubscribed from Updates'
             : 'Unsubscribe from Product Updates'}
-        </BrandedButton>
+        </button>
 
-        <BrandedButton
+        <button
           onClick={() => handleUnsubscribe('notifications')}
           disabled={
             processing ||
             isAlreadyUnsubscribedFromAll ||
             data?.currentPreferences.unsubscribeNotifications
           }
+          className={AUTH_SUBMIT_BTN}
         >
           {data?.currentPreferences.unsubscribeNotifications
             ? 'Unsubscribed from Notifications'
             : 'Unsubscribe from Notifications'}
-        </BrandedButton>
+        </button>
       </div>
 
-      <div className={`${inter.className} mt-6 max-w-[410px] text-center`}>
-        <p className='font-[380] text-[13px] text-muted-foreground'>
+      <div className={'mt-6 max-w-[410px] text-center'}>
+        <p className='font-[380] text-[var(--landing-text-muted)] text-small'>
           You'll continue receiving important account emails like password resets and security
           alerts.
         </p>
       </div>
-
-      <SupportFooter position='absolute' />
     </InviteLayout>
   )
 }
@@ -294,17 +293,16 @@ export default function Unsubscribe() {
       fallback={
         <InviteLayout>
           <div className='space-y-1 text-center'>
-            <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+            <h1 className={'font-medium text-[32px] text-[var(--landing-text)] tracking-tight'}>
               Loading
             </h1>
-            <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+            <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>
               Validating your unsubscribe link...
             </p>
           </div>
-          <div className={`${inter.className} mt-8 flex w-full items-center justify-center py-8`}>
-            <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
+          <div className={'mt-8 flex w-full items-center justify-center py-8'}>
+            <Loader2 className='h-8 w-8 animate-spin text-[var(--landing-text-muted)]' />
           </div>
-          <SupportFooter position='absolute' />
         </InviteLayout>
       }
     >

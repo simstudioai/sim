@@ -1,5 +1,5 @@
 import { createHmac } from 'crypto'
-import { v4 as uuidv4 } from 'uuid'
+import { generateId } from '@/lib/core/utils/uuid'
 import type { RequestResponse, WebhookRequestParams } from '@/tools/http/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -48,7 +48,7 @@ export const webhookRequestTool: ToolConfig<WebhookRequestParams, RequestRespons
 
     headers: (params: WebhookRequestParams) => {
       const timestamp = Date.now()
-      const deliveryId = uuidv4()
+      const deliveryId = generateId()
 
       const webhookHeaders: Record<string, string> = {
         'Content-Type': 'application/json',

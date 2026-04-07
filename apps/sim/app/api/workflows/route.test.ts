@@ -28,6 +28,13 @@ vi.mock('@sim/db', () => ({
   db: {
     select: (...args: unknown[]) => mockDbSelect(...args),
     insert: (...args: unknown[]) => mockDbInsert(...args),
+    transaction: vi.fn(async (fn: (tx: Record<string, unknown>) => Promise<void>) => {
+      const tx = {
+        select: (...args: unknown[]) => mockDbSelect(...args),
+        insert: (...args: unknown[]) => mockDbInsert(...args),
+      }
+      await fn(tx)
+    }),
   },
 }))
 
@@ -45,6 +52,8 @@ vi.mock('@sim/db/schema', () => ({
     id: 'id',
     folderId: 'folderId',
     userId: 'userId',
+    name: 'name',
+    archivedAt: 'archivedAt',
     updatedAt: 'updatedAt',
     workspaceId: 'workspaceId',
     sortOrder: 'sortOrder',
@@ -64,6 +73,7 @@ vi.mock('@/lib/audit/log', () => ({
 }))
 
 vi.mock('@/lib/auth/hybrid', () => ({
+  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
   checkHybridAuth: vi.fn(),
   checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
   checkInternalAuth: vi.fn(),
@@ -82,6 +92,18 @@ vi.mock('@/lib/core/telemetry', () => ({
   PlatformEvents: {
     workflowCreated: (...args: unknown[]) => mockWorkflowCreated(...args),
   },
+}))
+
+vi.mock('@/lib/workflows/defaults', () => ({
+  buildDefaultWorkflowArtifacts: vi.fn().mockReturnValue({
+    workflowState: { blocks: {}, edges: [], loops: {}, parallels: {} },
+    subBlockValues: {},
+    startBlockId: 'start-block-id',
+  }),
+}))
+
+vi.mock('@/lib/workflows/persistence/utils', () => ({
+  saveWorkflowToNormalizedTables: vi.fn().mockResolvedValue({ success: true }),
 }))
 
 import { POST } from '@/app/api/workflows/route'
@@ -107,11 +129,16 @@ describe('Workflows API Route - POST ordering', () => {
     const minResultsQueue: Array<Array<{ minOrder: number }>> = [
       [{ minOrder: 5 }],
       [{ minOrder: 2 }],
+      [],
     ]
 
     mockDbSelect.mockImplementation(() => ({
       from: vi.fn().mockReturnValue({
-        where: vi.fn().mockImplementation(() => Promise.resolve(minResultsQueue.shift() ?? [])),
+        where: vi.fn().mockImplementation(() => ({
+          limit: vi.fn().mockImplementation(() => Promise.resolve(minResultsQueue.shift() ?? [])),
+          then: (onFulfilled: (value: Array<{ minOrder: number }>) => unknown) =>
+            Promise.resolve(minResultsQueue.shift() ?? []).then(onFulfilled),
+        })),
       }),
     }))
 
@@ -140,11 +167,15 @@ describe('Workflows API Route - POST ordering', () => {
   })
 
   it('defaults to sortOrder 0 when there are no siblings', async () => {
-    const minResultsQueue: Array<Array<{ minOrder: number }>> = [[], []]
+    const minResultsQueue: Array<Array<{ minOrder: number }>> = [[], [], []]
 
     mockDbSelect.mockImplementation(() => ({
       from: vi.fn().mockReturnValue({
-        where: vi.fn().mockImplementation(() => Promise.resolve(minResultsQueue.shift() ?? [])),
+        where: vi.fn().mockImplementation(() => ({
+          limit: vi.fn().mockImplementation(() => Promise.resolve(minResultsQueue.shift() ?? [])),
+          then: (onFulfilled: (value: Array<{ minOrder: number }>) => unknown) =>
+            Promise.resolve(minResultsQueue.shift() ?? []).then(onFulfilled),
+        })),
       }),
     }))
 

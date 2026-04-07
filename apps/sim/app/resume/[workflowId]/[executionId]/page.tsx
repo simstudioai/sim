@@ -1,5 +1,11 @@
+import type { Metadata } from 'next'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import ResumeExecutionPage from '@/app/resume/[workflowId]/[executionId]/resume-page-client'
+
+export const metadata: Metadata = {
+  title: 'Resume Execution',
+  robots: { index: false },
+}
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'

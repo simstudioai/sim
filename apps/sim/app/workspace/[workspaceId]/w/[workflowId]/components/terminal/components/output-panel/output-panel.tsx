@@ -27,18 +27,13 @@ import {
   PopoverTrigger,
   Tooltip,
 } from '@/components/emcn'
-import { FilterPopover } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/filter-popover'
 import { OutputContextMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/output-panel/components/output-context-menu'
 import { StructuredOutput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/output-panel/components/structured-output'
 import { ToggleButton } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components/toggle-button'
-import type {
-  BlockInfo,
-  TerminalFilters,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import type { ConsoleEntry } from '@/stores/terminal'
-import { useTerminalStore } from '@/stores/terminal'
+import { safeConsoleStringify, useTerminalStore } from '@/stores/terminal'
 
 interface OutputCodeContentProps {
   code: string
@@ -64,7 +59,7 @@ const OutputCodeContent = React.memo(function OutputCodeContent({
       code={code}
       showGutter
       language={language}
-      className='m-0 min-h-full rounded-none border-0 bg-[var(--surface-1)] dark:bg-[var(--surface-1)]'
+      className='m-0 min-h-full rounded-none border-0 bg-[var(--bg)] dark:bg-[var(--bg)]'
       paddingLeft={8}
       gutterStyle={{ backgroundColor: 'transparent' }}
       wrapText={wrapText}
@@ -98,18 +93,12 @@ export interface OutputPanelProps {
   handleTrainingClick: (e: React.MouseEvent) => void
   showCopySuccess: boolean
   handleCopy: () => void
-  filteredEntries: ConsoleEntry[]
+  hasEntries: boolean
   handleExportConsole: (e: React.MouseEvent) => void
-  hasActiveFilters: boolean
   handleClearConsole: (e: React.MouseEvent) => void
   shouldShowCodeDisplay: boolean
-  outputDataStringified: string
   outputData: unknown
   handleClearConsoleFromMenu: () => void
-  filters: TerminalFilters
-  toggleBlock: (blockId: string) => void
-  toggleStatus: (status: 'error' | 'info') => void
-  uniqueBlocks: BlockInfo[]
 }
 
 /**
@@ -131,18 +120,12 @@ export const OutputPanel = React.memo(function OutputPanel({
   handleTrainingClick,
   showCopySuccess,
   handleCopy,
-  filteredEntries,
+  hasEntries,
   handleExportConsole,
-  hasActiveFilters,
   handleClearConsole,
   shouldShowCodeDisplay,
-  outputDataStringified,
   outputData,
   handleClearConsoleFromMenu,
-  filters,
-  toggleBlock,
-  toggleStatus,
-  uniqueBlocks,
 }: OutputPanelProps) {
   // Access store-backed settings directly to reduce prop drilling
   const outputPanelWidth = useTerminalStore((state) => state.outputPanelWidth)
@@ -154,7 +137,6 @@ export const OutputPanel = React.memo(function OutputPanel({
   const setStructuredView = useTerminalStore((state) => state.setStructuredView)
 
   const outputContentRef = useRef<HTMLDivElement>(null)
-  const [filtersOpen, setFiltersOpen] = useState(false)
   const [outputOptionsOpen, setOutputOptionsOpen] = useState(false)
   const {
     isSearchActive: isOutputSearchActive,
@@ -292,15 +274,28 @@ export const OutputPanel = React.memo(function OutputPanel({
     [isOutputSearchActive, outputSearchQuery]
   )
 
+  const outputDataStringified = useMemo(() => {
+    if (
+      structuredView ||
+      shouldShowCodeDisplay ||
+      outputData === null ||
+      outputData === undefined
+    ) {
+      return ''
+    }
+
+    return safeConsoleStringify(outputData)
+  }, [outputData, shouldShowCodeDisplay, structuredView])
+
   return (
     <>
       <div
-        className='absolute top-0 right-0 bottom-0 flex flex-col border-[var(--border)] border-l bg-[var(--surface-1)]'
+        className='absolute top-0 right-0 bottom-0 flex flex-col border-[var(--border)] border-l bg-[var(--bg)]'
         style={{ width: `${outputPanelWidth}px` }}
       >
         {/* Horizontal Resize Handle */}
         <div
-          className='-ml-[4px] absolute top-0 bottom-0 left-0 z-20 w-[8px] cursor-ew-resize'
+          className='-ml-1 absolute top-0 bottom-0 left-0 z-20 w-[8px] cursor-ew-resize'
           onMouseDown={handleOutputPanelResizeMouseDown}
           role='separator'
           aria-label='Resize output panel'
@@ -309,15 +304,15 @@ export const OutputPanel = React.memo(function OutputPanel({
 
         {/* Header */}
         <div
-          className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--surface-1)] pr-[16px] pl-[10px]'
+          className='group flex h-[30px] flex-shrink-0 cursor-pointer items-center justify-between bg-[var(--bg)] pr-4 pl-2.5'
           onClick={handleHeaderClick}
         >
           <div className='flex items-center'>
             <Button
               variant='ghost'
               className={clsx(
-                'px-[8px] py-[6px] text-[12px]',
-                !showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-tertiary)]'
+                'px-2 py-1.5 text-small',
+                !showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-icon)]'
               )}
               onClick={handleOutputButtonClick}
               aria-label='Show output'
@@ -328,8 +323,8 @@ export const OutputPanel = React.memo(function OutputPanel({
               <Button
                 variant='ghost'
                 className={clsx(
-                  'px-[8px] py-[6px] text-[12px]',
-                  showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-tertiary)]'
+                  'px-2 py-1.5 text-small',
+                  showInput ? '!text-[var(--text-primary)]' : '!text-[var(--text-icon)]'
                 )}
                 onClick={handleInputButtonClick}
                 aria-label='Show input'
@@ -338,20 +333,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               </Button>
             )}
           </div>
-          <div className='flex flex-shrink-0 items-center gap-[8px]'>
-            {/* Unified filter popover */}
-            {filteredEntries.length > 0 && (
-              <FilterPopover
-                open={filtersOpen}
-                onOpenChange={setFiltersOpen}
-                filters={filters}
-                toggleStatus={toggleStatus}
-                toggleBlock={toggleBlock}
-                uniqueBlocks={uniqueBlocks}
-                hasActiveFilters={hasActiveFilters}
-              />
-            )}
-
+          <div className='flex flex-shrink-0 items-center gap-2'>
             {isOutputSearchActive ? (
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
@@ -361,7 +343,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                     aria-label='Close search'
                     className='!p-1.5 -m-1.5'
                   >
-                    <X className='h-[12px] w-[12px]' />
+                    <X className='h-3.5 w-3.5' />
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
@@ -377,7 +359,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                     aria-label='Search in output'
                     className='!p-1.5 -m-1.5'
                   >
-                    <Search className='h-[12px] w-[12px]' />
+                    <Search className='h-3.5 w-3.5' />
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
@@ -395,7 +377,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                       aria-label='Component Playground'
                       className='!p-1.5 -m-1.5'
                     >
-                      <Palette className='h-[12px] w-[12px]' />
+                      <Palette className='h-3.5 w-3.5' />
                     </Button>
                   </Link>
                 </Tooltip.Trigger>
@@ -418,9 +400,9 @@ export const OutputPanel = React.memo(function OutputPanel({
                     )}
                   >
                     {isTraining ? (
-                      <Pause className='h-[12px] w-[12px]' />
+                      <Pause className='h-3.5 w-3.5' />
                     ) : (
-                      <Database className='h-[12px] w-[12px]' />
+                      <Database className='h-3.5 w-3.5' />
                     )}
                   </Button>
                 </Tooltip.Trigger>
@@ -439,9 +421,9 @@ export const OutputPanel = React.memo(function OutputPanel({
                   className='!p-1.5 -m-1.5'
                 >
                   {showCopySuccess ? (
-                    <Check className='h-[12px] w-[12px]' />
+                    <Check className='h-3.5 w-3.5' />
                   ) : (
-                    <Clipboard className='h-[12px] w-[12px]' />
+                    <Clipboard className='h-3.5 w-3.5' />
                   )}
                 </Button>
               </Tooltip.Trigger>
@@ -449,7 +431,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                 <span>{showCopySuccess ? 'Copied' : 'Copy output'}</span>
               </Tooltip.Content>
             </Tooltip.Root>
-            {filteredEntries.length > 0 && (
+            {hasEntries && (
               <>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
@@ -459,7 +441,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                       aria-label='Download console CSV'
                       className='!p-1.5 -m-1.5'
                     >
-                      <ArrowDownToLine className='h-3 w-3' />
+                      <ArrowDownToLine className='h-3.5 w-3.5' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
@@ -474,7 +456,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                       aria-label='Clear console'
                       className='!p-1.5 -m-1.5'
                     >
-                      <Trash2 className='h-3 w-3' />
+                      <Trash2 className='h-3.5 w-3.5' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
@@ -501,7 +483,7 @@ export const OutputPanel = React.memo(function OutputPanel({
                 collisionPadding={0}
                 onClick={(e) => e.stopPropagation()}
                 style={{ minWidth: '140px', maxWidth: '160px' }}
-                className='gap-[2px]'
+                className='gap-0.5'
               >
                 <PopoverItem
                   active={structuredView}
@@ -529,7 +511,7 @@ export const OutputPanel = React.memo(function OutputPanel({
         {/* Search Overlay */}
         {isOutputSearchActive && (
           <div
-            className='absolute top-[30px] right-[8px] z-30 flex h-[34px] items-center gap-[6px] rounded-b-[4px] border border-[var(--border)] border-t-0 bg-[var(--surface-1)] px-[6px] shadow-sm'
+            className='absolute top-[30px] right-[8px] z-30 flex h-[34px] items-center gap-1.5 rounded-b-[4px] border border-[var(--border)] border-t-0 bg-[var(--bg)] px-1.5 shadow-sm'
             onClick={(e) => e.stopPropagation()}
             data-toolbar-root
             data-search-active='true'
@@ -540,11 +522,11 @@ export const OutputPanel = React.memo(function OutputPanel({
               value={outputSearchQuery}
               onChange={(e) => setOutputSearchQuery(e.target.value)}
               placeholder='Search...'
-              className='mr-[2px] h-[23px] w-[94px] text-[12px]'
+              className='mr-0.5 h-[23px] w-[94px] text-caption'
             />
             <span
               className={clsx(
-                'w-[58px] font-medium text-[11px]',
+                'w-[58px] font-medium text-xs',
                 matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
               )}
             >
@@ -557,7 +539,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               className='!p-1.5 -m-1.5'
               disabled={matchCount === 0}
             >
-              <ArrowUp className='h-[12px] w-[12px]' />
+              <ArrowUp className='h-3.5 w-3.5' />
             </Button>
             <Button
               variant='ghost'
@@ -566,7 +548,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               className='!p-1.5 -m-1.5'
               disabled={matchCount === 0}
             >
-              <ArrowDown className='h-[12px] w-[12px]' />
+              <ArrowDown className='h-3.5 w-3.5' />
             </Button>
             <Button
               variant='ghost'
@@ -574,7 +556,7 @@ export const OutputPanel = React.memo(function OutputPanel({
               aria-label='Close search'
               className='!p-1.5 -m-1.5'
             >
-              <X className='h-[12px] w-[12px]' />
+              <X className='h-3.5 w-3.5' />
             </Button>
           </div>
         )}

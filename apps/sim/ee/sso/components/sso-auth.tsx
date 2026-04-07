@@ -2,17 +2,15 @@
 
 import { type KeyboardEvent, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { Input } from '@/components/emcn'
-import { Label } from '@/components/ui/label'
+import { Input, Label } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { inter } from '@/app/_styles/fonts/inter/inter'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 import AuthBackground from '@/app/(auth)/components/auth-background'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
-import Nav from '@/app/(landing)/components/nav/nav'
+import Navbar from '@/app/(landing)/components/navbar/navbar'
 
 const logger = createLogger('SSOAuth')
 
@@ -99,19 +97,19 @@ export default function SSOAuth({ identifier }: SSOAuthProps) {
   }
 
   return (
-    <AuthBackground>
-      <main className='relative flex min-h-screen flex-col text-foreground'>
-        <Nav hideAuthButtons={true} variant='auth' />
+    <AuthBackground className='dark font-[430] font-season'>
+      <main className='relative flex min-h-full flex-col text-[var(--landing-text)]'>
+        <header className='shrink-0 bg-[var(--landing-bg)]'>
+          <Navbar logoOnly />
+        </header>
         <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
           <div className='w-full max-w-lg px-4'>
             <div className='flex flex-col items-center justify-center'>
               <div className='space-y-1 text-center'>
-                <h1
-                  className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}
-                >
+                <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
                   SSO Authentication
                 </h1>
-                <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+                <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
                   This chat requires SSO authentication
                 </p>
               </div>
@@ -121,7 +119,7 @@ export default function SSOAuth({ identifier }: SSOAuthProps) {
                   e.preventDefault()
                   handleAuthenticate()
                 }}
-                className={`${inter.className} mt-8 w-full max-w-[410px] space-y-6`}
+                className='mt-8 w-full max-w-[410px] space-y-6'
               >
                 <div className='space-y-2'>
                   <div className='flex items-center justify-between'>
@@ -140,10 +138,9 @@ export default function SSOAuth({ identifier }: SSOAuthProps) {
                     onChange={handleEmailChange}
                     onKeyDown={handleKeyDown}
                     className={cn(
-                      'rounded-[10px] shadow-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-100',
                       showEmailValidationError &&
                         emailErrors.length > 0 &&
-                        'border-red-500 focus:border-red-500 focus:ring-red-100 focus-visible:ring-red-500'
+                        'border-red-500 focus:border-red-500'
                     )}
                     autoFocus
                   />
@@ -156,9 +153,16 @@ export default function SSOAuth({ identifier }: SSOAuthProps) {
                   )}
                 </div>
 
-                <BrandedButton type='submit' loading={isLoading} loadingText='Redirecting to SSO'>
-                  Continue with SSO
-                </BrandedButton>
+                <button type='submit' disabled={isLoading} className={AUTH_SUBMIT_BTN}>
+                  {isLoading ? (
+                    <span className='flex items-center gap-2'>
+                      <Loader2 className='h-4 w-4 animate-spin' />
+                      Redirecting to SSO...
+                    </span>
+                  ) : (
+                    'Continue with SSO'
+                  )}
+                </button>
               </form>
             </div>
           </div>

@@ -1,20 +1,19 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { getSession } from '@/lib/auth'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import {
   type ExecutionStreamStatus,
   getExecutionMeta,
   readExecutionEvents,
 } from '@/lib/execution/event-buffer'
-import { decrementSSEConnections, incrementSSEConnections } from '@/lib/monitoring/sse-connections'
 import { formatSSEEvent } from '@/lib/workflows/executor/execution-events'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 const logger = createLogger('ExecutionStreamReconnectAPI')
 
 const POLL_INTERVAL_MS = 500
-const MAX_POLL_DURATION_MS = 10 * 60 * 1000 // 10 minutes
+const MAX_POLL_DURATION_MS = 55 * 60 * 1000 // 55 minutes (just under Redis 1hr TTL)
 
 function isTerminalStatus(status: ExecutionStreamStatus): boolean {
   return status === 'complete' || status === 'error' || status === 'cancelled'
@@ -30,14 +29,14 @@ export async function GET(
   const { id: workflowId, executionId } = await params
 
   try {
-    const auth = await checkHybridAuth(req, { requireWorkflowId: false })
-    if (!auth.success || !auth.userId) {
-      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
       workflowId,
-      userId: auth.userId,
+      userId: session.user.id,
       action: 'read',
     })
     if (!workflowAuthorization.allowed) {
@@ -74,10 +73,8 @@ export async function GET(
 
     let closed = false
 
-    let sseDecremented = false
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
-        incrementSSEConnections('execution-stream-reconnect')
         let lastEventId = fromEventId
         const pollDeadline = Date.now() + MAX_POLL_DURATION_MS
 
@@ -94,6 +91,7 @@ export async function GET(
           const events = await readExecutionEvents(executionId, lastEventId)
           for (const entry of events) {
             if (closed) return
+            entry.event.eventId = entry.eventId
             enqueue(formatSSEEvent(entry.event))
             lastEventId = entry.eventId
           }
@@ -112,6 +110,7 @@ export async function GET(
             const newEvents = await readExecutionEvents(executionId, lastEventId)
             for (const entry of newEvents) {
               if (closed) return
+              entry.event.eventId = entry.eventId
               enqueue(formatSSEEvent(entry.event))
               lastEventId = entry.eventId
             }
@@ -121,6 +120,7 @@ export async function GET(
               const finalEvents = await readExecutionEvents(executionId, lastEventId)
               for (const entry of finalEvents) {
                 if (closed) return
+                entry.event.eventId = entry.eventId
                 enqueue(formatSSEEvent(entry.event))
                 lastEventId = entry.eventId
               }
@@ -145,20 +145,11 @@ export async function GET(
               controller.close()
             } catch {}
           }
-        } finally {
-          if (!sseDecremented) {
-            sseDecremented = true
-            decrementSSEConnections('execution-stream-reconnect')
-          }
         }
       },
       cancel() {
         closed = true
         logger.info('Client disconnected from reconnection stream', { executionId })
-        if (!sseDecremented) {
-          sseDecremented = true
-          decrementSSEConnections('execution-stream-reconnect')
-        }
       },
     })
 

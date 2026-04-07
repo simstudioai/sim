@@ -8,6 +8,7 @@ import type { SubflowType } from '@/stores/workflows/workflow/types'
 export type ExecutionEventType =
   | 'execution:started'
   | 'execution:completed'
+  | 'execution:paused'
   | 'execution:error'
   | 'execution:cancelled'
   | 'block:started'
@@ -24,6 +25,7 @@ export interface BaseExecutionEvent {
   type: ExecutionEventType
   timestamp: string
   executionId: string
+  eventId?: number
 }
 
 /**
@@ -45,6 +47,20 @@ export interface ExecutionCompletedEvent extends BaseExecutionEvent {
   workflowId: string
   data: {
     success: boolean
+    output: any
+    duration: number
+    startTime: string
+    endTime: string
+  }
+}
+
+/**
+ * Execution paused event (HITL block waiting for human input)
+ */
+export interface ExecutionPausedEvent extends BaseExecutionEvent {
+  type: 'execution:paused'
+  workflowId: string
+  data: {
     output: any
     duration: number
     startTime: string
@@ -195,6 +211,7 @@ export interface StreamDoneEvent extends BaseExecutionEvent {
 export type ExecutionEvent =
   | ExecutionStartedEvent
   | ExecutionCompletedEvent
+  | ExecutionPausedEvent
   | ExecutionErrorEvent
   | ExecutionCancelledEvent
   | BlockStartedEvent
@@ -206,6 +223,7 @@ export type ExecutionEvent =
 
 export type ExecutionStartedData = ExecutionStartedEvent['data']
 export type ExecutionCompletedData = ExecutionCompletedEvent['data']
+export type ExecutionPausedData = ExecutionPausedEvent['data']
 export type ExecutionErrorData = ExecutionErrorEvent['data']
 export type ExecutionCancelledData = ExecutionCancelledEvent['data']
 export type BlockStartedData = BlockStartedEvent['data']
@@ -241,18 +259,17 @@ export interface SSECallbackOptions {
 }
 
 /**
- * Creates SSE callbacks for workflow execution streaming
+ * Creates execution callbacks using a provided event sink.
  */
-export function createSSECallbacks(options: SSECallbackOptions) {
-  const { executionId, workflowId, controller, isStreamClosed, setStreamClosed } = options
+export function createExecutionCallbacks(options: {
+  executionId: string
+  workflowId: string
+  sendEvent: (event: ExecutionEvent) => void | Promise<void>
+}) {
+  const { executionId, workflowId, sendEvent } = options
 
-  const sendEvent = (event: ExecutionEvent) => {
-    if (isStreamClosed()) return
-    try {
-      controller.enqueue(encodeSSEEvent(event))
-    } catch {
-      setStreamClosed()
-    }
+  const sendBufferedEvent = async (event: ExecutionEvent) => {
+    await sendEvent(event)
   }
 
   const onBlockStart = async (
@@ -263,7 +280,7 @@ export function createSSECallbacks(options: SSECallbackOptions) {
     iterationContext?: IterationContext,
     childWorkflowContext?: ChildWorkflowContext
   ) => {
-    sendEvent({
+    await sendBufferedEvent({
       type: 'block:started',
       timestamp: new Date().toISOString(),
       executionId,
@@ -330,7 +347,7 @@ export function createSSECallbacks(options: SSECallbackOptions) {
       : {}
 
     if (hasError) {
-      sendEvent({
+      await sendBufferedEvent({
         type: 'block:error',
         timestamp: new Date().toISOString(),
         executionId,
@@ -351,7 +368,7 @@ export function createSSECallbacks(options: SSECallbackOptions) {
         },
       })
     } else {
-      sendEvent({
+      await sendBufferedEvent({
         type: 'block:completed',
         timestamp: new Date().toISOString(),
         executionId,
@@ -385,7 +402,7 @@ export function createSSECallbacks(options: SSECallbackOptions) {
         const { done, value } = await reader.read()
         if (done) break
         const chunk = decoder.decode(value, { stream: true })
-        sendEvent({
+        await sendBufferedEvent({
           type: 'stream:chunk',
           timestamp: new Date().toISOString(),
           executionId,
@@ -393,7 +410,7 @@ export function createSSECallbacks(options: SSECallbackOptions) {
           data: { blockId, chunk },
         })
       }
-      sendEvent({
+      await sendBufferedEvent({
         type: 'stream:done',
         timestamp: new Date().toISOString(),
         executionId,
@@ -413,7 +430,7 @@ export function createSSECallbacks(options: SSECallbackOptions) {
     iterationContext?: IterationContext,
     executionOrder?: number
   ) => {
-    sendEvent({
+    void sendBufferedEvent({
       type: 'block:childWorkflowStarted',
       timestamp: new Date().toISOString(),
       executionId,
@@ -430,5 +447,33 @@ export function createSSECallbacks(options: SSECallbackOptions) {
     })
   }
 
-  return { sendEvent, onBlockStart, onBlockComplete, onStream, onChildWorkflowInstanceReady }
+  return {
+    sendEvent: sendBufferedEvent,
+    onBlockStart,
+    onBlockComplete,
+    onStream,
+    onChildWorkflowInstanceReady,
+  }
+}
+
+/**
+ * Creates SSE callbacks for workflow execution streaming
+ */
+export function createSSECallbacks(options: SSECallbackOptions) {
+  const { executionId, workflowId, controller, isStreamClosed, setStreamClosed } = options
+
+  const sendEvent = (event: ExecutionEvent) => {
+    if (isStreamClosed()) return
+    try {
+      controller.enqueue(encodeSSEEvent(event))
+    } catch {
+      setStreamClosed()
+    }
+  }
+
+  return createExecutionCallbacks({
+    executionId,
+    workflowId,
+    sendEvent,
+  })
 }

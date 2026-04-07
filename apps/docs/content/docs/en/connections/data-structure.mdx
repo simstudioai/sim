@@ -4,6 +4,7 @@ title: Data Structure
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { FAQ } from '@/components/ui/faq'
 
 When you connect blocks, understanding the data structure of different block outputs is important because the output data structure from the source block determines what values are available in the destination block. Each block type produces a specific output structure that you can reference in downstream blocks.
 
@@ -185,3 +186,13 @@ For example:
 - `<agent1.tokens.total>` - Access the total tokens from an Agent block
 - `<api1.data.results[0].id>` - Access the ID of the first result from an API response
 - `<function1.result.calculations.total>` - Access a nested field in a Function block's result
+
+<FAQ items={[
+  { question: "What output fields does an Agent block produce?", answer: "An Agent block outputs content (the text response), model (the model used, e.g. gpt-4o), tokens (an object with prompt, completion, and total counts), and optionally toolCalls, cost, and usage arrays when tools are invoked." },
+  { question: "What does the API block output look like?", answer: "The API block returns data (the response body, which can be any type), status (the HTTP status code as a number), and headers (an object containing the response HTTP headers)." },
+  { question: "What does a Function block return?", answer: "A Function block outputs result (the return value of your function, which can be any type) and stdout (any console output captured during execution)." },
+  { question: "How does the Condition block output differ from the Router block?", answer: "The Condition block outputs conditionResult (a boolean), selectedPath (with blockId, blockType, and blockTitle of the next block), and selectedOption (the ID of the matched condition). The Router block outputs content (the routing decision text), model, tokens, and selectedPath, but does not include conditionResult or selectedOption." },
+  { question: "What happens to the Agent block output when a response format schema is configured?", answer: "When you define a response format on an Agent block, the output structure matches your defined schema instead of the standard content/model/tokens structure. Always verify the actual output shape when using response formats." },
+  { question: "How do I access deeply nested data from an API response?", answer: "Use dot notation with bracket indices in your connection tags. For example, <api1.data.results[0].id> navigates into the data field, then into the results array at index 0, and retrieves the id property." },
+]} />
+

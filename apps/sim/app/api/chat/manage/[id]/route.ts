@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
@@ -9,6 +9,7 @@ import { getSession } from '@/lib/auth'
 import { isDev } from '@/lib/core/config/feature-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getEmailDomain } from '@/lib/core/utils/urls'
+import { performChatUndeploy } from '@/lib/workflows/orchestration'
 import { deployWorkflow } from '@/lib/workflows/persistence/utils'
 import { checkChatAccess } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
@@ -132,7 +133,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         const existingIdentifier = await db
           .select()
           .from(chat)
-          .where(eq(chat.identifier, identifier))
+          .where(and(eq(chat.identifier, identifier), isNull(chat.archivedAt)))
           .limit(1)
 
         if (existingIdentifier.length > 0 && existingIdentifier[0].id !== chatId) {
@@ -270,32 +271,24 @@ export async function DELETE(
       return createErrorResponse('Unauthorized', 401)
     }
 
-    const {
-      hasAccess,
-      chat: chatRecord,
-      workspaceId: chatWorkspaceId,
-    } = await checkChatAccess(chatId, session.user.id)
+    const { hasAccess, workspaceId: chatWorkspaceId } = await checkChatAccess(
+      chatId,
+      session.user.id
+    )
 
     if (!hasAccess) {
       return createErrorResponse('Chat not found or access denied', 404)
     }
 
-    await db.delete(chat).where(eq(chat.id, chatId))
-
-    logger.info(`Chat "${chatId}" deleted successfully`)
-
-    recordAudit({
-      workspaceId: chatWorkspaceId || null,
-      actorId: session.user.id,
-      actorName: session.user.name,
-      actorEmail: session.user.email,
-      action: AuditAction.CHAT_DELETED,
-      resourceType: AuditResourceType.CHAT,
-      resourceId: chatId,
-      resourceName: chatRecord?.title || chatId,
-      description: `Deleted chat deployment "${chatRecord?.title || chatId}"`,
-      request: _request,
+    const result = await performChatUndeploy({
+      chatId,
+      userId: session.user.id,
+      workspaceId: chatWorkspaceId,
     })
+
+    if (!result.success) {
+      return createErrorResponse(result.error || 'Failed to delete chat', 500)
+    }
 
     return createSuccessResponse({
       message: 'Chat deployment deleted successfully',

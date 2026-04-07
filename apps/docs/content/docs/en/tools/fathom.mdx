@@ -1,0 +1,150 @@
+---
+title: Fathom
+description: Access meeting recordings, transcripts, and summaries
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="fathom"
+  color="#181C1E"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Fathom](https://fathom.video/) is an AI meeting assistant that automatically records, transcribes, and summarizes your video calls. It works across platforms like Zoom, Google Meet, and Microsoft Teams, generating highlights and action items so your team can stay focused during meetings and catch up quickly afterward.
+
+With the Sim Fathom integration, you can:
+
+- **List and filter meetings**: Retrieve recent meetings recorded by you or shared with your team, with optional filters by date range, recorder, or team.
+- **Get meeting summaries**: Pull structured, markdown-formatted summaries for any recorded meeting to quickly review key discussion points.
+- **Access full transcripts**: Retrieve complete transcripts with speaker attribution and timestamps for detailed review or downstream processing.
+- **Manage teams and members**: List teams in your Fathom organization and view team member details to coordinate meeting workflows.
+
+**How it works in Sim:**
+Add a Fathom block to your workflow and select an operation. Provide your Fathom API key and any required parameters (such as a recording ID for summaries and transcripts). The block calls the Fathom API and returns structured data you can pass to downstream blocks — for example, sending a summary to Slack or extracting action items with an AI agent.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Fathom AI Notetaker into your workflow. List meetings, get transcripts and summaries, and manage team members and teams. Can also trigger workflows when new meeting content is ready.
+
+
+
+## Tools
+
+### `fathom_list_meetings`
+
+List recent meetings recorded by the user or shared to their team.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Fathom API Key |
+| `includeSummary` | string | No | Include meeting summary \(true/false\) |
+| `includeTranscript` | string | No | Include meeting transcript \(true/false\) |
+| `includeActionItems` | string | No | Include action items \(true/false\) |
+| `includeCrmMatches` | string | No | Include linked CRM matches \(true/false\) |
+| `createdAfter` | string | No | Filter meetings created after this ISO 8601 timestamp |
+| `createdBefore` | string | No | Filter meetings created before this ISO 8601 timestamp |
+| `recordedBy` | string | No | Filter by recorder email address |
+| `teams` | string | No | Filter by team name |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `meetings` | array | List of meetings |
+|   ↳ `title` | string | Meeting title |
+|   ↳ `recording_id` | number | Unique recording ID |
+|   ↳ `url` | string | URL to view the meeting |
+|   ↳ `share_url` | string | Shareable URL |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `transcript_language` | string | Transcript language |
+| `next_cursor` | string | Pagination cursor for next page |
+
+### `fathom_get_summary`
+
+Get the call summary for a specific meeting recording.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Fathom API Key |
+| `recordingId` | string | Yes | The recording ID of the meeting |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `template_name` | string | Name of the summary template used |
+| `markdown_formatted` | string | Markdown-formatted summary text |
+
+### `fathom_get_transcript`
+
+Get the full transcript for a specific meeting recording.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Fathom API Key |
+| `recordingId` | string | Yes | The recording ID of the meeting |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transcript` | array | Array of transcript entries with speaker, text, and timestamp |
+|   ↳ `speaker` | object | Speaker information |
+|     ↳ `display_name` | string | Speaker display name |
+|     ↳ `matched_calendar_invitee_email` | string | Matched calendar invitee email |
+|   ↳ `text` | string | Transcript text |
+|   ↳ `timestamp` | string | Timestamp \(HH:MM:SS\) |
+
+### `fathom_list_team_members`
+
+List team members in your Fathom organization.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Fathom API Key |
+| `teams` | string | No | Team name to filter by |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `members` | array | List of team members |
+|   ↳ `name` | string | Team member name |
+|   ↳ `email` | string | Team member email |
+|   ↳ `created_at` | string | Date the member was added |
+| `next_cursor` | string | Pagination cursor for next page |
+
+### `fathom_list_teams`
+
+List teams in your Fathom organization.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Fathom API Key |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `teams` | array | List of teams |
+|   ↳ `name` | string | Team name |
+|   ↳ `created_at` | string | Date the team was created |
+| `next_cursor` | string | Pagination cursor for next page |
+
+

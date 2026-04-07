@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@/lib/core/utils/uuid'
 import { buildNextCallChain, validateCallChain } from '@/lib/execution/call-chain'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -21,7 +22,6 @@ import { parseJSON } from '@/executor/utils/json'
 import { lazyCleanupInputMapping } from '@/executor/utils/lazy-cleanup'
 import { Serializer } from '@/serializer'
 import type { SerializedBlock } from '@/serializer/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('WorkflowBlockHandler')
 
@@ -74,14 +74,11 @@ export class WorkflowBlockHandler implements BlockHandler {
       throw new Error('No workflow selected for execution')
     }
 
-    // Initialize with registry name, will be updated with loaded workflow name
-    const { workflows } = useWorkflowRegistry.getState()
-    const workflowMetadata = workflows[workflowId]
-    let childWorkflowName = workflowMetadata?.name || workflowId
+    let childWorkflowName = workflowId
 
     // Unique ID per invocation — used to correlate child block events with this specific
     // workflow block execution, preventing cross-iteration child mixing in loop contexts.
-    const instanceId = crypto.randomUUID()
+    const instanceId = generateId()
 
     const childCallChain = buildNextCallChain(ctx.callChain || [], workflowId)
     const depthError = validateCallChain(childCallChain)
@@ -95,7 +92,7 @@ export class WorkflowBlockHandler implements BlockHandler {
     let childWorkflowSnapshotId: string | undefined
     try {
       if (ctx.isDeployedContext) {
-        const hasActiveDeployment = await this.checkChildDeployment(workflowId)
+        const hasActiveDeployment = await this.checkChildDeployment(workflowId, ctx.userId)
         if (!hasActiveDeployment) {
           throw new Error(
             `Child workflow is not deployed. Please deploy the workflow before invoking it.`
@@ -104,15 +101,14 @@ export class WorkflowBlockHandler implements BlockHandler {
       }
 
       const childWorkflow = ctx.isDeployedContext
-        ? await this.loadChildWorkflowDeployed(workflowId)
-        : await this.loadChildWorkflow(workflowId)
+        ? await this.loadChildWorkflowDeployed(workflowId, ctx.userId)
+        : await this.loadChildWorkflow(workflowId, ctx.userId)
 
       if (!childWorkflow) {
         throw new Error(`Child workflow ${workflowId} not found`)
       }
 
-      // Update with loaded workflow name (more reliable than registry)
-      childWorkflowName = workflowMetadata?.name || childWorkflow.name || 'Unknown Workflow'
+      childWorkflowName = childWorkflow.name || 'Unknown Workflow'
 
       logger.info(
         `Executing child workflow: ${childWorkflowName} (${workflowId}), call chain depth ${ctx.callChain?.length || 0}`
@@ -323,8 +319,8 @@ export class WorkflowBlockHandler implements BlockHandler {
     return { chain, rootError: rootError.trim() || 'Unknown error' }
   }
 
-  private async loadChildWorkflow(workflowId: string) {
-    const headers = await buildAuthHeaders()
+  private async loadChildWorkflow(workflowId: string, userId?: string) {
+    const headers = await buildAuthHeaders(userId)
     const url = buildAPIUrl(`/api/workflows/${workflowId}`)
 
     const response = await fetch(url.toString(), { headers })
@@ -363,6 +359,10 @@ export class WorkflowBlockHandler implements BlockHandler {
     const workflowStateWithVariables = {
       ...workflowState,
       variables: workflowVariables,
+      metadata: {
+        ...(workflowState.metadata || {}),
+        name: workflowData.name || DEFAULTS.WORKFLOW_NAME,
+      },
     }
 
     if (Object.keys(workflowVariables).length > 0) {
@@ -380,9 +380,9 @@ export class WorkflowBlockHandler implements BlockHandler {
     }
   }
 
-  private async checkChildDeployment(workflowId: string): Promise<boolean> {
+  private async checkChildDeployment(workflowId: string, userId?: string): Promise<boolean> {
     try {
-      const headers = await buildAuthHeaders()
+      const headers = await buildAuthHeaders(userId)
       const url = buildAPIUrl(`/api/workflows/${workflowId}/deployed`)
 
       const response = await fetch(url.toString(), {
@@ -400,8 +400,8 @@ export class WorkflowBlockHandler implements BlockHandler {
     }
   }
 
-  private async loadChildWorkflowDeployed(workflowId: string) {
-    const headers = await buildAuthHeaders()
+  private async loadChildWorkflowDeployed(workflowId: string, userId?: string) {
+    const headers = await buildAuthHeaders(userId)
     const deployedUrl = buildAPIUrl(`/api/workflows/${workflowId}/deployed`)
 
     const deployedRes = await fetch(deployedUrl.toString(), {
@@ -444,13 +444,18 @@ export class WorkflowBlockHandler implements BlockHandler {
     )
 
     const workflowVariables = (wfData?.variables as Record<string, any>) || {}
+    const childName = wfData?.name || DEFAULTS.WORKFLOW_NAME
     const workflowStateWithVariables = {
       ...deployedState,
       variables: workflowVariables,
+      metadata: {
+        ...(deployedState.metadata || {}),
+        name: childName,
+      },
     }
 
     return {
-      name: wfData?.name || DEFAULTS.WORKFLOW_NAME,
+      name: childName,
       serializedState: serializedWorkflow,
       variables: workflowVariables,
       workflowState: workflowStateWithVariables,

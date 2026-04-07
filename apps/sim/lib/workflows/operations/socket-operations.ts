@@ -1,7 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { client } from '@/lib/auth/auth-client'
+import { generateId } from '@/lib/core/utils/uuid'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
 
 const logger = createLogger('WorkflowSocketOperations')
 
@@ -39,7 +41,7 @@ export async function enqueueWorkflowOperation({
   operationId,
 }: EnqueueWorkflowOperationArgs): Promise<string> {
   const userId = await resolveUserId()
-  const opId = operationId ?? crypto.randomUUID()
+  const opId = operationId ?? generateId()
 
   useOperationQueueStore.getState().addToQueue({
     id: opId,
@@ -76,11 +78,21 @@ export async function enqueueReplaceWorkflowState({
   state,
   operationId,
 }: EnqueueReplaceStateArgs): Promise<string> {
+  const { state: validatedState, warnings } = normalizeWorkflowState(state)
+
+  if (warnings.length > 0) {
+    logger.warn('Normalized state before enqueuing replace-state', {
+      workflowId,
+      warningCount: warnings.length,
+      warnings,
+    })
+  }
+
   return enqueueWorkflowOperation({
     workflowId,
     operation: 'replace-state',
     target: 'workflow',
-    payload: { state },
+    payload: { state: validatedState },
     operationId,
   })
 }

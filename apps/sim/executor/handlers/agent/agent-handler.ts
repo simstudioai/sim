@@ -3,6 +3,7 @@ import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { createMcpToolId } from '@/lib/mcp/utils'
+import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
 import {
@@ -12,7 +13,7 @@ import {
   validateModelProvider,
   validateSkillsAllowed,
 } from '@/ee/access-control/utils/permission-check'
-import { AGENT, BlockType, DEFAULTS, REFERENCE, stripCustomToolPrefix } from '@/executor/constants'
+import { AGENT, BlockType, DEFAULTS, stripCustomToolPrefix } from '@/executor/constants'
 import { memoryService } from '@/executor/handlers/agent/memory'
 import {
   buildLoadSkillTool,
@@ -25,6 +26,7 @@ import type {
   StreamingConfig,
   ToolInput,
 } from '@/executor/handlers/agent/types'
+import { parseResponseFormat } from '@/executor/handlers/shared/response-format'
 import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
 import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
@@ -33,7 +35,9 @@ import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
-import { getTool, getToolAsync } from '@/tools/utils'
+import { filterSchemaForLLM } from '@/tools/params'
+import { getTool } from '@/tools/utils'
+import { getToolAsync } from '@/tools/utils.server'
 
 const logger = createLogger('AgentBlockHandler')
 
@@ -55,7 +59,7 @@ export class AgentBlockHandler implements BlockHandler {
 
     await this.validateToolPermissions(ctx, filteredInputs.tools || [])
 
-    const responseFormat = this.parseResponseFormat(filteredInputs.responseFormat)
+    const responseFormat = parseResponseFormat(filteredInputs.responseFormat)
     const model = filteredInputs.model || AGENT.DEFAULT_MODEL
 
     await validateModelProvider(ctx.userId, model, ctx)
@@ -112,55 +116,6 @@ export class AgentBlockHandler implements BlockHandler {
     return result
   }
 
-  private parseResponseFormat(responseFormat?: string | object): any {
-    if (!responseFormat || responseFormat === '') return undefined
-
-    if (typeof responseFormat === 'object' && responseFormat !== null) {
-      const formatObj = responseFormat as any
-      if (!formatObj.schema && !formatObj.name) {
-        return {
-          name: 'response_schema',
-          schema: responseFormat,
-          strict: true,
-        }
-      }
-      return responseFormat
-    }
-
-    if (typeof responseFormat === 'string') {
-      const trimmedValue = responseFormat.trim()
-
-      if (trimmedValue.startsWith(REFERENCE.START) && trimmedValue.includes(REFERENCE.END)) {
-        return undefined
-      }
-
-      try {
-        const parsed = JSON.parse(trimmedValue)
-
-        if (parsed && typeof parsed === 'object' && !parsed.schema && !parsed.name) {
-          return {
-            name: 'response_schema',
-            schema: parsed,
-            strict: true,
-          }
-        }
-        return parsed
-      } catch (error: any) {
-        logger.warn('Failed to parse response format as JSON, using default behavior:', {
-          error: error.message,
-          value: trimmedValue,
-        })
-        return undefined
-      }
-    }
-
-    logger.warn('Unexpected response format type, using default behavior:', {
-      type: typeof responseFormat,
-      value: responseFormat,
-    })
-    return undefined
-  }
-
   private async validateToolPermissions(ctx: ExecutionContext, tools: ToolInput[]): Promise<void> {
     if (!Array.isArray(tools) || tools.length === 0) return
 
@@ -188,8 +143,13 @@ export class AgentBlockHandler implements BlockHandler {
     const serverIds = [...new Set(mcpTools.map((t) => t.params?.serverId).filter(Boolean))]
     if (serverIds.length === 0) return tools
 
+    if (!ctx.workspaceId) {
+      logger.warn('Skipping MCP availability filtering without workspace scope')
+      return tools
+    }
+
     const availableServerIds = new Set<string>()
-    if (ctx.workspaceId && serverIds.length > 0) {
+    if (serverIds.length > 0) {
       try {
         const servers = await db
           .select({ id: mcpServers.id, connectionStatus: mcpServers.connectionStatus })
@@ -293,8 +253,6 @@ export class AgentBlockHandler implements BlockHandler {
       return null
     }
 
-    const { filterSchemaForLLM } = await import('@/tools/params')
-
     const filteredSchema = filterSchemaForLLM(schema.function.parameters, userProvidedParams)
 
     const toolId = `${AGENT.CUSTOM_TOOL_PREFIX}${title}`
@@ -320,55 +278,18 @@ export class AgentBlockHandler implements BlockHandler {
     ctx: ExecutionContext,
     customToolId: string
   ): Promise<{ schema: any; title: string } | null> {
-    if (typeof window !== 'undefined') {
-      try {
-        const { getCustomTool } = await import('@/hooks/queries/custom-tools')
-        const tool = getCustomTool(customToolId, ctx.workspaceId)
-        if (tool) {
-          return {
-            schema: tool.schema,
-            title: tool.title,
-          }
-        }
-        logger.warn(`Custom tool not found in cache: ${customToolId}`)
-      } catch (error) {
-        logger.error('Error accessing custom tools cache:', { error })
-      }
+    if (!ctx.userId) {
+      logger.error('Cannot fetch custom tool without userId:', { customToolId })
+      return null
     }
 
     try {
-      const headers = await buildAuthHeaders()
-      const params: Record<string, string> = {}
-
-      if (ctx.workspaceId) {
-        params.workspaceId = ctx.workspaceId
-      }
-      if (ctx.workflowId) {
-        params.workflowId = ctx.workflowId
-      }
-      if (ctx.userId) {
-        params.userId = ctx.userId
-      }
-
-      const url = buildAPIUrl('/api/tools/custom', params)
-      const response = await fetch(url.toString(), {
-        method: 'GET',
-        headers,
+      const tool = await getCustomToolById({
+        toolId: customToolId,
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
       })
 
-      if (!response.ok) {
-        await response.text().catch(() => {})
-        logger.error(`Failed to fetch custom tools: ${response.status}`)
-        return null
-      }
-
-      const data = await response.json()
-      if (!data.data || !Array.isArray(data.data)) {
-        logger.error('Invalid custom tools API response')
-        return null
-      }
-
-      const tool = data.data.find((t: any) => t.id === customToolId)
       if (!tool) {
         logger.warn(`Custom tool not found by ID: ${customToolId}`)
         return null
@@ -515,7 +436,7 @@ export class AgentBlockHandler implements BlockHandler {
       throw new Error('workflowId is required for internal JWT authentication')
     }
 
-    const headers = await buildAuthHeaders()
+    const headers = await buildAuthHeaders(ctx.userId)
     const url = buildAPIUrl('/api/mcp/tools/discover', {
       serverId,
       workspaceId: ctx.workspaceId,
@@ -620,7 +541,12 @@ export class AgentBlockHandler implements BlockHandler {
     const transformedTool = await transformBlockTool(tool, {
       selectedOperation: tool.operation,
       getAllBlocks,
-      getToolAsync: (toolId: string) => getToolAsync(toolId, ctx.workflowId),
+      getToolAsync: (toolId: string) =>
+        getToolAsync(toolId, {
+          workflowId: ctx.workflowId,
+          userId: ctx.userId,
+          workspaceId: ctx.workspaceId,
+        }),
       getTool,
       canonicalModes,
     })

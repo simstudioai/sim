@@ -481,11 +481,11 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
           autoComplete='off'
         >
           <ModalBody>
-            <div className='space-y-[12px]'>
+            <div className='space-y-3'>
               <div>
                 <Label
                   htmlFor='invite-field'
-                  className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'
+                  className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'
                 >
                   Email Addresses
                 </Label>
@@ -535,10 +535,10 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                 />
               </div>
               {errorMessage && (
-                <p className='mt-[4px] text-[12px] text-[var(--text-error)]'>{errorMessage}</p>
+                <p className='mt-1 text-[var(--text-error)] text-caption'>{errorMessage}</p>
               )}
             </div>
-            <div className='mt-[8px]'>
+            <div className='mt-2'>
               <PermissionsTable
                 userPermissions={userPermissions}
                 onPermissionChange={handlePermissionChange}
@@ -561,7 +561,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
 
           <ModalFooter className='justify-between'>
             <div
-              className={`flex gap-[8px] ${hasPendingChanges && userPerms.canAdmin ? '' : 'pointer-events-none invisible'}`}
+              className={`flex gap-2 ${hasPendingChanges && userPerms.canAdmin ? '' : 'pointer-events-none invisible'}`}
               aria-hidden={!(hasPendingChanges && userPerms.canAdmin)}
             >
               <Button
@@ -575,7 +575,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
               </Button>
               <Button
                 type='button'
-                variant='tertiary'
+                variant='primary'
                 disabled={isSaving || isSubmitting}
                 onClick={handleSaveChanges}
                 tabIndex={hasPendingChanges && userPerms.canAdmin ? 0 : -1}
@@ -586,7 +586,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
 
             <Button
               type='button'
-              variant='tertiary'
+              variant='primary'
               onClick={() => formRef.current?.requestSubmit()}
               disabled={
                 !userPerms.canAdmin || isSubmitting || isSaving || !workspaceId || !hasNewInvites
@@ -608,13 +608,13 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         <ModalContent size='sm'>
           <ModalHeader>Remove Member</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to remove{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {memberToRemove?.email}
               </span>{' '}
               from this workspace?{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              <span className='text-[var(--text-tertiary)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
           <ModalFooter>
@@ -641,12 +641,12 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         <ModalContent size='sm'>
           <ModalHeader>Cancel Invitation</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to cancel the invitation for{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {invitationToRemove?.email}
               </span>
-              ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              ? <span className='text-[var(--text-tertiary)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
           <ModalFooter>

@@ -1,21 +1,32 @@
 import { db } from '@sim/db'
 import { member, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
+import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getUserUsageLimit } from '@/lib/billing/core/usage'
+import {
+  getPlanTierCredits,
+  isOrgPlan,
+  isPro as isPlanPro,
+  isTeam as isPlanTeam,
+} from '@/lib/billing/plan-helpers'
 import {
   checkEnterprisePlan,
   checkProPlan,
   checkTeamPlan,
+  ENTITLED_SUBSCRIPTION_STATUSES,
   getFreeTierLimit,
   getPerUserMinimumLimit,
+  hasUsableSubscriptionAccess,
+  USABLE_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
 import type { UserSubscriptionState } from '@/lib/billing/types'
 import {
   isAccessControlEnabled,
   isCredentialSetsEnabled,
   isHosted,
+  isInboxEnabled,
   isProd,
   isSsoEnabled,
 } from '@/lib/core/config/feature-flags'
@@ -25,18 +36,53 @@ const logger = createLogger('SubscriptionCore')
 
 export { getHighestPrioritySubscription }
 
+export interface SubscriptionMetadata {
+  billingInterval?: 'month' | 'year'
+  [key: string]: unknown
+}
+
 /**
- * Check if a referenceId (user ID or org ID) has an active subscription
- * Used for duplicate subscription prevention
+ * Extract the billing interval from subscription metadata, defaulting to 'month'.
+ */
+export function getBillingInterval(
+  metadata: SubscriptionMetadata | null | undefined
+): 'month' | 'year' {
+  return metadata?.billingInterval === 'year' ? 'year' : 'month'
+}
+
+/**
+ * Merge a `billingInterval` value into a subscription's metadata JSON column.
+ */
+export async function writeBillingInterval(
+  subscriptionId: string,
+  interval: 'month' | 'year'
+): Promise<void> {
+  const patch = JSON.stringify({ billingInterval: interval })
+  await db
+    .update(subscription)
+    .set({
+      metadata: sql`(COALESCE(metadata::jsonb, '{}'::jsonb) || ${patch}::jsonb)::json`,
+    })
+    .where(eq(subscription.id, subscriptionId))
+}
+
+/**
+ * Check if a referenceId (user ID or org ID) has a paid subscription row.
+ * Used for duplicate subscription prevention and transfer safety.
  *
  * Fails closed: returns true on error to prevent duplicate creation
  */
-export async function hasActiveSubscription(referenceId: string): Promise<boolean> {
+export async function hasPaidSubscription(referenceId: string): Promise<boolean> {
   try {
     const [activeSub] = await db
       .select({ id: subscription.id })
       .from(subscription)
-      .where(and(eq(subscription.referenceId, referenceId), eq(subscription.status, 'active')))
+      .where(
+        and(
+          eq(subscription.referenceId, referenceId),
+          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+        )
+      )
       .limit(1)
 
     return !!activeSub
@@ -152,13 +198,18 @@ export async function isEnterpriseOrgAdminOrOwner(userId: string): Promise<boole
       return false
     }
 
+    const billingStatus = await getEffectiveBillingStatus(userId)
+    if (billingStatus.billingBlocked) {
+      return false
+    }
+
     const [orgSub] = await db
       .select()
       .from(subscription)
       .where(
         and(
           eq(subscription.referenceId, memberRecord.organizationId),
-          eq(subscription.status, 'active')
+          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
         )
       )
       .limit(1)
@@ -211,13 +262,18 @@ export async function isTeamOrgAdminOrOwner(userId: string): Promise<boolean> {
       return false
     }
 
+    const billingStatus = await getEffectiveBillingStatus(userId)
+    if (billingStatus.billingBlocked) {
+      return false
+    }
+
     const [orgSub] = await db
       .select()
       .from(subscription)
       .where(
         and(
           eq(subscription.referenceId, memberRecord.organizationId),
-          eq(subscription.status, 'active')
+          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
         )
       )
       .limit(1)
@@ -256,10 +312,19 @@ export async function isOrganizationOnTeamOrEnterprisePlan(
       return true
     }
 
+    if (await isOrganizationBillingBlocked(organizationId)) {
+      return false
+    }
+
     const [orgSub] = await db
       .select()
       .from(subscription)
-      .where(and(eq(subscription.referenceId, organizationId), eq(subscription.status, 'active')))
+      .where(
+        and(
+          eq(subscription.referenceId, organizationId),
+          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
+        )
+      )
       .limit(1)
 
     return !!orgSub && (checkTeamPlan(orgSub) || checkEnterprisePlan(orgSub))
@@ -283,10 +348,19 @@ export async function isOrganizationOnEnterprisePlan(organizationId: string): Pr
       return true
     }
 
+    if (await isOrganizationBillingBlocked(organizationId)) {
+      return false
+    }
+
     const [orgSub] = await db
       .select()
       .from(subscription)
-      .where(and(eq(subscription.referenceId, organizationId), eq(subscription.status, 'active')))
+      .where(
+        and(
+          eq(subscription.referenceId, organizationId),
+          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
+        )
+      )
       .limit(1)
 
     return !!orgSub && checkEnterprisePlan(orgSub)
@@ -360,6 +434,58 @@ export async function hasAccessControlAccess(userId: string): Promise<boolean> {
 }
 
 /**
+ * Check if user has access to inbox (Sim Mailer) feature
+ * Returns true if:
+ * - INBOX_ENABLED env var is set, OR
+ * - Non-production environment, OR
+ * - User has a Max plan (credits >= 25000) or enterprise plan
+ */
+export async function hasInboxAccess(userId: string): Promise<boolean> {
+  try {
+    if (isInboxEnabled) {
+      return true
+    }
+    if (!isProd) {
+      return true
+    }
+    const [sub, billingStatus] = await Promise.all([
+      getHighestPrioritySubscription(userId),
+      getEffectiveBillingStatus(userId),
+    ])
+    if (!sub) return false
+    if (!hasUsableSubscriptionAccess(sub.status, billingStatus.billingBlocked)) return false
+    return getPlanTierCredits(sub.plan) >= 25000 || checkEnterprisePlan(sub)
+  } catch (error) {
+    logger.error('Error checking inbox access', { error, userId })
+    return false
+  }
+}
+
+/**
+ * Check if user has access to live sync (every 5 minutes) for KB connectors
+ * Returns true if:
+ * - Self-hosted deployment, OR
+ * - User has a Max plan (credits >= 25000) or enterprise plan
+ */
+export async function hasLiveSyncAccess(userId: string): Promise<boolean> {
+  try {
+    if (!isHosted) {
+      return true
+    }
+    const [sub, billingStatus] = await Promise.all([
+      getHighestPrioritySubscription(userId),
+      getEffectiveBillingStatus(userId),
+    ])
+    if (!sub) return false
+    if (!hasUsableSubscriptionAccess(sub.status, billingStatus.billingBlocked)) return false
+    return getPlanTierCredits(sub.plan) >= 25000 || checkEnterprisePlan(sub)
+  } catch (error) {
+    logger.error('Error checking live sync access', { error, userId })
+    return false
+  }
+}
+
+/**
  * Check if user has exceeded their cost limit based on current period usage
  */
 export async function hasExceededCostLimit(userId: string): Promise<boolean> {
@@ -374,7 +500,7 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
 
     if (subscription) {
       // Team/Enterprise: Use organization limit
-      if (subscription.plan === 'team' || subscription.plan === 'enterprise') {
+      if (isOrgPlan(subscription.plan)) {
         limit = await getUserUsageLimit(userId)
         logger.info('Using organization limit', {
           userId,
@@ -459,7 +585,7 @@ export async function getUserSubscriptionState(userId: string): Promise<UserSubs
       let limit = getFreeTierLimit() // Default free tier limit
       if (subscription) {
         // Team/Enterprise: Use organization limit
-        if (subscription.plan === 'team' || subscription.plan === 'enterprise') {
+        if (isOrgPlan(subscription.plan)) {
           limit = await getUserUsageLimit(userId)
         } else {
           // Pro/Free: Use individual limit
@@ -504,7 +630,7 @@ export async function getUserSubscriptionState(userId: string): Promise<UserSubs
 export async function sendPlanWelcomeEmail(subscription: any): Promise<void> {
   try {
     const subPlan = subscription.plan
-    if (subPlan === 'pro' || subPlan === 'team') {
+    if (isPlanPro(subPlan) || isPlanTeam(subPlan)) {
       const userId = subscription.referenceId
       const users = await db
         .select({ email: user.email, name: user.name })
@@ -517,15 +643,17 @@ export async function sendPlanWelcomeEmail(subscription: any): Promise<void> {
         const { sendEmail } = await import('@/lib/messaging/email/mailer')
 
         const baseUrl = getBaseUrl()
+        const { getDisplayPlanName } = await import('@/lib/billing/plan-helpers')
         const html = await renderPlanWelcomeEmail({
-          planName: subPlan === 'pro' ? 'Pro' : 'Team',
+          planName: getDisplayPlanName(subPlan),
           userName: users[0].name || undefined,
           loginLink: `${baseUrl}/login`,
         })
 
+        const displayName = getDisplayPlanName(subPlan)
         await sendEmail({
           to: users[0].email,
-          subject: getEmailSubject(subPlan === 'pro' ? 'plan-welcome-pro' : 'plan-welcome-team'),
+          subject: `Your ${displayName} plan is now active on ${(await import('@/ee/whitelabeling')).getBrandConfig().name}`,
           html,
           emailType: 'updates',
         })

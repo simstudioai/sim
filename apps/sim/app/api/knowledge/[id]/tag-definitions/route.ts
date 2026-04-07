@@ -1,11 +1,11 @@
-import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { generateId } from '@/lib/core/utils/uuid'
 import { SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
 import { createTagDefinition, getTagDefinitions } from '@/lib/knowledge/tags/service'
-import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
+import { checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +13,7 @@ const logger = createLogger('KnowledgeBaseTagDefinitionsAPI')
 
 // GET /api/knowledge/[id]/tag-definitions - Get all tag definitions for a knowledge base
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   const { id: knowledgeBaseId } = await params
 
   try {
@@ -25,10 +25,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     // For session auth, verify KB access. Internal JWT is trusted.
-    if (auth.authType === 'session' && auth.userId) {
-      const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, auth.userId)
+    if (auth.authType === AuthType.SESSION && auth.userId) {
+      const accessCheck = await checkKnowledgeBaseWriteAccess(knowledgeBaseId, auth.userId)
       if (!accessCheck.hasAccess) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        return NextResponse.json(
+          { error: accessCheck.notFound ? 'Not found' : 'Forbidden' },
+          { status: accessCheck.notFound ? 404 : 403 }
+        )
       }
     }
 
@@ -50,7 +53,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
 // POST /api/knowledge/[id]/tag-definitions - Create a new tag definition
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   const { id: knowledgeBaseId } = await params
 
   try {
@@ -62,10 +65,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     // For session auth, verify KB access. Internal JWT is trusted.
-    if (auth.authType === 'session' && auth.userId) {
-      const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, auth.userId)
+    if (auth.authType === AuthType.SESSION && auth.userId) {
+      const accessCheck = await checkKnowledgeBaseWriteAccess(knowledgeBaseId, auth.userId)
       if (!accessCheck.hasAccess) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        return NextResponse.json(
+          { error: accessCheck.notFound ? 'Not found' : 'Forbidden' },
+          { status: accessCheck.notFound ? 404 : 403 }
+        )
       }
     }
 

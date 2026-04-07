@@ -15,6 +15,8 @@ const GetChunksQuerySchema = z.object({
   enabled: z.enum(['true', 'false', 'all']).optional().default('all'),
   limit: z.coerce.number().min(1).max(100).optional().default(50),
   offset: z.coerce.number().min(0).optional().default(0),
+  sortBy: z.enum(['chunkIndex', 'tokenCount', 'enabled']).optional().default('chunkIndex'),
+  sortOrder: z.enum(['asc', 'desc']).optional().default('asc'),
 })
 
 const CreateChunkSchema = z.object({
@@ -88,6 +90,8 @@ export async function GET(
       enabled: searchParams.get('enabled') || undefined,
       limit: searchParams.get('limit') || undefined,
       offset: searchParams.get('offset') || undefined,
+      sortBy: searchParams.get('sortBy') || undefined,
+      sortOrder: searchParams.get('sortOrder') || undefined,
     })
 
     const result = await queryChunks(documentId, queryParams, requestId)
@@ -156,6 +160,16 @@ export async function POST(
         `[${requestId}] Document data not available: KB=${knowledgeBaseId}, Doc=${documentId}`
       )
       return NextResponse.json({ error: 'Document not found' }, { status: 404 })
+    }
+
+    if (doc.connectorId) {
+      logger.warn(
+        `[${requestId}] User ${userId} attempted to create chunk on connector-synced document: Doc=${documentId}`
+      )
+      return NextResponse.json(
+        { error: 'Chunks from connector-synced documents are read-only' },
+        { status: 403 }
+      )
     }
 
     // Allow manual chunk creation even if document is not fully processed
@@ -281,6 +295,16 @@ export async function PATCH(
         `[${requestId}] User ${userId} attempted unauthorized batch chunk operation: ${accessCheck.reason}`
       )
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (accessCheck.document?.connectorId) {
+      logger.warn(
+        `[${requestId}] User ${userId} attempted batch chunk operation on connector-synced document: Doc=${documentId}`
+      )
+      return NextResponse.json(
+        { error: 'Chunks from connector-synced documents are read-only' },
+        { status: 403 }
+      )
     }
 
     const body = await req.json()

@@ -2,10 +2,8 @@
 
 import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { inter } from '@/app/_styles/fonts/inter/inter'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
-import { SupportFooter } from '@/app/(auth)/components/support-footer'
+import { cn } from '@/lib/core/utils/cn'
+import { AUTH_PRIMARY_CTA_BASE } from '@/app/(auth)/components/auth-button-classes'
 
 interface InviteStatusCardProps {
   type: 'login' | 'loading' | 'error' | 'success' | 'invitation' | 'warning'
@@ -35,17 +33,14 @@ export function InviteStatusCard({
     return (
       <>
         <div className='space-y-1 text-center'>
-          <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+          <h1 className='font-[500] text-[32px] text-[var(--landing-text)] tracking-tight'>
             Loading
           </h1>
-          <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
-            {description}
-          </p>
+          <p className='font-[380] text-[var(--landing-text-muted)] text-md'>{description}</p>
         </div>
-        <div className={`${inter.className} mt-8 flex w-full items-center justify-center py-8`}>
-          <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
+        <div className='mt-8 flex w-full items-center justify-center py-8'>
+          <Loader2 className='h-8 w-8 animate-spin text-[var(--landing-text-muted)]' />
         </div>
-        <SupportFooter position='absolute' />
       </>
     )
   }
@@ -53,33 +48,41 @@ export function InviteStatusCard({
   return (
     <>
       <div className='space-y-1 text-center'>
-        <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+        <h1 className='font-[500] text-[32px] text-[var(--landing-text)] tracking-tight'>
           {title}
         </h1>
-        <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
-          {description}
-        </p>
+        <p className='font-[380] text-[var(--landing-text-muted)] text-md'>{description}</p>
       </div>
 
-      <div className={`${inter.className} mt-8 w-full max-w-[410px] space-y-3`}>
+      <div className='mt-8 w-full max-w-[410px] space-y-3'>
         {isExpiredError && (
-          <BrandedButton onClick={() => router.push('/')}>Request New Invitation</BrandedButton>
+          <button onClick={() => router.push('/')} className={`${AUTH_PRIMARY_CTA_BASE} w-full`}>
+            Request New Invitation
+          </button>
         )}
 
         {actions.map((action, index) => (
-          <BrandedButton
+          <button
             key={index}
             onClick={action.onClick}
-            disabled={action.disabled}
-            loading={action.loading}
-            loadingText={action.label}
+            disabled={action.disabled || action.loading}
+            className={cn(
+              `${AUTH_PRIMARY_CTA_BASE} w-full`,
+              index !== 0 &&
+                'border-[var(--landing-border-strong)] bg-transparent text-[var(--landing-text)] hover:border-[var(--landing-border-strong)] hover:bg-[var(--landing-bg-elevated)] hover:text-[var(--landing-text)]'
+            )}
           >
-            {action.label}
-          </BrandedButton>
+            {action.loading ? (
+              <span className='flex items-center gap-2'>
+                <Loader2 className='h-4 w-4 animate-spin' />
+                {action.label}...
+              </span>
+            ) : (
+              action.label
+            )}
+          </button>
         ))}
       </div>
-
-      <SupportFooter position='absolute' />
     </>
   )
 }

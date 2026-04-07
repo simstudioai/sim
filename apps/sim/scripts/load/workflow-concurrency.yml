@@ -1,0 +1,24 @@
+config:
+  target: "{{ $processEnvironment.BASE_URL }}"
+  phases:
+    - duration: "{{ $processEnvironment.WARMUP_DURATION }}"
+      arrivalRate: "{{ $processEnvironment.WARMUP_RATE }}"
+      rampTo: "{{ $processEnvironment.PEAK_RATE }}"
+      name: baseline-ramp
+    - duration: "{{ $processEnvironment.HOLD_DURATION }}"
+      arrivalRate: "{{ $processEnvironment.PEAK_RATE }}"
+      name: baseline-hold
+  defaults:
+    headers:
+      content-type: application/json
+      x-api-key: "{{ $processEnvironment.SIM_API_KEY }}"
+      x-execution-mode: async
+scenarios:
+  - name: baseline-workflow-concurrency
+    flow:
+      - post:
+          url: "/api/workflows/{{ $processEnvironment.WORKFLOW_ID }}/execute"
+          json:
+            input:
+              source: artillery-baseline
+              runId: "{{ $uuid }}"

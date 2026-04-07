@@ -1,16 +1,10 @@
 /**
- * Periodic memory telemetry for diagnosing heap growth in production.
- * Logs process.memoryUsage(), V8 heap stats, and active SSE connection
- * counts every 60s, enabling correlation between connection leaks and
- * memory spikes.
+ * Periodic memory telemetry for monitoring heap growth in production.
+ * Logs process.memoryUsage() and V8 heap stats every 60s.
  */
 
 import v8 from 'node:v8'
 import { createLogger } from '@sim/logger'
-import {
-  getActiveSSEConnectionCount,
-  getActiveSSEConnectionsByRoute,
-} from '@/lib/monitoring/sse-connections'
 
 const logger = createLogger('MemoryTelemetry', { logLevel: 'INFO' })
 
@@ -23,16 +17,6 @@ export function startMemoryTelemetry(intervalMs = 60_000) {
   started = true
 
   const timer = setInterval(() => {
-    // Trigger opportunistic (non-blocking) garbage collection if running on Bun.
-    // This signals JSC GC + mimalloc page purge without blocking the event loop,
-    // helping reclaim RSS that mimalloc otherwise retains under sustained load.
-    const bunGlobal = (globalThis as Record<string, unknown>).Bun as
-      | { gc?: (force: boolean) => void }
-      | undefined
-    if (typeof bunGlobal?.gc === 'function') {
-      bunGlobal.gc(false)
-    }
-
     const mem = process.memoryUsage()
     const heap = v8.getHeapStatistics()
 
@@ -49,8 +33,6 @@ export function startMemoryTelemetry(intervalMs = 60_000) {
           ? process.getActiveResourcesInfo().length
           : -1,
       uptimeMin: Math.round(process.uptime() / 60),
-      activeSSEConnections: getActiveSSEConnectionCount(),
-      sseByRoute: getActiveSSEConnectionsByRoute(),
     })
   }, intervalMs)
   timer.unref()

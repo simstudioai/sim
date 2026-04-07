@@ -221,3 +221,68 @@ export function resolveParentChildSelectionConflicts(
 
   return hasConflict ? resolved : nodes
 }
+
+export function getNodeSelectionContextId(
+  node: Pick<Node, 'id' | 'parentId'>,
+  blocks: Record<string, { data?: { parentId?: string } }>
+): string | null {
+  return node.parentId || blocks[node.id]?.data?.parentId || null
+}
+
+export function getEdgeSelectionContextId(
+  edge: Pick<Edge, 'source' | 'target'>,
+  nodes: Array<Pick<Node, 'id' | 'parentId'>>,
+  blocks: Record<string, { data?: { parentId?: string } }>
+): string | null {
+  const sourceNode = nodes.find((node) => node.id === edge.source)
+  const targetNode = nodes.find((node) => node.id === edge.target)
+  const sourceContextId = sourceNode ? getNodeSelectionContextId(sourceNode, blocks) : null
+  const targetContextId = targetNode ? getNodeSelectionContextId(targetNode, blocks) : null
+  if (sourceContextId) return sourceContextId
+  if (targetContextId) return targetContextId
+  return null
+}
+
+export function resolveSelectionContextConflicts(
+  nodes: Node[],
+  blocks: Record<string, { data?: { parentId?: string } }>,
+  preferredContextId?: string | null
+): Node[] {
+  const selectedNodes = nodes.filter((node) => node.selected)
+  if (selectedNodes.length <= 1) return nodes
+
+  const allowedContextId =
+    preferredContextId !== undefined
+      ? preferredContextId
+      : getNodeSelectionContextId(selectedNodes[0], blocks)
+  let hasConflict = false
+
+  const resolved = nodes.map((node) => {
+    if (!node.selected) return node
+    const contextId = getNodeSelectionContextId(node, blocks)
+    if (contextId !== allowedContextId) {
+      hasConflict = true
+      return { ...node, selected: false }
+    }
+    return node
+  })
+
+  return hasConflict ? resolved : nodes
+}
+
+export function resolveSelectionConflicts(
+  nodes: Node[],
+  blocks: Record<string, { data?: { parentId?: string } }>,
+  preferredNodeId?: string
+): Node[] {
+  const afterParentChild = resolveParentChildSelectionConflicts(nodes, blocks)
+
+  const preferredContextId =
+    preferredNodeId !== undefined
+      ? afterParentChild.find((n) => n.id === preferredNodeId && n.selected)
+        ? getNodeSelectionContextId(afterParentChild.find((n) => n.id === preferredNodeId)!, blocks)
+        : undefined
+      : undefined
+
+  return resolveSelectionContextConflicts(afterParentChild, blocks, preferredContextId)
+}

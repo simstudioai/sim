@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import { populateTriggerFieldsFromConfig } from '@/hooks/use-trigger-config-aggregation'
@@ -25,8 +26,6 @@ const logger = createLogger('SubBlockStore')
 export const useSubBlockStore = create<SubBlockStore>()(
   devtools((set, get) => ({
     workflowValues: {},
-    loadingWebhooks: new Set<string>(),
-    checkedWebhooks: new Set<string>(),
 
     setValue: (blockId: string, subBlockId: string, value: any) => {
       const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -44,13 +43,13 @@ export const useSubBlockStore = create<SubBlockStore>()(
             if (!row || typeof row !== 'object') {
               logger.warn('Fixing malformed table row', { blockId, subBlockId, row })
               return {
-                id: crypto.randomUUID(),
+                id: generateId(),
                 cells: { Key: '', Value: '' },
               }
             }
 
             if (!row.id) {
-              row.id = crypto.randomUUID()
+              row.id = generateId()
             }
 
             if (!row.cells || typeof row.cells !== 'object') {
@@ -143,15 +142,6 @@ export const useSubBlockStore = create<SubBlockStore>()(
         const triggerConfigSubBlock = block.subBlocks?.triggerConfig
         if (triggerConfigSubBlock?.value && typeof triggerConfigSubBlock.value === 'object') {
           populateTriggerFieldsFromConfig(blockId, triggerConfigSubBlock.value, triggerId)
-
-          const currentChecked = get().checkedWebhooks
-          if (currentChecked.has(blockId)) {
-            set((state) => {
-              const newSet = new Set(state.checkedWebhooks)
-              newSet.delete(blockId)
-              return { checkedWebhooks: newSet }
-            })
-          }
         }
       })
     },

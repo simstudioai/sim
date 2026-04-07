@@ -1,25 +1,25 @@
 import { createLogger } from '@sim/logger'
 import type { AsyncBackendType, JobQueueBackend } from '@/lib/core/async-jobs/types'
+import { isBullMQEnabled } from '@/lib/core/bullmq'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
-import { getRedisClient } from '@/lib/core/config/redis'
 
 const logger = createLogger('AsyncJobsConfig')
 
 let cachedBackend: JobQueueBackend | null = null
 let cachedBackendType: AsyncBackendType | null = null
+let cachedInlineBackend: JobQueueBackend | null = null
 
 /**
  * Determines which async backend to use based on environment configuration.
- * Follows the fallback chain: trigger.dev → redis → database
+ * Follows the fallback chain: trigger.dev → bullmq → database
  */
 export function getAsyncBackendType(): AsyncBackendType {
   if (isTriggerDevEnabled) {
     return 'trigger-dev'
   }
 
-  const redis = getRedisClient()
-  if (redis) {
-    return 'redis'
+  if (isBullMQEnabled()) {
+    return 'bullmq'
   }
 
   return 'database'
@@ -42,13 +42,9 @@ export async function getJobQueue(): Promise<JobQueueBackend> {
       cachedBackend = new TriggerDevJobQueue()
       break
     }
-    case 'redis': {
-      const redis = getRedisClient()
-      if (!redis) {
-        throw new Error('Redis client not available but redis backend was selected')
-      }
-      const { RedisJobQueue } = await import('@/lib/core/async-jobs/backends/redis')
-      cachedBackend = new RedisJobQueue(redis)
+    case 'bullmq': {
+      const { BullMQJobQueue } = await import('@/lib/core/async-jobs/backends/bullmq')
+      cachedBackend = new BullMQJobQueue()
       break
     }
     case 'database': {
@@ -61,6 +57,10 @@ export async function getJobQueue(): Promise<JobQueueBackend> {
   cachedBackendType = type
   logger.info(`Async job backend initialized: ${type}`)
 
+  if (!cachedBackend) {
+    throw new Error(`Failed to initialize async backend: ${type}`)
+  }
+
   return cachedBackend
 }
 
@@ -72,11 +72,39 @@ export function getCurrentBackendType(): AsyncBackendType | null {
 }
 
 /**
- * Checks if jobs should be executed inline (fire-and-forget).
- * For Redis/DB backends, we execute inline. Trigger.dev handles execution itself.
+ * Gets a job queue backend that bypasses Trigger.dev (BullMQ -> Database).
+ * Used for execution paths that must avoid Trigger.dev cold starts.
+ */
+export async function getInlineJobQueue(): Promise<JobQueueBackend> {
+  if (cachedInlineBackend) {
+    return cachedInlineBackend
+  }
+
+  let type: string
+  if (isBullMQEnabled()) {
+    const { BullMQJobQueue } = await import('@/lib/core/async-jobs/backends/bullmq')
+    cachedInlineBackend = new BullMQJobQueue()
+    type = 'bullmq'
+  } else {
+    const { DatabaseJobQueue } = await import('@/lib/core/async-jobs/backends/database')
+    cachedInlineBackend = new DatabaseJobQueue()
+    type = 'database'
+  }
+
+  logger.info(`Inline job backend initialized: ${type}`)
+  return cachedInlineBackend
+}
+
+/**
+ * Checks if jobs should be executed inline in-process.
+ * Database fallback is the only mode that still relies on inline execution.
  */
 export function shouldExecuteInline(): boolean {
-  return getAsyncBackendType() !== 'trigger-dev'
+  return getAsyncBackendType() === 'database'
+}
+
+export function shouldUseBullMQ(): boolean {
+  return isBullMQEnabled()
 }
 
 /**
@@ -85,4 +113,5 @@ export function shouldExecuteInline(): boolean {
 export function resetJobQueueCache(): void {
   cachedBackend = null
   cachedBackendType = null
+  cachedInlineBackend = null
 }

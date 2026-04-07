@@ -23,7 +23,7 @@ interface DeleteModalProps {
    * Type of item being deleted
    * - 'mixed' is used when both workflows and folders are selected
    */
-  itemType: 'workflow' | 'folder' | 'workspace' | 'mixed'
+  itemType: 'workflow' | 'folder' | 'workspace' | 'mixed' | 'task'
   /**
    * Name(s) of the item(s) being deleted (optional, for display)
    * Can be a single name or an array of names for multiple items
@@ -56,11 +56,15 @@ export function DeleteModal({
     title = isMultiple ? 'Delete Workflows' : 'Delete Workflow'
   } else if (itemType === 'folder') {
     title = isMultiple ? 'Delete Folders' : 'Delete Folder'
+  } else if (itemType === 'task') {
+    title = isMultiple ? 'Delete Tasks' : 'Delete Task'
   } else if (itemType === 'mixed') {
     title = 'Delete Items'
   } else {
     title = 'Delete Workspace'
   }
+
+  const restorableTypes = new Set<string>(['workflow', 'folder', 'mixed'])
 
   const renderDescription = () => {
     if (itemType === 'workflow') {
@@ -71,7 +75,10 @@ export function DeleteModal({
             <span className='font-medium text-[var(--text-primary)]'>
               {displayNames.join(', ')}
             </span>
-            ? This will permanently remove all associated blocks, executions, and configuration.
+            ?{' '}
+            <span className='text-[var(--text-error)]'>
+              All associated blocks, executions, and configuration will be removed.
+            </span>
           </>
         )
       }
@@ -79,12 +86,21 @@ export function DeleteModal({
         return (
           <>
             Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>? This
-            will permanently remove all associated blocks, executions, and configuration.
+            <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>?{' '}
+            <span className='text-[var(--text-error)]'>
+              All associated blocks, executions, and configuration will be removed.
+            </span>
           </>
         )
       }
-      return 'Are you sure you want to delete this workflow? This will permanently remove all associated blocks, executions, and configuration.'
+      return (
+        <>
+          Are you sure you want to delete this workflow?{' '}
+          <span className='text-[var(--text-error)]'>
+            All associated blocks, executions, and configuration will be removed.
+          </span>
+        </>
+      )
     }
 
     if (itemType === 'folder') {
@@ -95,8 +111,10 @@ export function DeleteModal({
             <span className='font-medium text-[var(--text-primary)]'>
               {displayNames.join(', ')}
             </span>
-            ? This will permanently remove all workflows, logs, and knowledge bases within these
-            folders.
+            ?{' '}
+            <span className='text-[var(--text-error)]'>
+              All workflows and contents within these folders will be archived.
+            </span>
           </>
         )
       }
@@ -104,12 +122,57 @@ export function DeleteModal({
         return (
           <>
             Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>? This
-            will permanently remove all associated workflows, logs, and knowledge bases.
+            <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>?{' '}
+            <span className='text-[var(--text-error)]'>
+              All associated workflows and contents will be archived.
+            </span>
           </>
         )
       }
-      return 'Are you sure you want to delete this folder? This will permanently remove all associated workflows, logs, and knowledge bases.'
+      return (
+        <>
+          Are you sure you want to delete this folder?{' '}
+          <span className='text-[var(--text-error)]'>
+            All associated workflows and contents will be archived.
+          </span>
+        </>
+      )
+    }
+
+    if (itemType === 'task') {
+      if (isMultiple) {
+        return (
+          <>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              {displayNames.length} tasks
+            </span>
+            ?{' '}
+            <span className='text-[var(--text-error)]'>
+              This will permanently remove all conversation history.
+            </span>
+          </>
+        )
+      }
+      if (isSingle && displayNames.length > 0) {
+        return (
+          <>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>?{' '}
+            <span className='text-[var(--text-error)]'>
+              This will permanently remove all conversation history.
+            </span>
+          </>
+        )
+      }
+      return (
+        <>
+          Are you sure you want to delete this task?{' '}
+          <span className='text-[var(--text-error)]'>
+            This will permanently remove all conversation history.
+          </span>
+        </>
+      )
     }
 
     if (itemType === 'mixed') {
@@ -120,12 +183,21 @@ export function DeleteModal({
             <span className='font-medium text-[var(--text-primary)]'>
               {displayNames.join(', ')}
             </span>
-            ? This will permanently remove all selected workflows and folders, including their
-            contents.
+            ?{' '}
+            <span className='text-[var(--text-error)]'>
+              All selected workflows and folders, including their contents, will be archived.
+            </span>
           </>
         )
       }
-      return 'Are you sure you want to delete the selected items? This will permanently remove all selected workflows and folders, including their contents.'
+      return (
+        <>
+          Are you sure you want to delete the selected items?{' '}
+          <span className='text-[var(--text-error)]'>
+            All selected workflows and folders, including their contents, will be archived.
+          </span>
+        </>
+      )
     }
 
     // workspace type
@@ -133,12 +205,22 @@ export function DeleteModal({
       return (
         <>
           Are you sure you want to delete{' '}
-          <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>? This
-          will permanently remove all associated workflows, folders, logs, and knowledge bases.
+          <span className='font-medium text-[var(--text-primary)]'>{displayNames[0]}</span>?{' '}
+          <span className='text-[var(--text-error)]'>
+            This will permanently remove all associated workflows, folders, logs, and knowledge
+            bases.
+          </span>
         </>
       )
     }
-    return 'Are you sure you want to delete this workspace? This will permanently remove all associated workflows, folders, logs, and knowledge bases.'
+    return (
+      <>
+        Are you sure you want to delete this workspace?{' '}
+        <span className='text-[var(--text-error)]'>
+          This will permanently remove all associated workflows, folders, logs, and knowledge bases.
+        </span>
+      </>
+    )
   }
 
   return (
@@ -146,9 +228,15 @@ export function DeleteModal({
       <ModalContent size='sm'>
         <ModalHeader>{title}</ModalHeader>
         <ModalBody>
-          <p className='text-[12px] text-[var(--text-secondary)]'>
+          <p className='text-[var(--text-secondary)]'>
             {renderDescription()}{' '}
-            <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            {restorableTypes.has(itemType) ? (
+              <span className='text-[var(--text-tertiary)]'>
+                You can restore it from Recently Deleted in Settings.
+              </span>
+            ) : (
+              <span className='text-[var(--text-tertiary)]'>This action cannot be undone.</span>
+            )}
           </p>
         </ModalBody>
         <ModalFooter>

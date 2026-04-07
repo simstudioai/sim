@@ -5,6 +5,7 @@ description: Expose your workflows as MCP tools for external AI assistants and a
 
 import { Video } from '@/components/ui/video'
 import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
 
 Deploy your workflows as MCP tools to make them accessible to external AI assistants like Claude Desktop, Cursor, and other MCP-compatible clients. This turns your workflows into callable tools that can be invoked from anywhere.
 
@@ -101,8 +102,18 @@ Workflows execute using the same deployment version as API calls, ensuring consi
 
 | Action | Required Permission |
 |--------|-------------------|
-| Create MCP servers | **Admin** |
+| Create MCP servers | **Write** or **Admin** |
 | Add workflows to servers | **Write** or **Admin** |
 | View MCP servers | **Read**, **Write**, or **Admin** |
 | Delete MCP servers | **Admin** |
+
+<FAQ items={[
+  { question: "Does my workflow need to be deployed before adding it as an MCP tool?", answer: "Yes. Only deployed workflows can be added as MCP tools. The MCP tool executes the same deployment version as API calls, ensuring consistent behavior between both access methods." },
+  { question: "What MCP protocol does Sim implement?", answer: "Sim implements the standard MCP protocol using the official @modelcontextprotocol/sdk types, supporting JSON-RPC 2.0 messages including tools/list and tools/call methods. It handles both requests and notifications per the MCP specification." },
+  { question: "How do I authenticate MCP client connections?", answer: "Include your API key in the X-API-Key header when connecting via mcp-remote or other HTTP-based MCP transports. The server validates authentication using hybrid auth that supports both session-based and API key-based access." },
+  { question: "Can I add the same workflow to multiple MCP servers?", answer: "Yes. When configuring a workflow as an MCP tool, you can select multiple MCP servers to add it to. Each server exposes its own URL, so you can organize tools into different servers for different use cases or clients." },
+  { question: "What naming conventions should I follow for tool names?", answer: "Use lowercase letters, numbers, and underscores only. The name should be descriptive and follow MCP naming conventions, such as search_documents or send_email. This helps AI assistants understand and correctly invoke your tools." },
+  { question: "How are workflow inputs mapped to MCP tool parameters?", answer: "Your workflow's input format fields automatically become MCP tool parameters. You can add descriptions to each parameter in the MCP configuration to help AI assistants understand what values to provide." },
+]} />
+
 

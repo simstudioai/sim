@@ -116,7 +116,7 @@ export async function applyAutoLayoutAndUpdateStore(
       lastSaved: Date.now(),
     }
 
-    useWorkflowStore.setState(newWorkflowState)
+    useWorkflowStore.getState().replaceWorkflowState(newWorkflowState)
 
     logger.info('Successfully updated workflow store with auto layout', { workflowId })
 
@@ -124,8 +124,7 @@ export async function applyAutoLayoutAndUpdateStore(
     try {
       useWorkflowStore.getState().updateLastSaved()
 
-      const { deploymentStatuses, needsRedeployment, dragStartPosition, ...stateToSave } =
-        newWorkflowState
+      const { dragStartPosition, ...stateToSave } = newWorkflowState
 
       const cleanedWorkflowState = {
         ...stateToSave,
@@ -168,9 +167,9 @@ export async function applyAutoLayoutAndUpdateStore(
       })
 
       // Revert the store changes since database save failed
-      useWorkflowStore.setState({
+      useWorkflowStore.getState().replaceWorkflowState({
         ...workflowStore.getWorkflowState(),
-        blocks: blocks,
+        blocks,
         lastSaved: workflowStore.lastSaved,
       })
 

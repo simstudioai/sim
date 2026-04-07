@@ -2,7 +2,10 @@ import { db } from '@sim/db'
 import { member, organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
+import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { isOrgPlan, isPro, isTeam } from '@/lib/billing/plan-helpers'
+import { hasUsableSubscriptionAccess } from '@/lib/billing/subscriptions/utils'
 import { Decimal, toDecimal, toFixedString, toNumber } from '@/lib/billing/utils/decimal'
 
 const logger = createLogger('CreditBalance')
@@ -16,7 +19,7 @@ export interface CreditBalanceInfo {
 export async function getCreditBalance(userId: string): Promise<CreditBalanceInfo> {
   const subscription = await getHighestPrioritySubscription(userId)
 
-  if (subscription?.plan === 'team' || subscription?.plan === 'enterprise') {
+  if (subscription && isOrgPlan(subscription.plan)) {
     const orgRows = await db
       .select({ creditBalance: organization.creditBalance })
       .from(organization)
@@ -152,7 +155,7 @@ export async function deductFromCredits(userId: string, cost: number): Promise<D
   }
 
   const subscription = await getHighestPrioritySubscription(userId)
-  const isTeamOrEnterprise = subscription?.plan === 'team' || subscription?.plan === 'enterprise'
+  const isTeamOrEnterprise = isOrgPlan(subscription?.plan)
 
   let creditsUsed: number
 
@@ -178,11 +181,15 @@ export async function deductFromCredits(userId: string, cost: number): Promise<D
 
 export async function canPurchaseCredits(userId: string): Promise<boolean> {
   const subscription = await getHighestPrioritySubscription(userId)
-  if (!subscription || subscription.status !== 'active') {
+  if (!subscription) {
+    return false
+  }
+  const billingStatus = await getEffectiveBillingStatus(userId)
+  if (!hasUsableSubscriptionAccess(subscription.status, billingStatus.billingBlocked)) {
     return false
   }
   // Enterprise users must contact support to purchase credits
-  return subscription.plan === 'pro' || subscription.plan === 'team'
+  return isPro(subscription.plan) || isTeam(subscription.plan)
 }
 
 export async function isOrgAdmin(userId: string, organizationId: string): Promise<boolean> {

@@ -1,14 +1,9 @@
-import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
+import type { EnvironmentVariable, WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { fetchPersonalEnvironment, fetchWorkspaceEnvironment } from '@/lib/environment/api'
+import { workspaceCredentialKeys } from '@/hooks/queries/credentials'
 import { API_ENDPOINTS } from '@/stores/constants'
-import type { EnvironmentVariable } from '@/stores/settings/environment'
-import { useEnvironmentStore } from '@/stores/settings/environment'
-
-export type { WorkspaceEnvironmentData } from '@/lib/environment/api'
-export type { EnvironmentVariable } from '@/stores/settings/environment'
 
 const logger = createLogger('EnvironmentQueries')
 
@@ -22,28 +17,14 @@ export const environmentKeys = {
 }
 
 /**
- * Environment Variable Types
- */
-/**
  * Hook to fetch personal environment variables
  */
 export function usePersonalEnvironment() {
-  const setVariables = useEnvironmentStore((state) => state.setVariables)
-
-  const query = useQuery({
+  return useQuery({
     queryKey: environmentKeys.personal(),
-    queryFn: fetchPersonalEnvironment,
-    staleTime: 60 * 1000, // 1 minute
-    placeholderData: keepPreviousData,
+    queryFn: ({ signal }) => fetchPersonalEnvironment(signal),
+    staleTime: 60 * 1000,
   })
-
-  useEffect(() => {
-    if (query.data) {
-      setVariables(query.data)
-    }
-  }, [query.data, setVariables])
-
-  return query
 }
 
 /**
@@ -55,7 +36,7 @@ export function useWorkspaceEnvironment<TData = WorkspaceEnvironmentData>(
 ) {
   return useQuery({
     queryKey: environmentKeys.workspace(workspaceId),
-    queryFn: () => fetchWorkspaceEnvironment(workspaceId),
+    queryFn: ({ signal }) => fetchWorkspaceEnvironment(workspaceId, signal),
     enabled: !!workspaceId,
     staleTime: 60 * 1000, // 1 minute
     placeholderData: keepPreviousData,
@@ -106,9 +87,9 @@ export function useSavePersonalEnvironment() {
       logger.info('Saved personal environment variables')
       return transformedVariables
     },
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: environmentKeys.personal() })
-      queryClient.invalidateQueries({ queryKey: environmentKeys.all })
+      queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() })
     },
   })
 }
@@ -139,11 +120,12 @@ export function useUpsertWorkspaceEnvironment() {
       logger.info(`Upserted workspace environment variables for workspace: ${workspaceId}`)
       return await response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: environmentKeys.workspace(variables.workspaceId),
       })
       queryClient.invalidateQueries({ queryKey: environmentKeys.personal() })
+      queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() })
     },
   })
 }
@@ -174,11 +156,12 @@ export function useRemoveWorkspaceEnvironment() {
       logger.info(`Removed ${keys.length} workspace environment keys for workspace: ${workspaceId}`)
       return await response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: environmentKeys.workspace(variables.workspaceId),
       })
       queryClient.invalidateQueries({ queryKey: environmentKeys.personal() })
+      queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() })
     },
   })
 }

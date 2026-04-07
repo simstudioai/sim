@@ -31,6 +31,7 @@ import {
   isDeepResearchModel,
   prepareToolExecution,
   prepareToolsWithUsageControl,
+  sumToolCosts,
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
 import type { ExecutionState, GeminiProviderType, GeminiUsage } from './types'
@@ -1163,10 +1164,12 @@ export async function executeGeminiRequest(
                 usage.promptTokenCount,
                 usage.candidatesTokenCount
               )
+              const tc = sumToolCosts(state.toolResults)
               streamingResult.execution.output.cost = {
                 input: accumulatedCost.input + streamCost.input,
                 output: accumulatedCost.output + streamCost.output,
-                total: accumulatedCost.total + streamCost.total,
+                toolCost: tc || undefined,
+                total: accumulatedCost.total + streamCost.total + tc,
                 pricing: streamCost.pricing,
               }
 

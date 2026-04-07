@@ -89,11 +89,12 @@ export const POST = withMcpAuth('read')(
           tool = tools.find((t) => t.name === toolName) ?? null
 
           if (!tool) {
+            logger.warn(`[${requestId}] Tool ${toolName} not found on server ${serverId}`, {
+              availableTools: tools.map((t) => t.name),
+            })
             return createMcpErrorResponse(
-              new Error(
-                `Tool ${toolName} not found on server ${serverId}. Available tools: ${tools.map((t) => t.name).join(', ')}`
-              ),
-              'Tool not found',
+              new Error('Tool not found'),
+              'Tool not found on the specified server',
               404
             )
           }

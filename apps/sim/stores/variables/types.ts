@@ -1,19 +1,47 @@
 /**
- * Variable types supported by the variables modal/editor.
- * Note: 'string' is deprecated. Use 'plain' for freeform text values instead.
+ * Variable types supported in the application
+ * Note: 'string' is deprecated - use 'plain' for text values instead
  */
 export type VariableType = 'plain' | 'number' | 'boolean' | 'object' | 'array' | 'string'
 
 /**
- * Workflow-scoped variable model.
+ * Represents a workflow variable with workflow-specific naming
+ * Variable names must be unique within each workflow
  */
 export interface Variable {
   id: string
   workflowId: string
-  name: string
+  name: string // Must be unique per workflow
   type: VariableType
   value: unknown
-  validationError?: string
+  validationError?: string // Tracks format validation errors
+}
+
+export interface VariablesStore {
+  variables: Record<string, Variable>
+  isLoading: boolean
+  error: string | null
+  isEditing: string | null
+
+  /**
+   * Adds a new variable with automatic name uniqueness validation
+   * If a variable with the same name exists, it will be suffixed with a number
+   * Optionally accepts a predetermined ID for collaborative operations
+   */
+  addVariable: (variable: Omit<Variable, 'id'>, providedId?: string) => string
+
+  /**
+   * Updates a variable, ensuring name remains unique within the workflow
+   * If an updated name conflicts with existing ones, a numbered suffix is added
+   */
+  updateVariable: (id: string, update: Partial<Omit<Variable, 'id' | 'workflowId'>>) => void
+
+  deleteVariable: (id: string) => void
+
+  /**
+   * Returns all variables for a specific workflow
+   */
+  getVariablesByWorkflowId: (workflowId: string) => Variable[]
 }
 
 /**
@@ -33,11 +61,10 @@ export interface VariablesDimensions {
 }
 
 /**
- * Public store interface for variables editor/modal.
- * Combines UI state of the floating modal and the variables data/actions.
+ * UI-only store interface for the floating variables modal.
+ * Variable data lives in the variables data store (`@/stores/variables/store`).
  */
-export interface VariablesStore {
-  // UI State
+export interface VariablesModalStore {
   isOpen: boolean
   position: VariablesPosition | null
   width: number
@@ -46,16 +73,4 @@ export interface VariablesStore {
   setPosition: (position: VariablesPosition) => void
   setDimensions: (dimensions: VariablesDimensions) => void
   resetPosition: () => void
-
-  // Data
-  variables: Record<string, Variable>
-  isLoading: boolean
-  error: string | null
-
-  // Actions
-  loadForWorkflow: (workflowId: string) => Promise<void>
-  addVariable: (variable: Omit<Variable, 'id'>, providedId?: string) => string
-  updateVariable: (id: string, update: Partial<Omit<Variable, 'id' | 'workflowId'>>) => void
-  deleteVariable: (id: string) => void
-  getVariablesByWorkflowId: (workflowId: string) => Variable[]
 }

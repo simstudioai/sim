@@ -28,6 +28,29 @@ export const googleTranslateDetectTool: ToolConfig<
     },
   },
 
+  hosting: {
+    envKeyPrefix: 'GOOGLE_CLOUD_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'google_cloud',
+    pricing: {
+      type: 'custom',
+      getCost: (params) => {
+        const text = params.text as string
+        if (!text) {
+          throw new Error('Missing text parameter, cannot determine detection cost')
+        }
+        // $20 per 1M characters — from https://cloud.google.com/translate/pricing
+        const charCount = text.length
+        const cost = charCount * 0.00002
+        return { cost, metadata: { characters: charCount } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 60,
+    },
+  },
+
   request: {
     url: (params) => {
       const url = new URL('https://translation.googleapis.com/language/translate/v2/detect')

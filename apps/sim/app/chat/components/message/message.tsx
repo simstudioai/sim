@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useMemo, useState } from 'react'
+import { memo, useState } from 'react'
 import { Check, Copy, File as FileIcon, FileText, Image as ImageIcon } from 'lucide-react'
 import { Tooltip } from '@/components/emcn'
 import {
@@ -8,6 +8,7 @@ import {
   ChatFileDownloadAll,
 } from '@/app/chat/components/message/components/file-download'
 import MarkdownRenderer from '@/app/chat/components/message/components/markdown-renderer'
+import { useThrottledValue } from '@/hooks/use-throttled-value'
 
 export interface ChatAttachment {
   id: string
@@ -39,16 +40,15 @@ export interface ChatMessage {
 }
 
 function EnhancedMarkdownRenderer({ content }: { content: string }) {
-  return <MarkdownRenderer content={content} />
+  const throttled = useThrottledValue(content)
+  return <MarkdownRenderer content={throttled} />
 }
 
 export const ClientChatMessage = memo(
   function ClientChatMessage({ message }: { message: ChatMessage }) {
     const [isCopied, setIsCopied] = useState(false)
 
-    const isJsonObject = useMemo(() => {
-      return typeof message.content === 'object' && message.content !== null
-    }, [message.content])
+    const isJsonObject = typeof message.content === 'object' && message.content !== null
 
     // Since tool calls are now handled via SSE events and stored in message.toolCalls,
     // we can use the content directly without parsing
@@ -67,18 +67,18 @@ export const ClientChatMessage = memo(
                     const getFileIcon = (type: string) => {
                       if (type.includes('pdf'))
                         return (
-                          <FileText className='h-5 w-5 text-gray-500 md:h-6 md:w-6 dark:text-gray-400' />
+                          <FileText className='h-5 w-5 text-[var(--landing-text-muted)] md:h-6 md:w-6' />
                         )
                       if (type.startsWith('image/'))
                         return (
-                          <ImageIcon className='h-5 w-5 text-gray-500 md:h-6 md:w-6 dark:text-gray-400' />
+                          <ImageIcon className='h-5 w-5 text-[var(--landing-text-muted)] md:h-6 md:w-6' />
                         )
                       if (type.includes('text') || type.includes('json'))
                         return (
-                          <FileText className='h-5 w-5 text-gray-500 md:h-6 md:w-6 dark:text-gray-400' />
+                          <FileText className='h-5 w-5 text-[var(--landing-text-muted)] md:h-6 md:w-6' />
                         )
                       return (
-                        <FileIcon className='h-5 w-5 text-gray-500 md:h-6 md:w-6 dark:text-gray-400' />
+                        <FileIcon className='h-5 w-5 text-[var(--landing-text-muted)] md:h-6 md:w-6' />
                       )
                     }
                     const formatFileSize = (bytes?: number) => {
@@ -92,7 +92,7 @@ export const ClientChatMessage = memo(
                     return (
                       <div
                         key={attachment.id}
-                        className={`relative overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800 ${
+                        className={`relative overflow-hidden rounded-2xl border border-[var(--border-1)] bg-[var(--landing-bg-elevated)] ${
                           attachment.dataUrl?.trim() && attachment.dataUrl.startsWith('data:')
                             ? 'cursor-pointer'
                             : ''
@@ -138,15 +138,15 @@ export const ClientChatMessage = memo(
                           />
                         ) : (
                           <>
-                            <div className='flex h-10 w-10 flex-shrink-0 items-center justify-center rounded bg-gray-100 md:h-12 md:w-12 dark:bg-gray-700'>
+                            <div className='flex h-10 w-10 flex-shrink-0 items-center justify-center rounded bg-[var(--landing-bg)] md:h-12 md:w-12'>
                               {getFileIcon(attachment.type)}
                             </div>
                             <div className='min-w-0 flex-1'>
-                              <div className='truncate font-medium text-gray-800 text-xs md:text-sm dark:text-gray-200'>
+                              <div className='truncate font-medium text-[var(--landing-text)] text-xs md:text-sm'>
                                 {attachment.name}
                               </div>
                               {attachment.size && (
-                                <div className='text-[10px] text-gray-500 md:text-xs dark:text-gray-400'>
+                                <div className='text-[var(--landing-text-muted)] text-micro md:text-xs'>
                                   {formatFileSize(attachment.size)}
                                 </div>
                               )}
@@ -163,8 +163,8 @@ export const ClientChatMessage = memo(
             {/* Only render message bubble if there's actual text content (not just file count message) */}
             {message.content && !String(message.content).startsWith('Sent') && (
               <div className='flex justify-end'>
-                <div className='max-w-[80%] rounded-3xl bg-[#F4F4F4] px-4 py-3 dark:bg-gray-600'>
-                  <div className='whitespace-pre-wrap break-words text-base text-gray-800 leading-relaxed dark:text-gray-100'>
+                <div className='max-w-[80%] rounded-3xl bg-[var(--landing-bg-elevated)] px-4 py-3'>
+                  <div className='whitespace-pre-wrap break-words text-[var(--landing-text)] text-base leading-relaxed'>
                     {isJsonObject ? (
                       <pre>{JSON.stringify(message.content, null, 2)}</pre>
                     ) : (
@@ -184,7 +184,7 @@ export const ClientChatMessage = memo(
               <div>
                 <div className='break-words text-base'>
                   {isJsonObject ? (
-                    <pre className='text-gray-800 dark:text-gray-100'>
+                    <pre className='text-[var(--landing-text)]'>
                       {JSON.stringify(cleanTextContent, null, 2)}
                     </pre>
                   ) : (
@@ -206,7 +206,7 @@ export const ClientChatMessage = memo(
                     <Tooltip.Root delayDuration={300}>
                       <Tooltip.Trigger asChild>
                         <button
-                          className='text-muted-foreground transition-colors hover:bg-muted'
+                          className='text-[var(--landing-text-muted)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
                           onClick={() => {
                             const contentToCopy =
                               typeof cleanTextContent === 'string'

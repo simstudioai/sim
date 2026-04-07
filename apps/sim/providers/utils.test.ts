@@ -392,7 +392,6 @@ describe('Model Capabilities', () => {
       expect(supportsThinking('claude-sonnet-4-5')).toBe(true)
       expect(supportsThinking('claude-sonnet-4-0')).toBe(true)
       expect(supportsThinking('claude-haiku-4-5')).toBe(true)
-      expect(supportsThinking('gemini-3-pro-preview')).toBe(true)
       expect(supportsThinking('gemini-3-flash-preview')).toBe(true)
     })
 
@@ -511,7 +510,6 @@ describe('Model Capabilities', () => {
       expect(MODELS_WITH_THINKING).toContain('claude-sonnet-4-5')
       expect(MODELS_WITH_THINKING).toContain('claude-sonnet-4-0')
 
-      expect(MODELS_WITH_THINKING).toContain('gemini-3-pro-preview')
       expect(MODELS_WITH_THINKING).toContain('gemini-3-flash-preview')
 
       expect(MODELS_WITH_THINKING).toContain('claude-haiku-4-5')
@@ -523,7 +521,12 @@ describe('Model Capabilities', () => {
 
     it.concurrent('should have GPT-5 models in both reasoning effort and verbosity arrays', () => {
       const gpt5ModelsWithReasoningEffort = MODELS_WITH_REASONING_EFFORT.filter(
-        (m) => m.includes('gpt-5') && !m.includes('chat-latest') && !m.includes('gpt-5.4-pro')
+        (m) =>
+          m.includes('gpt-5') &&
+          !m.includes('chat-latest') &&
+          !m.includes('gpt-5.4-pro') &&
+          !m.includes('gpt-5.2-pro') &&
+          !m.includes('gpt-5-pro')
       )
       const gpt5ModelsWithVerbosity = MODELS_WITH_VERBOSITY.filter(
         (m) => m.includes('gpt-5') && !m.includes('chat-latest')
@@ -532,6 +535,12 @@ describe('Model Capabilities', () => {
 
       expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.4-pro')
       expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5.4-pro')
+
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.2-pro')
+      expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5.2-pro')
+
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5-pro')
+      expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5-pro')
 
       expect(MODELS_WITH_REASONING_EFFORT).toContain('o1')
       expect(MODELS_WITH_VERBOSITY).not.toContain('o1')
@@ -629,11 +638,6 @@ describe('Model Capabilities', () => {
     })
 
     it.concurrent('should return correct levels for Gemini 3 models', () => {
-      const proLevels = getThinkingLevelsForModel('gemini-3-pro-preview')
-      expect(proLevels).toBeDefined()
-      expect(proLevels).toContain('low')
-      expect(proLevels).toContain('high')
-
       const flashLevels = getThinkingLevelsForModel('gemini-3-flash-preview')
       expect(flashLevels).toBeDefined()
       expect(flashLevels).toContain('minimal')
@@ -660,6 +664,45 @@ describe('Model Capabilities', () => {
 
 describe('Max Output Tokens', () => {
   describe('getMaxOutputTokensForModel', () => {
+    it.concurrent('should return published max for OpenAI GPT-4o', () => {
+      expect(getMaxOutputTokensForModel('gpt-4o')).toBe(16384)
+    })
+
+    it.concurrent('should return published max for OpenAI GPT-5.1', () => {
+      expect(getMaxOutputTokensForModel('gpt-5.1')).toBe(128000)
+    })
+
+    it.concurrent('should return published max for OpenAI GPT-5 Chat', () => {
+      expect(getMaxOutputTokensForModel('gpt-5-chat-latest')).toBe(16384)
+    })
+
+    it.concurrent('should return published max for OpenAI o1', () => {
+      expect(getMaxOutputTokensForModel('o1')).toBe(100000)
+    })
+
+    it.concurrent('should return updated max for Claude Sonnet 4.6', () => {
+      expect(getMaxOutputTokensForModel('claude-sonnet-4-6')).toBe(64000)
+    })
+
+    it.concurrent('should return published max for Gemini 2.5 Pro', () => {
+      expect(getMaxOutputTokensForModel('gemini-2.5-pro')).toBe(65536)
+    })
+
+    it.concurrent('should return published max for Azure GPT-5.2', () => {
+      expect(getMaxOutputTokensForModel('azure/gpt-5.2')).toBe(128000)
+    })
+
+    it.concurrent('should return standard default for models without maxOutputTokens', () => {
+      expect(getMaxOutputTokensForModel('deepseek-reasoner')).toBe(4096)
+      expect(getMaxOutputTokensForModel('grok-4-latest')).toBe(4096)
+    })
+
+    it.concurrent('should return published max for Bedrock Claude Opus 4.1', () => {
+      expect(getMaxOutputTokensForModel('bedrock/anthropic.claude-opus-4-1-20250805-v1:0')).toBe(
+        64000
+      )
+    })
+
     it.concurrent('should return correct max for Claude Opus 4.6', () => {
       expect(getMaxOutputTokensForModel('claude-opus-4-6')).toBe(128000)
     })
@@ -669,11 +712,7 @@ describe('Max Output Tokens', () => {
     })
 
     it.concurrent('should return correct max for Claude Opus 4.1', () => {
-      expect(getMaxOutputTokensForModel('claude-opus-4-1')).toBe(64000)
-    })
-
-    it.concurrent('should return standard default for models without maxOutputTokens', () => {
-      expect(getMaxOutputTokensForModel('gpt-4o')).toBe(4096)
+      expect(getMaxOutputTokensForModel('claude-opus-4-1')).toBe(32000)
     })
 
     it.concurrent('should return standard default for unknown models', () => {
@@ -769,27 +808,23 @@ describe('Cost Calculation', () => {
   })
 
   describe('formatCost', () => {
-    it.concurrent('should format costs >= $1 with two decimal places', () => {
-      expect(formatCost(1.234)).toBe('$1.23')
-      expect(formatCost(10.567)).toBe('$10.57')
+    it.concurrent('should format dollar amounts as credits', () => {
+      expect(formatCost(1.234)).toBe('247 credits')
+      expect(formatCost(10.567)).toBe('2,113 credits')
     })
 
-    it.concurrent('should format costs between 1¢ and $1 with three decimal places', () => {
-      expect(formatCost(0.0234)).toBe('$0.023')
-      expect(formatCost(0.1567)).toBe('$0.157')
+    it.concurrent('should show <1 credit for very small costs', () => {
+      expect(formatCost(0.0024)).toBe('<1 credit')
+      expect(formatCost(0.001)).toBe('<1 credit')
     })
 
-    it.concurrent('should format costs between 0.1¢ and 1¢ with four decimal places', () => {
-      expect(formatCost(0.00234)).toBe('$0.0023')
-      expect(formatCost(0.00567)).toBe('$0.0057')
-    })
-
-    it.concurrent('should format very small costs with appropriate precision', () => {
-      expect(formatCost(0.000234)).toContain('$0.000234')
+    it.concurrent('should show credit count for small costs that round to at least 1', () => {
+      expect(formatCost(0.0234)).toBe('5 credits')
+      expect(formatCost(0.1567)).toBe('31 credits')
     })
 
     it.concurrent('should handle zero cost', () => {
-      expect(formatCost(0)).toBe('$0')
+      expect(formatCost(0)).toBe('0 credits')
     })
 
     it.concurrent('should handle undefined/null costs', () => {

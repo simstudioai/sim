@@ -128,17 +128,7 @@ export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse
       output: {
         content: data.choices?.[0]?.message?.content || '',
         model: data.model || 'unknown',
-        usage: data.usage
-          ? {
-              prompt_tokens: data.usage.prompt_tokens || 0,
-              completion_tokens: data.usage.completion_tokens || 0,
-              total_tokens: data.usage.total_tokens || 0,
-            }
-          : {
-              prompt_tokens: 0,
-              completion_tokens: 0,
-              total_tokens: 0,
-            },
+        usage: data.usage ?? { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
       },
     }
   },

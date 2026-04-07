@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { Combobox, Label, Slider, Switch } from '@/components/emcn/components'
@@ -154,14 +154,10 @@ export function McpDynamicArgs({
         )
 
       case 'dropdown': {
-        const dropdownOptions = useMemo(
-          () =>
-            (paramSchema.enum || []).map((option: any) => ({
-              label: String(option),
-              value: String(option),
-            })),
-          [paramSchema.enum]
-        )
+        const dropdownOptions = (paramSchema.enum || []).map((option: any) => ({
+          label: String(option),
+          value: String(option),
+        }))
 
         return (
           <div key={`${paramName}-dropdown`}>
@@ -348,10 +344,10 @@ export function McpDynamicArgs({
 
             return (
               <div key={paramName} className='subblock-row'>
-                <div className='subblock-content flex flex-col gap-[10px]'>
+                <div className='subblock-content flex flex-col gap-2.5'>
                   {showLabel && (
-                    <div className='flex items-center justify-between gap-[6px] pl-[2px]'>
-                      <Label className='flex items-baseline gap-[6px] whitespace-nowrap'>
+                    <div className='flex items-center justify-between gap-1.5 pl-0.5'>
+                      <Label className='flex items-baseline gap-1.5 whitespace-nowrap'>
                         {formatParameterLabel(paramName)}
                         {toolSchema.required?.includes(paramName) && (
                           <span className='ml-0.5'>*</span>
@@ -362,7 +358,7 @@ export function McpDynamicArgs({
                   {renderParameterInput(paramName, paramSchema as any)}
                 </div>
                 {showDivider && (
-                  <div className='subblock-divider px-[2px] pt-[16px] pb-[13px]'>
+                  <div className='subblock-divider px-0.5 pt-4 pb-[13px]'>
                     <div
                       className='h-[1.25px]'
                       style={{

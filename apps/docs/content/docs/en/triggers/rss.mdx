@@ -4,6 +4,7 @@ title: RSS Feed
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
 
 The RSS Feed block monitors RSS and Atom feeds – when new items are published, your workflow triggers automatically.
 
@@ -47,3 +48,13 @@ Access mapped fields directly (`<rss.title>`) or use the raw objects for any fie
 <Callout>
 RSS triggers only fire for items published after you save the trigger. Existing feed items are not processed.
 </Callout>
+
+<FAQ items={[
+  { question: "How often is the RSS feed checked for new items?", answer: "The feed is polled every minute. On each poll, the service fetches the feed, compares items against the last checked timestamp and a list of previously seen GUIDs, and triggers your workflow only for genuinely new items." },
+  { question: "How does the poller avoid processing the same item twice?", answer: "The service tracks up to 100 recent item GUIDs and the last checked timestamp. An item is considered new only if its GUID has not been seen before and its publication date is after the last checked timestamp. Additionally, an idempotency layer prevents duplicate workflow executions for the same item." },
+  { question: "Is there a limit on how many new items are processed per poll?", answer: "Yes. Each polling cycle processes a maximum of 25 new items, sorted by publication date (newest first). If a feed publishes more than 25 items between polls, only the 25 most recent are processed." },
+  { question: "What output fields are available from the RSS trigger?", answer: "Each triggered execution receives: title, link, and pubDate as top-level convenience fields, plus a full item object containing all fields (including guid, summary, content, contentSnippet, author, categories, enclosure, and isoDate), a feed object with the feed's title, link, and description, and a timestamp of when the event was processed." },
+  { question: "What happens if the RSS feed is temporarily unreachable?", answer: "A failed fetch increments the webhook's consecutive failure counter. After 100 consecutive failures, the RSS trigger is automatically disabled. On any successful poll, the counter resets to zero." },
+  { question: "Does the RSS trigger support Atom feeds?", answer: "Yes. The underlying parser (rss-parser) supports both RSS and Atom feed formats. You can use the URL of either format in the Feed URL field." },
+]} />
+

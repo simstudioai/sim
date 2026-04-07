@@ -59,13 +59,21 @@ export const FILTER_DEFINITIONS: FilterDefinition[] = [
     label: 'Cost',
     description: 'Filter by execution cost',
     options: [
-      { value: '>0.01', label: 'Over $0.01', description: 'Executions costing more than $0.01' },
+      {
+        value: '>0.01',
+        label: 'Over 2 credits',
+        description: 'Executions costing more than 2 credits',
+      },
       {
         value: '<0.005',
-        label: 'Under $0.005',
-        description: 'Executions costing less than $0.005',
+        label: 'Under 1 credit',
+        description: 'Executions costing less than 1 credit',
       },
-      { value: '>0.05', label: 'Over $0.05', description: 'Executions costing more than $0.05' },
+      {
+        value: '>0.05',
+        label: 'Over 10 credits',
+        description: 'Executions costing more than 10 credits',
+      },
       { value: '=0', label: 'Free', description: 'Free executions' },
       { value: '>0', label: 'Paid', description: 'Executions with cost' },
     ],

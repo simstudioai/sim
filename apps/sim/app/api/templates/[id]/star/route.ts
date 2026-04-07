@@ -3,9 +3,9 @@ import { templateStars, templates } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('TemplateStarAPI')
 
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     await db.transaction(async (tx) => {
       // Add the star record
       await tx.insert(templateStars).values({
-        id: uuidv4(),
+        id: generateId(),
         userId: session.user.id,
         templateId: id,
         starredAt: new Date(),

@@ -1,6 +1,7 @@
 import { GreenhouseIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import type { GreenhouseResponse } from '@/tools/greenhouse/types'
+import { getTrigger } from '@/triggers'
 
 export const GreenhouseBlock: BlockConfig<GreenhouseResponse> = {
   type: 'greenhouse',
@@ -10,9 +11,25 @@ export const GreenhouseBlock: BlockConfig<GreenhouseResponse> = {
     'Integrate Greenhouse into the workflow. List and retrieve candidates, jobs, applications, users, departments, offices, and job stages from your Greenhouse ATS account.',
   docsLink: 'https://docs.sim.ai/tools/greenhouse',
   category: 'tools',
+  integrationType: IntegrationType.HR,
+  tags: ['hiring'],
   bgColor: '#469776',
   icon: GreenhouseIcon,
   authMode: AuthMode.ApiKey,
+
+  triggers: {
+    enabled: true,
+    available: [
+      'greenhouse_candidate_hired',
+      'greenhouse_new_application',
+      'greenhouse_candidate_stage_change',
+      'greenhouse_candidate_rejected',
+      'greenhouse_offer_created',
+      'greenhouse_job_created',
+      'greenhouse_job_updated',
+      'greenhouse_webhook',
+    ],
+  },
 
   subBlocks: [
     {
@@ -289,6 +306,17 @@ Return ONLY the ISO 8601 timestamp - no explanations, no extra text.`,
       required: true,
       password: true,
     },
+
+    // ── Trigger subBlocks ──
+
+    ...getTrigger('greenhouse_candidate_hired').subBlocks,
+    ...getTrigger('greenhouse_new_application').subBlocks,
+    ...getTrigger('greenhouse_candidate_stage_change').subBlocks,
+    ...getTrigger('greenhouse_candidate_rejected').subBlocks,
+    ...getTrigger('greenhouse_offer_created').subBlocks,
+    ...getTrigger('greenhouse_job_created').subBlocks,
+    ...getTrigger('greenhouse_job_updated').subBlocks,
+    ...getTrigger('greenhouse_webhook').subBlocks,
   ],
 
   tools: {

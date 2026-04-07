@@ -7,14 +7,14 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 import { MAX_EMAIL_RECIPIENTS, MAX_WORKFLOW_IDS } from '../constants'
 
 const logger = createLogger('WorkspaceNotificationAPI')
 
 const levelFilterSchema = z.array(z.enum(['info', 'error']))
-const triggerFilterSchema = z.array(z.enum(CORE_TRIGGER_TYPES))
+const triggerFilterSchema = z.array(z.string().min(1))
 
 const alertRuleSchema = z.enum([
   'consecutive_failures',
@@ -342,6 +342,17 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       description: `Deleted ${deletedSubscription.notificationType} notification subscription`,
       request,
     })
+
+    captureServerEvent(
+      session.user.id,
+      'notification_channel_deleted',
+      {
+        notification_id: notificationId,
+        notification_type: deletedSubscription.notificationType,
+        workspace_id: workspaceId,
+      },
+      { groups: { workspace: workspaceId } }
+    )
 
     return NextResponse.json({ success: true })
   } catch (error) {

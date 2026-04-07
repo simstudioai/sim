@@ -1,7 +1,8 @@
 import { IntercomIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
+import { getTrigger } from '@/triggers'
 
 export const IntercomBlock: BlockConfig = {
   type: 'intercom',
@@ -13,6 +14,8 @@ export const IntercomBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/tools/intercom',
   authMode: AuthMode.ApiKey,
   category: 'tools',
+  integrationType: IntegrationType.CustomerSupport,
+  tags: ['customer-support', 'messaging'],
   bgColor: '#E0E0E0',
   icon: IntercomIcon,
   subBlocks: [
@@ -1404,7 +1407,29 @@ export const IntercomV2Block: BlockConfig = {
   ...IntercomBlock,
   type: 'intercom_v2',
   name: 'Intercom',
+  integrationType: IntegrationType.CustomerSupport,
+  tags: ['customer-support', 'messaging'],
   hideFromToolbar: false,
+  subBlocks: [
+    ...IntercomBlock.subBlocks,
+    ...getTrigger('intercom_conversation_created').subBlocks,
+    ...getTrigger('intercom_conversation_reply').subBlocks,
+    ...getTrigger('intercom_conversation_closed').subBlocks,
+    ...getTrigger('intercom_contact_created').subBlocks,
+    ...getTrigger('intercom_user_created').subBlocks,
+    ...getTrigger('intercom_webhook').subBlocks,
+  ],
+  triggers: {
+    enabled: true,
+    available: [
+      'intercom_conversation_created',
+      'intercom_conversation_reply',
+      'intercom_conversation_closed',
+      'intercom_contact_created',
+      'intercom_user_created',
+      'intercom_webhook',
+    ],
+  },
   tools: {
     ...IntercomBlock.tools,
     access: [

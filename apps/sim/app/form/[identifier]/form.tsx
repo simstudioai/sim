@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { inter } from '@/app/_styles/fonts/inter/inter'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
+import { Loader2 } from 'lucide-react'
+import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
 import AuthBackground from '@/app/(auth)/components/auth-background'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
+import Navbar from '@/app/(landing)/components/navbar/navbar'
 import {
   FormErrorState,
   FormField,
@@ -222,7 +223,7 @@ export default function Form({ identifier }: { identifier: string }) {
     [identifier, fetchFormConfig]
   )
 
-  const primaryColor = formConfig?.customizations?.primaryColor || 'var(--brand-primary-hex)'
+  const primaryColor = formConfig?.customizations?.primaryColor || 'var(--brand)'
 
   if (isLoading && !authRequired) {
     return <FormLoadingState />
@@ -238,8 +239,11 @@ export default function Form({ identifier }: { identifier: string }) {
 
   if (isSubmitted && thankYouData) {
     return (
-      <AuthBackground>
-        <main className='relative flex min-h-screen flex-col text-foreground'>
+      <AuthBackground className={`${martianMono.variable} dark font-[430] font-season`}>
+        <main className='relative flex min-h-full flex-col text-[var(--landing-text)]'>
+          <header className='shrink-0 bg-[var(--landing-bg)]'>
+            <Navbar logoOnly />
+          </header>
           <div className='relative z-30 flex flex-1 items-center justify-center px-4 pb-24'>
             <ThankYouScreen
               title={thankYouData.title}
@@ -270,29 +274,28 @@ export default function Form({ identifier }: { identifier: string }) {
   )
 
   return (
-    <AuthBackground>
-      <main className='relative flex min-h-screen flex-col text-foreground'>
-        <div className='relative z-30 flex flex-1 justify-center px-4 pt-16 pb-24'>
+    <AuthBackground className={`${martianMono.variable} dark font-[430] font-season`}>
+      <main className='relative flex min-h-full flex-col text-[var(--landing-text)]'>
+        <header className='shrink-0 bg-[var(--landing-bg)]'>
+          <Navbar logoOnly />
+        </header>
+        <div className='relative z-30 flex flex-1 justify-center px-4 pt-8 pb-24'>
           <div className='w-full max-w-[410px]'>
             {/* Form title */}
             <div className='mb-8 text-center'>
-              <h1
-                className={`${soehne.className} font-medium text-[28px] text-foreground tracking-tight`}
-              >
+              <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
                 {formConfig.title}
               </h1>
               {formConfig.description && (
-                <p
-                  className={`${inter.className} mt-2 font-[380] text-[15px] text-muted-foreground`}
-                >
+                <p className='mt-2 font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
                   {formConfig.description}
                 </p>
               )}
             </div>
 
-            <form onSubmit={handleSubmit} className={`${inter.className} space-y-6`}>
+            <form onSubmit={handleSubmit} className='space-y-6'>
               {fields.length === 0 ? (
-                <div className='rounded-[10px] border border-border bg-muted/50 p-6 text-center text-muted-foreground'>
+                <div className='rounded-[10px] border border-[var(--landing-bg-elevated)] bg-[var(--surface-4)] p-6 text-center text-[var(--landing-text-muted)]'>
                   This form has no fields configured.
                 </div>
               ) : (
@@ -314,20 +317,22 @@ export default function Form({ identifier }: { identifier: string }) {
               )}
 
               {error && (
-                <div className='rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-4)] p-3 text-red-500 text-sm'>
+                <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-4)] p-3 text-red-500 text-sm'>
                   {error}
                 </div>
               )}
 
               {fields.length > 0 && (
-                <BrandedButton
-                  type='submit'
-                  loading={isSubmitting}
-                  loadingText='Submitting...'
-                  fullWidth
-                >
-                  Submit
-                </BrandedButton>
+                <button type='submit' disabled={isSubmitting} className={AUTH_SUBMIT_BTN}>
+                  {isSubmitting ? (
+                    <span className='flex items-center gap-2'>
+                      <Loader2 className='h-4 w-4 animate-spin' />
+                      Submitting...
+                    </span>
+                  ) : (
+                    'Submit'
+                  )}
+                </button>
               )}
             </form>
           </div>

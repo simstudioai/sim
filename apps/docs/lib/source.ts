@@ -62,7 +62,10 @@ function openapiPluginBadgeLeft() {
             null,
             createElement(
               'span',
-              { className: `font-mono font-medium me-1.5 text-[10px] text-nowrap ${colorClass}` },
+              {
+                className: `font-mono font-medium me-1.5 text-[10px] text-nowrap ${colorClass}`,
+                'data-method': method.toLowerCase(),
+              },
               method
             ),
             node.name

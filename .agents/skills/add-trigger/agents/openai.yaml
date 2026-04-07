@@ -1,0 +1,5 @@
+interface:
+  display_name: "Add Trigger"
+  short_description: "Build Sim webhook triggers"
+  brand_color: "#DC2626"
+  default_prompt: "Use $add-trigger to create or update webhook triggers for a Sim integration."

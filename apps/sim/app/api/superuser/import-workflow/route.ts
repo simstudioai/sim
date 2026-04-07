@@ -1,9 +1,10 @@
 import { db } from '@sim/db'
 import { copilotChats, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { generateId } from '@/lib/core/utils/uuid'
 import { verifyEffectiveSuperUser } from '@/lib/templates/permissions'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import {
@@ -11,6 +12,7 @@ import {
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { sanitizeForExport } from '@/lib/workflows/sanitization/json-sanitizer'
+import { deduplicateWorkflowName } from '@/lib/workflows/utils'
 
 const logger = createLogger('SuperUserImportWorkflow')
 
@@ -63,7 +65,7 @@ export async function POST(request: NextRequest) {
     const [targetWorkspace] = await db
       .select({ id: workspace.id, ownerId: workspace.ownerId })
       .from(workspace)
-      .where(eq(workspace.id, targetWorkspaceId))
+      .where(and(eq(workspace.id, targetWorkspaceId), isNull(workspace.archivedAt)))
       .limit(1)
 
     if (!targetWorkspace) {
@@ -117,15 +119,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Create new workflow record
-    const newWorkflowId = crypto.randomUUID()
+    const newWorkflowId = generateId()
     const now = new Date()
+    const dedupedName = await deduplicateWorkflowName(
+      `[Debug Import] ${sourceWorkflow.name}`,
+      targetWorkspaceId,
+      null
+    )
 
     await db.insert(workflow).values({
       id: newWorkflowId,
       userId: session.user.id,
       workspaceId: targetWorkspaceId,
-      folderId: null, // Don't copy folder association
-      name: `[Debug Import] ${sourceWorkflow.name}`,
+      folderId: null,
+      name: dedupedName,
       description: sourceWorkflow.description,
       color: sourceWorkflow.color,
       lastSynced: now,

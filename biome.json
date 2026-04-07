@@ -24,9 +24,10 @@
       "!**/public/workbox-*.js",
       "!**/public/worker-*.js",
       "!**/public/fallback-*.js",
-      "!**/apps/docs/.source/**",
-      "!**/venv/**",
-      "!**/.venv/**"
+      "!**/apps/docs/.source",
+      "!**/venv",
+      "!**/.venv",
+      "!**/uploads"
     ]
   },
   "formatter": {

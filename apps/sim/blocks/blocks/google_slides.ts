@@ -2,8 +2,8 @@ import { GoogleSlidesIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { AuthMode, IntegrationType } from '@/blocks/types'
+import { normalizeFileInput, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleSlidesResponse } from '@/tools/google_slides/types'
 
 export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
@@ -16,6 +16,8 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
     'Integrate Google Slides into the workflow. Can read, write, create presentations, replace text, add slides, add images, get thumbnails, get page details, delete objects, duplicate objects, reorder slides, create tables, create shapes, and insert text.',
   docsLink: 'https://docs.sim.ai/tools/google_slides',
   category: 'tools',
+  integrationType: IntegrationType.Documents,
+  tags: ['google-workspace', 'document-processing', 'content-management'],
   bgColor: '#E0E0E0',
   icon: GoogleSlidesIcon,
   subBlocks: [
@@ -63,6 +65,7 @@ export const GoogleSlidesBlock: BlockConfig<GoogleSlidesResponse> = {
       placeholder: 'Enter credential ID',
       required: true,
     },
+    ...SERVICE_ACCOUNT_SUBBLOCKS,
     // Presentation selector (basic mode) - for operations that need an existing presentation
     {
       id: 'presentationId',
@@ -955,6 +958,8 @@ export const GoogleSlidesV2Block: BlockConfig<GoogleSlidesResponse> = {
   name: 'Google Slides',
   description: 'Read, write, and create presentations',
   hideFromToolbar: false,
+  integrationType: IntegrationType.Documents,
+  tags: ['google-workspace', 'document-processing', 'content-management'],
   subBlocks: googleSlidesV2SubBlocks,
   tools: {
     access: GoogleSlidesBlock.tools!.access,

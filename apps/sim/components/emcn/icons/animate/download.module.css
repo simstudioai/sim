@@ -20,3 +20,9 @@
   animation: arrow-pulse 1.5s ease-in-out infinite;
   transform-origin: center center;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .animated-download-svg {
+    animation: none;
+  }
+}

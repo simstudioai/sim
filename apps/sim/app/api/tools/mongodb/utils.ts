@@ -1,7 +1,13 @@
 import { MongoClient } from 'mongodb'
+import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 import type { MongoDBCollectionInfo, MongoDBConnectionConfig } from '@/tools/mongodb/types'
 
 export async function createMongoDBConnection(config: MongoDBConnectionConfig) {
+  const hostValidation = await validateDatabaseHost(config.host, 'host')
+  if (!hostValidation.isValid) {
+    throw new Error(hostValidation.error)
+  }
+
   const credentials =
     config.username && config.password
       ? `${encodeURIComponent(config.username)}:${encodeURIComponent(config.password)}@`

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import { createStorageAdapter, type RateLimitStorageAdapter } from './storage'
 import {
   getRateLimit,
@@ -40,8 +41,7 @@ export class RateLimiter {
   private getRateLimitKey(userId: string, subscription: SubscriptionInfo | null): string {
     if (!subscription) return userId
 
-    const plan = subscription.plan as SubscriptionPlan
-    if ((plan === 'team' || plan === 'enterprise') && subscription.referenceId !== userId) {
+    if (isOrgPlan(subscription.plan) && subscription.referenceId !== userId) {
       return subscription.referenceId
     }
 
@@ -159,6 +159,34 @@ export class RateLimiter {
         requestsPerMinute: config.refillRate,
         maxBurst: config.maxTokens,
         remaining: 0,
+        resetAt: new Date(Date.now() + RATE_LIMIT_WINDOW_MS),
+      }
+    }
+  }
+
+  async checkRateLimitDirect(
+    storageKey: string,
+    config: { maxTokens: number; refillRate: number; refillIntervalMs: number }
+  ): Promise<RateLimitResult> {
+    try {
+      const result = await this.storage.consumeTokens(storageKey, 1, config)
+      if (!result.allowed) {
+        logger.info('Rate limit exceeded', { storageKey, tokensRemaining: result.tokensRemaining })
+      }
+      return {
+        allowed: result.allowed,
+        remaining: result.tokensRemaining,
+        resetAt: result.resetAt,
+        retryAfterMs: result.retryAfterMs,
+      }
+    } catch (error) {
+      logger.error('Rate limit storage error - failing open (allowing request)', {
+        error: error instanceof Error ? error.message : String(error),
+        storageKey,
+      })
+      return {
+        allowed: true,
+        remaining: 1,
         resetAt: new Date(Date.now() + RATE_LIMIT_WINDOW_MS),
       }
     }

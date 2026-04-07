@@ -5,8 +5,8 @@ import {
   getProviderCredentialSubBlocks,
   PROVIDER_CREDENTIAL_INPUTS,
 } from '@/blocks/utils'
+import { getBaseModelProviders } from '@/providers/models'
 import type { ProviderId } from '@/providers/types'
-import { getBaseModelProviders } from '@/providers/utils'
 import type { ToolResponse } from '@/tools/types'
 
 interface RouterResponse extends ToolResponse {
@@ -171,7 +171,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      defaultValue: 'claude-sonnet-4-5',
+      defaultValue: 'claude-sonnet-4-6',
       options: getModelOptions,
     },
     ...getProviderCredentialSubBlocks(),
@@ -298,7 +298,7 @@ export const RouterV2Block: BlockConfig<RouterV2Response> = {
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      defaultValue: 'claude-sonnet-4-5',
+      defaultValue: 'claude-sonnet-4-6',
       options: getModelOptions,
     },
     ...getProviderCredentialSubBlocks(),

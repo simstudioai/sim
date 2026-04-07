@@ -1,0 +1,592 @@
+---
+title: AgentMail
+description: Manage email inboxes, threads, and messages with AgentMail
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="agentmail"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[AgentMail](https://agentmail.to/) is an API-first email platform built for agents and automation. AgentMail lets you create email inboxes on the fly, send and receive messages, reply to threads, manage drafts, and organize conversations with labels — all through a simple REST API designed for programmatic access.
+
+**Why AgentMail?**
+- **Agent-Native Email:** Purpose-built for AI agents and automation — create inboxes, send messages, and manage threads without human-facing UI overhead.
+- **Full Email Lifecycle:** Send new messages, reply to threads, forward emails, manage drafts, and schedule sends — all from a single API.
+- **Thread & Conversation Management:** Organize emails into threads with full read, reply, forward, and label support for structured conversation tracking.
+- **Draft Workflow:** Compose drafts, update them, schedule sends, and dispatch when ready — perfect for review-before-send workflows.
+- **Label Organization:** Tag threads and messages with custom labels for filtering, routing, and downstream automation.
+
+**Using AgentMail in Sim**
+
+Sim's AgentMail integration connects your agentic workflows directly to AgentMail using an API key. With 20 operations spanning inboxes, threads, messages, and drafts, you can build powerful email automations without writing backend code.
+
+**Key benefits of using AgentMail in Sim:**
+- **Dynamic inbox creation:** Spin up new inboxes on the fly for each agent, workflow, or customer — perfect for multi-tenant email handling.
+- **Automated email processing:** List and read incoming messages, then trigger downstream actions based on content, sender, or labels.
+- **Conversational email:** Reply to threads and forward messages to keep conversations flowing naturally within your automated workflows.
+- **Draft and review workflows:** Create drafts, update them with AI-generated content, and send when approved — ideal for human-in-the-loop patterns.
+- **Email organization:** Apply labels to threads and messages to categorize, filter, and route emails through your automation pipeline.
+
+Whether you're building an AI email assistant, automating customer support replies, processing incoming leads, or managing multi-agent email workflows, AgentMail in Sim gives you direct, secure access to the full AgentMail API — no middleware required. Simply configure your API key, select the operation you need, and let Sim handle the rest.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate AgentMail into your workflow. Create and manage email inboxes, send and receive messages, reply to threads, manage drafts, and organize threads with labels. Requires API Key.
+
+
+
+## Tools
+
+### `agentmail_create_draft`
+
+Create a new email draft in AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AgentMail API key |
+| `inboxId` | string | Yes | ID of the inbox to create the draft in |
+| `to` | string | No | Recipient email addresses \(comma-separated\) |
+| `subject` | string | No | Draft subject line |
+| `text` | string | No | Plain text draft body |
+| `html` | string | No | HTML draft body |
+| `cc` | string | No | CC recipient email addresses \(comma-separated\) |
+| `bcc` | string | No | BCC recipient email addresses \(comma-separated\) |
+| `inReplyTo` | string | No | ID of message being replied to |
+| `sendAt` | string | No | ISO 8601 timestamp to schedule sending |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `draftId` | string | Unique identifier for the draft |
+| `inboxId` | string | Inbox the draft belongs to |
+| `subject` | string | Draft subject |
+| `to` | array | Recipient email addresses |
+| `cc` | array | CC email addresses |
+| `bcc` | array | BCC email addresses |
+| `text` | string | Plain text content |
+| `html` | string | HTML content |
+| `preview` | string | Draft preview text |
+| `labels` | array | Labels assigned to the draft |
+| `inReplyTo` | string | Message ID this draft replies to |
+| `sendStatus` | string | Send status \(scheduled, sending, failed\) |
+| `sendAt` | string | Scheduled send time |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last updated timestamp |
+
+### `agentmail_create_inbox`
+
+Create a new email inbox with AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AgentMail API key |
+| `username` | string | No | Username for the inbox email address |
+| `domain` | string | No | Domain for the inbox email address |
+| `displayName` | string | No | Display name for the inbox |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `inboxId` | string | Unique identifier for the inbox |
+| `email` | string | Email address of the inbox |
+| `displayName` | string | Display name of the inbox |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last updated timestamp |
+
+### `agentmail_delete_draft`
+
+Delete an email draft in AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AgentMail API key |
+| `inboxId` | string | Yes | ID of the inbox containing the draft |
+| `draftId` | string | Yes | ID of the draft to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the draft was successfully deleted |
+
+### `agentmail_delete_inbox`
+
+Delete an email inbox in AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AgentMail API key |
+| `inboxId` | string | Yes | ID of the inbox to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the inbox was successfully deleted |
+
+### `agentmail_delete_thread`
+
+Delete an email thread in AgentMail (moves to trash, or permanently deletes if already in trash)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AgentMail API key |
+| `inboxId` | string | Yes | ID of the inbox containing the thread |
+| `threadId` | string | Yes | ID of the thread to delete |
+| `permanent` | boolean | No | Force permanent deletion instead of moving to trash |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the thread was successfully deleted |
+
+### `agentmail_forward_message`
+
+Forward an email message to new recipients in AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AgentMail API key |
+| `inboxId` | string | Yes | ID of the inbox containing the message |
+| `messageId` | string | Yes | ID of the message to forward |
+| `to` | string | Yes | Recipient email addresses \(comma-separated\) |
+| `subject` | string | No | Override subject line |
+| `text` | string | No | Additional plain text to prepend |
+| `html` | string | No | Additional HTML to prepend |
+| `cc` | string | No | CC recipient email addresses \(comma-separated\) |
+| `bcc` | string | No | BCC recipient email addresses \(comma-separated\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | ID of the forwarded message |
+| `threadId` | string | ID of the thread |
+
+### `agentmail_get_draft`
+
+Get details of a specific email draft in AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AgentMail API key |
+| `inboxId` | string | Yes | ID of the inbox the draft belongs to |
+| `draftId` | string | Yes | ID of the draft to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `draftId` | string | Unique identifier for the draft |
+| `inboxId` | string | Inbox the draft belongs to |
+| `subject` | string | Draft subject |
+| `to` | array | Recipient email addresses |
+| `cc` | array | CC email addresses |
+| `bcc` | array | BCC email addresses |
+| `text` | string | Plain text content |
+| `html` | string | HTML content |
+| `preview` | string | Draft preview text |
+| `labels` | array | Labels assigned to the draft |
+| `inReplyTo` | string | Message ID this draft replies to |
+| `sendStatus` | string | Send status \(scheduled, sending, failed\) |
+| `sendAt` | string | Scheduled send time |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last updated timestamp |
+
+### `agentmail_get_inbox`
+
+Get details of a specific email inbox in AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AgentMail API key |
+| `inboxId` | string | Yes | ID of the inbox to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `inboxId` | string | Unique identifier for the inbox |
+| `email` | string | Email address of the inbox |
+| `displayName` | string | Display name of the inbox |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last updated timestamp |
+
+### `agentmail_get_message`
+
+Get details of a specific email message in AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AgentMail API key |
+| `inboxId` | string | Yes | ID of the inbox containing the message |
+| `messageId` | string | Yes | ID of the message to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | Unique identifier for the message |
+| `threadId` | string | ID of the thread this message belongs to |
+| `from` | string | Sender email address |
+| `to` | array | Recipient email addresses |
+| `cc` | array | CC email addresses |
+| `bcc` | array | BCC email addresses |
+| `subject` | string | Message subject |
+| `text` | string | Plain text content |
+| `html` | string | HTML content |
+| `createdAt` | string | Creation timestamp |
+
+### `agentmail_get_thread`
+
+Get details of a specific email thread including messages in AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AgentMail API key |
+| `inboxId` | string | Yes | ID of the inbox containing the thread |
+| `threadId` | string | Yes | ID of the thread to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `threadId` | string | Unique identifier for the thread |
+| `subject` | string | Thread subject |
+| `senders` | array | List of sender email addresses |
+| `recipients` | array | List of recipient email addresses |
+| `messageCount` | number | Number of messages in the thread |
+| `labels` | array | Labels assigned to the thread |
+| `lastMessageAt` | string | Timestamp of last message |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last updated timestamp |
+| `messages` | array | Messages in the thread |
+|   ↳ `messageId` | string | Unique identifier for the message |
+|   ↳ `from` | string | Sender email address |
+|   ↳ `to` | array | Recipient email addresses |
+|   ↳ `cc` | array | CC email addresses |
+|   ↳ `bcc` | array | BCC email addresses |
+|   ↳ `subject` | string | Message subject |
+|   ↳ `text` | string | Plain text content |
+|   ↳ `html` | string | HTML content |
+|   ↳ `createdAt` | string | Creation timestamp |
+
+### `agentmail_list_drafts`
+
+List email drafts in an inbox in AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AgentMail API key |
+| `inboxId` | string | Yes | ID of the inbox to list drafts from |
+| `limit` | number | No | Maximum number of drafts to return |
+| `pageToken` | string | No | Pagination token for next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `drafts` | array | List of drafts |
+|   ↳ `draftId` | string | Unique identifier for the draft |
+|   ↳ `inboxId` | string | Inbox the draft belongs to |
+|   ↳ `subject` | string | Draft subject |
+|   ↳ `to` | array | Recipient email addresses |
+|   ↳ `cc` | array | CC email addresses |
+|   ↳ `bcc` | array | BCC email addresses |
+|   ↳ `preview` | string | Draft preview text |
+|   ↳ `sendStatus` | string | Send status \(scheduled, sending, failed\) |
+|   ↳ `sendAt` | string | Scheduled send time |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last updated timestamp |
+| `count` | number | Total number of drafts |
+| `nextPageToken` | string | Token for retrieving the next page |
+
+### `agentmail_list_inboxes`
+
+List all email inboxes in AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AgentMail API key |
+| `limit` | number | No | Maximum number of inboxes to return |
+| `pageToken` | string | No | Pagination token for next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `inboxes` | array | List of inboxes |
+|   ↳ `inboxId` | string | Unique identifier for the inbox |
+|   ↳ `email` | string | Email address of the inbox |
+|   ↳ `displayName` | string | Display name of the inbox |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last updated timestamp |
+| `count` | number | Total number of inboxes |
+| `nextPageToken` | string | Token for retrieving the next page |
+
+### `agentmail_list_messages`
+
+List messages in an inbox in AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AgentMail API key |
+| `inboxId` | string | Yes | ID of the inbox to list messages from |
+| `limit` | number | No | Maximum number of messages to return |
+| `pageToken` | string | No | Pagination token for next page of results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messages` | array | List of messages in the inbox |
+|   ↳ `messageId` | string | Unique identifier for the message |
+|   ↳ `from` | string | Sender email address |
+|   ↳ `to` | array | Recipient email addresses |
+|   ↳ `subject` | string | Message subject |
+|   ↳ `preview` | string | Message preview text |
+|   ↳ `createdAt` | string | Creation timestamp |
+| `count` | number | Total number of messages |
+| `nextPageToken` | string | Token for retrieving the next page |
+
+### `agentmail_list_threads`
+
+List email threads in AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AgentMail API key |
+| `inboxId` | string | Yes | ID of the inbox to list threads from |
+| `limit` | number | No | Maximum number of threads to return |
+| `pageToken` | string | No | Pagination token for next page of results |
+| `labels` | string | No | Comma-separated labels to filter threads by |
+| `before` | string | No | Filter threads before this ISO 8601 timestamp |
+| `after` | string | No | Filter threads after this ISO 8601 timestamp |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `threads` | array | List of email threads |
+|   ↳ `threadId` | string | Unique identifier for the thread |
+|   ↳ `subject` | string | Thread subject |
+|   ↳ `senders` | array | List of sender email addresses |
+|   ↳ `recipients` | array | List of recipient email addresses |
+|   ↳ `messageCount` | number | Number of messages in the thread |
+|   ↳ `lastMessageAt` | string | Timestamp of last message |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last updated timestamp |
+| `count` | number | Total number of threads |
+| `nextPageToken` | string | Token for retrieving the next page |
+
+### `agentmail_reply_message`
+
+Reply to an existing email message in AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AgentMail API key |
+| `inboxId` | string | Yes | ID of the inbox to reply from |
+| `messageId` | string | Yes | ID of the message to reply to |
+| `text` | string | No | Plain text reply body |
+| `html` | string | No | HTML reply body |
+| `to` | string | No | Override recipient email addresses \(comma-separated\) |
+| `cc` | string | No | CC email addresses \(comma-separated\) |
+| `bcc` | string | No | BCC email addresses \(comma-separated\) |
+| `replyAll` | boolean | No | Reply to all recipients of the original message |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | ID of the sent reply message |
+| `threadId` | string | ID of the thread |
+
+### `agentmail_send_draft`
+
+Send an existing email draft in AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AgentMail API key |
+| `inboxId` | string | Yes | ID of the inbox containing the draft |
+| `draftId` | string | Yes | ID of the draft to send |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | ID of the sent message |
+| `threadId` | string | ID of the thread |
+
+### `agentmail_send_message`
+
+Send an email message from an AgentMail inbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AgentMail API key |
+| `inboxId` | string | Yes | ID of the inbox to send from |
+| `to` | string | Yes | Recipient email address \(comma-separated for multiple\) |
+| `subject` | string | Yes | Email subject line |
+| `text` | string | No | Plain text email body |
+| `html` | string | No | HTML email body |
+| `cc` | string | No | CC recipient email addresses \(comma-separated\) |
+| `bcc` | string | No | BCC recipient email addresses \(comma-separated\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `threadId` | string | ID of the created thread |
+| `messageId` | string | ID of the sent message |
+| `subject` | string | Email subject line |
+| `to` | string | Recipient email address |
+
+### `agentmail_update_draft`
+
+Update an existing email draft in AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AgentMail API key |
+| `inboxId` | string | Yes | ID of the inbox containing the draft |
+| `draftId` | string | Yes | ID of the draft to update |
+| `to` | string | No | Recipient email addresses \(comma-separated\) |
+| `subject` | string | No | Draft subject line |
+| `text` | string | No | Plain text draft body |
+| `html` | string | No | HTML draft body |
+| `cc` | string | No | CC recipient email addresses \(comma-separated\) |
+| `bcc` | string | No | BCC recipient email addresses \(comma-separated\) |
+| `sendAt` | string | No | ISO 8601 timestamp to schedule sending |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `draftId` | string | Unique identifier for the draft |
+| `inboxId` | string | Inbox the draft belongs to |
+| `subject` | string | Draft subject |
+| `to` | array | Recipient email addresses |
+| `cc` | array | CC email addresses |
+| `bcc` | array | BCC email addresses |
+| `text` | string | Plain text content |
+| `html` | string | HTML content |
+| `preview` | string | Draft preview text |
+| `labels` | array | Labels assigned to the draft |
+| `inReplyTo` | string | Message ID this draft replies to |
+| `sendStatus` | string | Send status \(scheduled, sending, failed\) |
+| `sendAt` | string | Scheduled send time |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last updated timestamp |
+
+### `agentmail_update_inbox`
+
+Update the display name of an email inbox in AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AgentMail API key |
+| `inboxId` | string | Yes | ID of the inbox to update |
+| `displayName` | string | Yes | New display name for the inbox |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `inboxId` | string | Unique identifier for the inbox |
+| `email` | string | Email address of the inbox |
+| `displayName` | string | Display name of the inbox |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last updated timestamp |
+
+### `agentmail_update_message`
+
+Add or remove labels on an email message in AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AgentMail API key |
+| `inboxId` | string | Yes | ID of the inbox containing the message |
+| `messageId` | string | Yes | ID of the message to update |
+| `addLabels` | string | No | Comma-separated labels to add to the message |
+| `removeLabels` | string | No | Comma-separated labels to remove from the message |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `messageId` | string | Unique identifier for the message |
+| `labels` | array | Current labels on the message |
+
+### `agentmail_update_thread`
+
+Add or remove labels on an email thread in AgentMail
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | AgentMail API key |
+| `inboxId` | string | Yes | ID of the inbox containing the thread |
+| `threadId` | string | Yes | ID of the thread to update |
+| `addLabels` | string | No | Comma-separated labels to add to the thread |
+| `removeLabels` | string | No | Comma-separated labels to remove from the thread |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `threadId` | string | Unique identifier for the thread |
+| `labels` | array | Current labels on the thread |
+
+

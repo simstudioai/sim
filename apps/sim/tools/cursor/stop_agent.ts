@@ -17,7 +17,8 @@ const stopAgentBase = {
     },
   },
   request: {
-    url: (params: StopAgentParams) => `https://api.cursor.com/v0/agents/${params.agentId}/stop`,
+    url: (params: StopAgentParams) =>
+      `https://api.cursor.com/v0/agents/${params.agentId.trim()}/stop`,
     method: 'POST',
     headers: (params: StopAgentParams) => ({
       Authorization: `Basic ${Buffer.from(`${params.apiKey}:`).toString('base64')}`,

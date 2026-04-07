@@ -8,10 +8,11 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, gte, inArray, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { generateId } from '@/lib/core/utils/uuid'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
 import {
+  enqueueNotificationDeliveryDispatch,
   executeNotificationDelivery,
   workspaceNotificationDeliveryTask,
 } from '@/background/workspace-notification-delivery'
@@ -149,7 +150,7 @@ async function checkWorkflowInactivity(
     .set({ lastAlertAt: new Date() })
     .where(eq(workspaceNotificationSubscription.id, subscription.id))
 
-  const deliveryId = uuidv4()
+  const deliveryId = generateId()
 
   await db.insert(workspaceNotificationDelivery).values({
     id: deliveryId,
@@ -163,7 +164,7 @@ async function checkWorkflowInactivity(
 
   const now = new Date().toISOString()
   const mockLog = {
-    id: `inactivity_log_${uuidv4()}`,
+    id: `inactivity_log_${generateId()}`,
     workflowId,
     executionId: `inactivity_${Date.now()}`,
     stateSnapshotId: '',
@@ -181,13 +182,21 @@ async function checkWorkflowInactivity(
   const payload = {
     deliveryId,
     subscriptionId: subscription.id,
+    workspaceId: workflowData.workspaceId,
     notificationType: subscription.notificationType,
     log: mockLog,
     alertConfig,
   }
 
   if (isTriggerDevEnabled) {
-    await workspaceNotificationDeliveryTask.trigger(payload)
+    await workspaceNotificationDeliveryTask.trigger(payload, {
+      tags: [
+        `workspaceId:${workflowData.workspaceId}`,
+        `workflowId:${workflowId}`,
+        `notificationType:${subscription.notificationType}`,
+      ],
+    })
+  } else if (await enqueueNotificationDeliveryDispatch(payload)) {
   } else {
     void executeNotificationDelivery(payload).catch((error) => {
       logger.error(`Direct notification delivery failed for ${deliveryId}`, { error })

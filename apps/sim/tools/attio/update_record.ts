@@ -46,7 +46,7 @@ export const attioUpdateRecordTool: ToolConfig<AttioUpdateRecordParams, AttioUpd
 
     request: {
       url: (params) =>
-        `https://api.attio.com/v2/objects/${params.objectType}/records/${params.recordId}`,
+        `https://api.attio.com/v2/objects/${params.objectType.trim()}/records/${params.recordId.trim()}`,
       method: 'PATCH',
       headers: (params) => ({
         Authorization: `Bearer ${params.accessToken}`,

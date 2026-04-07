@@ -21,6 +21,11 @@ export const SELECTOR_CONTEXT_FIELDS = new Set<keyof SelectorContext>([
   'baseId',
   'datasetId',
   'serviceDeskId',
+  'impersonateUserEmail',
+  'awsAccessKeyId',
+  'awsSecretAccessKey',
+  'awsRegion',
+  'logGroupName',
 ])
 
 /**
@@ -34,10 +39,11 @@ export const SELECTOR_CONTEXT_FIELDS = new Set<keyof SelectorContext>([
 export function buildSelectorContextFromBlock(
   blockType: string,
   subBlocks: Record<string, SubBlockState | { value?: unknown }>,
-  opts?: { workflowId?: string }
+  opts?: { workflowId?: string; workspaceId?: string }
 ): SelectorContext {
   const context: SelectorContext = {}
   if (opts?.workflowId) context.workflowId = opts.workflowId
+  if (opts?.workspaceId) context.workspaceId = opts.workspaceId
 
   const blockConfig = getBlock(blockType)
   if (!blockConfig) return context

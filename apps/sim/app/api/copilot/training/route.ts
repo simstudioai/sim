@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import {
+  authenticateCopilotRequestSessionOnly,
+  createUnauthorizedResponse,
+} from '@/lib/copilot/request-helpers'
 import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('CopilotTrainingAPI')
@@ -22,6 +26,11 @@ const TrainingDataSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
+  const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
+  if (!isAuthenticated || !userId) {
+    return createUnauthorizedResponse()
+  }
+
   try {
     const baseUrl = env.AGENT_INDEXER_URL
     if (!baseUrl) {

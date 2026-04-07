@@ -2,10 +2,45 @@ import { db } from '@sim/db'
 import { skill } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, ne } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateShortId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('SkillsOperations')
+
+/**
+ * List all skills for a workspace, ordered by createdAt desc.
+ */
+export async function listSkills(params: { workspaceId: string }) {
+  return db
+    .select()
+    .from(skill)
+    .where(eq(skill.workspaceId, params.workspaceId))
+    .orderBy(desc(skill.createdAt))
+}
+
+/**
+ * Delete a skill by ID within a workspace.
+ * Returns true if the skill was found and deleted, false otherwise.
+ */
+export async function deleteSkill(params: {
+  skillId: string
+  workspaceId: string
+}): Promise<boolean> {
+  const existing = await db
+    .select({ id: skill.id })
+    .from(skill)
+    .where(and(eq(skill.id, params.skillId), eq(skill.workspaceId, params.workspaceId)))
+    .limit(1)
+
+  if (existing.length === 0) return false
+
+  await db
+    .delete(skill)
+    .where(and(eq(skill.id, params.skillId), eq(skill.workspaceId, params.workspaceId)))
+
+  logger.info(`Deleted skill ${params.skillId}`)
+  return true
+}
 
 /**
  * Internal function to create/update skills.
@@ -76,7 +111,7 @@ export async function upsertSkills(params: {
       }
 
       await tx.insert(skill).values({
-        id: nanoid(),
+        id: generateShortId(),
         workspaceId,
         userId,
         name: s.name,

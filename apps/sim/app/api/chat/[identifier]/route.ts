@@ -1,12 +1,12 @@
-import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import { chat, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { addCorsHeaders, validateAuthToken } from '@/lib/core/security/deployment'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId } from '@/lib/core/utils/uuid'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { ChatFiles } from '@/lib/uploads'
@@ -75,7 +75,7 @@ export async function POST(
         outputConfigs: chat.outputConfigs,
       })
       .from(chat)
-      .where(eq(chat.identifier, identifier))
+      .where(and(eq(chat.identifier, identifier), isNull(chat.archivedAt)))
       .limit(1)
 
     if (deploymentResult.length === 0) {
@@ -91,7 +91,7 @@ export async function POST(
       const [workflowRecord] = await db
         .select({ workspaceId: workflow.workspaceId })
         .from(workflow)
-        .where(eq(workflow.id, deployment.workflowId))
+        .where(and(eq(workflow.id, deployment.workflowId), isNull(workflow.archivedAt)))
         .limit(1)
 
       const workspaceId = workflowRecord?.workspaceId
@@ -103,7 +103,7 @@ export async function POST(
         )
       }
 
-      const executionId = randomUUID()
+      const executionId = generateId()
       const loggingSession = new LoggingSession(
         deployment.workflowId,
         executionId,
@@ -150,7 +150,7 @@ export async function POST(
       return addCorsHeaders(createErrorResponse('No input provided', 400), request)
     }
 
-    const executionId = randomUUID()
+    const executionId = generateId()
 
     const loggingSession = new LoggingSession(deployment.workflowId, executionId, 'chat', requestId)
 
@@ -306,7 +306,7 @@ export async function GET(
         outputConfigs: chat.outputConfigs,
       })
       .from(chat)
-      .where(eq(chat.identifier, identifier))
+      .where(and(eq(chat.identifier, identifier), isNull(chat.archivedAt)))
       .limit(1)
 
     if (deploymentResult.length === 0) {

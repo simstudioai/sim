@@ -7,13 +7,14 @@
 import { db } from '@sim/db'
 import { a2aAgent, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
 import { generateSkillsFromWorkflow } from '@/lib/a2a/agent-card'
 import { A2A_DEFAULT_CAPABILITIES } from '@/lib/a2a/constants'
 import { sanitizeAgentName } from '@/lib/a2a/utils'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { generateId } from '@/lib/core/utils/uuid'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { hasValidStartBlockInState } from '@/lib/workflows/triggers/trigger-utils'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -72,8 +73,8 @@ export async function GET(request: NextRequest) {
         )`.as('task_count'),
       })
       .from(a2aAgent)
-      .leftJoin(workflow, eq(a2aAgent.workflowId, workflow.id))
-      .where(eq(a2aAgent.workspaceId, workspaceId))
+      .leftJoin(workflow, and(eq(a2aAgent.workflowId, workflow.id), isNull(workflow.archivedAt)))
+      .where(and(eq(a2aAgent.workspaceId, workspaceId), isNull(a2aAgent.archivedAt)))
       .orderBy(a2aAgent.createdAt)
 
     logger.info(`Listed ${agents.length} A2A agents for workspace ${workspaceId}`)
@@ -123,7 +124,13 @@ export async function POST(request: NextRequest) {
         isDeployed: workflow.isDeployed,
       })
       .from(workflow)
-      .where(and(eq(workflow.id, workflowId), eq(workflow.workspaceId, workspaceId)))
+      .where(
+        and(
+          eq(workflow.id, workflowId),
+          eq(workflow.workspaceId, workspaceId),
+          isNull(workflow.archivedAt)
+        )
+      )
       .limit(1)
 
     if (!wf) {
@@ -144,7 +151,13 @@ export async function POST(request: NextRequest) {
     const [existing] = await db
       .select({ id: a2aAgent.id })
       .from(a2aAgent)
-      .where(and(eq(a2aAgent.workspaceId, workspaceId), eq(a2aAgent.workflowId, workflowId)))
+      .where(
+        and(
+          eq(a2aAgent.workspaceId, workspaceId),
+          eq(a2aAgent.workflowId, workflowId),
+          isNull(a2aAgent.archivedAt)
+        )
+      )
       .limit(1)
 
     if (existing) {
@@ -160,7 +173,7 @@ export async function POST(request: NextRequest) {
       skillTags
     )
 
-    const agentId = uuidv4()
+    const agentId = generateId()
     const agentName = name || sanitizeAgentName(wf.name)
 
     const [agent] = await db
@@ -188,6 +201,16 @@ export async function POST(request: NextRequest) {
       .returning()
 
     logger.info(`Created A2A agent ${agentId} for workflow ${workflowId}`)
+
+    captureServerEvent(
+      auth.userId,
+      'a2a_agent_created',
+      { agent_id: agentId, workflow_id: workflowId, workspace_id: workspaceId },
+      {
+        groups: { workspace: workspaceId },
+        setOnce: { first_a2a_agent_created_at: new Date().toISOString() },
+      }
+    )
 
     return NextResponse.json({ success: true, agent }, { status: 201 })
   } catch (error) {

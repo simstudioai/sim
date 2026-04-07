@@ -1,20 +1,18 @@
 import { db } from '@sim/db'
 import { webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { generateShortId } from '@/lib/core/utils/uuid'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
+import { PendingWebhookVerificationTracker } from '@/lib/webhooks/pending-verification'
 import {
   cleanupExternalWebhook,
   createExternalWebhookSubscription,
   shouldRecreateExternalWebhookSubscription,
 } from '@/lib/webhooks/provider-subscriptions'
-import {
-  configureGmailPolling,
-  configureOutlookPolling,
-  syncWebhooksForCredentialSet,
-} from '@/lib/webhooks/utils.server'
+import { getProviderHandler } from '@/lib/webhooks/providers'
+import { syncWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -232,29 +230,20 @@ function buildProviderConfig(
 
 async function configurePollingIfNeeded(
   provider: string,
-  savedWebhook: any,
+  savedWebhook: Record<string, unknown>,
   requestId: string
 ): Promise<TriggerSaveError | null> {
-  if (provider === 'gmail') {
-    const success = await configureGmailPolling(savedWebhook, requestId)
-    if (!success) {
-      await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
-      return {
-        message: 'Failed to configure Gmail polling. Please check your Gmail account permissions.',
-        status: 500,
-      }
-    }
+  const handler = getProviderHandler(provider)
+  if (!handler.configurePolling) {
+    return null
   }
 
-  if (provider === 'outlook') {
-    const success = await configureOutlookPolling(savedWebhook, requestId)
-    if (!success) {
-      await db.delete(webhook).where(eq(webhook.id, savedWebhook.id))
-      return {
-        message:
-          'Failed to configure Outlook polling. Please check your Outlook account permissions.',
-        status: 500,
-      }
+  const success = await handler.configurePolling({ webhook: savedWebhook, requestId })
+  if (!success) {
+    await db.delete(webhook).where(eq(webhook.id, savedWebhook.id as string))
+    return {
+      message: `Failed to configure ${provider} polling. Please check your account permissions.`,
+      status: 500,
     }
   }
 
@@ -296,7 +285,7 @@ async function syncCredentialSetWebhooks(params: {
     basePath: triggerPath,
     credentialSetId,
     oauthProviderId,
-    providerConfig: baseConfig as Record<string, any>,
+    providerConfig: baseConfig as Record<string, unknown>,
     requestId,
     deploymentVersionId,
   })
@@ -321,13 +310,13 @@ async function syncCredentialSetWebhooks(params: {
     }
   }
 
-  if (provider === 'gmail' || provider === 'outlook') {
-    const configureFunc = provider === 'gmail' ? configureGmailPolling : configureOutlookPolling
+  const handler = getProviderHandler(provider)
+  if (handler.configurePolling) {
     for (const wh of syncResult.webhooks) {
       if (wh.isNew) {
         const rows = await db.select().from(webhook).where(eq(webhook.id, wh.id)).limit(1)
         if (rows.length > 0) {
-          const success = await configureFunc(rows[0], requestId)
+          const success = await handler.configurePolling({ webhook: rows[0], requestId })
           if (!success) {
             await db.delete(webhook).where(eq(webhook.id, wh.id))
             return {
@@ -368,7 +357,7 @@ export async function saveTriggerWebhooksForDeploy({
   const allWorkflowWebhooks = await db
     .select()
     .from(webhook)
-    .where(eq(webhook.workflowId, workflowId))
+    .where(and(eq(webhook.workflowId, workflowId), isNull(webhook.archivedAt)))
 
   // Separate webhooks by version: current deployment vs others
   const existingWebhooks: typeof allWorkflowWebhooks = []
@@ -453,6 +442,18 @@ export async function saveTriggerWebhooksForDeploy({
         success: false,
         error: {
           message: `Missing required fields for ${triggerDef.name || triggerId}: ${missingFields.join(', ')}`,
+          status: 400,
+        },
+      }
+    }
+
+    if (providerConfig.requireAuth && !providerConfig.token) {
+      await restorePreviousSubscriptions()
+      return {
+        success: false,
+        error: {
+          message:
+            'Authentication is enabled but no token is configured. Please set an authentication token or disable authentication.',
           status: 400,
         },
       }
@@ -557,13 +558,13 @@ export async function saveTriggerWebhooksForDeploy({
         await restorePreviousSubscriptions()
         return { success: false, error: syncResult.error, warnings: collectedWarnings }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(`[${requestId}] Failed to create webhook for ${block.id}`, error)
       await restorePreviousSubscriptions()
       return {
         success: false,
         error: {
-          message: error?.message || 'Failed to save trigger configuration',
+          message: (error as Error)?.message || 'Failed to save trigger configuration',
           status: 500,
         },
         warnings: collectedWarnings,
@@ -580,13 +581,14 @@ export async function saveTriggerWebhooksForDeploy({
     updatedProviderConfig: Record<string, unknown>
     externalSubscriptionCreated: boolean
   }> = []
+  const pendingVerificationTracker = new PendingWebhookVerificationTracker()
 
   for (const block of blocksNeedingWebhook) {
     const config = webhookConfigs.get(block.id)
     if (!config) continue
 
     const { provider, providerConfig, triggerPath } = config
-    const webhookId = nanoid()
+    const webhookId = generateShortId()
     const createPayload = {
       id: webhookId,
       path: triggerPath,
@@ -595,6 +597,14 @@ export async function saveTriggerWebhooksForDeploy({
     }
 
     try {
+      await pendingVerificationTracker.register({
+        path: triggerPath,
+        provider,
+        workflowId,
+        blockId: block.id,
+        metadata: providerConfig,
+      })
+
       const result = await createExternalWebhookSubscription(
         request,
         createPayload,
@@ -611,8 +621,9 @@ export async function saveTriggerWebhooksForDeploy({
         updatedProviderConfig: result.updatedProviderConfig as Record<string, unknown>,
         externalSubscriptionCreated: result.externalSubscriptionCreated,
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(`[${requestId}] Failed to create external subscription for ${block.id}`, error)
+      await pendingVerificationTracker.clearAll()
       for (const sub of createdSubscriptions) {
         if (sub.externalSubscriptionCreated) {
           try {
@@ -638,7 +649,7 @@ export async function saveTriggerWebhooksForDeploy({
       return {
         success: false,
         error: {
-          message: error?.message || 'Failed to create external subscription',
+          message: (error as Error)?.message || 'Failed to create external subscription',
           status: 500,
         },
       }
@@ -665,6 +676,8 @@ export async function saveTriggerWebhooksForDeploy({
         })
       }
     })
+
+    await pendingVerificationTracker.clearAll()
 
     for (const sub of createdSubscriptions) {
       const pollingError = await configurePollingIfNeeded(
@@ -709,7 +722,8 @@ export async function saveTriggerWebhooksForDeploy({
         return { success: false, error: pollingError }
       }
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
+    await pendingVerificationTracker.clearAll()
     logger.error(`[${requestId}] Failed to insert webhook records`, error)
     for (const sub of createdSubscriptions) {
       if (sub.externalSubscriptionCreated) {
@@ -736,7 +750,7 @@ export async function saveTriggerWebhooksForDeploy({
     return {
       success: false,
       error: {
-        message: error?.message || 'Failed to save webhook records',
+        message: (error as Error)?.message || 'Failed to save webhook records',
         status: 500,
       },
     }
@@ -765,9 +779,10 @@ export async function cleanupWebhooksForWorkflow(
       deploymentVersionId
         ? and(
             eq(webhook.workflowId, workflowId),
-            eq(webhook.deploymentVersionId, deploymentVersionId)
+            eq(webhook.deploymentVersionId, deploymentVersionId),
+            isNull(webhook.archivedAt)
           )
-        : eq(webhook.workflowId, workflowId)
+        : and(eq(webhook.workflowId, workflowId), isNull(webhook.archivedAt))
     )
 
   if (existingWebhooks.length === 0) {
@@ -829,7 +844,7 @@ export async function restorePreviousVersionWebhooks(params: {
   const previousWebhooks = await db
     .select()
     .from(webhook)
-    .where(eq(webhook.deploymentVersionId, previousVersionId))
+    .where(and(eq(webhook.deploymentVersionId, previousVersionId), isNull(webhook.archivedAt)))
 
   if (previousWebhooks.length === 0) {
     return
@@ -841,7 +856,7 @@ export async function restorePreviousVersionWebhooks(params: {
 
   for (const wh of previousWebhooks) {
     try {
-      await createExternalWebhookSubscription(
+      const result = await createExternalWebhookSubscription(
         request,
         {
           id: wh.id,
@@ -853,6 +868,13 @@ export async function restorePreviousVersionWebhooks(params: {
         userId,
         requestId
       )
+      await db
+        .update(webhook)
+        .set({
+          providerConfig: result.updatedProviderConfig,
+          updatedAt: new Date(),
+        })
+        .where(eq(webhook.id, wh.id))
       logger.info(`[${requestId}] Restored external subscription for webhook ${wh.id}`)
     } catch (restoreError) {
       logger.error(

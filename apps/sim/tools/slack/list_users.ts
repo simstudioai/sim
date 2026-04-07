@@ -93,6 +93,7 @@ export const slackListUsersTool: ToolConfig<SlackListUsersParams, SlackListUsers
         name: user.name,
         real_name: user.real_name || user.profile?.real_name || '',
         display_name: user.profile?.display_name || '',
+        email: user.profile?.email || '',
         is_bot: user.is_bot || false,
         is_admin: user.is_admin || false,
         is_owner: user.is_owner || false,

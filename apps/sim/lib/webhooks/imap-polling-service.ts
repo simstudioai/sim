@@ -5,9 +5,10 @@ import type { InferSelectModel } from 'drizzle-orm'
 import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import type { FetchMessageObject, MailboxLockObject } from 'imapflow'
 import { ImapFlow } from 'imapflow'
-import { nanoid } from 'nanoid'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
+import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { generateShortId } from '@/lib/core/utils/uuid'
 import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
 
 const logger = createLogger('ImapPollingService')
@@ -18,7 +19,6 @@ interface ImapWebhookConfig {
   host: string
   port: number
   secure: boolean
-  rejectUnauthorized: boolean
   username: string
   password: string
   mailbox: string | string[] // Can be single mailbox or array of mailboxes
@@ -160,7 +160,7 @@ export async function pollImapWebhooks() {
 
     const enqueue = async (webhookData: (typeof activeWebhooks)[number]) => {
       const webhookId = webhookData.id
-      const requestId = nanoid()
+      const requestId = generateShortId()
 
       try {
         const config = webhookData.providerConfig as unknown as ImapWebhookConfig
@@ -172,7 +172,17 @@ export async function pollImapWebhooks() {
           return
         }
 
-        const fetchResult = await fetchNewEmails(config, requestId)
+        const hostValidation = await validateDatabaseHost(config.host, 'host')
+        if (!hostValidation.isValid) {
+          logger.error(
+            `[${requestId}] IMAP host validation failed for webhook ${webhookId}: ${hostValidation.error}`
+          )
+          await markWebhookFailed(webhookId)
+          failureCount++
+          return
+        }
+
+        const fetchResult = await fetchNewEmails(config, requestId, hostValidation.resolvedIP!)
         const { emails, latestUidByMailbox } = fetchResult
         const pollTimestamp = new Date().toISOString()
 
@@ -190,7 +200,8 @@ export async function pollImapWebhooks() {
           emails,
           webhookData,
           config,
-          requestId
+          requestId,
+          hostValidation.resolvedIP!
         )
 
         await updateWebhookLastProcessedUids(webhookId, latestUidByMailbox, pollTimestamp)
@@ -257,9 +268,10 @@ export async function pollImapWebhooks() {
   }
 }
 
-async function fetchNewEmails(config: ImapWebhookConfig, requestId: string) {
+async function fetchNewEmails(config: ImapWebhookConfig, requestId: string, resolvedIP: string) {
   const client = new ImapFlow({
-    host: config.host,
+    host: resolvedIP,
+    servername: config.host,
     port: config.port || 993,
     secure: config.secure ?? true,
     auth: {
@@ -267,7 +279,7 @@ async function fetchNewEmails(config: ImapWebhookConfig, requestId: string) {
       pass: config.password,
     },
     tls: {
-      rejectUnauthorized: config.rejectUnauthorized ?? true,
+      rejectUnauthorized: true,
     },
     logger: false,
   })
@@ -553,13 +565,15 @@ async function processEmails(
   }>,
   webhookData: WebhookRecord,
   config: ImapWebhookConfig,
-  requestId: string
+  requestId: string,
+  resolvedIP: string
 ) {
   let processedCount = 0
   let failedCount = 0
 
   const client = new ImapFlow({
-    host: config.host,
+    host: resolvedIP,
+    servername: config.host,
     port: config.port || 993,
     secure: config.secure ?? true,
     auth: {
@@ -567,7 +581,7 @@ async function processEmails(
       pass: config.password,
     },
     tls: {
-      rejectUnauthorized: config.rejectUnauthorized ?? true,
+      rejectUnauthorized: true,
     },
     logger: false,
   })

@@ -4,20 +4,6 @@ import { createFileContent } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('CopilotChatContext')
 
-/**
- * Build conversation history from stored chat messages.
- */
-export function buildConversationHistory(
-  messages: unknown[],
-  conversationId?: string
-): { history: unknown[]; conversationId?: string } {
-  const history = Array.isArray(messages) ? messages : []
-  return {
-    history,
-    ...(conversationId ? { conversationId } : {}),
-  }
-}
-
 export interface FileAttachmentInput {
   id: string
   key: string
@@ -52,7 +38,8 @@ export async function processFileAttachments(
   for (const { buffer, attachment } of processedAttachments) {
     const fileContent = createFileContent(buffer, attachment.media_type)
     if (fileContent) {
-      processedFileContents.push(fileContent as FileContent)
+      const enriched: FileContent = { ...fileContent, filename: attachment.filename }
+      processedFileContents.push(enriched)
     }
   }
 

@@ -2,8 +2,17 @@ import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
-import { applyAutoLayout } from '@/lib/workflows/autolayout'
+import {
+  assertServerToolNotAborted,
+  type BaseServerTool,
+  type ServerToolContext,
+} from '@/lib/copilot/tools/server/base-tool'
+import { env } from '@/lib/core/config/env'
+import { applyTargetedLayout, getTargetedLayoutImpact } from '@/lib/workflows/autolayout'
+import {
+  DEFAULT_HORIZONTAL_SPACING,
+  DEFAULT_VERTICAL_SPACING,
+} from '@/lib/workflows/autolayout/constants'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import {
   loadWorkflowFromNormalizedTables,
@@ -13,6 +22,7 @@ import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
+import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
 import { applyOperationsToWorkflowState } from './engine'
 import type { EditWorkflowParams, ValidationError } from './types'
 import { preValidateCredentialInputs, validateWorkflowSelectorIds } from './validation'
@@ -30,47 +40,34 @@ async function getCurrentWorkflowStateFromDb(
   const normalized = await loadWorkflowFromNormalizedTables(workflowId)
   if (!normalized) throw new Error('Workflow has no normalized data')
 
-  // Validate and fix blocks without types
-  const blocks = { ...normalized.blocks }
-  const invalidBlocks: string[] = []
-
-  Object.entries(blocks).forEach(([id, block]: [string, any]) => {
-    if (!block.type) {
-      logger.warn(`Block ${id} loaded without type from database`, {
-        blockKeys: Object.keys(block),
-        blockName: block.name,
-      })
-      invalidBlocks.push(id)
-    }
-  })
-
-  // Remove invalid blocks
-  invalidBlocks.forEach((id) => delete blocks[id])
-
-  // Remove edges connected to invalid blocks
-  const edges = normalized.edges.filter(
-    (edge: any) => !invalidBlocks.includes(edge.source) && !invalidBlocks.includes(edge.target)
-  )
-
-  const workflowState: any = {
-    blocks,
-    edges,
+  const { state: validatedState, warnings } = normalizeWorkflowState({
+    blocks: normalized.blocks,
+    edges: normalized.edges,
     loops: normalized.loops || {},
     parallels: normalized.parallels || {},
+  })
+
+  if (warnings.length > 0) {
+    logger.warn('Normalized workflow state loaded from DB for copilot', {
+      workflowId,
+      warningCount: warnings.length,
+      warnings,
+    })
   }
+
   const subBlockValues: Record<string, Record<string, any>> = {}
-  Object.entries(normalized.blocks).forEach(([blockId, block]) => {
+  Object.entries(validatedState.blocks).forEach(([blockId, block]) => {
     subBlockValues[blockId] = {}
     Object.entries((block as any).subBlocks || {}).forEach(([subId, sub]) => {
       if ((sub as any).value !== undefined) subBlockValues[blockId][subId] = (sub as any).value
     })
   })
-  return { workflowState, subBlockValues }
+  return { workflowState: validatedState, subBlockValues }
 }
 
 export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown> = {
   name: 'edit_workflow',
-  async execute(params: EditWorkflowParams, context?: { userId: string }): Promise<unknown> {
+  async execute(params: EditWorkflowParams, context?: ServerToolContext): Promise<unknown> {
     const logger = createLogger('EditWorkflowServerTool')
     const { operations, workflowId, currentUserWorkflow } = params
     if (!Array.isArray(operations) || operations.length === 0) {
@@ -94,9 +91,11 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       operationCount: operations.length,
       workflowId,
       hasCurrentUserWorkflow: !!currentUserWorkflow,
+      chatId: context.chatId,
     })
 
-    // Get current workflow state
+    assertServerToolNotAborted(context)
+
     let workflowState: any
     if (currentUserWorkflow) {
       try {
@@ -137,17 +136,18 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     // Add credential validation errors
     validationErrors.push(...credentialErrors)
 
-    // Get workspaceId for selector validation
     let workspaceId: string | undefined
+    let workflowName: string | undefined
     try {
       const [workflowRecord] = await db
-        .select({ workspaceId: workflowTable.workspaceId })
+        .select({ workspaceId: workflowTable.workspaceId, name: workflowTable.name })
         .from(workflowTable)
         .where(eq(workflowTable.id, workflowId))
         .limit(1)
       workspaceId = workflowRecord?.workspaceId ?? undefined
+      workflowName = workflowRecord?.name ?? undefined
     } catch (error) {
-      logger.warn('Failed to get workspaceId for selector validation', { error, workflowId })
+      logger.warn('Failed to get workflow metadata for validation', { error, workflowId })
     }
 
     // Validate selector IDs exist in the database
@@ -185,6 +185,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     // Extract and persist custom tools to database (reuse workspaceId from selector validation)
     if (context?.userId && workspaceId) {
       try {
+        assertServerToolNotAborted(context)
         const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
         const { saved, errors } = await extractAndPersistCustomTools(
           finalWorkflowState,
@@ -233,21 +234,27 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     // Persist the workflow state to the database
     const finalWorkflowState = validation.sanitizedState || modifiedWorkflowState
 
-    // Apply autolayout to position blocks properly
-    const layoutResult = applyAutoLayout(finalWorkflowState.blocks, finalWorkflowState.edges, {
-      horizontalSpacing: 250,
-      verticalSpacing: 100,
-      padding: { x: 100, y: 100 },
+    const { layoutBlockIds, shiftSourceBlockIds } = getTargetedLayoutImpact({
+      before: workflowState,
+      after: finalWorkflowState,
     })
 
-    const layoutedBlocks =
-      layoutResult.success && layoutResult.blocks ? layoutResult.blocks : finalWorkflowState.blocks
+    let layoutedBlocks = finalWorkflowState.blocks
 
-    if (!layoutResult.success) {
-      logger.warn('Autolayout failed, using default positions', {
-        workflowId,
-        error: layoutResult.error,
-      })
+    if (layoutBlockIds.length > 0 || shiftSourceBlockIds.length > 0) {
+      try {
+        layoutedBlocks = applyTargetedLayout(finalWorkflowState.blocks, finalWorkflowState.edges, {
+          changedBlockIds: layoutBlockIds,
+          shiftSourceBlockIds,
+          horizontalSpacing: DEFAULT_HORIZONTAL_SPACING,
+          verticalSpacing: DEFAULT_VERTICAL_SPACING,
+        })
+      } catch (error) {
+        logger.warn('Targeted autolayout failed, using default positions', {
+          workflowId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
     }
 
     const workflowStateForDb = {
@@ -259,6 +266,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       isDeployed: false,
     }
 
+    assertServerToolNotAborted(context)
     const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowStateForDb as any)
     if (!saveResult.success) {
       logger.error('Failed to persist workflow state to database', {
@@ -269,6 +277,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
     }
 
     // Update workflow's lastSynced timestamp
+    assertServerToolNotAborted(context)
     await db
       .update(workflowTable)
       .set({
@@ -279,19 +288,36 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
 
     logger.info('Workflow state persisted to database', { workflowId })
 
-    // Return the modified workflow state with autolayout applied
+    const socketUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
+    fetch(`${socketUrl}/api/workflow-updated`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': env.INTERNAL_API_SECRET,
+      },
+      body: JSON.stringify({ workflowId }),
+    }).catch((error) => {
+      logger.warn('Failed to notify socket server of workflow update', { workflowId, error })
+    })
+
+    const sanitizationWarnings = validation.warnings.length > 0 ? validation.warnings : undefined
+
     return {
       success: true,
+      workflowId,
+      workflowName: workflowName ?? 'Workflow',
       workflowState: { ...finalWorkflowState, blocks: layoutedBlocks },
-      // Include input validation errors so the LLM can see what was rejected
       ...(inputErrors && {
         inputValidationErrors: inputErrors,
         inputValidationMessage: `${inputErrors.length} input(s) were rejected due to validation errors. The workflow was still updated with valid inputs only. Errors: ${inputErrors.join('; ')}`,
       }),
-      // Include skipped items so the LLM can see what operations were skipped
       ...(skippedMessages && {
         skippedItems: skippedMessages,
         skippedItemsMessage: `${skippedItems.length} operation(s) were skipped due to invalid references. Details: ${skippedMessages.join('; ')}`,
+      }),
+      ...(sanitizationWarnings && {
+        sanitizationWarnings,
+        sanitizationMessage: `${sanitizationWarnings.length} field(s) were automatically sanitized: ${sanitizationWarnings.join('; ')}`,
       }),
     }
   },

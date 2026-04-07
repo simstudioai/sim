@@ -1,6 +1,6 @@
 import { AhrefsIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { AhrefsResponse } from '@/tools/ahrefs/types'
 
 export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
@@ -12,6 +12,8 @@ export const AhrefsBlock: BlockConfig<AhrefsResponse> = {
     'Integrate Ahrefs SEO tools into your workflow. Analyze domain ratings, backlinks, organic keywords, top pages, and more. Requires an Ahrefs Enterprise plan with API access.',
   docsLink: 'https://docs.ahrefs.com/docs/api/reference/introduction',
   category: 'tools',
+  integrationType: IntegrationType.Analytics,
+  tags: ['seo', 'marketing', 'data-analytics'],
   bgColor: '#E0E0E0',
   icon: AhrefsIcon,
   subBlocks: [

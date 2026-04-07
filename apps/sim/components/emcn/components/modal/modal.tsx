@@ -40,6 +40,7 @@ import * as React from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as TabsPrimitive from '@radix-ui/react-tabs'
 import { X } from 'lucide-react'
+import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
 import { Button } from '../button/button'
 
@@ -48,14 +49,7 @@ import { Button } from '../button/button'
  * Mirrors the legacy `Modal` component to ensure consistent behavior.
  */
 const ANIMATION_CLASSES =
-  'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=open]:animate-in'
-
-/**
- * Modal content animation classes.
- * We keep only the slide animations (no zoom) to stabilize positioning while avoiding scale effects.
- */
-const CONTENT_ANIMATION_CLASSES =
-  'data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[50%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[50%]'
+  'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=open]:animate-in motion-reduce:animate-none'
 
 /**
  * Root modal component. Manages open state.
@@ -90,7 +84,7 @@ const ModalOverlay = React.forwardRef<
       <DialogPrimitive.Overlay
         ref={ref}
         className={cn(
-          'fixed inset-0 z-[500] bg-[#E4E4E4]/50 backdrop-blur-[0.75px] dark:bg-[#0D0D0D]/50',
+          'fixed inset-0 z-[var(--z-modal)] bg-black/10 backdrop-blur-[2px]',
           ANIMATION_CLASSES,
           className
         )}
@@ -145,6 +139,8 @@ const ModalContent = React.forwardRef<
   ModalContentProps
 >(({ className, children, showClose = true, size = 'md', style, ...props }, ref) => {
   const [isInteractionReady, setIsInteractionReady] = React.useState(false)
+  const pathname = usePathname()
+  const isWorkflowPage = pathname?.includes('/w/') ?? false
 
   React.useEffect(() => {
     const timer = setTimeout(() => setIsInteractionReady(true), 100)
@@ -154,33 +150,42 @@ const ModalContent = React.forwardRef<
   return (
     <ModalPortal>
       <ModalOverlay />
-      <DialogPrimitive.Content
-        ref={ref}
-        className={cn(
-          ANIMATION_CLASSES,
-          CONTENT_ANIMATION_CLASSES,
-          'fixed top-[50%] left-[50%] z-[500] flex max-h-[84vh] translate-x-[-50%] translate-y-[-50%] flex-col overflow-hidden rounded-[8px] border bg-[var(--bg)] shadow-sm duration-200',
-          MODAL_SIZES[size],
-          className
-        )}
-        style={style}
-        onEscapeKeyDown={(e) => {
-          if (!isInteractionReady) {
-            e.preventDefault()
-            return
-          }
-          e.stopPropagation()
+      <div
+        className='pointer-events-none fixed inset-0 z-[var(--z-modal)] flex items-center justify-center'
+        style={{
+          paddingLeft: isWorkflowPage
+            ? 'calc(var(--sidebar-width) - var(--panel-width))'
+            : 'var(--sidebar-width)',
         }}
-        onPointerDown={(e) => {
-          e.stopPropagation()
-        }}
-        onPointerUp={(e) => {
-          e.stopPropagation()
-        }}
-        {...props}
       >
-        {children}
-      </DialogPrimitive.Content>
+        <DialogPrimitive.Content
+          ref={ref}
+          className={cn(
+            'pointer-events-auto flex max-h-[84vh] flex-col overflow-hidden rounded-xl bg-[var(--bg)] text-small ring-1 ring-foreground/10',
+            ANIMATION_CLASSES,
+            'data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-200',
+            MODAL_SIZES[size],
+            className
+          )}
+          style={style}
+          onEscapeKeyDown={(e) => {
+            if (!isInteractionReady) {
+              e.preventDefault()
+              return
+            }
+            e.stopPropagation()
+          }}
+          onPointerDown={(e) => {
+            e.stopPropagation()
+          }}
+          onPointerUp={(e) => {
+            e.stopPropagation()
+          }}
+          {...props}
+        >
+          {children}
+        </DialogPrimitive.Content>
+      </div>
     </ModalPortal>
   )
 })
@@ -194,17 +199,17 @@ const ModalHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
   ({ className, children, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn(
-        'flex min-w-0 items-center justify-between gap-[8px] px-[16px] py-[10px]',
-        className
-      )}
+      className={cn('flex min-w-0 items-center justify-between gap-2 px-4 pt-4 pb-2', className)}
       {...props}
     >
-      <DialogPrimitive.Title className='min-w-0 font-medium text-[16px] text-[var(--text-primary)] leading-snug'>
+      <DialogPrimitive.Title className='min-w-0 font-medium text-[var(--text-primary)] text-base leading-none'>
         {children}
       </DialogPrimitive.Title>
       <DialogPrimitive.Close asChild>
-        <Button variant='ghost' className='h-[16px] w-[16px] flex-shrink-0 p-0'>
+        <Button
+          variant='ghost'
+          className='relative h-[16px] w-[16px] flex-shrink-0 p-0 before:absolute before:inset-[-14px] before:content-[""]'
+        >
           <X className='h-[16px] w-[16px]' />
           <span className='sr-only'>Close</span>
         </Button>
@@ -296,19 +301,19 @@ const ModalTabsList = React.forwardRef<
     <TabsPrimitive.List
       ref={ref}
       className={cn(
-        'relative flex gap-[16px] px-4',
+        'relative flex gap-4 px-4 pt-1',
         disabled && 'pointer-events-none opacity-50',
         className
       )}
       {...props}
     >
-      <div ref={listRef} className='flex gap-[16px]'>
+      <div ref={listRef} className='flex gap-4'>
         {children}
       </div>
       <span
         className={cn(
           'pointer-events-none absolute bottom-0 h-[1px] rounded-full bg-[var(--text-primary)]',
-          ready && 'transition-all duration-200 ease-out'
+          ready ? 'opacity-100 transition-[left,width,opacity] duration-200 ease-out' : 'opacity-0'
         )}
         style={{ left: indicator.left, width: indicator.width }}
       />
@@ -328,8 +333,8 @@ const ModalTabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      'px-1 pb-[8px] font-medium text-[13px] text-[var(--text-secondary)] transition-colors',
-      'hover:text-[var(--text-primary)] data-[state=active]:text-[var(--text-primary)]',
+      'px-1 pb-2 font-medium text-[var(--text-secondary)] text-small transition-colors',
+      'hover-hover:text-[var(--text-primary)] data-[state=active]:text-[var(--text-primary)]',
       className
     )}
     {...props}
@@ -346,7 +351,7 @@ const ModalTabsContent = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
 >(({ className, ...props }, ref) => (
-  <TabsPrimitive.Content ref={ref} className={cn('pb-[10px]', className)} {...props} />
+  <TabsPrimitive.Content ref={ref} className={cn('pb-2.5', className)} {...props} />
 ))
 
 ModalTabsContent.displayName = 'ModalTabsContent'
@@ -356,14 +361,7 @@ ModalTabsContent.displayName = 'ModalTabsContent'
  */
 const ModalBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn(
-        'flex-1 overflow-y-auto border-t bg-[var(--surface-2)] px-[14px] py-[10px]',
-        className
-      )}
-      {...props}
-    />
+    <div ref={ref} className={cn('flex-1 overflow-y-auto px-4 pt-3 pb-4', className)} {...props} />
   )
 )
 
@@ -377,7 +375,7 @@ const ModalFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
     <div
       ref={ref}
       className={cn(
-        'flex justify-end gap-[8px] border-t bg-[var(--surface-2)] px-[16px] py-[10px]',
+        'flex justify-end gap-2 rounded-b-xl border-[var(--border)] border-t bg-[color-mix(in_srgb,var(--surface-3)_50%,transparent)] px-4 py-3',
         className
       )}
       {...props}

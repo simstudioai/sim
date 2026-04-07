@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
+import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('CredentialDraftHooks')
 
@@ -16,7 +17,7 @@ export async function handleCreateCredentialFromDraft(params: {
   now: Date
 }) {
   const { draft, accountId, providerId, userId, now } = params
-  const credentialId = crypto.randomUUID()
+  const credentialId = generateId()
 
   try {
     await db.insert(schema.credential).values({
@@ -33,7 +34,7 @@ export async function handleCreateCredentialFromDraft(params: {
     })
 
     await db.insert(schema.credentialMember).values({
-      id: crypto.randomUUID(),
+      id: generateId(),
       credentialId,
       userId,
       role: 'admin',

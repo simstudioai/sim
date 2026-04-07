@@ -1,0 +1,891 @@
+---
+title: Rootly
+description: Manage incidents, alerts, and on-call with Rootly
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="rootly"
+  color="#6C72C8"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Rootly](https://rootly.com/) is an incident management platform that helps teams respond to, mitigate, and learn from incidents — all without leaving Slack or your existing tools. Rootly automates on-call alerting, incident workflows, status page updates, and retrospectives so engineering teams can resolve issues faster and reduce toil.
+
+**Why Rootly?**
+- **End-to-End Incident Management:** Create, track, update, and resolve incidents with full lifecycle support — from initial triage through retrospective.
+- **On-Call Alerting:** Create and manage alerts with deduplication, routing, and escalation to ensure the right people are notified immediately.
+- **Timeline Events:** Add structured timeline events to incidents for clear, auditable incident narratives.
+- **Service Catalog:** Maintain a catalog of services and map them to incidents for precise impact tracking.
+- **Severity & Prioritization:** Use configurable severity levels to prioritize incidents and drive appropriate response urgency.
+- **Retrospectives:** Access post-incident retrospectives to identify root causes, capture learnings, and drive reliability improvements.
+
+**Using Rootly in Sim**
+
+Sim's Rootly integration connects your agentic workflows directly to your Rootly account using an API key. With operations spanning incidents, alerts, services, severities, teams, environments, functionalities, incident types, and retrospectives, you can build powerful incident management automations without writing backend code.
+
+**Key benefits of using Rootly in Sim:**
+- **Automated incident creation:** Trigger incident creation from monitoring alerts, customer reports, or anomaly detection workflows with full metadata including severity, services, and teams.
+- **Incident lifecycle automation:** Automatically update incident status, add timeline events, and attach mitigation or resolution messages as your response progresses.
+- **Alert management:** Create and list alerts with deduplication support to integrate Rootly into your existing monitoring and notification pipelines.
+- **Organizational awareness:** Query services, severities, teams, environments, functionalities, and incident types to build context-aware incident workflows.
+- **Retrospective insights:** List and filter retrospectives to feed post-incident learnings into continuous improvement workflows.
+
+Whether you're automating incident response, building on-call alerting pipelines, or driving post-incident learning, Rootly in Sim gives you direct, secure access to the Rootly API — no middleware required. Simply configure your API key, select the operation you need, and let Sim handle the rest.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Rootly incident management into workflows. Create and manage incidents, alerts, services, severities, and retrospectives.
+
+
+
+## Tools
+
+### `rootly_create_incident`
+
+Create a new incident in Rootly with optional severity, services, and teams.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `title` | string | No | The title of the incident \(auto-generated if not provided\) |
+| `summary` | string | No | A summary of the incident |
+| `severityId` | string | No | Severity ID to attach to the incident |
+| `status` | string | No | Incident status \(in_triage, started, detected, acknowledged, mitigated, resolved, closed, cancelled, scheduled, in_progress, completed\) |
+| `kind` | string | No | Incident kind \(normal, normal_sub, test, test_sub, example, example_sub, backfilled, scheduled, scheduled_sub\) |
+| `serviceIds` | string | No | Comma-separated service IDs to attach |
+| `environmentIds` | string | No | Comma-separated environment IDs to attach |
+| `groupIds` | string | No | Comma-separated team/group IDs to attach |
+| `incidentTypeIds` | string | No | Comma-separated incident type IDs to attach |
+| `functionalityIds` | string | No | Comma-separated functionality IDs to attach |
+| `labels` | string | No | Labels as JSON object, e.g. \{"platform":"osx","version":"1.29"\} |
+| `private` | boolean | No | Create as a private incident \(cannot be undone\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incident` | object | The created incident |
+|   ↳ `id` | string | Unique incident ID |
+|   ↳ `sequentialId` | number | Sequential incident number |
+|   ↳ `title` | string | Incident title |
+|   ↳ `slug` | string | Incident slug |
+|   ↳ `kind` | string | Incident kind |
+|   ↳ `summary` | string | Incident summary |
+|   ↳ `status` | string | Incident status |
+|   ↳ `private` | boolean | Whether the incident is private |
+|   ↳ `url` | string | URL to the incident |
+|   ↳ `shortUrl` | string | Short URL to the incident |
+|   ↳ `severityName` | string | Severity name |
+|   ↳ `severityId` | string | Severity ID |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+|   ↳ `startedAt` | string | Start date |
+|   ↳ `mitigatedAt` | string | Mitigation date |
+|   ↳ `resolvedAt` | string | Resolution date |
+|   ↳ `closedAt` | string | Closed date |
+
+### `rootly_get_incident`
+
+Retrieve a single incident by ID from Rootly.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `incidentId` | string | Yes | The ID of the incident to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incident` | object | The incident details |
+|   ↳ `id` | string | Unique incident ID |
+|   ↳ `sequentialId` | number | Sequential incident number |
+|   ↳ `title` | string | Incident title |
+|   ↳ `slug` | string | Incident slug |
+|   ↳ `kind` | string | Incident kind |
+|   ↳ `summary` | string | Incident summary |
+|   ↳ `status` | string | Incident status |
+|   ↳ `private` | boolean | Whether the incident is private |
+|   ↳ `url` | string | URL to the incident |
+|   ↳ `shortUrl` | string | Short URL to the incident |
+|   ↳ `severityName` | string | Severity name |
+|   ↳ `severityId` | string | Severity ID |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+|   ↳ `startedAt` | string | Start date |
+|   ↳ `mitigatedAt` | string | Mitigation date |
+|   ↳ `resolvedAt` | string | Resolution date |
+|   ↳ `closedAt` | string | Closed date |
+
+### `rootly_update_incident`
+
+Update an existing incident in Rootly (status, severity, summary, etc.).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `incidentId` | string | Yes | The ID of the incident to update |
+| `title` | string | No | Updated incident title |
+| `summary` | string | No | Updated incident summary |
+| `severityId` | string | No | Updated severity ID |
+| `status` | string | No | Updated status \(in_triage, started, detected, acknowledged, mitigated, resolved, closed, cancelled, scheduled, in_progress, completed\) |
+| `kind` | string | No | Incident kind \(normal, normal_sub, test, test_sub, example, example_sub, backfilled, scheduled, scheduled_sub\) |
+| `private` | boolean | No | Set incident as private \(cannot be undone\) |
+| `serviceIds` | string | No | Comma-separated service IDs |
+| `environmentIds` | string | No | Comma-separated environment IDs |
+| `groupIds` | string | No | Comma-separated team/group IDs |
+| `incidentTypeIds` | string | No | Comma-separated incident type IDs to attach |
+| `functionalityIds` | string | No | Comma-separated functionality IDs to attach |
+| `labels` | string | No | Labels as JSON object, e.g. \{"platform":"osx","version":"1.29"\} |
+| `mitigationMessage` | string | No | How was the incident mitigated? |
+| `resolutionMessage` | string | No | How was the incident resolved? |
+| `cancellationMessage` | string | No | Why was the incident cancelled? |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incident` | object | The updated incident |
+|   ↳ `id` | string | Unique incident ID |
+|   ↳ `sequentialId` | number | Sequential incident number |
+|   ↳ `title` | string | Incident title |
+|   ↳ `slug` | string | Incident slug |
+|   ↳ `kind` | string | Incident kind |
+|   ↳ `summary` | string | Incident summary |
+|   ↳ `status` | string | Incident status |
+|   ↳ `private` | boolean | Whether the incident is private |
+|   ↳ `url` | string | URL to the incident |
+|   ↳ `shortUrl` | string | Short URL to the incident |
+|   ↳ `severityName` | string | Severity name |
+|   ↳ `severityId` | string | Severity ID |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+|   ↳ `startedAt` | string | Start date |
+|   ↳ `mitigatedAt` | string | Mitigation date |
+|   ↳ `resolvedAt` | string | Resolution date |
+|   ↳ `closedAt` | string | Closed date |
+
+### `rootly_list_incidents`
+
+List incidents from Rootly with optional filtering by status, severity, and more.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `status` | string | No | Filter by status \(in_triage, started, detected, acknowledged, mitigated, resolved, closed, cancelled, scheduled, in_progress, completed\) |
+| `severity` | string | No | Filter by severity slug |
+| `search` | string | No | Search term to filter incidents |
+| `services` | string | No | Filter by service slugs \(comma-separated\) |
+| `teams` | string | No | Filter by team slugs \(comma-separated\) |
+| `environments` | string | No | Filter by environment slugs \(comma-separated\) |
+| `sort` | string | No | Sort order \(e.g., -created_at, created_at, -started_at\) |
+| `pageSize` | number | No | Number of items per page \(default: 20\) |
+| `pageNumber` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incidents` | array | List of incidents |
+|   ↳ `id` | string | Unique incident ID |
+|   ↳ `sequentialId` | number | Sequential incident number |
+|   ↳ `title` | string | Incident title |
+|   ↳ `slug` | string | Incident slug |
+|   ↳ `kind` | string | Incident kind |
+|   ↳ `summary` | string | Incident summary |
+|   ↳ `status` | string | Incident status |
+|   ↳ `private` | boolean | Whether the incident is private |
+|   ↳ `url` | string | URL to the incident |
+|   ↳ `shortUrl` | string | Short URL to the incident |
+|   ↳ `severityName` | string | Severity name |
+|   ↳ `severityId` | string | Severity ID |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+|   ↳ `startedAt` | string | Start date |
+|   ↳ `mitigatedAt` | string | Mitigation date |
+|   ↳ `resolvedAt` | string | Resolution date |
+|   ↳ `closedAt` | string | Closed date |
+| `totalCount` | number | Total number of incidents returned |
+
+### `rootly_create_alert`
+
+Create a new alert in Rootly for on-call notification and routing.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `summary` | string | Yes | The summary of the alert |
+| `description` | string | No | A detailed description of the alert |
+| `source` | string | Yes | The source of the alert \(e.g., api, manual, datadog, pagerduty\) |
+| `status` | string | No | Alert status on creation \(open, triggered\) |
+| `serviceIds` | string | No | Comma-separated service IDs to attach |
+| `groupIds` | string | No | Comma-separated team/group IDs to attach |
+| `environmentIds` | string | No | Comma-separated environment IDs to attach |
+| `externalId` | string | No | External ID for the alert |
+| `externalUrl` | string | No | External URL for the alert |
+| `deduplicationKey` | string | No | Alerts sharing the same deduplication key are treated as a single alert |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alert` | object | The created alert |
+|   ↳ `id` | string | Unique alert ID |
+|   ↳ `shortId` | string | Short alert ID |
+|   ↳ `summary` | string | Alert summary |
+|   ↳ `description` | string | Alert description |
+|   ↳ `source` | string | Alert source |
+|   ↳ `status` | string | Alert status |
+|   ↳ `externalId` | string | External ID |
+|   ↳ `externalUrl` | string | External URL |
+|   ↳ `deduplicationKey` | string | Deduplication key |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+|   ↳ `startedAt` | string | Start date |
+|   ↳ `endedAt` | string | End date |
+
+### `rootly_list_alerts`
+
+List alerts from Rootly with optional filtering by status, source, and services.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `status` | string | No | Filter by status \(open, triggered, acknowledged, resolved\) |
+| `source` | string | No | Filter by source \(e.g., api, datadog, pagerduty\) |
+| `services` | string | No | Filter by service slugs \(comma-separated\) |
+| `environments` | string | No | Filter by environment slugs \(comma-separated\) |
+| `groups` | string | No | Filter by team/group slugs \(comma-separated\) |
+| `pageSize` | number | No | Number of items per page \(default: 20\) |
+| `pageNumber` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alerts` | array | List of alerts |
+|   ↳ `id` | string | Unique alert ID |
+|   ↳ `shortId` | string | Short alert ID |
+|   ↳ `summary` | string | Alert summary |
+|   ↳ `description` | string | Alert description |
+|   ↳ `source` | string | Alert source |
+|   ↳ `status` | string | Alert status |
+|   ↳ `externalId` | string | External ID |
+|   ↳ `externalUrl` | string | External URL |
+|   ↳ `deduplicationKey` | string | Deduplication key |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+|   ↳ `startedAt` | string | Start date |
+|   ↳ `endedAt` | string | End date |
+| `totalCount` | number | Total number of alerts returned |
+
+### `rootly_add_incident_event`
+
+Add a timeline event to an existing incident in Rootly.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `incidentId` | string | Yes | The ID of the incident to add the event to |
+| `event` | string | Yes | The summary/description of the event |
+| `visibility` | string | No | Event visibility \(internal or external\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventId` | string | The ID of the created event |
+| `event` | string | The event summary |
+| `visibility` | string | Event visibility \(internal or external\) |
+| `occurredAt` | string | When the event occurred |
+| `createdAt` | string | Creation date |
+| `updatedAt` | string | Last update date |
+
+### `rootly_list_services`
+
+List services from Rootly with optional search filtering.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `search` | string | No | Search term to filter services |
+| `pageSize` | number | No | Number of items per page \(default: 20\) |
+| `pageNumber` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `services` | array | List of services |
+|   ↳ `id` | string | Unique service ID |
+|   ↳ `name` | string | Service name |
+|   ↳ `slug` | string | Service slug |
+|   ↳ `description` | string | Service description |
+|   ↳ `color` | string | Service color |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+| `totalCount` | number | Total number of services returned |
+
+### `rootly_list_severities`
+
+List severity levels configured in Rootly.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `search` | string | No | Search term to filter severities |
+| `pageSize` | number | No | Number of items per page \(default: 20\) |
+| `pageNumber` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `severities` | array | List of severity levels |
+|   ↳ `id` | string | Unique severity ID |
+|   ↳ `name` | string | Severity name |
+|   ↳ `slug` | string | Severity slug |
+|   ↳ `description` | string | Severity description |
+|   ↳ `severity` | string | Severity level \(critical, high, medium, low\) |
+|   ↳ `color` | string | Severity color |
+|   ↳ `position` | number | Display position |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+| `totalCount` | number | Total number of severities returned |
+
+### `rootly_list_teams`
+
+List teams (groups) configured in Rootly.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `search` | string | No | Search term to filter teams |
+| `pageSize` | number | No | Number of items per page \(default: 20\) |
+| `pageNumber` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `teams` | array | List of teams |
+|   ↳ `id` | string | Unique team ID |
+|   ↳ `name` | string | Team name |
+|   ↳ `slug` | string | Team slug |
+|   ↳ `description` | string | Team description |
+|   ↳ `color` | string | Team color |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+| `totalCount` | number | Total number of teams returned |
+
+### `rootly_list_environments`
+
+List environments configured in Rootly.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `search` | string | No | Search term to filter environments |
+| `pageSize` | number | No | Number of items per page \(default: 20\) |
+| `pageNumber` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `environments` | array | List of environments |
+|   ↳ `id` | string | Unique environment ID |
+|   ↳ `name` | string | Environment name |
+|   ↳ `slug` | string | Environment slug |
+|   ↳ `description` | string | Environment description |
+|   ↳ `color` | string | Environment color |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+| `totalCount` | number | Total number of environments returned |
+
+### `rootly_list_incident_types`
+
+List incident types configured in Rootly.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `search` | string | No | Filter incident types by name |
+| `pageSize` | number | No | Number of items per page \(default: 20\) |
+| `pageNumber` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incidentTypes` | array | List of incident types |
+|   ↳ `id` | string | Unique incident type ID |
+|   ↳ `name` | string | Incident type name |
+|   ↳ `slug` | string | Incident type slug |
+|   ↳ `description` | string | Incident type description |
+|   ↳ `color` | string | Incident type color |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+| `totalCount` | number | Total number of incident types returned |
+
+### `rootly_list_functionalities`
+
+List functionalities configured in Rootly.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `search` | string | No | Search term to filter functionalities |
+| `pageSize` | number | No | Number of items per page \(default: 20\) |
+| `pageNumber` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `functionalities` | array | List of functionalities |
+|   ↳ `id` | string | Unique functionality ID |
+|   ↳ `name` | string | Functionality name |
+|   ↳ `slug` | string | Functionality slug |
+|   ↳ `description` | string | Functionality description |
+|   ↳ `color` | string | Functionality color |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+| `totalCount` | number | Total number of functionalities returned |
+
+### `rootly_list_retrospectives`
+
+List incident retrospectives (post-mortems) from Rootly.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `status` | string | No | Filter by status \(draft, published\) |
+| `search` | string | No | Search term to filter retrospectives |
+| `pageSize` | number | No | Number of items per page \(default: 20\) |
+| `pageNumber` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `retrospectives` | array | List of retrospectives |
+|   ↳ `id` | string | Unique retrospective ID |
+|   ↳ `title` | string | Retrospective title |
+|   ↳ `status` | string | Status \(draft or published\) |
+|   ↳ `url` | string | URL to the retrospective |
+|   ↳ `startedAt` | string | Incident start date |
+|   ↳ `mitigatedAt` | string | Mitigation date |
+|   ↳ `resolvedAt` | string | Resolution date |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+| `totalCount` | number | Total number of retrospectives returned |
+
+### `rootly_delete_incident`
+
+Delete an incident by ID from Rootly.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `incidentId` | string | Yes | The ID of the incident to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the deletion succeeded |
+| `message` | string | Result message |
+
+### `rootly_get_alert`
+
+Retrieve a single alert by ID from Rootly.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `alertId` | string | Yes | The ID of the alert to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alert` | object | The alert details |
+|   ↳ `id` | string | Unique alert ID |
+|   ↳ `shortId` | string | Short alert ID |
+|   ↳ `summary` | string | Alert summary |
+|   ↳ `description` | string | Alert description |
+|   ↳ `source` | string | Alert source |
+|   ↳ `status` | string | Alert status |
+|   ↳ `externalId` | string | External ID |
+|   ↳ `externalUrl` | string | External URL |
+|   ↳ `deduplicationKey` | string | Deduplication key |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+|   ↳ `startedAt` | string | Start date |
+|   ↳ `endedAt` | string | End date |
+
+### `rootly_update_alert`
+
+Update an existing alert in Rootly.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `alertId` | string | Yes | The ID of the alert to update |
+| `summary` | string | No | Updated alert summary |
+| `description` | string | No | Updated alert description |
+| `source` | string | No | Updated alert source |
+| `serviceIds` | string | No | Comma-separated service IDs to attach |
+| `groupIds` | string | No | Comma-separated team/group IDs to attach |
+| `environmentIds` | string | No | Comma-separated environment IDs to attach |
+| `externalId` | string | No | Updated external ID |
+| `externalUrl` | string | No | Updated external URL |
+| `deduplicationKey` | string | No | Updated deduplication key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alert` | object | The updated alert |
+|   ↳ `id` | string | Unique alert ID |
+|   ↳ `shortId` | string | Short alert ID |
+|   ↳ `summary` | string | Alert summary |
+|   ↳ `description` | string | Alert description |
+|   ↳ `source` | string | Alert source |
+|   ↳ `status` | string | Alert status |
+|   ↳ `externalId` | string | External ID |
+|   ↳ `externalUrl` | string | External URL |
+|   ↳ `deduplicationKey` | string | Deduplication key |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+|   ↳ `startedAt` | string | Start date |
+|   ↳ `endedAt` | string | End date |
+
+### `rootly_acknowledge_alert`
+
+Acknowledge an alert in Rootly.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `alertId` | string | Yes | The ID of the alert to acknowledge |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alert` | object | The acknowledged alert |
+|   ↳ `id` | string | Unique alert ID |
+|   ↳ `shortId` | string | Short alert ID |
+|   ↳ `summary` | string | Alert summary |
+|   ↳ `description` | string | Alert description |
+|   ↳ `source` | string | Alert source |
+|   ↳ `status` | string | Alert status |
+|   ↳ `externalId` | string | External ID |
+|   ↳ `externalUrl` | string | External URL |
+|   ↳ `deduplicationKey` | string | Deduplication key |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+|   ↳ `startedAt` | string | Start date |
+|   ↳ `endedAt` | string | End date |
+
+### `rootly_resolve_alert`
+
+Resolve an alert in Rootly.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `alertId` | string | Yes | The ID of the alert to resolve |
+| `resolutionMessage` | string | No | Message describing how the alert was resolved |
+| `resolveRelatedIncidents` | boolean | No | Whether to also resolve related incidents |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `alert` | object | The resolved alert |
+|   ↳ `id` | string | Unique alert ID |
+|   ↳ `shortId` | string | Short alert ID |
+|   ↳ `summary` | string | Alert summary |
+|   ↳ `description` | string | Alert description |
+|   ↳ `source` | string | Alert source |
+|   ↳ `status` | string | Alert status |
+|   ↳ `externalId` | string | External ID |
+|   ↳ `externalUrl` | string | External URL |
+|   ↳ `deduplicationKey` | string | Deduplication key |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+|   ↳ `startedAt` | string | Start date |
+|   ↳ `endedAt` | string | End date |
+
+### `rootly_create_action_item`
+
+Create a new action item for an incident in Rootly.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `incidentId` | string | Yes | The ID of the incident to add the action item to |
+| `summary` | string | Yes | The title of the action item |
+| `description` | string | No | A detailed description of the action item |
+| `kind` | string | No | The kind of action item \(task, follow_up\) |
+| `priority` | string | No | Priority level \(high, medium, low\) |
+| `status` | string | No | Action item status \(open, in_progress, cancelled, done\) |
+| `assignedToUserId` | string | No | The user ID to assign the action item to |
+| `dueDate` | string | No | Due date for the action item |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `actionItem` | object | The created action item |
+|   ↳ `id` | string | Unique action item ID |
+|   ↳ `summary` | string | Action item title |
+|   ↳ `description` | string | Action item description |
+|   ↳ `kind` | string | Action item kind \(task, follow_up\) |
+|   ↳ `priority` | string | Priority level |
+|   ↳ `status` | string | Action item status |
+|   ↳ `dueDate` | string | Due date |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+
+### `rootly_list_action_items`
+
+List action items for an incident in Rootly.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `incidentId` | string | Yes | The ID of the incident to list action items for |
+| `pageSize` | number | No | Number of items per page \(default: 20\) |
+| `pageNumber` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `actionItems` | array | List of action items |
+|   ↳ `id` | string | Unique action item ID |
+|   ↳ `summary` | string | Action item title |
+|   ↳ `description` | string | Action item description |
+|   ↳ `kind` | string | Action item kind \(task, follow_up\) |
+|   ↳ `priority` | string | Priority level |
+|   ↳ `status` | string | Action item status |
+|   ↳ `dueDate` | string | Due date |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+| `totalCount` | number | Total number of action items returned |
+
+### `rootly_list_users`
+
+List users from Rootly with optional search and email filtering.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `search` | string | No | Search term to filter users |
+| `email` | string | No | Filter users by email address |
+| `pageSize` | number | No | Number of items per page \(default: 20\) |
+| `pageNumber` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | List of users |
+|   ↳ `id` | string | Unique user ID |
+|   ↳ `email` | string | User email address |
+|   ↳ `firstName` | string | User first name |
+|   ↳ `lastName` | string | User last name |
+|   ↳ `fullName` | string | User full name |
+|   ↳ `timeZone` | string | User time zone |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+| `totalCount` | number | Total number of users returned |
+
+### `rootly_list_on_calls`
+
+List current on-call entries from Rootly with optional filtering.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `scheduleIds` | string | No | Comma-separated schedule IDs to filter by |
+| `escalationPolicyIds` | string | No | Comma-separated escalation policy IDs to filter by |
+| `userIds` | string | No | Comma-separated user IDs to filter by |
+| `serviceIds` | string | No | Comma-separated service IDs to filter by |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `onCalls` | array | List of on-call entries |
+|   ↳ `id` | string | Unique on-call entry ID |
+|   ↳ `userId` | string | ID of the on-call user |
+|   ↳ `userName` | string | Name of the on-call user |
+|   ↳ `scheduleId` | string | ID of the associated schedule |
+|   ↳ `scheduleName` | string | Name of the associated schedule |
+|   ↳ `escalationPolicyId` | string | ID of the associated escalation policy |
+|   ↳ `startTime` | string | On-call start time |
+|   ↳ `endTime` | string | On-call end time |
+| `totalCount` | number | Total number of on-call entries returned |
+
+### `rootly_list_schedules`
+
+List on-call schedules from Rootly with optional search filtering.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `search` | string | No | Search term to filter schedules |
+| `pageSize` | number | No | Number of items per page \(default: 20\) |
+| `pageNumber` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `schedules` | array | List of schedules |
+|   ↳ `id` | string | Unique schedule ID |
+|   ↳ `name` | string | Schedule name |
+|   ↳ `description` | string | Schedule description |
+|   ↳ `allTimeCoverage` | boolean | Whether schedule provides 24/7 coverage |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+| `totalCount` | number | Total number of schedules returned |
+
+### `rootly_list_escalation_policies`
+
+List escalation policies from Rootly with optional search filtering.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `search` | string | No | Search term to filter escalation policies |
+| `pageSize` | number | No | Number of items per page \(default: 20\) |
+| `pageNumber` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `escalationPolicies` | array | List of escalation policies |
+|   ↳ `id` | string | Unique escalation policy ID |
+|   ↳ `name` | string | Escalation policy name |
+|   ↳ `description` | string | Escalation policy description |
+|   ↳ `repeatCount` | number | Number of times to repeat escalation |
+|   ↳ `groupIds` | array | Associated group IDs |
+|   ↳ `serviceIds` | array | Associated service IDs |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+| `totalCount` | number | Total number of escalation policies returned |
+
+### `rootly_list_causes`
+
+List causes from Rootly with optional search filtering.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `search` | string | No | Search term to filter causes |
+| `pageSize` | number | No | Number of items per page \(default: 20\) |
+| `pageNumber` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `causes` | array | List of causes |
+|   ↳ `id` | string | Unique cause ID |
+|   ↳ `name` | string | Cause name |
+|   ↳ `slug` | string | Cause slug |
+|   ↳ `description` | string | Cause description |
+|   ↳ `position` | number | Cause position |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+| `totalCount` | number | Total number of causes returned |
+
+### `rootly_list_playbooks`
+
+List playbooks from Rootly with pagination support.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Rootly API key |
+| `pageSize` | number | No | Number of items per page \(default: 20\) |
+| `pageNumber` | number | No | Page number for pagination |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `playbooks` | array | List of playbooks |
+|   ↳ `id` | string | Unique playbook ID |
+|   ↳ `title` | string | Playbook title |
+|   ↳ `summary` | string | Playbook summary |
+|   ↳ `externalUrl` | string | External URL |
+|   ↳ `createdAt` | string | Creation date |
+|   ↳ `updatedAt` | string | Last update date |
+| `totalCount` | number | Total number of playbooks returned |
+
+

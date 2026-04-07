@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
 import { Loader2, RotateCcw, X } from 'lucide-react'
@@ -22,7 +22,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
-import { useCreateKnowledgeBase, useDeleteKnowledgeBase } from '@/hooks/queries/knowledge'
+import { useCreateKnowledgeBase, useDeleteKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 
 const logger = createLogger('CreateBaseModal')
 
@@ -78,7 +78,10 @@ interface SubmitStatus {
   message: string
 }
 
-export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
+export const CreateBaseModal = memo(function CreateBaseModal({
+  open,
+  onOpenChange,
+}: CreateBaseModalProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -91,7 +94,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
   const [fileError, setFileError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragCounter, setDragCounter] = useState(0)
-  const [retryingIndexes, setRetryingIndexes] = useState<Set<number>>(new Set())
+  const [retryingIndexes, setRetryingIndexes] = useState<Set<number>>(() => new Set())
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
@@ -266,9 +269,6 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
       if (files.length > 0) {
         try {
           const uploadedFiles = await uploadFiles(files, newKnowledgeBase.id, {
-            chunkSize: data.maxChunkSize,
-            minCharactersPerChunk: data.minChunkSize,
-            chunkOverlap: data.overlapSize,
             recipe: 'default',
           })
 
@@ -309,8 +309,8 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
           <ModalBody>
             <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
-              <div className='space-y-[12px]'>
-                <div className='flex flex-col gap-[8px]'>
+              <div className='space-y-3'>
+                <div className='flex flex-col gap-2'>
                   <Label htmlFor='kb-name'>Name</Label>
                   {/* Hidden decoy fields to prevent browser autofill */}
                   <input
@@ -339,7 +339,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                   />
                 </div>
 
-                <div className='flex flex-col gap-[8px]'>
+                <div className='flex flex-col gap-2'>
                   <Label htmlFor='description'>Description</Label>
                   <Textarea
                     id='description'
@@ -350,51 +350,60 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                   />
                 </div>
 
-                <div className='grid grid-cols-2 gap-[12px]'>
-                  <div className='flex flex-col gap-[8px]'>
+                <div className='grid grid-cols-2 gap-3'>
+                  <div className='flex flex-col gap-2'>
                     <Label htmlFor='minChunkSize'>Min Chunk Size (characters)</Label>
                     <Input
                       id='minChunkSize'
+                      type='number'
+                      min={1}
+                      max={2000}
+                      step={1}
                       placeholder='100'
                       {...register('minChunkSize', { valueAsNumber: true })}
                       className={cn(errors.minChunkSize && 'border-[var(--text-error)]')}
                       autoComplete='off'
                       data-form-type='other'
-                      name='min-chunk-size'
                     />
                   </div>
 
-                  <div className='flex flex-col gap-[8px]'>
+                  <div className='flex flex-col gap-2'>
                     <Label htmlFor='maxChunkSize'>Max Chunk Size (tokens)</Label>
                     <Input
                       id='maxChunkSize'
+                      type='number'
+                      min={100}
+                      max={4000}
+                      step={1}
                       placeholder='1024'
                       {...register('maxChunkSize', { valueAsNumber: true })}
                       className={cn(errors.maxChunkSize && 'border-[var(--text-error)]')}
                       autoComplete='off'
                       data-form-type='other'
-                      name='max-chunk-size'
                     />
                   </div>
                 </div>
 
-                <div className='flex flex-col gap-[8px]'>
+                <div className='flex flex-col gap-2'>
                   <Label htmlFor='overlapSize'>Overlap (tokens)</Label>
                   <Input
                     id='overlapSize'
+                    type='number'
+                    min={0}
+                    max={500}
+                    step={1}
                     placeholder='200'
                     {...register('overlapSize', { valueAsNumber: true })}
                     className={cn(errors.overlapSize && 'border-[var(--text-error)]')}
                     autoComplete='off'
                     data-form-type='other'
-                    name='overlap-size'
                   />
-                  <p className='text-[11px] text-[var(--text-muted)]'>
+                  <p className='text-[var(--text-muted)] text-xs'>
                     1 token ≈ 4 characters. Max chunk size and overlap are in tokens.
                   </p>
                 </div>
 
-                <div className='flex flex-col gap-[8px]'>
+                <div className='flex flex-col gap-2'>
                   <Label>Upload Documents</Label>
                   <Button
                     type='button'
@@ -405,7 +414,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
                     className={cn(
-                      '!bg-[var(--surface-1)] hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--border-1)] border-dashed py-[10px]',
+                      '!bg-[var(--surface-1)] hover-hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--border-1)] border-dashed py-2.5',
                       isDragging && 'border-[var(--surface-7)]'
                     )}
                   >
@@ -417,11 +426,11 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                       className='hidden'
                       multiple
                     />
-                    <div className='flex flex-col gap-[2px] text-center'>
+                    <div className='flex flex-col gap-0.5 text-center'>
                       <span className='text-[var(--text-primary)]'>
                         {isDragging ? 'Drop files here' : 'Drop files here or click to browse'}
                       </span>
-                      <span className='text-[11px] text-[var(--text-tertiary)]'>
+                      <span className='text-[var(--text-tertiary)] text-xs'>
                         PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML (max 100MB each)
                       </span>
                     </div>
@@ -442,20 +451,20 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                           <div
                             key={index}
                             className={cn(
-                              'flex items-center gap-2 rounded-[4px] border p-[8px]',
+                              'flex items-center gap-2 rounded-sm border p-2',
                               isFailed && !isRetrying && 'border-[var(--text-error)]'
                             )}
                           >
                             <span
                               className={cn(
-                                'min-w-0 flex-1 truncate text-[12px]',
+                                'min-w-0 flex-1 truncate text-caption',
                                 isFailed && !isRetrying && 'text-[var(--text-error)]'
                               )}
                               title={file.name}
                             >
                               {file.name}
                             </span>
-                            <span className='flex-shrink-0 text-[11px] text-[var(--text-muted)]'>
+                            <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
                               {formatFileSize(file.size)}
                             </span>
                             <div className='flex flex-shrink-0 items-center gap-1'>
@@ -497,22 +506,22 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                 )}
 
                 {fileError && (
-                  <p className='text-[12px] text-[var(--text-error)] leading-tight'>{fileError}</p>
+                  <p className='text-[var(--text-error)] text-caption leading-tight'>{fileError}</p>
                 )}
               </div>
             </div>
           </ModalBody>
 
           <ModalFooter>
-            <div className='flex w-full items-center justify-between gap-[12px]'>
+            <div className='flex w-full items-center justify-between gap-3'>
               {submitStatus?.type === 'error' || uploadError ? (
-                <p className='min-w-0 flex-1 truncate text-[12px] text-[var(--text-error)] leading-tight'>
+                <p className='min-w-0 flex-1 truncate text-[var(--text-error)] text-caption leading-tight'>
                   {uploadError?.message || submitStatus?.message}
                 </p>
               ) : (
                 <div />
               )}
-              <div className='flex flex-shrink-0 gap-[8px]'>
+              <div className='flex flex-shrink-0 gap-2'>
                 <Button
                   variant='default'
                   onClick={() => handleClose(false)}
@@ -522,7 +531,7 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
                   Cancel
                 </Button>
                 <Button
-                  variant='tertiary'
+                  variant='primary'
                   type='submit'
                   disabled={isSubmitting || !nameValue?.trim()}
                 >
@@ -543,4 +552,4 @@ export function CreateBaseModal({ open, onOpenChange }: CreateBaseModalProps) {
       </ModalContent>
     </Modal>
   )
-}
+})

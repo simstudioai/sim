@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { useDeleteWorkflowMutation, useWorkflows } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('useDeleteWorkflow')
 
@@ -39,7 +39,8 @@ export function useDeleteWorkflow({
   onSuccess,
 }: UseDeleteWorkflowProps) {
   const router = useRouter()
-  const { workflows, removeWorkflow } = useWorkflowRegistry()
+  const { data: workflowList = [] } = useWorkflows(workspaceId)
+  const deleteWorkflowMutation = useDeleteWorkflowMutation()
   const [isDeleting, setIsDeleting] = useState(false)
 
   /**
@@ -61,7 +62,7 @@ export function useDeleteWorkflow({
       const isActiveWorkflowBeingDeleted =
         typeof isActive === 'function' ? isActive(workflowIdsToDelete) : isActive
 
-      const sidebarWorkflows = Object.values(workflows).filter((w) => w.workspaceId === workspaceId)
+      const sidebarWorkflows = workflowList.filter((w) => w.workspaceId === workspaceId)
 
       let activeWorkflowId: string | null = null
       if (isActiveWorkflowBeingDeleted && typeof isActive === 'function') {
@@ -97,11 +98,15 @@ export function useDeleteWorkflow({
         if (nextWorkflowId) {
           router.push(`/workspace/${workspaceId}/w/${nextWorkflowId}`)
         } else {
-          router.push(`/workspace/${workspaceId}/w`)
+          router.push(`/workspace/${workspaceId}/home`)
         }
       }
 
-      await Promise.all(workflowIdsToDelete.map((id) => removeWorkflow(id)))
+      await Promise.all(
+        workflowIdsToDelete.map((id) =>
+          deleteWorkflowMutation.mutateAsync({ workspaceId, workflowId: id })
+        )
+      )
 
       const { clearSelection } = useFolderStore.getState()
       clearSelection()
@@ -114,7 +119,16 @@ export function useDeleteWorkflow({
     } finally {
       setIsDeleting(false)
     }
-  }, [workflowIds, isDeleting, workflows, workspaceId, isActive, router, removeWorkflow, onSuccess])
+  }, [
+    workflowIds,
+    isDeleting,
+    workflowList,
+    workspaceId,
+    isActive,
+    router,
+    deleteWorkflowMutation,
+    onSuccess,
+  ])
 
   return {
     isDeleting,

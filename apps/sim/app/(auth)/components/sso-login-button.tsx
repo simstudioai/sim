@@ -1,26 +1,21 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 
 interface SSOLoginButtonProps {
   callbackURL?: string
   className?: string
-  // Visual variant for button styling and placement contexts
-  // - 'primary' matches the main auth action button style
-  // - 'outline' matches social provider buttons
   variant?: 'primary' | 'outline'
-  // Optional class used when variant is primary to match brand/gradient
-  primaryClassName?: string
 }
 
 export function SSOLoginButton({
   callbackURL,
   className,
   variant = 'outline',
-  primaryClassName,
 }: SSOLoginButtonProps) {
   const router = useRouter()
 
@@ -33,19 +28,16 @@ export function SSOLoginButton({
     router.push(ssoUrl)
   }
 
-  const primaryBtnClasses = cn(
-    primaryClassName || 'branded-button-gradient',
-    'flex w-full items-center justify-center gap-2 rounded-[10px] border font-medium text-[15px] text-white transition-all duration-200'
+  const outlineBtnClasses = cn(
+    'w-full rounded-sm border-[var(--landing-border-strong)] py-1.5 text-sm'
   )
-
-  const outlineBtnClasses = cn('w-full rounded-[10px] shadow-sm hover:bg-gray-50')
 
   return (
     <Button
       type='button'
       onClick={handleSSOClick}
       variant={variant === 'outline' ? 'outline' : undefined}
-      className={cn(variant === 'outline' ? outlineBtnClasses : primaryBtnClasses, className)}
+      className={cn(variant === 'outline' ? outlineBtnClasses : AUTH_SUBMIT_BTN, className)}
     >
       Sign in with SSO
     </Button>

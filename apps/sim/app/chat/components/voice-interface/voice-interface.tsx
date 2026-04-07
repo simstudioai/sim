@@ -3,9 +3,17 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Mic, MicOff, Phone } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
-import { ParticlesVisualization } from '@/app/chat/components/voice-interface/components/particles'
+
+const ParticlesVisualization = dynamic(
+  () =>
+    import('@/app/chat/components/voice-interface/components/particles').then(
+      (mod) => mod.ParticlesVisualization
+    ),
+  { ssr: false }
+)
 
 const logger = createLogger('VoiceInterface')
 
@@ -36,11 +44,9 @@ interface SpeechRecognitionStatic {
   new (): SpeechRecognition
 }
 
-declare global {
-  interface Window {
-    SpeechRecognition?: SpeechRecognitionStatic
-    webkitSpeechRecognition?: SpeechRecognitionStatic
-  }
+type WindowWithSpeech = Window & {
+  SpeechRecognition?: SpeechRecognitionStatic
+  webkitSpeechRecognition?: SpeechRecognitionStatic
 }
 
 interface VoiceInterfaceProps {
@@ -80,9 +86,10 @@ export function VoiceInterface({
   const currentStateRef = useRef<'idle' | 'listening' | 'agent_speaking'>('idle')
   const isCallEndedRef = useRef(false)
 
-  useEffect(() => {
-    currentStateRef.current = state
-  }, [state])
+  const updateState = useCallback((next: 'idle' | 'listening' | 'agent_speaking') => {
+    setState(next)
+    currentStateRef.current = next
+  }, [])
 
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
@@ -93,11 +100,16 @@ export function VoiceInterface({
   const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const isSupported =
-    typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+    typeof window !== 'undefined' &&
+    !!(
+      (window as WindowWithSpeech).SpeechRecognition ||
+      (window as WindowWithSpeech).webkitSpeechRecognition
+    )
 
-  useEffect(() => {
-    isMutedRef.current = isMuted
-  }, [isMuted])
+  const updateIsMuted = useCallback((next: boolean) => {
+    setIsMuted(next)
+    isMutedRef.current = next
+  }, [])
 
   const setResponseTimeout = useCallback(() => {
     if (responseTimeoutRef.current) {
@@ -106,7 +118,7 @@ export function VoiceInterface({
 
     responseTimeoutRef.current = setTimeout(() => {
       if (currentStateRef.current === 'listening') {
-        setState('idle')
+        updateState('idle')
       }
     }, 5000)
   }, [])
@@ -121,10 +133,10 @@ export function VoiceInterface({
   useEffect(() => {
     if (isPlayingAudio && state !== 'agent_speaking') {
       clearResponseTimeout()
-      setState('agent_speaking')
+      updateState('agent_speaking')
       setCurrentTranscript('')
 
-      setIsMuted(true)
+      updateIsMuted(true)
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getAudioTracks().forEach((track) => {
           track.enabled = false
@@ -139,17 +151,17 @@ export function VoiceInterface({
         }
       }
     } else if (!isPlayingAudio && state === 'agent_speaking') {
-      setState('idle')
+      updateState('idle')
       setCurrentTranscript('')
 
-      setIsMuted(false)
+      updateIsMuted(false)
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getAudioTracks().forEach((track) => {
           track.enabled = true
         })
       }
     }
-  }, [isPlayingAudio, state, clearResponseTimeout])
+  }, [isPlayingAudio, state, clearResponseTimeout, updateState, updateIsMuted])
 
   const setupAudio = useCallback(async () => {
     try {
@@ -214,7 +226,8 @@ export function VoiceInterface({
   const setupSpeechRecognition = useCallback(() => {
     if (!isSupported) return
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    const w = window as WindowWithSpeech
+    const SpeechRecognition = w.SpeechRecognition || w.webkitSpeechRecognition
     if (!SpeechRecognition) return
 
     const recognition = new SpeechRecognition()
@@ -307,7 +320,7 @@ export function VoiceInterface({
       return
     }
 
-    setState('listening')
+    updateState('listening')
     setCurrentTranscript('')
 
     if (recognitionRef.current) {
@@ -317,10 +330,10 @@ export function VoiceInterface({
         logger.error('Error starting recognition:', error)
       }
     }
-  }, [isInitialized, isMuted, state])
+  }, [isInitialized, isMuted, state, updateState])
 
   const stopListening = useCallback(() => {
-    setState('idle')
+    updateState('idle')
     setCurrentTranscript('')
 
     if (recognitionRef.current) {
@@ -330,15 +343,15 @@ export function VoiceInterface({
         // Ignore
       }
     }
-  }, [])
+  }, [updateState])
 
   const handleInterrupt = useCallback(() => {
     if (state === 'agent_speaking') {
       onInterrupt?.()
-      setState('listening')
+      updateState('listening')
       setCurrentTranscript('')
 
-      setIsMuted(false)
+      updateIsMuted(false)
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getAudioTracks().forEach((track) => {
           track.enabled = true
@@ -353,14 +366,14 @@ export function VoiceInterface({
         }
       }
     }
-  }, [state, onInterrupt])
+  }, [state, onInterrupt, updateState, updateIsMuted])
 
   const handleCallEnd = useCallback(() => {
     isCallEndedRef.current = true
 
-    setState('idle')
+    updateState('idle')
     setCurrentTranscript('')
-    setIsMuted(false)
+    updateIsMuted(false)
 
     if (recognitionRef.current) {
       try {
@@ -373,7 +386,7 @@ export function VoiceInterface({
     clearResponseTimeout()
     onInterrupt?.()
     onCallEnd?.()
-  }, [onCallEnd, onInterrupt, clearResponseTimeout])
+  }, [onCallEnd, onInterrupt, clearResponseTimeout, updateState, updateIsMuted])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -394,7 +407,7 @@ export function VoiceInterface({
     }
 
     const newMutedState = !isMuted
-    setIsMuted(newMutedState)
+    updateIsMuted(newMutedState)
 
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getAudioTracks().forEach((track) => {
@@ -407,7 +420,7 @@ export function VoiceInterface({
     } else if (state === 'idle') {
       startListening()
     }
-  }, [isMuted, state, handleInterrupt, stopListening, startListening])
+  }, [isMuted, state, handleInterrupt, stopListening, startListening, updateIsMuted])
 
   useEffect(() => {
     if (isSupported) {
@@ -480,7 +493,12 @@ export function VoiceInterface({
   }
 
   return (
-    <div className={cn('fixed inset-0 z-[100] flex flex-col bg-white text-gray-900', className)}>
+    <div
+      className={cn(
+        'dark fixed inset-0 z-[100] flex flex-col bg-[var(--landing-bg)] text-[var(--landing-text)]',
+        className
+      )}
+    >
       <div className='flex flex-1 flex-col items-center justify-center px-8'>
         <div className='relative mb-16'>
           <ParticlesVisualization
@@ -496,16 +514,18 @@ export function VoiceInterface({
         <div className='mb-16 flex h-24 items-center justify-center'>
           {currentTranscript && (
             <div className='max-w-2xl px-8'>
-              <p className='overflow-hidden text-center text-gray-700 text-xl leading-relaxed'>
+              <p className='overflow-hidden text-center text-[var(--landing-text)] text-xl leading-relaxed'>
                 {currentTranscript}
               </p>
             </div>
           )}
         </div>
 
-        <p className='mb-8 text-center text-gray-600 text-lg'>
+        <p className='mb-8 text-center text-[var(--landing-text-muted)] text-lg'>
           {getStatusText()}
-          {isMuted && <span className='ml-2 text-gray-400 text-sm'>(Muted)</span>}
+          {isMuted && (
+            <span className='ml-2 text-[var(--landing-text-muted)] text-sm'>(Muted)</span>
+          )}
         </p>
       </div>
 
@@ -515,7 +535,7 @@ export function VoiceInterface({
             onClick={handleCallEnd}
             variant='outline'
             size='icon'
-            className='h-14 w-14 rounded-full border-gray-300 hover:bg-gray-50'
+            className='h-14 w-14 rounded-full border-[var(--border-1)] hover:bg-[var(--landing-bg-elevated)]'
           >
             <Phone className='h-6 w-6 rotate-[135deg]' />
           </Button>
@@ -526,8 +546,8 @@ export function VoiceInterface({
             size='icon'
             disabled={!isInitialized}
             className={cn(
-              'h-14 w-14 rounded-full border-gray-300 bg-transparent hover:bg-gray-50',
-              isMuted ? 'text-gray-400' : 'text-gray-600'
+              'h-14 w-14 rounded-full border-[var(--border-1)] bg-transparent hover:bg-[var(--landing-bg-elevated)]',
+              isMuted ? 'text-[var(--landing-text-muted)]' : 'text-[var(--landing-text)]'
             )}
           >
             {getButtonContent()}

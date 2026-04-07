@@ -7,11 +7,10 @@ import { getBlock } from '@/blocks/registry'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 
 export const LOG_COLUMNS = {
-  date: { width: 'w-[8%]', minWidth: 'min-w-[70px]', label: 'Date' },
-  time: { width: 'w-[12%]', minWidth: 'min-w-[90px]', label: 'Time' },
-  status: { width: 'w-[12%]', minWidth: 'min-w-[100px]', label: 'Status' },
   workflow: { width: 'w-[22%]', minWidth: 'min-w-[140px]', label: 'Workflow' },
-  cost: { width: 'w-[12%]', minWidth: 'min-w-[90px]', label: 'Cost' },
+  date: { width: 'w-[18%]', minWidth: 'min-w-[140px]', label: 'Date' },
+  status: { width: 'w-[12%]', minWidth: 'min-w-[100px]', label: 'Status' },
+  cost: { width: 'w-[14%]', minWidth: 'min-w-[90px]', label: 'Cost' },
   trigger: { width: 'w-[14%]', minWidth: 'min-w-[110px]', label: 'Trigger' },
   duration: { width: 'w-[20%]', minWidth: 'min-w-[100px]', label: 'Duration' },
 } as const
@@ -19,10 +18,9 @@ export const LOG_COLUMNS = {
 export type LogColumnKey = keyof typeof LOG_COLUMNS
 
 export const LOG_COLUMN_ORDER: readonly LogColumnKey[] = [
-  'date',
-  'time',
-  'status',
   'workflow',
+  'date',
+  'status',
   'cost',
   'trigger',
   'duration',
@@ -59,7 +57,7 @@ export const STATUS_CONFIG: Record<
 > = {
   error: { variant: 'red', label: 'Error', color: 'var(--text-error)' },
   pending: { variant: 'amber', label: 'Pending', color: '#f59e0b' },
-  running: { variant: 'green', label: 'Running', color: '#22c55e' },
+  running: { variant: 'amber', label: 'Running', color: '#f59e0b' },
   cancelled: { variant: 'orange', label: 'Cancelled', color: '#f97316' },
   info: { variant: 'gray', label: 'Info', color: 'var(--terminal-status-info-color)' },
 }
@@ -73,6 +71,8 @@ const TRIGGER_VARIANT_MAP: Record<string, React.ComponentProps<typeof Badge>['va
   mcp: 'cyan',
   a2a: 'teal',
   copilot: 'pink',
+  mothership: 'pink',
+  workflow: 'blue-secondary',
 }
 
 interface StatusBadgeProps {
@@ -86,7 +86,11 @@ interface StatusBadgeProps {
  */
 export const StatusBadge = React.memo(({ status }: StatusBadgeProps) => {
   const config = STATUS_CONFIG[status]
-  return React.createElement(Badge, { variant: config.variant, dot: true }, config.label)
+  return React.createElement(
+    Badge,
+    { variant: config.variant, dot: true, size: 'sm' },
+    config.label
+  )
 })
 
 StatusBadge.displayName = 'StatusBadge'
@@ -109,18 +113,18 @@ export const TriggerBadge = React.memo(({ trigger }: TriggerBadgeProps) => {
 
   const coreVariant = TRIGGER_VARIANT_MAP[trigger]
   if (coreVariant) {
-    return React.createElement(Badge, { variant: coreVariant }, metadata.label)
+    return React.createElement(Badge, { variant: coreVariant, size: 'sm' }, metadata.label)
   }
 
   if (IconComponent) {
     return React.createElement(
       Badge,
-      { variant: 'gray-secondary', icon: IconComponent },
+      { variant: 'gray-secondary', size: 'sm', icon: IconComponent },
       metadata.label
     )
   }
 
-  return React.createElement(Badge, { variant: 'gray-secondary' }, metadata.label)
+  return React.createElement(Badge, { variant: 'gray-secondary', size: 'sm' }, metadata.label)
 })
 
 TriggerBadge.displayName = 'TriggerBadge'

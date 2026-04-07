@@ -14,6 +14,7 @@ export type ProviderId =
   | 'mistral'
   | 'ollama'
   | 'openrouter'
+  | 'fireworks'
   | 'vllm'
   | 'bedrock'
   | 'avian'
@@ -80,7 +81,7 @@ export interface ProviderResponse {
     total?: number
   }
   toolCalls?: FunctionCallResponse[]
-  toolResults?: any[]
+  toolResults?: Record<string, unknown>[]
   timing?: {
     startTime: string
     endTime: string
@@ -94,6 +95,7 @@ export interface ProviderResponse {
   cost?: {
     input: number
     output: number
+    toolCost?: number
     total: number
     pricing: ModelPricing
   }

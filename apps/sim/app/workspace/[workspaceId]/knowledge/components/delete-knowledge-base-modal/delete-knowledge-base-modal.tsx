@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 
 interface DeleteKnowledgeBaseModalProps {
@@ -29,7 +30,7 @@ interface DeleteKnowledgeBaseModalProps {
  * Delete confirmation modal for knowledge base items.
  * Displays a warning message and confirmation buttons.
  */
-export function DeleteKnowledgeBaseModal({
+export const DeleteKnowledgeBaseModal = memo(function DeleteKnowledgeBaseModal({
   isOpen,
   onClose,
   onConfirm,
@@ -41,17 +42,26 @@ export function DeleteKnowledgeBaseModal({
       <ModalContent size='sm'>
         <ModalHeader>Delete Knowledge Base</ModalHeader>
         <ModalBody>
-          <p className='text-[12px] text-[var(--text-secondary)]'>
+          <p className='text-[var(--text-secondary)]'>
             {knowledgeBaseName ? (
               <>
                 Are you sure you want to delete{' '}
                 <span className='font-medium text-[var(--text-primary)]'>{knowledgeBaseName}</span>?
-                This will permanently remove all associated documents, chunks, and embeddings.
+                <span className='text-[var(--text-error)]'>
+                  All associated documents, chunks, and embeddings will be removed.
+                </span>
               </>
             ) : (
-              'Are you sure you want to delete this knowledge base? This will permanently remove all associated documents, chunks, and embeddings.'
+              <>
+                Are you sure you want to delete this knowledge base?{' '}
+                <span className='text-[var(--text-error)]'>
+                  All associated documents, chunks, and embeddings will be removed.
+                </span>
+              </>
             )}{' '}
-            <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            <span className='text-[var(--text-tertiary)]'>
+              You can restore it from Recently Deleted in Settings.
+            </span>
           </p>
         </ModalBody>
         <ModalFooter>
@@ -65,4 +75,4 @@ export function DeleteKnowledgeBaseModal({
       </ModalContent>
     </Modal>
   )
-}
+})

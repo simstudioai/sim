@@ -935,6 +935,67 @@ export const PlatformEvents = {
   },
 
   /**
+   * Track when a rate limit error is surfaced to the end user (not retried/absorbed).
+   * Fires for both billing-actor limits and exhausted upstream retries.
+   */
+  hostedKeyUserThrottled: (attrs: {
+    toolId: string
+    reason: 'billing_actor_limit' | 'upstream_retries_exhausted'
+    provider?: string
+    retryAfterMs?: number
+    userId?: string
+    workspaceId?: string
+    workflowId?: string
+  }) => {
+    trackPlatformEvent('platform.hosted_key.user_throttled', {
+      'tool.id': attrs.toolId,
+      'throttle.reason': attrs.reason,
+      ...(attrs.provider && { 'provider.id': attrs.provider }),
+      ...(attrs.retryAfterMs != null && { 'rate_limit.retry_after_ms': attrs.retryAfterMs }),
+      ...(attrs.userId && { 'user.id': attrs.userId }),
+      ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
+      ...(attrs.workflowId && { 'workflow.id': attrs.workflowId }),
+    })
+  },
+
+  /**
+   * Track hosted key rate limited by upstream provider (429 from the external API)
+   */
+  hostedKeyRateLimited: (attrs: {
+    toolId: string
+    envVarName: string
+    attempt: number
+    maxRetries: number
+    delayMs: number
+    userId?: string
+    workspaceId?: string
+    workflowId?: string
+  }) => {
+    trackPlatformEvent('platform.hosted_key.rate_limited', {
+      'tool.id': attrs.toolId,
+      'hosted_key.env_var': attrs.envVarName,
+      'rate_limit.attempt': attrs.attempt,
+      'rate_limit.max_retries': attrs.maxRetries,
+      'rate_limit.delay_ms': attrs.delayMs,
+      ...(attrs.userId && { 'user.id': attrs.userId }),
+      ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
+      ...(attrs.workflowId && { 'workflow.id': attrs.workflowId }),
+    })
+  },
+
+  hostedKeyUnknownModelCost: (attrs: {
+    toolId: string
+    modelName: string
+    defaultCost: number
+  }) => {
+    trackPlatformEvent('platform.hosted_key.unknown_model_cost', {
+      'tool.id': attrs.toolId,
+      'model.name': attrs.modelName,
+      'cost.default_cost': attrs.defaultCost,
+    })
+  },
+
+  /**
    * Track chat deployed (workflow deployed as chat interface)
    */
   chatDeployed: (attrs: {

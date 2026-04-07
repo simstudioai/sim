@@ -1,6 +1,6 @@
 import { DiscordIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { DiscordResponse } from '@/tools/discord/types'
 
@@ -12,6 +12,8 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
   longDescription:
     'Comprehensive Discord integration: messages, threads, channels, roles, members, invites, and webhooks.',
   category: 'tools',
+  integrationType: IntegrationType.Communication,
+  tags: ['messaging', 'webhooks', 'automation'],
   bgColor: '#5865F2',
   icon: DiscordIcon,
   docsLink: 'https://docs.sim.ai/tools/discord',

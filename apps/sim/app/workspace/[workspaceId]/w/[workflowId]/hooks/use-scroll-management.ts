@@ -1,34 +1,35 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-/**
- * Options for configuring scroll behavior
- */
+const AUTO_SCROLL_GRACE_MS = 120
+
+function distanceFromBottom(el: HTMLElement) {
+  return el.scrollHeight - el.scrollTop - el.clientHeight
+}
+
 interface UseScrollManagementOptions {
   /**
-   * Scroll behavior for programmatic scrolls
-   * @remarks
+   * Scroll behavior for programmatic scrolls.
    * - `smooth`: Animated scroll (default, used by Copilot)
    * - `auto`: Immediate scroll to bottom (used by floating chat to avoid jitter)
    */
   behavior?: 'auto' | 'smooth'
   /**
-   * Distance from bottom (in pixels) within which auto-scroll stays active
-   * @remarks Lower values = less sticky (user can scroll away easier)
+   * Distance from bottom (in pixels) within which auto-scroll stays active.
    * @defaultValue 30
    */
   stickinessThreshold?: number
 }
 
 /**
- * Custom hook to manage scroll behavior in scrollable message panels.
- * Handles auto-scrolling during message streaming and user-initiated scrolling.
+ * Manages auto-scrolling during message streaming using ResizeObserver
+ * instead of a polling interval.
  *
- * @param messages - Array of messages to track for scroll behavior
- * @param isSendingMessage - Whether a message is currently being sent/streamed
- * @param options - Optional configuration for scroll behavior
- * @returns Scroll management utilities
+ * Tracks whether scrolls are programmatic (via a timestamp grace window)
+ * to avoid falsely treating our own scrolls as the user scrolling away.
+ * Handles nested scrollable regions marked with `data-scrollable` so that
+ * scrolling inside tool output or code blocks doesn't break follow-mode.
  */
 export function useScrollManagement(
   messages: any[],
@@ -37,68 +38,105 @@ export function useScrollManagement(
 ) {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [userHasScrolledAway, setUserHasScrolledAway] = useState(false)
-  const programmaticScrollRef = useRef(false)
+  const [prevIsSendingMessage, setPrevIsSendingMessage] = useState(isSendingMessage)
+  if (prevIsSendingMessage !== isSendingMessage) {
+    setPrevIsSendingMessage(isSendingMessage)
+    if (!isSendingMessage) {
+      setUserHasScrolledAway(false)
+    }
+  }
+  const programmaticUntilRef = useRef(0)
   const lastScrollTopRef = useRef(0)
 
   const scrollBehavior = options?.behavior ?? 'smooth'
   const stickinessThreshold = options?.stickinessThreshold ?? 30
 
-  /** Scrolls the container to the bottom */
+  const isSendingRef = useRef(isSendingMessage)
+  isSendingRef.current = isSendingMessage
+  const userScrolledRef = useRef(userHasScrolledAway)
+  userScrolledRef.current = userHasScrolledAway
+
+  const markProgrammatic = useCallback(() => {
+    programmaticUntilRef.current = Date.now() + AUTO_SCROLL_GRACE_MS
+  }, [])
+
+  const isProgrammatic = useCallback(() => {
+    return Date.now() < programmaticUntilRef.current
+  }, [])
+
   const scrollToBottom = useCallback(() => {
     const container = scrollAreaRef.current
     if (!container) return
 
-    programmaticScrollRef.current = true
+    markProgrammatic()
     container.scrollTo({ top: container.scrollHeight, behavior: scrollBehavior })
+  }, [scrollBehavior, markProgrammatic])
 
-    window.setTimeout(() => {
-      programmaticScrollRef.current = false
-    }, 200)
-  }, [scrollBehavior])
-
-  /** Handles scroll events to track user position */
-  const handleScroll = useCallback(() => {
-    const container = scrollAreaRef.current
-    if (!container || programmaticScrollRef.current) return
-
-    const { scrollTop, scrollHeight, clientHeight } = container
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight
-    const nearBottom = distanceFromBottom <= stickinessThreshold
-    const delta = scrollTop - lastScrollTopRef.current
-
-    if (isSendingMessage) {
-      // User scrolled up during streaming - break away
-      if (delta < -2) {
-        setUserHasScrolledAway(true)
-      }
-      // User scrolled back down to bottom - re-stick
-      if (userHasScrolledAway && delta > 2 && nearBottom) {
-        setUserHasScrolledAway(false)
-      }
-    }
-
-    lastScrollTopRef.current = scrollTop
-  }, [isSendingMessage, userHasScrolledAway, stickinessThreshold])
-
-  /** Attaches scroll listener to container */
   useEffect(() => {
     const container = scrollAreaRef.current
     if (!container) return
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container
+      const dist = scrollHeight - scrollTop - clientHeight
+
+      if (isProgrammatic()) {
+        lastScrollTopRef.current = scrollTop
+        if (dist < stickinessThreshold && userScrolledRef.current) {
+          setUserHasScrolledAway(false)
+        }
+        return
+      }
+
+      const nearBottom = dist <= stickinessThreshold
+      const delta = scrollTop - lastScrollTopRef.current
+
+      if (isSendingRef.current) {
+        if (delta < -2 && !userScrolledRef.current) {
+          setUserHasScrolledAway(true)
+        }
+        if (userScrolledRef.current && delta > 2 && nearBottom) {
+          setUserHasScrolledAway(false)
+        }
+      }
+
+      lastScrollTopRef.current = scrollTop
+    }
 
     container.addEventListener('scroll', handleScroll, { passive: true })
     lastScrollTopRef.current = container.scrollTop
 
     return () => container.removeEventListener('scroll', handleScroll)
-  }, [handleScroll])
+  }, [stickinessThreshold, isProgrammatic])
 
-  /** Handles auto-scroll when new messages are added */
+  // Ignore upward wheel events inside nested [data-scrollable] regions
+  // (tool output, code blocks) so they don't break follow-mode.
+  useEffect(() => {
+    const container = scrollAreaRef.current
+    if (!container) return
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.deltaY >= 0) return
+
+      const target = e.target instanceof Element ? e.target : undefined
+      const nested = target?.closest('[data-scrollable]')
+      if (nested && nested !== container) return
+
+      if (!userScrolledRef.current && isSendingRef.current) {
+        setUserHasScrolledAway(true)
+      }
+    }
+
+    container.addEventListener('wheel', handleWheel, { passive: true })
+    return () => container.removeEventListener('wheel', handleWheel)
+  }, [])
+
   useEffect(() => {
     if (messages.length === 0) return
 
     const lastMessage = messages[messages.length - 1]
     const isUserMessage = lastMessage?.role === 'user'
 
-    // Always scroll for user messages, respect scroll state for assistant messages
     if (isUserMessage) {
       setUserHasScrolledAway(false)
       scrollToBottom()
@@ -107,34 +145,35 @@ export function useScrollManagement(
     }
   }, [messages, userHasScrolledAway, scrollToBottom])
 
-  /** Resets scroll state when streaming completes */
   useEffect(() => {
-    if (!isSendingMessage) {
-      setUserHasScrolledAway(false)
-    }
-  }, [isSendingMessage])
+    if (!isSendingMessage || userHasScrolledAway) return
 
-  /** Keeps scroll pinned during streaming - uses interval, stops when user scrolls away */
-  useEffect(() => {
-    // Early return stops the interval when user scrolls away (state change re-runs effect)
-    if (!isSendingMessage || userHasScrolledAway) {
-      return
-    }
+    const container = scrollAreaRef.current
+    if (!container) return
 
-    const intervalId = window.setInterval(() => {
-      const container = scrollAreaRef.current
-      if (!container) return
+    const content = container.firstElementChild as HTMLElement | null
+    if (!content) return
 
-      const { scrollTop, scrollHeight, clientHeight } = container
-      const distanceFromBottom = scrollHeight - scrollTop - clientHeight
-
-      if (distanceFromBottom > 1) {
+    const observer = new ResizeObserver(() => {
+      if (distanceFromBottom(container) > 1) {
         scrollToBottom()
       }
-    }, 100)
+    })
 
-    return () => window.clearInterval(intervalId)
+    observer.observe(content)
+
+    return () => observer.disconnect()
   }, [isSendingMessage, userHasScrolledAway, scrollToBottom])
+
+  // overflow-anchor: none during streaming prevents the browser from
+  // fighting our programmatic scrollToBottom calls (Chromium/Firefox only;
+  // Safari does not support this property).
+  useLayoutEffect(() => {
+    const container = scrollAreaRef.current
+    if (!container) return
+
+    container.style.overflowAnchor = isSendingMessage && !userHasScrolledAway ? 'none' : 'auto'
+  }, [isSendingMessage, userHasScrolledAway])
 
   return {
     scrollAreaRef,

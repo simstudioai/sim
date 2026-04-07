@@ -78,10 +78,13 @@ vi.mock('@/lib/uploads/utils/validation', () => ({
   validateFileType: mockValidateFileType,
 }))
 
+vi.mock('@/lib/uploads/utils/file-utils', () => ({
+  isImageFileType: mockIsImageFileType,
+}))
+
 vi.mock('@/lib/uploads', () => ({
   CopilotFiles: {
     generateCopilotUploadUrl: mockGenerateCopilotUploadUrl,
-    isImageFileType: mockIsImageFileType,
   },
   getStorageProvider: mockGetStorageProviderUploads,
   isUsingCloudStorage: mockIsUsingCloudStorageUploads,

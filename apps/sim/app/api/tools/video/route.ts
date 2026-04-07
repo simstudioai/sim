@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { generateId } from '@/lib/core/utils/uuid'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
 import type { VideoRequestBody } from '@/tools/video/types'
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 600 // 10 minutes for video generation
 
 export async function POST(request: NextRequest) {
-  const requestId = crypto.randomUUID()
+  const requestId = generateId()
   logger.info(`[${requestId}] Video generation request started`)
 
   try {

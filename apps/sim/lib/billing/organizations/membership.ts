@@ -5,7 +5,6 @@
  * Used by both regular routes and admin routes to ensure consistent business logic.
  */
 
-import { randomUUID } from 'crypto'
 import { db } from '@sim/db'
 import {
   member,
@@ -17,8 +16,11 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
+import { isOrgPlan, sqlIsPro } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
+import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('OrganizationMembership')
 
@@ -122,8 +124,8 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
       .where(
         and(
           eq(subscriptionTable.referenceId, userId),
-          eq(subscriptionTable.status, 'active'),
-          eq(subscriptionTable.plan, 'pro')
+          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
+          sqlIsPro(subscriptionTable.plan)
         )
       )
       .limit(1)
@@ -407,17 +409,17 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
       .where(
         and(
           eq(subscriptionTable.referenceId, organizationId),
-          eq(subscriptionTable.status, 'active')
+          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
         )
       )
       .limit(1)
 
-    const orgIsPaid = orgSub && (orgSub.plan === 'team' || orgSub.plan === 'enterprise')
+    const orgIsPaid = orgSub && isOrgPlan(orgSub.plan)
 
     let memberId = ''
 
     await db.transaction(async (tx) => {
-      memberId = randomUUID()
+      memberId = generateId()
       await tx.insert(member).values({
         id: memberId,
         userId,
@@ -435,8 +437,8 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
           .where(
             and(
               eq(subscriptionTable.referenceId, userId),
-              eq(subscriptionTable.status, 'active'),
-              eq(subscriptionTable.plan, 'pro')
+              inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
+              sqlIsPro(subscriptionTable.plan)
             )
           )
           .limit(1)
@@ -618,11 +620,14 @@ export async function removeUserFromOrganization(
           const orgPaidSubs = await db
             .select()
             .from(subscriptionTable)
-            .where(eq(subscriptionTable.status, 'active'))
+            .where(
+              and(
+                inArray(subscriptionTable.referenceId, orgIds),
+                inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+              )
+            )
 
-          hasAnyPaidTeam = orgPaidSubs.some(
-            (s) => orgIds.includes(s.referenceId) && ['team', 'enterprise'].includes(s.plan ?? '')
-          )
+          hasAnyPaidTeam = orgPaidSubs.some((s) => isOrgPlan(s.plan))
         }
 
         if (!hasAnyPaidTeam) {

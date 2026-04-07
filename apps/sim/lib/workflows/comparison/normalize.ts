@@ -496,7 +496,14 @@ export function normalizeSubBlockValue(subBlockId: string, value: unknown): unkn
  * @returns SubBlock fields excluding value and is_diff
  */
 export function extractSubBlockRest(subBlock: Record<string, unknown>): Record<string, unknown> {
-  const { value: _v, is_diff: _sd, ...rest } = subBlock as SubBlockWithDiffMarker
+  const {
+    value: _v,
+    is_diff: _sd,
+    type: _type,
+    ...rest
+  } = subBlock as SubBlockWithDiffMarker & {
+    type?: unknown
+  }
   return rest
 }
 

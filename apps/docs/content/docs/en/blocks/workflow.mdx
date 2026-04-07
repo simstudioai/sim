@@ -39,6 +39,8 @@ Drop a Workflow block when you want to call a child workflow as part of a larger
    - `result` – the child workflow's final response
    - `success` – whether it ran without errors
    - `error` – message when the run fails
+   - `childWorkflowName` – the name of the child workflow (string)
+   - `childWorkflowId` – the ID of the child workflow (string)
 
 ## Deployment Status Badge
 
@@ -61,3 +63,14 @@ The Workflow block always executes the most recent deployed version of the child
 <Callout>
 Keep child workflows focused. Small, reusable flows make it easier to combine them without creating deep nesting.
 </Callout>
+
+import { FAQ } from '@/components/ui/faq'
+
+<FAQ items={[
+  { question: "Can a workflow call itself recursively?", answer: "No. The workflow selector blocks self-references to prevent infinite loops. Additionally, Sim tracks the call chain across nested executions using an internal header and enforces a maximum call chain depth of 25 hops. If the limit is exceeded, the execution is rejected with a 409 error." },
+  { question: "What is the maximum nesting depth for sub-workflows?", answer: "The maximum call chain depth is 25. This means workflow A can call B, which calls C, and so on up to 25 levels deep. This limit applies across all chained calls, not just direct parent-child relationships." },
+  { question: "Does the Workflow block use the deployed or draft version of the child workflow?", answer: "The child workflow inherits the execution context of the parent. If the parent is running in a deployed context (API, schedule, webhook), the child also uses its deployed version. If the parent is running in draft mode (manual run from the editor), the child also uses its draft state. This lets you test nested workflows end-to-end before deploying." },
+  { question: "How do I pass data to a child workflow?", answer: "Use the Inputs field on the Workflow block. If the child workflow has an Input Form trigger, each field appears in the block configuration and you can map parent variables to them. The mapped values are available as start.input in the child workflow." },
+  { question: "What outputs does the Workflow block return?", answer: "The block returns a success boolean, the child workflow's result (its final response output), the child workflow's name and ID, and an error message if the run failed. You can reference these outputs from downstream blocks using the tag syntax." },
+  { question: "What happens if the child workflow fails?", answer: "The Workflow block raises an error that propagates to the parent workflow. If you need to handle failures gracefully, connect an error path from the Workflow block to a downstream block that processes the error." },
+]} />

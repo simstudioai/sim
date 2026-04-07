@@ -38,7 +38,7 @@ const SearchContext = createContext<SearchContextValue | null>(null)
  * Configuration for virtualized rendering.
  */
 const CONFIG = {
-  ROW_HEIGHT: 22,
+  ROW_HEIGHT: 30,
   INDENT_PER_LEVEL: 12,
   BASE_PADDING: 20,
   MAX_SEARCH_DEPTH: 100,
@@ -60,17 +60,15 @@ const BADGE_VARIANTS: Record<ValueType, BadgeVariant> = {
  * Styling constants matching the original non-virtualized implementation.
  */
 const STYLES = {
-  row: 'group flex min-h-[22px] cursor-pointer items-center gap-[6px] rounded-[8px] px-[6px] -mx-[6px] hover:bg-[var(--surface-6)] dark:hover:bg-[var(--surface-5)]',
+  row: 'group flex min-h-[30px] cursor-pointer items-center gap-2 rounded-lg px-2 -mx-2 hover-hover:bg-[var(--surface-active)]',
   chevron:
-    'h-[8px] w-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
-  keyName:
-    'font-medium text-[13px] text-[var(--text-primary)] group-hover:text-[var(--text-primary)]',
-  badge: 'rounded-[4px] px-[4px] py-[0px] text-[11px]',
-  summary: 'text-[12px] text-[var(--text-tertiary)]',
-  indent:
-    'mt-[2px] ml-[3px] flex min-w-0 flex-col gap-[2px] border-[var(--border)] border-l pl-[9px]',
-  value: 'min-w-0 py-[2px] text-[13px] text-[var(--text-primary)]',
-  emptyValue: 'py-[2px] text-[13px] text-[var(--text-tertiary)]',
+    'h-[7px] w-[9px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
+  keyName: 'font-base text-sm text-[var(--text-primary)]',
+  badge: 'rounded-sm px-1 py-[0px] text-xs',
+  summary: 'text-sm text-[var(--text-secondary)]',
+  indent: 'mt-0.5 ml-[3px] flex min-w-0 flex-col gap-0.5 border-[var(--border)] border-l pl-[9px]',
+  value: 'min-w-0 py-0.5 text-sm text-[var(--text-primary)]',
+  emptyValue: 'py-0.5 text-sm text-[var(--text-secondary)]',
   matchHighlight: 'bg-yellow-200/60 dark:bg-yellow-500/40',
   currentMatchHighlight: 'bg-orange-400',
 } as const
@@ -87,6 +85,7 @@ function getTypeLabel(value: unknown): ValueType {
 function formatPrimitive(value: unknown): string {
   if (value === null) return 'null'
   if (value === undefined) return 'undefined'
+  if (typeof value === 'string') return JSON.stringify(value)
   return String(value)
 }
 
@@ -817,7 +816,7 @@ export const StructuredOutput = memo(function StructuredOutput({
     return () => cancelAnimationFrame(rafId)
   }, [currentMatchIndex, allMatchPaths.length, expandedPaths, useVirtualization])
 
-  const containerClass = cn('flex flex-col pl-[20px]', wrapText && 'overflow-x-hidden', className)
+  const containerClass = cn('flex flex-col pl-5', wrapText && 'overflow-x-hidden', className)
   const virtualizedContainerClass = cn('relative', wrapText && 'overflow-x-hidden', className)
   const listClass = wrapText ? 'overflow-x-hidden' : 'overflow-x-auto'
 

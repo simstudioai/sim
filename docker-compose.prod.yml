@@ -23,6 +23,9 @@ services:
       - OLLAMA_URL=${OLLAMA_URL:-http://localhost:11434}
       - SOCKET_SERVER_URL=${SOCKET_SERVER_URL:-http://realtime:3002}
       - NEXT_PUBLIC_SOCKET_URL=${NEXT_PUBLIC_SOCKET_URL:-http://localhost:3002}
+      - ADMISSION_GATE_MAX_INFLIGHT=${ADMISSION_GATE_MAX_INFLIGHT:-500}
+      - DISPATCH_MAX_QUEUE_PER_WORKSPACE=${DISPATCH_MAX_QUEUE_PER_WORKSPACE:-1000}
+      - DISPATCH_MAX_QUEUE_GLOBAL=${DISPATCH_MAX_QUEUE_GLOBAL:-50000}
     depends_on:
       db:
         condition: service_healthy
@@ -31,7 +34,44 @@ services:
       realtime:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3000']
+      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:3000']
+      interval: 90s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  sim-worker:
+    image: ghcr.io/simstudioai/simstudio:latest
+    command: ['bun', 'apps/sim/worker/index.ts']
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-simstudio}
+      - REDIS_URL=${REDIS_URL:-}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - API_ENCRYPTION_KEY=${API_ENCRYPTION_KEY:-}
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET}
+      - WORKER_PORT=${WORKER_PORT:-3001}
+      - WORKER_CONCURRENCY_WORKFLOW=${WORKER_CONCURRENCY_WORKFLOW:-50}
+      - WORKER_CONCURRENCY_WEBHOOK=${WORKER_CONCURRENCY_WEBHOOK:-30}
+      - WORKER_CONCURRENCY_SCHEDULE=${WORKER_CONCURRENCY_SCHEDULE:-20}
+      - WORKER_CONCURRENCY_MOTHERSHIP_JOB=${WORKER_CONCURRENCY_MOTHERSHIP_JOB:-10}
+      - WORKER_CONCURRENCY_CONNECTOR_SYNC=${WORKER_CONCURRENCY_CONNECTOR_SYNC:-5}
+      - WORKER_CONCURRENCY_DOCUMENT_PROCESSING=${WORKER_CONCURRENCY_DOCUMENT_PROCESSING:-20}
+      - WORKER_CONCURRENCY_NOTIFICATION_DELIVERY=${WORKER_CONCURRENCY_NOTIFICATION_DELIVERY:-10}
+      - DISPATCH_MAX_QUEUE_PER_WORKSPACE=${DISPATCH_MAX_QUEUE_PER_WORKSPACE:-1000}
+      - DISPATCH_MAX_QUEUE_GLOBAL=${DISPATCH_MAX_QUEUE_GLOBAL:-50000}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:${WORKER_PORT:-3001}/health/live']
       interval: 90s
       timeout: 5s
       retries: 3
@@ -58,7 +98,7 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3002/health']
+      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:3002/health']
       interval: 90s
       timeout: 5s
       retries: 3

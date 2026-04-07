@@ -40,15 +40,15 @@ import { cn } from '@/lib/core/utils/cn'
  * Matches the input and combobox styling patterns.
  */
 const timePickerVariants = cva(
-  'flex w-full rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 hover:border-[var(--surface-7)] hover:bg-[var(--surface-5)] dark:hover:border-[var(--surface-7)] dark:hover:bg-[var(--border-1)] transition-colors',
+  'flex w-full rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none disabled:cursor-not-allowed disabled:opacity-50 transition-colors',
   {
     variants: {
       variant: {
         default: '',
       },
       size: {
-        default: 'py-[6px] text-sm',
-        sm: 'py-[5px] text-[12px]',
+        default: 'py-1.5 text-sm',
+        sm: 'py-[5px] text-caption',
       },
     },
     defaultVariants: {
@@ -135,13 +135,15 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
     const [hour, setHour] = React.useState(parsed.hour)
     const [minute, setMinute] = React.useState(parsed.minute)
     const [ampm, setAmpm] = React.useState<'AM' | 'PM'>(parsed.ampm)
+    const [prevValue, setPrevValue] = React.useState(value)
 
-    React.useEffect(() => {
+    if (value !== prevValue) {
+      setPrevValue(value)
       const newParsed = parseTime(value || '')
       setHour(newParsed.hour)
       setMinute(newParsed.minute)
       setAmpm(newParsed.ampm)
-    }, [value])
+    }
 
     React.useEffect(() => {
       if (open) {
@@ -238,7 +240,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
               </span>
               <ChevronDown
                 className={cn(
-                  'ml-[8px] h-4 w-4 flex-shrink-0 opacity-50 transition-transform',
+                  'ml-2 h-4 w-4 flex-shrink-0 opacity-50 transition-transform',
                   open && 'rotate-180'
                 )}
               />
@@ -249,12 +251,12 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
             side='bottom'
             align='start'
             sideOffset={4}
-            className='w-auto rounded-[6px] border border-[var(--border-1)] p-[8px]'
+            className='w-auto rounded-md border border-[var(--border-1)] p-2'
           >
-            <div className='flex items-center gap-[6px]'>
+            <div className='flex items-center gap-1.5'>
               <input
                 ref={hourInputRef}
-                className='w-[40px] rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[6px] py-[5px] text-center font-medium font-sans text-[13px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-none focus-visible:ring-0'
+                className='w-[40px] rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 py-[5px] text-center font-medium font-sans text-[var(--text-primary)] text-small outline-none transition-colors placeholder:text-[var(--text-muted)]'
                 value={hour}
                 onChange={handleHourChange}
                 onBlur={handleHourBlur}
@@ -264,9 +266,9 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
                 maxLength={2}
                 autoComplete='off'
               />
-              <span className='font-medium text-[13px] text-[var(--text-muted)]'>:</span>
+              <span className='font-medium text-[var(--text-muted)] text-small'>:</span>
               <input
-                className='w-[40px] rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[6px] py-[5px] text-center font-medium font-sans text-[13px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-none focus-visible:ring-0'
+                className='w-[40px] rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 py-[5px] text-center font-medium font-sans text-[var(--text-primary)] text-small outline-none transition-colors placeholder:text-[var(--text-muted)]'
                 value={minute}
                 onChange={handleMinuteChange}
                 onBlur={handleMinuteBlur}
@@ -276,7 +278,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
                 maxLength={2}
                 autoComplete='off'
               />
-              <div className='ml-[2px] flex overflow-hidden rounded-[4px] border border-[var(--border-1)]'>
+              <div className='ml-0.5 flex overflow-hidden rounded-sm border border-[var(--border-1)]'>
                 {(['AM', 'PM'] as const).map((period) => (
                   <button
                     key={period}
@@ -286,10 +288,10 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
                       updateTime(undefined, undefined, period)
                     }}
                     className={cn(
-                      'px-[8px] py-[5px] font-medium font-sans text-[12px] transition-colors',
+                      'px-2 py-[5px] font-medium font-sans text-caption transition-colors',
                       ampm === period
                         ? 'bg-[var(--brand-secondary)] text-[var(--bg)]'
-                        : 'bg-[var(--surface-5)] text-[var(--text-secondary)] hover:bg-[var(--surface-7)] hover:text-[var(--text-primary)] dark:hover:bg-[var(--surface-5)]'
+                        : 'bg-[var(--surface-5)] text-[var(--text-secondary)] hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
                     )}
                   >
                     {period}

@@ -4,13 +4,15 @@ import {
   getStreamMeta,
   readStreamEvents,
   type StreamMeta,
-} from '@/lib/copilot/orchestrator/stream-buffer'
+} from '@/lib/copilot/orchestrator/stream/buffer'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request-helpers'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 
+export const maxDuration = 3600
+
 const logger = createLogger('CopilotChatStreamAPI')
 const POLL_INTERVAL_MS = 250
-const MAX_STREAM_MS = 10 * 60 * 1000
+const MAX_STREAM_MS = 60 * 60 * 1000
 
 function encodeEvent(event: Record<string, any>): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`)
@@ -33,12 +35,21 @@ export async function GET(request: NextRequest) {
   const toParam = url.searchParams.get('to')
   const toEventId = toParam ? Number(toParam) : undefined
 
+  const reqLogger = logger.withMetadata({ messageId: streamId || undefined })
+
+  reqLogger.info('[Resume] Received resume request', {
+    streamId: streamId || undefined,
+    fromEventId,
+    toEventId,
+    batchMode,
+  })
+
   if (!streamId) {
     return NextResponse.json({ error: 'streamId is required' }, { status: 400 })
   }
 
   const meta = (await getStreamMeta(streamId)) as StreamMeta | null
-  logger.info('[Resume] Stream lookup', {
+  reqLogger.info('[Resume] Stream lookup', {
     streamId,
     fromEventId,
     toEventId,
@@ -57,7 +68,7 @@ export async function GET(request: NextRequest) {
   if (batchMode) {
     const events = await readStreamEvents(streamId, fromEventId)
     const filteredEvents = toEventId ? events.filter((e) => e.eventId <= toEventId) : events
-    logger.info('[Resume] Batch response', {
+    reqLogger.info('[Resume] Batch response', {
       streamId,
       fromEventId,
       toEventId,
@@ -67,6 +78,8 @@ export async function GET(request: NextRequest) {
       success: true,
       events: filteredEvents,
       status: meta.status,
+      executionId: meta.executionId,
+      runId: meta.runId,
     })
   }
 
@@ -75,11 +88,39 @@ export async function GET(request: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       let lastEventId = Number.isFinite(fromEventId) ? fromEventId : 0
+      let latestMeta = meta
+      let controllerClosed = false
+
+      const closeController = () => {
+        if (controllerClosed) return
+        controllerClosed = true
+        try {
+          controller.close()
+        } catch {
+          // Controller already closed by runtime/client - treat as normal.
+        }
+      }
+
+      const enqueueEvent = (payload: Record<string, any>) => {
+        if (controllerClosed) return false
+        try {
+          controller.enqueue(encodeEvent(payload))
+          return true
+        } catch {
+          controllerClosed = true
+          return false
+        }
+      }
+
+      const abortListener = () => {
+        controllerClosed = true
+      }
+      request.signal.addEventListener('abort', abortListener, { once: true })
 
       const flushEvents = async () => {
         const events = await readStreamEvents(streamId, lastEventId)
         if (events.length > 0) {
-          logger.info('[Resume] Flushing events', {
+          reqLogger.info('[Resume] Flushing events', {
             streamId,
             fromEventId: lastEventId,
             eventCount: events.length,
@@ -91,37 +132,53 @@ export async function GET(request: NextRequest) {
             ...entry.event,
             eventId: entry.eventId,
             streamId: entry.streamId,
+            executionId: latestMeta?.executionId,
+            runId: latestMeta?.runId,
           }
-          controller.enqueue(encodeEvent(payload))
+          if (!enqueueEvent(payload)) {
+            break
+          }
         }
       }
 
       try {
         await flushEvents()
 
-        while (Date.now() - startTime < MAX_STREAM_MS) {
+        while (!controllerClosed && Date.now() - startTime < MAX_STREAM_MS) {
           const currentMeta = await getStreamMeta(streamId)
           if (!currentMeta) break
+          latestMeta = currentMeta
 
           await flushEvents()
 
-          if (currentMeta.status === 'complete' || currentMeta.status === 'error') {
+          if (controllerClosed) {
+            break
+          }
+          if (
+            currentMeta.status === 'complete' ||
+            currentMeta.status === 'error' ||
+            currentMeta.status === 'cancelled'
+          ) {
             break
           }
 
           if (request.signal.aborted) {
+            controllerClosed = true
             break
           }
 
           await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
         }
       } catch (error) {
-        logger.warn('Stream replay failed', {
-          streamId,
-          error: error instanceof Error ? error.message : String(error),
-        })
+        if (!controllerClosed && !request.signal.aborted) {
+          reqLogger.warn('Stream replay failed', {
+            streamId,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
       } finally {
-        controller.close()
+        request.signal.removeEventListener('abort', abortListener)
+        closeController()
       }
     },
   })

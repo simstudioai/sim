@@ -24,6 +24,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/userinfo.profile': 'View basic profile info',
   'https://www.googleapis.com/auth/forms.body': 'View and manage Google Forms',
   'https://www.googleapis.com/auth/forms.responses.readonly': 'View responses to Google Forms',
+  'https://www.googleapis.com/auth/adwords': 'Manage Google Ads campaigns and reporting',
   'https://www.googleapis.com/auth/bigquery': 'View and manage data in Google BigQuery',
   'https://www.googleapis.com/auth/ediscovery': 'Access Google Vault for eDiscovery',
   'https://www.googleapis.com/auth/devstorage.read_only': 'Read files from Google Cloud Storage',
@@ -157,6 +158,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'read:comment:jira': 'Read comments on Jira issues',
   'delete:comment:jira': 'Delete comments from Jira issues',
   'read:attachment:jira': 'Read attachments from Jira issues',
+  'write:attachment:jira': 'Add attachments to Jira issues',
   'delete:attachment:jira': 'Delete attachments from Jira issues',
   'write:issue-worklog:jira': 'Add and update worklog entries on Jira issues',
   'read:issue-worklog:jira': 'Read worklog entries from Jira issues',
@@ -211,7 +213,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'ChannelMessage.ReadWrite': 'Read and write to Microsoft channels',
   'ChannelMember.Read.All': 'Read team channel members',
   'Group.Read.All': 'Read Microsoft groups',
-  'Group.ReadWrite.All': 'Write to Microsoft groups',
+  'Group.ReadWrite.All': 'Read and write all groups',
   'Team.ReadBasic.All': 'Read Microsoft teams',
   'TeamMember.Read.All': 'Read team members',
   'Mail.ReadWrite': 'Write to Microsoft emails',
@@ -225,6 +227,10 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'Sites.ReadWrite.All': 'Read and write Sharepoint sites',
   'Sites.Manage.All': 'Manage Sharepoint sites',
   'https://dynamics.microsoft.com/user_impersonation': 'Access Microsoft Dataverse on your behalf',
+  'User.Read.All': 'Read all user profiles',
+  'User.ReadWrite.All': 'Read and write all user profiles',
+  'GroupMember.ReadWrite.All': 'Read and write all group memberships',
+  'Directory.Read.All': 'Read directory data',
 
   // Discord scopes
   identify: 'Read Discord user',
@@ -269,6 +275,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'im:history': 'Read direct message history',
   'im:read': 'View direct message channels',
   'users:read': 'View workspace users',
+  'users:read.email': 'View user email addresses',
   'files:write': 'Upload files',
   'files:read': 'Download and read files',
   'canvases:write': 'Create canvas documents',
@@ -304,7 +311,10 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'crm.import': 'Import data into HubSpot',
   'crm.lists.read': 'Read HubSpot lists',
   'crm.lists.write': 'Create and update HubSpot lists',
-  tickets: 'Manage HubSpot tickets',
+  'crm.objects.tickets.read': 'Read HubSpot tickets',
+  'crm.objects.tickets.write': 'Create and update HubSpot tickets',
+  tickets: 'Access HubSpot tickets',
+  oauth: 'Authenticate with HubSpot OAuth',
 
   // Salesforce scopes
   api: 'Access Salesforce API',
@@ -336,6 +346,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   // Box scopes
   root_readwrite: 'Read and write all files and folders in Box account',
   root_readonly: 'Read all files and folders in Box account',
+  'sign_requests.readwrite': 'Create and manage Box Sign e-signature requests',
 
   // Shopify scopes
   write_products: 'Read and manage Shopify products',
@@ -388,6 +399,10 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'user-follow-modify': 'Follow and unfollow artists and users',
   'user-read-playback-position': 'View playback position in podcasts',
   'ugc-image-upload': 'Upload images to Spotify playlists',
+
+  // DocuSign scopes
+  signature: 'Create and send envelopes for e-signature',
+  extended: 'Extended access to DocuSign account features',
 
   // Attio scopes
   'record_permission:read-write': 'Read and write CRM records',
@@ -471,6 +486,11 @@ export function getServiceConfigByProviderId(providerId: string): OAuthServiceCo
   }
 
   return null
+}
+
+export function getServiceAccountProviderForProviderId(providerId: string): string | undefined {
+  const serviceConfig = getServiceConfigByProviderId(providerId)
+  return serviceConfig?.serviceAccountProviderId
 }
 
 export function getCanonicalScopesForProvider(providerId: string): string[] {

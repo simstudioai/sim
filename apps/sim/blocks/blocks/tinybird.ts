@@ -1,6 +1,6 @@
 import { TinybirdIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { TinybirdResponse } from '@/tools/tinybird/types'
 
 export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
@@ -12,6 +12,8 @@ export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
     'Interact with Tinybird using the Events API to stream JSON or NDJSON events, or use the Query API to execute SQL queries against Pipes and Data Sources.',
   docsLink: 'https://www.tinybird.co/docs/api-reference',
   category: 'tools',
+  integrationType: IntegrationType.Analytics,
+  tags: ['data-warehouse', 'data-analytics'],
   bgColor: '#2EF598',
   icon: TinybirdIcon,
   subBlocks: [

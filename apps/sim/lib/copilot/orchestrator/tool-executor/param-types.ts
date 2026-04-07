@@ -5,19 +5,6 @@
 
 // === Workflow Query Params ===
 
-export interface GetUserWorkflowParams {
-  workflowId?: string
-}
-
-export interface GetWorkflowFromNameParams {
-  workflow_name?: string
-}
-
-export interface ListUserWorkflowsParams {
-  workspaceId?: string
-  folderId?: string
-}
-
 export interface GetWorkflowDataParams {
   workflowId?: string
   data_type?: string
@@ -176,6 +163,16 @@ export interface RenameWorkflowParams {
   name: string
 }
 
+export interface UpdateWorkflowParams {
+  workflowId: string
+  name?: string
+  description?: string
+}
+
+export interface DeleteWorkflowParams {
+  workflowId: string
+}
+
 export interface MoveWorkflowParams {
   workflowId: string
   folderId: string | null
@@ -184,4 +181,36 @@ export interface MoveWorkflowParams {
 export interface MoveFolderParams {
   folderId: string
   parentId: string | null
+}
+
+export interface RenameFolderParams {
+  folderId: string
+  name: string
+}
+
+export interface DeleteFolderParams {
+  folderId: string
+}
+
+export interface UpdateWorkspaceMcpServerParams {
+  serverId: string
+  name?: string
+  description?: string
+  isPublic?: boolean
+}
+
+export interface DeleteWorkspaceMcpServerParams {
+  serverId: string
+}
+
+export type OpenResourceType = 'workflow' | 'table' | 'knowledgebase' | 'file'
+
+export interface OpenResourceParams {
+  type?: OpenResourceType
+  id?: string
+}
+
+export interface ValidOpenResourceParams {
+  type: OpenResourceType
+  id: string
 }

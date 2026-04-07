@@ -1,5 +1,3 @@
-'use client'
-
 import { season } from '@/app/_styles/fonts/season/season'
 
 export default function TemplatesLayoutClient({ children }: { children: React.ReactNode }) {

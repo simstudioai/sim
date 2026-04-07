@@ -50,7 +50,7 @@ export const getDefaultHeaders = (
 export const processUrl = (
   url: string,
   pathParams?: Record<string, string>,
-  queryParams?: TableRow[] | null
+  queryParams?: TableRow[] | Record<string, any> | string | null
 ): string => {
   if ((url.startsWith('"') && url.endsWith('"')) || (url.startsWith("'") && url.endsWith("'"))) {
     url = url.slice(1, -1)

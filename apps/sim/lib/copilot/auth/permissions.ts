@@ -1,7 +1,5 @@
-import { db } from '@sim/db'
-import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { getActiveWorkflowContext } from '@/lib/workflows/active-context'
 import { getUserEntityPermissions, type PermissionType } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CopilotPermissions')
@@ -22,15 +20,8 @@ export async function verifyWorkflowAccess(
   workspaceId?: string
 }> {
   try {
-    const workflowData = await db
-      .select({
-        workspaceId: workflow.workspaceId,
-      })
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .limit(1)
-
-    if (!workflowData.length) {
+    const workflowContext = await getActiveWorkflowContext(workflowId)
+    if (!workflowContext) {
       logger.warn('Attempt to access non-existent workflow', {
         workflowId,
         userId,
@@ -38,18 +29,7 @@ export async function verifyWorkflowAccess(
       return { hasAccess: false, userPermission: null }
     }
 
-    const { workspaceId } = workflowData[0]
-    if (!workspaceId) {
-      logger.warn('Workflow is not attached to a workspace; access denied', {
-        workflowId,
-        userId,
-      })
-      return {
-        hasAccess: false,
-        userPermission: null,
-        workspaceId: undefined,
-      }
-    }
+    const { workspaceId } = workflowContext
 
     const userPermission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
 

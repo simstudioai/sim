@@ -1,6 +1,6 @@
 ---
 title: File
-description: Read and parse multiple files
+description: Read and write workspace files
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -27,7 +27,7 @@ The File Parser tool is particularly useful for scenarios where your agents need
 
 ## Usage Instructions
 
-Upload files directly or import from external URLs to get UserFile objects for use in other blocks.
+Read and parse files from uploads or URLs, write new workspace files, or append content to existing files.
 
 
 
@@ -51,5 +51,46 @@ Parse one or more uploaded files or files from URLs (text, PDF, CSV, images, etc
 | --------- | ---- | ----------- |
 | `files` | file[] | Parsed files as UserFile objects |
 | `combinedContent` | string | Combined content of all parsed files |
+
+### `file_write`
+
+Create a new workspace file. If a file with the same name already exists, a numeric suffix is added (e.g., 
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileName` | string | Yes | File name \(e.g., "data.csv"\). If a file with this name exists, a numeric suffix is added automatically. |
+| `content` | string | Yes | The text content to write to the file. |
+| `contentType` | string | No | MIME type for new files \(e.g., "text/plain"\). Auto-detected from file extension if omitted. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | File ID |
+| `name` | string | File name |
+| `size` | number | File size in bytes |
+| `url` | string | URL to access the file |
+
+### `file_append`
+
+Append content to an existing workspace file. The file must already exist. Content is added to the end of the file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileName` | string | Yes | Name of an existing workspace file to append to. |
+| `content` | string | Yes | The text content to append to the file. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | File ID |
+| `name` | string | File name |
+| `size` | number | File size in bytes |
+| `url` | string | URL to access the file |
 
 

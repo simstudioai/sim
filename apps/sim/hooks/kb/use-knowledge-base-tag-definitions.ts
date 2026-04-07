@@ -1,9 +1,9 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { AllTagSlot } from '@/lib/knowledge/constants'
-import { knowledgeKeys, useTagDefinitionsQuery } from '@/hooks/queries/knowledge'
+import { knowledgeKeys, useTagDefinitionsQuery } from '@/hooks/queries/kb/knowledge'
 
 export interface TagDefinition {
   id: string
@@ -29,8 +29,10 @@ export function useKnowledgeBaseTagDefinitions(knowledgeBaseId: string | null) {
     })
   }, [queryClient, knowledgeBaseId])
 
+  const tagDefinitions = useMemo(() => (query.data ?? []) as TagDefinition[], [query.data])
+
   return {
-    tagDefinitions: (query.data ?? []) as TagDefinition[],
+    tagDefinitions,
     isLoading: query.isLoading,
     error: query.error instanceof Error ? query.error.message : null,
     fetchTagDefinitions,

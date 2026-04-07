@@ -8,7 +8,6 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import {
@@ -16,16 +15,19 @@ import {
   getOrgUsageLimit,
   maybeSendUsageThresholdEmail,
 } from '@/lib/billing/core/usage'
-import { logWorkflowUsageBatch } from '@/lib/billing/core/usage-log'
+import { type ModelUsageMetadata, recordUsage } from '@/lib/billing/core/usage-log'
+import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { filterForDisplay } from '@/lib/core/utils/display-filters'
+import { generateId } from '@/lib/core/utils/uuid'
 import { emitWorkflowExecutionCompleted } from '@/lib/logs/events'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import type {
   BlockOutputData,
   ExecutionEnvironment,
+  ExecutionFinalizationPath,
   ExecutionTrigger,
   ExecutionLoggerService as IExecutionLoggerService,
   TraceSpan,
@@ -34,6 +36,17 @@ import type {
   WorkflowState,
 } from '@/lib/logs/types'
 import type { SerializableExecutionState } from '@/executor/execution/types'
+
+/** Maps execution trigger types to their corresponding userStats counter columns */
+const TRIGGER_COUNTER_MAP: Record<string, { key: string; column: string }> = {
+  manual: { key: 'totalManualExecutions', column: 'total_manual_executions' },
+  api: { key: 'totalApiCalls', column: 'total_api_calls' },
+  webhook: { key: 'totalWebhookTriggers', column: 'total_webhook_triggers' },
+  schedule: { key: 'totalScheduledExecutions', column: 'total_scheduled_executions' },
+  chat: { key: 'totalChatExecutions', column: 'total_chat_executions' },
+  mcp: { key: 'totalMcpExecutions', column: 'total_mcp_executions' },
+  a2a: { key: 'totalA2aExecutions', column: 'total_a2a_executions' },
+} as const
 
 export interface ToolCall {
   name: string
@@ -48,7 +61,77 @@ export interface ToolCall {
 
 const logger = createLogger('ExecutionLogger')
 
+function countTraceSpans(traceSpans?: TraceSpan[]): number {
+  if (!Array.isArray(traceSpans) || traceSpans.length === 0) {
+    return 0
+  }
+
+  return traceSpans.reduce((count, span) => count + 1 + countTraceSpans(span.children), 0)
+}
+
 export class ExecutionLogger implements IExecutionLoggerService {
+  private buildCompletedExecutionData(params: {
+    existingExecutionData?: WorkflowExecutionLog['executionData']
+    traceSpans?: TraceSpan[]
+    finalOutput: BlockOutputData
+    finalizationPath?: ExecutionFinalizationPath
+    completionFailure?: string
+    executionCost: {
+      tokens: {
+        input: number
+        output: number
+        total: number
+      }
+      models: NonNullable<WorkflowExecutionLog['executionData']['models']>
+    }
+    executionState?: SerializableExecutionState
+  }): WorkflowExecutionLog['executionData'] {
+    const {
+      existingExecutionData,
+      traceSpans,
+      finalOutput,
+      finalizationPath,
+      completionFailure,
+      executionCost,
+      executionState,
+    } = params
+    const traceSpanCount = countTraceSpans(traceSpans)
+
+    return {
+      ...(existingExecutionData?.environment
+        ? { environment: existingExecutionData.environment }
+        : {}),
+      ...(existingExecutionData?.trigger ? { trigger: existingExecutionData.trigger } : {}),
+      ...(existingExecutionData?.correlation || existingExecutionData?.trigger?.data?.correlation
+        ? {
+            correlation:
+              existingExecutionData?.correlation ||
+              existingExecutionData?.trigger?.data?.correlation,
+          }
+        : {}),
+      ...(existingExecutionData?.error ? { error: existingExecutionData.error } : {}),
+      ...(existingExecutionData?.lastStartedBlock
+        ? { lastStartedBlock: existingExecutionData.lastStartedBlock }
+        : {}),
+      ...(existingExecutionData?.lastCompletedBlock
+        ? { lastCompletedBlock: existingExecutionData.lastCompletedBlock }
+        : {}),
+      ...(completionFailure ? { completionFailure } : {}),
+      ...(finalizationPath ? { finalizationPath } : {}),
+      hasTraceSpans: traceSpanCount > 0,
+      traceSpanCount,
+      traceSpans,
+      finalOutput,
+      tokens: {
+        input: executionCost.tokens.input,
+        output: executionCost.tokens.output,
+        total: executionCost.tokens.total,
+      },
+      models: executionCost.models,
+      ...(executionState ? { executionState } : {}),
+    }
+  }
+
   async startWorkflowExecution(params: {
     workflowId: string
     workspaceId: string
@@ -70,8 +153,9 @@ export class ExecutionLogger implements IExecutionLoggerService {
       workflowState,
       deploymentVersionId,
     } = params
+    const execLog = logger.withMetadata({ workflowId, workspaceId, executionId })
 
-    logger.debug(`Starting workflow execution ${executionId} for workflow ${workflowId}`)
+    execLog.debug('Starting workflow execution')
 
     // Check if execution log already exists (idempotency check)
     const existingLog = await db
@@ -81,9 +165,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       .limit(1)
 
     if (existingLog.length > 0) {
-      logger.debug(
-        `Execution log already exists for ${executionId}, skipping duplicate INSERT (idempotent)`
-      )
+      execLog.debug('Execution log already exists, skipping duplicate INSERT (idempotent)')
       const snapshot = await snapshotService.getSnapshot(existingLog[0].stateSnapshotId)
       if (!snapshot) {
         throw new Error(`Snapshot ${existingLog[0].stateSnapshotId} not found for existing log`)
@@ -116,7 +198,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     const [workflowLog] = await db
       .insert(workflowExecutionLogs)
       .values({
-        id: uuidv4(),
+        id: generateId(),
         workflowId,
         workspaceId,
         executionId,
@@ -131,6 +213,9 @@ export class ExecutionLogger implements IExecutionLoggerService {
         executionData: {
           environment,
           trigger,
+          ...(trigger.data?.correlation ? { correlation: trigger.data.correlation } : {}),
+          hasTraceSpans: false,
+          traceSpanCount: 0,
         },
         cost: {
           total: BASE_EXECUTION_CHARGE,
@@ -142,7 +227,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       })
       .returning()
 
-    logger.debug(`Created workflow log ${workflowLog.id} for execution ${executionId}`)
+    execLog.debug('Created workflow log', { logId: workflowLog.id })
 
     return {
       workflowLog: {
@@ -181,6 +266,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           input: number
           output: number
           total: number
+          toolCost?: number
           tokens: { input: number; output: number; total: number }
         }
       >
@@ -189,6 +275,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
     traceSpans?: TraceSpan[]
     workflowInput?: any
     executionState?: SerializableExecutionState
+    finalizationPath?: ExecutionFinalizationPath
+    completionFailure?: string
     isResume?: boolean
     level?: 'info' | 'error'
     status?: 'completed' | 'failed' | 'cancelled' | 'pending'
@@ -202,21 +290,30 @@ export class ExecutionLogger implements IExecutionLoggerService {
       traceSpans,
       workflowInput,
       executionState,
+      finalizationPath,
+      completionFailure,
       isResume,
       level: levelOverride,
       status: statusOverride,
     } = params
 
-    logger.debug(`Completing workflow execution ${executionId}`, { isResume })
+    let execLog = logger.withMetadata({ executionId })
+    execLog.debug('Completing workflow execution', { isResume })
 
     const [existingLog] = await db
       .select()
       .from(workflowExecutionLogs)
       .where(eq(workflowExecutionLogs.executionId, executionId))
       .limit(1)
+    if (existingLog) {
+      execLog = execLog.withMetadata({
+        workflowId: existingLog.workflowId ?? undefined,
+        workspaceId: existingLog.workspaceId ?? undefined,
+      })
+    }
     const billingUserId = this.extractBillingUserId(existingLog?.executionData)
     const existingExecutionData = existingLog?.executionData as
-      | { traceSpans?: TraceSpan[] }
+      | WorkflowExecutionLog['executionData']
       | undefined
 
     // Determine if workflow failed by checking trace spans for unhandled errors
@@ -272,6 +369,16 @@ export class ExecutionLogger implements IExecutionLoggerService {
         ? Math.max(0, Math.round(rawDurationMs))
         : 0
 
+    const completedExecutionData = this.buildCompletedExecutionData({
+      existingExecutionData,
+      traceSpans: redactedTraceSpans,
+      finalOutput: redactedFinalOutput,
+      finalizationPath,
+      completionFailure,
+      executionCost,
+      executionState,
+    })
+
     const [updatedLog] = await db
       .update(workflowExecutionLogs)
       .set({
@@ -280,17 +387,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
         endedAt: new Date(endedAt),
         totalDurationMs: totalDuration,
         files: executionFiles.length > 0 ? executionFiles : null,
-        executionData: {
-          traceSpans: redactedTraceSpans,
-          finalOutput: redactedFinalOutput,
-          tokens: {
-            input: executionCost.tokens.input,
-            output: executionCost.tokens.output,
-            total: executionCost.tokens.total,
-          },
-          models: executionCost.models,
-          ...(executionState ? { executionState } : {}),
-        },
+        executionData: completedExecutionData,
         cost: executionCost,
       })
       .where(eq(workflowExecutionLogs.executionId, executionId))
@@ -317,9 +414,10 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
           const costDelta = costSummary.totalCost
 
-          const planName = sub?.plan || 'Free'
+          const { getDisplayPlanName } = await import('@/lib/billing/plan-helpers')
+          const planName = getDisplayPlanName(sub?.plan)
           const scope: 'user' | 'organization' =
-            sub && (sub.plan === 'team' || sub.plan === 'enterprise') ? 'organization' : 'user'
+            sub && isOrgPlan(sub.plan) ? 'organization' : 'user'
 
           if (scope === 'user') {
             const before = await checkUsageStatus(usr.id)
@@ -415,10 +513,10 @@ export class ExecutionLogger implements IExecutionLoggerService {
           billingUserId
         )
       } catch {}
-      logger.warn('Usage threshold notification check failed (non-fatal)', { error: e })
+      execLog.warn('Usage threshold notification check failed (non-fatal)', { error: e })
     }
 
-    logger.debug(`Completed workflow execution ${executionId}`)
+    execLog.debug('Completed workflow execution')
 
     const completedLog: WorkflowExecutionLog = {
       id: updatedLog.id,
@@ -436,10 +534,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
     }
 
     emitWorkflowExecutionCompleted(completedLog).catch((error) => {
-      logger.error('Failed to emit workflow execution completed event', {
-        error,
-        executionId,
-      })
+      execLog.error('Failed to emit workflow execution completed event', { error })
     })
 
     return completedLog
@@ -507,6 +602,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
           input: number
           output: number
           total: number
+          toolCost?: number
           tokens: { input: number; output: number; total: number }
         }
       >
@@ -515,18 +611,20 @@ export class ExecutionLogger implements IExecutionLoggerService {
     executionId?: string,
     billingUserId?: string | null
   ): Promise<void> {
+    const statsLog = logger.withMetadata({ workflowId: workflowId ?? undefined, executionId })
+
     if (!isBillingEnabled) {
-      logger.debug('Billing is disabled, skipping user stats cost update')
+      statsLog.debug('Billing is disabled, skipping user stats cost update')
       return
     }
 
     if (costSummary.totalCost <= 0) {
-      logger.debug('No cost to update in user stats')
+      statsLog.debug('No cost to update in user stats')
       return
     }
 
     if (!workflowId) {
-      logger.debug('Workflow was deleted, skipping user stats update')
+      statsLog.debug('Workflow was deleted, skipping user stats update')
       return
     }
 
@@ -538,87 +636,76 @@ export class ExecutionLogger implements IExecutionLoggerService {
         .limit(1)
 
       if (!workflowRecord) {
-        logger.error(`Workflow ${workflowId} not found for user stats update`)
+        statsLog.error('Workflow not found for user stats update')
         return
       }
 
       const userId = billingUserId?.trim() || null
       if (!userId) {
-        logger.error('Missing billing actor in execution context; skipping stats update', {
-          workflowId,
-          trigger,
-          executionId,
-        })
-        return
-      }
-
-      const costToStore = costSummary.totalCost
-
-      const existing = await db.select().from(userStats).where(eq(userStats.userId, userId))
-      if (existing.length === 0) {
-        logger.error('User stats record not found - should be created during onboarding', {
-          userId,
+        statsLog.error('Missing billing actor in execution context; skipping stats update', {
           trigger,
         })
         return
       }
 
-      // All costs go to currentPeriodCost - credits are applied at end of billing cycle
-      const updateFields: any = {
+      const entries: Array<{
+        category: 'model' | 'fixed'
+        source: 'workflow'
+        description: string
+        cost: number
+        metadata?: ModelUsageMetadata | null
+      }> = []
+
+      if (costSummary.baseExecutionCharge > 0) {
+        entries.push({
+          category: 'fixed',
+          source: 'workflow',
+          description: 'execution_fee',
+          cost: costSummary.baseExecutionCharge,
+        })
+      }
+
+      if (costSummary.models) {
+        for (const [modelName, modelData] of Object.entries(costSummary.models)) {
+          if (modelData.total > 0) {
+            entries.push({
+              category: 'model',
+              source: 'workflow',
+              description: modelName,
+              cost: modelData.total,
+              metadata: {
+                inputTokens: modelData.tokens.input,
+                outputTokens: modelData.tokens.output,
+                ...(modelData.toolCost != null &&
+                  modelData.toolCost > 0 && { toolCost: modelData.toolCost }),
+              },
+            })
+          }
+        }
+      }
+
+      const additionalStats: Record<string, ReturnType<typeof sql>> = {
         totalTokensUsed: sql`total_tokens_used + ${costSummary.totalTokens}`,
-        totalCost: sql`total_cost + ${costToStore}`,
-        currentPeriodCost: sql`current_period_cost + ${costToStore}`,
-        lastActive: new Date(),
       }
 
-      switch (trigger) {
-        case 'manual':
-          updateFields.totalManualExecutions = sql`total_manual_executions + 1`
-          break
-        case 'api':
-          updateFields.totalApiCalls = sql`total_api_calls + 1`
-          break
-        case 'webhook':
-          updateFields.totalWebhookTriggers = sql`total_webhook_triggers + 1`
-          break
-        case 'schedule':
-          updateFields.totalScheduledExecutions = sql`total_scheduled_executions + 1`
-          break
-        case 'chat':
-          updateFields.totalChatExecutions = sql`total_chat_executions + 1`
-          break
-        case 'mcp':
-          updateFields.totalMcpExecutions = sql`total_mcp_executions + 1`
-          break
-        case 'a2a':
-          updateFields.totalA2aExecutions = sql`total_a2a_executions + 1`
-          break
+      const triggerCounter = TRIGGER_COUNTER_MAP[trigger]
+      if (triggerCounter) {
+        additionalStats[triggerCounter.key] = sql`${sql.raw(triggerCounter.column)} + 1`
       }
 
-      await db.update(userStats).set(updateFields).where(eq(userStats.userId, userId))
-
-      logger.debug('Updated user stats record with cost data', {
+      await recordUsage({
         userId,
-        trigger,
-        addedCost: costToStore,
-        addedTokens: costSummary.totalTokens,
-      })
-
-      // Log usage entries for auditing (batch insert for performance)
-      await logWorkflowUsageBatch({
-        userId,
+        entries,
         workspaceId: workflowRecord.workspaceId ?? undefined,
         workflowId,
         executionId,
-        baseExecutionCharge: costSummary.baseExecutionCharge,
-        models: costSummary.models,
+        additionalStats,
       })
 
       // Check if user has hit overage threshold and bill incrementally
       await checkAndBillOverageThreshold(userId)
     } catch (error) {
-      logger.error('Error updating user stats with cost information', {
-        workflowId,
+      statsLog.error('Error updating user stats with cost information', {
         error,
         costSummary,
       })

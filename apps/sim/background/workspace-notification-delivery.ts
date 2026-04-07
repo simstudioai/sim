@@ -1,15 +1,13 @@
 import { createHmac } from 'crypto'
-import { db } from '@sim/db'
+import { db, workflowExecutionLogs } from '@sim/db'
 import {
   account,
-  workflow as workflowTable,
   workspaceNotificationDelivery,
   workspaceNotificationSubscription,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 import {
   type EmailRateLimitsData,
   type EmailUsageData,
@@ -17,19 +15,27 @@ import {
 } from '@/components/emails'
 import { checkUsageStatus } from '@/lib/billing/calculations/usage-monitor'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
+import { acquireLock } from '@/lib/core/config/redis'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { formatDuration } from '@/lib/core/utils/formatting'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
+import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import type { AlertConfig } from '@/lib/notifications/alert-rules'
+import { getActiveWorkflowContext } from '@/lib/workflows/active-context'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 
 const logger = createLogger('WorkspaceNotificationDelivery')
 
 const MAX_ATTEMPTS = 5
 const RETRY_DELAYS = [5 * 1000, 15 * 1000, 60 * 1000, 3 * 60 * 1000, 10 * 60 * 1000]
+const NOTIFICATION_DISPATCH_LOCK_TTL_SECONDS = 3
 
 function getRetryDelayWithJitter(baseDelay: number): number {
   const jitter = Math.random() * 0.1 * baseDelay
@@ -69,32 +75,29 @@ async function buildPayload(
   log: WorkflowExecutionLog,
   subscription: typeof workspaceNotificationSubscription.$inferSelect
 ): Promise<NotificationPayload | null> {
-  // Skip notifications for deleted workflows
+  /**
+   * Skip notifications when the workflow or workspace has already been archived.
+   */
   if (!log.workflowId) return null
 
-  const workflowData = await db
-    .select({
-      name: workflowTable.name,
-      workspaceId: workflowTable.workspaceId,
-    })
-    .from(workflowTable)
-    .where(eq(workflowTable.id, log.workflowId))
-    .limit(1)
+  const workflowContext = await getActiveWorkflowContext(log.workflowId)
 
   const timestamp = Date.now()
   const executionData = (log.executionData || {}) as Record<string, unknown>
-  const workflowRecord = workflowData[0]
-  const userId = workflowRecord?.workspaceId
-    ? await getWorkspaceBilledAccountUserId(workflowRecord.workspaceId)
+  if (!workflowContext?.workspaceId) {
+    return null
+  }
+  const userId = workflowContext.workspaceId
+    ? await getWorkspaceBilledAccountUserId(workflowContext.workspaceId)
     : null
 
   const payload: NotificationPayload = {
-    id: `evt_${uuidv4()}`,
+    id: `evt_${generateId()}`,
     type: 'workflow.execution.completed',
     timestamp,
     data: {
       workflowId: log.workflowId,
-      workflowName: workflowData[0]?.name || 'Unknown Workflow',
+      workflowName: workflowContext.workflow.name || 'Unknown Workflow',
       executionId: log.executionId,
       status: log.level === 'error' ? 'error' : 'success',
       level: log.level,
@@ -192,7 +195,7 @@ async function deliverWebhook(
   }
 
   const body = JSON.stringify(payload)
-  const deliveryId = `delivery_${uuidv4()}`
+  const deliveryId = `delivery_${generateId()}`
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'sim-event': 'workflow.execution.completed',
@@ -207,18 +210,18 @@ async function deliverWebhook(
     headers['sim-signature'] = `t=${payload.timestamp},v1=${signature}`
   }
 
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 30000)
-
   try {
-    const response = await fetch(webhookConfig.url, {
-      method: 'POST',
-      headers,
-      body,
-      signal: controller.signal,
-    })
-
-    clearTimeout(timeoutId)
+    const response = await secureFetchWithValidation(
+      webhookConfig.url,
+      {
+        method: 'POST',
+        headers,
+        body,
+        timeout: 30000,
+        allowHttp: true,
+      },
+      'webhookUrl'
+    )
 
     return {
       success: response.ok,
@@ -226,11 +229,13 @@ async function deliverWebhook(
       error: response.ok ? undefined : `HTTP ${response.status}`,
     }
   } catch (error: unknown) {
-    clearTimeout(timeoutId)
-    const err = error as Error & { name?: string }
+    logger.warn('Webhook delivery failed', {
+      error: error instanceof Error ? error.message : String(error),
+      webhookUrl: webhookConfig.url,
+    })
     return {
       success: false,
-      error: err.name === 'AbortError' ? 'Request timeout' : err.message,
+      error: 'Failed to deliver webhook',
     }
   }
 }
@@ -238,11 +243,11 @@ async function deliverWebhook(
 function formatCost(cost?: Record<string, unknown>): string {
   if (!cost?.total) return 'N/A'
   const total = cost.total as number
-  return `$${total.toFixed(4)}`
+  return `${dollarsToCredits(total).toLocaleString()} credits`
 }
 
 function buildLogUrl(workspaceId: string, executionId: string): string {
-  return `${getBaseUrl()}/workspace/${workspaceId}/logs?search=${encodeURIComponent(executionId)}`
+  return `${getBaseUrl()}/workspace/${workspaceId}/logs?executionId=${encodeURIComponent(executionId)}`
 }
 
 function formatAlertReason(alertConfig: AlertConfig): string {
@@ -256,7 +261,7 @@ function formatAlertReason(alertConfig: AlertConfig): string {
     case 'latency_spike':
       return `Execution was ${alertConfig.latencySpikePercent}% slower than average`
     case 'cost_threshold':
-      return `Execution cost exceeded $${alertConfig.costThresholdDollars} threshold`
+      return `Execution cost exceeded ${dollarsToCredits(alertConfig.costThresholdDollars || 0).toLocaleString()} credits threshold`
     case 'no_activity':
       return `No workflow activity detected in ${alertConfig.inactivityHours}h`
     case 'error_count':
@@ -485,12 +490,170 @@ async function updateDeliveryStatus(
 export interface NotificationDeliveryParams {
   deliveryId: string
   subscriptionId: string
+  workspaceId: string
   notificationType: 'webhook' | 'email' | 'slack'
   log: WorkflowExecutionLog
   alertConfig?: AlertConfig
 }
 
-export async function executeNotificationDelivery(params: NotificationDeliveryParams) {
+export type NotificationDeliveryResult =
+  | { status: 'success' | 'skipped' | 'failed' }
+  | { status: 'retry'; retryDelayMs: number }
+
+async function buildRetryLog(params: NotificationDeliveryParams): Promise<WorkflowExecutionLog> {
+  const conditions = [eq(workflowExecutionLogs.executionId, params.log.executionId)]
+  if (params.log.workflowId) {
+    conditions.push(eq(workflowExecutionLogs.workflowId, params.log.workflowId))
+  }
+
+  const [storedLog] = await db
+    .select()
+    .from(workflowExecutionLogs)
+    .where(and(...conditions))
+    .limit(1)
+
+  if (storedLog) {
+    return storedLog as unknown as WorkflowExecutionLog
+  }
+
+  const now = new Date().toISOString()
+  return {
+    id: `retry_log_${params.deliveryId}`,
+    workflowId: params.log.workflowId,
+    executionId: params.log.executionId,
+    stateSnapshotId: '',
+    level: 'info',
+    trigger: 'system',
+    startedAt: now,
+    endedAt: now,
+    totalDurationMs: 0,
+    executionData: {},
+    cost: { total: 0 },
+    createdAt: now,
+  }
+}
+
+export async function enqueueNotificationDeliveryDispatch(
+  params: NotificationDeliveryParams
+): Promise<boolean> {
+  if (!isBullMQEnabled()) {
+    return false
+  }
+
+  const lockAcquired = await acquireLock(
+    `workspace-notification-dispatch:${params.deliveryId}`,
+    params.deliveryId,
+    NOTIFICATION_DISPATCH_LOCK_TTL_SECONDS
+  )
+  if (!lockAcquired) {
+    return false
+  }
+
+  await enqueueWorkspaceDispatch({
+    workspaceId: params.workspaceId,
+    lane: 'lightweight',
+    queueName: 'workspace-notification-delivery',
+    bullmqJobName: 'workspace-notification-delivery',
+    bullmqPayload: createBullMQJobData(params),
+    metadata: {
+      workflowId: params.log.workflowId ?? undefined,
+    },
+  })
+
+  return true
+}
+
+const STUCK_IN_PROGRESS_THRESHOLD_MS = 5 * 60 * 1000
+
+export async function sweepPendingNotificationDeliveries(limit = 50): Promise<number> {
+  if (!isBullMQEnabled()) {
+    return 0
+  }
+
+  const stuckThreshold = new Date(Date.now() - STUCK_IN_PROGRESS_THRESHOLD_MS)
+
+  await db
+    .update(workspaceNotificationDelivery)
+    .set({
+      status: 'pending',
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(workspaceNotificationDelivery.status, 'in_progress'),
+        lte(workspaceNotificationDelivery.lastAttemptAt, stuckThreshold)
+      )
+    )
+
+  const dueDeliveries = await db
+    .select({
+      deliveryId: workspaceNotificationDelivery.id,
+      subscriptionId: workspaceNotificationDelivery.subscriptionId,
+      workflowId: workspaceNotificationDelivery.workflowId,
+      executionId: workspaceNotificationDelivery.executionId,
+      workspaceId: workspaceNotificationSubscription.workspaceId,
+      alertConfig: workspaceNotificationSubscription.alertConfig,
+      notificationType: workspaceNotificationSubscription.notificationType,
+    })
+    .from(workspaceNotificationDelivery)
+    .innerJoin(
+      workspaceNotificationSubscription,
+      eq(workspaceNotificationDelivery.subscriptionId, workspaceNotificationSubscription.id)
+    )
+    .where(
+      and(
+        eq(workspaceNotificationDelivery.status, 'pending'),
+        or(
+          isNull(workspaceNotificationDelivery.nextAttemptAt),
+          lte(workspaceNotificationDelivery.nextAttemptAt, new Date())
+        )
+      )
+    )
+    .limit(limit)
+
+  let enqueued = 0
+
+  for (const delivery of dueDeliveries) {
+    const params: NotificationDeliveryParams = {
+      deliveryId: delivery.deliveryId,
+      subscriptionId: delivery.subscriptionId,
+      workspaceId: delivery.workspaceId,
+      notificationType: delivery.notificationType,
+      log: await buildRetryLog({
+        deliveryId: delivery.deliveryId,
+        subscriptionId: delivery.subscriptionId,
+        workspaceId: delivery.workspaceId,
+        notificationType: delivery.notificationType,
+        log: {
+          id: '',
+          workflowId: delivery.workflowId,
+          executionId: delivery.executionId,
+          stateSnapshotId: '',
+          level: 'info',
+          trigger: 'system',
+          startedAt: '',
+          endedAt: '',
+          totalDurationMs: 0,
+          executionData: {},
+          cost: { total: 0 },
+          createdAt: '',
+        },
+        alertConfig: (delivery.alertConfig as AlertConfig | null) ?? undefined,
+      }),
+      alertConfig: (delivery.alertConfig as AlertConfig | null) ?? undefined,
+    }
+
+    if (await enqueueNotificationDeliveryDispatch(params)) {
+      enqueued += 1
+    }
+  }
+
+  return enqueued
+}
+
+export async function executeNotificationDelivery(
+  params: NotificationDeliveryParams
+): Promise<NotificationDeliveryResult> {
   const { deliveryId, subscriptionId, notificationType, log, alertConfig } = params
 
   try {
@@ -503,7 +666,7 @@ export async function executeNotificationDelivery(params: NotificationDeliveryPa
     if (!subscription || !subscription.active) {
       logger.warn(`Subscription ${subscriptionId} not found or inactive`)
       await updateDeliveryStatus(deliveryId, 'failed', 'Subscription not found or inactive')
-      return
+      return { status: 'failed' }
     }
 
     const claimed = await db
@@ -528,7 +691,7 @@ export async function executeNotificationDelivery(params: NotificationDeliveryPa
 
     if (claimed.length === 0) {
       logger.info(`Delivery ${deliveryId} not claimable`)
-      return
+      return { status: 'skipped' }
     }
 
     const attempts = claimed[0].attempts
@@ -536,9 +699,9 @@ export async function executeNotificationDelivery(params: NotificationDeliveryPa
 
     // Skip delivery for deleted workflows
     if (!payload) {
-      await updateDeliveryStatus(deliveryId, 'failed', 'Workflow was deleted')
-      logger.info(`Skipping delivery ${deliveryId} - workflow was deleted`)
-      return
+      await updateDeliveryStatus(deliveryId, 'failed', 'Workflow was archived or deleted')
+      logger.info(`Skipping delivery ${deliveryId} - workflow was archived or deleted`)
+      return { status: 'failed' }
     }
 
     let result: { success: boolean; status?: number; error?: string }
@@ -560,39 +723,35 @@ export async function executeNotificationDelivery(params: NotificationDeliveryPa
     if (result.success) {
       await updateDeliveryStatus(deliveryId, 'success', undefined, result.status)
       logger.info(`${notificationType} notification delivered successfully`, { deliveryId })
-    } else {
-      if (attempts < MAX_ATTEMPTS) {
-        const retryDelay = getRetryDelayWithJitter(
-          RETRY_DELAYS[attempts - 1] || RETRY_DELAYS[RETRY_DELAYS.length - 1]
-        )
-        const nextAttemptAt = new Date(Date.now() + retryDelay)
+      return { status: 'success' }
+    }
+    if (attempts < MAX_ATTEMPTS) {
+      const retryDelay = getRetryDelayWithJitter(
+        RETRY_DELAYS[attempts - 1] || RETRY_DELAYS[RETRY_DELAYS.length - 1]
+      )
+      const nextAttemptAt = new Date(Date.now() + retryDelay)
 
-        await updateDeliveryStatus(
-          deliveryId,
-          'pending',
-          result.error,
-          result.status,
-          nextAttemptAt
-        )
+      await updateDeliveryStatus(deliveryId, 'pending', result.error, result.status, nextAttemptAt)
 
-        logger.info(
-          `${notificationType} notification failed, scheduled retry ${attempts}/${MAX_ATTEMPTS}`,
-          {
-            deliveryId,
-            error: result.error,
-          }
-        )
-      } else {
-        await updateDeliveryStatus(deliveryId, 'failed', result.error, result.status)
-        logger.error(`${notificationType} notification failed after ${MAX_ATTEMPTS} attempts`, {
+      logger.info(
+        `${notificationType} notification failed, scheduled retry ${attempts}/${MAX_ATTEMPTS}`,
+        {
           deliveryId,
           error: result.error,
-        })
-      }
+        }
+      )
+      return { status: 'retry', retryDelayMs: retryDelay }
     }
+    await updateDeliveryStatus(deliveryId, 'failed', result.error, result.status)
+    logger.error(`${notificationType} notification failed after ${MAX_ATTEMPTS} attempts`, {
+      deliveryId,
+      error: result.error,
+    })
+    return { status: 'failed' }
   } catch (error) {
     logger.error('Notification delivery failed', { deliveryId, error })
     await updateDeliveryStatus(deliveryId, 'failed', 'Internal error')
+    return { status: 'failed' }
   }
 }
 

@@ -5,6 +5,7 @@ import { type Chunk, JsonYamlChunker, StructuredDataChunker, TextChunker } from 
 import { env } from '@/lib/core/config/env'
 import { parseBuffer, parseFile } from '@/lib/file-parsers'
 import type { FileParseMetadata } from '@/lib/file-parsers/types'
+import { resolveParserExtension } from '@/lib/knowledge/documents/parser-extension'
 import { retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import { StorageService } from '@/lib/uploads'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
@@ -727,7 +728,7 @@ async function parseWithFileParser(fileUrl: string, filename: string, mimeType: 
     if (fileUrl.startsWith('data:')) {
       content = await parseDataURI(fileUrl, filename, mimeType)
     } else if (fileUrl.startsWith('http')) {
-      const result = await parseHttpFile(fileUrl, filename)
+      const result = await parseHttpFile(fileUrl, filename, mimeType)
       content = result.content
       metadata = result.metadata || {}
     } else {
@@ -759,7 +760,7 @@ async function parseDataURI(fileUrl: string, filename: string, mimeType: string)
       : decodeURIComponent(base64Data)
   }
 
-  const extension = filename.split('.').pop()?.toLowerCase() || 'txt'
+  const extension = resolveParserExtension(filename, mimeType, 'txt')
   const buffer = Buffer.from(base64Data, 'base64')
   const result = await parseBuffer(buffer, extension)
   return result.content
@@ -767,15 +768,12 @@ async function parseDataURI(fileUrl: string, filename: string, mimeType: string)
 
 async function parseHttpFile(
   fileUrl: string,
-  filename: string
+  filename: string,
+  mimeType?: string
 ): Promise<{ content: string; metadata?: FileParseMetadata }> {
   const buffer = await downloadFileWithTimeout(fileUrl)
 
-  const extension = filename.split('.').pop()?.toLowerCase()
-  if (!extension) {
-    throw new Error(`Could not determine file extension: ${filename}`)
-  }
-
+  const extension = resolveParserExtension(filename, mimeType)
   const result = await parseBuffer(buffer, extension)
   return result
 }

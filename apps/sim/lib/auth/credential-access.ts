@@ -2,13 +2,13 @@ import { db } from '@sim/db'
 import { account, credential, credentialMember, workflow as workflowTable } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 export interface CredentialAccessResult {
   ok: boolean
   error?: string
-  authType?: 'session' | 'internal_jwt'
+  authType?: typeof AuthType.SESSION | typeof AuthType.INTERNAL_JWT
   requesterUserId?: string
   credentialOwnerUserId?: string
   workspaceId?: string
@@ -39,7 +39,7 @@ export async function authorizeCredentialUse(
     return { ok: false, error: auth.error || 'Authentication required' }
   }
 
-  const actingUserId = auth.authType === 'internal_jwt' ? callerUserId : auth.userId
+  const actingUserId = auth.authType === AuthType.INTERNAL_JWT ? callerUserId : auth.userId
 
   const [workflowContext] = workflowId
     ? await db
@@ -65,6 +65,54 @@ export async function authorizeCredentialUse(
     .limit(1)
 
   if (platformCredential) {
+    if (platformCredential.type === 'service_account') {
+      if (workflowContext && workflowContext.workspaceId !== platformCredential.workspaceId) {
+        return { ok: false, error: 'Credential is not accessible from this workflow workspace' }
+      }
+
+      if (actingUserId) {
+        const requesterPerm = await getUserEntityPermissions(
+          actingUserId,
+          'workspace',
+          platformCredential.workspaceId
+        )
+
+        const [membership] = await db
+          .select({ id: credentialMember.id })
+          .from(credentialMember)
+          .where(
+            and(
+              eq(credentialMember.credentialId, platformCredential.id),
+              eq(credentialMember.userId, actingUserId),
+              eq(credentialMember.status, 'active')
+            )
+          )
+          .limit(1)
+
+        if (!membership) {
+          return {
+            ok: false,
+            error:
+              'You do not have access to this credential. Ask the credential admin to add you as a member.',
+          }
+        }
+        if (requesterPerm === null) {
+          return { ok: false, error: 'You do not have access to this workspace.' }
+        }
+      } else if (!workflowContext) {
+        return { ok: false, error: 'workflowId is required' }
+      }
+
+      return {
+        ok: true,
+        authType: auth.authType as CredentialAccessResult['authType'],
+        requesterUserId: auth.userId,
+        credentialOwnerUserId: actingUserId || auth.userId,
+        workspaceId: platformCredential.workspaceId,
+        resolvedCredentialId: platformCredential.id,
+      }
+    }
+
     if (platformCredential.type !== 'oauth' || !platformCredential.accountId) {
       return { ok: false, error: 'Unsupported credential type for OAuth access' }
     }
@@ -217,7 +265,7 @@ export async function authorizeCredentialUse(
     return { ok: false, error: 'Credential not found' }
   }
 
-  if (auth.authType === 'internal_jwt') {
+  if (auth.authType === AuthType.INTERNAL_JWT) {
     return { ok: false, error: 'workflowId is required' }
   }
 

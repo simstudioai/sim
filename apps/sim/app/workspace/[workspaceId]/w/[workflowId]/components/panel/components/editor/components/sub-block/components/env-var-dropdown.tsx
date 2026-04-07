@@ -10,11 +10,9 @@ import {
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { writePendingCredentialCreateRequest } from '@/lib/credentials/client-state'
-import {
-  usePersonalEnvironment,
-  useWorkspaceEnvironment,
-  type WorkspaceEnvironmentData,
-} from '@/hooks/queries/environment'
+import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
+import { usePersonalEnvironment, useWorkspaceEnvironment } from '@/hooks/queries/environment'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 /**
  * Props for the EnvVarDropdown component
@@ -119,6 +117,8 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
   maxHeight = 'none',
   inputRef,
 }) => {
+  const { navigateToSettings } = useSettingsNavigation()
+
   // React Query hooks for environment variables
   const { data: personalEnv = {} } = usePersonalEnvironment()
   const { data: workspaceEnvData } = useWorkspaceEnvironment(workspaceId || '', {
@@ -177,7 +177,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
         requestedAt: Date.now(),
       })
     }
-    window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'credentials' } }))
+    navigateToSettings({ section: 'secrets' })
     onClose?.()
   }
 
@@ -277,7 +277,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
   }
 
   return (
-    <Popover open={visible} onOpenChange={(open) => !open && onClose?.()}>
+    <Popover open={visible} onOpenChange={(open) => !open && onClose?.()} colorScheme='inverted'>
       <PopoverAnchor asChild>
         <div
           className={cn('pointer-events-none', className)}

@@ -1,5 +1,5 @@
 import { JinaAIIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import type { ReadUrlResponse, SearchResponse } from '@/tools/jina/types'
 
 export const JinaBlock: BlockConfig<ReadUrlResponse | SearchResponse> = {
@@ -11,6 +11,8 @@ export const JinaBlock: BlockConfig<ReadUrlResponse | SearchResponse> = {
     'Integrate Jina AI into the workflow. Search the web and get LLM-friendly results, or extract clean content from specific URLs with advanced parsing options.',
   docsLink: 'https://docs.sim.ai/tools/jina',
   category: 'tools',
+  integrationType: IntegrationType.Search,
+  tags: ['web-scraping', 'knowledge-base'],
   bgColor: '#333333',
   icon: JinaAIIcon,
   subBlocks: [
@@ -144,6 +146,7 @@ export const JinaBlock: BlockConfig<ReadUrlResponse | SearchResponse> = {
       required: true,
       placeholder: 'Enter your Jina API key',
       password: true,
+      hideWhenHosted: true,
     },
   ],
   tools: {

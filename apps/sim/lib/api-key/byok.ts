@@ -3,14 +3,16 @@ import { workspaceBYOKKeys } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
+import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 import { getHostedModels } from '@/providers/models'
+import { PROVIDER_PLACEHOLDER_KEY } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
+import type { BYOKProviderId } from '@/tools/types'
 
 const logger = createLogger('BYOKKeys')
-
-export type BYOKProviderId = 'openai' | 'anthropic' | 'google' | 'mistral'
 
 export interface BYOKKeyResult {
   apiKey: string
@@ -26,6 +28,11 @@ export async function getBYOKKey(
   }
 
   try {
+    const activeWorkspace = await getWorkspaceById(workspaceId)
+    if (!activeWorkspace) {
+      return null
+    }
+
     const result = await db
       .select({ encryptedApiKey: workspaceBYOKKeys.encryptedApiKey })
       .from(workspaceBYOKKeys)
@@ -64,12 +71,40 @@ export async function getApiKeyWithBYOK(
   const isVllmModel =
     provider === 'vllm' || useProvidersStore.getState().providers.vllm.models.includes(model)
   if (isVllmModel) {
-    return { apiKey: userProvidedKey || 'empty', isBYOK: false }
+    return { apiKey: userProvidedKey || env.VLLM_API_KEY || 'empty', isBYOK: false }
+  }
+
+  const isFireworksModel =
+    provider === 'fireworks' ||
+    useProvidersStore.getState().providers.fireworks.models.includes(model)
+  if (isFireworksModel) {
+    if (workspaceId) {
+      const byokResult = await getBYOKKey(workspaceId, 'fireworks')
+      if (byokResult) {
+        logger.info('Using BYOK key for Fireworks', { model, workspaceId })
+        return byokResult
+      }
+    }
+    if (userProvidedKey) {
+      return { apiKey: userProvidedKey, isBYOK: false }
+    }
+    if (env.FIREWORKS_API_KEY) {
+      return { apiKey: env.FIREWORKS_API_KEY, isBYOK: false }
+    }
+    throw new Error(`API key is required for Fireworks ${model}`)
   }
 
   const isBedrockModel = provider === 'bedrock' || model.startsWith('bedrock/')
   if (isBedrockModel) {
-    return { apiKey: 'bedrock-uses-own-credentials', isBYOK: false }
+    return { apiKey: PROVIDER_PLACEHOLDER_KEY, isBYOK: false }
+  }
+
+  if (provider === 'azure-openai') {
+    return { apiKey: userProvidedKey || env.AZURE_OPENAI_API_KEY || '', isBYOK: false }
+  }
+
+  if (provider === 'azure-anthropic') {
+    return { apiKey: userProvidedKey || env.AZURE_ANTHROPIC_API_KEY || '', isBYOK: false }
   }
 
   const isOpenAIModel = provider === 'openai'

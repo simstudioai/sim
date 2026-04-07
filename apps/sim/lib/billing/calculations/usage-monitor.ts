@@ -4,6 +4,8 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getUserUsageLimit } from '@/lib/billing/core/usage'
+import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
+import { getPlanTierDollars, isOrgPlan, isPaid } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 
 const logger = createLogger('UsageMonitor')
@@ -65,15 +67,34 @@ export async function checkUsageStatus(
       }
     }
 
-    // Get the current period cost from the user stats (use currentPeriodCost if available, fallback to totalCost)
-    const currentUsage = Number.parseFloat(
+    const rawUsage = Number.parseFloat(
       statsRecords[0].currentPeriodCost?.toString() || statsRecords[0].totalCost.toString()
     )
 
-    // Calculate percentage used
+    // Deduct daily refresh credits for individual paid plans only.
+    // Org plans apply refresh at the pooled level in the org usage check below.
+    let dailyRefreshDeduction = 0
+    if (
+      preloadedSubscription &&
+      isPaid(preloadedSubscription.plan) &&
+      !isOrgPlan(preloadedSubscription.plan) &&
+      preloadedSubscription.periodStart
+    ) {
+      const planDollars = getPlanTierDollars(preloadedSubscription.plan)
+      if (planDollars > 0) {
+        dailyRefreshDeduction = await computeDailyRefreshConsumed({
+          userIds: [userId],
+          periodStart: preloadedSubscription.periodStart,
+          periodEnd: preloadedSubscription.periodEnd ?? null,
+          planDollars,
+        })
+      }
+    }
+
+    const currentUsage = Math.max(0, rawUsage - dailyRefreshDeduction)
+
     const percentUsed = Math.min((currentUsage / limit) * 100, 100)
 
-    // Check org-level cap for team/enterprise pooled usage
     let isExceeded = currentUsage >= limit
     let isWarning = percentUsed >= WARNING_THRESHOLD && percentUsed < 100
     try {
@@ -90,13 +111,11 @@ export async function checkUsageStatus(
             .limit(1)
           if (orgRows.length) {
             const org = orgRows[0]
-            // Sum pooled usage
             const teamMembers = await db
               .select({ userId: member.userId })
               .from(member)
               .where(eq(member.organizationId, org.id))
 
-            // Get all team member usage in a single query to avoid N+1
             let pooledUsage = 0
             if (teamMembers.length > 0) {
               const memberIds = teamMembers.map((tm) => tm.userId)
@@ -111,7 +130,25 @@ export async function checkUsageStatus(
                 )
               }
             }
-            // Determine org cap from orgUsageLimit (should always be set for team/enterprise)
+            if (
+              preloadedSubscription &&
+              isPaid(preloadedSubscription.plan) &&
+              preloadedSubscription.periodStart
+            ) {
+              const planDollars = getPlanTierDollars(preloadedSubscription.plan)
+              if (planDollars > 0) {
+                const memberIds = teamMembers.map((tm) => tm.userId)
+                const orgRefreshDeduction = await computeDailyRefreshConsumed({
+                  userIds: memberIds,
+                  periodStart: preloadedSubscription.periodStart,
+                  periodEnd: preloadedSubscription.periodEnd ?? null,
+                  planDollars,
+                  seats: preloadedSubscription.seats ?? 1,
+                })
+                pooledUsage = Math.max(0, pooledUsage - orgRefreshDeduction)
+              }
+            }
+
             const orgCap = org.orgUsageLimit ? Number.parseFloat(String(org.orgUsageLimit)) : 0
             if (!orgCap || Number.isNaN(orgCap)) {
               logger.warn('Organization missing usage limit', { orgId: org.id })
@@ -209,13 +246,6 @@ export async function checkAndNotifyUsage(userId: string): Promise<void> {
         window.dispatchEvent(
           new CustomEvent('usage-warning', {
             detail: { usageData },
-          })
-        )
-
-        // Optionally open the subscription tab in settings
-        window.dispatchEvent(
-          new CustomEvent('open-settings', {
-            detail: { tab: 'subscription' },
           })
         )
       }

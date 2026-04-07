@@ -3,6 +3,7 @@ import Redis from 'ioredis'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 
 const logger = createLogger('RedisAPI')
 
@@ -23,6 +24,16 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const { url, command, args } = RequestSchema.parse(body)
+
+    const parsedUrl = new URL(url)
+    const hostname =
+      parsedUrl.hostname.startsWith('[') && parsedUrl.hostname.endsWith(']')
+        ? parsedUrl.hostname.slice(1, -1)
+        : parsedUrl.hostname
+    const hostValidation = await validateDatabaseHost(hostname, 'host')
+    if (!hostValidation.isValid) {
+      return NextResponse.json({ error: hostValidation.error }, { status: 400 })
+    }
 
     client = new Redis(url, {
       connectTimeout: 10000,

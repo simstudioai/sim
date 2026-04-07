@@ -1,5 +1,6 @@
 import { PostgresIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { IntegrationType } from '@/blocks/types'
 import type { PostgresResponse } from '@/tools/postgresql/types'
 
 export const PostgreSQLBlock: BlockConfig<PostgresResponse> = {
@@ -10,6 +11,8 @@ export const PostgreSQLBlock: BlockConfig<PostgresResponse> = {
     'Integrate PostgreSQL into the workflow. Can query, insert, update, delete, and execute raw SQL.',
   docsLink: 'https://docs.sim.ai/tools/postgresql',
   category: 'tools',
+  integrationType: IntegrationType.Databases,
+  tags: ['data-warehouse', 'data-analytics'],
   bgColor: '#336791',
   icon: PostgresIcon,
   subBlocks: [

@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to fetch Agent Card',
+        error: 'Failed to fetch Agent Card',
       },
       { status: 500 }
     )

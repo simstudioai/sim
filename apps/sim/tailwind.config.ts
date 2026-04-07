@@ -13,11 +13,39 @@ export default {
     extend: {
       fontFamily: {
         season: ['var(--font-season)'],
+        body: [
+          'ui-sans-serif',
+          '-apple-system',
+          'system-ui',
+          'Segoe UI',
+          'Helvetica',
+          'Apple Color Emoji',
+          'Arial',
+          'sans-serif',
+          'Segoe UI Emoji',
+          'Segoe UI Symbol',
+        ],
+        mono: [
+          'var(--font-martian-mono, ui-monospace)',
+          'SFMono-Regular',
+          'Menlo',
+          'Monaco',
+          'Consolas',
+          '"Liberation Mono"',
+          '"Courier New"',
+          'monospace',
+        ],
       },
       fontSize: {
+        micro: '10px',
         xs: '11px',
-        small: '13px', // Override default 14px to 13px
-        base: '15px', // Override default 16px to 15px
+        caption: '12px',
+        small: '13px',
+        base: '15px',
+        md: '16px',
+      },
+      spacing: {
+        '4.5': '18px',
       },
       colors: {
         background: 'hsl(var(--background))',
@@ -84,9 +112,25 @@ export default {
         semibold: 'var(--font-weight-semibold)',
       },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
+        xs: '2px',
         sm: 'calc(var(--radius) - 4px)',
+        md: 'calc(var(--radius) - 2px)',
+        lg: 'var(--radius)',
+      },
+      boxShadow: {
+        subtle: 'var(--shadow-subtle)',
+        medium: 'var(--shadow-medium)',
+        overlay: 'var(--shadow-overlay)',
+        kbd: 'var(--shadow-kbd)',
+        'kbd-sm': 'var(--shadow-kbd-sm)',
+        'brand-inset': 'var(--shadow-brand-inset)',
+        card: 'var(--shadow-card)',
+      },
+      dropShadow: {
+        tour: [
+          '0 0 0.5px color-mix(in srgb, var(--text-primary) 10%, transparent)',
+          '0 4px 12px rgba(0,0,0,0.1)',
+        ],
       },
       transitionProperty: {
         width: 'width',
@@ -142,6 +186,34 @@ export default {
             'box-shadow': '0 0 0 4px var(--border-success)',
           },
         },
+        'stream-fade-in': {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
+        'thinking-block': {
+          '0%, 100%': { opacity: '0.15' },
+          '30%, 55%': { opacity: '1' },
+        },
+        'slide-in-right': {
+          from: { transform: 'translateX(40px)' },
+          to: { transform: 'translateX(0)' },
+        },
+        'slide-in-bottom': {
+          from: { opacity: '0', transform: 'translateY(20px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+        'tour-tooltip-in': {
+          from: { opacity: '0', transform: 'scale(0.96) translateY(4px)' },
+          to: { opacity: '1', transform: 'scale(1) translateY(0)' },
+        },
+        'collapsible-down': {
+          from: { height: '0' },
+          to: { height: 'var(--radix-collapsible-content-height)' },
+        },
+        'collapsible-up': {
+          from: { height: 'var(--radix-collapsible-content-height)' },
+          to: { height: '0' },
+        },
       },
       animation: {
         'caret-blink': 'caret-blink 1.25s ease-out infinite',
@@ -150,8 +222,24 @@ export default {
         'dash-animation': 'dash-animation 1.5s linear infinite',
         'placeholder-pulse': 'placeholder-pulse 1.5s ease-in-out infinite',
         'ring-pulse': 'ring-pulse 1.5s ease-in-out infinite',
+        'stream-fade-in': 'stream-fade-in 300ms ease-out forwards',
+        'stream-fade-in-delayed': 'stream-fade-in 300ms ease-out 1.5s forwards',
+        'thinking-block': 'thinking-block 1.6s ease-in-out infinite',
+        'slide-in-right': 'slide-in-right 350ms ease-out forwards',
+        'slide-in-bottom': 'slide-in-bottom 400ms cubic-bezier(0.16, 1, 0.3, 1)',
+        'tour-tooltip-in': 'tour-tooltip-in 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+        'collapsible-down': 'collapsible-down 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+        'collapsible-up': 'collapsible-up 300ms cubic-bezier(0.4, 0, 0.2, 1)',
       },
     },
   },
-  plugins: [require('tailwindcss-animate'), require('@tailwindcss/typography')],
+  plugins: [
+    require('tailwindcss-animate'),
+    require('@tailwindcss/typography'),
+    require('tailwindcss/plugin')(
+      ({ addVariant }: { addVariant: (name: string, definition: string) => void }) => {
+        addVariant('hover-hover', '@media (hover: hover) and (pointer: fine) { &:hover }')
+      }
+    ),
+  ],
 } satisfies Config

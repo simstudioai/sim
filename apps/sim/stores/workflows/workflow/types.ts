@@ -1,6 +1,5 @@
 import type { Edge } from 'reactflow'
 import type { OutputFieldDefinition, SubBlockType } from '@/blocks/types'
-import type { DeploymentStatus } from '@/stores/workflows/registry/types'
 
 export const SUBFLOW_TYPES = {
   LOOP: 'loop',
@@ -160,6 +159,7 @@ export interface DragStartPosition {
 }
 
 export interface WorkflowState {
+  currentWorkflowId?: string | null
   blocks: Record<string, BlockState>
   edges: Edge[]
   lastSaved?: number
@@ -172,8 +172,6 @@ export interface WorkflowState {
     exportedAt?: string
   }
   variables?: Record<string, Variable>
-  deploymentStatuses?: Record<string, DeploymentStatus>
-  needsRedeployment?: boolean
   dragStartPosition?: DragStartPosition | null
 }
 
@@ -212,6 +210,7 @@ export interface WorkflowActions {
   }
   setBlockAdvancedMode: (id: string, advancedMode: boolean) => void
   setBlockCanonicalMode: (id: string, canonicalId: string, mode: 'basic' | 'advanced') => void
+  syncDynamicHandleSubblockValue: (blockId: string, subblockId: string, value: unknown) => void
   setBlockTriggerMode: (id: string, triggerMode: boolean) => void
   updateBlockLayoutMetrics: (id: string, dimensions: { width: number; height: number }) => void
   triggerUpdate: () => void
@@ -226,8 +225,6 @@ export interface WorkflowActions {
   updateParallelType: (parallelId: string, parallelType: 'count' | 'collection') => void
   generateLoopBlocks: () => Record<string, Loop>
   generateParallelBlocks: () => Record<string, Parallel>
-  setNeedsRedeploymentFlag: (needsRedeployment: boolean) => void
-  revertToDeployedState: (deployedState: WorkflowState) => void
   toggleBlockAdvancedMode: (id: string) => void
   setDragStartPosition: (position: DragStartPosition | null) => void
   getDragStartPosition: () => DragStartPosition | null
@@ -238,6 +235,7 @@ export interface WorkflowActions {
   ) => void
   setBlockLocked: (id: string, locked: boolean) => void
   batchToggleLocked: (ids: string[]) => void
+  setCurrentWorkflowId: (workflowId: string | null) => void
 }
 
 export type WorkflowStore = WorkflowState & WorkflowActions

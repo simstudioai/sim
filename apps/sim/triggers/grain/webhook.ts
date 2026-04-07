@@ -1,12 +1,12 @@
 import { GrainIcon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
-import { buildGenericOutputs, grainSetupInstructions } from './utils'
+import { buildGenericOutputs, grainV2SetupInstructions } from './utils'
 
 export const grainWebhookTrigger: TriggerConfig = {
   id: 'grain_webhook',
-  name: 'Grain Webhook',
+  name: 'Grain All Events',
   provider: 'grain',
-  description: 'Generic webhook trigger for all Grain events',
+  description: 'Trigger on all actions (added, updated, removed) in a Grain view',
   version: '1.0.0',
   icon: GrainIcon,
 
@@ -18,6 +18,20 @@ export const grainWebhookTrigger: TriggerConfig = {
       placeholder: 'Enter your Grain API key (Personal Access Token)',
       description: 'Required to create the webhook in Grain.',
       password: true,
+      required: true,
+      mode: 'trigger',
+      condition: {
+        field: 'selectedTriggerId',
+        value: 'grain_webhook',
+      },
+    },
+    {
+      id: 'viewId',
+      title: 'View ID',
+      type: 'short-input',
+      placeholder: 'Enter Grain view UUID',
+      description:
+        'The view determines which content type fires events (recordings, highlights, or stories).',
       required: true,
       mode: 'trigger',
       condition: {
@@ -42,7 +56,7 @@ export const grainWebhookTrigger: TriggerConfig = {
       title: 'Setup Instructions',
       hideFromPreview: true,
       type: 'text',
-      defaultValue: grainSetupInstructions('All events'),
+      defaultValue: grainV2SetupInstructions('all'),
       mode: 'trigger',
       condition: {
         field: 'selectedTriggerId',

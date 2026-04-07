@@ -4,6 +4,8 @@
  */
 
 import { DEFAULT_FREE_CREDITS } from '@/lib/billing/constants'
+import { getPlanTierCredits, isEnterprise, isFree, isPro } from '@/lib/billing/plan-helpers'
+import { hasUsableSubscriptionAccess } from '@/lib/billing/subscriptions/utils'
 import { USAGE_PILL_COLORS } from './consts'
 import type { BillingStatus, SubscriptionData, UsageData } from './types'
 
@@ -21,7 +23,9 @@ const defaultUsage: UsageData = {
 /**
  * Get subscription status flags from subscription data
  */
-export function getSubscriptionStatus(subscriptionData: SubscriptionData | null | undefined) {
+export function getSubscriptionStatus(
+  subscriptionData: Partial<SubscriptionData> | null | undefined
+) {
   return {
     isPaid: subscriptionData?.isPaid ?? false,
     isPro: subscriptionData?.isPro ?? false,
@@ -35,11 +39,34 @@ export function getSubscriptionStatus(subscriptionData: SubscriptionData | null 
   }
 }
 
+export function getSubscriptionAccessState(
+  subscriptionData: Partial<SubscriptionData> | null | undefined
+) {
+  const status = getSubscriptionStatus(subscriptionData)
+  const billingBlocked = Boolean(subscriptionData?.billingBlocked)
+  const hasUsablePaidAccess = hasUsableSubscriptionAccess(status.status, billingBlocked)
+  const hasUsableTeamAccess = hasUsablePaidAccess && (status.isTeam || status.isEnterprise)
+  const hasUsableEnterpriseAccess = hasUsablePaidAccess && status.isEnterprise
+  const hasUsableMaxAccess =
+    hasUsablePaidAccess && (getPlanTierCredits(status.plan) >= 25000 || isEnterprise(status.plan))
+
+  return {
+    ...status,
+    billingBlocked,
+    hasUsablePaidAccess,
+    hasUsableTeamAccess,
+    hasUsableEnterpriseAccess,
+    hasUsableMaxAccess,
+  }
+}
+
 /**
  * Get usage data from subscription data
  * Validates and sanitizes all numeric values to prevent crashes from malformed data
  */
-export function getUsage(subscriptionData: SubscriptionData | null | undefined): UsageData {
+export function getUsage(
+  subscriptionData: Partial<SubscriptionData> | null | undefined
+): UsageData {
   const usage = subscriptionData?.usage
 
   if (!usage) {
@@ -72,7 +99,7 @@ export function getUsage(subscriptionData: SubscriptionData | null | undefined):
  * Get billing status based on usage and blocked state
  */
 export function getBillingStatus(
-  subscriptionData: SubscriptionData | null | undefined
+  subscriptionData: Partial<SubscriptionData> | null | undefined
 ): BillingStatus {
   const usage = getUsage(subscriptionData)
   const blocked = subscriptionData?.billingBlocked
@@ -85,7 +112,9 @@ export function getBillingStatus(
 /**
  * Get remaining budget
  */
-export function getRemainingBudget(subscriptionData: SubscriptionData | null | undefined): number {
+export function getRemainingBudget(
+  subscriptionData: Partial<SubscriptionData> | null | undefined
+): number {
   const usage = getUsage(subscriptionData)
   return Math.max(0, usage.limit - usage.current)
 }
@@ -94,13 +123,16 @@ export function getRemainingBudget(subscriptionData: SubscriptionData | null | u
  * Get days remaining in billing period
  */
 export function getDaysRemainingInPeriod(
-  subscriptionData: SubscriptionData | null | undefined
+  subscriptionData: Partial<SubscriptionData> | null | undefined
 ): number | null {
   const usage = getUsage(subscriptionData)
   if (!usage.billingPeriodEnd) return null
 
   const now = new Date()
-  const endDate = usage.billingPeriodEnd
+  const endDate =
+    typeof usage.billingPeriodEnd === 'string'
+      ? new Date(usage.billingPeriodEnd)
+      : usage.billingPeriodEnd
   const diffTime = endDate.getTime() - now.getTime()
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
@@ -110,7 +142,9 @@ export function getDaysRemainingInPeriod(
 /**
  * Check if subscription is at least Pro tier
  */
-export function isAtLeastPro(subscriptionData: SubscriptionData | null | undefined): boolean {
+export function isAtLeastPro(
+  subscriptionData: Partial<SubscriptionData> | null | undefined
+): boolean {
   const status = getSubscriptionStatus(subscriptionData)
   return status.isPro || status.isTeam || status.isEnterprise
 }
@@ -118,14 +152,18 @@ export function isAtLeastPro(subscriptionData: SubscriptionData | null | undefin
 /**
  * Check if subscription is at least Team tier
  */
-export function isAtLeastTeam(subscriptionData: SubscriptionData | null | undefined): boolean {
+export function isAtLeastTeam(
+  subscriptionData: Partial<SubscriptionData> | null | undefined
+): boolean {
   const status = getSubscriptionStatus(subscriptionData)
   return status.isTeam || status.isEnterprise
 }
 
-export function canUpgrade(subscriptionData: SubscriptionData | null | undefined): boolean {
+export function canUpgrade(
+  subscriptionData: Partial<SubscriptionData> | null | undefined
+): boolean {
   const status = getSubscriptionStatus(subscriptionData)
-  return status.plan === 'free' || status.plan === 'pro'
+  return isFree(status.plan) || isPro(status.plan)
 }
 
 /**

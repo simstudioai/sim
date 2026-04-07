@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Button,
@@ -13,9 +13,9 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Skeleton,
   Tooltip,
 } from '@/components/emcn'
-import { Skeleton } from '@/components/ui'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { Preview, PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useDeploymentVersionState, useRevertToVersion } from '@/hooks/queries/workflows'
@@ -26,7 +26,7 @@ const logger = createLogger('GeneralDeploy')
 
 interface GeneralDeployProps {
   workflowId: string | null
-  deployedState: WorkflowState
+  deployedState?: WorkflowState | null
   isLoadingDeployedState: boolean
   versions: WorkflowDeploymentVersionResponse[]
   versionsLoading: boolean
@@ -49,7 +49,10 @@ export function GeneralDeploy({
   onLoadDeploymentComplete,
 }: GeneralDeployProps) {
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
-  const [previewMode, setPreviewMode] = useState<PreviewMode>('active')
+  const [showActiveDespiteSelection, setShowActiveDespiteSelection] = useState(false)
+  // Derived — no useEffect needed
+  const previewMode: PreviewMode =
+    selectedVersion !== null && !showActiveDespiteSelection ? 'selected' : 'active'
   const [showLoadDialog, setShowLoadDialog] = useState(false)
   const [showPromoteDialog, setShowPromoteDialog] = useState(false)
   const [showExpandedPreview, setShowExpandedPreview] = useState(false)
@@ -64,16 +67,9 @@ export function GeneralDeploy({
 
   const revertMutation = useRevertToVersion()
 
-  useEffect(() => {
-    if (selectedVersion !== null) {
-      setPreviewMode('selected')
-    } else {
-      setPreviewMode('active')
-    }
-  }, [selectedVersion])
-
   const handleSelectVersion = useCallback((version: number | null) => {
     setSelectedVersion(version)
+    setShowActiveDespiteSelection(false)
   }, [])
 
   const handleLoadDeployment = useCallback((version: number) => {
@@ -129,18 +125,18 @@ export function GeneralDeploy({
 
   if (showLoadingSkeleton) {
     return (
-      <div className='space-y-[12px]'>
+      <div className='space-y-3'>
         <div>
           <div className='relative mb-[6.5px]'>
             <Skeleton className='h-[16px] w-[90px]' />
           </div>
-          <div className='h-[260px] w-full overflow-hidden rounded-[4px] border border-[var(--border)]'>
+          <div className='h-[260px] w-full overflow-hidden rounded-sm border border-[var(--border)]'>
             <Skeleton className='h-full w-full rounded-none' />
           </div>
         </div>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[60px]' />
-          <div className='h-[120px] w-full overflow-hidden rounded-[4px] border border-[var(--border)]'>
+          <div className='h-[120px] w-full overflow-hidden rounded-sm border border-[var(--border)]'>
             <Skeleton className='h-full w-full rounded-none' />
           </div>
         </div>
@@ -150,10 +146,10 @@ export function GeneralDeploy({
 
   return (
     <>
-      <div className='space-y-[12px]'>
+      <div className='space-y-3'>
         <div>
           <div className='relative mb-[6.5px]'>
-            <Label className='block truncate pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+            <Label className='block truncate pl-0.5 font-medium text-[var(--text-primary)] text-small'>
               {previewMode === 'selected' && selectedVersionInfo
                 ? selectedVersionInfo.name || `v${selectedVersion}`
                 : 'Live Workflow'}
@@ -164,7 +160,9 @@ export function GeneralDeploy({
             >
               <ButtonGroup
                 value={previewMode}
-                onValueChange={(val) => setPreviewMode(val as PreviewMode)}
+                onValueChange={(val) =>
+                  setShowActiveDespiteSelection((val as PreviewMode) === 'active')
+                }
               >
                 <ButtonGroupItem value='active'>Live</ButtonGroupItem>
                 <ButtonGroupItem value='selected' className='truncate'>
@@ -175,7 +173,7 @@ export function GeneralDeploy({
           </div>
 
           <div
-            className='relative h-[260px] w-full overflow-hidden rounded-[4px] border border-[var(--border)]'
+            className='relative h-[260px] w-full overflow-hidden rounded-sm border border-[var(--border)]'
             onWheelCapture={(e) => {
               if (e.ctrlKey || e.metaKey) return
               e.stopPropagation()
@@ -199,7 +197,7 @@ export function GeneralDeploy({
                       type='button'
                       variant='default'
                       onClick={() => setShowExpandedPreview(true)}
-                      className='absolute right-[8px] bottom-[8px] z-10 h-[28px] w-[28px] cursor-pointer border border-[var(--border)] bg-transparent p-0 backdrop-blur-sm hover:bg-[var(--surface-3)]'
+                      className='absolute right-[8px] bottom-2 z-10 h-[28px] w-[28px] cursor-pointer border border-[var(--border)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
                     >
                       <Expand className='h-[14px] w-[14px]' />
                     </Button>
@@ -208,7 +206,7 @@ export function GeneralDeploy({
                 </Tooltip.Root>
               </>
             ) : (
-              <div className='flex h-full items-center justify-center text-[#8D8D8D] text-[13px]'>
+              <div className='flex h-full items-center justify-center text-[var(--text-placeholder)] text-small'>
                 Deploy your workflow to see a preview
               </div>
             )}
@@ -216,7 +214,7 @@ export function GeneralDeploy({
         </div>
 
         <div>
-          <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Versions
           </Label>
           <Versions
@@ -235,7 +233,7 @@ export function GeneralDeploy({
         <ModalContent size='sm'>
           <ModalHeader>Load Deployment</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to load{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {versionToLoadInfo?.name || `v${versionToLoad}`}
@@ -261,7 +259,7 @@ export function GeneralDeploy({
         <ModalContent size='sm'>
           <ModalHeader>Promote to live</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to promote{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {versionToPromoteInfo?.name || `v${versionToPromote}`}

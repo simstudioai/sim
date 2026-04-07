@@ -827,28 +827,28 @@ try {
               <ModalTabsContent value='schema'>
                 <div className='mb-1 flex min-h-6 items-center justify-between gap-2'>
                   <div className='flex min-w-0 items-center gap-2'>
-                    <Label htmlFor='json-schema' className='font-medium text-[13px]'>
+                    <Label htmlFor='json-schema' className='font-medium text-small'>
                       JSON Schema
                     </Label>
                     {schemaError && (
-                      <div className='ml-2 flex min-w-0 items-center gap-1 text-[12px] text-[var(--text-error)]'>
+                      <div className='ml-2 flex min-w-0 items-center gap-1 text-[var(--text-error)] text-caption'>
                         <AlertCircle className='h-3 w-3 flex-shrink-0' />
                         <span className='truncate'>{schemaError}</span>
                       </div>
                     )}
                   </div>
-                  <div className='flex min-w-0 items-center justify-end gap-[4px]'>
+                  <div className='flex min-w-0 items-center justify-end gap-1'>
                     {!isSchemaPromptActive ? (
                       <Button
                         variant='active'
-                        className='-my-1 h-5 px-2 py-0 text-[11px]'
+                        className='-my-1 h-5 px-2 py-0 text-xs'
                         onClick={handleSchemaWandClick}
                         disabled={schemaGeneration.isLoading || schemaGeneration.isStreaming}
                       >
                         Generate
                       </Button>
                     ) : (
-                      <div className='-my-1 flex items-center gap-[4px]'>
+                      <div className='-my-1 flex items-center gap-1'>
                         <Input
                           ref={schemaPromptInputRef}
                           value={schemaGeneration.isStreaming ? 'Generating...' : schemaPromptInput}
@@ -857,13 +857,13 @@ try {
                           onKeyDown={handleSchemaPromptKeyDown}
                           disabled={schemaGeneration.isStreaming}
                           className={cn(
-                            'h-5 max-w-[200px] flex-1 text-[11px]',
+                            'h-5 max-w-[200px] flex-1 text-xs',
                             schemaGeneration.isStreaming && 'text-muted-foreground'
                           )}
                           placeholder='Generate...'
                         />
                         <Button
-                          variant='tertiary'
+                          variant='primary'
                           disabled={!schemaPromptInput.trim() || schemaGeneration.isStreaming}
                           onMouseDown={(e) => {
                             e.preventDefault()
@@ -919,28 +919,28 @@ try {
               <ModalTabsContent value='code'>
                 <div className='mb-1 flex min-h-6 items-center justify-between gap-2'>
                   <div className='flex min-w-0 items-center gap-2'>
-                    <Label htmlFor='function-code' className='font-medium text-[13px]'>
+                    <Label htmlFor='function-code' className='font-medium text-small'>
                       Code
                     </Label>
                     {codeError && !codeGeneration.isStreaming && (
-                      <div className='ml-2 flex min-w-0 items-center gap-1 text-[12px] text-[var(--text-error)]'>
+                      <div className='ml-2 flex min-w-0 items-center gap-1 text-[var(--text-error)] text-caption'>
                         <AlertCircle className='h-3 w-3 flex-shrink-0' />
                         <span className='truncate'>{codeError}</span>
                       </div>
                     )}
                   </div>
-                  <div className='flex min-w-0 items-center justify-end gap-[4px]'>
+                  <div className='flex min-w-0 items-center justify-end gap-1'>
                     {!isCodePromptActive ? (
                       <Button
                         variant='active'
-                        className='-my-1 h-5 px-2 py-0 text-[11px]'
+                        className='-my-1 h-5 px-2 py-0 text-xs'
                         onClick={handleCodeWandClick}
                         disabled={codeGeneration.isLoading || codeGeneration.isStreaming}
                       >
                         Generate
                       </Button>
                     ) : (
-                      <div className='-my-1 flex items-center gap-[4px]'>
+                      <div className='-my-1 flex items-center gap-1'>
                         <Input
                           ref={codePromptInputRef}
                           value={codeGeneration.isStreaming ? 'Generating...' : codePromptInput}
@@ -949,13 +949,13 @@ try {
                           onKeyDown={handleCodePromptKeyDown}
                           disabled={codeGeneration.isStreaming}
                           className={cn(
-                            'h-5 max-w-[200px] flex-1 text-[11px]',
+                            'h-5 max-w-[200px] flex-1 text-xs',
                             codeGeneration.isStreaming && 'text-muted-foreground'
                           )}
                           placeholder='Generate...'
                         />
                         <Button
-                          variant='tertiary'
+                          variant='primary'
                           disabled={!codePromptInput.trim() || codeGeneration.isStreaming}
                           onMouseDown={(e) => {
                             e.preventDefault()
@@ -974,7 +974,7 @@ try {
                   </div>
                 </div>
                 {schemaParameters.length > 0 && (
-                  <div className='mb-2 rounded-[6px] border bg-[var(--surface-2)] p-2'>
+                  <div className='mb-2 rounded-md border bg-[var(--surface-2)] p-2'>
                     <div className='flex flex-wrap items-center gap-1.5 text-xs'>
                       <span className='font-medium text-[var(--text-tertiary)]'>
                         Available parameters:
@@ -1061,6 +1061,7 @@ try {
                           setShowSchemaParams(false)
                         }
                       }}
+                      colorScheme='inverted'
                     >
                       <PopoverAnchor asChild>
                         <div
@@ -1102,11 +1103,9 @@ try {
                                 }
                               }}
                             >
-                              <span className='flex-1 truncate text-[var(--text-primary)]'>
-                                {param.name}
-                              </span>
+                              <span className='flex-1 truncate'>{param.name}</span>
                               {param.type && param.type !== 'any' && (
-                                <span className='ml-auto text-[10px] text-[var(--text-secondary)]'>
+                                <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>
                                   {param.type}
                                 </span>
                               )}
@@ -1135,7 +1134,7 @@ try {
                   Cancel
                 </Button>
                 <Button
-                  variant='tertiary'
+                  variant='primary'
                   onClick={() => setActiveSection('code')}
                   disabled={!isSchemaValid || !!schemaError}
                 >
@@ -1161,7 +1160,7 @@ try {
                   Cancel
                 </Button>
                 <Button
-                  variant='tertiary'
+                  variant='primary'
                   onClick={handleSave}
                   disabled={!isSchemaValid || !!schemaError || !hasChanges}
                 >
@@ -1177,9 +1176,12 @@ try {
         <ModalContent size='sm'>
           <ModalHeader>Delete Custom Tool</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
-              This will permanently delete the tool and remove it from any workflows that are using
-              it. <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            <p className='text-[var(--text-secondary)]'>
+              <span className='text-[var(--text-error)]'>
+                This will permanently delete the tool and remove it from any workflows that are
+                using it.
+              </span>{' '}
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
           <ModalFooter>
@@ -1205,7 +1207,7 @@ try {
         <ModalContent size='sm'>
           <ModalHeader>Unsaved Changes</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               You have unsaved changes to this tool. Are you sure you want to discard your changes
               and close the editor?
             </p>

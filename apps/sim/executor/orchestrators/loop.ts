@@ -51,11 +51,34 @@ export class LoopOrchestrator {
     private edgeManager: EdgeManager | null = null
   ) {}
 
-  initializeLoopScope(ctx: ExecutionContext, loopId: string): LoopScope {
+  async initializeLoopScope(ctx: ExecutionContext, loopId: string): Promise<LoopScope> {
     const loopConfig = this.dag.loopConfigs.get(loopId) as SerializedLoop | undefined
     if (!loopConfig) {
       throw new Error(`Loop config not found: ${loopId}`)
     }
+
+    if (loopConfig.nodes.length === 0) {
+      const errorMessage =
+        'Loop has no executable blocks inside. Add or enable at least one block in the loop.'
+      const loopType = loopConfig.loopType || 'for'
+      logger.error(errorMessage, { loopId })
+      await this.addLoopErrorLog(ctx, loopId, loopType, errorMessage, {})
+      const errorScope: LoopScope = {
+        iteration: 0,
+        maxIterations: 0,
+        loopType,
+        currentIterationOutputs: new Map(),
+        allIterationOutputs: [],
+        condition: 'false',
+        validationError: errorMessage,
+      }
+      if (!ctx.loopExecutions) {
+        ctx.loopExecutions = new Map()
+      }
+      ctx.loopExecutions.set(loopId, errorScope)
+      throw new Error(errorMessage)
+    }
+
     const scope: LoopScope = {
       iteration: 0,
       currentIterationOutputs: new Map(),
@@ -76,7 +99,7 @@ export class LoopOrchestrator {
         )
         if (iterationError) {
           logger.error(iterationError, { loopId, requestedIterations })
-          this.addLoopErrorLog(ctx, loopId, loopType, iterationError, {
+          await this.addLoopErrorLog(ctx, loopId, loopType, iterationError, {
             iterations: requestedIterations,
           })
           scope.maxIterations = 0
@@ -93,13 +116,31 @@ export class LoopOrchestrator {
 
       case 'forEach': {
         scope.loopType = 'forEach'
+        if (
+          loopConfig.forEachItems === undefined ||
+          loopConfig.forEachItems === null ||
+          loopConfig.forEachItems === ''
+        ) {
+          const errorMessage =
+            'ForEach loop collection is empty. Provide an array or a reference that resolves to a collection.'
+          logger.error(errorMessage, { loopId })
+          await this.addLoopErrorLog(ctx, loopId, loopType, errorMessage, {
+            forEachItems: loopConfig.forEachItems,
+          })
+          scope.items = []
+          scope.maxIterations = 0
+          scope.validationError = errorMessage
+          scope.condition = buildLoopIndexCondition(0)
+          ctx.loopExecutions?.set(loopId, scope)
+          throw new Error(errorMessage)
+        }
         let items: any[]
         try {
           items = resolveArrayInput(ctx, loopConfig.forEachItems, this.resolver)
         } catch (error) {
           const errorMessage = `ForEach loop resolution failed: ${error instanceof Error ? error.message : String(error)}`
           logger.error(errorMessage, { loopId, forEachItems: loopConfig.forEachItems })
-          this.addLoopErrorLog(ctx, loopId, loopType, errorMessage, {
+          await this.addLoopErrorLog(ctx, loopId, loopType, errorMessage, {
             forEachItems: loopConfig.forEachItems,
           })
           scope.items = []
@@ -117,7 +158,7 @@ export class LoopOrchestrator {
         )
         if (sizeError) {
           logger.error(sizeError, { loopId, collectionSize: items.length })
-          this.addLoopErrorLog(ctx, loopId, loopType, sizeError, {
+          await this.addLoopErrorLog(ctx, loopId, loopType, sizeError, {
             forEachItems: loopConfig.forEachItems,
             collectionSize: items.length,
           })
@@ -155,7 +196,7 @@ export class LoopOrchestrator {
           )
           if (iterationError) {
             logger.error(iterationError, { loopId, requestedIterations })
-            this.addLoopErrorLog(ctx, loopId, loopType, iterationError, {
+            await this.addLoopErrorLog(ctx, loopId, loopType, iterationError, {
               iterations: requestedIterations,
             })
             scope.maxIterations = 0
@@ -182,14 +223,14 @@ export class LoopOrchestrator {
     return scope
   }
 
-  private addLoopErrorLog(
+  private async addLoopErrorLog(
     ctx: ExecutionContext,
     loopId: string,
     loopType: string,
     errorMessage: string,
     inputData?: any
-  ): void {
-    addSubflowErrorLog(
+  ): Promise<void> {
+    await addSubflowErrorLog(
       ctx,
       loopId,
       'loop',
@@ -238,7 +279,7 @@ export class LoopOrchestrator {
     }
     if (isCancelled) {
       logger.info('Loop execution cancelled', { loopId, iteration: scope.iteration })
-      return this.createExitResult(ctx, loopId, scope)
+      return await this.createExitResult(ctx, loopId, scope)
     }
 
     const iterationResults: NormalizedBlockOutput[] = []
@@ -253,7 +294,7 @@ export class LoopOrchestrator {
     scope.currentIterationOutputs.clear()
 
     if (!(await this.evaluateCondition(ctx, scope, scope.iteration + 1))) {
-      return this.createExitResult(ctx, loopId, scope)
+      return await this.createExitResult(ctx, loopId, scope)
     }
 
     scope.iteration++
@@ -269,11 +310,11 @@ export class LoopOrchestrator {
     }
   }
 
-  private createExitResult(
+  private async createExitResult(
     ctx: ExecutionContext,
     loopId: string,
     scope: LoopScope
-  ): LoopContinuationResult {
+  ): Promise<LoopContinuationResult> {
     const results = scope.allIterationOutputs
     const output = { results }
     this.state.setBlockOutput(loopId, output, DEFAULTS.EXECUTION_TIME)
@@ -282,19 +323,26 @@ export class LoopOrchestrator {
       const now = new Date().toISOString()
       const iterationContext = buildContainerIterationContext(ctx, loopId)
 
-      this.contextExtensions.onBlockComplete(
-        loopId,
-        'Loop',
-        'loop',
-        {
-          output,
-          executionTime: DEFAULTS.EXECUTION_TIME,
-          startedAt: now,
-          executionOrder: getNextExecutionOrder(ctx),
-          endedAt: now,
-        },
-        iterationContext
-      )
+      try {
+        await this.contextExtensions.onBlockComplete(
+          loopId,
+          'Loop',
+          'loop',
+          {
+            output,
+            executionTime: DEFAULTS.EXECUTION_TIME,
+            startedAt: now,
+            executionOrder: getNextExecutionOrder(ctx),
+            endedAt: now,
+          },
+          iterationContext
+        )
+      } catch (error) {
+        logger.warn('Loop completion callback failed', {
+          loopId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
     }
 
     return {
@@ -597,7 +645,7 @@ export class LoopOrchestrator {
       if (!scope.items || scope.items.length === 0) {
         logger.info('ForEach loop has empty collection, skipping loop body', { loopId })
         this.state.setBlockOutput(loopId, { results: [] }, DEFAULTS.EXECUTION_TIME)
-        emitEmptySubflowEvents(ctx, loopId, 'loop', this.contextExtensions)
+        await emitEmptySubflowEvents(ctx, loopId, 'loop', this.contextExtensions)
         return false
       }
       return true
@@ -607,7 +655,7 @@ export class LoopOrchestrator {
       if (scope.maxIterations === 0) {
         logger.info('For loop has 0 iterations, skipping loop body', { loopId })
         this.state.setBlockOutput(loopId, { results: [] }, DEFAULTS.EXECUTION_TIME)
-        emitEmptySubflowEvents(ctx, loopId, 'loop', this.contextExtensions)
+        await emitEmptySubflowEvents(ctx, loopId, 'loop', this.contextExtensions)
         return false
       }
       return true
@@ -621,7 +669,7 @@ export class LoopOrchestrator {
       if (!scope.condition) {
         logger.warn('No condition defined for while loop', { loopId })
         this.state.setBlockOutput(loopId, { results: [] }, DEFAULTS.EXECUTION_TIME)
-        emitEmptySubflowEvents(ctx, loopId, 'loop', this.contextExtensions)
+        await emitEmptySubflowEvents(ctx, loopId, 'loop', this.contextExtensions)
         return false
       }
 
@@ -634,7 +682,7 @@ export class LoopOrchestrator {
 
       if (!result) {
         this.state.setBlockOutput(loopId, { results: [] }, DEFAULTS.EXECUTION_TIME)
-        emitEmptySubflowEvents(ctx, loopId, 'loop', this.contextExtensions)
+        await emitEmptySubflowEvents(ctx, loopId, 'loop', this.contextExtensions)
       }
 
       return result

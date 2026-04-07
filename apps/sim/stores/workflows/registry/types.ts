@@ -1,13 +1,6 @@
 import type { Edge } from 'reactflow'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 
-export interface DeploymentStatus {
-  isDeployed: boolean
-  deployedAt?: Date
-  apiKey?: string
-  needsRedeployment?: boolean
-}
-
 export interface ClipboardData {
   blocks: Record<string, BlockState>
   edges: Edge[]
@@ -27,15 +20,12 @@ export interface WorkflowMetadata {
   workspaceId?: string
   folderId?: string | null
   sortOrder: number
+  archivedAt?: Date | null
+  /** True for sandbox exercises (Sim Academy). Skips real API calls. */
+  isSandbox?: boolean
 }
 
-export type HydrationPhase =
-  | 'idle'
-  | 'metadata-loading'
-  | 'metadata-ready'
-  | 'state-loading'
-  | 'ready'
-  | 'error'
+export type HydrationPhase = 'idle' | 'creating' | 'state-loading' | 'ready' | 'error'
 
 export interface HydrationState {
   phase: HydrationPhase
@@ -46,33 +36,19 @@ export interface HydrationState {
 }
 
 export interface WorkflowRegistryState {
-  workflows: Record<string, WorkflowMetadata>
   activeWorkflowId: string | null
   error: string | null
-  deploymentStatuses: Record<string, DeploymentStatus>
   hydration: HydrationState
   clipboard: ClipboardData | null
   pendingSelection: string[] | null
 }
 
 export interface WorkflowRegistryActions {
-  beginMetadataLoad: (workspaceId: string) => void
-  completeMetadataLoad: (workspaceId: string, workflows: WorkflowMetadata[]) => void
-  failMetadataLoad: (workspaceId: string | null, error: string) => void
   setActiveWorkflow: (id: string) => Promise<void>
   loadWorkflowState: (workflowId: string) => Promise<void>
-  switchToWorkspace: (id: string) => Promise<void>
-  removeWorkflow: (id: string) => Promise<void>
-  updateWorkflow: (id: string, metadata: Partial<WorkflowMetadata>) => Promise<void>
-  duplicateWorkflow: (sourceId: string) => Promise<string | null>
-  getWorkflowDeploymentStatus: (workflowId: string | null) => DeploymentStatus | null
-  setDeploymentStatus: (
-    workflowId: string | null,
-    isDeployed: boolean,
-    deployedAt?: Date,
-    apiKey?: string
-  ) => void
-  setWorkflowNeedsRedeployment: (workflowId: string | null, needsRedeployment: boolean) => void
+  switchToWorkspace: (id: string) => void
+  markWorkflowCreating: (workflowId: string) => void
+  markWorkflowCreated: (workflowId: string | null) => void
   copyBlocks: (blockIds: string[]) => void
   preparePasteData: (positionOffset?: { x: number; y: number }) => {
     blocks: Record<string, BlockState>

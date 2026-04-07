@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useParams } from 'next/navigation'
 import {
   Badge,
   Button,
@@ -19,6 +20,7 @@ import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
 import { useDeploymentInfo, useUpdatePublicApi } from '@/hooks/queries/deployments'
+import { useUpdateWorkflow, useWorkflowMap } from '@/hooks/queries/workflows'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -33,16 +35,16 @@ interface ApiInfoModalProps {
 }
 
 export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalProps) {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
   const blocks = useWorkflowStore((state) => state.blocks)
   const setValue = useSubBlockStore((state) => state.setValue)
   const subBlockValues = useSubBlockStore((state) =>
     workflowId ? (state.workflowValues[workflowId] ?? {}) : {}
   )
 
-  const workflowMetadata = useWorkflowRegistry((state) =>
-    workflowId ? state.workflows[workflowId] : undefined
-  )
-  const updateWorkflow = useWorkflowRegistry((state) => state.updateWorkflow)
+  const { data: workflows = {} } = useWorkflowMap(workspaceId)
+  const workflowMetadata = workflowId ? workflows[workflowId] : undefined
+  const updateWorkflowMutation = useUpdateWorkflow()
 
   const { data: deploymentData } = useDeploymentInfo(workflowId, { enabled: open })
   const updatePublicApiMutation = useUpdatePublicApi()
@@ -175,7 +177,11 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
       }
 
       if (description.trim() !== (workflowMetadata?.description || '')) {
-        updateWorkflow(workflowId, { description: description.trim() || 'New workflow' })
+        await updateWorkflowMutation.mutateAsync({
+          workspaceId,
+          workflowId,
+          metadata: { description: description.trim() || 'New workflow' },
+        })
       }
 
       if (starterBlockId) {
@@ -195,28 +201,27 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
     }
   }, [
     workflowId,
+    workspaceId,
     description,
     workflowMetadata,
-    updateWorkflow,
     starterBlockId,
     inputFormat,
     paramDescriptions,
     setValue,
     onOpenChange,
     accessMode,
-    updatePublicApiMutation,
   ])
 
   return (
     <>
       <Modal open={open} onOpenChange={(openState) => !openState && handleCloseAttempt()}>
-        <ModalContent className='max-w-[480px]'>
+        <ModalContent size='md'>
           <ModalHeader>
             <span>Edit API Info</span>
           </ModalHeader>
-          <ModalBody className='space-y-[12px]'>
+          <ModalBody className='space-y-3'>
             <div>
-              <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+              <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
                 Description
               </Label>
               <Textarea
@@ -229,7 +234,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
 
             {!isPublicApiDisabled && (
               <div>
-                <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+                <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
                   Access
                 </Label>
                 <ButtonGroup
@@ -239,7 +244,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
                   <ButtonGroupItem value='api_key'>API Key</ButtonGroupItem>
                   <ButtonGroupItem value='public'>Public</ButtonGroupItem>
                 </ButtonGroup>
-                <p className='mt-1 text-[12px] text-[var(--text-secondary)]'>
+                <p className='mt-1 text-[var(--text-secondary)] text-caption'>
                   {accessMode === 'public'
                     ? 'Anyone can call this API without authentication. You will be billed for all usage.'
                     : 'Requires a valid API key to call this endpoint.'}
@@ -249,18 +254,18 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
 
             {inputFormat.length > 0 && (
               <div>
-                <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+                <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
                   Parameters ({inputFormat.length})
                 </Label>
-                <div className='flex flex-col gap-[8px]'>
+                <div className='flex flex-col gap-2'>
                   {inputFormat.map((field) => (
                     <div
                       key={field.name}
-                      className='overflow-hidden rounded-[4px] border border-[var(--border-1)]'
+                      className='overflow-hidden rounded-sm border border-[var(--border-1)]'
                     >
-                      <div className='flex items-center justify-between bg-[var(--surface-4)] px-[10px] py-[5px]'>
-                        <div className='flex min-w-0 flex-1 items-center gap-[8px]'>
-                          <span className='block truncate font-medium text-[14px] text-[var(--text-tertiary)]'>
+                      <div className='flex items-center justify-between bg-[var(--surface-4)] px-2.5 py-[5px]'>
+                        <div className='flex min-w-0 flex-1 items-center gap-2'>
+                          <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
                             {field.name}
                           </span>
                           <Badge variant='type' size='sm'>
@@ -268,9 +273,9 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
                           </Badge>
                         </div>
                       </div>
-                      <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-[10px] pt-[6px] pb-[10px]'>
-                        <div className='flex flex-col gap-[6px]'>
-                          <Label className='text-[13px]'>Description</Label>
+                      <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
+                        <div className='flex flex-col gap-1.5'>
+                          <Label className='text-small'>Description</Label>
                           <Input
                             value={paramDescriptions[field.name] || ''}
                             onChange={(e) =>
@@ -288,7 +293,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
           </ModalBody>
           <ModalFooter>
             {saveError && (
-              <p className='mr-auto text-[12px] text-[var(--text-error)]'>{saveError}</p>
+              <p className='mr-auto text-[var(--text-error)] text-caption'>{saveError}</p>
             )}
             <Button variant='default' onClick={handleCloseAttempt} disabled={isSaving}>
               Cancel
@@ -301,12 +306,12 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
       </Modal>
 
       <Modal open={showUnsavedChangesAlert} onOpenChange={setShowUnsavedChangesAlert}>
-        <ModalContent className='max-w-[400px]'>
+        <ModalContent size='sm'>
           <ModalHeader>
             <span>Unsaved Changes</span>
           </ModalHeader>
           <ModalBody>
-            <p className='text-[14px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)] text-sm'>
               You have unsaved changes. Are you sure you want to discard them?
             </p>
           </ModalBody>

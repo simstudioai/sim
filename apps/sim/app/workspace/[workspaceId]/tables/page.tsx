@@ -1,32 +1,8 @@
-import { redirect } from 'next/navigation'
-import { getSession } from '@/lib/auth'
-import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
-import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
-import { TablesView } from './components'
+import type { Metadata } from 'next'
+import { Tables } from './tables'
 
-interface TablesPageProps {
-  params: Promise<{
-    workspaceId: string
-  }>
+export const metadata: Metadata = {
+  title: 'Tables',
 }
 
-export default async function TablesPage({ params }: TablesPageProps) {
-  const { workspaceId } = await params
-  const session = await getSession()
-
-  if (!session?.user?.id) {
-    redirect('/')
-  }
-
-  const hasPermission = await verifyWorkspaceMembership(session.user.id, workspaceId)
-  if (!hasPermission) {
-    redirect('/')
-  }
-
-  const permissionConfig = await getUserPermissionConfig(session.user.id)
-  if (permissionConfig?.hideTablesTab) {
-    redirect(`/workspace/${workspaceId}`)
-  }
-
-  return <TablesView />
-}
+export default Tables

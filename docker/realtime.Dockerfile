@@ -1,13 +1,14 @@
 # ========================================
 # Base Stage: Alpine Linux with Bun
 # ========================================
-FROM oven/bun:1.3.10-alpine AS base
+FROM oven/bun:1.3.11-alpine AS base
+
+RUN apk add --no-cache libc6-compat curl
 
 # ========================================
 # Dependencies Stage: Install Dependencies
 # ========================================
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json bun.lock turbo.json ./

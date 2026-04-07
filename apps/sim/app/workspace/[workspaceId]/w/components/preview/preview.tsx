@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
 import { redactApiKeys } from '@/lib/core/security/redaction'
@@ -161,6 +161,11 @@ export function Preview({
   })
 
   const [workflowStack, setWorkflowStack] = useState<WorkflowStackEntry[]>([])
+  const [prevRootState, setPrevRootState] = useState(rootWorkflowState)
+  if (rootWorkflowState !== prevRootState) {
+    setPrevRootState(rootWorkflowState)
+    setWorkflowStack([])
+  }
 
   const rootBlockExecutions = useMemo(() => {
     if (providedBlockExecutions) return providedBlockExecutions
@@ -192,7 +197,10 @@ export function Preview({
       const childTraceSpans = extractChildTraceSpans(blockExecution)
       const childBlockExecutions = buildBlockExecutions(childTraceSpans)
 
-      const workflowName = childWorkflowState.metadata?.name || 'Nested Workflow'
+      const workflowName =
+        childWorkflowState.metadata?.name ||
+        (blockExecution?.output as { childWorkflowName?: string } | undefined)?.childWorkflowName ||
+        'Nested Workflow'
 
       setWorkflowStack((prev) => [
         ...prev,
@@ -227,10 +235,6 @@ export function Preview({
     setPinnedBlockId(null)
   }, [])
 
-  useEffect(() => {
-    setWorkflowStack([])
-  }, [rootWorkflowState])
-
   const isNested = workflowStack.length > 0
 
   const currentWorkflowName = isNested ? workflowStack[workflowStack.length - 1].workflowName : null
@@ -240,28 +244,28 @@ export function Preview({
       style={{ height, width }}
       className={cn(
         'relative flex overflow-hidden',
-        showBorder && 'rounded-[4px] border border-[var(--border)]',
+        showBorder && 'rounded-sm border border-[var(--border)]',
         className
       )}
     >
       {isNested && (
-        <div className='absolute top-[12px] left-[12px] z-20 flex items-center gap-[6px]'>
+        <div className='absolute top-3 left-[12px] z-20 flex items-center gap-1.5'>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button
                 variant='ghost'
                 onClick={handleGoBack}
-                className='flex h-[28px] items-center gap-[5px] rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] text-[var(--text-secondary)] shadow-sm hover:bg-[var(--surface-4)] hover:text-[var(--text-primary)]'
+                className='flex h-[28px] items-center gap-[5px] rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 text-[var(--text-secondary)] shadow-sm hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
               >
                 <ArrowLeft className='h-[12px] w-[12px]' />
-                <span className='font-medium text-[12px]'>Back</span>
+                <span className='font-medium text-caption'>Back</span>
               </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='bottom'>Go back to parent workflow</Tooltip.Content>
           </Tooltip.Root>
           {currentWorkflowName && (
-            <div className='flex h-[28px] max-w-[200px] items-center rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] px-[10px] shadow-sm'>
-              <span className='truncate font-medium text-[12px] text-[var(--text-secondary)]'>
+            <div className='flex h-[28px] max-w-[200px] items-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 shadow-sm'>
+              <span className='truncate font-medium text-[var(--text-secondary)] text-caption'>
                 {currentWorkflowName}
               </span>
             </div>

@@ -4,9 +4,22 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { DEFAULT_OVERAGE_THRESHOLD } from '@/lib/billing/constants'
+import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { calculateSubscriptionOverage, getPlanPricing } from '@/lib/billing/core/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
+import {
+  getPlanTierDollars,
+  isEnterprise,
+  isFree,
+  isPaid,
+  isTeam,
+} from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import {
+  hasUsableSubscriptionAccess,
+  USABLE_SUBSCRIPTION_STATUSES,
+} from '@/lib/billing/subscriptions/utils'
 import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('ThresholdBilling')
@@ -101,21 +114,21 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
     const threshold = OVERAGE_THRESHOLD
 
     const userSubscription = await getHighestPrioritySubscription(userId)
+    const billingStatus = await getEffectiveBillingStatus(userId)
 
-    if (!userSubscription || userSubscription.status !== 'active') {
+    if (
+      !userSubscription ||
+      !hasUsableSubscriptionAccess(userSubscription.status, billingStatus.billingBlocked)
+    ) {
       logger.debug('No active subscription for threshold billing', { userId })
       return
     }
 
-    if (
-      !userSubscription.plan ||
-      userSubscription.plan === 'free' ||
-      userSubscription.plan === 'enterprise'
-    ) {
+    if (isFree(userSubscription.plan) || isEnterprise(userSubscription.plan)) {
       return
     }
 
-    if (userSubscription.plan === 'team') {
+    if (isTeam(userSubscription.plan)) {
       logger.debug('Team plan detected - triggering org-level threshold billing', {
         userId,
         organizationId: userSubscription.referenceId,
@@ -144,6 +157,8 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
         plan: userSubscription.plan,
         referenceId: userSubscription.referenceId,
         seats: userSubscription.seats,
+        periodStart: userSubscription.periodStart,
+        periodEnd: userSubscription.periodEnd,
       })
       const billedOverageThisPeriod = parseDecimal(stats.billedOverageThisPeriod)
       const unbilledOverage = Math.max(0, currentOverage - billedOverageThisPeriod)
@@ -282,12 +297,22 @@ export async function checkAndBillOrganizationOverageThreshold(
   try {
     const threshold = OVERAGE_THRESHOLD
 
+    if (await isOrganizationBillingBlocked(organizationId)) {
+      logger.debug('Organization billing blocked for threshold billing', { organizationId })
+      return
+    }
+
     logger.debug('Starting organization threshold billing check', { organizationId, threshold })
 
     const orgSubscriptions = await db
       .select()
       .from(subscription)
-      .where(and(eq(subscription.referenceId, organizationId), eq(subscription.status, 'active')))
+      .where(
+        and(
+          eq(subscription.referenceId, organizationId),
+          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
+        )
+      )
       .limit(1)
 
     if (orgSubscriptions.length === 0) {
@@ -303,7 +328,7 @@ export async function checkAndBillOrganizationOverageThreshold(
       stripeSubscriptionId: orgSubscription.stripeSubscriptionId,
     })
 
-    if (orgSubscription.plan !== 'team') {
+    if (!isTeam(orgSubscription.plan)) {
       logger.debug('Organization plan is not team, skipping', {
         organizationId,
         plan: orgSubscription.plan,
@@ -384,9 +409,25 @@ export async function checkAndBillOrganizationOverageThreshold(
         }
       }
 
+      let dailyRefreshDeduction = 0
+      if (isPaid(orgSubscription.plan) && orgSubscription.periodStart) {
+        const planDollars = getPlanTierDollars(orgSubscription.plan)
+        if (planDollars > 0) {
+          const allMemberIds = members.map((m) => m.userId)
+          dailyRefreshDeduction = await computeDailyRefreshConsumed({
+            userIds: allMemberIds,
+            periodStart: orgSubscription.periodStart,
+            periodEnd: orgSubscription.periodEnd ?? null,
+            planDollars,
+            seats: orgSubscription.seats ?? 1,
+          })
+        }
+      }
+
+      const effectiveTeamUsage = Math.max(0, totalTeamUsage - dailyRefreshDeduction)
       const { basePrice: basePricePerSeat } = getPlanPricing(orgSubscription.plan)
       const basePrice = basePricePerSeat * (orgSubscription.seats ?? 0)
-      const currentOverage = Math.max(0, totalTeamUsage - basePrice)
+      const currentOverage = Math.max(0, effectiveTeamUsage - basePrice)
       const unbilledOverage = Math.max(0, currentOverage - totalBilledOverage)
 
       logger.debug('Organization threshold billing check', {

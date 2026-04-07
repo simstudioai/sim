@@ -3,14 +3,17 @@ import { templates, workflow, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
+import { canAccessTemplate, verifyTemplateOwnership } from '@/lib/templates/permissions'
 import {
   type RegenerateStateInput,
   regenerateWorkflowStateIds,
 } from '@/lib/workflows/persistence/utils'
+import { deduplicateWorkflowName } from '@/lib/workflows/utils'
+import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('TemplateUseAPI')
 
@@ -44,11 +47,37 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Workspace ID is required' }, { status: 400 })
     }
 
+    const workspace = await getWorkspaceById(workspaceId)
+    if (!workspace) {
+      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+    }
+
+    const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+    if (permission !== 'admin' && permission !== 'write') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     logger.debug(
       `[${requestId}] Using template: ${id}, user: ${session.user.id}, workspace: ${workspaceId}, connect: ${connectToTemplate}`
     )
 
     // Get the template
+    const templateAccess = await canAccessTemplate(id, session.user.id)
+    if (!templateAccess.allowed) {
+      logger.warn(`[${requestId}] Template not found: ${id}`)
+      return NextResponse.json({ error: 'Template not found' }, { status: 404 })
+    }
+
+    if (connectToTemplate) {
+      const ownership = await verifyTemplateOwnership(id, session.user.id, 'admin')
+      if (!ownership.authorized) {
+        return NextResponse.json(
+          { error: ownership.error || 'Access denied' },
+          { status: ownership.status || 403 }
+        )
+      }
+    }
+
     const template = await db
       .select({
         id: templates.id,
@@ -61,15 +90,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .where(eq(templates.id, id))
       .limit(1)
 
-    if (template.length === 0) {
-      logger.warn(`[${requestId}] Template not found: ${id}`)
-      return NextResponse.json({ error: 'Template not found' }, { status: 404 })
-    }
-
     const templateData = template[0]
 
     // Create a new workflow ID
-    const newWorkflowId = uuidv4()
+    const newWorkflowId = generateId()
     const now = new Date()
 
     // Extract variables from the template state and remap to the new workflow
@@ -80,20 +104,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (!templateVariables || typeof templateVariables !== 'object') return {}
       const mapped: Record<string, any> = {}
       for (const [, variable] of Object.entries(templateVariables)) {
-        const newVarId = uuidv4()
+        const newVarId = generateId()
         mapped[newVarId] = { ...variable, id: newVarId, workflowId: newWorkflowId }
       }
       return mapped
     })()
 
-    // Step 1: Create the workflow record (like imports do)
+    const rawName =
+      connectToTemplate && !templateData.workflowId
+        ? templateData.name
+        : `${templateData.name} (copy)`
+    const dedupedName = await deduplicateWorkflowName(rawName, workspaceId, null)
+
     await db.insert(workflow).values({
       id: newWorkflowId,
       workspaceId: workspaceId,
-      name:
-        connectToTemplate && !templateData.workflowId
-          ? templateData.name
-          : `${templateData.name} (copy)`,
+      name: dedupedName,
       description: (templateData.details as TemplateDetails | null)?.tagline || null,
       userId: session.user.id,
       variables: remappedVariables, // Remap variable IDs and workflowId for the new workflow
@@ -152,7 +178,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
         // Create a deployment version for the new workflow
         if (templateData.state) {
-          const newDeploymentVersionId = uuidv4()
+          const newDeploymentVersionId = generateId()
           await tx.insert(workflowDeploymentVersion).values({
             id: newDeploymentVersionId,
             workflowId: newWorkflowId,

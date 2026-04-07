@@ -6,9 +6,11 @@ import { workspaceKeys } from '@/hooks/queries/workspace'
  */
 export const apiKeysKeys = {
   all: ['apiKeys'] as const,
-  workspace: (workspaceId: string) => [...apiKeysKeys.all, 'workspace', workspaceId] as const,
+  workspaces: () => [...apiKeysKeys.all, 'workspace'] as const,
+  workspace: (workspaceId: string) => [...apiKeysKeys.workspaces(), workspaceId] as const,
   personal: () => [...apiKeysKeys.all, 'personal'] as const,
-  combined: (workspaceId: string) => [...apiKeysKeys.all, 'combined', workspaceId] as const,
+  combineds: () => [...apiKeysKeys.all, 'combined'] as const,
+  combined: (workspaceId: string) => [...apiKeysKeys.combineds(), workspaceId] as const,
 }
 
 /**
@@ -37,24 +39,23 @@ interface ApiKeysResponse {
 /**
  * Fetch both workspace and personal API keys
  */
-async function fetchApiKeys(workspaceId: string): Promise<ApiKeysResponse> {
+async function fetchApiKeys(workspaceId: string, signal?: AbortSignal): Promise<ApiKeysResponse> {
   const [workspaceResponse, personalResponse] = await Promise.all([
-    fetch(`/api/workspaces/${workspaceId}/api-keys`),
-    fetch('/api/users/me/api-keys'),
+    fetch(`/api/workspaces/${workspaceId}/api-keys`, { signal }),
+    fetch('/api/users/me/api-keys', { signal }),
   ])
 
-  let workspaceKeys: ApiKey[] = []
-  let personalKeys: ApiKey[] = []
-
-  if (workspaceResponse.ok) {
-    const workspaceData = await workspaceResponse.json()
-    workspaceKeys = workspaceData.keys || []
+  if (!workspaceResponse.ok) {
+    throw new Error(`Failed to fetch workspace API keys: ${workspaceResponse.status}`)
+  }
+  if (!personalResponse.ok) {
+    throw new Error(`Failed to fetch personal API keys: ${personalResponse.status}`)
   }
 
-  if (personalResponse.ok) {
-    const personalData = await personalResponse.json()
-    personalKeys = personalData.keys || []
-  }
+  const workspaceData = await workspaceResponse.json()
+  const personalData = await personalResponse.json()
+  const workspaceKeys: ApiKey[] = workspaceData.keys || []
+  const personalKeys: ApiKey[] = personalData.keys || []
 
   const workspaceKeyNames = new Set(workspaceKeys.map((k) => k.name))
   const conflicts = personalKeys
@@ -74,7 +75,7 @@ async function fetchApiKeys(workspaceId: string): Promise<ApiKeysResponse> {
 export function useApiKeys(workspaceId: string) {
   return useQuery({
     queryKey: apiKeysKeys.combined(workspaceId),
-    queryFn: () => fetchApiKeys(workspaceId),
+    queryFn: ({ signal }) => fetchApiKeys(workspaceId, signal),
     enabled: !!workspaceId,
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
@@ -88,6 +89,7 @@ interface CreateApiKeyParams {
   workspaceId: string
   name: string
   keyType: 'personal' | 'workspace'
+  source?: 'settings' | 'deploy_modal'
 }
 
 /**
@@ -97,16 +99,19 @@ export function useCreateApiKey() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, name, keyType }: CreateApiKeyParams) => {
+    mutationFn: async ({ workspaceId, name, keyType, source }: CreateApiKeyParams) => {
       const url =
         keyType === 'workspace'
           ? `/api/workspaces/${workspaceId}/api-keys`
           : '/api/users/me/api-keys'
 
+      const body: Record<string, unknown> = { name: name.trim() }
+      if (keyType === 'workspace' && source) body.source = source
+
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim() }),
+        body: JSON.stringify(body),
       })
 
       if (!response.ok) {

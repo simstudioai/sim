@@ -249,9 +249,20 @@ function sanitizeSubBlocks(
     }
 
     // Special handling for condition-input type - clean UI metadata
-    if (subBlock.type === 'condition-input' && typeof subBlock.value === 'string') {
-      const cleanedConditions: string = sanitizeConditions(subBlock.value)
-      sanitized[key] = cleanedConditions
+    if (subBlock.type === 'condition-input') {
+      if (typeof subBlock.value === 'string') {
+        sanitized[key] = sanitizeConditions(subBlock.value)
+      } else if (Array.isArray(subBlock.value)) {
+        sanitized[key] = (subBlock.value as unknown as Array<Record<string, unknown>>).map(
+          (cond) => ({
+            id: String(cond.id ?? ''),
+            title: String(cond.title ?? ''),
+            value: String(cond.value ?? ''),
+          })
+        )
+      } else {
+        sanitized[key] = subBlock.value
+      }
       return
     }
 
@@ -287,16 +298,22 @@ function convertConditionHandleToSimple(
   // Extract the condition UUID from the handle
   const conditionId = handle.substring('condition-'.length)
 
-  // Get conditions from block subBlocks
+  // Get conditions from block subBlocks (may be JSON string or array)
   const conditionsValue = block.subBlocks?.conditions?.value
-  if (!conditionsValue || typeof conditionsValue !== 'string') {
+  if (!conditionsValue) {
     return handle
   }
 
   let conditions: Array<{ id: string; title: string }>
-  try {
-    conditions = JSON.parse(conditionsValue)
-  } catch {
+  if (Array.isArray(conditionsValue)) {
+    conditions = conditionsValue as unknown as Array<{ id: string; title: string }>
+  } else if (typeof conditionsValue === 'string') {
+    try {
+      conditions = JSON.parse(conditionsValue)
+    } catch {
+      return handle
+    }
+  } else {
     return handle
   }
 
@@ -341,16 +358,22 @@ function convertRouterHandleToSimple(handle: string, _blockId: string, block: Bl
   // Extract the route UUID from the handle
   const routeId = handle.substring('router-'.length)
 
-  // Get routes from block subBlocks
+  // Get routes from block subBlocks (may be JSON string or array)
   const routesValue = block.subBlocks?.routes?.value
-  if (!routesValue || typeof routesValue !== 'string') {
+  if (!routesValue) {
     return handle
   }
 
   let routes: Array<{ id: string; title?: string }>
-  try {
-    routes = JSON.parse(routesValue)
-  } catch {
+  if (Array.isArray(routesValue)) {
+    routes = routesValue as unknown as Array<{ id: string; title?: string }>
+  } else if (typeof routesValue === 'string') {
+    try {
+      routes = JSON.parse(routesValue)
+    } catch {
+      return handle
+    }
+  } else {
     return handle
   }
 

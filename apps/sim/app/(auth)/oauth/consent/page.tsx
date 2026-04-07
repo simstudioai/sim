@@ -1,14 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeftRight } from 'lucide-react'
+import { ArrowLeftRight, Loader2 } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/emcn'
 import { signOut, useSession } from '@/lib/auth/auth-client'
-import { inter } from '@/app/_styles/fonts/inter/inter'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 
 const SCOPE_DESCRIPTIONS: Record<string, string> = {
   openid: 'Verify your identity',
@@ -129,10 +127,10 @@ export default function OAuthConsentPage() {
     return (
       <div className='flex flex-col items-center justify-center'>
         <div className='space-y-1 text-center'>
-          <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+          <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
             Authorize Application
           </h1>
-          <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+          <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
             Loading application details...
           </p>
         </div>
@@ -144,15 +142,17 @@ export default function OAuthConsentPage() {
     return (
       <div className='flex flex-col items-center justify-center'>
         <div className='space-y-1 text-center'>
-          <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+          <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
             Authorization Error
           </h1>
-          <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
+          <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
             {error}
           </p>
         </div>
-        <div className={`${inter.className} mt-8 w-full max-w-[410px] space-y-3`}>
-          <BrandedButton onClick={() => router.push('/')}>Return to Home</BrandedButton>
+        <div className='mt-8 w-full max-w-[410px] space-y-3'>
+          <button onClick={() => router.push('/')} className={AUTH_SUBMIT_BTN}>
+            Return to Home
+          </button>
         </div>
       </div>
     )
@@ -172,11 +172,11 @@ export default function OAuthConsentPage() {
             className='rounded-[10px]'
           />
         ) : (
-          <div className='flex h-12 w-12 items-center justify-center rounded-[10px] bg-muted font-medium text-[18px] text-muted-foreground'>
+          <div className='flex h-12 w-12 items-center justify-center rounded-[10px] bg-[var(--landing-bg-elevated)] font-medium text-[var(--landing-text-muted)] text-lg'>
             {(clientName ?? '?').charAt(0).toUpperCase()}
           </div>
         )}
-        <ArrowLeftRight className='h-5 w-5 text-muted-foreground' />
+        <ArrowLeftRight className='h-5 w-5 text-[var(--landing-text-muted)]' />
         <Image
           src='/new/logo/colorized-bg.svg'
           alt='Sim'
@@ -187,19 +187,17 @@ export default function OAuthConsentPage() {
       </div>
 
       <div className='space-y-1 text-center'>
-        <h1 className={`${soehne.className} font-medium text-[32px] text-black tracking-tight`}>
+        <h1 className='text-balance font-[430] font-season text-[40px] text-white leading-[110%] tracking-[-0.02em]'>
           Authorize Application
         </h1>
-        <p className={`${inter.className} font-[380] text-[16px] text-muted-foreground`}>
-          <span className='font-medium text-foreground'>{clientName}</span> is requesting access to
-          your account
+        <p className='font-[430] font-season text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
+          <span className='font-medium text-[var(--landing-text)]'>{clientName}</span> is requesting
+          access to your account
         </p>
       </div>
 
       {session?.user && (
-        <div
-          className={`${inter.className} mt-5 flex items-center gap-3 rounded-lg border px-4 py-3`}
-        >
+        <div className='mt-5 flex items-center gap-3 rounded-lg border border-[var(--landing-bg-elevated)] px-4 py-3'>
           {session.user.image ? (
             <Image
               src={session.user.image}
@@ -210,20 +208,22 @@ export default function OAuthConsentPage() {
               unoptimized
             />
           ) : (
-            <div className='flex h-8 w-8 items-center justify-center rounded-full bg-muted font-medium text-[13px] text-muted-foreground'>
+            <div className='flex h-8 w-8 items-center justify-center rounded-full bg-[var(--landing-bg-elevated)] font-medium text-[var(--landing-text-muted)] text-small'>
               {(session.user.name ?? session.user.email ?? '?').charAt(0).toUpperCase()}
             </div>
           )}
           <div className='min-w-0'>
             {session.user.name && (
-              <p className='truncate font-medium text-[14px]'>{session.user.name}</p>
+              <p className='truncate font-medium text-sm'>{session.user.name}</p>
             )}
-            <p className='truncate text-[13px] text-muted-foreground'>{session.user.email}</p>
+            <p className='truncate text-[var(--landing-text-muted)] text-small'>
+              {session.user.email}
+            </p>
           </div>
           <button
             type='button'
             onClick={handleSwitchAccount}
-            className='ml-auto text-[13px] text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline'
+            className='ml-auto text-[var(--landing-text-muted)] text-small underline-offset-2 transition-colors hover:text-[var(--landing-text)] hover:underline'
           >
             Switch
           </button>
@@ -231,14 +231,14 @@ export default function OAuthConsentPage() {
       )}
 
       {scopes.length > 0 && (
-        <div className={`${inter.className} mt-5 w-full max-w-[410px]`}>
-          <div className='rounded-lg border p-4'>
-            <p className='mb-3 font-medium text-[14px]'>This will allow the application to:</p>
+        <div className='mt-5 w-full max-w-[410px]'>
+          <div className='rounded-lg border border-[var(--landing-bg-elevated)] p-4'>
+            <p className='mb-3 font-medium text-sm'>This will allow the application to:</p>
             <ul className='space-y-2'>
               {scopes.map((s) => (
                 <li
                   key={s}
-                  className='flex items-start gap-2 font-normal text-[13px] text-muted-foreground'
+                  className='flex items-start gap-2 font-normal text-[var(--landing-text-muted)] text-small'
                 >
                   <span className='mt-0.5 text-green-500'>&#10003;</span>
                   <span>{SCOPE_DESCRIPTIONS[s] ?? s}</span>
@@ -249,7 +249,7 @@ export default function OAuthConsentPage() {
         </div>
       )}
 
-      <div className={`${inter.className} mt-6 flex w-full max-w-[410px] gap-3`}>
+      <div className='mt-6 flex w-full max-w-[410px] gap-3'>
         <Button
           variant='outline'
           size='md'
@@ -259,15 +259,20 @@ export default function OAuthConsentPage() {
         >
           Deny
         </Button>
-        <BrandedButton
-          fullWidth
-          showArrow={false}
-          loading={submitting}
-          loadingText='Authorizing'
+        <button
           onClick={() => handleConsent(true)}
+          disabled={submitting}
+          className={AUTH_SUBMIT_BTN}
         >
-          Allow
-        </BrandedButton>
+          {submitting ? (
+            <span className='flex items-center gap-2'>
+              <Loader2 className='h-4 w-4 animate-spin' />
+              Authorizing...
+            </span>
+          ) : (
+            'Allow'
+          )}
+        </button>
       </div>
     </div>
   )

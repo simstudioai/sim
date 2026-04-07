@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
-import { v4 as uuidv4 } from 'uuid'
+import { generateId } from '@/lib/core/utils/uuid'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
-import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
+import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
@@ -53,7 +54,7 @@ export async function executeWorkflow(
 
   const workflowId = workflow.id
   const workspaceId = workflow.workspaceId
-  const executionId = providedExecutionId || uuidv4()
+  const executionId = providedExecutionId || generateId()
   const triggerType = streamConfig?.workflowTriggerType || 'api'
   const loggingSession = new LoggingSession(workflowId, executionId, triggerType, requestId)
 
@@ -79,6 +80,8 @@ export async function executeWorkflow(
       streamConfig?.selectedOutputs || []
     )
 
+    const executionStartMs = Date.now()
+
     const result = await executeWorkflowCore({
       snapshot,
       callbacks: {
@@ -97,34 +100,34 @@ export async function executeWorkflow(
       runFromBlock: streamConfig?.runFromBlock,
     })
 
-    if (result.status === 'paused') {
-      if (!result.snapshotSeed) {
-        logger.error(`[${requestId}] Missing snapshot seed for paused execution`, {
-          executionId,
-        })
-        await loggingSession.markAsFailed('Missing snapshot seed for paused execution')
-      } else {
-        try {
-          await PauseResumeManager.persistPauseResult({
-            workflowId,
-            executionId,
-            pausePoints: result.pausePoints || [],
-            snapshotSeed: result.snapshotSeed,
-            executorUserId: result.metadata?.userId,
-          })
-        } catch (pauseError) {
-          logger.error(`[${requestId}] Failed to persist pause result`, {
-            executionId,
-            error: pauseError instanceof Error ? pauseError.message : String(pauseError),
-          })
-          await loggingSession.markAsFailed(
-            `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
-          )
+    const blockTypes = [
+      ...new Set(
+        (result.logs ?? [])
+          .map((log) => log.blockType)
+          .filter((t): t is string => typeof t === 'string')
+      ),
+    ]
+    if (result.status !== 'paused') {
+      captureServerEvent(
+        actorUserId,
+        'workflow_executed',
+        {
+          workflow_id: workflowId,
+          workspace_id: workspaceId,
+          trigger_type: triggerType,
+          success: result.success,
+          block_count: result.logs?.length ?? 0,
+          block_types: blockTypes.join(','),
+          duration_ms: Date.now() - executionStartMs,
+        },
+        {
+          groups: { workspace: workspaceId },
+          setOnce: { first_execution_at: new Date().toISOString() },
         }
-      }
-    } else {
-      await PauseResumeManager.processQueuedResumes(executionId)
+      )
     }
+
+    await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })
 
     if (streamConfig?.skipLoggingComplete) {
       return {
@@ -139,6 +142,19 @@ export async function executeWorkflow(
     return result
   } catch (error: unknown) {
     logger.error(`[${requestId}] Workflow execution failed:`, error)
+
+    captureServerEvent(
+      actorUserId,
+      'workflow_execution_failed',
+      {
+        workflow_id: workflow.id,
+        workspace_id: workspaceId,
+        trigger_type: streamConfig?.workflowTriggerType || 'api',
+        error_message: error instanceof Error ? error.message : String(error),
+      },
+      { groups: { workspace: workspaceId } }
+    )
+
     throw error
   }
 }

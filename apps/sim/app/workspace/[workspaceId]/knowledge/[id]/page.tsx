@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
 
 interface PageProps {
@@ -7,6 +8,11 @@ interface PageProps {
   searchParams: Promise<{
     kbName?: string
   }>
+}
+
+export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
+  const { kbName } = await searchParams
+  return { title: kbName || 'Knowledge Base' }
 }
 
 export default async function KnowledgeBasePage({ params, searchParams }: PageProps) {

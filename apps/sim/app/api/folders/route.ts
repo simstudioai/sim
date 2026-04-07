@@ -1,13 +1,25 @@
 import { db } from '@sim/db'
 import { workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, isNull, min } from 'drizzle-orm'
+import { and, asc, eq, isNotNull, isNull, min } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
+import { generateId } from '@/lib/core/utils/uuid'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('FoldersAPI')
+
+const CreateFolderSchema = z.object({
+  id: z.string().uuid().optional(),
+  name: z.string().min(1, 'Name is required'),
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  parentId: z.string().optional(),
+  color: z.string().optional(),
+  sortOrder: z.number().int().optional(),
+})
 
 // GET - Fetch folders for a workspace
 export async function GET(request: NextRequest) {
@@ -35,12 +47,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied to this workspace' }, { status: 403 })
     }
 
-    // If user has workspace permissions, fetch ALL folders in the workspace
-    // This allows shared workspace members to see folders created by other users
+    const scope = searchParams.get('scope') ?? 'active'
+    const archivedFilter =
+      scope === 'archived'
+        ? isNotNull(workflowFolder.archivedAt)
+        : isNull(workflowFolder.archivedAt)
+
     const folders = await db
       .select()
       .from(workflowFolder)
-      .where(eq(workflowFolder.workspaceId, workspaceId))
+      .where(and(eq(workflowFolder.workspaceId, workspaceId), archivedFilter))
       .orderBy(asc(workflowFolder.sortOrder), asc(workflowFolder.createdAt))
 
     return NextResponse.json({ folders })
@@ -59,13 +75,15 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, workspaceId, parentId, color, sortOrder: providedSortOrder } = body
+    const {
+      id: clientId,
+      name,
+      workspaceId,
+      parentId,
+      color,
+      sortOrder: providedSortOrder,
+    } = CreateFolderSchema.parse(body)
 
-    if (!name || !workspaceId) {
-      return NextResponse.json({ error: 'Name and workspace ID are required' }, { status: 400 })
-    }
-
-    // Check if user has workspace permissions (at least 'write' access to create folders)
     const workspacePermission = await getUserEntityPermissions(
       session.user.id,
       'workspace',
@@ -79,8 +97,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate a new ID
-    const id = crypto.randomUUID()
+    const id = clientId || generateId()
 
     const newFolder = await db.transaction(async (tx) => {
       let sortOrder: number
@@ -134,6 +151,13 @@ export async function POST(request: NextRequest) {
 
     logger.info('Created new folder:', { id, name, workspaceId, parentId })
 
+    captureServerEvent(
+      session.user.id,
+      'folder_created',
+      { workspace_id: workspaceId },
+      { groups: { workspace: workspaceId } }
+    )
+
     recordAudit({
       workspaceId,
       actorId: session.user.id,
@@ -150,6 +174,14 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ folder: newFolder })
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      logger.warn('Invalid folder creation data', { errors: error.errors })
+      return NextResponse.json(
+        { error: 'Invalid request data', details: error.errors },
+        { status: 400 }
+      )
+    }
+
     logger.error('Error creating folder:', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

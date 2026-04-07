@@ -23,7 +23,9 @@ const {
 }))
 
 vi.mock('drizzle-orm', () => ({
+  and: vi.fn((...args: unknown[]) => ({ type: 'and', args })),
   eq: vi.fn(),
+  isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
 }))
 
 vi.mock('@sim/db', () => ({
@@ -45,10 +47,12 @@ vi.mock('@sim/db/schema', () => ({
     password: 'password',
     isActive: 'isActive',
     workflowId: 'workflowId',
+    archivedAt: 'archivedAt',
   },
 }))
 
 vi.mock('@/lib/auth/hybrid', () => ({
+  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
   checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
 }))
 

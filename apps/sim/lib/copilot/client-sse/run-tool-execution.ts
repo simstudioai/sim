@@ -1,25 +1,16 @@
 import { createLogger } from '@sim/logger'
-import { v4 as uuidv4 } from 'uuid'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
-import { resolveToolDisplay } from '@/lib/copilot/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
+import { generateId } from '@/lib/core/utils/uuid'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { useExecutionStore } from '@/stores/execution/store'
-import { useCopilotStore } from '@/stores/panel/copilot/store'
+import { clearExecutionPointer, consolePersistence, saveExecutionPointer } from '@/stores/terminal'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('CopilotRunToolExecution')
-
-/**
- * Run tools that execute client-side for real-time feedback
- * (block pulsing, logs, stop button, etc.).
- */
-export const CLIENT_EXECUTABLE_RUN_TOOLS = new Set([
-  'run_workflow',
-  'run_workflow_until_block',
-  'run_from_block',
-  'run_block',
-])
+const activeRunToolByWorkflowId = new Map<string, string>()
+const activeRunAbortByWorkflowId = new Map<string, AbortController>()
+const manuallyStoppedToolCallIds = new Set<string>()
 
 /**
  * Execute a run tool on the client side using the streaming execute endpoint.
@@ -45,27 +36,84 @@ export function executeRunToolOnClient(
   })
 }
 
+/**
+ * Synchronously mark the active run tool for a workflow as manually stopped.
+ * Must be called before issuing the cancellation request so that the
+ * concurrent doExecuteRunTool catch/success paths see the marker and skip
+ * their own completion report.
+ */
+export function markRunToolManuallyStopped(workflowId: string): string | null {
+  const toolCallId = activeRunToolByWorkflowId.get(workflowId)
+  if (!toolCallId) return null
+  manuallyStoppedToolCallIds.add(toolCallId)
+  setToolState(toolCallId, ClientToolCallState.cancelled)
+  return toolCallId
+}
+
+export function cancelRunToolExecution(workflowId: string): void {
+  const controller = activeRunAbortByWorkflowId.get(workflowId)
+  if (!controller) return
+  controller.abort()
+  activeRunAbortByWorkflowId.delete(workflowId)
+}
+
+/**
+ * Report a manual user-initiated stop for an active client-executed run tool.
+ * This lets Copilot know the run was intentionally cancelled by the user.
+ * Call markRunToolManuallyStopped first to prevent race conditions.
+ */
+export async function reportManualRunToolStop(
+  workflowId: string,
+  toolCallIdOverride?: string | null
+): Promise<void> {
+  const toolCallId = toolCallIdOverride || activeRunToolByWorkflowId.get(workflowId)
+  if (!toolCallId) return
+
+  if (!manuallyStoppedToolCallIds.has(toolCallId)) {
+    manuallyStoppedToolCallIds.add(toolCallId)
+    setToolState(toolCallId, ClientToolCallState.cancelled)
+  }
+
+  await reportCompletion(
+    toolCallId,
+    'cancelled',
+    'Workflow execution was stopped manually by the user.',
+    {
+      reason: 'user_cancelled',
+      cancelledByUser: true,
+      workflowId,
+    }
+  )
+}
+
 async function doExecuteRunTool(
   toolCallId: string,
   toolName: string,
   params: Record<string, unknown>
 ): Promise<void> {
-  const { activeWorkflowId } = useWorkflowRegistry.getState()
+  const { activeWorkflowId, setActiveWorkflow } = useWorkflowRegistry.getState()
+  const targetWorkflowId =
+    typeof params.workflowId === 'string' && params.workflowId.length > 0
+      ? params.workflowId
+      : activeWorkflowId
 
-  if (!activeWorkflowId) {
+  if (!targetWorkflowId) {
     logger.warn('[RunTool] Execution prevented: no active workflow', { toolCallId, toolName })
     setToolState(toolCallId, ClientToolCallState.error)
-    await reportCompletion(toolCallId, false, 'No active workflow found')
+    await reportCompletion(toolCallId, 'error', 'No active workflow found')
     return
   }
 
+  setActiveWorkflow(targetWorkflowId)
+  activeRunToolByWorkflowId.set(targetWorkflowId, toolCallId)
+
   const { getWorkflowExecution, setIsExecuting } = useExecutionStore.getState()
-  const { isExecuting } = getWorkflowExecution(activeWorkflowId)
+  const { isExecuting } = getWorkflowExecution(targetWorkflowId)
 
   if (isExecuting) {
     logger.warn('[RunTool] Execution prevented: already executing', { toolCallId, toolName })
     setToolState(toolCallId, ClientToolCallState.error)
-    await reportCompletion(toolCallId, false, 'Workflow is already executing. Try again later')
+    await reportCompletion(toolCallId, 'error', 'Workflow is already executing. Try again later')
     return
   }
 
@@ -97,15 +145,42 @@ async function doExecuteRunTool(
     return undefined
   })()
 
-  setIsExecuting(activeWorkflowId, true)
-  const executionId = uuidv4()
+  const { setCurrentExecutionId } = useExecutionStore.getState()
+  const abortController = new AbortController()
+  activeRunAbortByWorkflowId.set(targetWorkflowId, abortController)
+
+  consolePersistence.executionStarted()
+  setIsExecuting(targetWorkflowId, true)
+  const executionId = generateId()
+  setCurrentExecutionId(targetWorkflowId, executionId)
+  saveExecutionPointer({ workflowId: targetWorkflowId, executionId, lastEventId: 0 })
   const executionStartTime = new Date().toISOString()
+
+  const onPageHide = () => {
+    if (manuallyStoppedToolCallIds.has(toolCallId)) return
+    navigator.sendBeacon(
+      COPILOT_CONFIRM_API_PATH,
+      new Blob(
+        [
+          JSON.stringify({
+            toolCallId,
+            status: 'background',
+            message: 'Client disconnected, execution continuing server-side',
+          }),
+        ],
+        { type: 'application/json' }
+      )
+    )
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', onPageHide)
+  }
 
   logger.info('[RunTool] Starting client-side workflow execution', {
     toolCallId,
     toolName,
     executionId,
-    activeWorkflowId,
+    workflowId: targetWorkflowId,
     hasInput: !!workflowInput,
     stopAfterBlockId,
     runFromBlock: runFromBlock ? { startBlockId: runFromBlock.startBlockId } : undefined,
@@ -113,11 +188,13 @@ async function doExecuteRunTool(
 
   try {
     const result = await executeWorkflowWithFullLogging({
+      workflowId: targetWorkflowId,
       workflowInput,
       executionId,
       overrideTriggerType: 'copilot',
       stopAfterBlockId,
       runFromBlock,
+      abortSignal: abortController.signal,
     })
 
     // Determine success (same logic as staging's RunWorkflowClientTool)
@@ -143,76 +220,146 @@ async function doExecuteRunTool(
       }
     } catch {}
 
-    if (succeeded) {
+    if (manuallyStoppedToolCallIds.has(toolCallId)) {
+      logger.info('[RunTool] Skipping generic completion — already manually stopped', {
+        toolCallId,
+        toolName,
+      })
+    } else if (succeeded) {
       logger.info('[RunTool] Workflow execution succeeded', { toolCallId, toolName })
       setToolState(toolCallId, ClientToolCallState.success)
       await reportCompletion(
         toolCallId,
-        true,
-        `Workflow execution completed. Started at: ${executionStartTime}`
+        'success',
+        `Workflow execution completed. Started at: ${executionStartTime}`,
+        buildResultData(result)
       )
     } else {
       const msg = errorMessage || 'Workflow execution failed'
       logger.error('[RunTool] Workflow execution failed', { toolCallId, toolName, error: msg })
       setToolState(toolCallId, ClientToolCallState.error)
-      await reportCompletion(toolCallId, false, msg)
+      await reportCompletion(toolCallId, 'error', msg, buildResultData(result))
     }
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    logger.error('[RunTool] Workflow execution threw', { toolCallId, toolName, error: msg })
-    setToolState(toolCallId, ClientToolCallState.error)
-    await reportCompletion(toolCallId, false, msg)
+    if (manuallyStoppedToolCallIds.has(toolCallId)) {
+      logger.info('[RunTool] Skipping error completion — already manually stopped', {
+        toolCallId,
+        toolName,
+      })
+    } else {
+      const msg = err instanceof Error ? err.message : String(err)
+      logger.error('[RunTool] Workflow execution threw', { toolCallId, toolName, error: msg })
+      setToolState(toolCallId, ClientToolCallState.error)
+      await reportCompletion(toolCallId, 'error', msg)
+    }
   } finally {
-    setIsExecuting(activeWorkflowId, false)
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('pagehide', onPageHide)
+    }
+    manuallyStoppedToolCallIds.delete(toolCallId)
+    const activeToolCallId = activeRunToolByWorkflowId.get(targetWorkflowId)
+    if (activeToolCallId === toolCallId) {
+      activeRunToolByWorkflowId.delete(targetWorkflowId)
+    }
+    const activeAbortController = activeRunAbortByWorkflowId.get(targetWorkflowId)
+    if (activeAbortController === abortController) {
+      activeRunAbortByWorkflowId.delete(targetWorkflowId)
+    }
+    const { setCurrentExecutionId: clearExecId } = useExecutionStore.getState()
+    clearExecId(targetWorkflowId, null)
+    clearExecutionPointer(targetWorkflowId)
+    consolePersistence.executionEnded()
+    setIsExecuting(targetWorkflowId, false)
   }
 }
 
-/** Update the tool call state directly in the copilot store (like staging's setState). */
-function setToolState(toolCallId: string, state: ClientToolCallState): void {
-  try {
-    const store = useCopilotStore.getState()
-    const current = store.toolCallsById[toolCallId]
-    if (!current) return
-    const updated = {
-      ...store.toolCallsById,
-      [toolCallId]: {
-        ...current,
-        state,
-        display: resolveToolDisplay(current.name, state, toolCallId, current.params),
-      },
+function setToolState(_toolCallId: string, _state: ClientToolCallState): void {
+  // no-op: tool state is tracked by the mothership SSE stream
+}
+
+/**
+ * Extract a structured result payload from the raw execution result
+ * for the LLM to see the actual workflow output.
+ */
+function buildResultData(result: unknown): Record<string, unknown> | undefined {
+  if (!result || typeof result !== 'object') return undefined
+
+  const r = result as Record<string, unknown>
+
+  if ('success' in r) {
+    return {
+      success: r.success,
+      output: r.output,
+      logs: r.logs,
+      error: r.error,
     }
-    useCopilotStore.setState({ toolCallsById: updated })
-  } catch (err) {
-    logger.warn('[RunTool] Failed to update tool state', {
-      toolCallId,
-      state,
-      error: err instanceof Error ? err.message : String(err),
-    })
   }
+
+  if ('execution' in r && r.execution && typeof r.execution === 'object') {
+    const exec = r.execution as Record<string, unknown>
+    return {
+      success: exec.success,
+      output: exec.output,
+      logs: exec.logs,
+      error: exec.error,
+    }
+  }
+
+  return undefined
 }
 
 /**
  * Report tool completion to the server via the existing /api/copilot/confirm endpoint.
- * This writes {status: 'success'|'error', message} to Redis. The server-side handler
- * is polling Redis via waitForToolCompletion() and will pick this up, then fire-and-forget
- * markToolComplete to the Go backend.
+ * This persists the durable async-tool row and wakes the server-side waiter so
+ * it can continue the paused Copilot run and notify Go.
  */
 async function reportCompletion(
   toolCallId: string,
-  success: boolean,
-  message?: string
+  status: 'success' | 'error' | 'cancelled',
+  message?: string,
+  data?: Record<string, unknown>
 ): Promise<void> {
   try {
+    const body = JSON.stringify({
+      toolCallId,
+      status,
+      message: message || (status === 'success' ? 'Tool completed' : 'Tool failed'),
+      ...(data ? { data } : {}),
+    })
     const res = await fetch(COPILOT_CONFIRM_API_PATH, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        toolCallId,
-        status: success ? 'success' : 'error',
-        message: message || (success ? 'Tool completed' : 'Tool failed'),
-      }),
+      body,
     })
-    if (!res.ok) {
+    // Next.js silently truncates request bodies beyond its body size limit (default 10MB),
+    // corrupting the JSON and causing a server-side parse error (500). When the request fails
+    // and the payload is large, retry without logs (the largest field) to fit under the limit.
+    const LARGE_PAYLOAD_THRESHOLD = 10 * 1024 * 1024
+    const bodySize = new Blob([body]).size
+    if (!res.ok && data && bodySize > LARGE_PAYLOAD_THRESHOLD) {
+      const { logs: _logs, ...dataWithoutLogs } = data
+      logger.warn('[RunTool] reportCompletion failed with large payload, retrying without logs', {
+        toolCallId,
+        status: res.status,
+        bodySize,
+      })
+      const retryRes = await fetch(COPILOT_CONFIRM_API_PATH, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          toolCallId,
+          status,
+          message: message || (status === 'success' ? 'Tool completed' : 'Tool failed'),
+          data: dataWithoutLogs,
+        }),
+      })
+      if (!retryRes.ok) {
+        logger.warn('[RunTool] reportCompletion retry also failed', {
+          toolCallId,
+          status: retryRes.status,
+        })
+      }
+    } else if (!res.ok) {
       logger.warn('[RunTool] reportCompletion failed', { toolCallId, status: res.status })
     }
   } catch (err) {

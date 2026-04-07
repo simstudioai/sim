@@ -79,40 +79,36 @@ export function SlackChannelSelector({
 
   const selectedChannel = channels.find((c) => c.id === value)
 
-  if (!accountId) {
-    return (
-      <div className='rounded-[6px] border bg-[var(--surface-3)] p-[10px] text-center'>
-        <p className='text-[12px] text-[var(--text-muted)]'>Select a Slack account first</p>
-      </div>
-    )
-  }
-
   const handleChange = (channelId: string) => {
     const channel = channels.find((c) => c.id === channelId)
     onChange(channelId, channel?.name || '')
   }
 
   return (
-    <div className='flex flex-col gap-[4px]'>
+    <div className='flex flex-col gap-1'>
       <Combobox
         options={options}
         value={value}
         onChange={handleChange}
         placeholder={
-          channels.length === 0 && !isLoading ? 'No channels available' : 'Select channel...'
+          !accountId
+            ? 'Select an account first...'
+            : channels.length === 0 && !isLoading
+              ? 'No channels available'
+              : 'Select channel...'
         }
-        disabled={disabled || channels.length === 0}
+        disabled={disabled || !accountId || channels.length === 0}
         isLoading={isLoading}
         error={fetchError}
         searchable
         searchPlaceholder='Search channels...'
       />
       {selectedChannel && !fetchError && (
-        <p className='text-[12px] text-[var(--text-muted)]'>
+        <p className='text-[var(--text-muted)] text-caption'>
           {selectedChannel.isPrivate ? 'Private' : 'Public'} channel: #{selectedChannel.name}
         </p>
       )}
-      {error && <p className='text-[12px] text-[var(--text-error)]'>{error}</p>}
+      {error && <p className='text-[var(--text-error)] text-caption'>{error}</p>}
     </div>
   )
 }

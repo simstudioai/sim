@@ -1,6 +1,6 @@
 import { GrainIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 import { grainTriggerOptions } from '@/triggers/grain/utils'
 
@@ -13,6 +13,8 @@ export const GrainBlock: BlockConfig = {
   longDescription:
     'Integrate Grain into your workflow. Access meeting recordings, transcripts, highlights, and AI-generated summaries. Can also trigger workflows based on Grain webhook events.',
   category: 'tools',
+  integrationType: IntegrationType.Media,
+  tags: ['meeting', 'note-taking'],
   docsLink: 'https://docs.sim.ai/tools/grain',
   icon: GrainIcon,
   bgColor: '#F6FAF9',
@@ -25,6 +27,7 @@ export const GrainBlock: BlockConfig = {
         { label: 'List Recordings', id: 'grain_list_recordings' },
         { label: 'Get Recording', id: 'grain_get_recording' },
         { label: 'Get Transcript', id: 'grain_get_transcript' },
+        { label: 'List Views', id: 'grain_list_views' },
         { label: 'List Teams', id: 'grain_list_teams' },
         { label: 'List Meeting Types', id: 'grain_list_meeting_types' },
         { label: 'Create Webhook', id: 'grain_create_hook' },
@@ -72,7 +75,7 @@ export const GrainBlock: BlockConfig = {
       placeholder: 'ISO8601 timestamp (e.g., 2024-01-01T00:00:00Z)',
       condition: {
         field: 'operation',
-        value: ['grain_list_recordings', 'grain_create_hook'],
+        value: ['grain_list_recordings'],
       },
       wandConfig: {
         enabled: true,
@@ -96,7 +99,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       placeholder: 'ISO8601 timestamp (e.g., 2024-01-01T00:00:00Z)',
       condition: {
         field: 'operation',
-        value: ['grain_list_recordings', 'grain_create_hook'],
+        value: ['grain_list_recordings'],
       },
       wandConfig: {
         enabled: true,
@@ -125,7 +128,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       value: () => '',
       condition: {
         field: 'operation',
-        value: ['grain_list_recordings', 'grain_create_hook'],
+        value: ['grain_list_recordings'],
       },
     },
     // Title search
@@ -162,7 +165,7 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
       placeholder: 'Filter by team UUID (optional)',
       condition: {
         field: 'operation',
-        value: ['grain_list_recordings', 'grain_create_hook'],
+        value: ['grain_list_recordings'],
       },
     },
     // Meeting type ID filter
@@ -173,7 +176,7 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
       placeholder: 'Filter by meeting type UUID (optional)',
       condition: {
         field: 'operation',
-        value: ['grain_list_recordings', 'grain_create_hook'],
+        value: ['grain_list_recordings'],
       },
     },
     // Include highlights
@@ -183,7 +186,7 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
       type: 'switch',
       condition: {
         field: 'operation',
-        value: ['grain_list_recordings', 'grain_get_recording', 'grain_create_hook'],
+        value: ['grain_list_recordings', 'grain_get_recording'],
       },
     },
     // Include participants
@@ -193,7 +196,7 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
       type: 'switch',
       condition: {
         field: 'operation',
-        value: ['grain_list_recordings', 'grain_get_recording', 'grain_create_hook'],
+        value: ['grain_list_recordings', 'grain_get_recording'],
       },
     },
     // Include AI summary
@@ -203,7 +206,18 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
       type: 'switch',
       condition: {
         field: 'operation',
-        value: ['grain_list_recordings', 'grain_get_recording', 'grain_create_hook'],
+        value: ['grain_list_recordings', 'grain_get_recording'],
+      },
+    },
+    {
+      id: 'viewId',
+      title: 'View ID',
+      type: 'short-input',
+      placeholder: 'Enter Grain view UUID',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['grain_create_hook'],
       },
     },
     // Include calendar event (get_recording only)
@@ -256,21 +270,24 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
       type: 'dropdown',
       mode: 'trigger',
       options: grainTriggerOptions,
-      value: () => 'grain_webhook',
+      value: () => 'grain_item_added',
       required: true,
     },
+    ...getTrigger('grain_item_added').subBlocks,
+    ...getTrigger('grain_item_updated').subBlocks,
+    ...getTrigger('grain_webhook').subBlocks,
     ...getTrigger('grain_recording_created').subBlocks,
     ...getTrigger('grain_recording_updated').subBlocks,
     ...getTrigger('grain_highlight_created').subBlocks,
     ...getTrigger('grain_highlight_updated').subBlocks,
     ...getTrigger('grain_story_created').subBlocks,
-    ...getTrigger('grain_webhook').subBlocks,
   ],
   tools: {
     access: [
       'grain_list_recordings',
       'grain_get_recording',
       'grain_get_transcript',
+      'grain_list_views',
       'grain_list_teams',
       'grain_list_meeting_types',
       'grain_create_hook',
@@ -327,6 +344,7 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
 
           case 'grain_list_teams':
           case 'grain_list_meeting_types':
+          case 'grain_list_views':
           case 'grain_list_hooks':
             return baseParams
 
@@ -334,17 +352,13 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
             if (!params.hookUrl?.trim()) {
               throw new Error('Webhook URL is required.')
             }
+            if (!params.viewId?.trim()) {
+              throw new Error('View ID is required.')
+            }
             return {
               ...baseParams,
               hookUrl: params.hookUrl.trim(),
-              filterBeforeDatetime: params.beforeDatetime || undefined,
-              filterAfterDatetime: params.afterDatetime || undefined,
-              filterParticipantScope: params.participantScope || undefined,
-              filterTeamId: params.teamId || undefined,
-              filterMeetingTypeId: params.meetingTypeId || undefined,
-              includeHighlights: params.includeHighlights || false,
-              includeParticipants: params.includeParticipants || false,
-              includeAiSummary: params.includeAiSummary || false,
+              viewId: params.viewId.trim(),
             }
 
           case 'grain_delete_hook':
@@ -367,6 +381,7 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
     apiKey: { type: 'string', description: 'Grain API key (Personal Access Token)' },
     recordingId: { type: 'string', description: 'Recording UUID' },
     cursor: { type: 'string', description: 'Pagination cursor' },
+    viewId: { type: 'string', description: 'Grain view UUID for webhook subscriptions' },
     beforeDatetime: {
       type: 'string',
       description: 'Filter recordings before this ISO8601 timestamp',
@@ -416,6 +431,7 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
     teamsList: { type: 'json', description: 'Array of team objects' },
     // Meeting type outputs
     meetingTypes: { type: 'json', description: 'Array of meeting type objects' },
+    views: { type: 'json', description: 'Array of Grain views' },
     // Hook outputs
     hooks: { type: 'json', description: 'Array of webhook objects' },
     hook: { type: 'json', description: 'Created webhook data' },
@@ -435,12 +451,14 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
   triggers: {
     enabled: true,
     available: [
+      'grain_item_added',
+      'grain_item_updated',
+      'grain_webhook',
       'grain_recording_created',
       'grain_recording_updated',
       'grain_highlight_created',
       'grain_highlight_updated',
       'grain_story_created',
-      'grain_webhook',
     ],
   },
 }

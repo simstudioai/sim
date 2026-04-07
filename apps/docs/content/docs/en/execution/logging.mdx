@@ -121,10 +121,8 @@ The snapshot provides:
 
 ## Log Retention
 
-- **Free Plan**: 7 days of log retention
-- **Pro Plan**: 30 days of log retention
-- **Team Plan**: 90 days of log retention
-- **Enterprise Plan**: Custom retention periods available
+- **Free Plan**: 7 days of log retention (logs are archived to cloud storage and then deleted)
+- **Pro / Team / Enterprise Plans**: Logs are retained indefinitely (no automatic cleanup)
 
 ## Best Practices
 
@@ -148,3 +146,14 @@ The snapshot provides:
 - Learn about [Cost Calculation](/execution/costs) to understand workflow pricing
 - Explore the [External API](/execution/api) for programmatic log access
 - Set up [Notifications](/execution/api#notifications) for real-time alerts via webhook, email, or Slack
+
+import { FAQ } from '@/components/ui/faq'
+
+<FAQ items={[
+  { question: "How long are execution logs retained?", answer: "Free plans retain logs for 7 days — after that, logs are archived to cloud storage and deleted from the database. Pro, Team, and Enterprise plans retain logs indefinitely with no automatic cleanup." },
+  { question: "What data is captured in each execution log?", answer: "Each log entry includes the execution ID, workflow ID, trigger type, start and end timestamps, total duration in milliseconds, cost breakdown (total cost, token counts, and per-model breakdowns), execution data with trace spans, final output, and any associated files. The log details sidebar lets you inspect block-level inputs and outputs." },
+  { question: "Are API keys visible in the logs?", answer: "No. API keys and credentials are automatically redacted in the log input tab for security. You can safely inspect block inputs without exposing sensitive values." },
+  { question: "What is a workflow snapshot?", answer: "A workflow snapshot is a frozen copy of the workflow's structure (blocks, connections, and configuration) captured at execution time. It lets you see the exact state of the workflow when a particular execution ran, which is useful for debugging workflows that have been modified since the execution." },
+  { question: "Can I access logs programmatically?", answer: "Yes. The External API provides endpoints to query logs with filtering by workflow, time range, trigger type, duration, cost, and model. You can also set up webhook, email, or Slack notifications for real-time alerts when executions complete." },
+  { question: "What does Live mode do on the Logs page?", answer: "Live mode automatically refreshes the Logs page in real-time so new execution entries appear as they are logged, without requiring manual page refreshes. This is useful during deployments or when monitoring active workflows." },
+]} />

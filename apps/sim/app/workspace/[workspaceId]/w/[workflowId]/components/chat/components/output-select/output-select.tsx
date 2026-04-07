@@ -3,6 +3,7 @@
 import type React from 'react'
 import { useMemo } from 'react'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { Combobox, type ComboboxOptionGroup } from '@/components/emcn'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
@@ -27,7 +28,7 @@ const TagIcon: React.FC<{
     style={{ background: color }}
   >
     {typeof icon === 'string' ? (
-      <span className='!text-white font-bold text-[10px]'>{icon}</span>
+      <span className='!text-white font-bold text-micro'>{icon}</span>
     ) : (
       (() => {
         const IconComponent = icon
@@ -80,7 +81,14 @@ export function OutputSelect({
   maxHeight = 200,
 }: OutputSelectProps) {
   const blocks = useWorkflowStore((state) => state.blocks)
-  const { isShowingDiff, isDiffReady, hasActiveDiff, baselineWorkflow } = useWorkflowDiffStore()
+  const { isShowingDiff, isDiffReady, hasActiveDiff, baselineWorkflow } = useWorkflowDiffStore(
+    useShallow((s) => ({
+      isShowingDiff: s.isShowingDiff,
+      isDiffReady: s.isDiffReady,
+      hasActiveDiff: s.hasActiveDiff,
+      baselineWorkflow: s.baselineWorkflow,
+    }))
+  )
   const subBlockValues = useSubBlockStore((state) =>
     workflowId ? state.workflowValues[workflowId] : null
   )
@@ -288,9 +296,9 @@ export function OutputSelect({
 
       return {
         sectionElement: (
-          <div className='flex items-center gap-1.5 px-[6px] py-[4px]'>
+          <div className='flex items-center gap-1.5 px-1.5 py-1'>
             <TagIcon icon={blockIcon} color={blockColor} />
-            <span className='font-medium text-[13px]'>{blockName}</span>
+            <span className='font-medium text-small'>{blockName}</span>
           </div>
         ),
         items: outputs.map((output) => ({
@@ -319,7 +327,7 @@ export function OutputSelect({
   return (
     <Combobox
       size='sm'
-      className='!w-fit !py-[2px] min-w-[100px] rounded-[6px] px-[9px]'
+      className='!w-fit !py-0.5 min-w-[100px] rounded-md px-2.5'
       groups={comboboxGroups}
       options={[]}
       multiSelect

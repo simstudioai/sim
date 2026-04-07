@@ -4,6 +4,9 @@ import {
   CONTAINER_PADDING,
   CONTAINER_PADDING_X,
   CONTAINER_PADDING_Y,
+  ESTIMATED_BLOCK_BOTTOM_PADDING,
+  ESTIMATED_SUBBLOCK_HEIGHT,
+  MAX_ESTIMATED_BLOCK_HEIGHT,
   ROOT_PADDING_X,
   ROOT_PADDING_Y,
 } from '@/lib/workflows/autolayout/constants'
@@ -131,7 +134,30 @@ function getContainerMetrics(block: BlockState): BlockMetrics {
 }
 
 /**
- * Gets metrics for a regular (non-container) block
+ * Estimates block height from subblock count when no measurement is available.
+ * Only counts subblocks with non-null values to avoid over-counting conditional
+ * fields (e.g. agent blocks define ~20 subblocks but only ~5 are typically visible).
+ * The result is capped at MAX_ESTIMATED_BLOCK_HEIGHT to prevent massive layout gaps.
+ */
+function estimateBlockHeight(block: BlockState): number {
+  const subBlocks = block.subBlocks || {}
+  const visibleCount = Object.values(subBlocks).filter(
+    (sb) => sb && sb.value !== null && sb.value !== undefined
+  ).length
+  if (visibleCount === 0) return BLOCK_DIMENSIONS.MIN_HEIGHT
+
+  const estimated =
+    BLOCK_DIMENSIONS.HEADER_HEIGHT +
+    visibleCount * ESTIMATED_SUBBLOCK_HEIGHT +
+    ESTIMATED_BLOCK_BOTTOM_PADDING
+
+  return Math.min(Math.max(estimated, BLOCK_DIMENSIONS.MIN_HEIGHT), MAX_ESTIMATED_BLOCK_HEIGHT)
+}
+
+/**
+ * Gets metrics for a regular (non-container) block.
+ * Falls back to subblock-based height estimation when no measurement exists,
+ * which prevents overlaps for newly added blocks that haven't been rendered.
  */
 function getRegularBlockMetrics(block: BlockState): BlockMetrics {
   const minWidth = BLOCK_DIMENSIONS.FIXED_WIDTH
@@ -139,8 +165,9 @@ function getRegularBlockMetrics(block: BlockState): BlockMetrics {
   const measuredH = block.layout?.measuredHeight ?? block.height
   const measuredW = block.layout?.measuredWidth
 
+  const hasMeasurement = typeof measuredH === 'number' && measuredH > 0
+  const height = hasMeasurement ? Math.max(measuredH, minHeight) : estimateBlockHeight(block)
   const width = Math.max(measuredW ?? minWidth, minWidth)
-  const height = Math.max(measuredH ?? minHeight, minHeight)
 
   return {
     width,

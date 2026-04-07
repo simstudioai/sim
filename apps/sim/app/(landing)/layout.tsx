@@ -1,11 +1,13 @@
 import type { Metadata } from 'next'
+import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
+import { season } from '@/app/_styles/fonts/season/season'
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://sim.ai'),
-  manifest: '/manifest.json',
+  manifest: '/manifest.webmanifest',
   icons: {
-    icon: '/favicon.ico',
-    apple: '/apple-icon.png',
+    icon: [{ url: '/icon.svg', type: 'image/svg+xml', sizes: 'any' }],
+    apple: '/favicon/apple-touch-icon.png',
   },
   other: {
     'msapplication-TileColor': '#000000',
@@ -13,6 +15,15 @@ export const metadata: Metadata = {
   },
 }
 
+/**
+ * Landing page route-group layout.
+ *
+ * Applies landing-specific font CSS variables to the subtree:
+ * - `--font-season` (Season Sans): Headings and display text
+ * - `--font-martian-mono` (Martian Mono): Code snippets and technical accents
+ *
+ * Available to child components via Tailwind (`font-season`, `font-martian-mono`).
+ */
 export default function LandingLayout({ children }: { children: React.ReactNode }) {
-  return children
+  return <div className={`${season.variable} ${martianMono.variable}`}>{children}</div>
 }

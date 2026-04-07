@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server'
 import { env } from '@/lib/core/config/env'
+import { safeCompare } from '@/lib/core/security/encryption'
 
 export function checkInternalApiKey(req: NextRequest) {
   const apiKey = req.headers.get('x-api-key')
@@ -13,7 +14,7 @@ export function checkInternalApiKey(req: NextRequest) {
     return { success: false, error: 'API key required' }
   }
 
-  if (apiKey !== expectedApiKey) {
+  if (!safeCompare(apiKey, expectedApiKey)) {
     return { success: false, error: 'Invalid API key' }
   }
 

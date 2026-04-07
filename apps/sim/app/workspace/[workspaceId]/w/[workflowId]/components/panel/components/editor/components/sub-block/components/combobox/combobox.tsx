@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import isEqual from 'lodash/isEqual'
+import { isEqual } from 'es-toolkit'
 import { useReactFlow } from 'reactflow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { Combobox, type ComboboxOption } from '@/components/emcn/components'
@@ -21,7 +21,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 /**
  * Constants for ComboBox component behavior
  */
-const DEFAULT_MODEL = 'claude-sonnet-4-5'
+const DEFAULT_MODEL = 'claude-sonnet-4-6'
 const ZOOM_FACTOR_BASE = 0.96
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 1
@@ -59,14 +59,10 @@ interface ComboBoxProps {
   /** Configuration for the sub-block */
   config: SubBlockConfig
   /** Async function to fetch options dynamically */
-  fetchOptions?: (
-    blockId: string,
-    subBlockId: string
-  ) => Promise<Array<{ label: string; id: string }>>
+  fetchOptions?: (blockId: string) => Promise<Array<{ label: string; id: string }>>
   /** Async function to fetch a single option's label by ID (for hydration) */
   fetchOptionById?: (
     blockId: string,
-    subBlockId: string,
     optionId: string
   ) => Promise<{ label: string; id: string } | null>
   /** Field dependencies that trigger option refetch when changed */
@@ -120,7 +116,6 @@ export const ComboBox = memo(function ComboBox({
   )
 
   // State management
-  const [storeInitialized, setStoreInitialized] = useState(false)
   const [fetchedOptions, setFetchedOptions] = useState<Array<{ label: string; id: string }>>([])
   const [isLoadingOptions, setIsLoadingOptions] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
@@ -136,7 +131,7 @@ export const ComboBox = memo(function ComboBox({
     setIsLoadingOptions(true)
     setFetchError(null)
     try {
-      const options = await fetchOptions(blockId, subBlockId)
+      const options = await fetchOptions(blockId)
       setFetchedOptions(options)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch options'
@@ -145,7 +140,7 @@ export const ComboBox = memo(function ComboBox({
     } finally {
       setIsLoadingOptions(false)
     }
-  }, [fetchOptions, blockId, subBlockId, isPreview, disabled])
+  }, [fetchOptions, blockId, isPreview, disabled])
 
   // Determine the active value based on mode (preview vs. controlled vs. store)
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
@@ -235,7 +230,7 @@ export const ComboBox = memo(function ComboBox({
 
   /**
    * Determines the default option value to use.
-   * Priority: explicit defaultValue > claude-sonnet-4-5 for model field > first option
+   * Priority: explicit defaultValue > claude-sonnet-4-6 for model field > first option
    */
   const defaultOptionValue = useMemo(() => {
     if (defaultValue !== undefined) {
@@ -247,11 +242,13 @@ export const ComboBox = memo(function ComboBox({
       // Default not available (e.g. provider disabled) — fall through to other fallbacks
     }
 
-    // For model field, default to claude-sonnet-4-5 if available
+    // For model field, default to claude-sonnet-4-6 if available
     if (subBlockId === 'model') {
-      const claudeSonnet45 = evaluatedOptions.find((opt) => getOptionValue(opt) === DEFAULT_MODEL)
-      if (claudeSonnet45) {
-        return getOptionValue(claudeSonnet45)
+      const defaultModelOption = evaluatedOptions.find(
+        (opt) => getOptionValue(opt) === DEFAULT_MODEL
+      )
+      if (defaultModelOption) {
+        return getOptionValue(defaultModelOption)
       }
     }
 
@@ -280,27 +277,22 @@ export const ComboBox = memo(function ComboBox({
   }, [value, evaluatedOptions])
 
   const [inputValue, setInputValue] = useState(displayValue)
-
-  useEffect(() => {
+  const [prevDisplayValue, setPrevDisplayValue] = useState(displayValue)
+  if (displayValue !== prevDisplayValue) {
+    setPrevDisplayValue(displayValue)
     setInputValue(displayValue)
-  }, [displayValue])
+  }
 
-  // Mark store as initialized on first render
-  useEffect(() => {
-    setStoreInitialized(true)
-  }, [])
-
-  // Set default value once store is initialized and permissions are loaded
+  // Set default value once permissions are loaded
   useEffect(() => {
     if (isPermissionLoading) return
-    if (!storeInitialized) return
     if (defaultOptionValue === undefined) return
 
     // Only set default when no value exists (initial block add)
     if (value === null || value === undefined) {
       setStoreValue(defaultOptionValue)
     }
-  }, [storeInitialized, value, defaultOptionValue, setStoreValue, isPermissionLoading])
+  }, [value, defaultOptionValue, setStoreValue, isPermissionLoading])
 
   // Clear fetched options and hydrated option when dependencies change
   useEffect(() => {
@@ -367,7 +359,7 @@ export const ComboBox = memo(function ComboBox({
     let isActive = true
 
     // Fetch the hydrated option
-    fetchOptionById(blockId, subBlockId, valueToHydrate)
+    fetchOptionById(blockId, valueToHydrate)
       .then((option) => {
         if (isActive) setHydratedOption(option)
       })
@@ -382,7 +374,6 @@ export const ComboBox = memo(function ComboBox({
     fetchOptionById,
     value,
     blockId,
-    subBlockId,
     isPreview,
     disabled,
     fetchedOptions,
@@ -459,7 +450,7 @@ export const ComboBox = memo(function ComboBox({
     const displayLabel = inputValue
     return (
       <div className='flex w-full items-center truncate [scrollbar-width:none]'>
-        {SelectedIcon && <SelectedIcon className='mr-[8px] h-3 w-3 flex-shrink-0' />}
+        {SelectedIcon && <SelectedIcon className='mr-2 h-3 w-3 flex-shrink-0' />}
         <div className='truncate'>
           {formatDisplayText(displayLabel, {
             accessiblePrefixes,
@@ -574,7 +565,7 @@ export const ComboBox = memo(function ComboBox({
               inputRef={ref as React.RefObject<HTMLInputElement>}
               filterOptions
               searchable={config.searchable}
-              className={cn('allow-scroll overflow-x-auto', selectedOptionIcon && 'pl-[28px]')}
+              className={cn('allow-scroll overflow-x-auto', selectedOptionIcon && 'pl-7')}
               inputProps={comboboxInputProps}
               isLoading={isLoadingOptions}
               error={fetchError}

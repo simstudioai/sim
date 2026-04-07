@@ -1,4 +1,5 @@
 import type { Edge } from 'reactflow'
+import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import type { NodeMetadata } from '@/executor/dag/types'
 import type {
   BlockLog,
@@ -34,6 +35,7 @@ export interface ExecutionMetadata {
     deploymentVersionId?: string
   }
   callChain?: string[]
+  correlation?: AsyncExecutionCorrelation
 }
 
 export interface SerializableExecutionState {

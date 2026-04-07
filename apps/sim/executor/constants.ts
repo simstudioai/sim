@@ -25,6 +25,7 @@ export enum BlockType {
 
   FUNCTION = 'function',
   AGENT = 'agent',
+  MOTHERSHIP = 'mothership',
   API = 'api',
   EVALUATOR = 'evaluator',
   VARIABLES = 'variables',
@@ -33,6 +34,8 @@ export enum BlockType {
   HUMAN_IN_THE_LOOP = 'human_in_the_loop',
   WORKFLOW = 'workflow',
   WORKFLOW_INPUT = 'workflow_input',
+
+  CREDENTIAL = 'credential',
 
   WAIT = 'wait',
 
@@ -189,7 +192,7 @@ export const HTTP = {
 } as const
 
 export const AGENT = {
-  DEFAULT_MODEL: 'claude-sonnet-4-5',
+  DEFAULT_MODEL: 'claude-sonnet-4-6',
   get DEFAULT_FUNCTION_TIMEOUT() {
     return getMaxExecutionTimeout()
   },
@@ -224,13 +227,13 @@ export const MEMORY = {
 } as const
 
 export const ROUTER = {
-  DEFAULT_MODEL: 'claude-sonnet-4-5',
+  DEFAULT_MODEL: 'claude-sonnet-4-6',
   DEFAULT_TEMPERATURE: 0,
   INFERENCE_TEMPERATURE: 0.1,
 } as const
 
 export const EVALUATOR = {
-  DEFAULT_MODEL: 'claude-sonnet-4-5',
+  DEFAULT_MODEL: 'claude-sonnet-4-6',
   DEFAULT_TEMPERATURE: 0.1,
   RESPONSE_SCHEMA_NAME: 'evaluation_response',
   JSON_INDENT: 2,
@@ -438,7 +441,10 @@ export function isValidEnvVarName(name: string): boolean {
   return PATTERNS.ENV_VAR_NAME.test(name)
 }
 
-export function sanitizeFileName(fileName: string): string {
+export function sanitizeFileName(fileName: string | null | undefined): string {
+  if (!fileName || typeof fileName !== 'string') {
+    return 'untitled'
+  }
   return fileName.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '_')
 }
 

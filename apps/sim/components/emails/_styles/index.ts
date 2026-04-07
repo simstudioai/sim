@@ -1,1 +1,1 @@
-export { baseStyles, colors, spacing, typography } from './base'
+export { baseStyles, colors, plainEmailStyles, spacing, typography } from './base'

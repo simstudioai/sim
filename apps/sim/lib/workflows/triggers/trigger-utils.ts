@@ -74,7 +74,12 @@ function processOutputField(key: string, field: unknown, depth = 0, maxDepth = 1
     return null
   }
 
-  if (field && typeof field === 'object' && 'type' in field) {
+  if (
+    field &&
+    typeof field === 'object' &&
+    'type' in field &&
+    typeof (field as Record<string, unknown>).type === 'string'
+  ) {
     const typedField = field as { type: string; description?: string }
     return generateMockValue(typedField.type, typedField.description, key)
   }

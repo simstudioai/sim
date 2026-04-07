@@ -5,7 +5,13 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createKnowledgeBase, getKnowledgeBases } from '@/lib/knowledge/service'
+import {
+  createKnowledgeBase,
+  getKnowledgeBases,
+  KnowledgeBaseConflictError,
+  type KnowledgeBaseScope,
+} from '@/lib/knowledge/service'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('KnowledgeBaseAPI')
 
@@ -61,8 +67,12 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const workspaceId = searchParams.get('workspaceId')
+    const scope = (searchParams.get('scope') ?? 'active') as KnowledgeBaseScope
+    if (!['active', 'archived', 'all'].includes(scope)) {
+      return NextResponse.json({ error: 'Invalid scope' }, { status: 400 })
+    }
 
-    const knowledgeBasesWithCounts = await getKnowledgeBases(session.user.id, workspaceId)
+    const knowledgeBasesWithCounts = await getKnowledgeBases(session.user.id, workspaceId, scope)
 
     return NextResponse.json({
       success: true,
@@ -106,6 +116,20 @@ export async function POST(req: NextRequest) {
         // Telemetry should not fail the operation
       }
 
+      captureServerEvent(
+        session.user.id,
+        'knowledge_base_created',
+        {
+          knowledge_base_id: newKnowledgeBase.id,
+          workspace_id: validatedData.workspaceId,
+          name: validatedData.name,
+        },
+        {
+          groups: { workspace: validatedData.workspaceId },
+          setOnce: { first_kb_created_at: new Date().toISOString() },
+        }
+      )
+
       logger.info(
         `[${requestId}] Knowledge base created: ${newKnowledgeBase.id} for user ${session.user.id}`
       )
@@ -141,6 +165,10 @@ export async function POST(req: NextRequest) {
       throw validationError
     }
   } catch (error) {
+    if (error instanceof KnowledgeBaseConflictError) {
+      return NextResponse.json({ error: error.message }, { status: 409 })
+    }
+
     logger.error(`[${requestId}] Error creating knowledge base`, error)
     return NextResponse.json({ error: 'Failed to create knowledge base' }, { status: 500 })
   }

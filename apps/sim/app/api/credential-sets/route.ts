@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
+import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('CredentialSets')
 
@@ -123,21 +124,23 @@ export async function POST(req: Request) {
       )
     }
 
-    const orgExists = await db
-      .select({ id: organization.id })
-      .from(organization)
-      .where(eq(organization.id, organizationId))
-      .limit(1)
+    // Check org existence and name uniqueness in parallel
+    const [orgExists, existingSet] = await Promise.all([
+      db
+        .select({ id: organization.id })
+        .from(organization)
+        .where(eq(organization.id, organizationId))
+        .limit(1),
+      db
+        .select({ id: credentialSet.id })
+        .from(credentialSet)
+        .where(and(eq(credentialSet.organizationId, organizationId), eq(credentialSet.name, name)))
+        .limit(1),
+    ])
 
     if (orgExists.length === 0) {
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
-
-    const existingSet = await db
-      .select({ id: credentialSet.id })
-      .from(credentialSet)
-      .where(and(eq(credentialSet.organizationId, organizationId), eq(credentialSet.name, name)))
-      .limit(1)
 
     if (existingSet.length > 0) {
       return NextResponse.json(
@@ -148,7 +151,7 @@ export async function POST(req: Request) {
 
     const now = new Date()
     const newCredentialSet = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       organizationId,
       name,
       description: description || null,

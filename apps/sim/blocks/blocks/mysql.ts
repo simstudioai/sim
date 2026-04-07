@@ -1,5 +1,6 @@
 import { MySQLIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { IntegrationType } from '@/blocks/types'
 import type { MySQLResponse } from '@/tools/mysql/types'
 
 export const MySQLBlock: BlockConfig<MySQLResponse> = {
@@ -10,6 +11,8 @@ export const MySQLBlock: BlockConfig<MySQLResponse> = {
     'Integrate MySQL into the workflow. Can query, insert, update, delete, and execute raw SQL.',
   docsLink: 'https://docs.sim.ai/tools/mysql',
   category: 'tools',
+  integrationType: IntegrationType.Databases,
+  tags: ['data-warehouse', 'data-analytics'],
   bgColor: '#E0E0E0',
   icon: MySQLIcon,
   subBlocks: [

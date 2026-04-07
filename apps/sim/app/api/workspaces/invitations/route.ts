@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto'
 import { render } from '@react-email/render'
 import { db } from '@sim/db'
 import {
@@ -10,15 +9,18 @@ import {
   workspaceInvitation,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { WorkspaceInvitationEmail } from '@/components/emails'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
+import { captureServerEvent } from '@/lib/posthog/server'
+import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 import {
   InvitationsNotAllowedError,
   validateInvitationsAllowed,
@@ -50,6 +52,7 @@ export async function GET(req: NextRequest) {
           eq(permissions.userId, session.user.id)
         )
       )
+      .where(isNull(workspace.archivedAt))
 
     if (userWorkspaces.length === 0) {
       return NextResponse.json({ invitations: [] })
@@ -114,10 +117,15 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    const activeWorkspace = await getWorkspaceById(workspaceId)
+    if (!activeWorkspace) {
+      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+    }
+
     const workspaceDetails = await db
       .select()
       .from(workspace)
-      .where(eq(workspace.id, workspaceId))
+      .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
       .then((rows) => rows[0])
 
     if (!workspaceDetails) {
@@ -176,12 +184,12 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const token = randomUUID()
+    const token = generateId()
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 7) // 7 days expiry
 
     const invitationData = {
-      id: randomUUID(),
+      id: generateId(),
       workspaceId,
       email,
       inviterId: session.user.id,
@@ -206,6 +214,16 @@ export async function POST(req: NextRequest) {
     } catch {
       // Telemetry should not fail the operation
     }
+
+    captureServerEvent(
+      session.user.id,
+      'workspace_member_invited',
+      { workspace_id: workspaceId, invitee_role: permission },
+      {
+        groups: { workspace: workspaceId },
+        setOnce: { first_invitation_sent_at: new Date().toISOString() },
+      }
+    )
 
     await sendInvitationEmail({
       to: email,

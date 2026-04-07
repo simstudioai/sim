@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { HubSpotGetUsersParams, HubSpotGetUsersResponse } from '@/tools/hubspot/types'
-import { USERS_ARRAY_OUTPUT } from '@/tools/hubspot/types'
+import { PAGING_OUTPUT, USERS_ARRAY_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('HubSpotGetUsers')
@@ -29,6 +29,12 @@ export const hubspotGetUsersTool: ToolConfig<HubSpotGetUsersParams, HubSpotGetUs
       visibility: 'user-or-llm',
       description: 'Number of results to return (default: 100, max: 100)',
     },
+    after: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor for next page of results (from previous response)',
+    },
   },
 
   request: {
@@ -38,6 +44,9 @@ export const hubspotGetUsersTool: ToolConfig<HubSpotGetUsersParams, HubSpotGetUs
 
       if (params.limit) {
         queryParams.append('limit', params.limit)
+      }
+      if (params.after) {
+        queryParams.append('after', params.after)
       }
 
       const queryString = queryParams.toString()
@@ -56,7 +65,7 @@ export const hubspotGetUsersTool: ToolConfig<HubSpotGetUsersParams, HubSpotGetUs
     },
   },
 
-  transformResponse: async (response: Response, params) => {
+  transformResponse: async (response: Response) => {
     const data = await response.json()
 
     if (!response.ok) {
@@ -70,6 +79,7 @@ export const hubspotGetUsersTool: ToolConfig<HubSpotGetUsersParams, HubSpotGetUs
       success: true,
       output: {
         users,
+        paging: data.paging ?? null,
         totalItems: users.length,
         success: true,
       },
@@ -78,6 +88,7 @@ export const hubspotGetUsersTool: ToolConfig<HubSpotGetUsersParams, HubSpotGetUs
 
   outputs: {
     users: USERS_ARRAY_OUTPUT,
+    paging: PAGING_OUTPUT,
     totalItems: { type: 'number', description: 'Total number of users returned' },
     success: { type: 'boolean', description: 'Operation success status' },
   },

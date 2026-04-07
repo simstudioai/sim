@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import * as ipaddr from 'ipaddr.js'
+import { isHosted } from '@/lib/core/config/feature-flags'
 
 const logger = createLogger('InputValidation')
 
@@ -676,7 +677,8 @@ export function validateJiraIssueKey(
  */
 export function validateExternalUrl(
   url: string | null | undefined,
-  paramName = 'url'
+  paramName = 'url',
+  options: { allowHttp?: boolean } = {}
 ): ValidationResult {
   if (!url || typeof url !== 'string') {
     return {
@@ -709,7 +711,21 @@ export function validateExternalUrl(
     }
   }
 
-  if (protocol !== 'https:' && !(protocol === 'http:' && isLocalhost)) {
+  if (isLocalhost && isHosted) {
+    return {
+      isValid: false,
+      error: `${paramName} cannot point to localhost`,
+    }
+  }
+
+  if (options.allowHttp) {
+    if (protocol !== 'https:' && protocol !== 'http:') {
+      return {
+        isValid: false,
+        error: `${paramName} must use http:// or https:// protocol`,
+      }
+    }
+  } else if (protocol !== 'https:' && !(protocol === 'http:' && isLocalhost && !isHosted)) {
     return {
       isValid: false,
       error: `${paramName} must use https:// protocol`,
@@ -725,18 +741,8 @@ export function validateExternalUrl(
     }
   }
 
-  // Block suspicious ports commonly used for internal services
   const port = parsedUrl.port
-  const blockedPorts = [
-    '22', // SSH
-    '23', // Telnet
-    '25', // SMTP
-    '3306', // MySQL
-    '5432', // PostgreSQL
-    '6379', // Redis
-    '27017', // MongoDB
-    '9200', // Elasticsearch
-  ]
+  const blockedPorts = ['22', '23', '25', '3306', '5432', '6379', '27017', '9200']
 
   if (port && blockedPorts.includes(port)) {
     return {
@@ -826,7 +832,6 @@ export function validateAirtableId(
     }
   }
 
-  // Airtable IDs: prefix (3 chars) + 14 alphanumeric characters = 17 chars total
   const airtableIdPattern = new RegExp(`^${expectedPrefix}[a-zA-Z0-9]{14}$`)
 
   if (!airtableIdPattern.test(value)) {
@@ -877,11 +882,6 @@ export function validateAwsRegion(
     }
   }
 
-  // AWS region patterns:
-  // - Standard: af|ap|ca|eu|me|sa|us|il followed by direction and number
-  // - GovCloud: us-gov-east-1, us-gov-west-1
-  // - China: cn-north-1, cn-northwest-1
-  // - ISO: us-iso-east-1, us-iso-west-1, us-isob-east-1
   const awsRegionPattern =
     /^(af|ap|ca|cn|eu|il|me|sa|us|us-gov|us-iso|us-isob)-(central|north|northeast|northwest|south|southeast|southwest|east|west)-\d{1,2}$/
 
@@ -1140,7 +1140,6 @@ export function validatePaginationCursor(
     }
   }
 
-  // Allow alphanumeric, base64 chars (+, /, =), and URL-safe chars (-, _, ., ~, %)
   const cursorPattern = /^[A-Za-z0-9+/=\-_.~%]+$/
   if (!cursorPattern.test(value)) {
     logger.warn('Pagination cursor contains disallowed characters', {
@@ -1154,4 +1153,97 @@ export function validatePaginationCursor(
   }
 
   return { isValid: true, sanitized: value }
+}
+
+/**
+ * Validates a callback URL to prevent open redirect attacks.
+ * Accepts relative paths and absolute URLs matching the current origin.
+ *
+ * @param url - The callback URL to validate
+ * @returns true if the URL is safe to redirect to
+ */
+export function validateCallbackUrl(url: string): boolean {
+  try {
+    if (url.startsWith('/')) return true
+
+    if (typeof window === 'undefined') return false
+
+    const currentOrigin = window.location.origin
+    if (url.startsWith(currentOrigin)) return true
+
+    return false
+  } catch (error) {
+    logger.error('Error validating callback URL:', { error, url })
+    return false
+  }
+}
+
+const OKTA_DOMAIN_PATTERN =
+  /^[a-zA-Z0-9][a-zA-Z0-9-]*\.(okta|okta-gov|okta-emea|oktapreview|trexcloud)\.com$/
+
+/**
+ * Validates and sanitizes an Okta domain to prevent SSRF.
+ * Ensures the domain matches a known Okta domain suffix.
+ *
+ * @param rawDomain - The raw domain string (may include protocol, trailing slash, or whitespace)
+ * @returns The cleaned, validated domain string
+ * @throws Error if the domain does not match a known Okta domain suffix
+ *
+ * @example
+ * ```typescript
+ * const domain = validateOktaDomain(params.domain)
+ * // Returns: "dev-123456.okta.com"
+ * ```
+ */
+export function validateOktaDomain(rawDomain: string): string {
+  const domain = rawDomain
+    .trim()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/$/, '')
+  if (!OKTA_DOMAIN_PATTERN.test(domain)) {
+    throw new Error(
+      `Invalid Okta domain: "${domain}". Must be a valid Okta domain (e.g., dev-123456.okta.com)`
+    )
+  }
+  return domain
+}
+
+const MICROSOFT_CONTENT_SUFFIXES = [
+  'sharepoint.com',
+  'sharepoint.us',
+  'sharepoint.de',
+  'sharepoint.cn',
+  'sharepointonline.com',
+  'onedrive.com',
+  'onedrive.live.com',
+  '1drv.ms',
+  '1drv.com',
+  'microsoftpersonalcontent.com',
+] as const
+
+/**
+ * Returns true if the given URL is hosted on a trusted Microsoft SharePoint or
+ * OneDrive domain. Validates the parsed hostname against an allowlist using exact
+ * match or subdomain suffix, preventing incomplete-substring bypasses.
+ *
+ * Covers SharePoint Online (commercial, GCC/GCC High/DoD, Germany, China),
+ * OneDrive business and consumer, OneDrive short-link and CDN domains,
+ * and Microsoft personal content CDN.
+ *
+ * @see https://learn.microsoft.com/en-us/sharepoint/required-urls-and-ports
+ * @see https://learn.microsoft.com/en-us/microsoft-365/enterprise/microsoft-365-u-s-government-gcc-high-endpoints
+ *
+ * @param url - The URL to check
+ * @returns Whether the URL belongs to a trusted Microsoft content host
+ */
+export function isMicrosoftContentUrl(url: string): boolean {
+  let hostname: string
+  try {
+    hostname = new URL(url).hostname.toLowerCase()
+  } catch {
+    return false
+  }
+  return MICROSOFT_CONTENT_SUFFIXES.some(
+    (suffix) => hostname === suffix || hostname.endsWith(`.${suffix}`)
+  )
 }

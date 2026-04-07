@@ -1,10 +1,11 @@
 import { db } from '@sim/db'
 import { account, credential, credentialMember } from '@sim/db/schema'
 import { and, eq, inArray, notInArray } from 'drizzle-orm'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 
-/** Provider IDs that are not real OAuth integrations (e.g. Better Auth's password provider) */
-const NON_OAUTH_PROVIDER_IDS = ['credential'] as const
+/** Provider IDs that are not real OAuth integrations (login-only social providers and password) */
+const NON_OAUTH_PROVIDER_IDS = ['credential', 'google', 'github'] as const
 
 interface SyncWorkspaceOAuthCredentialsForUserParams {
   workspaceId: string
@@ -12,7 +13,6 @@ interface SyncWorkspaceOAuthCredentialsForUserParams {
 }
 
 interface SyncWorkspaceOAuthCredentialsForUserResult {
-  createdCredentials: number
   updatedMemberships: number
 }
 
@@ -23,7 +23,9 @@ function getPostgresErrorCode(error: unknown): string | undefined {
 }
 
 /**
- * Ensures connected OAuth accounts for a user exist as workspace-scoped credentials.
+ * Normalizes display names and ensures credential memberships for existing
+ * workspace-scoped OAuth credentials. Does not create new credentials —
+ * credential creation is handled by the draft-based OAuth connect flow.
  */
 export async function syncWorkspaceOAuthCredentialsForUser(
   params: SyncWorkspaceOAuthCredentialsForUserParams
@@ -42,7 +44,7 @@ export async function syncWorkspaceOAuthCredentialsForUser(
     )
 
   if (userAccounts.length === 0) {
-    return { createdCredentials: 0, updatedMemberships: 0 }
+    return { updatedMemberships: 0 }
   }
 
   const accountIds = userAccounts.map((row) => row.id)
@@ -88,39 +90,6 @@ export async function syncWorkspaceOAuthCredentialsForUser(
       .where(eq(credential.id, existingCredential.id))
   }
 
-  const existingByAccountId = new Map(
-    existingCredentials
-      .filter((row) => Boolean(row.accountId))
-      .map((row) => [row.accountId!, row.id])
-  )
-
-  let createdCredentials = 0
-
-  for (const acc of userAccounts) {
-    if (existingByAccountId.has(acc.id)) {
-      continue
-    }
-
-    try {
-      await db.insert(credential).values({
-        id: crypto.randomUUID(),
-        workspaceId,
-        type: 'oauth',
-        displayName: getServiceConfigByProviderId(acc.providerId)?.name || acc.providerId,
-        providerId: acc.providerId,
-        accountId: acc.id,
-        createdBy: userId,
-        createdAt: now,
-        updatedAt: now,
-      })
-      createdCredentials += 1
-    } catch (error) {
-      if (getPostgresErrorCode(error) !== '23505') {
-        throw error
-      }
-    }
-  }
-
   const credentialRows = await db
     .select({ id: credential.id, accountId: credential.accountId })
     .from(credential)
@@ -137,7 +106,7 @@ export async function syncWorkspaceOAuthCredentialsForUser(
   )
   const allCredentialIds = Array.from(credentialIdByAccountId.values())
   if (allCredentialIds.length === 0) {
-    return { createdCredentials, updatedMemberships: 0 }
+    return { updatedMemberships: 0 }
   }
 
   const existingMemberships = await db
@@ -178,7 +147,7 @@ export async function syncWorkspaceOAuthCredentialsForUser(
 
     try {
       await db.insert(credentialMember).values({
-        id: crypto.randomUUID(),
+        id: generateId(),
         credentialId,
         userId,
         role: 'admin',
@@ -196,5 +165,5 @@ export async function syncWorkspaceOAuthCredentialsForUser(
     }
   }
 
-  return { createdCredentials, updatedMemberships }
+  return { updatedMemberships }
 }

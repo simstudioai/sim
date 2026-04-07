@@ -5,6 +5,7 @@ import {
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
   isCanonicalPair,
+  isSubBlockHidden,
   resolveCanonicalMode,
   type SubBlockCondition,
 } from '@/lib/workflows/subblocks/visibility'
@@ -319,6 +320,10 @@ export function getToolParametersConfig(
           )
 
           if (subBlock) {
+            if (isSubBlockHidden(subBlock)) {
+              toolParam.visibility = 'hidden'
+            }
+
             toolParam.uiComponent = {
               type: subBlock.type,
               options: subBlock.options as Option[] | undefined,
@@ -430,6 +435,14 @@ export function createUserToolSchema(toolConfig: ToolConfig): ToolSchema {
 
     if (param.required) {
       schema.required.push(paramId)
+    }
+  }
+
+  if (toolConfig.oauth?.required) {
+    schema.properties.credentialId = {
+      type: 'string',
+      description:
+        'Optional credential ID to use when multiple accounts are connected for this provider. Get IDs from environment/credentials.json. If omitted, auto-selects the first available credential.',
     }
   }
 
@@ -933,6 +946,9 @@ export function getSubBlocksForToolInput(
       // Skip trigger-mode-only subblocks
       if (sb.mode === 'trigger') continue
 
+      // Hide tool API key fields when running on hosted Sim or when env var is set
+      if (isSubBlockHidden(sb)) continue
+
       // Determine the effective param ID (canonical or subblock id)
       const effectiveParamId = sb.canonicalParamId || sb.id
 
@@ -973,8 +989,7 @@ export function getSubBlocksForToolInput(
       // Filter by visibility: exclude hidden and llm-only
       if (visibility === 'hidden' || visibility === 'llm-only') continue
 
-      // Evaluate condition against current values
-      if (sb.condition) {
+      if (sb.condition && !sb.reactiveCondition) {
         const conditionMet = evaluateSubBlockCondition(
           sb.condition as SubBlockCondition,
           valuesWithOperation

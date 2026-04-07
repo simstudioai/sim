@@ -12,10 +12,10 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Skeleton,
   TagInput,
   Textarea,
 } from '@/components/emcn'
-import { Skeleton } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { captureAndUploadOGImage, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH } from '@/lib/og'
@@ -27,6 +27,7 @@ import {
   useTemplateByWorkflow,
   useUpdateTemplate,
 } from '@/hooks/queries/templates'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -62,6 +63,7 @@ export function TemplateDeploy({
   onSubmittingChange,
 }: TemplateDeployProps) {
   const { data: session } = useSession()
+  const { navigateToSettings } = useSettingsNavigation()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isCapturing, setIsCapturing] = useState(false)
   const previewContainerRef = useRef<HTMLDivElement>(null)
@@ -103,8 +105,7 @@ export function TemplateDeploy({
 
   useEffect(() => {
     const handleCreatorProfileSaved = () => {
-      logger.info('Creator profile saved, reopening deploy modal...')
-      window.dispatchEvent(new CustomEvent('close-settings'))
+      logger.info('Creator profile saved, returning to deploy modal...')
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('open-deploy-modal', { detail: { tab: 'template' } }))
       }, 100)
@@ -204,26 +205,26 @@ export function TemplateDeploy({
 
   if (isLoadingTemplate) {
     return (
-      <div className='space-y-[12px]'>
+      <div className='space-y-3'>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[40px]' />
-          <Skeleton className='h-[34px] w-full rounded-[4px]' />
+          <Skeleton className='h-[34px] w-full rounded-sm' />
         </div>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[50px]' />
-          <Skeleton className='h-[34px] w-full rounded-[4px]' />
+          <Skeleton className='h-[34px] w-full rounded-sm' />
         </div>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[76px]' />
-          <Skeleton className='h-[160px] w-full rounded-[4px]' />
+          <Skeleton className='h-[160px] w-full rounded-sm' />
         </div>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[50px]' />
-          <Skeleton className='h-[34px] w-full rounded-[4px]' />
+          <Skeleton className='h-[34px] w-full rounded-sm' />
         </div>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[32px]' />
-          <Skeleton className='h-[34px] w-full rounded-[4px]' />
+          <Skeleton className='h-[34px] w-full rounded-sm' />
         </div>
       </div>
     )
@@ -231,15 +232,15 @@ export function TemplateDeploy({
 
   return (
     <div className='space-y-4'>
-      <form id='template-deploy-form' onSubmit={handleSubmit} className='space-y-[12px]'>
+      <form id='template-deploy-form' onSubmit={handleSubmit} className='space-y-3'>
         {existingTemplate?.state && (
           <div>
-            <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+            <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
               Live Template
             </Label>
             <div
               ref={previewContainerRef}
-              className='[&_*]:!cursor-default relative h-[260px] w-full cursor-default overflow-hidden rounded-[4px] border border-[var(--border)]'
+              className='[&_*]:!cursor-default relative h-[260px] w-full cursor-default overflow-hidden rounded-sm border border-[var(--border)]'
               onWheelCapture={(e) => {
                 if (e.ctrlKey || e.metaKey) return
                 e.stopPropagation()
@@ -251,7 +252,7 @@ export function TemplateDeploy({
         )}
 
         <div>
-          <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Name <span className='text-[var(--text-error)]'>*</span>
           </Label>
           <Input
@@ -263,7 +264,7 @@ export function TemplateDeploy({
         </div>
 
         <div>
-          <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Tagline
           </Label>
           <Input
@@ -276,7 +277,7 @@ export function TemplateDeploy({
         </div>
 
         <div>
-          <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Description
           </Label>
           <Textarea
@@ -289,31 +290,21 @@ export function TemplateDeploy({
         </div>
 
         <div>
-          <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Creator <span className='text-[var(--text-error)]'>*</span>
           </Label>
           {creatorProfiles.length === 0 && !loadingCreators ? (
-            <div className='space-y-[8px]'>
-              <p className='text-[12px] text-[var(--text-tertiary)]'>
+            <div className='space-y-2'>
+              <p className='text-[var(--text-tertiary)] text-caption'>
                 A creator profile is required to publish templates.
               </p>
               <Button
                 type='button'
                 variant='tertiary'
                 onClick={() => {
-                  try {
-                    const event = new CustomEvent('open-settings', {
-                      detail: { tab: 'template-profile' },
-                    })
-                    window.dispatchEvent(event)
-                    logger.info('Opened Settings modal at template-profile section')
-                  } catch (error) {
-                    logger.error('Failed to open Settings modal for template profile', {
-                      error,
-                    })
-                  }
+                  navigateToSettings({ section: 'template-profile' })
                 }}
-                className='gap-[8px]'
+                className='gap-2'
               >
                 <span>Create Template Profile</span>
               </Button>
@@ -336,7 +327,7 @@ export function TemplateDeploy({
         </div>
 
         <div>
-          <Label className='mb-[6.5px] block pl-[2px] font-medium text-[13px] text-[var(--text-primary)]'>
+          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Tags
           </Label>
           <TagInput
@@ -374,7 +365,7 @@ export function TemplateDeploy({
         <ModalContent size='sm'>
           <ModalHeader>Delete Template</ModalHeader>
           <ModalBody>
-            <p className='text-[12px] text-[var(--text-secondary)]'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {existingTemplate?.name || formData.name || 'this template'}

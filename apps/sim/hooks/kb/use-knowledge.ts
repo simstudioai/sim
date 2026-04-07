@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { ChunkData, DocumentData, KnowledgeBaseData } from '@/lib/knowledge/types'
 import {
+  type DocumentTagFilter,
   type KnowledgeChunksResponse,
   type KnowledgeDocumentsResponse,
   knowledgeKeys,
@@ -12,7 +13,7 @@ import {
   useKnowledgeBasesQuery,
   useKnowledgeChunksQuery,
   useKnowledgeDocumentsQuery,
-} from '@/hooks/queries/knowledge'
+} from '@/hooks/queries/kb/knowledge'
 
 const DEFAULT_PAGE_SIZE = 50
 
@@ -72,12 +73,14 @@ export function useKnowledgeBaseDocuments(
       | false
       | ((data: KnowledgeDocumentsResponse | undefined) => number | false)
     enabledFilter?: 'all' | 'enabled' | 'disabled'
+    tagFilters?: DocumentTagFilter[]
   }
 ) {
   const queryClient = useQueryClient()
   const requestLimit = options?.limit ?? DEFAULT_PAGE_SIZE
   const requestOffset = options?.offset ?? 0
   const enabledFilter = options?.enabledFilter ?? 'all'
+  const tagFilters = options?.tagFilters
   const paramsKey = serializeDocumentParams({
     knowledgeBaseId,
     limit: requestLimit,
@@ -86,6 +89,7 @@ export function useKnowledgeBaseDocuments(
     sortBy: options?.sortBy,
     sortOrder: options?.sortOrder,
     enabledFilter,
+    tagFilters,
   })
 
   const refetchIntervalFn = useMemo(() => {
@@ -107,6 +111,7 @@ export function useKnowledgeBaseDocuments(
       sortBy: options?.sortBy,
       sortOrder: options?.sortOrder,
       enabledFilter,
+      tagFilters,
     },
     {
       enabled: (options?.enabled ?? true) && Boolean(knowledgeBaseId),
@@ -227,7 +232,10 @@ export function useDocumentChunks(
   knowledgeBaseId: string,
   documentId: string,
   page = 1,
-  search = ''
+  search = '',
+  enabledFilter: 'all' | 'enabled' | 'disabled' = 'all',
+  sortBy?: 'chunkIndex' | 'tokenCount' | 'enabled',
+  sortOrder?: 'asc' | 'desc'
 ) {
   const queryClient = useQueryClient()
 
@@ -241,6 +249,9 @@ export function useDocumentChunks(
       limit: DEFAULT_PAGE_SIZE,
       offset,
       search: search || undefined,
+      enabledFilter,
+      sortBy,
+      sortOrder,
     },
     {
       enabled: Boolean(knowledgeBaseId && documentId),
@@ -272,11 +283,14 @@ export function useDocumentChunks(
       limit: DEFAULT_PAGE_SIZE,
       offset,
       search: search || undefined,
+      enabledFilter,
+      sortBy,
+      sortOrder,
     })
     await queryClient.invalidateQueries({
       queryKey: knowledgeKeys.chunks(knowledgeBaseId, documentId, paramsKey),
     })
-  }, [knowledgeBaseId, documentId, offset, search, queryClient])
+  }, [knowledgeBaseId, documentId, offset, search, enabledFilter, sortBy, sortOrder, queryClient])
 
   const updateChunk = useCallback(
     (chunkId: string, updates: Partial<ChunkData>) => {
@@ -286,6 +300,9 @@ export function useDocumentChunks(
         limit: DEFAULT_PAGE_SIZE,
         offset,
         search: search || undefined,
+        enabledFilter,
+        sortBy,
+        sortOrder,
       })
       queryClient.setQueryData<KnowledgeChunksResponse>(
         knowledgeKeys.chunks(knowledgeBaseId, documentId, paramsKey),
@@ -300,7 +317,7 @@ export function useDocumentChunks(
         }
       )
     },
-    [knowledgeBaseId, documentId, offset, search, queryClient]
+    [knowledgeBaseId, documentId, offset, search, enabledFilter, sortBy, sortOrder, queryClient]
   )
 
   return {

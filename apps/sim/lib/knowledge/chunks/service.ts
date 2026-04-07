@@ -1,8 +1,9 @@
-import { createHash, randomUUID } from 'crypto'
+import { createHash } from 'crypto'
 import { db } from '@sim/db'
-import { document, embedding } from '@sim/db/schema'
+import { document, embedding, knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, ilike, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, ilike, inArray, isNull, sql } from 'drizzle-orm'
+import { generateId } from '@/lib/core/utils/uuid'
 import type {
   BatchOperationResult,
   ChunkData,
@@ -23,24 +24,27 @@ export async function queryChunks(
   filters: ChunkFilters,
   requestId: string
 ): Promise<ChunkQueryResult> {
-  const { search, enabled = 'all', limit = 50, offset = 0 } = filters
+  const {
+    search,
+    enabled = 'all',
+    limit = 50,
+    offset = 0,
+    sortBy = 'chunkIndex',
+    sortOrder = 'asc',
+  } = filters
 
-  // Build query conditions
   const conditions = [eq(embedding.documentId, documentId)]
 
-  // Add enabled filter
   if (enabled === 'true') {
     conditions.push(eq(embedding.enabled, true))
   } else if (enabled === 'false') {
     conditions.push(eq(embedding.enabled, false))
   }
 
-  // Add search filter
   if (search) {
     conditions.push(ilike(embedding.content, `%${search}%`))
   }
 
-  // Fetch chunks
   const chunks = await db
     .select({
       id: embedding.id,
@@ -63,11 +67,20 @@ export async function queryChunks(
     })
     .from(embedding)
     .where(and(...conditions))
-    .orderBy(asc(embedding.chunkIndex))
+    .orderBy(
+      (() => {
+        const col =
+          sortBy === 'tokenCount'
+            ? embedding.tokenCount
+            : sortBy === 'enabled'
+              ? embedding.enabled
+              : embedding.chunkIndex
+        return sortOrder === 'desc' ? desc(col) : asc(col)
+      })()
+    )
     .limit(limit)
     .offset(offset)
 
-  // Get total count for pagination
   const totalCount = await db
     .select({ count: sql`count(*)` })
     .from(embedding)
@@ -98,16 +111,35 @@ export async function createChunk(
   workspaceId?: string | null
 ): Promise<ChunkData> {
   logger.info(`[${requestId}] Generating embedding for manual chunk`)
-  const embeddings = await generateEmbeddings([chunkData.content], undefined, workspaceId)
+  const { embeddings } = await generateEmbeddings([chunkData.content], undefined, workspaceId)
 
   // Calculate accurate token count
   const tokenCount = estimateTokenCount(chunkData.content, 'openai')
 
-  const chunkId = randomUUID()
+  const chunkId = generateId()
   const now = new Date()
 
   // Use transaction to atomically get next index and insert chunk
   const newChunk = await db.transaction(async (tx) => {
+    const activeDocument = await tx
+      .select({ id: document.id })
+      .from(document)
+      .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
+      .where(
+        and(
+          eq(document.id, documentId),
+          eq(document.knowledgeBaseId, knowledgeBaseId),
+          isNull(document.archivedAt),
+          isNull(document.deletedAt),
+          isNull(knowledgeBase.deletedAt)
+        )
+      )
+      .limit(1)
+
+    if (activeDocument.length === 0) {
+      throw new Error('Document not found')
+    }
+
     // Get the next chunk index atomically within the transaction
     const lastChunk = await tx
       .select({ chunkIndex: embedding.chunkIndex })
@@ -328,7 +360,7 @@ export async function updateChunk(
       if (content !== currentChunk[0].content) {
         logger.info(`[${requestId}] Content changed, regenerating embedding for chunk ${chunkId}`)
 
-        const embeddings = await generateEmbeddings([content], undefined, workspaceId)
+        const { embeddings } = await generateEmbeddings([content], undefined, workspaceId)
 
         // Calculate accurate token count
         const tokenCount = estimateTokenCount(content, 'openai')

@@ -1,4 +1,8 @@
+import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-cache'
+import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 import { fetchJson, fetchOAuthToken } from '@/hooks/selectors/helpers'
+import { selectorKeys } from '@/hooks/selectors/query-keys'
 import type {
   SelectorContext,
   SelectorDefinition,
@@ -6,7 +10,6 @@ import type {
   SelectorOption,
   SelectorQueryArgs,
 } from '@/hooks/selectors/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const SELECTOR_STALE = 60 * 1000
 
@@ -252,6 +255,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       'bigquery.datasets',
       context.oauthCredential ?? 'none',
       context.projectId ?? 'none',
+      context.impersonateUserEmail ?? 'none',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential && context.projectId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
@@ -261,6 +265,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         credential: credentialId,
         workflowId: context.workflowId,
         projectId: context.projectId,
+        impersonateEmail: context.impersonateUserEmail,
       })
       const data = await fetchJson<{ datasets: BigQueryDataset[] }>(
         '/api/tools/google_bigquery/datasets',
@@ -278,6 +283,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         credential: credentialId,
         workflowId: context.workflowId,
         projectId: context.projectId,
+        impersonateEmail: context.impersonateUserEmail,
       })
       const data = await fetchJson<{ datasets: BigQueryDataset[] }>(
         '/api/tools/google_bigquery/datasets',
@@ -301,6 +307,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       context.oauthCredential ?? 'none',
       context.projectId ?? 'none',
       context.datasetId ?? 'none',
+      context.impersonateUserEmail ?? 'none',
     ],
     enabled: ({ context }) =>
       Boolean(context.oauthCredential && context.projectId && context.datasetId),
@@ -313,6 +320,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         workflowId: context.workflowId,
         projectId: context.projectId,
         datasetId: context.datasetId,
+        impersonateEmail: context.impersonateUserEmail,
       })
       const data = await fetchJson<{ tables: BigQueryTable[] }>(
         '/api/tools/google_bigquery/tables',
@@ -331,6 +339,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
         workflowId: context.workflowId,
         projectId: context.projectId,
         datasetId: context.datasetId,
+        impersonateEmail: context.impersonateUserEmail,
       })
       const data = await fetchJson<{ tables: BigQueryTable[] }>(
         '/api/tools/google_bigquery/tables',
@@ -557,11 +566,16 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       'selectors',
       'google.tasks.lists',
       context.oauthCredential ?? 'none',
+      context.impersonateUserEmail ?? 'none',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const credentialId = ensureCredential(context, 'google.tasks.lists')
-      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        impersonateEmail: context.impersonateUserEmail,
+      })
       const data = await fetchJson<{ taskLists: GoogleTaskList[] }>(
         '/api/tools/google_tasks/task-lists',
         { method: 'POST', body }
@@ -571,7 +585,11 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'google.tasks.lists')
-      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        impersonateEmail: context.impersonateUserEmail,
+      })
       const data = await fetchJson<{ taskLists: GoogleTaskList[] }>(
         '/api/tools/google_tasks/task-lists',
         { method: 'POST', body }
@@ -877,11 +895,15 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       'selectors',
       'gmail.labels',
       context.oauthCredential ?? 'none',
+      context.impersonateUserEmail ?? 'none',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const data = await fetchJson<{ labels: FolderResponse[] }>('/api/tools/gmail/labels', {
-        searchParams: { credentialId: context.oauthCredential },
+        searchParams: {
+          credentialId: context.oauthCredential,
+          impersonateEmail: context.impersonateUserEmail,
+        },
       })
       return (data.labels || []).map((label) => ({
         id: label.id,
@@ -915,12 +937,18 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       'selectors',
       'google.calendar',
       context.oauthCredential ?? 'none',
+      context.impersonateUserEmail ?? 'none',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context }: SelectorQueryArgs) => {
       const data = await fetchJson<{ calendars: { id: string; summary: string }[] }>(
         '/api/tools/google_calendar/calendars',
-        { searchParams: { credentialId: context.oauthCredential } }
+        {
+          searchParams: {
+            credentialId: context.oauthCredential,
+            impersonateEmail: context.impersonateUserEmail,
+          },
+        }
       )
       return (data.calendars || []).map((calendar) => ({
         id: calendar.id,
@@ -1393,6 +1421,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       context.mimeType ?? 'any',
       context.fileId ?? 'root',
       search ?? '',
+      context.impersonateUserEmail ?? 'none',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential),
     fetchList: async ({ context, search }: SelectorQueryArgs) => {
@@ -1406,6 +1435,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
             parentId: context.fileId,
             query: search,
             workflowId: context.workflowId,
+            impersonateEmail: context.impersonateUserEmail,
           },
         }
       )
@@ -1424,6 +1454,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
             credentialId,
             fileId: detailId,
             workflowId: context.workflowId,
+            impersonateEmail: context.impersonateUserEmail,
           },
         }
       )
@@ -1440,6 +1471,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       'google.sheets',
       context.oauthCredential ?? 'none',
       context.spreadsheetId ?? 'none',
+      context.impersonateUserEmail ?? 'none',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential && context.spreadsheetId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
@@ -1454,6 +1486,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
             credentialId,
             spreadsheetId: context.spreadsheetId,
             workflowId: context.workflowId,
+            impersonateEmail: context.impersonateUserEmail,
           },
         }
       )
@@ -1683,29 +1716,105 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       }))
     },
   },
-  'sim.workflows': {
-    key: 'sim.workflows',
-    staleTime: 0, // Always fetch fresh from store
+  'cloudwatch.logGroups': {
+    key: 'cloudwatch.logGroups',
+    staleTime: SELECTOR_STALE,
     getQueryKey: ({ context }: SelectorQueryArgs) => [
       'selectors',
-      'sim.workflows',
-      context.excludeWorkflowId ?? 'none',
+      'cloudwatch.logGroups',
+      context.awsAccessKeyId ?? 'none',
+      context.awsRegion ?? 'none',
     ],
-    enabled: () => true,
+    enabled: ({ context }) =>
+      Boolean(context.awsAccessKeyId && context.awsSecretAccessKey && context.awsRegion),
+    fetchList: async ({ context, search }: SelectorQueryArgs) => {
+      const body = JSON.stringify({
+        accessKeyId: context.awsAccessKeyId,
+        secretAccessKey: context.awsSecretAccessKey,
+        region: context.awsRegion,
+        ...(search && { prefix: search }),
+      })
+      const data = await fetchJson<{
+        output: { logGroups: { logGroupName: string }[] }
+      }>('/api/tools/cloudwatch/describe-log-groups', {
+        method: 'POST',
+        body,
+      })
+      return (data.output?.logGroups || []).map((lg) => ({
+        id: lg.logGroupName,
+        label: lg.logGroupName,
+      }))
+    },
+    fetchById: async ({ detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      return { id: detailId, label: detailId }
+    },
+  },
+  'cloudwatch.logStreams': {
+    key: 'cloudwatch.logStreams',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'cloudwatch.logStreams',
+      context.awsAccessKeyId ?? 'none',
+      context.awsRegion ?? 'none',
+      context.logGroupName ?? 'none',
+    ],
+    enabled: ({ context }) =>
+      Boolean(
+        context.awsAccessKeyId &&
+          context.awsSecretAccessKey &&
+          context.awsRegion &&
+          context.logGroupName
+      ),
+    fetchList: async ({ context, search }: SelectorQueryArgs) => {
+      const body = JSON.stringify({
+        accessKeyId: context.awsAccessKeyId,
+        secretAccessKey: context.awsSecretAccessKey,
+        region: context.awsRegion,
+        logGroupName: context.logGroupName,
+        ...(search && { prefix: search }),
+      })
+      const data = await fetchJson<{
+        output: { logStreams: { logStreamName: string; lastEventTimestamp?: number }[] }
+      }>('/api/tools/cloudwatch/describe-log-streams', {
+        method: 'POST',
+        body,
+      })
+      return (data.output?.logStreams || []).map((ls) => ({
+        id: ls.logStreamName,
+        label: ls.logStreamName,
+      }))
+    },
+    fetchById: async ({ detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      return { id: detailId, label: detailId }
+    },
+  },
+  'sim.workflows': {
+    key: 'sim.workflows',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) =>
+      context.workspaceId
+        ? selectorKeys.simWorkflows(context.workspaceId, context.excludeWorkflowId)
+        : [...selectorKeys.all, 'sim.workflows', 'none', context.excludeWorkflowId ?? 'none'],
+    enabled: ({ context }) => Boolean(context.workspaceId),
     fetchList: async ({ context }: SelectorQueryArgs): Promise<SelectorOption[]> => {
-      const { workflows } = useWorkflowRegistry.getState()
-      return Object.entries(workflows)
-        .filter(([id]) => id !== context.excludeWorkflowId)
-        .map(([id, workflow]) => ({
-          id,
-          label: workflow.name || `Workflow ${id.slice(0, 8)}`,
+      if (!context.workspaceId) return []
+      await getQueryClient().ensureQueryData(getWorkflowListQueryOptions(context.workspaceId))
+      const workflows = getWorkflows(context.workspaceId)
+      return workflows
+        .filter((w) => w.id !== context.excludeWorkflowId)
+        .map((w) => ({
+          id: w.id,
+          label: w.name || `Workflow ${w.id.slice(0, 8)}`,
         }))
         .sort((a, b) => a.label.localeCompare(b.label))
     },
-    fetchById: async ({ detailId }: SelectorQueryArgs): Promise<SelectorOption | null> => {
-      if (!detailId) return null
-      const { workflows } = useWorkflowRegistry.getState()
-      const workflow = workflows[detailId]
+    fetchById: async ({ context, detailId }: SelectorQueryArgs): Promise<SelectorOption | null> => {
+      if (!detailId || !context.workspaceId) return null
+      await getQueryClient().ensureQueryData(getWorkflowListQueryOptions(context.workspaceId))
+      const workflow = getWorkflowById(context.workspaceId, detailId)
       if (!workflow) return null
       return {
         id: detailId,

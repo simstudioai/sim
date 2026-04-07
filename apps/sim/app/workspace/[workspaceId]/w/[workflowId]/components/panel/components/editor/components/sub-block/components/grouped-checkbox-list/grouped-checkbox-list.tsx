@@ -2,14 +2,15 @@
 
 import { useMemo, useState } from 'react'
 import { Settings2 } from 'lucide-react'
-import { Button, Checkbox } from '@/components/emcn/components'
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
+  Button,
+  Checkbox,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalHeader,
+  ModalTrigger,
+} from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 
@@ -100,14 +101,14 @@ export function GroupedCheckboxList({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
+    <Modal open={open} onOpenChange={setOpen}>
+      <ModalTrigger asChild>
         <Button
           variant='ghost'
           disabled={disabled}
           className={cn(
-            'flex w-full cursor-pointer items-center justify-between rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] py-[6px] font-medium font-sans text-[var(--text-primary)] text-sm outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-[var(--surface-5)]',
-            'hover:border-[var(--surface-7)] hover:bg-[var(--surface-5)] dark:hover:border-[var(--surface-7)] dark:hover:bg-[var(--border-1)]'
+            'flex w-full cursor-pointer items-center justify-between rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 font-medium font-sans text-[var(--text-primary)] text-sm outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-[var(--surface-5)]',
+            'hover-hover:bg-[var(--surface-active)]'
           )}
         >
           <span className='flex flex-1 items-center gap-2 truncate text-[var(--text-muted)]'>
@@ -116,82 +117,83 @@ export function GroupedCheckboxList({
           </span>
           <SelectedCountDisplay />
         </Button>
-      </DialogTrigger>
-      <DialogContent
-        className='flex max-h-[80vh] max-w-2xl flex-col'
+      </ModalTrigger>
+      <ModalContent
+        size='lg'
+        className='flex max-h-[80vh] flex-col'
         onWheel={(e) => e.stopPropagation()}
       >
-        <DialogHeader>
-          <DialogTitle>Select PII Types to Detect</DialogTitle>
-          <p className='text-muted-foreground text-sm'>
+        <ModalHeader>Select PII Types to Detect</ModalHeader>
+        <ModalBody>
+          <p className='mb-3 text-[var(--text-muted)] text-sm'>
             Choose which types of personally identifiable information to detect and block.
           </p>
-        </DialogHeader>
 
-        {/* Header with Select All and Clear */}
-        <div className='flex items-center justify-between border-b pb-3'>
-          <div className='flex items-center gap-2'>
-            <Checkbox
-              id='select-all'
-              checked={allSelected}
-              onCheckedChange={(checked) => {
-                if (checked) {
-                  handleSelectAll()
-                } else {
-                  handleClear()
-                }
-              }}
-              disabled={disabled}
-            />
-            <label
-              htmlFor='select-all'
-              className='cursor-pointer font-medium text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
-            >
-              Select all entities
-            </label>
+          {/* Header with Select All and Clear */}
+          <div className='flex items-center justify-between border-b pb-3'>
+            <div className='flex items-center gap-2'>
+              <Checkbox
+                id='select-all'
+                checked={allSelected}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    handleSelectAll()
+                  } else {
+                    handleClear()
+                  }
+                }}
+                disabled={disabled}
+              />
+              <label
+                htmlFor='select-all'
+                className='cursor-pointer font-medium text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
+              >
+                Select all entities
+              </label>
+            </div>
+            <Button variant='ghost' onClick={handleClear} disabled={disabled || noneSelected}>
+              <span className='flex items-center gap-1'>
+                Clear{!noneSelected && <span>({selectedValues.length})</span>}
+              </span>
+            </Button>
           </div>
-          <Button variant='ghost' onClick={handleClear} disabled={disabled || noneSelected}>
-            <span className='flex items-center gap-1'>
-              Clear{!noneSelected && <span>({selectedValues.length})</span>}
-            </span>
-          </Button>
-        </div>
 
-        {/* Scrollable grouped checkboxes */}
-        <div
-          className='flex-1 overflow-y-auto pr-4'
-          onWheel={(e) => e.stopPropagation()}
-          style={{ maxHeight: '60vh' }}
-        >
-          <div className='space-y-6'>
-            {Object.entries(groupedOptions).map(([groupName, groupOptions]) => (
-              <div key={groupName}>
-                <h3 className='mb-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider'>
-                  {groupName}
-                </h3>
-                <div className='space-y-3'>
-                  {groupOptions.map((option) => (
-                    <div key={option.id} className='flex items-center gap-2'>
-                      <Checkbox
-                        id={`${subBlockId}-${option.id}`}
-                        checked={selectedValues.includes(option.id)}
-                        onCheckedChange={() => handleToggle(option.id)}
-                        disabled={disabled}
-                      />
-                      <label
-                        htmlFor={`${subBlockId}-${option.id}`}
-                        className='cursor-pointer text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
-                      >
-                        {option.label}
-                      </label>
-                    </div>
-                  ))}
+          {/* Scrollable grouped checkboxes */}
+          <div
+            className='flex-1 overflow-y-auto pr-4'
+            onWheel={(e) => e.stopPropagation()}
+            style={{ maxHeight: '60vh' }}
+          >
+            <div className='space-y-6'>
+              {Object.entries(groupedOptions).map(([groupName, groupOptions]) => (
+                <div key={groupName}>
+                  <h3 className='mb-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider'>
+                    {groupName}
+                  </h3>
+                  <div className='space-y-3'>
+                    {groupOptions.map((option) => (
+                      <div key={option.id} className='flex items-center gap-2'>
+                        <Checkbox
+                          id={`${subBlockId}-${option.id}`}
+                          checked={selectedValues.includes(option.id)}
+                          onCheckedChange={() => handleToggle(option.id)}
+                          disabled={disabled}
+                        />
+                        <label
+                          htmlFor={`${subBlockId}-${option.id}`}
+                          className='cursor-pointer text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
+                        >
+                          {option.label}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </ModalBody>
+      </ModalContent>
+    </Modal>
   )
 }

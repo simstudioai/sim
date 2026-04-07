@@ -1,8 +1,9 @@
 import { NotionIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'
 import type { NotionResponse } from '@/tools/notion/types'
+import { getTrigger } from '@/triggers'
 
 // Legacy block - hidden from toolbar
 export const NotionBlock: BlockConfig<NotionResponse> = {
@@ -15,6 +16,8 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
     'Integrate with Notion into the workflow. Can read page, read database, create page, create database, append content, query database, and search workspace.',
   docsLink: 'https://docs.sim.ai/tools/notion',
   category: 'tools',
+  integrationType: IntegrationType.Documents,
+  tags: ['note-taking', 'knowledge-base', 'content-management'],
   bgColor: '#181C1E',
   icon: NotionIcon,
   subBlocks: [
@@ -429,10 +432,39 @@ export const NotionV2Block: BlockConfig<any> = {
     'Integrate with Notion into the workflow. Can read page, read database, create page, create database, append content, query database, and search workspace.',
   docsLink: 'https://docs.sim.ai/tools/notion',
   category: 'tools',
+  integrationType: IntegrationType.Documents,
+  tags: ['note-taking', 'knowledge-base', 'content-management'],
   bgColor: '#181C1E',
   icon: NotionIcon,
   hideFromToolbar: false,
-  subBlocks: NotionBlock.subBlocks,
+  subBlocks: [
+    ...NotionBlock.subBlocks,
+
+    // Trigger subBlocks
+    ...getTrigger('notion_page_created').subBlocks,
+    ...getTrigger('notion_page_properties_updated').subBlocks,
+    ...getTrigger('notion_page_content_updated').subBlocks,
+    ...getTrigger('notion_page_deleted').subBlocks,
+    ...getTrigger('notion_database_created').subBlocks,
+    ...getTrigger('notion_database_schema_updated').subBlocks,
+    ...getTrigger('notion_database_deleted').subBlocks,
+    ...getTrigger('notion_comment_created').subBlocks,
+    ...getTrigger('notion_webhook').subBlocks,
+  ],
+  triggers: {
+    enabled: true,
+    available: [
+      'notion_page_created',
+      'notion_page_properties_updated',
+      'notion_page_content_updated',
+      'notion_page_deleted',
+      'notion_database_created',
+      'notion_database_schema_updated',
+      'notion_database_deleted',
+      'notion_comment_created',
+      'notion_webhook',
+    ],
+  },
   tools: {
     access: [
       'notion_read_v2',

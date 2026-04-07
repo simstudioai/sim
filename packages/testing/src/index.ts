@@ -45,6 +45,7 @@ export * from './assertions'
 export * from './builders'
 export * from './factories'
 export {
+  AuthTypeMock,
   auditMock,
   clearRedisMocks,
   createEnvMock,
@@ -72,11 +73,9 @@ export {
   mockAuth,
   mockCommonSchemas,
   mockConsoleLogger,
-  mockCryptoUuid,
   mockDrizzleOrm,
   mockHybridAuth,
   mockKnowledgeSchemas,
-  mockUuid,
   requestUtilsMock,
   setupCommonApiMocks,
   setupGlobalFetchMock,

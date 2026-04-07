@@ -1,6 +1,6 @@
 import { EyeIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { VisionResponse } from '@/tools/vision/types'
 
@@ -30,6 +30,8 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
   longDescription: 'Integrate Vision into the workflow. Can analyze images with vision models.',
   docsLink: 'https://docs.sim.ai/tools/vision',
   category: 'tools',
+  integrationType: IntegrationType.AI,
+  tags: ['llm', 'document-processing', 'ocr'],
   bgColor: '#4D5FFF',
   icon: EyeIcon,
   subBlocks: [

@@ -13,7 +13,12 @@ vi.mock('@sim/db/schema', () => ({
 }))
 vi.mock('drizzle-orm', () => drizzleOrmMock)
 vi.mock('@sim/logger', () => loggerMock)
-vi.mock('nanoid', () => ({ nanoid: () => 'test-id-123' }))
+vi.mock('@/lib/core/utils/uuid', () => ({
+  generateId: () => 'test-uuid-123',
+  generateShortId: () => 'test-id-123',
+  isValidUuid: (v: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v),
+}))
 
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 

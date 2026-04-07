@@ -7,6 +7,10 @@ import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
+import {
+  getCanonicalScopesForProvider,
+  getServiceAccountProviderForProviderId,
+} from '@/lib/oauth/utils'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -35,16 +39,24 @@ function toCredentialResponse(
   displayName: string,
   providerId: string,
   updatedAt: Date,
-  scope: string | null
+  scope: string | null,
+  credentialType: 'oauth' | 'service_account' = 'oauth'
 ) {
   const storedScope = scope?.trim()
-  const scopes = storedScope ? storedScope.split(/[\s,]+/).filter(Boolean) : []
+  // Some providers (e.g. Box) don't return scopes in their token response,
+  // so the DB column stays empty. Fall back to the configured scopes for
+  // the provider so the credential-selector doesn't show a false
+  // "Additional permissions required" banner.
+  const scopes = storedScope
+    ? storedScope.split(/[\s,]+/).filter(Boolean)
+    : getCanonicalScopesForProvider(providerId)
   const [_, featureType = 'default'] = providerId.split('-')
 
   return {
     id,
     name: displayName,
     provider: providerId,
+    type: credentialType,
     lastUsed: updatedAt.toISOString(),
     isDefault: featureType === 'default',
     scopes,
@@ -142,6 +154,7 @@ export async function GET(request: NextRequest) {
           displayName: credential.displayName,
           providerId: credential.providerId,
           accountId: credential.accountId,
+          updatedAt: credential.updatedAt,
           accountProviderId: account.providerId,
           accountScope: account.scope,
           accountUpdatedAt: account.updatedAt,
@@ -152,6 +165,49 @@ export async function GET(request: NextRequest) {
         .limit(1)
 
       if (platformCredential) {
+        if (platformCredential.type === 'service_account') {
+          if (
+            workflowId &&
+            (!effectiveWorkspaceId || platformCredential.workspaceId !== effectiveWorkspaceId)
+          ) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+          }
+
+          if (!workflowId) {
+            const [membership] = await db
+              .select({ id: credentialMember.id })
+              .from(credentialMember)
+              .where(
+                and(
+                  eq(credentialMember.credentialId, platformCredential.id),
+                  eq(credentialMember.userId, requesterUserId),
+                  eq(credentialMember.status, 'active')
+                )
+              )
+              .limit(1)
+
+            if (!membership) {
+              return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+            }
+          }
+
+          return NextResponse.json(
+            {
+              credentials: [
+                toCredentialResponse(
+                  platformCredential.id,
+                  platformCredential.displayName,
+                  platformCredential.providerId || 'google-service-account',
+                  platformCredential.updatedAt,
+                  null,
+                  'service_account'
+                ),
+              ],
+            },
+            { status: 200 }
+          )
+        }
+
         if (platformCredential.type !== 'oauth' || !platformCredential.accountId) {
           return NextResponse.json({ credentials: [] }, { status: 200 })
         }
@@ -231,14 +287,52 @@ export async function GET(request: NextRequest) {
           )
         )
 
-      return NextResponse.json(
-        {
-          credentials: credentialsData.map((row) =>
-            toCredentialResponse(row.id, row.displayName, row.providerId, row.updatedAt, row.scope)
-          ),
-        },
-        { status: 200 }
+      const results = credentialsData.map((row) =>
+        toCredentialResponse(row.id, row.displayName, row.providerId, row.updatedAt, row.scope)
       )
+
+      const saProviderId = getServiceAccountProviderForProviderId(providerParam)
+
+      if (saProviderId) {
+        const serviceAccountCreds = await db
+          .select({
+            id: credential.id,
+            displayName: credential.displayName,
+            providerId: credential.providerId,
+            updatedAt: credential.updatedAt,
+          })
+          .from(credential)
+          .innerJoin(
+            credentialMember,
+            and(
+              eq(credentialMember.credentialId, credential.id),
+              eq(credentialMember.userId, requesterUserId),
+              eq(credentialMember.status, 'active')
+            )
+          )
+          .where(
+            and(
+              eq(credential.workspaceId, effectiveWorkspaceId),
+              eq(credential.type, 'service_account'),
+              eq(credential.providerId, saProviderId)
+            )
+          )
+
+        for (const sa of serviceAccountCreds) {
+          results.push(
+            toCredentialResponse(
+              sa.id,
+              sa.displayName,
+              sa.providerId || saProviderId,
+              sa.updatedAt,
+              null,
+              'service_account'
+            )
+          )
+        }
+      }
+
+      return NextResponse.json({ credentials: results }, { status: 200 })
     }
 
     return NextResponse.json({ credentials: [] }, { status: 200 })

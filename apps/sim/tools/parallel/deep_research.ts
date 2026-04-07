@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import type { ParallelDeepResearchParams } from '@/tools/parallel/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -8,8 +9,51 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
   id: 'parallel_deep_research',
   name: 'Parallel AI Deep Research',
   description:
-    'Conduct comprehensive deep research across the web using Parallel AI. Synthesizes information from multiple sources with citations. Can take up to 15 minutes to complete.',
+    'Conduct comprehensive deep research across the web using Parallel AI. Synthesizes information from multiple sources with citations. Can take up to 45 minutes to complete.',
   version: '1.0.0',
+
+  hosting: {
+    envKeyPrefix: 'PARALLEL_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'parallel_ai',
+    pricing: {
+      type: 'custom',
+      getCost: (params, _output) => {
+        // Parallel Task API: cost varies by processor
+        // https://docs.parallel.ai/resources/pricing
+        const processorCosts: Record<string, number> = {
+          lite: 0.005,
+          base: 0.01,
+          core: 0.025,
+          core2x: 0.05,
+          pro: 0.1,
+          ultra: 0.3,
+          ultra2x: 0.6,
+          ultra4x: 1.2,
+          ultra8x: 2.4,
+        }
+        const processor = (params.processor as string) || 'base'
+        const DEFAULT_PROCESSOR_COST = processorCosts.base
+        const knownCost = processorCosts[processor]
+        if (knownCost == null) {
+          logger.warn(
+            `Unknown Parallel processor "${processor}", using default processor cost $${DEFAULT_PROCESSOR_COST}`
+          )
+          PlatformEvents.hostedKeyUnknownModelCost({
+            toolId: 'parallel_deep_research',
+            modelName: processor,
+            defaultCost: DEFAULT_PROCESSOR_COST,
+          })
+        }
+        const cost = knownCost ?? DEFAULT_PROCESSOR_COST
+        return { cost, metadata: { processor, defaultProcessorCost: DEFAULT_PROCESSOR_COST } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 10,
+    },
+  },
 
   params: {
     input: {
@@ -22,8 +66,7 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description:
-        'Compute level: base, lite, pro, ultra, ultra2x, ultra4x, ultra8x (default: base)',
+      description: 'Processing tier: pro, ultra, pro-fast, ultra-fast (default: pro)',
     },
     include_domains: {
       type: 'string',
@@ -55,14 +98,11 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
     body: (params) => {
       const body: Record<string, unknown> = {
         input: params.input,
-        processor: params.processor || 'base',
+        processor: params.processor || 'pro',
+        task_spec: {
+          output_schema: 'auto',
+        },
       }
-
-      const taskSpec: Record<string, unknown> = {}
-
-      taskSpec.output_schema = 'auto'
-
-      body.task_spec = taskSpec
 
       if (params.include_domains || params.exclude_domains) {
         const sourcePolicy: Record<string, string[]> = {}
@@ -91,14 +131,21 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(
+        `Parallel AI deep research task creation failed: ${response.status} - ${errorText}`
+      )
+    }
+
     const data = await response.json()
 
     return {
       success: true,
       output: {
-        run_id: data.run_id,
-        status: data.status,
-        message: `Research task ${data.status}, waiting for completion...`,
+        run_id: data.run_id ?? null,
+        status: data.status ?? null,
+        message: `Research task ${data.status ?? 'created'}, waiting for completion...`,
         content: {},
         basis: [],
       },
@@ -122,13 +169,16 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
     logger.info(`Parallel AI deep research task ${runId} created, fetching results...`)
 
     try {
-      const resultResponse = await fetch(`https://api.parallel.ai/v1/tasks/runs/${runId}/result`, {
-        method: 'GET',
-        headers: {
-          'x-api-key': params.apiKey,
-          'Content-Type': 'application/json',
-        },
-      })
+      const resultResponse = await fetch(
+        `https://api.parallel.ai/v1/tasks/runs/${String(runId).trim()}/result`,
+        {
+          method: 'GET',
+          headers: {
+            'x-api-key': params.apiKey,
+            'Content-Type': 'application/json',
+          },
+        }
+      )
 
       if (!resultResponse.ok) {
         const errorText = await resultResponse.text()
@@ -138,17 +188,17 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
       const taskResult = await resultResponse.json()
       logger.info(`Parallel AI deep research task ${runId} completed`)
 
-      const output = taskResult.output || {}
-      const run = taskResult.run || {}
+      const output = taskResult.output ?? {}
+      const status = taskResult.status ?? 'completed'
 
       return {
         success: true,
         output: {
-          status: run.status || 'completed',
+          status,
           run_id: runId,
           message: 'Research completed successfully',
-          content: output.content || {},
-          basis: output.basis || [],
+          content: output.content ?? {},
+          basis: output.basis ?? [],
         },
       }
     } catch (error: unknown) {
@@ -169,7 +219,7 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
   outputs: {
     status: {
       type: 'string',
-      description: 'Task status (completed, failed)',
+      description: 'Task status (completed, failed, running)',
     },
     run_id: {
       type: 'string',
@@ -189,7 +239,7 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
       items: {
         type: 'object',
         properties: {
-          field: { type: 'string', description: 'Output field name' },
+          field: { type: 'string', description: 'Output field dot-notation path' },
           reasoning: { type: 'string', description: 'Explanation for the result' },
           citations: {
             type: 'array',
@@ -203,7 +253,7 @@ export const deepResearchTool: ToolConfig<ParallelDeepResearchParams, ToolRespon
               },
             },
           },
-          confidence: { type: 'string', description: 'Confidence level indicator' },
+          confidence: { type: 'string', description: 'Confidence level (high, medium)' },
         },
       },
     },

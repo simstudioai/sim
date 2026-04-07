@@ -154,8 +154,19 @@ When inviting someone to your organization, you can assign one of two roles:
 - Manage billing and subscription settings
 - Access all workspaces within the organization
 
-### Organization Member  
+### Organization Member
 **What they can do:**
 - Access workspaces they've been specifically invited to
 - View the list of organization members
 - Cannot invite new people or manage organization settings
+
+import { FAQ } from '@/components/ui/faq'
+
+<FAQ items={[
+  { question: "What is the difference between organization roles and workspace permissions?", answer: "Organization roles (Admin or Member) control who can manage the organization itself, including inviting people, creating workspaces, and handling billing. Workspace permissions (Read, Write, Admin) control what a user can do within a specific workspace, such as viewing, editing, or managing workflows. A user needs both an organization role and a workspace permission to work within a workspace." },
+  { question: "Can I restrict which integrations or model providers a team member can use?", answer: "Yes. Organization admins can create permission groups with fine-grained controls, including restricting allowed integrations and allowed model providers to specific lists. You can also disable access to MCP tools, custom tools, skills, and various platform features like the knowledge base, API keys, or Copilot on a per-group basis." },
+  { question: "What happens when a personal environment variable has the same name as a workspace variable?", answer: "The personal environment variable takes priority. When a workflow runs, if both a personal and workspace variable share the same name, the personal value is used. This allows individual users to override shared workspace configuration when needed." },
+  { question: "Can an Admin remove the workspace owner?", answer: "No. The workspace owner cannot be removed from the workspace by anyone. Only the workspace owner can delete the workspace or transfer ownership to another user. Admins can do everything else, including inviting and removing other users and managing workspace settings." },
+  { question: "What are permission groups and how do they work?", answer: "Permission groups are an advanced access control feature that lets organization admins define granular restrictions beyond the standard Read/Write/Admin roles. A permission group can hide UI sections (like trace spans, knowledge base, API keys, or deployment options), disable features (MCP tools, custom tools, skills, invitations), and restrict which integrations and model providers members can access. Members can be assigned to groups, and new members can be auto-added." },
+  { question: "How should I set up permissions for a new team member?", answer: "Start with the lowest permission level they need. Invite them to the organization as a Member, then add them to the relevant workspace with Read permission if they only need visibility, Write if they need to create and run workflows, or Admin if they need to manage the workspace and its users. You can always increase permissions later." },
+]} />

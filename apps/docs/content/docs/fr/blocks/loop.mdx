@@ -190,13 +190,8 @@ return results;
 
 ### Limitations
 
-<Callout type="warning">
-  Les blocs conteneurs (Boucles et Parallèles) ne peuvent pas être imbriqués les uns dans les autres. Cela signifie :
-  - Vous ne pouvez pas placer un bloc Boucle à l'intérieur d'un autre bloc Boucle
-  - Vous ne pouvez pas placer un bloc Parallèle à l'intérieur d'un bloc Boucle
-  - Vous ne pouvez pas placer un bloc conteneur à l'intérieur d'un autre bloc conteneur
-  
-  Si vous avez besoin d'une itération multidimensionnelle, envisagez de restructurer votre flux de travail pour utiliser des boucles séquentielles ou traiter les données par étapes.
+<Callout type="info">
+  Les blocs conteneurs (Boucles et Parallèles) prennent en charge l'imbrication. Vous pouvez placer des boucles dans des boucles, des parallèles dans des boucles, et toute combinaison de blocs conteneurs pour construire des flux de travail multidimensionnels complexes.
 </Callout>
 
 <Callout type="info">

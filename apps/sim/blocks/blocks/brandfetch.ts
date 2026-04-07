@@ -1,6 +1,6 @@
 import { BrandfetchIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { BrandfetchGetBrandResponse, BrandfetchSearchResponse } from '@/tools/brandfetch/types'
 
 export const BrandfetchBlock: BlockConfig<BrandfetchGetBrandResponse | BrandfetchSearchResponse> = {
@@ -11,6 +11,8 @@ export const BrandfetchBlock: BlockConfig<BrandfetchGetBrandResponse | Brandfetc
     'Integrate Brandfetch into your workflow. Retrieve brand logos, colors, fonts, and company data by domain, ticker, or name search.',
   docsLink: 'https://docs.sim.ai/tools/brandfetch',
   category: 'tools',
+  integrationType: IntegrationType.SalesIntelligence,
+  tags: ['enrichment', 'marketing'],
   bgColor: '#000000',
   icon: BrandfetchIcon,
   authMode: AuthMode.ApiKey,
@@ -49,6 +51,7 @@ export const BrandfetchBlock: BlockConfig<BrandfetchGetBrandResponse | Brandfetc
       placeholder: 'Enter your Brandfetch API key',
       required: true,
       password: true,
+      hideWhenHosted: true,
     },
   ],
 

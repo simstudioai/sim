@@ -1,8 +1,4 @@
-'use client'
-
 import { CheckCircle2 } from 'lucide-react'
-import { inter } from '@/app/_styles/fonts/inter/inter'
-import { soehne } from '@/app/_styles/fonts/soehne/soehne'
 
 interface ThankYouScreenProps {
   title: string
@@ -10,8 +6,8 @@ interface ThankYouScreenProps {
   primaryColor?: string
 }
 
-/** Default green color matching --brand-tertiary-2 */
-const DEFAULT_THANK_YOU_COLOR = '#32bd7e'
+/** Default green color matching --brand-accent */
+const DEFAULT_THANK_YOU_COLOR = '#33C482'
 
 /** Legacy blue default that should be treated as "no custom color" */
 const LEGACY_BLUE_DEFAULT = '#3972F6'
@@ -31,14 +27,12 @@ export function ThankYouScreen({ title, message, primaryColor }: ThankYouScreenP
           <CheckCircle2 className='h-10 w-10' style={{ color: thankYouColor }} />
         </div>
         <h2
-          className={`${soehne.className} mt-6 font-medium text-[32px] tracking-tight`}
+          className={'mt-6 font-[500] text-[32px] tracking-tight'}
           style={{ color: thankYouColor }}
         >
           {title}
         </h2>
-        <p
-          className={`${inter.className} mt-3 max-w-md font-[380] text-[16px] text-muted-foreground`}
-        >
+        <p className={'mt-3 max-w-md font-[380] text-[var(--landing-text-muted)] text-md'}>
           {message}
         </p>
       </div>

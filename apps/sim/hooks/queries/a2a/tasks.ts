@@ -7,6 +7,7 @@
 import type { Artifact, Message, TaskState } from '@a2a-js/sdk'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { isTerminalState } from '@/lib/a2a/utils'
+import { generateId } from '@/lib/core/utils/uuid'
 
 /** A2A v0.3 JSON-RPC method names */
 const A2A_METHODS = {
@@ -70,7 +71,7 @@ export interface SendA2ATaskResponse {
 async function sendA2ATask(params: SendA2ATaskParams): Promise<SendA2ATaskResponse> {
   const userMessage: Message = {
     kind: 'message',
-    messageId: crypto.randomUUID(),
+    messageId: generateId(),
     role: 'user',
     parts: [{ kind: 'text', text: params.message }],
     ...(params.taskId && { taskId: params.taskId }),
@@ -85,7 +86,7 @@ async function sendA2ATask(params: SendA2ATaskParams): Promise<SendA2ATaskRespon
     },
     body: JSON.stringify({
       jsonrpc: '2.0',
-      id: crypto.randomUUID(),
+      id: generateId(),
       method: A2A_METHODS.MESSAGE_SEND,
       params: {
         message: userMessage,
@@ -152,16 +153,17 @@ export interface GetA2ATaskParams {
 /**
  * Fetch a task from an A2A agent
  */
-async function fetchA2ATask(params: GetA2ATaskParams): Promise<A2ATask> {
+async function fetchA2ATask(params: GetA2ATaskParams, signal?: AbortSignal): Promise<A2ATask> {
   const response = await fetch(params.agentUrl, {
     method: 'POST',
+    signal,
     headers: {
       'Content-Type': 'application/json',
       ...(params.apiKey ? { Authorization: `Bearer ${params.apiKey}` } : {}),
     },
     body: JSON.stringify({
       jsonrpc: '2.0',
-      id: crypto.randomUUID(),
+      id: generateId(),
       method: A2A_METHODS.TASKS_GET,
       params: {
         id: params.taskId,
@@ -189,7 +191,7 @@ async function fetchA2ATask(params: GetA2ATaskParams): Promise<A2ATask> {
 export function useA2ATask(params: GetA2ATaskParams | null) {
   return useQuery({
     queryKey: params ? a2aTaskKeys.detail(params.agentUrl, params.taskId) : ['disabled'],
-    queryFn: () => fetchA2ATask(params!),
+    queryFn: ({ signal }) => fetchA2ATask(params!, signal),
     enabled: Boolean(params?.agentUrl && params?.taskId),
     staleTime: 5 * 1000, // 5 seconds - tasks can change quickly
     refetchInterval: (query) => {
@@ -224,7 +226,7 @@ async function cancelA2ATask(params: CancelA2ATaskParams): Promise<A2ATask> {
     },
     body: JSON.stringify({
       jsonrpc: '2.0',
-      id: crypto.randomUUID(),
+      id: generateId(),
       method: A2A_METHODS.TASKS_CANCEL,
       params: {
         id: params.taskId,

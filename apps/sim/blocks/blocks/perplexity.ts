@@ -1,5 +1,5 @@
 import { PerplexityIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import type { PerplexityChatResponse, PerplexitySearchResponse } from '@/tools/perplexity/types'
 
 type PerplexityResponse = PerplexityChatResponse | PerplexitySearchResponse
@@ -13,6 +13,8 @@ export const PerplexityBlock: BlockConfig<PerplexityResponse> = {
   authMode: AuthMode.ApiKey,
   docsLink: 'https://docs.sim.ai/tools/perplexity',
   category: 'tools',
+  integrationType: IntegrationType.AI,
+  tags: ['llm', 'web-scraping', 'agentic'],
   bgColor: '#20808D', // Perplexity turquoise color
   icon: PerplexityIcon,
   subBlocks: [
@@ -171,6 +173,7 @@ Return ONLY the date string in MM/DD/YYYY format - no explanations, no quotes, n
       placeholder: 'Enter your Perplexity API key',
       password: true,
       required: true,
+      hideWhenHosted: true,
     },
   ],
   tools: {

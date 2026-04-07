@@ -1,12 +1,13 @@
 import { db } from '@sim/db'
 import { a2aAgent, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { generateAgentCard, generateSkillsFromWorkflow } from '@/lib/a2a/agent-card'
 import type { AgentCapabilities, AgentSkill } from '@/lib/a2a/types'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -31,8 +32,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
         workflow: workflow,
       })
       .from(a2aAgent)
-      .innerJoin(workflow, eq(a2aAgent.workflowId, workflow.id))
-      .where(eq(a2aAgent.id, agentId))
+      .innerJoin(workflow, and(eq(a2aAgent.workflowId, workflow.id), isNull(workflow.archivedAt)))
+      .where(and(eq(a2aAgent.id, agentId), isNull(a2aAgent.archivedAt)))
       .limit(1)
 
     if (!agent) {
@@ -94,7 +95,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<Ro
     const [existingAgent] = await db
       .select()
       .from(a2aAgent)
-      .where(eq(a2aAgent.id, agentId))
+      .where(and(eq(a2aAgent.id, agentId), isNull(a2aAgent.archivedAt)))
       .limit(1)
 
     if (!existingAgent) {
@@ -164,7 +165,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const [existingAgent] = await db
       .select()
       .from(a2aAgent)
-      .where(eq(a2aAgent.id, agentId))
+      .where(and(eq(a2aAgent.id, agentId), isNull(a2aAgent.archivedAt)))
       .limit(1)
 
     if (!existingAgent) {
@@ -179,6 +180,17 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     await db.delete(a2aAgent).where(eq(a2aAgent.id, agentId))
 
     logger.info(`Deleted A2A agent: ${agentId}`)
+
+    captureServerEvent(
+      auth.userId,
+      'a2a_agent_deleted',
+      {
+        agent_id: agentId,
+        workflow_id: existingAgent.workflowId,
+        workspace_id: existingAgent.workspaceId,
+      },
+      { groups: { workspace: existingAgent.workspaceId } }
+    )
 
     return NextResponse.json({ success: true })
   } catch (error) {
@@ -203,7 +215,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
     const [existingAgent] = await db
       .select()
       .from(a2aAgent)
-      .where(eq(a2aAgent.id, agentId))
+      .where(and(eq(a2aAgent.id, agentId), isNull(a2aAgent.archivedAt)))
       .limit(1)
 
     if (!existingAgent) {
@@ -251,6 +263,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
       }
 
       logger.info(`Published A2A agent: ${agentId}`)
+      captureServerEvent(
+        auth.userId,
+        'a2a_agent_published',
+        {
+          agent_id: agentId,
+          workflow_id: existingAgent.workflowId,
+          workspace_id: existingAgent.workspaceId,
+        },
+        { groups: { workspace: existingAgent.workspaceId } }
+      )
       return NextResponse.json({ success: true, isPublished: true })
     }
 
@@ -273,6 +295,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<R
       }
 
       logger.info(`Unpublished A2A agent: ${agentId}`)
+      captureServerEvent(
+        auth.userId,
+        'a2a_agent_unpublished',
+        {
+          agent_id: agentId,
+          workflow_id: existingAgent.workflowId,
+          workspace_id: existingAgent.workspaceId,
+        },
+        { groups: { workspace: existingAgent.workspaceId } }
+      )
       return NextResponse.json({ success: true, isPublished: false })
     }
 

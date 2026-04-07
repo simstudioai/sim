@@ -40,15 +40,15 @@ import { cn } from '@/lib/core/utils/cn'
  * Matches the combobox and input styling patterns.
  */
 const datePickerVariants = cva(
-  'flex w-full rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 hover:border-[var(--surface-7)] hover:bg-[var(--surface-5)] dark:hover:border-[var(--surface-7)] dark:hover:bg-[var(--border-1)]',
+  'flex w-full rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-sans font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none disabled:cursor-not-allowed disabled:opacity-50',
   {
     variants: {
       variant: {
         default: '',
       },
       size: {
-        default: 'py-[6px] text-sm',
-        sm: 'py-[5px] text-[12px]',
+        default: 'py-1.5 text-sm',
+        sm: 'py-[5px] text-caption',
       },
     },
     defaultVariants: {
@@ -381,11 +381,11 @@ function CalendarMonth({
   return (
     <div className='flex flex-col'>
       {/* Calendar Header */}
-      <div className='flex items-center justify-between border-[var(--border-1)] border-b px-[12px] py-[10px]'>
+      <div className='flex items-center justify-between border-[var(--border-1)] border-b px-3 py-2.5'>
         {showNavigation === 'left' || showNavigation === 'both' ? (
           <button
             type='button'
-            className='flex h-[24px] w-[24px] items-center justify-center rounded-[4px] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+            className='flex h-[24px] w-[24px] items-center justify-center rounded-sm text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
             onClick={onPrevMonth}
           >
             <ChevronLeft className='h-4 w-4' />
@@ -393,13 +393,13 @@ function CalendarMonth({
         ) : (
           <div className='h-[24px] w-[24px]' />
         )}
-        <span className='font-medium text-[13px] text-[var(--text-primary)]'>
+        <span className='font-medium text-[var(--text-primary)] text-small'>
           {MONTHS[viewMonth]} {viewYear}
         </span>
         {showNavigation === 'right' || showNavigation === 'both' ? (
           <button
             type='button'
-            className='flex h-[24px] w-[24px] items-center justify-center rounded-[4px] text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-5)] hover:text-[var(--text-primary)]'
+            className='flex h-[24px] w-[24px] items-center justify-center rounded-sm text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
             onClick={onNextMonth}
           >
             <ChevronRight className='h-4 w-4' />
@@ -410,11 +410,11 @@ function CalendarMonth({
       </div>
 
       {/* Day Headers */}
-      <div className='grid grid-cols-7 px-[8px] pt-[8px]'>
+      <div className='grid grid-cols-7 px-2 pt-2'>
         {DAYS.map((day) => (
           <div
             key={day}
-            className='flex h-[28px] items-center justify-center text-[11px] text-[var(--text-muted)]'
+            className='flex h-[28px] items-center justify-center text-[var(--text-muted)] text-xs'
           >
             {day}
           </div>
@@ -422,7 +422,7 @@ function CalendarMonth({
       </div>
 
       {/* Calendar Grid */}
-      <div className='grid grid-cols-7 px-[8px] pb-[8px]'>
+      <div className='grid grid-cols-7 px-2 pb-2'>
         {calendarDays.map((day, index) => {
           const inRange = day !== null && isInRange(day)
           const isStart = day !== null && isRangeStart(day)
@@ -440,25 +440,25 @@ function CalendarMonth({
                 isRangeMode && isStart && 'before:left-[2px] before:rounded-l-[4px]',
                 isRangeMode && isEnd && 'before:right-[2px] before:rounded-r-[4px]',
                 isRangeMode && isStart && !rangeEnd && 'before:right-[2px] before:rounded-r-[4px]',
-                isRangeMode && isStart && isEnd && 'before:rounded-[4px]'
+                isRangeMode && isStart && isEnd && 'before:rounded-sm'
               )}
             >
               {day !== null && (
                 <button
                   type='button'
                   className={cn(
-                    'relative z-10 flex h-[28px] w-[28px] items-center justify-center rounded-[4px] text-[12px] transition-colors',
+                    'relative z-10 flex h-[28px] w-[28px] items-center justify-center rounded-sm text-caption transition-colors',
                     isRangeMode
                       ? isStart || isEnd
                         ? 'bg-[var(--brand-secondary)] text-[var(--bg)]'
                         : inRange
-                          ? 'text-[var(--text-primary)] hover:bg-[#60a5fa]/40'
-                          : 'text-[var(--text-primary)] hover:bg-[var(--surface-5)]'
+                          ? 'text-[var(--text-primary)] hover-hover:bg-[#60a5fa]/40'
+                          : 'text-[var(--text-primary)] hover-hover:bg-[var(--surface-5)]'
                       : isSelected(day)
                         ? 'bg-[var(--brand-secondary)] text-[var(--bg)]'
                         : isToday(day)
                           ? 'bg-[var(--surface-5)] text-[var(--text-primary)]'
-                          : 'text-[var(--text-primary)] hover:bg-[var(--surface-5)]'
+                          : 'text-[var(--text-primary)] hover-hover:bg-[var(--surface-5)]'
                   )}
                   onClick={() => onSelectDate(day)}
                   onMouseEnter={() => onHoverDate?.(day)}
@@ -559,12 +559,15 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
     }
   }, [open, isRangeMode, initialStart, initialEnd])
 
-  React.useEffect(() => {
-    if (!isRangeMode && selectedDate) {
+  const singleValueKey = !isRangeMode && selectedDate ? selectedDate.getTime() : undefined
+  const [prevSingleValueKey, setPrevSingleValueKey] = React.useState(singleValueKey)
+  if (singleValueKey !== prevSingleValueKey) {
+    setPrevSingleValueKey(singleValueKey)
+    if (selectedDate) {
       setViewMonth(selectedDate.getMonth())
       setViewYear(selectedDate.getFullYear())
     }
-  }, [isRangeMode, selectedDate])
+  }
 
   /**
    * Handles selection of a specific day in single mode.
@@ -752,17 +755,17 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
       </div>
 
       {/* Actions */}
-      <div className='flex items-center justify-between border-[var(--border-1)] border-t px-[12px] py-[8px]'>
+      <div className='flex items-center justify-between border-[var(--border-1)] border-t px-3 py-2'>
         <Button
           variant='ghost'
           size='sm'
           onClick={handleClearRange}
           disabled={!rangeStart && !rangeEnd}
-          className='text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          className='text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)]'
         >
           Clear
         </Button>
-        <div className='flex items-center gap-[8px]'>
+        <div className='flex items-center gap-2'>
           <Button variant='outline' size='sm' onClick={handleCancelRange}>
             Cancel
           </Button>
@@ -784,7 +787,7 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
       />
 
       {/* Today Button */}
-      <div className='border-[var(--border-1)] border-t px-[8px] py-[8px]'>
+      <div className='border-[var(--border-1)] border-t px-2 py-2'>
         <Button variant='active' className='w-full' onClick={handleSelectToday}>
           Today
         </Button>
@@ -797,9 +800,9 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
       side='bottom'
       align='start'
       sideOffset={4}
-      avoidCollisions={false}
+      collisionPadding={16}
       className={cn(
-        'rounded-[6px] border border-[var(--border-1)] p-0',
+        'rounded-md border border-[var(--border-1)] p-0',
         isRangeMode ? 'w-auto' : 'w-[280px]'
       )}
     >
@@ -812,7 +815,7 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
       <div
         ref={ref}
         className={cn(
-          'rounded-[6px] border border-[var(--border-1)] bg-[var(--surface-2)]',
+          'rounded-md border border-[var(--border-1)] bg-[var(--surface-2)]',
           isRangeMode ? 'w-auto' : 'w-[280px]',
           className
         )}
@@ -858,7 +861,7 @@ const DatePicker = React.forwardRef<HTMLDivElement, DatePickerProps>((props, ref
             </span>
             <ChevronDown
               className={cn(
-                'ml-[8px] h-4 w-4 flex-shrink-0 opacity-50 transition-transform',
+                'ml-2 h-4 w-4 flex-shrink-0 opacity-50 transition-transform',
                 open && 'rotate-180'
               )}
             />

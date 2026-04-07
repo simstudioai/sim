@@ -24,6 +24,7 @@ export const outlookPollingTrigger: TriggerConfig = {
   description: 'Triggers when new emails are received in Outlook (requires Microsoft credentials)',
   version: '1.0.0',
   icon: OutlookIcon,
+  polling: true,
 
   subBlocks: [
     {
@@ -46,7 +47,7 @@ export const outlookPollingTrigger: TriggerConfig = {
       description: 'Choose which Outlook folders to monitor. Leave empty to monitor all emails.',
       required: false,
       options: [], // Will be populated dynamically
-      fetchOptions: async (blockId: string, subBlockId: string) => {
+      fetchOptions: async (blockId: string) => {
         const credentialId = useSubBlockStore.getState().getValue(blockId, 'triggerCredentials') as
           | string
           | null

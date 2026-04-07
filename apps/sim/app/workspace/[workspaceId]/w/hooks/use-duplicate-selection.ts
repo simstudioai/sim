@@ -1,11 +1,14 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { generateId } from '@/lib/core/utils/uuid'
+import { getChildFolders, getFolderById } from '@/lib/folders/tree'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { useDuplicateFolderMutation } from '@/hooks/queries/folders'
+import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
+import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useDuplicateWorkflowMutation } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('useDuplicateSelection')
 
@@ -62,21 +65,21 @@ export function useDuplicateSelection({ workspaceId, onSuccess }: UseDuplicateSe
 
       setIsDuplicating(true)
       try {
-        const { workflows } = useWorkflowRegistry.getState()
-        const folderStore = useFolderStore.getState()
+        const workflowMap = new Map(getWorkflows(workspaceIdRef.current).map((w) => [w.id, w]))
+        const folderMap = getFolderMap(workspaceIdRef.current)
 
         const duplicatedWorkflowIds: string[] = []
         const duplicatedFolderIds: string[] = []
 
         for (const folderId of folderIds) {
-          const folder = folderStore.getFolderById(folderId)
+          const folder = getFolderById(folderMap, folderId)
           if (!folder) {
             logger.warn(`Folder ${folderId} not found, skipping`)
             continue
           }
 
           const siblingNames = new Set(
-            folderStore.getChildFolders(folder.parentId).map((sibling) => sibling.name)
+            getChildFolders(folderMap, folder.parentId).map((sibling) => sibling.name)
           )
           siblingNames.add(folder.name)
 
@@ -88,6 +91,7 @@ export function useDuplicateSelection({ workspaceId, onSuccess }: UseDuplicateSe
             name: duplicateName,
             parentId: folder.parentId,
             color: folder.color,
+            newId: generateId(),
           })
 
           if (result?.id) {
@@ -96,7 +100,7 @@ export function useDuplicateSelection({ workspaceId, onSuccess }: UseDuplicateSe
         }
 
         for (const workflowId of workflowIds) {
-          const workflow = workflows[workflowId]
+          const workflow = workflowMap.get(workflowId)
           if (!workflow) {
             logger.warn(`Workflow ${workflowId} not found, skipping`)
             continue
@@ -109,6 +113,7 @@ export function useDuplicateSelection({ workspaceId, onSuccess }: UseDuplicateSe
             description: workflow.description,
             color: getNextWorkflowColor(),
             folderId: workflow.folderId,
+            newId: generateId(),
           })
 
           duplicatedWorkflowIds.push(result.id)

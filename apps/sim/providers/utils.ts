@@ -2,6 +2,7 @@ import { createLogger, type Logger } from '@sim/logger'
 import type OpenAI from 'openai'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
+import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import {
@@ -146,6 +147,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   mistral: buildProviderMetadata('mistral'),
   bedrock: buildProviderMetadata('bedrock'),
   openrouter: buildProviderMetadata('openrouter'),
+  fireworks: buildProviderMetadata('fireworks'),
   avian: buildProviderMetadata('avian'),
 }
 
@@ -166,11 +168,20 @@ export async function updateOpenRouterProviderModels(models: string[]): Promise<
   providers.openrouter.models = getProviderModelsFromDefinitions('openrouter')
 }
 
+export async function updateFireworksProviderModels(models: string[]): Promise<void> {
+  const { updateFireworksModels } = await import('@/providers/models')
+  updateFireworksModels(models)
+  providers.fireworks.models = getProviderModelsFromDefinitions('fireworks')
+}
+
 export function getBaseModelProviders(): Record<string, ProviderId> {
   const allProviders = Object.entries(providers)
     .filter(
       ([providerId]) =>
-        providerId !== 'ollama' && providerId !== 'vllm' && providerId !== 'openrouter'
+        providerId !== 'ollama' &&
+        providerId !== 'vllm' &&
+        providerId !== 'openrouter' &&
+        providerId !== 'fireworks'
     )
     .reduce(
       (map, [providerId, config]) => {
@@ -651,6 +662,20 @@ export function calculateCost(
   }
 }
 
+/**
+ * Sums the `cost.total` from each tool result returned during a provider tool loop.
+ * Tool results may carry a `cost` object injected by `applyHostedKeyCostToResult`.
+ */
+export function sumToolCosts(toolResults?: Record<string, unknown>[]): number {
+  if (!toolResults?.length) return 0
+  let total = 0
+  for (const tr of toolResults) {
+    const cost = tr?.cost as Record<string, unknown> | undefined
+    if (cost?.total && typeof cost.total === 'number') total += cost.total
+  }
+  return total
+}
+
 export function getModelPricing(modelId: string): any {
   const embeddingPricing = getEmbeddingModelPricing(modelId)
   if (embeddingPricing) {
@@ -661,28 +686,18 @@ export function getModelPricing(modelId: string): any {
 }
 
 /**
- * Format cost as a currency string
+ * Format cost as a credit string for display.
+ * Internally cost is in USD; this converts to credits (1 USD = 200 credits).
  *
  * @param cost Cost in USD
- * @returns Formatted cost string
+ * @returns Formatted credit string (e.g. "200 credits", "<1 credit", "0 credits")
  */
 export function formatCost(cost: number): string {
   if (cost === undefined || cost === null) return '—'
-
-  if (cost >= 1) {
-    return `$${cost.toFixed(2)}`
-  }
-  if (cost >= 0.01) {
-    return `$${cost.toFixed(3)}`
-  }
-  if (cost >= 0.001) {
-    return `$${cost.toFixed(4)}`
-  }
-  if (cost > 0) {
-    const places = Math.max(4, Math.abs(Math.floor(Math.log10(cost))) + 3)
-    return `$${cost.toFixed(places)}`
-  }
-  return '$0'
+  const credits = dollarsToCredits(cost)
+  if (credits <= 0 && cost > 0) return '<1 credit'
+  if (credits <= 0) return '0 credits'
+  return `${credits.toLocaleString()} credits`
 }
 
 /**
@@ -703,6 +718,13 @@ export function shouldBillModelUsage(model: string): boolean {
   const hostedModels = getHostedModels()
   return hostedModels.some((hostedModel) => model.toLowerCase() === hostedModel.toLowerCase())
 }
+
+/**
+ * Placeholder returned for providers that use their own credential mechanism
+ * rather than a user-supplied API key (e.g. AWS Bedrock via IAM/instance profiles).
+ * Must be truthy so upstream key-presence checks don't reject it.
+ */
+export const PROVIDER_PLACEHOLDER_KEY = 'provider-uses-own-credentials'
 
 /**
  * Get an API key for a specific provider, handling rotation and fallbacks
@@ -726,7 +748,7 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   // Bedrock uses its own credentials (bedrockAccessKeyId/bedrockSecretKey), not apiKey
   const isBedrockModel = provider === 'bedrock' || model.startsWith('bedrock/')
   if (isBedrockModel) {
-    return 'bedrock-uses-own-credentials'
+    return PROVIDER_PLACEHOLDER_KEY
   }
 
   const isOpenAIModel = provider === 'openai'
@@ -957,13 +979,15 @@ export function trackForcedToolUsage(
   if (forcedToolNames.length > 0 && toolCallsResponse && toolCallsResponse.length > 0) {
     const toolNames = toolCallsResponse.map((tc) => tc.function?.name || tc.name || tc.id)
 
-    const usedTools = forcedToolNames.filter((toolName) => toolNames.includes(toolName))
+    const toolNameSet = new Set(toolNames)
+    const usedTools = forcedToolNames.filter((toolName) => toolNameSet.has(toolName))
 
     if (usedTools.length > 0) {
       hasUsedForcedTool = true
       updatedUsedForcedTools.push(...usedTools)
 
-      const remainingTools = forcedTools.filter((tool) => !updatedUsedForcedTools.includes(tool))
+      const usedSet = new Set(updatedUsedForcedTools)
+      const remainingTools = forcedTools.filter((tool) => !usedSet.has(tool))
 
       if (remainingTools.length > 0) {
         const nextToolToForce = remainingTools[0]

@@ -8,6 +8,30 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
     'Search the web using Parallel AI. Provides comprehensive search results with intelligent processing and content extraction.',
   version: '1.0.0',
 
+  hosting: {
+    envKeyPrefix: 'PARALLEL_API_KEY',
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'parallel_ai',
+    pricing: {
+      type: 'custom',
+      getCost: (_params, output) => {
+        if (!Array.isArray(output.results)) {
+          throw new Error('Parallel search response missing results array')
+        }
+        // Parallel Search: $0.005 base (includes ≤10 results), +$0.001 per result beyond 10
+        // https://docs.parallel.ai/resources/pricing
+        const resultCount = output.results.length
+        const additionalResults = Math.max(0, resultCount - 10)
+        const cost = 0.005 + additionalResults * 0.001
+        return { cost, metadata: { resultCount, additionalResults } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 30,
+    },
+  },
+
   params: {
     objective: {
       type: 'string',
@@ -19,25 +43,37 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional comma-separated list of search queries to execute',
+      description: 'Comma-separated list of search queries to execute',
     },
-    processor: {
+    mode: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Processing method: base or pro (default: base)',
+      description: 'Search mode: one-shot, agentic, or fast (default: one-shot)',
     },
     max_results: {
       type: 'number',
       required: false,
       visibility: 'user-only',
-      description: 'Maximum number of results to return (default: 5)',
+      description: 'Maximum number of results to return (default: 10)',
     },
     max_chars_per_result: {
       type: 'number',
       required: false,
       visibility: 'user-only',
-      description: 'Maximum characters per result (default: 1500)',
+      description: 'Maximum characters per result excerpt (minimum: 1000)',
+    },
+    include_domains: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Comma-separated list of domains to restrict search results to',
+    },
+    exclude_domains: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Comma-separated list of domains to exclude from search results',
     },
     apiKey: {
       type: 'string',
@@ -60,44 +96,83 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
         objective: params.objective,
       }
 
-      // Only include search_queries if it's not empty
-      if (
-        params.search_queries !== undefined &&
-        params.search_queries !== null &&
-        params.search_queries.length > 0
-      ) {
-        body.search_queries = params.search_queries
+      if (params.search_queries) {
+        if (Array.isArray(params.search_queries)) {
+          body.search_queries = params.search_queries
+        } else if (typeof params.search_queries === 'string') {
+          const queries = params.search_queries
+            .split(',')
+            .map((q: string) => q.trim())
+            .filter((q: string) => q.length > 0)
+          if (queries.length > 0) body.search_queries = queries
+        }
       }
 
-      // Add optional parameters if provided
-      if (params.processor) body.processor = params.processor
+      if (params.mode) body.mode = params.mode
       if (params.max_results) body.max_results = Number(params.max_results)
-      if (params.max_chars_per_result)
-        body.max_chars_per_result = Number(params.max_chars_per_result)
+      if (params.max_chars_per_result) {
+        body.excerpts = { max_chars_per_result: Number(params.max_chars_per_result) }
+      }
+
+      const sourcePolicy: Record<string, string[]> = {}
+      if (params.include_domains) {
+        sourcePolicy.include_domains = params.include_domains
+          .split(',')
+          .map((d: string) => d.trim())
+          .filter((d: string) => d.length > 0)
+      }
+      if (params.exclude_domains) {
+        sourcePolicy.exclude_domains = params.exclude_domains
+          .split(',')
+          .map((d: string) => d.trim())
+          .filter((d: string) => d.length > 0)
+      }
+      if (Object.keys(sourcePolicy).length > 0) {
+        body.source_policy = sourcePolicy
+      }
 
       return body
     },
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Parallel AI search failed: ${response.status} - ${errorText}`)
+    }
+
     const data = await response.json()
+
+    if (!data.results) {
+      return {
+        success: false,
+        error: 'No results returned from search',
+        output: {
+          results: [],
+          search_id: data.search_id ?? null,
+        },
+      }
+    }
 
     return {
       success: true,
       output: {
-        results: data.results.map((result: unknown) => {
-          const resultObj = result as Record<string, unknown>
-          return {
-            url: resultObj.url || '',
-            title: resultObj.title || '',
-            excerpts: resultObj.excerpts || [],
-          }
-        }),
+        search_id: data.search_id ?? null,
+        results: data.results.map((result: Record<string, unknown>) => ({
+          url: result.url ?? null,
+          title: result.title ?? null,
+          publish_date: result.publish_date ?? null,
+          excerpts: result.excerpts ?? [],
+        })),
       },
     }
   },
 
   outputs: {
+    search_id: {
+      type: 'string',
+      description: 'Unique identifier for this search request',
+    },
     results: {
       type: 'array',
       description: 'Search results with excerpts from relevant pages',
@@ -106,9 +181,14 @@ export const searchTool: ToolConfig<ParallelSearchParams, ToolResponse> = {
         properties: {
           url: { type: 'string', description: 'The URL of the search result' },
           title: { type: 'string', description: 'The title of the search result' },
+          publish_date: {
+            type: 'string',
+            description: 'Publication date of the page (YYYY-MM-DD)',
+            optional: true,
+          },
           excerpts: {
             type: 'array',
-            description: 'Text excerpts from the page',
+            description: 'LLM-optimized excerpts from the page',
             items: { type: 'string' },
           },
         },

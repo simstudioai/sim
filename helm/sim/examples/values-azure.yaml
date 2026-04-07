@@ -47,6 +47,17 @@ app:
     NODE_ENV: "production"
     NEXT_TELEMETRY_DISABLED: "1"
 
+    # Azure OpenAI / Azure Anthropic (Azure AI Foundry) — set to use server-side credentials.
+    # When NEXT_PUBLIC_AZURE_CONFIGURED is true, the endpoint/key/version fields are hidden in
+    # the Agent block UI so users just pick a model and run.
+    AZURE_OPENAI_ENDPOINT: ""                             # e.g. https://your-resource.openai.azure.com
+    AZURE_OPENAI_API_KEY: ""                              # Azure OpenAI API key
+    AZURE_OPENAI_API_VERSION: ""                          # e.g. 2024-07-01-preview
+    AZURE_ANTHROPIC_ENDPOINT: ""                          # Azure AI Foundry endpoint for Anthropic models
+    AZURE_ANTHROPIC_API_KEY: ""                           # Azure Anthropic API key
+    AZURE_ANTHROPIC_API_VERSION: ""                       # Azure Anthropic API version (e.g., 2023-06-01)
+    NEXT_PUBLIC_AZURE_CONFIGURED: "true"                  # Set to "true" once credentials are configured above
+
     # Azure Blob Storage Configuration (RECOMMENDED for production)
     # Create a storage account and containers in your Azure subscription
     AZURE_ACCOUNT_NAME: "simstudiostorageacct"           # Azure storage account name

@@ -1,6 +1,7 @@
 import { VercelIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
+import { getTrigger } from '@/triggers'
 
 export const VercelBlock: BlockConfig = {
   type: 'vercel',
@@ -10,9 +11,24 @@ export const VercelBlock: BlockConfig = {
     'Integrate with Vercel to manage deployments, projects, domains, DNS records, environment variables, aliases, edge configs, teams, and more.',
   docsLink: 'https://docs.sim.ai/tools/vercel',
   category: 'tools',
+  integrationType: IntegrationType.DeveloperTools,
+  tags: ['cloud', 'ci-cd'],
   bgColor: '#171717',
   icon: VercelIcon,
   authMode: AuthMode.ApiKey,
+  triggers: {
+    enabled: true,
+    available: [
+      'vercel_deployment_created',
+      'vercel_deployment_ready',
+      'vercel_deployment_error',
+      'vercel_deployment_canceled',
+      'vercel_project_created',
+      'vercel_project_removed',
+      'vercel_domain_created',
+      'vercel_webhook',
+    ],
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -647,6 +663,16 @@ export const VercelBlock: BlockConfig = {
       },
       mode: 'advanced',
     },
+
+    // === Trigger subBlocks ===
+    ...getTrigger('vercel_deployment_created').subBlocks,
+    ...getTrigger('vercel_deployment_ready').subBlocks,
+    ...getTrigger('vercel_deployment_error').subBlocks,
+    ...getTrigger('vercel_deployment_canceled').subBlocks,
+    ...getTrigger('vercel_project_created').subBlocks,
+    ...getTrigger('vercel_project_removed').subBlocks,
+    ...getTrigger('vercel_domain_created').subBlocks,
+    ...getTrigger('vercel_webhook').subBlocks,
   ],
   tools: {
     access: [

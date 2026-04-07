@@ -3,19 +3,11 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
-import { restorePreviousVersionWebhooks, saveTriggerWebhooksForDeploy } from '@/lib/webhooks/deploy'
-import { activateWorkflowVersion } from '@/lib/workflows/persistence/utils'
-import {
-  cleanupDeploymentVersion,
-  createSchedulesForDeploy,
-  validateWorkflowSchedules,
-} from '@/lib/workflows/schedules'
+import { captureServerEvent } from '@/lib/posthog/server'
+import { performActivateVersion } from '@/lib/workflows/orchestration'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowDeploymentVersionAPI')
 
@@ -129,140 +121,25 @@ export async function PATCH(
         return createErrorResponse('Unable to determine activating user', 400)
       }
 
-      const [versionRow] = await db
-        .select({
-          id: workflowDeploymentVersion.id,
-          state: workflowDeploymentVersion.state,
-        })
-        .from(workflowDeploymentVersion)
-        .where(
-          and(
-            eq(workflowDeploymentVersion.workflowId, id),
-            eq(workflowDeploymentVersion.version, versionNum)
-          )
-        )
-        .limit(1)
-
-      if (!versionRow?.state) {
-        return createErrorResponse('Deployment version not found', 404)
-      }
-
-      const [currentActiveVersion] = await db
-        .select({ id: workflowDeploymentVersion.id })
-        .from(workflowDeploymentVersion)
-        .where(
-          and(
-            eq(workflowDeploymentVersion.workflowId, id),
-            eq(workflowDeploymentVersion.isActive, true)
-          )
-        )
-        .limit(1)
-
-      const previousVersionId = currentActiveVersion?.id
-
-      const deployedState = versionRow.state as { blocks?: Record<string, BlockState> }
-      const blocks = deployedState.blocks
-      if (!blocks || typeof blocks !== 'object') {
-        return createErrorResponse('Invalid deployed state structure', 500)
-      }
-
-      const scheduleValidation = validateWorkflowSchedules(blocks)
-      if (!scheduleValidation.isValid) {
-        return createErrorResponse(
-          `Invalid schedule configuration: ${scheduleValidation.error}`,
-          400
-        )
-      }
-
-      const triggerSaveResult = await saveTriggerWebhooksForDeploy({
-        request,
+      const activateResult = await performActivateVersion({
         workflowId: id,
-        workflow: workflowData as Record<string, unknown>,
+        version: versionNum,
         userId: actorUserId,
-        blocks,
+        workflow: workflowData as Record<string, unknown>,
         requestId,
-        deploymentVersionId: versionRow.id,
-        previousVersionId,
-        forceRecreateSubscriptions: true,
+        request,
       })
 
-      if (!triggerSaveResult.success) {
-        return createErrorResponse(
-          triggerSaveResult.error?.message || 'Failed to sync trigger configuration',
-          triggerSaveResult.error?.status || 500
-        )
+      if (!activateResult.success) {
+        const status =
+          activateResult.errorCode === 'not_found'
+            ? 404
+            : activateResult.errorCode === 'validation'
+              ? 400
+              : 500
+        return createErrorResponse(activateResult.error || 'Failed to activate deployment', status)
       }
 
-      const scheduleResult = await createSchedulesForDeploy(id, blocks, db, versionRow.id)
-
-      if (!scheduleResult.success) {
-        await cleanupDeploymentVersion({
-          workflowId: id,
-          workflow: workflowData as Record<string, unknown>,
-          requestId,
-          deploymentVersionId: versionRow.id,
-        })
-        if (previousVersionId) {
-          await restorePreviousVersionWebhooks({
-            request,
-            workflow: workflowData as Record<string, unknown>,
-            userId: actorUserId,
-            previousVersionId,
-            requestId,
-          })
-        }
-        return createErrorResponse(scheduleResult.error || 'Failed to sync schedules', 500)
-      }
-
-      const result = await activateWorkflowVersion({ workflowId: id, version: versionNum })
-      if (!result.success) {
-        await cleanupDeploymentVersion({
-          workflowId: id,
-          workflow: workflowData as Record<string, unknown>,
-          requestId,
-          deploymentVersionId: versionRow.id,
-        })
-        if (previousVersionId) {
-          await restorePreviousVersionWebhooks({
-            request,
-            workflow: workflowData as Record<string, unknown>,
-            userId: actorUserId,
-            previousVersionId,
-            requestId,
-          })
-        }
-        return createErrorResponse(result.error || 'Failed to activate deployment', 400)
-      }
-
-      if (previousVersionId && previousVersionId !== versionRow.id) {
-        try {
-          logger.info(
-            `[${requestId}] Cleaning up previous version ${previousVersionId} webhooks/schedules`
-          )
-          await cleanupDeploymentVersion({
-            workflowId: id,
-            workflow: workflowData as Record<string, unknown>,
-            requestId,
-            deploymentVersionId: previousVersionId,
-            skipExternalCleanup: true,
-          })
-          logger.info(`[${requestId}] Previous version cleanup completed`)
-        } catch (cleanupError) {
-          logger.error(
-            `[${requestId}] Failed to clean up previous version ${previousVersionId}`,
-            cleanupError
-          )
-        }
-      }
-
-      await syncMcpToolsForWorkflow({
-        workflowId: id,
-        requestId,
-        state: versionRow.state,
-        context: 'activate',
-      })
-
-      // Apply name/description updates if provided alongside activation
       let updatedName: string | null | undefined
       let updatedDescription: string | null | undefined
       if (name !== undefined || description !== undefined) {
@@ -298,23 +175,18 @@ export async function PATCH(
         }
       }
 
-      recordAudit({
-        workspaceId: workflowData?.workspaceId,
-        actorId: actorUserId,
-        actorName: session?.user?.name,
-        actorEmail: session?.user?.email,
-        action: AuditAction.WORKFLOW_DEPLOYMENT_ACTIVATED,
-        resourceType: AuditResourceType.WORKFLOW,
-        resourceId: id,
-        description: `Activated deployment version ${versionNum}`,
-        metadata: { version: versionNum },
-        request,
-      })
+      const wsId = (workflowData as { workspaceId?: string } | null)?.workspaceId
+      captureServerEvent(
+        actorUserId,
+        'deployment_version_activated',
+        { workflow_id: id, workspace_id: wsId ?? '', version: versionNum },
+        wsId ? { groups: { workspace: wsId } } : undefined
+      )
 
       return createSuccessResponse({
         success: true,
-        deployedAt: result.deployedAt,
-        warnings: triggerSaveResult.warnings,
+        deployedAt: activateResult.deployedAt,
+        warnings: activateResult.warnings,
         ...(updatedName !== undefined && { name: updatedName }),
         ...(updatedDescription !== undefined && { description: updatedDescription }),
       })

@@ -2,9 +2,9 @@
 
 import { memo, useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import clsx from 'clsx'
 import { Scan } from 'lucide-react'
 import { useReactFlow } from 'reactflow'
+import { useShallow } from 'zustand/react/shallow'
 import {
   Button,
   ChevronDown,
@@ -26,7 +26,6 @@ import { useShowActionBar, useUpdateGeneralSetting } from '@/hooks/queries/gener
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
-import { useTerminalStore } from '@/stores/terminal'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -38,12 +37,12 @@ const logger = createLogger('WorkflowControls')
 export const WorkflowControls = memo(function WorkflowControls() {
   const reactFlowInstance = useReactFlow()
   const { fitViewToBounds } = useCanvasViewport(reactFlowInstance)
-  const { mode, setMode } = useCanvasModeStore()
+  const { mode, setMode } = useCanvasModeStore(
+    useShallow((s) => ({ mode: s.mode, setMode: s.setMode }))
+  )
   const { undo, redo } = useCollaborativeWorkflow()
   const showWorkflowControls = useShowActionBar()
   const updateSetting = useUpdateGeneralSetting()
-  const isTerminalResizing = useTerminalStore((state) => state.isResizing)
-
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const { data: session } = useSession()
   const userId = session?.user?.id || 'unknown'
@@ -84,20 +83,14 @@ export const WorkflowControls = memo(function WorkflowControls() {
   }
 
   if (!showWorkflowControls) {
-    return null
+    return <div data-tour='workflow-controls' className='hidden' />
   }
 
   return (
     <>
       <div
-        className={clsx(
-          'fixed z-10 flex h-[36px] items-center gap-[2px] rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] p-[4px]',
-          !isTerminalResizing && 'transition-[bottom] duration-100 ease-out'
-        )}
-        style={{
-          bottom: 'calc(var(--terminal-height) + 16px)',
-          left: 'calc(var(--sidebar-width) + 16px)',
-        }}
+        className='absolute bottom-4 left-[16px] z-10 flex h-[36px] items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-1'
+        data-tour='workflow-controls'
         onContextMenu={handleContextMenu}
       >
         {/* Canvas Mode Selector */}
@@ -109,9 +102,9 @@ export const WorkflowControls = memo(function WorkflowControls() {
         >
           <Tooltip.Root>
             <PopoverTrigger asChild>
-              <div className='flex cursor-pointer items-center gap-[4px]'>
+              <div className='flex cursor-pointer items-center gap-1'>
                 <Tooltip.Trigger asChild>
-                  <Button className='h-[28px] w-[28px] rounded-[6px] p-0' variant='active'>
+                  <Button className='h-[28px] w-[28px] rounded-md p-0' variant='active'>
                     {mode === 'hand' ? (
                       <Hand className='h-[14px] w-[14px]' />
                     ) : (
@@ -119,7 +112,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
                     )}
                   </Button>
                 </Tooltip.Trigger>
-                <Button className='-m-[4px] !p-[6px] group' variant='ghost'>
+                <Button className='-m-1 !p-1.5 group' variant='ghost'>
                   <ChevronDown
                     className={`h-[8px] w-[10px] text-[var(--text-muted)] transition-transform duration-100 group-hover:text-[var(--text-secondary)] ${isCanvasModeOpen ? 'rotate-180' : ''}`}
                   />
@@ -150,13 +143,13 @@ export const WorkflowControls = memo(function WorkflowControls() {
           </PopoverContent>
         </Popover>
 
-        <div className='mx-[4px] h-[20px] w-[1px] bg-[var(--border)]' />
+        <div className='mx-1 h-[20px] w-[1px] bg-[var(--border)]' />
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
-              className='h-[28px] w-[28px] rounded-[6px] p-0 hover:bg-[var(--surface-5)]'
+              className='h-[28px] w-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
               onClick={undo}
               disabled={!canUndo}
             >
@@ -172,7 +165,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
           <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
-              className='h-[28px] w-[28px] rounded-[6px] p-0 hover:bg-[var(--surface-5)]'
+              className='h-[28px] w-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
               onClick={redo}
               disabled={!canRedo}
             >
@@ -184,13 +177,13 @@ export const WorkflowControls = memo(function WorkflowControls() {
           </Tooltip.Content>
         </Tooltip.Root>
 
-        <div className='mx-[4px] h-[20px] w-[1px] bg-[var(--border)]' />
+        <div className='mx-1 h-[20px] w-[1px] bg-[var(--border)]' />
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
-              className='h-[28px] w-[28px] rounded-[6px] p-0 hover:bg-[var(--surface-5)]'
+              className='h-[28px] w-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
               onClick={handleFitToView}
             >
               <Scan className='h-[16px] w-[16px]' />

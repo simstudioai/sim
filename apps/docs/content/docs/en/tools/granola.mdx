@@ -1,0 +1,92 @@
+---
+title: Granola
+description: Access meeting notes and transcripts from Granola
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="granola"
+  color="#B2C147"
+/>
+
+## Usage Instructions
+
+Integrate Granola into your workflow to retrieve meeting notes, summaries, attendees, and transcripts.
+
+
+
+## Tools
+
+### `granola_list_notes`
+
+Lists meeting notes from Granola with optional date filters and pagination.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Granola API key |
+| `createdBefore` | string | No | Return notes created before this date \(ISO 8601\) |
+| `createdAfter` | string | No | Return notes created after this date \(ISO 8601\) |
+| `updatedAfter` | string | No | Return notes updated after this date \(ISO 8601\) |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `pageSize` | number | No | Number of notes per page \(1-30, default 10\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `notes` | json | List of meeting notes |
+|   ↳ `id` | string | Note ID |
+|   ↳ `title` | string | Note title |
+|   ↳ `ownerName` | string | Note owner name |
+|   ↳ `ownerEmail` | string | Note owner email |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `hasMore` | boolean | Whether more notes are available |
+| `cursor` | string | Pagination cursor for the next page |
+
+### `granola_get_note`
+
+Retrieves a specific meeting note from Granola by ID, including summary, attendees, calendar event details, and optionally the transcript.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Granola API key |
+| `noteId` | string | Yes | The note ID \(e.g., not_1d3tmYTlCICgjy\) |
+| `includeTranscript` | string | No | Whether to include the meeting transcript |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Note ID |
+| `title` | string | Note title |
+| `ownerName` | string | Note owner name |
+| `ownerEmail` | string | Note owner email |
+| `createdAt` | string | Creation timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `summaryText` | string | Plain text summary of the meeting |
+| `summaryMarkdown` | string | Markdown-formatted summary of the meeting |
+| `attendees` | json | Meeting attendees |
+|   ↳ `name` | string | Attendee name |
+|   ↳ `email` | string | Attendee email |
+| `folders` | json | Folders the note belongs to |
+|   ↳ `id` | string | Folder ID |
+|   ↳ `name` | string | Folder name |
+| `calendarEventTitle` | string | Calendar event title |
+| `calendarOrganiser` | string | Calendar event organiser email |
+| `calendarEventId` | string | Calendar event ID |
+| `scheduledStartTime` | string | Scheduled start time |
+| `scheduledEndTime` | string | Scheduled end time |
+| `invitees` | json | Calendar event invitee emails |
+| `transcript` | json | Meeting transcript entries \(only if requested\) |
+|   ↳ `speaker` | string | Speaker source \(microphone or speaker\) |
+|   ↳ `text` | string | Transcript text |
+|   ↳ `startTime` | string | Segment start time |
+|   ↳ `endTime` | string | Segment end time |
+
+

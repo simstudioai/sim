@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import type { ColumnDefinition, TableDefinition } from '@/lib/table'
-import { getTableById } from '@/lib/table'
+import { COLUMN_TYPES, getTableById } from '@/lib/table'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('TableUtils')
@@ -153,6 +154,37 @@ export function notFoundResponse(message = 'Resource not found') {
 export function serverErrorResponse(message = 'Internal server error') {
   return errorResponse(message, 500)
 }
+
+const columnTypeEnum = z.enum(
+  COLUMN_TYPES as unknown as [(typeof COLUMN_TYPES)[number], ...(typeof COLUMN_TYPES)[number][]]
+)
+
+export const CreateColumnSchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  column: z.object({
+    name: z.string().min(1, 'Column name is required'),
+    type: columnTypeEnum,
+    required: z.boolean().optional(),
+    unique: z.boolean().optional(),
+    position: z.number().int().min(0).optional(),
+  }),
+})
+
+export const UpdateColumnSchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  columnName: z.string().min(1, 'Column name is required'),
+  updates: z.object({
+    name: z.string().min(1).optional(),
+    type: columnTypeEnum.optional(),
+    required: z.boolean().optional(),
+    unique: z.boolean().optional(),
+  }),
+})
+
+export const DeleteColumnSchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  columnName: z.string().min(1, 'Column name is required'),
+})
 
 export function normalizeColumn(col: ColumnDefinition): ColumnDefinition {
   return {

@@ -3,7 +3,16 @@
   "info": {
     "title": "Sim API",
     "description": "API for executing workflows, querying logs, and managing resources in Sim.",
-    "version": "1.0.0"
+    "version": "1.0.0",
+    "contact": {
+      "name": "Sim Support",
+      "email": "help@sim.ai",
+      "url": "https://www.sim.ai"
+    },
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
+    }
   },
   "servers": [
     {
@@ -12,10 +21,34 @@
     }
   ],
   "tags": [
-    { "name": "Workflows", "description": "Execute workflows and manage workflow resources" },
-    { "name": "Logs", "description": "Query execution logs and retrieve details" },
-    { "name": "Usage", "description": "Check rate limits and billing usage" },
-    { "name": "Audit Logs", "description": "View audit trail of workspace activity" }
+    {
+      "name": "Workflows",
+      "description": "Execute workflows and manage workflow resources"
+    },
+    {
+      "name": "Logs",
+      "description": "Query execution logs and retrieve details"
+    },
+    {
+      "name": "Usage",
+      "description": "Check rate limits and billing usage"
+    },
+    {
+      "name": "Audit Logs",
+      "description": "View audit trail of workspace activity"
+    },
+    {
+      "name": "Tables",
+      "description": "Manage tables and rows for structured data storage"
+    },
+    {
+      "name": "Files",
+      "description": "Upload, download, and manage workspace files"
+    },
+    {
+      "name": "Knowledge Bases",
+      "description": "Manage knowledge bases, documents, and vector search"
+    }
   ],
   "security": [
     {
@@ -77,6 +110,11 @@
                     "description": "List of specific block IDs whose outputs to include in the response. When omitted, all block outputs are returned."
                   }
                 }
+              },
+              "example": {
+                "input": {
+                  "query": "What is the weather in Tokyo?"
+                }
               }
             }
           }
@@ -88,6 +126,19 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExecutionResult"
+                },
+                "example": {
+                  "success": true,
+                  "executionId": "exec_abc123",
+                  "output": {
+                    "content": "The weather in Tokyo is sunny, 22\u00b0C."
+                  },
+                  "error": null,
+                  "metadata": {
+                    "startTime": "2026-01-15T10:30:00Z",
+                    "endTime": "2026-01-15T10:30:01Z",
+                    "duration": 1250
+                  }
                 }
               }
             }
@@ -167,6 +218,10 @@
                       "description": "The ID of the cancelled execution."
                     }
                   }
+                },
+                "example": {
+                  "success": true,
+                  "executionId": "exec_abc123"
                 }
               }
             }
@@ -196,13 +251,7 @@
         ],
         "parameters": [
           {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "description": "The unique identifier for your workspace. Found in the Sim dashboard URL or workspace settings.",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/WorkspaceId"
           },
           {
             "name": "folderId",
@@ -260,9 +309,22 @@
                       "description": "Cursor for fetching the next page of results. null when there are no more results."
                     },
                     "limits": {
-                      "$ref": "#/components/schemas/Limits"
+                      "$ref": "#/components/schemas/Limits",
+                      "description": "Rate limit and usage information for the current API key."
                     }
                   }
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": "wf_abc123",
+                      "name": "Weather Bot",
+                      "isDeployed": true,
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-15T10:30:00Z"
+                    }
+                  ],
+                  "nextCursor": null
                 }
               }
             }
@@ -318,8 +380,19 @@
                       "$ref": "#/components/schemas/WorkflowDetail"
                     },
                     "limits": {
-                      "$ref": "#/components/schemas/Limits"
+                      "$ref": "#/components/schemas/Limits",
+                      "description": "Rate limit and usage information for the current API key."
                     }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "id": "wf_abc123",
+                    "name": "Weather Bot",
+                    "description": "A workflow that fetches weather data",
+                    "isDeployed": true,
+                    "createdAt": "2026-01-15T10:30:00Z",
+                    "updatedAt": "2026-01-15T10:30:00Z"
                   }
                 }
               }
@@ -370,6 +443,17 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JobStatus"
+                },
+                "example": {
+                  "success": true,
+                  "taskId": "job_abc123",
+                  "status": "completed",
+                  "output": {
+                    "content": "Done"
+                  },
+                  "metadata": {
+                    "startTime": "2026-01-15T10:30:00Z"
+                  }
                 }
               }
             }
@@ -402,13 +486,7 @@
         ],
         "parameters": [
           {
-            "name": "workspaceId",
-            "in": "query",
-            "required": true,
-            "description": "The unique identifier for your workspace.",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/WorkspaceId"
           },
           {
             "name": "workflowIds",
@@ -581,6 +659,18 @@
                       "$ref": "#/components/schemas/Limits"
                     }
                   }
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": "log_abc123",
+                      "workflowId": "wf_abc123",
+                      "level": "info",
+                      "trigger": "api",
+                      "createdAt": "2026-01-15T10:30:00Z"
+                    }
+                  ],
+                  "nextCursor": null
                 }
               }
             }
@@ -638,6 +728,19 @@
                     "limits": {
                       "$ref": "#/components/schemas/Limits"
                     }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "id": "log_abc123",
+                    "workflowId": "wf_abc123",
+                    "executionId": "exec_abc123",
+                    "level": "info",
+                    "trigger": "api",
+                    "totalDurationMs": 1250,
+                    "startedAt": "2026-01-15T10:30:00Z",
+                    "endedAt": "2026-01-15T10:30:01Z",
+                    "createdAt": "2026-01-15T10:30:00Z"
                   }
                 }
               }
@@ -754,6 +857,12 @@
                       "$ref": "#/components/schemas/Limits"
                     }
                   }
+                },
+                "example": {
+                  "executionId": "exec_abc123",
+                  "workflowId": "wf_abc123",
+                  "workflowState": {},
+                  "executionMetadata": {}
                 }
               }
             }
@@ -810,12 +919,7 @@
             }
           },
           {
-            "name": "workspaceId",
-            "in": "query",
-            "description": "Filter to audit logs from a specific workspace.",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/WorkspaceId"
           },
           {
             "name": "actorId",
@@ -894,6 +998,20 @@
                       "$ref": "#/components/schemas/Limits"
                     }
                   }
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": "audit_abc123",
+                      "action": "workflow.execute",
+                      "actorId": "user_abc123",
+                      "actorName": "Jane Doe",
+                      "actorEmail": "jane@example.com",
+                      "resourceType": "workflow",
+                      "createdAt": "2026-01-15T10:30:00Z"
+                    }
+                  ],
+                  "nextCursor": null
                 }
               }
             }
@@ -955,6 +1073,19 @@
                       "$ref": "#/components/schemas/Limits"
                     }
                   }
+                },
+                "example": {
+                  "data": {
+                    "id": "audit_abc123",
+                    "action": "workflow.execute",
+                    "actorId": "user_abc123",
+                    "actorName": "Jane Doe",
+                    "actorEmail": "jane@example.com",
+                    "resourceType": "workflow",
+                    "resourceId": "wf_abc123",
+                    "metadata": {},
+                    "createdAt": "2026-01-15T10:30:00Z"
+                  }
                 }
               }
             }
@@ -995,6 +1126,31 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UsageLimits"
+                },
+                "example": {
+                  "success": true,
+                  "rateLimit": {
+                    "sync": {
+                      "limit": 100,
+                      "remaining": 95,
+                      "reset": "2026-01-15T11:00:00Z"
+                    },
+                    "async": {
+                      "limit": 50,
+                      "remaining": 48,
+                      "reset": "2026-01-15T11:00:00Z"
+                    }
+                  },
+                  "usage": {
+                    "currentPeriodCost": 12.5,
+                    "limit": 100.0,
+                    "plan": "pro"
+                  },
+                  "storage": {
+                    "usedBytes": 5242880,
+                    "limitBytes": 1073741824,
+                    "percentUsed": 0.49
+                  }
                 }
               }
             }
@@ -1002,7 +1158,3368 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           }
+        },
+        "parameters": []
+      }
+    },
+    "/api/v1/tables": {
+      "get": {
+        "operationId": "listTables",
+        "summary": "List Tables",
+        "description": "List all tables in a workspace. Returns table metadata including name, schema, and row counts.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/tables?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of tables in the workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "tables": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Table"
+                          },
+                          "description": "Array of tables in the workspace."
+                        },
+                        "totalCount": {
+                          "type": "integer",
+                          "description": "Total number of tables."
+                        }
+                      },
+                      "description": "Response payload."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "tables": [
+                      {
+                        "id": "tbl_abc123",
+                        "name": "contacts",
+                        "description": "Customer contacts",
+                        "schema": {
+                          "columns": [
+                            {
+                              "name": "email",
+                              "type": "string",
+                              "required": true,
+                              "unique": true
+                            }
+                          ]
+                        },
+                        "rowCount": 150,
+                        "maxRows": 10000,
+                        "createdAt": "2026-01-15T10:30:00Z",
+                        "updatedAt": "2026-01-15T10:30:00Z"
+                      }
+                    ],
+                    "totalCount": 1
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
         }
+      },
+      "post": {
+        "operationId": "createTable",
+        "summary": "Create Table",
+        "description": "Create a new table in a workspace. Define the table schema with typed columns, optional constraints (required, unique), and a name.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v1/tables\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"name\": \"contacts\",\n    \"description\": \"Customer contacts\",\n    \"schema\": {\n      \"columns\": [\n        { \"name\": \"email\", \"type\": \"string\", \"required\": true, \"unique\": true },\n        { \"name\": \"name\", \"type\": \"string\", \"required\": true },\n        { \"name\": \"age\", \"type\": \"number\" }\n      ]\n    }\n  }'"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "name", "schema"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace to create the table in."
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "Table name. Must start with a letter or underscore, alphanumeric and underscores only.",
+                    "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Optional description of the table."
+                  },
+                  "schema": {
+                    "type": "object",
+                    "required": ["columns"],
+                    "properties": {
+                      "columns": {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/components/schemas/ColumnDefinition"
+                        },
+                        "minItems": 1,
+                        "description": "Column definitions for the table."
+                      }
+                    },
+                    "description": "Table schema definition containing column definitions."
+                  }
+                }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "name": "contacts",
+                "description": "Customer contacts",
+                "schema": {
+                  "columns": [
+                    {
+                      "name": "email",
+                      "type": "string",
+                      "required": true,
+                      "unique": true
+                    },
+                    {
+                      "name": "name",
+                      "type": "string",
+                      "required": true
+                    },
+                    {
+                      "name": "age",
+                      "type": "number"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Table created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "table": {
+                          "$ref": "#/components/schemas/Table",
+                          "description": "The newly created table."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Confirmation message."
+                        }
+                      },
+                      "description": "Response payload."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "table": {
+                      "id": "tbl_abc123",
+                      "name": "contacts",
+                      "description": "Customer contacts",
+                      "schema": {
+                        "columns": [
+                          {
+                            "name": "email",
+                            "type": "string",
+                            "required": true,
+                            "unique": true
+                          }
+                        ]
+                      },
+                      "rowCount": 0,
+                      "maxRows": 10000,
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-15T10:30:00Z"
+                    },
+                    "message": "Table created successfully"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "parameters": []
+      }
+    },
+    "/api/v1/tables/{tableId}": {
+      "get": {
+        "operationId": "getTable",
+        "summary": "Get Table",
+        "description": "Retrieve a table's metadata, schema, and row count.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Table details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "table": {
+                          "$ref": "#/components/schemas/Table",
+                          "description": "The requested table with its metadata and schema."
+                        }
+                      },
+                      "description": "Response payload."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "table": {
+                      "id": "tbl_abc123",
+                      "name": "contacts",
+                      "description": "Customer contacts",
+                      "schema": {
+                        "columns": [
+                          {
+                            "name": "email",
+                            "type": "string",
+                            "required": true,
+                            "unique": true
+                          }
+                        ]
+                      },
+                      "rowCount": 150,
+                      "maxRows": 10000,
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-15T10:30:00Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteTable",
+        "summary": "Delete Table",
+        "description": "Delete a table and all its rows. This action is irreversible.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Table deleted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Confirmation message."
+                        }
+                      },
+                      "description": "Response payload."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "message": "Table deleted successfully"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/tables/{tableId}/columns": {
+      "post": {
+        "operationId": "addColumn",
+        "summary": "Add Column",
+        "description": "Add a new column to the table schema. Optionally specify a position to insert the column at a specific index.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "lang": "curl",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/columns\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"column\": {\n      \"name\": \"email\",\n      \"type\": \"string\",\n      \"required\": true,\n      \"unique\": true\n    }\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "column"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace ID"
+                  },
+                  "column": {
+                    "type": "object",
+                    "required": ["name", "type"],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "Column name (alphanumeric and underscores, must start with letter or underscore)"
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": ["string", "number", "boolean", "date", "json"],
+                        "description": "Column data type"
+                      },
+                      "required": {
+                        "type": "boolean",
+                        "description": "Whether the column requires a value"
+                      },
+                      "unique": {
+                        "type": "boolean",
+                        "description": "Whether column values must be unique"
+                      },
+                      "position": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "Position index to insert the column at (0-based). Appends if omitted."
+                      }
+                    }
+                  }
+                }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "column": {
+                  "name": "phone",
+                  "type": "string",
+                  "required": false,
+                  "unique": false
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Column added successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "columns": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/ColumnDefinition"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "columns": [
+                      {
+                        "name": "email",
+                        "type": "string",
+                        "required": true,
+                        "unique": true
+                      },
+                      {
+                        "name": "phone",
+                        "type": "string",
+                        "required": false,
+                        "unique": false
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateColumn",
+        "summary": "Update Column",
+        "description": "Update a column's name, type, or constraints. Multiple updates can be applied in a single request. When renaming, subsequent updates (type, constraints) use the new name.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "lang": "curl",
+            "source": "curl -X PATCH \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/columns\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"columnName\": \"old_name\",\n    \"updates\": {\n      \"name\": \"new_name\",\n      \"type\": \"number\"\n    }\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "columnName", "updates"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace ID"
+                  },
+                  "columnName": {
+                    "type": "string",
+                    "description": "Current name of the column to update"
+                  },
+                  "updates": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "New column name"
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": ["string", "number", "boolean", "date", "json"],
+                        "description": "New column data type"
+                      },
+                      "required": {
+                        "type": "boolean",
+                        "description": "Whether the column requires a value"
+                      },
+                      "unique": {
+                        "type": "boolean",
+                        "description": "Whether column values must be unique"
+                      }
+                    }
+                  }
+                }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "columnName": "phone",
+                "updates": {
+                  "name": "phone_number",
+                  "type": "string",
+                  "required": true
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Column updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "columns": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/ColumnDefinition"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "columns": [
+                      {
+                        "name": "email",
+                        "type": "string",
+                        "required": true,
+                        "unique": true
+                      },
+                      {
+                        "name": "phone_number",
+                        "type": "string",
+                        "required": true,
+                        "unique": false
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteColumn",
+        "summary": "Delete Column",
+        "description": "Delete a column from the table schema. This removes the column definition and strips the corresponding key from all existing row data. Cannot delete the last remaining column.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "lang": "curl",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/columns\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"columnName\": \"old_column\"\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "columnName"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace ID"
+                  },
+                  "columnName": {
+                    "type": "string",
+                    "description": "Name of the column to delete"
+                  }
+                }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "columnName": "phone_number"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Column deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "columns": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/ColumnDefinition"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "columns": [
+                      {
+                        "name": "email",
+                        "type": "string",
+                        "required": true,
+                        "unique": true
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/tables/{tableId}/rows": {
+      "get": {
+        "operationId": "listRows",
+        "summary": "List Rows",
+        "description": "Query rows from a table with optional filtering, sorting, and pagination. Filters and sorts are passed as JSON-encoded query parameters.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/rows?workspaceId=YOUR_WORKSPACE_ID&limit=50&offset=0\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "required": false,
+            "description": "JSON-encoded filter object. Example: {\"status\": \"active\"} or {\"age\": {\"$gt\": 18}}.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "JSON-encoded sort object. Example: {\"created_at\": \"desc\"}.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum rows to return (1-1000, default 100).",
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 1000
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of rows to skip for pagination (default 0).",
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rows matching the query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/TableRow"
+                          },
+                          "description": "Array of rows matching the query."
+                        },
+                        "rowCount": {
+                          "type": "integer",
+                          "description": "Number of rows returned in this response."
+                        },
+                        "totalCount": {
+                          "type": "integer",
+                          "description": "Total rows matching the filter."
+                        },
+                        "limit": {
+                          "type": "integer",
+                          "description": "The limit that was applied to the query."
+                        },
+                        "offset": {
+                          "type": "integer",
+                          "description": "The offset that was applied to the query."
+                        }
+                      },
+                      "description": "Response payload."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "rows": [
+                      {
+                        "id": "row_abc123",
+                        "data": {
+                          "email": "jane@example.com",
+                          "name": "Jane Doe"
+                        },
+                        "position": 0,
+                        "createdAt": "2026-01-15T10:30:00Z",
+                        "updatedAt": "2026-01-15T10:30:00Z"
+                      }
+                    ],
+                    "rowCount": 1,
+                    "totalCount": 1,
+                    "limit": 100,
+                    "offset": 0
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "post": {
+        "operationId": "insertRows",
+        "summary": "Insert Rows",
+        "description": "Insert one or more rows into a table. For a single row, pass a `data` object. For batch insert, pass a `rows` array (up to 1000 rows).",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/rows\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"data\": {\n      \"email\": \"user@example.com\",\n      \"name\": \"Jane Doe\"\n    }\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": ["workspaceId", "data"],
+                    "description": "Single row insert.",
+                    "properties": {
+                      "workspaceId": {
+                        "type": "string",
+                        "description": "The workspace that owns the table."
+                      },
+                      "data": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "description": "Key-value pairs matching the table schema."
+                      },
+                      "position": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "Position index for the row. If omitted, the row is appended at the end of the table."
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": ["workspaceId", "rows"],
+                    "description": "Batch insert (up to 1000 rows).",
+                    "properties": {
+                      "workspaceId": {
+                        "type": "string",
+                        "description": "The workspace that owns the table."
+                      },
+                      "rows": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": true
+                        },
+                        "minItems": 1,
+                        "maxItems": 1000,
+                        "description": "Array of row objects to insert. Each object contains key-value pairs matching the table schema."
+                      },
+                      "positions": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "uniqueItems": true,
+                        "maxItems": 1000,
+                        "description": "Array of position indices for each row. Must be the same length as the rows array and must not contain duplicates. If omitted, rows are appended in order."
+                      }
+                    }
+                  }
+                ]
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "data": {
+                  "email": "jane@example.com",
+                  "name": "Jane Doe",
+                  "age": 30
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Row(s) inserted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "row": {
+                          "$ref": "#/components/schemas/TableRow",
+                          "description": "The inserted row (present for single-row inserts)."
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/TableRow"
+                          },
+                          "description": "Array of inserted rows (present for batch inserts)."
+                        },
+                        "insertedCount": {
+                          "type": "integer",
+                          "description": "Number of rows successfully inserted."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Confirmation message."
+                        }
+                      },
+                      "description": "Response payload."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "row": {
+                      "id": "row_abc123",
+                      "data": {
+                        "email": "jane@example.com",
+                        "name": "Jane Doe",
+                        "age": 30
+                      },
+                      "position": 0,
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-15T10:30:00Z"
+                    },
+                    "message": "Row inserted successfully"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateRows",
+        "summary": "Update Rows",
+        "description": "Bulk update rows matching a filter. All matching rows will have the specified fields updated. Validates against schema and unique constraints.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X PUT \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/rows\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"filter\": { \"status\": \"pending\" },\n    \"data\": { \"status\": \"active\" }\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "filter", "data"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace that owns the table."
+                  },
+                  "filter": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Filter criteria to match rows."
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Fields to update on matching rows."
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000,
+                    "description": "Maximum number of rows to update."
+                  }
+                }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "filter": {
+                  "status": "pending"
+                },
+                "data": {
+                  "status": "active"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/RowsUpdated"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteRows",
+        "summary": "Delete Rows",
+        "description": "Delete rows by filter criteria or by an explicit list of row IDs. Pass either a `filter` object or a `rowIds` array.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/rows\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"rowIds\": [\"row_abc123\", \"row_def456\"]\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": ["workspaceId", "filter"],
+                    "description": "Delete by filter.",
+                    "properties": {
+                      "workspaceId": {
+                        "type": "string",
+                        "description": "The workspace that owns the table."
+                      },
+                      "filter": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "description": "Filter criteria to match rows for deletion."
+                      },
+                      "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000,
+                        "description": "Maximum number of rows to delete. Defaults to all matching rows, capped at 1000."
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": ["workspaceId", "rowIds"],
+                    "description": "Delete by IDs.",
+                    "properties": {
+                      "workspaceId": {
+                        "type": "string",
+                        "description": "The workspace that owns the table."
+                      },
+                      "rowIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "maxItems": 1000,
+                        "description": "Explicit list of row IDs to delete (max 1000)."
+                      }
+                    }
+                  }
+                ]
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "rowIds": ["row_abc123", "row_def456"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rows deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Confirmation message describing how many rows were deleted."
+                        },
+                        "deletedCount": {
+                          "type": "integer",
+                          "description": "Number of rows that were deleted."
+                        },
+                        "deletedRowIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Array of IDs for each row that was deleted."
+                        },
+                        "requestedCount": {
+                          "type": "integer",
+                          "description": "Number of row IDs requested for deletion (only present when deleting by IDs)."
+                        },
+                        "missingRowIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Row IDs that were requested but not found (only present when deleting by IDs)."
+                        }
+                      },
+                      "description": "Response payload."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "message": "Rows deleted successfully",
+                    "deletedCount": 2,
+                    "deletedRowIds": ["row_abc123", "row_def456"]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "batchUpdateRows",
+        "summary": "Batch Update Rows",
+        "description": "Update multiple specific rows by their IDs in a single request. Each entry in the `updates` array specifies a row ID and the fields to update. Validates against the table schema and unique constraints. Up to 1000 rows can be updated per request.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X PATCH \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/rows\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"updates\": [\n      { \"rowId\": \"row_abc123\", \"data\": { \"status\": \"active\" } },\n      { \"rowId\": \"row_def456\", \"data\": { \"status\": \"archived\" } }\n    ]\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "updates"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace that owns the table."
+                  },
+                  "updates": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": ["rowId", "data"],
+                      "properties": {
+                        "rowId": {
+                          "type": "string",
+                          "description": "The ID of the row to update."
+                        },
+                        "data": {
+                          "type": "object",
+                          "additionalProperties": true,
+                          "description": "Key-value pairs of fields to update on this row."
+                        }
+                      }
+                    },
+                    "minItems": 1,
+                    "maxItems": 1000,
+                    "description": "Array of update objects. Each object specifies a row ID and the fields to update. Duplicate row IDs are not allowed."
+                  }
+                }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "updates": [
+                  {
+                    "rowId": "row_abc123",
+                    "data": {
+                      "status": "active"
+                    }
+                  },
+                  {
+                    "rowId": "row_def456",
+                    "data": {
+                      "status": "archived"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/RowsUpdated"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/tables/{tableId}/rows/{rowId}": {
+      "get": {
+        "operationId": "getRow",
+        "summary": "Get Row",
+        "description": "Retrieve a single row by its ID.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/rows/{rowId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          },
+          {
+            "$ref": "#/components/parameters/RowId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Row data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "row": {
+                          "$ref": "#/components/schemas/TableRow",
+                          "description": "The requested row."
+                        }
+                      },
+                      "description": "Response payload."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "row": {
+                      "id": "row_abc123",
+                      "data": {
+                        "email": "jane@example.com",
+                        "name": "Jane Doe"
+                      },
+                      "position": 0,
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-15T10:30:00Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateRow",
+        "summary": "Update Row",
+        "description": "Partially update a single row. Only the provided fields are updated; existing fields are preserved. Data is validated against the table schema.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X PATCH \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/rows/{rowId}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"data\": { \"name\": \"Updated Name\" }\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          },
+          {
+            "$ref": "#/components/parameters/RowId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "data"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace that owns the table."
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Fields to update. Only specified fields are changed."
+                  }
+                }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "data": {
+                  "name": "Updated Name"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Row updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "row": {
+                          "$ref": "#/components/schemas/TableRow",
+                          "description": "The updated row with all current field values."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Confirmation message."
+                        }
+                      },
+                      "description": "Response payload."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "row": {
+                      "id": "row_abc123",
+                      "data": {
+                        "email": "jane@example.com",
+                        "name": "Updated Name"
+                      },
+                      "position": 0,
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-16T08:00:00Z"
+                    },
+                    "message": "Row updated successfully"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteRow",
+        "summary": "Delete Row",
+        "description": "Delete a single row by its ID.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/rows/{rowId}\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\"\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          },
+          {
+            "$ref": "#/components/parameters/RowId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Row deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Confirmation message."
+                        },
+                        "deletedCount": {
+                          "type": "integer",
+                          "description": "Number of rows deleted (always 1 for single-row deletion)."
+                        }
+                      },
+                      "description": "Response payload."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "message": "Row deleted successfully",
+                    "deletedCount": 1
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace that owns the table."
+                  }
+                }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tables/{tableId}/rows/upsert": {
+      "post": {
+        "operationId": "upsertRow",
+        "summary": "Upsert Row",
+        "description": "Insert a new row or update an existing one based on a unique column value. The table must have at least one column with a unique constraint. If a row with a matching unique value exists, it is updated; otherwise, a new row is inserted. When multiple unique columns exist, specify `conflictTarget` to indicate which column to match on.",
+        "tags": ["Tables"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v1/tables/{tableId}/rows/upsert\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"data\": { \"email\": \"user@example.com\", \"name\": \"John\" }\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TableId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "data"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace ID."
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Row data. Must include a value for the conflict target column."
+                  },
+                  "conflictTarget": {
+                    "type": "string",
+                    "description": "Name of the unique column to match on. Required when the table has multiple unique columns. If the table has exactly one unique column, this can be omitted."
+                  }
+                }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "data": {
+                  "email": "user@example.com",
+                  "name": "John Doe"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Row upserted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Indicates whether the request was successful."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "row": {
+                          "$ref": "#/components/schemas/TableRow",
+                          "description": "The inserted or updated row."
+                        },
+                        "operation": {
+                          "type": "string",
+                          "enum": ["insert", "update"],
+                          "description": "Whether the row was inserted or updated."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Confirmation message."
+                        }
+                      },
+                      "description": "Response payload."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "row": {
+                      "id": "row_abc123",
+                      "data": {
+                        "email": "user@example.com",
+                        "name": "John Doe"
+                      },
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-15T10:30:00Z"
+                    },
+                    "operation": "insert",
+                    "message": "Row inserted successfully"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/files": {
+      "get": {
+        "operationId": "listFiles",
+        "summary": "List Files",
+        "description": "List all files in a workspace.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/files?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of workspace files.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Whether the request completed successfully."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "files": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/FileMetadata"
+                          },
+                          "description": "Array of file metadata objects in the workspace."
+                        },
+                        "totalCount": {
+                          "type": "integer",
+                          "description": "Total number of files."
+                        }
+                      },
+                      "description": "Response payload containing the files list and count."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "files": [
+                      {
+                        "id": "file_abc123",
+                        "name": "data.csv",
+                        "size": 1024,
+                        "type": "text/csv",
+                        "key": "files/wsp_abc123/data.csv",
+                        "uploadedBy": "user_abc123",
+                        "uploadedAt": "2026-01-15T10:30:00Z"
+                      }
+                    ],
+                    "totalCount": 1
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "post": {
+        "operationId": "uploadFile",
+        "summary": "Upload File",
+        "description": "Upload a file to a workspace. Send the file as multipart/form-data with a `file` field and a `workspaceId` field. Maximum file size is 100MB. Duplicate filenames within a workspace are not allowed.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v1/files\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -F \"workspaceId=YOUR_WORKSPACE_ID\" \\\n  -F \"file=@/path/to/file.csv\""
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file", "workspaceId"],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The file to upload (max 100MB)."
+                  },
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace to upload the file to."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "File uploaded successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Whether the upload completed successfully."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "file": {
+                          "$ref": "#/components/schemas/FileMetadata",
+                          "description": "Metadata of the newly uploaded file."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Human-readable confirmation message."
+                        }
+                      },
+                      "description": "Response payload containing the uploaded file metadata."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "file": {
+                      "id": "file_abc123",
+                      "name": "data.csv",
+                      "size": 1024,
+                      "type": "text/csv",
+                      "key": "files/wsp_abc123/data.csv",
+                      "uploadedBy": "user_abc123",
+                      "uploadedAt": "2026-01-15T10:30:00Z"
+                    },
+                    "message": "File uploaded successfully"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "A file with the same name already exists in this workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Error message indicating a file with the same name already exists in this workspace."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "parameters": []
+      }
+    },
+    "/api/v1/files/{fileId}": {
+      "get": {
+        "operationId": "downloadFile",
+        "summary": "Download File",
+        "description": "Download a file's content. Returns the raw file bytes with appropriate Content-Type, Content-Disposition, and Content-Length headers. File metadata is included in custom response headers: X-File-Id, X-File-Name, X-Uploaded-At.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/files/{fileId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -o downloaded-file.csv"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the file.",
+            "schema": {
+              "type": "string",
+              "example": "wf_1709571234_abc1234"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File content as binary data.",
+            "headers": {
+              "Content-Type": {
+                "description": "MIME type of the file.",
+                "schema": {
+                  "type": "string",
+                  "example": "text/csv"
+                }
+              },
+              "Content-Disposition": {
+                "description": "Attachment with filename.",
+                "schema": {
+                  "type": "string",
+                  "example": "attachment; filename=\"data.csv\""
+                }
+              },
+              "Content-Length": {
+                "description": "File size in bytes.",
+                "schema": {
+                  "type": "string",
+                  "example": "1024"
+                }
+              },
+              "X-File-Id": {
+                "description": "Unique file identifier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-File-Name": {
+                "description": "Original filename.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Uploaded-At": {
+                "description": "ISO 8601 upload timestamp.",
+                "schema": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            },
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteFile",
+        "summary": "Delete File",
+        "description": "Delete a file from a workspace. This removes both the file content and its metadata. This action is irreversible.",
+        "tags": ["Files"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v1/files/{fileId}?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the file to delete.",
+            "schema": {
+              "type": "string",
+              "example": "wf_1709571234_abc1234"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File deleted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Whether the deletion completed successfully."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Human-readable confirmation message."
+                        }
+                      },
+                      "description": "Response payload containing the deletion confirmation."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "message": "File deleted successfully"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/knowledge": {
+      "get": {
+        "operationId": "listKnowledgeBases",
+        "summary": "List Knowledge Bases",
+        "description": "List all knowledge bases in a workspace.",
+        "tags": ["Knowledge Bases"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/knowledge?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of knowledge bases in the workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Whether the request was successful."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "knowledgeBases": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/KnowledgeBase"
+                          },
+                          "description": "Array of knowledge base objects in the workspace."
+                        },
+                        "totalCount": {
+                          "type": "integer",
+                          "description": "Total number of knowledge bases."
+                        }
+                      },
+                      "description": "Response payload containing the list of knowledge bases."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "knowledgeBases": [
+                      {
+                        "id": "kb_abc123",
+                        "name": "Product Docs",
+                        "description": "Product documentation and FAQs",
+                        "docCount": 5,
+                        "tokenCount": 25000,
+                        "embeddingModel": "text-embedding-3-small",
+                        "createdAt": "2026-01-15T10:30:00Z",
+                        "updatedAt": "2026-01-15T10:30:00Z"
+                      }
+                    ],
+                    "totalCount": 1
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createKnowledgeBase",
+        "summary": "Create Knowledge Base",
+        "description": "Create a new knowledge base in a workspace. Optionally configure chunking parameters for document processing.",
+        "tags": ["Knowledge Bases"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v1/knowledge\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"name\": \"Product Documentation\",\n    \"description\": \"Internal product docs for search\",\n    \"chunkingConfig\": {\n      \"maxSize\": 1024,\n      \"minSize\": 100,\n      \"overlap\": 200\n    }\n  }'"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "name"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace to create the knowledge base in."
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "Knowledge base name (1-255 characters).",
+                    "maxLength": 255
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Optional description (max 1000 characters).",
+                    "maxLength": 1000
+                  },
+                  "chunkingConfig": {
+                    "$ref": "#/components/schemas/ChunkingConfig",
+                    "description": "Optional chunking configuration for document processing. Defaults to maxSize=1024, minSize=100, overlap=200 if omitted."
+                  }
+                }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "name": "Product Docs",
+                "description": "Product documentation and FAQs"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Knowledge base created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Whether the request was successful."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "knowledgeBase": {
+                          "$ref": "#/components/schemas/KnowledgeBase",
+                          "description": "The newly created knowledge base object."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Human-readable confirmation message."
+                        }
+                      },
+                      "description": "Response payload containing the created knowledge base."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "knowledgeBase": {
+                      "id": "kb_abc123",
+                      "name": "Product Docs",
+                      "description": "Product documentation and FAQs",
+                      "docCount": 0,
+                      "tokenCount": 0,
+                      "embeddingModel": "text-embedding-3-small",
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-15T10:30:00Z"
+                    },
+                    "message": "Knowledge base created successfully"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "parameters": []
+      }
+    },
+    "/api/v1/knowledge/{id}": {
+      "get": {
+        "operationId": "getKnowledgeBase",
+        "summary": "Get Knowledge Base",
+        "description": "Get details of a specific knowledge base.",
+        "tags": ["Knowledge Bases"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/knowledge/KB_ID?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Knowledge base ID.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Knowledge base details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Whether the request was successful."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "knowledgeBase": {
+                          "$ref": "#/components/schemas/KnowledgeBase",
+                          "description": "The knowledge base object."
+                        }
+                      },
+                      "description": "Response payload containing the knowledge base details."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "knowledgeBase": {
+                      "id": "kb_abc123",
+                      "name": "Product Docs",
+                      "description": "Product documentation and FAQs",
+                      "docCount": 5,
+                      "tokenCount": 25000,
+                      "embeddingModel": "text-embedding-3-small",
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-15T10:30:00Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateKnowledgeBase",
+        "summary": "Update Knowledge Base",
+        "description": "Update a knowledge base's name, description, or chunking configuration. At least one field must be provided.",
+        "tags": ["Knowledge Bases"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X PUT \\\n  \"https://www.sim.ai/api/v1/knowledge/KB_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"name\": \"Updated Name\"\n  }'"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Knowledge base ID.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace the knowledge base belongs to."
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "New name (1-255 characters).",
+                    "maxLength": 255
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "New description (max 1000 characters).",
+                    "maxLength": 1000
+                  },
+                  "chunkingConfig": {
+                    "$ref": "#/components/schemas/ChunkingConfig",
+                    "description": "Updated chunking configuration. All three fields (maxSize, minSize, overlap) must be provided if included."
+                  }
+                }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "name": "Updated Product Docs",
+                "description": "Updated product documentation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Knowledge base updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Whether the request was successful."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "knowledgeBase": {
+                          "$ref": "#/components/schemas/KnowledgeBase",
+                          "description": "The updated knowledge base object."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Human-readable confirmation message."
+                        }
+                      },
+                      "description": "Response payload containing the updated knowledge base."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "knowledgeBase": {
+                      "id": "kb_abc123",
+                      "name": "Updated Product Docs",
+                      "description": "Updated product documentation",
+                      "docCount": 5,
+                      "tokenCount": 25000,
+                      "embeddingModel": "text-embedding-3-small",
+                      "createdAt": "2026-01-15T10:30:00Z",
+                      "updatedAt": "2026-01-16T08:00:00Z"
+                    },
+                    "message": "Knowledge base updated successfully"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteKnowledgeBase",
+        "summary": "Delete Knowledge Base",
+        "description": "Soft-delete a knowledge base and all its documents.",
+        "tags": ["Knowledge Bases"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v1/knowledge/KB_ID?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Knowledge base ID.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Knowledge base deleted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Whether the request was successful."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Human-readable confirmation message."
+                        }
+                      },
+                      "description": "Response payload."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "message": "Knowledge base deleted successfully"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/knowledge/{id}/documents": {
+      "get": {
+        "operationId": "listDocuments",
+        "summary": "List Documents",
+        "description": "List documents in a knowledge base with pagination, filtering, and sorting.",
+        "tags": ["Knowledge Bases"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/knowledge/KB_ID/documents?workspaceId=YOUR_WORKSPACE_ID&limit=50&offset=0\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Knowledge base ID.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of documents to return (1-100, default 50).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Number of documents to skip (default 0).",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Search documents by filename.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "enabledFilter",
+            "in": "query",
+            "description": "Filter by enabled status.",
+            "schema": {
+              "type": "string",
+              "enum": ["all", "enabled", "disabled"],
+              "default": "all"
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "description": "Field to sort by.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "filename",
+                "fileSize",
+                "tokenCount",
+                "chunkCount",
+                "uploadedAt",
+                "processingStatus",
+                "enabled"
+              ],
+              "default": "uploadedAt"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "description": "Sort direction.",
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "desc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of documents.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Whether the request was successful."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "documents": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/KnowledgeDocument"
+                          },
+                          "description": "Array of document objects in the knowledge base."
+                        },
+                        "pagination": {
+                          "type": "object",
+                          "properties": {
+                            "total": {
+                              "type": "integer",
+                              "description": "Total number of documents matching the query."
+                            },
+                            "limit": {
+                              "type": "integer",
+                              "description": "Maximum number of documents returned per page."
+                            },
+                            "offset": {
+                              "type": "integer",
+                              "description": "Number of documents skipped from the beginning."
+                            },
+                            "hasMore": {
+                              "type": "boolean",
+                              "description": "Whether there are more documents beyond the current page."
+                            }
+                          },
+                          "description": "Pagination metadata for the document list."
+                        }
+                      },
+                      "description": "Response payload containing the documents and pagination info."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "documents": [
+                      {
+                        "id": "doc_abc123",
+                        "knowledgeBaseId": "kb_abc123",
+                        "filename": "Getting Started.pdf",
+                        "fileSize": 204800,
+                        "mimeType": "application/pdf",
+                        "processingStatus": "completed",
+                        "chunkCount": 12,
+                        "tokenCount": 3500,
+                        "enabled": true,
+                        "createdAt": "2026-01-15T10:30:00Z"
+                      }
+                    ],
+                    "pagination": {
+                      "total": 1,
+                      "limit": 50,
+                      "offset": 0,
+                      "hasMore": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "post": {
+        "operationId": "uploadDocument",
+        "summary": "Upload Document",
+        "description": "Upload a document to a knowledge base. The document will be processed asynchronously (chunked and embedded). Maximum file size is 100MB.",
+        "tags": ["Knowledge Bases"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v1/knowledge/KB_ID/documents\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -F \"workspaceId=YOUR_WORKSPACE_ID\" \\\n  -F \"file=@/path/to/document.pdf\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Knowledge base ID.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file", "workspaceId"],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The document file to upload (max 100MB)."
+                  },
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace the knowledge base belongs to."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Document uploaded successfully. Processing will begin shortly.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Whether the request was successful."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "document": {
+                          "$ref": "#/components/schemas/KnowledgeDocument",
+                          "description": "The newly created document object with initial processing status of 'pending'."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Human-readable confirmation message."
+                        }
+                      },
+                      "description": "Response payload containing the uploaded document."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "document": {
+                      "id": "doc_abc123",
+                      "knowledgeBaseId": "kb_abc123",
+                      "filename": "Getting Started.pdf",
+                      "fileSize": 204800,
+                      "mimeType": "application/pdf",
+                      "processingStatus": "pending",
+                      "chunkCount": 0,
+                      "tokenCount": 0,
+                      "enabled": true,
+                      "createdAt": "2026-01-15T10:30:00Z"
+                    },
+                    "message": "Document uploaded successfully. Processing will begin shortly."
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "A file with the same name already exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Error message indicating a file with the same name already exists."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Storage limit exceeded for the workspace.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Error message indicating the workspace storage limit has been exceeded."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported file type. See error message for supported types.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Error message indicating the file type is not supported."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/knowledge/{id}/documents/{documentId}": {
+      "get": {
+        "operationId": "getDocument",
+        "summary": "Get Document",
+        "description": "Get details of a specific document in a knowledge base.",
+        "tags": ["Knowledge Bases"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X GET \\\n  \"https://www.sim.ai/api/v1/knowledge/KB_ID/documents/DOC_ID?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Knowledge base ID.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "description": "Document ID.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Whether the request was successful."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "document": {
+                          "$ref": "#/components/schemas/KnowledgeDocumentDetail",
+                          "description": "Detailed document object including processing and connector information."
+                        }
+                      },
+                      "description": "Response payload containing the document details."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "document": {
+                      "id": "doc_abc123",
+                      "knowledgeBaseId": "kb_abc123",
+                      "filename": "Getting Started.pdf",
+                      "fileSize": 204800,
+                      "mimeType": "application/pdf",
+                      "processingStatus": "completed",
+                      "chunkCount": 12,
+                      "tokenCount": 3500,
+                      "characterCount": 18000,
+                      "enabled": true,
+                      "createdAt": "2026-01-15T10:30:00Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteDocument",
+        "summary": "Delete Document",
+        "description": "Soft-delete a document from a knowledge base. For connector-sourced documents, this also prevents re-import on future syncs.",
+        "tags": ["Knowledge Bases"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v1/knowledge/KB_ID/documents/DOC_ID?workspaceId=YOUR_WORKSPACE_ID\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Knowledge base ID.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "description": "Document ID.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document deleted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Whether the request was successful."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Human-readable confirmation message."
+                        }
+                      },
+                      "description": "Response payload."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "message": "Document deleted successfully"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/knowledge/search": {
+      "post": {
+        "operationId": "searchKnowledgeBase",
+        "summary": "Search Knowledge Base",
+        "description": "Perform vector similarity search across one or more knowledge bases. Supports semantic search via query text, tag-based filtering, or a combination of both.",
+        "tags": ["Knowledge Bases"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v1/knowledge/search\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"workspaceId\": \"YOUR_WORKSPACE_ID\",\n    \"knowledgeBaseIds\": [\"KB_ID\"],\n    \"query\": \"How do I reset my password?\",\n    \"topK\": 5\n  }'"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workspaceId", "knowledgeBaseIds"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "The workspace containing the knowledge bases."
+                  },
+                  "knowledgeBaseIds": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "description": "A single knowledge base ID."
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "An array of knowledge base IDs to search across."
+                      }
+                    ],
+                    "description": "Array of knowledge base IDs to search across."
+                  },
+                  "query": {
+                    "type": "string",
+                    "description": "Search query text for semantic similarity search. Either query or tagFilters must be provided."
+                  },
+                  "topK": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 10,
+                    "description": "Maximum number of results to return."
+                  },
+                  "tagFilters": {
+                    "type": "array",
+                    "description": "Tag-based filters. Either query or tagFilters must be provided.",
+                    "items": {
+                      "$ref": "#/components/schemas/TagFilter"
+                    }
+                  }
+                }
+              },
+              "example": {
+                "workspaceId": "wsp_abc123",
+                "knowledgeBaseIds": ["kb_abc123"],
+                "query": "How do I reset my password?",
+                "topK": 5
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Search results.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Whether the request was successful."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "results": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/SearchResult"
+                          },
+                          "description": "Array of search result objects ranked by similarity."
+                        },
+                        "query": {
+                          "type": "string",
+                          "description": "The search query used."
+                        },
+                        "knowledgeBaseIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Knowledge base IDs that were searched."
+                        },
+                        "topK": {
+                          "type": "integer",
+                          "description": "Maximum results requested."
+                        },
+                        "totalResults": {
+                          "type": "integer",
+                          "description": "Number of results returned."
+                        }
+                      },
+                      "description": "Response payload containing the search results and metadata."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "results": [
+                      {
+                        "documentId": "doc_abc123",
+                        "documentName": "Getting Started.pdf",
+                        "content": "To reset your password, go to Settings > Security.",
+                        "chunkIndex": 3,
+                        "similarity": 0.95,
+                        "metadata": {}
+                      }
+                    ],
+                    "query": "How do I reset my password?",
+                    "knowledgeBaseIds": ["kb_abc123"],
+                    "topK": 5,
+                    "totalResults": 1
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "parameters": []
       }
     }
   },
@@ -1015,7 +4532,148 @@
         "description": "Your Sim API key (personal or workspace). Generate one from the Sim dashboard under Settings > API Keys."
       }
     },
+    "parameters": {
+      "TableId": {
+        "name": "tableId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "example": "tbl_abc123"
+        },
+        "description": "The unique identifier of the table."
+      },
+      "RowId": {
+        "name": "rowId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "example": "row_xyz789"
+        },
+        "description": "The unique identifier of the row."
+      },
+      "WorkspaceId": {
+        "name": "workspaceId",
+        "in": "query",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "The unique identifier of the workspace."
+      }
+    },
     "schemas": {
+      "ColumnDefinition": {
+        "type": "object",
+        "description": "Definition of a table column including its type and constraints.",
+        "required": ["name", "type"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Column name. Must start with a letter or underscore.",
+            "example": "email",
+            "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["string", "number", "boolean", "date", "json"],
+            "description": "Data type of the column."
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Whether the column requires a value on insert.",
+            "default": false
+          },
+          "unique": {
+            "type": "boolean",
+            "description": "Whether values in this column must be unique across all rows.",
+            "default": false
+          }
+        }
+      },
+      "Table": {
+        "type": "object",
+        "description": "A user-defined table with a typed schema.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique table identifier.",
+            "example": "tbl_abc123"
+          },
+          "name": {
+            "type": "string",
+            "description": "Table name.",
+            "example": "contacts"
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional description of the table.",
+            "example": "Customer contact records"
+          },
+          "schema": {
+            "type": "object",
+            "description": "Table schema definition.",
+            "properties": {
+              "columns": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ColumnDefinition"
+                },
+                "description": "Array of column definitions for the table."
+              }
+            }
+          },
+          "rowCount": {
+            "type": "integer",
+            "description": "Current number of rows in the table."
+          },
+          "maxRows": {
+            "type": "integer",
+            "description": "Maximum rows allowed by the current billing plan."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the table was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the table was last modified."
+          }
+        }
+      },
+      "TableRow": {
+        "type": "object",
+        "description": "A single row in a table.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique row identifier.",
+            "example": "row_xyz789"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Row data as key-value pairs matching the table schema."
+          },
+          "position": {
+            "type": "integer",
+            "description": "Row's position/order in the table."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the row was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the row was last modified."
+          }
+        }
+      },
       "WorkflowSummary": {
         "type": "object",
         "description": "Summary representation of a workflow returned in list operations.",
@@ -1720,7 +5378,9 @@
               "sync": {
                 "description": "Rate limit bucket for synchronous executions.",
                 "allOf": [
-                  { "$ref": "#/components/schemas/RateLimitBucket" },
+                  {
+                    "$ref": "#/components/schemas/RateLimitBucket"
+                  },
                   {
                     "type": "object",
                     "properties": {
@@ -1735,7 +5395,9 @@
               "async": {
                 "description": "Rate limit bucket for asynchronous executions.",
                 "allOf": [
-                  { "$ref": "#/components/schemas/RateLimitBucket" },
+                  {
+                    "$ref": "#/components/schemas/RateLimitBucket"
+                  },
                   {
                     "type": "object",
                     "properties": {
@@ -1788,6 +5450,342 @@
                 "description": "Percentage of storage used (0-100)."
               }
             }
+          }
+        }
+      },
+      "FileMetadata": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique file identifier.",
+            "example": "wf_1709571234_abc1234"
+          },
+          "name": {
+            "type": "string",
+            "description": "Original filename.",
+            "example": "data.csv"
+          },
+          "size": {
+            "type": "integer",
+            "description": "File size in bytes.",
+            "example": 1024
+          },
+          "type": {
+            "type": "string",
+            "description": "MIME type of the file.",
+            "example": "text/csv"
+          },
+          "key": {
+            "type": "string",
+            "description": "Storage key for the file.",
+            "example": "workspace/abc-123/1709571234-xyz-data.csv"
+          },
+          "uploadedBy": {
+            "type": "string",
+            "description": "User ID of the uploader."
+          },
+          "uploadedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp of when the file was uploaded."
+          }
+        }
+      },
+      "KnowledgeBase": {
+        "type": "object",
+        "description": "A knowledge base for storing and searching document embeddings.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique knowledge base identifier."
+          },
+          "name": {
+            "type": "string",
+            "description": "Knowledge base name."
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional description."
+          },
+          "tokenCount": {
+            "type": "integer",
+            "description": "Total token count across all documents."
+          },
+          "embeddingModel": {
+            "type": "string",
+            "description": "Embedding model used (e.g. text-embedding-3-small)."
+          },
+          "embeddingDimension": {
+            "type": "integer",
+            "description": "Embedding vector dimension."
+          },
+          "chunkingConfig": {
+            "$ref": "#/components/schemas/ChunkingConfig"
+          },
+          "docCount": {
+            "type": "integer",
+            "description": "Number of documents in the knowledge base."
+          },
+          "connectorTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Types of connectors attached to this knowledge base."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the knowledge base was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the knowledge base was last modified."
+          }
+        }
+      },
+      "ChunkingConfig": {
+        "type": "object",
+        "description": "Configuration for how documents are split into chunks for embedding.",
+        "properties": {
+          "maxSize": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 4000,
+            "default": 1024,
+            "description": "Maximum chunk size in tokens."
+          },
+          "minSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2000,
+            "default": 100,
+            "description": "Minimum chunk size in characters."
+          },
+          "overlap": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500,
+            "default": 200,
+            "description": "Overlap between chunks in tokens."
+          }
+        }
+      },
+      "KnowledgeDocument": {
+        "type": "object",
+        "description": "A document in a knowledge base.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique document identifier."
+          },
+          "knowledgeBaseId": {
+            "type": "string",
+            "description": "Knowledge base this document belongs to."
+          },
+          "filename": {
+            "type": "string",
+            "description": "Original filename."
+          },
+          "fileSize": {
+            "type": "integer",
+            "description": "File size in bytes."
+          },
+          "mimeType": {
+            "type": "string",
+            "description": "MIME type of the file."
+          },
+          "processingStatus": {
+            "type": "string",
+            "enum": ["pending", "processing", "completed", "failed"],
+            "description": "Current processing status."
+          },
+          "chunkCount": {
+            "type": "integer",
+            "description": "Number of chunks created from this document."
+          },
+          "tokenCount": {
+            "type": "integer",
+            "description": "Total token count."
+          },
+          "characterCount": {
+            "type": "integer",
+            "description": "Total character count."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the document is enabled for search."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the document was uploaded."
+          }
+        }
+      },
+      "KnowledgeDocumentDetail": {
+        "type": "object",
+        "description": "Detailed document information including processing and connector details.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique document identifier."
+          },
+          "knowledgeBaseId": {
+            "type": "string",
+            "description": "Knowledge base this document belongs to."
+          },
+          "filename": {
+            "type": "string",
+            "description": "Original filename."
+          },
+          "fileSize": {
+            "type": "integer",
+            "description": "File size in bytes."
+          },
+          "mimeType": {
+            "type": "string",
+            "description": "MIME type of the file."
+          },
+          "processingStatus": {
+            "type": "string",
+            "enum": ["pending", "processing", "completed", "failed"],
+            "description": "Current processing status."
+          },
+          "processingError": {
+            "type": "string",
+            "nullable": true,
+            "description": "Error message if processing failed."
+          },
+          "processingStartedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When processing started."
+          },
+          "processingCompletedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When processing completed."
+          },
+          "chunkCount": {
+            "type": "integer",
+            "description": "Number of chunks created."
+          },
+          "tokenCount": {
+            "type": "integer",
+            "description": "Total token count."
+          },
+          "characterCount": {
+            "type": "integer",
+            "description": "Total character count."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the document is enabled for search."
+          },
+          "connectorId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Connector ID if sourced from an external connector."
+          },
+          "connectorType": {
+            "type": "string",
+            "nullable": true,
+            "description": "Connector type (e.g. google-drive, notion)."
+          },
+          "sourceUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Original source URL for connector-sourced documents."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the document was uploaded."
+          }
+        }
+      },
+      "SearchResult": {
+        "type": "object",
+        "description": "A single search result from knowledge base vector search.",
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "description": "ID of the source document."
+          },
+          "documentName": {
+            "type": "string",
+            "description": "Filename of the source document."
+          },
+          "content": {
+            "type": "string",
+            "description": "The matched chunk content."
+          },
+          "chunkIndex": {
+            "type": "integer",
+            "description": "Index of the chunk within the document."
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Tag metadata associated with the chunk (display names mapped to values)."
+          },
+          "similarity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Similarity score (0-1, where 1 is most similar)."
+          }
+        }
+      },
+      "TagFilter": {
+        "type": "object",
+        "description": "A tag-based filter for knowledge base search.",
+        "required": ["tagName", "value"],
+        "properties": {
+          "tagName": {
+            "type": "string",
+            "description": "Display name of the tag to filter by."
+          },
+          "fieldType": {
+            "type": "string",
+            "enum": ["text", "number", "date", "boolean"],
+            "default": "text",
+            "description": "Data type of the tag field."
+          },
+          "operator": {
+            "type": "string",
+            "default": "eq",
+            "description": "Comparison operator (e.g. eq, neq, gt, lt, gte, lte, contains, between)."
+          },
+          "value": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              }
+            ],
+            "description": "Value to filter by."
+          },
+          "valueTo": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "description": "Upper bound value for 'between' operator."
           }
         }
       }
@@ -1883,6 +5881,51 @@
                   "type": "string",
                   "description": "Human-readable error message with rate limit details."
                 }
+              }
+            }
+          }
+        }
+      },
+      "RowsUpdated": {
+        "description": "Rows updated.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "type": "boolean",
+                  "description": "Indicates whether the request was successful."
+                },
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "description": "Confirmation message describing how many rows were updated."
+                    },
+                    "updatedCount": {
+                      "type": "integer",
+                      "description": "Number of rows that were updated."
+                    },
+                    "updatedRowIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Array of IDs for each row that was updated."
+                    }
+                  },
+                  "description": "Response payload."
+                }
+              }
+            },
+            "example": {
+              "success": true,
+              "data": {
+                "message": "Rows updated successfully",
+                "updatedCount": 2,
+                "updatedRowIds": ["row_abc123", "row_def456"]
               }
             }
           }

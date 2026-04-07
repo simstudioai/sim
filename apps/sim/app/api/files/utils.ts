@@ -1,8 +1,5 @@
-import { existsSync } from 'fs'
-import { join, resolve, sep } from 'path'
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
-import { UPLOAD_DIR } from '@/lib/uploads/config'
 import { sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FilesUtils')
@@ -21,6 +18,7 @@ export interface FileResponse {
   buffer: Buffer
   contentType: string
   filename: string
+  cacheControl?: string
 }
 
 export class FileNotFoundError extends Error {
@@ -60,6 +58,8 @@ export const contentTypeMap: Record<string, string> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   gif: 'image/gif',
+  svg: 'image/svg+xml',
+  webp: 'image/webp',
   zip: 'application/zip',
   googleFolder: 'application/vnd.google-apps.folder',
 }
@@ -76,6 +76,7 @@ export const binaryExtensions = [
   'jpg',
   'jpeg',
   'gif',
+  'webp',
   'pdf',
 ]
 
@@ -119,75 +120,29 @@ export function extractFilename(path: string): string {
   return filename
 }
 
-function sanitizeFilename(filename: string): string {
-  if (!filename || typeof filename !== 'string') {
-    throw new Error('Invalid filename provided')
-  }
-
-  if (!filename.includes('/')) {
-    throw new Error('File key must include a context prefix (e.g., kb/, workspace/, execution/)')
-  }
-
-  const segments = filename.split('/')
-
-  const sanitizedSegments = segments.map((segment) => {
-    if (segment === '..' || segment === '.') {
-      throw new Error('Path traversal detected')
-    }
-
-    const sanitized = segment.replace(/\.\./g, '').replace(/[\\]/g, '').replace(/^\./g, '').trim()
-
-    if (!sanitized) {
-      throw new Error('Invalid or empty path segment after sanitization')
-    }
-
-    if (
-      sanitized.includes(':') ||
-      sanitized.includes('|') ||
-      sanitized.includes('?') ||
-      sanitized.includes('*') ||
-      sanitized.includes('\x00') ||
-      /[\x00-\x1F\x7F]/.test(sanitized)
-    ) {
-      throw new Error('Path segment contains invalid characters')
-    }
-
-    return sanitized
-  })
-
-  return sanitizedSegments.join(sep)
-}
-
-export function findLocalFile(filename: string): string | null {
+export async function findLocalFile(filename: string): Promise<string | null> {
   try {
     const sanitizedFilename = sanitizeFileKey(filename)
 
-    // Reject if sanitized filename is empty or only contains path separators/dots
     if (!sanitizedFilename || !sanitizedFilename.trim() || /^[/\\.\s]+$/.test(sanitizedFilename)) {
       return null
     }
 
-    const possiblePaths = [
-      join(UPLOAD_DIR, sanitizedFilename),
-      join(process.cwd(), 'uploads', sanitizedFilename),
-    ]
+    const { existsSync } = await import('fs')
+    const path = await import('path')
+    const { UPLOAD_DIR_SERVER } = await import('@/lib/uploads/core/setup.server')
 
-    for (const path of possiblePaths) {
-      const resolvedPath = resolve(path)
-      const allowedDirs = [resolve(UPLOAD_DIR), resolve(process.cwd(), 'uploads')]
+    const resolvedPath = path.join(UPLOAD_DIR_SERVER, sanitizedFilename)
 
-      // Must be within allowed directory but NOT the directory itself
-      const isWithinAllowedDir = allowedDirs.some(
-        (allowedDir) => resolvedPath.startsWith(allowedDir + sep) && resolvedPath !== allowedDir
-      )
+    if (
+      !resolvedPath.startsWith(UPLOAD_DIR_SERVER + path.sep) ||
+      resolvedPath === UPLOAD_DIR_SERVER
+    ) {
+      return null
+    }
 
-      if (!isWithinAllowedDir) {
-        continue
-      }
-
-      if (existsSync(resolvedPath)) {
-        return resolvedPath
-      }
+    if (existsSync(resolvedPath)) {
+      return resolvedPath
     }
 
     return null
@@ -202,13 +157,15 @@ const SAFE_INLINE_TYPES = new Set([
   'image/jpeg',
   'image/jpg',
   'image/gif',
+  'image/svg+xml',
+  'image/webp',
   'application/pdf',
   'text/plain',
   'text/csv',
   'application/json',
 ])
 
-const FORCE_ATTACHMENT_EXTENSIONS = new Set(['html', 'htm', 'svg', 'js', 'css', 'xml'])
+const FORCE_ATTACHMENT_EXTENSIONS = new Set(['html', 'htm', 'js', 'css', 'xml'])
 
 function getSecureFileHeaders(filename: string, originalContentType: string) {
   const extension = filename.split('.').pop()?.toLowerCase() || ''
@@ -222,7 +179,7 @@ function getSecureFileHeaders(filename: string, originalContentType: string) {
 
   let safeContentType = originalContentType
 
-  if (originalContentType === 'text/html' || originalContentType === 'image/svg+xml') {
+  if (originalContentType === 'text/html') {
     safeContentType = 'text/plain'
   }
 
@@ -251,16 +208,18 @@ function encodeFilenameForHeader(storageKey: string): string {
 export function createFileResponse(file: FileResponse): NextResponse {
   const { contentType, disposition } = getSecureFileHeaders(file.filename, file.contentType)
 
-  return new NextResponse(file.buffer as BodyInit, {
-    status: 200,
-    headers: {
-      'Content-Type': contentType,
-      'Content-Disposition': `${disposition}; ${encodeFilenameForHeader(file.filename)}`,
-      'Cache-Control': 'public, max-age=31536000',
-      'X-Content-Type-Options': 'nosniff',
-      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox;",
-    },
-  })
+  const headers: Record<string, string> = {
+    'Content-Type': contentType,
+    'Content-Disposition': `${disposition}; ${encodeFilenameForHeader(file.filename)}`,
+    'Cache-Control': file.cacheControl || 'public, max-age=31536000',
+    'X-Content-Type-Options': 'nosniff',
+  }
+
+  if (contentType === 'image/svg+xml') {
+    headers['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'; sandbox;"
+  }
+
+  return new NextResponse(file.buffer as BodyInit, { status: 200, headers })
 }
 
 export function createErrorResponse(error: Error, status = 500): NextResponse {

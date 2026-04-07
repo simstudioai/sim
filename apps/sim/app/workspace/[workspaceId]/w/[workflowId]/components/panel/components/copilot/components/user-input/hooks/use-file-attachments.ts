@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@/lib/core/utils/uuid'
+import { resolveFileType } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('useFileAttachments')
 
@@ -42,6 +44,7 @@ export interface MessageFileAttachment {
 
 interface UseFileAttachmentsProps {
   userId?: string
+  workspaceId?: string
   disabled?: boolean
   isLoading?: boolean
 }
@@ -54,7 +57,7 @@ interface UseFileAttachmentsProps {
  * @returns File attachment state and operations
  */
 export function useFileAttachments(props: UseFileAttachmentsProps) {
-  const { userId, disabled, isLoading } = props
+  const { userId, workspaceId, disabled, isLoading } = props
 
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [isDragging, setIsDragging] = useState(false)
@@ -112,21 +115,18 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
       }
 
       for (const file of Array.from(fileList)) {
-        if (!file.type.startsWith('image/')) {
-          logger.warn(`File ${file.name} is not an image. Only image files are allowed.`)
-          continue
-        }
-
         let previewUrl: string | undefined
         if (file.type.startsWith('image/')) {
           previewUrl = URL.createObjectURL(file)
         }
 
+        const resolvedType = resolveFileType(file)
+
         const tempFile: AttachedFile = {
-          id: crypto.randomUUID(),
+          id: generateId(),
           name: file.name,
           size: file.size,
-          type: file.type,
+          type: resolvedType,
           path: '',
           uploading: true,
           previewUrl,
@@ -137,7 +137,10 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
         try {
           const formData = new FormData()
           formData.append('file', file)
-          formData.append('context', 'copilot')
+          formData.append('context', 'mothership')
+          if (workspaceId) {
+            formData.append('workspaceId', workspaceId)
+          }
 
           const uploadResponse = await fetch('/api/files/upload', {
             method: 'POST',
@@ -173,7 +176,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
         }
       }
     },
-    [userId]
+    [userId, workspaceId]
   )
 
   /**
@@ -318,5 +321,6 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
     handleDragOver,
     handleDrop,
     clearAttachedFiles,
+    processFiles,
   }
 }

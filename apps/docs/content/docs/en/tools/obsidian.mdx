@@ -1,0 +1,339 @@
+---
+title: Obsidian
+description: Interact with your Obsidian vault via the Local REST API
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="obsidian"
+  color="#0F0F0F"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Obsidian](https://obsidian.md/) is a powerful knowledge base and note-taking application that works on top of a local folder of plain-text Markdown files. With features like bidirectional linking, graph views, and a rich plugin ecosystem, Obsidian is widely used for personal knowledge management, research, and documentation.
+
+With the Sim Obsidian integration, you can:
+
+- **Read and create notes**: Retrieve note content from your vault or create new notes programmatically as part of automated workflows.
+- **Update and patch notes**: Modify existing notes in full or patch content at specific locations within a note.
+- **Search your vault**: Find notes by keyword or content across your entire Obsidian vault.
+- **Manage periodic notes**: Access and create daily or other periodic notes for journaling and task tracking.
+- **Execute commands**: Trigger Obsidian commands remotely to automate vault operations.
+
+**How it works in Sim:**
+Add an Obsidian block to your workflow and select an operation. This integration requires the [Obsidian Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) plugin to be installed and running in your vault. Provide your API key and vault URL, along with any required parameters. The block communicates with your local Obsidian instance and returns structured data you can pass to downstream blocks — for example, searching your vault for research notes and feeding them into an AI agent for summarization.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Read, create, update, search, and delete notes in your Obsidian vault. Manage periodic notes, execute commands, and patch content at specific locations. Requires the Obsidian Local REST API plugin.
+
+
+
+## Tools
+
+### `obsidian_append_active`
+
+Append content to the currently active file in Obsidian
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API key from Obsidian Local REST API plugin settings |
+| `baseUrl` | string | Yes | Base URL for the Obsidian Local REST API |
+| `content` | string | Yes | Markdown content to append to the active file |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `appended` | boolean | Whether content was successfully appended |
+
+### `obsidian_append_note`
+
+Append content to an existing note in your Obsidian vault
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API key from Obsidian Local REST API plugin settings |
+| `baseUrl` | string | Yes | Base URL for the Obsidian Local REST API |
+| `filename` | string | Yes | Path to the note relative to vault root \(e.g. "folder/note.md"\) |
+| `content` | string | Yes | Markdown content to append to the note |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `filename` | string | Path of the note |
+| `appended` | boolean | Whether content was successfully appended |
+
+### `obsidian_append_periodic_note`
+
+Append content to the current periodic note (daily, weekly, monthly, quarterly, or yearly). Creates the note if it does not exist.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API key from Obsidian Local REST API plugin settings |
+| `baseUrl` | string | Yes | Base URL for the Obsidian Local REST API |
+| `period` | string | Yes | Period type: daily, weekly, monthly, quarterly, or yearly |
+| `content` | string | Yes | Markdown content to append to the periodic note |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `period` | string | Period type of the note |
+| `appended` | boolean | Whether content was successfully appended |
+
+### `obsidian_create_note`
+
+Create or replace a note in your Obsidian vault
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API key from Obsidian Local REST API plugin settings |
+| `baseUrl` | string | Yes | Base URL for the Obsidian Local REST API |
+| `filename` | string | Yes | Path for the note relative to vault root \(e.g. "folder/note.md"\) |
+| `content` | string | Yes | Markdown content for the note |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `filename` | string | Path of the created note |
+| `created` | boolean | Whether the note was successfully created |
+
+### `obsidian_delete_note`
+
+Delete a note from your Obsidian vault
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API key from Obsidian Local REST API plugin settings |
+| `baseUrl` | string | Yes | Base URL for the Obsidian Local REST API |
+| `filename` | string | Yes | Path to the note to delete relative to vault root |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `filename` | string | Path of the deleted note |
+| `deleted` | boolean | Whether the note was successfully deleted |
+
+### `obsidian_execute_command`
+
+Execute a command in Obsidian (e.g. open daily note, toggle sidebar)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API key from Obsidian Local REST API plugin settings |
+| `baseUrl` | string | Yes | Base URL for the Obsidian Local REST API |
+| `commandId` | string | Yes | ID of the command to execute \(use List Commands operation to discover available commands\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `commandId` | string | ID of the executed command |
+| `executed` | boolean | Whether the command was successfully executed |
+
+### `obsidian_get_active`
+
+Retrieve the content of the currently active file in Obsidian
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API key from Obsidian Local REST API plugin settings |
+| `baseUrl` | string | Yes | Base URL for the Obsidian Local REST API |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Markdown content of the active file |
+| `filename` | string | Path to the active file |
+
+### `obsidian_get_note`
+
+Retrieve the content of a note from your Obsidian vault
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API key from Obsidian Local REST API plugin settings |
+| `baseUrl` | string | Yes | Base URL for the Obsidian Local REST API |
+| `filename` | string | Yes | Path to the note relative to vault root \(e.g. "folder/note.md"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Markdown content of the note |
+| `filename` | string | Path to the note |
+
+### `obsidian_get_periodic_note`
+
+Retrieve the current periodic note (daily, weekly, monthly, quarterly, or yearly)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API key from Obsidian Local REST API plugin settings |
+| `baseUrl` | string | Yes | Base URL for the Obsidian Local REST API |
+| `period` | string | Yes | Period type: daily, weekly, monthly, quarterly, or yearly |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | string | Markdown content of the periodic note |
+| `period` | string | Period type of the note |
+
+### `obsidian_list_commands`
+
+List all available commands in Obsidian
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API key from Obsidian Local REST API plugin settings |
+| `baseUrl` | string | Yes | Base URL for the Obsidian Local REST API |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `commands` | json | List of available commands with IDs and names |
+|   ↳ `id` | string | Command identifier |
+|   ↳ `name` | string | Human-readable command name |
+
+### `obsidian_list_files`
+
+List files and directories in your Obsidian vault
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API key from Obsidian Local REST API plugin settings |
+| `baseUrl` | string | Yes | Base URL for the Obsidian Local REST API |
+| `path` | string | No | Directory path relative to vault root. Leave empty to list root. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `files` | json | List of files and directories |
+|   ↳ `path` | string | File or directory path |
+|   ↳ `type` | string | Whether the entry is a file or directory |
+
+### `obsidian_open_file`
+
+Open a file in the Obsidian UI (creates the file if it does not exist)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API key from Obsidian Local REST API plugin settings |
+| `baseUrl` | string | Yes | Base URL for the Obsidian Local REST API |
+| `filename` | string | Yes | Path to the file relative to vault root |
+| `newLeaf` | boolean | No | Whether to open the file in a new leaf/tab |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `filename` | string | Path of the opened file |
+| `opened` | boolean | Whether the file was successfully opened |
+
+### `obsidian_patch_active`
+
+Insert or replace content at a specific heading, block reference, or frontmatter field in the active file
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API key from Obsidian Local REST API plugin settings |
+| `baseUrl` | string | Yes | Base URL for the Obsidian Local REST API |
+| `content` | string | Yes | Content to insert at the target location |
+| `operation` | string | Yes | How to insert content: append, prepend, or replace |
+| `targetType` | string | Yes | Type of target: heading, block, or frontmatter |
+| `target` | string | Yes | Target identifier \(heading text, block reference ID, or frontmatter field name\) |
+| `targetDelimiter` | string | No | Delimiter for nested headings \(default: "::"\) |
+| `trimTargetWhitespace` | boolean | No | Whether to trim whitespace from target before matching \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `patched` | boolean | Whether the active file was successfully patched |
+
+### `obsidian_patch_note`
+
+Insert or replace content at a specific heading, block reference, or frontmatter field in a note
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API key from Obsidian Local REST API plugin settings |
+| `baseUrl` | string | Yes | Base URL for the Obsidian Local REST API |
+| `filename` | string | Yes | Path to the note relative to vault root \(e.g. "folder/note.md"\) |
+| `content` | string | Yes | Content to insert at the target location |
+| `operation` | string | Yes | How to insert content: append, prepend, or replace |
+| `targetType` | string | Yes | Type of target: heading, block, or frontmatter |
+| `target` | string | Yes | Target identifier \(heading text, block reference ID, or frontmatter field name\) |
+| `targetDelimiter` | string | No | Delimiter for nested headings \(default: "::"\) |
+| `trimTargetWhitespace` | boolean | No | Whether to trim whitespace from target before matching \(default: false\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `filename` | string | Path of the patched note |
+| `patched` | boolean | Whether the note was successfully patched |
+
+### `obsidian_search`
+
+Search for text across notes in your Obsidian vault
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API key from Obsidian Local REST API plugin settings |
+| `baseUrl` | string | Yes | Base URL for the Obsidian Local REST API |
+| `query` | string | Yes | Text to search for across vault notes |
+| `contextLength` | number | No | Number of characters of context around each match \(default: 100\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | json | Search results with filenames, scores, and matching contexts |
+|   ↳ `filename` | string | Path to the matching note |
+|   ↳ `score` | number | Relevance score |
+|   ↳ `matches` | json | Matching text contexts |
+|     ↳ `context` | string | Text surrounding the match |
+
+

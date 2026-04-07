@@ -1,35 +1,28 @@
 import type { LucideIcon } from 'lucide-react'
 import {
-  Blocks,
   BookOpen,
   Bug,
   Check,
   CheckCircle,
-  CheckCircle2,
-  ClipboardCheck,
-  Compass,
+  ClipboardList,
   Database,
-  FileCode,
+  Eye,
+  FileSearch,
   FileText,
-  FlaskConical,
+  FolderPlus,
   GitBranch,
   Globe,
   Globe2,
   Grid2x2,
   Grid2x2Check,
   Grid2x2X,
-  Info,
-  Key,
   KeyRound,
-  ListChecks,
-  ListFilter,
-  ListTodo,
+  Link,
   Loader2,
   MessageSquare,
   MinusCircle,
   Moon,
   Navigation,
-  Pencil,
   PencilLine,
   Play,
   PlugZap,
@@ -39,16 +32,20 @@ import {
   Server,
   Settings2,
   Sparkles,
+  Table,
   Tag,
   TerminalSquare,
-  WorkflowIcon,
   Wrench,
   X,
   XCircle,
   Zap,
 } from 'lucide-react'
-import { getLatestBlock } from '@/blocks/registry'
-import { getCustomTool } from '@/hooks/queries/custom-tools'
+import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import type { CustomToolDefinition } from '@/hooks/queries/custom-tools'
+import type { WorkflowDeploymentInfo } from '@/hooks/queries/deployments'
+import { deploymentKeys } from '@/hooks/queries/deployments'
+import { customToolsKeys } from '@/hooks/queries/utils/custom-tool-keys'
+import { getWorkflowById } from '@/hooks/queries/utils/workflow-cache'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -71,6 +68,7 @@ export enum ClientToolCallState {
   rejected = 'rejected',
   success = 'success',
   error = 'error',
+  cancelled = 'cancelled',
   review = 'review',
   background = 'background',
 }
@@ -142,6 +140,15 @@ function formatDuration(seconds: number): string {
   const remMins = mins % 60
   if (remMins > 0) return `${hours}h ${remMins}m`
   return `${hours}h`
+}
+
+function getScopedWorkspaceId(params: Record<string, any>): string | undefined {
+  const paramWorkspaceId = params?.workspaceId
+  if (typeof paramWorkspaceId === 'string' && paramWorkspaceId.length > 0) {
+    return paramWorkspaceId
+  }
+
+  return useWorkflowRegistry.getState().hydration.workspaceId ?? undefined
 }
 
 function toUiConfig(metadata?: ToolMetadata): ToolUIConfig | undefined {
@@ -320,6 +327,51 @@ const META_custom_tool: ToolMetadata = {
   },
 }
 
+const META_agent: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Managing tools & skills', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Managing tools & skills', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Managing tools & skills', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Managed tools & skills', icon: Wrench },
+    [ClientToolCallState.error]: { text: 'Failed managing tools', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped managing tools', icon: XCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted managing tools', icon: XCircle },
+  },
+  uiConfig: {
+    subagent: {
+      streamingLabel: 'Managing tools & skills',
+      completedLabel: 'Tools & skills managed',
+      shouldCollapse: true,
+      outputArtifacts: [],
+    },
+  },
+}
+
+const META_manage_skill: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: {
+      text: 'Managing skill',
+      icon: Loader2,
+    },
+    [ClientToolCallState.pending]: { text: 'Manage skill?', icon: BookOpen },
+    [ClientToolCallState.executing]: { text: 'Managing skill', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Managed skill', icon: Check },
+    [ClientToolCallState.error]: { text: 'Failed to manage skill', icon: X },
+    [ClientToolCallState.aborted]: {
+      text: 'Aborted managing skill',
+      icon: XCircle,
+    },
+    [ClientToolCallState.rejected]: {
+      text: 'Skipped managing skill',
+      icon: XCircle,
+    },
+  },
+  interrupt: {
+    accept: { text: 'Allow', icon: Check },
+    reject: { text: 'Deny', icon: X },
+  },
+}
+
 const META_build: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Building', icon: Loader2 },
@@ -334,46 +386,6 @@ const META_build: ToolMetadata = {
     subagent: {
       streamingLabel: 'Building',
       completedLabel: 'Built',
-      shouldCollapse: true,
-      outputArtifacts: [],
-    },
-  },
-}
-
-const META_debug: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Debugging', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Debugging', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Debugging', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Debugged', icon: Bug },
-    [ClientToolCallState.error]: { text: 'Failed to debug', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped debug', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted debug', icon: XCircle },
-  },
-  uiConfig: {
-    subagent: {
-      streamingLabel: 'Debugging',
-      completedLabel: 'Debugged',
-      shouldCollapse: true,
-      outputArtifacts: [],
-    },
-  },
-}
-
-const META_discovery: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Discovering', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Discovering', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Discovering', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Discovered', icon: Search },
-    [ClientToolCallState.error]: { text: 'Failed to discover', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped discovery', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted discovery', icon: XCircle },
-  },
-  uiConfig: {
-    subagent: {
-      streamingLabel: 'Discovering',
-      completedLabel: 'Discovered',
       shouldCollapse: true,
       outputArtifacts: [],
     },
@@ -437,7 +449,8 @@ const META_deploy_api: ToolMetadata = {
 
     const workflowId = params?.workflowId || useWorkflowRegistry.getState().activeWorkflowId
     const isAlreadyDeployed = workflowId
-      ? useWorkflowRegistry.getState().getWorkflowDeploymentStatus(workflowId)?.isDeployed
+      ? (getQueryClient().getQueryData<WorkflowDeploymentInfo>(deploymentKeys.info(workflowId))
+          ?.isDeployed ?? false)
       : false
 
     let actionText = action
@@ -570,28 +583,6 @@ const META_deploy_mcp: ToolMetadata = {
   },
 }
 
-const META_edit: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Editing', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Editing', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Editing', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Edited', icon: Pencil },
-    [ClientToolCallState.error]: { text: 'Failed to apply edit', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped edit', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted edit', icon: XCircle },
-  },
-  uiConfig: {
-    isSpecial: true,
-    subagent: {
-      streamingLabel: 'Editing',
-      completedLabel: 'Edited',
-      shouldCollapse: false, // Edit subagent stays expanded
-      outputArtifacts: ['edit_summary'],
-      hideThinkingText: true, // We show WorkflowEditSummary instead
-    },
-  },
-}
-
 const META_edit_workflow: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Editing your workflow', icon: Loader2 },
@@ -606,106 +597,6 @@ const META_edit_workflow: ToolMetadata = {
   uiConfig: {
     isSpecial: true,
     customRenderer: 'edit_summary',
-  },
-}
-
-const META_evaluate: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Evaluating', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Evaluating', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Evaluating', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Evaluated', icon: ClipboardCheck },
-    [ClientToolCallState.error]: { text: 'Failed to evaluate', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped evaluation', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted evaluation', icon: XCircle },
-  },
-  uiConfig: {
-    subagent: {
-      streamingLabel: 'Evaluating',
-      completedLabel: 'Evaluated',
-      shouldCollapse: true,
-      outputArtifacts: [],
-    },
-  },
-}
-
-const META_get_block_config: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Getting block config', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Getting block config', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Getting block config', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Retrieved block config', icon: FileCode },
-    [ClientToolCallState.error]: { text: 'Failed to get block config', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted getting block config', icon: XCircle },
-    [ClientToolCallState.rejected]: {
-      text: 'Skipped getting block config',
-      icon: MinusCircle,
-    },
-  },
-  getDynamicText: (params, state) => {
-    if (params?.blockType && typeof params.blockType === 'string') {
-      const blockConfig = getLatestBlock(params.blockType)
-      const blockName = (blockConfig?.name ?? params.blockType.replace(/_/g, ' ')).toLowerCase()
-      const opSuffix = params.operation ? ` (${params.operation})` : ''
-
-      switch (state) {
-        case ClientToolCallState.success:
-          return `Retrieved ${blockName}${opSuffix} config`
-        case ClientToolCallState.executing:
-        case ClientToolCallState.generating:
-        case ClientToolCallState.pending:
-          return `Retrieving ${blockName}${opSuffix} config`
-        case ClientToolCallState.error:
-          return `Failed to retrieve ${blockName}${opSuffix} config`
-        case ClientToolCallState.aborted:
-          return `Aborted retrieving ${blockName}${opSuffix} config`
-        case ClientToolCallState.rejected:
-          return `Skipped retrieving ${blockName}${opSuffix} config`
-      }
-    }
-    return undefined
-  },
-}
-
-const META_get_block_options: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Getting block operations', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Getting block operations', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Getting block operations', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Retrieved block operations', icon: ListFilter },
-    [ClientToolCallState.error]: { text: 'Failed to get block operations', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted getting block operations', icon: XCircle },
-    [ClientToolCallState.rejected]: {
-      text: 'Skipped getting block operations',
-      icon: MinusCircle,
-    },
-  },
-  getDynamicText: (params, state) => {
-    const blockId =
-      (params as any)?.blockId ||
-      (params as any)?.blockType ||
-      (params as any)?.block_id ||
-      (params as any)?.block_type
-    if (typeof blockId === 'string') {
-      const blockConfig = getLatestBlock(blockId)
-      const blockName = (blockConfig?.name ?? blockId.replace(/_/g, ' ')).toLowerCase()
-
-      switch (state) {
-        case ClientToolCallState.success:
-          return `Retrieved ${blockName} operations`
-        case ClientToolCallState.executing:
-        case ClientToolCallState.generating:
-        case ClientToolCallState.pending:
-          return `Retrieving ${blockName} operations`
-        case ClientToolCallState.error:
-          return `Failed to retrieve ${blockName} operations`
-        case ClientToolCallState.aborted:
-          return `Aborted retrieving ${blockName} operations`
-        case ClientToolCallState.rejected:
-          return `Skipped retrieving ${blockName} operations`
-      }
-    }
-    return undefined
   },
 }
 
@@ -764,81 +655,6 @@ const META_get_block_upstream_references: ToolMetadata = {
       }
     }
     return undefined
-  },
-}
-
-const META_get_blocks_and_tools: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Exploring available options', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Exploring available options', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Exploring available options', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Explored available options', icon: Blocks },
-    [ClientToolCallState.error]: { text: 'Failed to explore options', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted exploring options', icon: MinusCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped exploring options', icon: MinusCircle },
-  },
-  interrupt: undefined,
-}
-
-const META_get_blocks_metadata: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Searching block choices', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Searching block choices', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Searching block choices', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Searched block choices', icon: ListFilter },
-    [ClientToolCallState.error]: { text: 'Failed to search block choices', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted searching block choices', icon: XCircle },
-    [ClientToolCallState.rejected]: {
-      text: 'Skipped searching block choices',
-      icon: MinusCircle,
-    },
-  },
-  getDynamicText: (params, state) => {
-    if (params?.blockIds && Array.isArray(params.blockIds) && params.blockIds.length > 0) {
-      const blockList = params.blockIds
-        .slice(0, 3)
-        .map((blockId) => blockId.replace(/_/g, ' '))
-        .join(', ')
-      const more = params.blockIds.length > 3 ? '...' : ''
-      const blocks = `${blockList}${more}`
-
-      switch (state) {
-        case ClientToolCallState.success:
-          return `Searched ${blocks}`
-        case ClientToolCallState.executing:
-        case ClientToolCallState.generating:
-        case ClientToolCallState.pending:
-          return `Searching ${blocks}`
-        case ClientToolCallState.error:
-          return `Failed to search ${blocks}`
-        case ClientToolCallState.aborted:
-          return `Aborted searching ${blocks}`
-        case ClientToolCallState.rejected:
-          return `Skipped searching ${blocks}`
-      }
-    }
-    return undefined
-  },
-}
-
-const META_get_credentials: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Fetching connected integrations', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Fetching connected integrations', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Fetching connected integrations', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Fetched connected integrations', icon: Key },
-    [ClientToolCallState.error]: {
-      text: 'Failed to fetch connected integrations',
-      icon: XCircle,
-    },
-    [ClientToolCallState.aborted]: {
-      text: 'Aborted fetching connected integrations',
-      icon: MinusCircle,
-    },
-    [ClientToolCallState.rejected]: {
-      text: 'Skipped fetching connected integrations',
-      icon: MinusCircle,
-    },
   },
 }
 
@@ -963,19 +779,6 @@ const META_get_page_contents: ToolMetadata = {
   },
 }
 
-const META_get_trigger_blocks: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Finding trigger blocks', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Finding trigger blocks', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Finding trigger blocks', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Found trigger blocks', icon: ListFilter },
-    [ClientToolCallState.error]: { text: 'Failed to find trigger blocks', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted finding trigger blocks', icon: MinusCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped finding trigger blocks', icon: MinusCircle },
-  },
-  interrupt: undefined,
-}
-
 const META_get_trigger_examples: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Selecting a trigger', icon: Loader2 },
@@ -989,42 +792,7 @@ const META_get_trigger_examples: ToolMetadata = {
   interrupt: undefined,
 }
 
-const META_get_user_workflow: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Reading your workflow', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Reading your workflow', icon: WorkflowIcon },
-    [ClientToolCallState.executing]: { text: 'Reading your workflow', icon: Loader2 },
-    [ClientToolCallState.aborted]: { text: 'Aborted reading your workflow', icon: XCircle },
-    [ClientToolCallState.success]: { text: 'Read your workflow', icon: WorkflowIcon },
-    [ClientToolCallState.error]: { text: 'Failed to read your workflow', icon: X },
-    [ClientToolCallState.rejected]: { text: 'Skipped reading your workflow', icon: XCircle },
-  },
-  getDynamicText: (params, state) => {
-    const workflowId = params?.workflowId || useWorkflowRegistry.getState().activeWorkflowId
-    if (workflowId) {
-      const workflowName = useWorkflowRegistry.getState().workflows[workflowId]?.name
-      if (workflowName) {
-        switch (state) {
-          case ClientToolCallState.success:
-            return `Read ${workflowName}`
-          case ClientToolCallState.executing:
-          case ClientToolCallState.generating:
-          case ClientToolCallState.pending:
-            return `Reading ${workflowName}`
-          case ClientToolCallState.error:
-            return `Failed to read ${workflowName}`
-          case ClientToolCallState.aborted:
-            return `Aborted reading ${workflowName}`
-          case ClientToolCallState.rejected:
-            return `Skipped reading ${workflowName}`
-        }
-      }
-    }
-    return undefined
-  },
-}
-
-const META_get_workflow_console: ToolMetadata = {
+const META_get_workflow_logs: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Fetching execution logs', icon: Loader2 },
     [ClientToolCallState.executing]: { text: 'Fetching execution logs', icon: Loader2 },
@@ -1106,59 +874,6 @@ const META_get_workflow_data: ToolMetadata = {
   },
 }
 
-const META_get_workflow_from_name: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Reading workflow', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Reading workflow', icon: FileText },
-    [ClientToolCallState.executing]: { text: 'Reading workflow', icon: Loader2 },
-    [ClientToolCallState.aborted]: { text: 'Aborted reading workflow', icon: XCircle },
-    [ClientToolCallState.success]: { text: 'Read workflow', icon: FileText },
-    [ClientToolCallState.error]: { text: 'Failed to read workflow', icon: X },
-    [ClientToolCallState.rejected]: { text: 'Skipped reading workflow', icon: XCircle },
-  },
-  getDynamicText: (params, state) => {
-    if (params?.workflow_name && typeof params.workflow_name === 'string') {
-      const workflowName = params.workflow_name
-
-      switch (state) {
-        case ClientToolCallState.success:
-          return `Read ${workflowName}`
-        case ClientToolCallState.executing:
-        case ClientToolCallState.generating:
-        case ClientToolCallState.pending:
-          return `Reading ${workflowName}`
-        case ClientToolCallState.error:
-          return `Failed to read ${workflowName}`
-        case ClientToolCallState.aborted:
-          return `Aborted reading ${workflowName}`
-        case ClientToolCallState.rejected:
-          return `Skipped reading ${workflowName}`
-      }
-    }
-    return undefined
-  },
-}
-
-const META_info: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Getting info', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Getting info', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Getting info', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Retrieved info', icon: Info },
-    [ClientToolCallState.error]: { text: 'Failed to get info', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped info', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted info', icon: XCircle },
-  },
-  uiConfig: {
-    subagent: {
-      streamingLabel: 'Getting info',
-      completedLabel: 'Info retrieved',
-      shouldCollapse: true,
-      outputArtifacts: [],
-    },
-  },
-}
-
 const META_knowledge: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Managing knowledge', icon: Loader2 },
@@ -1227,18 +942,6 @@ const META_knowledge_base: ToolMetadata = {
       return verb.active
     }
     return undefined
-  },
-}
-
-const META_list_user_workflows: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Listing your workflows', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Listing your workflows', icon: ListChecks },
-    [ClientToolCallState.executing]: { text: 'Listing your workflows', icon: Loader2 },
-    [ClientToolCallState.aborted]: { text: 'Aborted listing workflows', icon: XCircle },
-    [ClientToolCallState.success]: { text: 'Listed your workflows', icon: ListChecks },
-    [ClientToolCallState.error]: { text: 'Failed to list workflows', icon: X },
-    [ClientToolCallState.rejected]: { text: 'Skipped listing workflows', icon: XCircle },
   },
 }
 
@@ -1348,13 +1051,18 @@ const META_manage_custom_tool: ToolMetadata = {
   },
   getDynamicText: (params, state) => {
     const operation = params?.operation as 'add' | 'edit' | 'delete' | 'list' | undefined
+    const workspaceId = getScopedWorkspaceId(params)
 
     if (!operation) return undefined
 
     let toolName = params?.schema?.function?.name
-    if (!toolName && params?.toolId) {
+    if (!toolName && params?.toolId && workspaceId) {
       try {
-        const tool = getCustomTool(params.toolId)
+        const tools =
+          getQueryClient().getQueryData<CustomToolDefinition[]>(
+            customToolsKeys.list(workspaceId)
+          ) ?? []
+        const tool = tools.find((t) => t.id === params.toolId || t.title === params.toolId)
         toolName = tool?.schema?.function?.name
       } catch {
         // Ignore errors accessing cache
@@ -1496,6 +1204,18 @@ const META_mark_todo_in_progress: ToolMetadata = {
   },
 }
 
+const META_open_resource: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Opening resource', icon: Eye },
+    [ClientToolCallState.pending]: { text: 'Opening resource', icon: Eye },
+    [ClientToolCallState.executing]: { text: 'Opening resource', icon: Eye },
+    [ClientToolCallState.success]: { text: 'Opened resource', icon: Eye },
+    [ClientToolCallState.error]: { text: 'Failed to open resource', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped opening resource', icon: XCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted opening resource', icon: XCircle },
+  },
+}
+
 const META_navigate_ui: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: {
@@ -1604,26 +1324,6 @@ const META_oauth_request_access: ToolMetadata = {
   },
 }
 
-const META_plan: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Planning', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Planning', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Planning', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Planned', icon: ListTodo },
-    [ClientToolCallState.error]: { text: 'Failed to plan', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped plan', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted plan', icon: XCircle },
-  },
-  uiConfig: {
-    subagent: {
-      streamingLabel: 'Planning',
-      completedLabel: 'Planned',
-      shouldCollapse: true,
-      outputArtifacts: ['plan'],
-    },
-  },
-}
-
 const META_redeploy: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Redeploying workflow', icon: Loader2 },
@@ -1635,64 +1335,6 @@ const META_redeploy: ToolMetadata = {
     [ClientToolCallState.rejected]: { text: 'Skipped redeploy', icon: XCircle },
   },
   interrupt: undefined,
-}
-
-const META_remember_debug: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Validating fix', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Validating fix', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Validating fix', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Validated fix', icon: CheckCircle2 },
-    [ClientToolCallState.error]: { text: 'Failed to validate', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted validation', icon: MinusCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped validation', icon: MinusCircle },
-  },
-  interrupt: undefined,
-  getDynamicText: (params, state) => {
-    const operation = params?.operation
-
-    if (operation === 'add' || operation === 'edit') {
-      // For add/edit, show from problem or solution
-      const text = params?.problem || params?.solution
-      if (text && typeof text === 'string') {
-        switch (state) {
-          case ClientToolCallState.success:
-            return `Validated fix ${text}`
-          case ClientToolCallState.executing:
-          case ClientToolCallState.generating:
-          case ClientToolCallState.pending:
-            return `Validating fix ${text}`
-          case ClientToolCallState.error:
-            return `Failed to validate fix ${text}`
-          case ClientToolCallState.aborted:
-            return `Aborted validating fix ${text}`
-          case ClientToolCallState.rejected:
-            return `Skipped validating fix ${text}`
-        }
-      }
-    } else if (operation === 'delete') {
-      // For delete, show from problem or solution (or id as fallback)
-      const text = params?.problem || params?.solution || params?.id
-      if (text && typeof text === 'string') {
-        switch (state) {
-          case ClientToolCallState.success:
-            return `Adjusted fix ${text}`
-          case ClientToolCallState.executing:
-          case ClientToolCallState.generating:
-          case ClientToolCallState.pending:
-            return `Adjusting fix ${text}`
-          case ClientToolCallState.error:
-            return `Failed to adjust fix ${text}`
-          case ClientToolCallState.aborted:
-            return `Aborted adjusting fix ${text}`
-          case ClientToolCallState.rejected:
-            return `Skipped adjusting fix ${text}`
-        }
-      }
-    }
-
-    return undefined
-  },
 }
 
 const META_research: ToolMetadata = {
@@ -1764,6 +1406,7 @@ const META_run_block: ToolMetadata = {
     [ClientToolCallState.executing]: { text: 'Running block', icon: Loader2 },
     [ClientToolCallState.success]: { text: 'Ran block', icon: Play },
     [ClientToolCallState.error]: { text: 'Failed to run block', icon: XCircle },
+    [ClientToolCallState.cancelled]: { text: 'Stopped by user', icon: MinusCircle },
     [ClientToolCallState.rejected]: { text: 'Skipped running block', icon: MinusCircle },
     [ClientToolCallState.aborted]: { text: 'Aborted running block', icon: MinusCircle },
     [ClientToolCallState.background]: { text: 'Running block in background', icon: Play },
@@ -1805,6 +1448,8 @@ const META_run_block: ToolMetadata = {
           return `Run ${name}?`
         case ClientToolCallState.error:
           return `Failed to run ${name}`
+        case ClientToolCallState.cancelled:
+          return `Stopped running ${name}`
         case ClientToolCallState.rejected:
           return `Skipped running ${name}`
         case ClientToolCallState.aborted:
@@ -1824,6 +1469,7 @@ const META_run_from_block: ToolMetadata = {
     [ClientToolCallState.executing]: { text: 'Running from block', icon: Loader2 },
     [ClientToolCallState.success]: { text: 'Ran from block', icon: Play },
     [ClientToolCallState.error]: { text: 'Failed to run from block', icon: XCircle },
+    [ClientToolCallState.cancelled]: { text: 'Stopped by user', icon: MinusCircle },
     [ClientToolCallState.rejected]: { text: 'Skipped running from block', icon: MinusCircle },
     [ClientToolCallState.aborted]: { text: 'Aborted running from block', icon: MinusCircle },
     [ClientToolCallState.background]: { text: 'Running from block in background', icon: Play },
@@ -1865,6 +1511,8 @@ const META_run_from_block: ToolMetadata = {
           return `Run from ${name}?`
         case ClientToolCallState.error:
           return `Failed to run from ${name}`
+        case ClientToolCallState.cancelled:
+          return `Stopped running from ${name}`
         case ClientToolCallState.rejected:
           return `Skipped running from ${name}`
         case ClientToolCallState.aborted:
@@ -1884,6 +1532,7 @@ const META_run_workflow_until_block: ToolMetadata = {
     [ClientToolCallState.executing]: { text: 'Running until block', icon: Loader2 },
     [ClientToolCallState.success]: { text: 'Ran until block', icon: Play },
     [ClientToolCallState.error]: { text: 'Failed to run until block', icon: XCircle },
+    [ClientToolCallState.cancelled]: { text: 'Stopped by user', icon: MinusCircle },
     [ClientToolCallState.rejected]: { text: 'Skipped running until block', icon: MinusCircle },
     [ClientToolCallState.aborted]: { text: 'Aborted running until block', icon: MinusCircle },
     [ClientToolCallState.background]: { text: 'Running until block in background', icon: Play },
@@ -1925,6 +1574,8 @@ const META_run_workflow_until_block: ToolMetadata = {
           return `Run until ${name}?`
         case ClientToolCallState.error:
           return `Failed to run until ${name}`
+        case ClientToolCallState.cancelled:
+          return `Stopped running until ${name}`
         case ClientToolCallState.rejected:
           return `Skipped running until ${name}`
         case ClientToolCallState.aborted:
@@ -1944,6 +1595,7 @@ const META_run_workflow: ToolMetadata = {
     [ClientToolCallState.executing]: { text: 'Running your workflow', icon: Loader2 },
     [ClientToolCallState.success]: { text: 'Executed workflow', icon: Play },
     [ClientToolCallState.error]: { text: 'Errored running workflow', icon: XCircle },
+    [ClientToolCallState.cancelled]: { text: 'Stopped by user', icon: MinusCircle },
     [ClientToolCallState.rejected]: { text: 'Skipped workflow execution', icon: MinusCircle },
     [ClientToolCallState.aborted]: { text: 'Aborted workflow execution', icon: MinusCircle },
     [ClientToolCallState.background]: { text: 'Running in background', icon: Play },
@@ -1997,8 +1649,9 @@ const META_run_workflow: ToolMetadata = {
   },
   getDynamicText: (params, state) => {
     const workflowId = params?.workflowId || useWorkflowRegistry.getState().activeWorkflowId
-    if (workflowId) {
-      const workflowName = useWorkflowRegistry.getState().workflows[workflowId]?.name
+    const workspaceId = getScopedWorkspaceId(params)
+    if (workflowId && workspaceId) {
+      const workflowName = getWorkflowById(workspaceId, workflowId)?.name
       if (workflowName) {
         switch (state) {
           case ClientToolCallState.success:
@@ -2011,6 +1664,8 @@ const META_run_workflow: ToolMetadata = {
             return `Run ${workflowName}?`
           case ClientToolCallState.error:
             return `Failed to run ${workflowName}`
+          case ClientToolCallState.cancelled:
+            return `Stopped ${workflowName}`
           case ClientToolCallState.rejected:
             return `Skipped running ${workflowName}`
           case ClientToolCallState.aborted:
@@ -2085,40 +1740,6 @@ const META_search_documentation: ToolMetadata = {
           return `Aborted searching docs for ${query}`
         case ClientToolCallState.rejected:
           return `Skipped searching docs for ${query}`
-      }
-    }
-    return undefined
-  },
-}
-
-const META_search_errors: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Debugging', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Debugging', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Debugging', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Debugged', icon: Bug },
-    [ClientToolCallState.error]: { text: 'Failed to debug', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted debugging', icon: MinusCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped debugging', icon: MinusCircle },
-  },
-  interrupt: undefined,
-  getDynamicText: (params, state) => {
-    if (params?.query && typeof params.query === 'string') {
-      const query = params.query
-
-      switch (state) {
-        case ClientToolCallState.success:
-          return `Debugged ${query}`
-        case ClientToolCallState.executing:
-        case ClientToolCallState.generating:
-        case ClientToolCallState.pending:
-          return `Debugging ${query}`
-        case ClientToolCallState.error:
-          return `Failed to debug ${query}`
-        case ClientToolCallState.aborted:
-          return `Aborted debugging ${query}`
-        case ClientToolCallState.rejected:
-          return `Skipped debugging ${query}`
       }
     }
     return undefined
@@ -2466,123 +2087,332 @@ const META_superagent: ToolMetadata = {
   },
 }
 
-const META_test: ToolMetadata = {
+const META_plan: ToolMetadata = {
   displayNames: {
-    [ClientToolCallState.generating]: { text: 'Testing', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Testing', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Testing', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Tested', icon: FlaskConical },
-    [ClientToolCallState.error]: { text: 'Failed to test', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped test', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted test', icon: XCircle },
+    [ClientToolCallState.generating]: { text: 'Planning', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Planning', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Planning', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Planned', icon: ClipboardList },
+    [ClientToolCallState.error]: { text: 'Failed to plan', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped planning', icon: XCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted planning', icon: XCircle },
   },
   uiConfig: {
     subagent: {
-      streamingLabel: 'Testing',
-      completedLabel: 'Tested',
+      streamingLabel: 'Planning',
+      completedLabel: 'Planned',
       shouldCollapse: true,
       outputArtifacts: [],
     },
   },
 }
 
-const META_tour: ToolMetadata = {
+const META_edit: ToolMetadata = {
   displayNames: {
-    [ClientToolCallState.generating]: { text: 'Touring', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Touring', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Touring', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Completed tour', icon: Compass },
-    [ClientToolCallState.error]: { text: 'Failed tour', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped tour', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted tour', icon: XCircle },
+    [ClientToolCallState.generating]: { text: 'Editing', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Editing', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Editing', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Edited', icon: PencilLine },
+    [ClientToolCallState.error]: { text: 'Failed to edit', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped editing', icon: XCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted editing', icon: XCircle },
   },
   uiConfig: {
     subagent: {
-      streamingLabel: 'Touring',
-      completedLabel: 'Tour complete',
+      streamingLabel: 'Editing',
+      completedLabel: 'Edited',
       shouldCollapse: true,
       outputArtifacts: [],
     },
   },
 }
 
-const META_workflow: ToolMetadata = {
+const META_fast_edit: ToolMetadata = {
   displayNames: {
-    [ClientToolCallState.generating]: { text: 'Managing workflow', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Managing workflow', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Managing workflow', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Managed workflow', icon: GitBranch },
-    [ClientToolCallState.error]: { text: 'Failed to manage workflow', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped workflow', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted workflow', icon: XCircle },
+    [ClientToolCallState.generating]: { text: 'Building', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Building', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Building', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Built', icon: Wrench },
+    [ClientToolCallState.error]: { text: 'Failed to build', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped build', icon: XCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted build', icon: XCircle },
   },
   uiConfig: {
     subagent: {
-      streamingLabel: 'Managing workflow',
-      completedLabel: 'Workflow managed',
+      streamingLabel: 'Building',
+      completedLabel: 'Built',
       shouldCollapse: true,
       outputArtifacts: [],
     },
+  },
+}
+
+const META_debug: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Debugging', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Debugging', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Debugging', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Debugged', icon: Bug },
+    [ClientToolCallState.error]: { text: 'Failed to debug', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped debugging', icon: XCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted debugging', icon: XCircle },
+  },
+  uiConfig: {
+    subagent: {
+      streamingLabel: 'Debugging',
+      completedLabel: 'Debugged',
+      shouldCollapse: true,
+      outputArtifacts: [],
+    },
+  },
+}
+
+const META_table: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Managing tables', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Managing tables', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Managing tables', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Tables updated', icon: Table },
+    [ClientToolCallState.error]: { text: 'Failed to manage tables', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped table operation', icon: XCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted table operation', icon: XCircle },
+  },
+  uiConfig: {
+    subagent: {
+      streamingLabel: 'Managing tables',
+      completedLabel: 'Tables updated',
+      shouldCollapse: true,
+      outputArtifacts: [],
+    },
+  },
+}
+
+const META_run: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Running', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Running', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Running', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Ran', icon: Play },
+    [ClientToolCallState.error]: { text: 'Failed to run', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped run', icon: XCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted run', icon: XCircle },
+  },
+  uiConfig: {
+    subagent: {
+      streamingLabel: 'Running',
+      completedLabel: 'Ran',
+      shouldCollapse: true,
+      outputArtifacts: [],
+    },
+  },
+}
+
+const META_get_deployed_workflow_state: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Checking deployed state', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Checking deployed state', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Retrieved deployed state', icon: Eye },
+    [ClientToolCallState.error]: { text: 'Failed to get deployed state', icon: XCircle },
+  },
+}
+
+const META_list_user_workspaces: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Listing workspaces', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Listing workspaces', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Listed workspaces', icon: Grid2x2 },
+    [ClientToolCallState.error]: { text: 'Failed to list workspaces', icon: XCircle },
+  },
+}
+
+const META_list_folders: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Listing folders', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Listing folders', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Listed folders', icon: FolderPlus },
+    [ClientToolCallState.error]: { text: 'Failed to list folders', icon: XCircle },
+  },
+}
+
+const META_create_workflow: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Creating workflow', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Creating workflow', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Created workflow', icon: Plus },
+    [ClientToolCallState.error]: { text: 'Failed to create workflow', icon: XCircle },
+  },
+}
+
+const META_create_folder: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Creating folder', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Creating folder', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Created folder', icon: FolderPlus },
+    [ClientToolCallState.error]: { text: 'Failed to create folder', icon: XCircle },
+  },
+}
+
+const META_rename_workflow: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Renaming workflow', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Renaming workflow', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Renamed workflow', icon: PencilLine },
+    [ClientToolCallState.error]: { text: 'Failed to rename workflow', icon: XCircle },
+  },
+}
+
+const META_move_workflow: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Moving workflow', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Moving workflow', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Moved workflow', icon: Navigation },
+    [ClientToolCallState.error]: { text: 'Failed to move workflow', icon: XCircle },
+  },
+}
+
+const META_move_folder: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Moving folder', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Moving folder', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Moved folder', icon: Navigation },
+    [ClientToolCallState.error]: { text: 'Failed to move folder', icon: XCircle },
+  },
+}
+
+const META_oauth_get_auth_link: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Getting auth link', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Getting auth link', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Got auth link', icon: Link },
+    [ClientToolCallState.error]: { text: 'Failed to get auth link', icon: XCircle },
+  },
+}
+
+const META_user_memory: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Accessing memory', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Accessing memory', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Accessed memory', icon: BookOpen },
+    [ClientToolCallState.error]: { text: 'Failed to access memory', icon: XCircle },
+  },
+}
+
+const META_user_table: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Querying table', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Querying table', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Table operation complete', icon: Database },
+    [ClientToolCallState.error]: { text: 'Table operation failed', icon: XCircle },
+  },
+}
+
+const META_tool_search_tool_regex: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Searching tools', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Searching tools', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Found tools', icon: Search },
+    [ClientToolCallState.error]: { text: 'Tool search failed', icon: XCircle },
+  },
+}
+
+const META_grep: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Searching', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Searching', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Search complete', icon: FileSearch },
+    [ClientToolCallState.error]: { text: 'Search failed', icon: XCircle },
+  },
+}
+
+const META_glob: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Finding files', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Finding files', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Files found', icon: FileSearch },
+    [ClientToolCallState.error]: { text: 'File search failed', icon: XCircle },
+  },
+}
+
+const META_read: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Reading', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Reading', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Read complete', icon: FileText },
+    [ClientToolCallState.error]: { text: 'Read failed', icon: XCircle },
+  },
+}
+
+const META_context_compaction: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Compacting context', icon: Sparkles },
+    [ClientToolCallState.pending]: { text: 'Compacting context', icon: Sparkles },
+    [ClientToolCallState.executing]: { text: 'Compacting context', icon: Sparkles },
+    [ClientToolCallState.success]: { text: 'Compacted context', icon: Sparkles },
+    [ClientToolCallState.error]: { text: 'Failed to compact context', icon: XCircle },
   },
 }
 
 const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   auth: META_auth,
+  context_compaction: META_context_compaction,
   check_deployment_status: META_check_deployment_status,
   checkoff_todo: META_checkoff_todo,
   crawl_website: META_crawl_website,
   create_workspace_mcp_server: META_create_workspace_mcp_server,
   build: META_build,
+  create_folder: META_create_folder,
+  create_workflow: META_create_workflow,
+  agent: META_agent,
   custom_tool: META_custom_tool,
   debug: META_debug,
   deploy: META_deploy,
-  discovery: META_discovery,
   deploy_api: META_deploy_api,
   deploy_chat: META_deploy_chat,
   deploy_mcp: META_deploy_mcp,
   edit: META_edit,
+  fast_edit: META_fast_edit,
   edit_workflow: META_edit_workflow,
-  evaluate: META_evaluate,
-  get_block_config: META_get_block_config,
-  get_block_options: META_get_block_options,
   get_block_outputs: META_get_block_outputs,
   get_block_upstream_references: META_get_block_upstream_references,
-  get_blocks_and_tools: META_get_blocks_and_tools,
-  get_blocks_metadata: META_get_blocks_metadata,
-  get_credentials: META_get_credentials,
   generate_api_key: META_generate_api_key,
+  get_deployed_workflow_state: META_get_deployed_workflow_state,
   get_examples_rag: META_get_examples_rag,
   get_operations_examples: META_get_operations_examples,
   get_page_contents: META_get_page_contents,
   get_platform_actions: META_get_platform_actions,
-  get_trigger_blocks: META_get_trigger_blocks,
   get_trigger_examples: META_get_trigger_examples,
-  get_user_workflow: META_get_user_workflow,
-  get_workflow_console: META_get_workflow_console,
+  get_workflow_logs: META_get_workflow_logs,
   get_workflow_data: META_get_workflow_data,
-  get_workflow_from_name: META_get_workflow_from_name,
-  info: META_info,
+  glob: META_glob,
+  grep: META_grep,
   knowledge: META_knowledge,
   knowledge_base: META_knowledge_base,
-  list_user_workflows: META_list_user_workflows,
+  list_folders: META_list_folders,
+  list_user_workspaces: META_list_user_workspaces,
   list_workspace_mcp_servers: META_list_workspace_mcp_servers,
   make_api_request: META_make_api_request,
   manage_custom_tool: META_manage_custom_tool,
   manage_mcp_tool: META_manage_mcp_tool,
+  manage_skill: META_manage_skill,
   mark_todo_in_progress: META_mark_todo_in_progress,
+  move_folder: META_move_folder,
+  move_workflow: META_move_workflow,
   navigate_ui: META_navigate_ui,
+  oauth_get_auth_link: META_oauth_get_auth_link,
   oauth_request_access: META_oauth_request_access,
+  open_resource: META_open_resource,
   plan: META_plan,
+  read: META_read,
   redeploy: META_redeploy,
-  remember_debug: META_remember_debug,
+  rename_workflow: META_rename_workflow,
   research: META_research,
+  run: META_run,
   run_block: META_run_block,
   run_from_block: META_run_from_block,
   run_workflow: META_run_workflow,
   run_workflow_until_block: META_run_workflow_until_block,
   scrape_page: META_scrape_page,
   search_documentation: META_search_documentation,
-  search_errors: META_search_errors,
   search_library_docs: META_search_library_docs,
   search_online: META_search_online,
   search_patterns: META_search_patterns,
@@ -2591,9 +2421,10 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   sleep: META_sleep,
   summarize_conversation: META_summarize_conversation,
   superagent: META_superagent,
-  test: META_test,
-  tour: META_tour,
-  workflow: META_workflow,
+  table: META_table,
+  tool_search_tool_regex: META_tool_search_tool_regex,
+  user_memory: META_user_memory,
+  user_table: META_user_table,
 }
 
 export const TOOL_DISPLAY_REGISTRY: Record<string, ToolDisplayEntry> = Object.fromEntries(

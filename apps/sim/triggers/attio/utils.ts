@@ -19,6 +19,10 @@ export const attioTriggerOptions = [
   { label: 'List Entry Created', id: 'attio_list_entry_created' },
   { label: 'List Entry Updated', id: 'attio_list_entry_updated' },
   { label: 'List Entry Deleted', id: 'attio_list_entry_deleted' },
+  { label: 'List Created', id: 'attio_list_created' },
+  { label: 'List Updated', id: 'attio_list_updated' },
+  { label: 'List Deleted', id: 'attio_list_deleted' },
+  { label: 'Workspace Member Created', id: 'attio_workspace_member_created' },
   { label: 'Generic Webhook (All Events)', id: 'attio_webhook' },
 ]
 
@@ -235,6 +239,42 @@ export function buildCommentOutputs(): Record<string, TriggerOutput> {
   }
 }
 
+/**
+ * List event outputs.
+ */
+function buildListIdOutputs(): Record<string, TriggerOutput> {
+  return {
+    workspaceId: { type: 'string', description: 'The workspace ID' },
+    listId: { type: 'string', description: 'The list ID' },
+  }
+}
+
+/** List created/updated/deleted outputs. */
+export function buildListOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...buildBaseWebhookOutputs(),
+    ...buildListIdOutputs(),
+  }
+}
+
+/**
+ * Workspace member event outputs.
+ */
+function buildWorkspaceMemberIdOutputs(): Record<string, TriggerOutput> {
+  return {
+    workspaceId: { type: 'string', description: 'The workspace ID' },
+    workspaceMemberId: { type: 'string', description: 'The workspace member ID' },
+  }
+}
+
+/** Workspace member outputs. */
+export function buildWorkspaceMemberOutputs(): Record<string, TriggerOutput> {
+  return {
+    ...buildBaseWebhookOutputs(),
+    ...buildWorkspaceMemberIdOutputs(),
+  }
+}
+
 /** List entry created/deleted outputs. */
 export function buildListEntryOutputs(): Record<string, TriggerOutput> {
   return {
@@ -276,7 +316,7 @@ export const TRIGGER_EVENT_MAP: Record<string, string[]> = {
   attio_record_deleted: ['record.deleted'],
   attio_record_merged: ['record.merged'],
   attio_note_created: ['note.created'],
-  attio_note_updated: ['note.updated', 'note.content-updated'],
+  attio_note_updated: ['note.updated', 'note-content.updated'],
   attio_note_deleted: ['note.deleted'],
   attio_task_created: ['task.created'],
   attio_task_updated: ['task.updated'],
@@ -288,6 +328,10 @@ export const TRIGGER_EVENT_MAP: Record<string, string[]> = {
   attio_list_entry_created: ['list-entry.created'],
   attio_list_entry_updated: ['list-entry.updated'],
   attio_list_entry_deleted: ['list-entry.deleted'],
+  attio_list_created: ['list.created'],
+  attio_list_updated: ['list.updated'],
+  attio_list_deleted: ['list.deleted'],
+  attio_workspace_member_created: ['workspace-member.created'],
 }
 
 /**
@@ -442,6 +486,35 @@ export function extractAttioListEntryUpdatedData(
     listId: id.list_id ?? null,
     entryId: id.entry_id ?? null,
     attributeId: id.attribute_id ?? null,
+  }
+}
+
+/**
+ * Extracts formatted data from an Attio list event payload.
+ * Used for list.created, list.updated, list.deleted triggers.
+ */
+export function extractAttioListData(body: Record<string, unknown>): Record<string, unknown> {
+  const event = getAttioEvent(body) ?? {}
+  const id = (event.id as Record<string, unknown>) ?? {}
+  return {
+    eventType: event.event_type ?? null,
+    workspaceId: id.workspace_id ?? null,
+    listId: id.list_id ?? null,
+  }
+}
+
+/**
+ * Extracts formatted data from an Attio workspace-member.created event payload.
+ */
+export function extractAttioWorkspaceMemberData(
+  body: Record<string, unknown>
+): Record<string, unknown> {
+  const event = getAttioEvent(body) ?? {}
+  const id = (event.id as Record<string, unknown>) ?? {}
+  return {
+    eventType: event.event_type ?? null,
+    workspaceId: id.workspace_id ?? null,
+    workspaceMemberId: id.workspace_member_id ?? null,
   }
 }
 

@@ -1,23 +1,23 @@
 'use client'
 
-import type { RefObject } from 'react'
 import { memo } from 'react'
 import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverDivider,
-  PopoverItem,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/emcn'
+import { Copy, Eye, Link, ListFilter, SquareArrowUpRight, X } from '@/components/emcn/icons'
 import type { WorkflowLog } from '@/stores/logs/filters/types'
 
 interface LogRowContextMenuProps {
   isOpen: boolean
   position: { x: number; y: number }
-  menuRef: RefObject<HTMLDivElement | null>
   onClose: () => void
   log: WorkflowLog | null
   onCopyExecutionId: () => void
+  onCopyLink: () => void
   onOpenWorkflow: () => void
   onOpenPreview: () => void
   onToggleWorkflowFilter: () => void
@@ -33,10 +33,10 @@ interface LogRowContextMenuProps {
 export const LogRowContextMenu = memo(function LogRowContextMenu({
   isOpen,
   position,
-  menuRef,
   onClose,
   log,
   onCopyExecutionId,
+  onCopyLink,
   onOpenWorkflow,
   onOpenPreview,
   onToggleWorkflowFilter,
@@ -48,78 +48,60 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   const hasWorkflow = Boolean(log?.workflow?.id || log?.workflowId)
 
   return (
-    <Popover
-      open={isOpen}
-      onOpenChange={(open) => !open && onClose()}
-      variant='secondary'
-      size='sm'
-    >
-      <PopoverAnchor
-        style={{
-          position: 'fixed',
-          left: `${position.x}px`,
-          top: `${position.y}px`,
-          width: '1px',
-          height: '1px',
-        }}
-      />
-      <PopoverContent ref={menuRef} align='start' side='bottom' sideOffset={4}>
-        {/* Copy action */}
-        <PopoverItem
-          disabled={!hasExecutionId}
-          onClick={() => {
-            onCopyExecutionId()
-            onClose()
+    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
+      <DropdownMenuTrigger asChild>
+        <div
+          style={{
+            position: 'fixed',
+            left: `${position.x}px`,
+            top: `${position.y}px`,
+            width: '1px',
+            height: '1px',
+            pointerEvents: 'none',
           }}
-        >
+          tabIndex={-1}
+          aria-hidden
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align='start'
+        side='bottom'
+        sideOffset={4}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        <DropdownMenuItem disabled={!hasExecutionId} onSelect={onCopyExecutionId}>
+          <Copy />
           Copy Execution ID
-        </PopoverItem>
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={!hasExecutionId} onSelect={onCopyLink}>
+          <Link />
+          Copy Link
+        </DropdownMenuItem>
 
-        {/* Navigation */}
-        <PopoverDivider />
-        <PopoverItem
-          disabled={!hasWorkflow}
-          onClick={() => {
-            onOpenWorkflow()
-            onClose()
-          }}
-        >
+        <DropdownMenuSeparator />
+        <DropdownMenuItem disabled={!hasWorkflow} onSelect={onOpenWorkflow}>
+          <SquareArrowUpRight />
           Open Workflow
-        </PopoverItem>
-        <PopoverItem
-          disabled={!hasExecutionId}
-          onClick={() => {
-            onOpenPreview()
-            onClose()
-          }}
-        >
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={!hasExecutionId} onSelect={onOpenPreview}>
+          <Eye />
           Open Snapshot
-        </PopoverItem>
+        </DropdownMenuItem>
 
-        {/* Filter actions */}
-        <PopoverDivider />
+        <DropdownMenuSeparator />
         {!isFilteredByThisWorkflow && (
-          <PopoverItem
-            disabled={!hasWorkflow}
-            onClick={() => {
-              onToggleWorkflowFilter()
-              onClose()
-            }}
-          >
+          <DropdownMenuItem disabled={!hasWorkflow} onSelect={onToggleWorkflowFilter}>
+            <ListFilter />
             Filter by Workflow
-          </PopoverItem>
+          </DropdownMenuItem>
         )}
         {hasActiveFilters && (
-          <PopoverItem
-            onClick={() => {
-              onClearAllFilters()
-              onClose()
-            }}
-          >
+          <DropdownMenuItem onSelect={onClearAllFilters}>
+            <X />
             Clear Filters
-          </PopoverItem>
+          </DropdownMenuItem>
         )}
-      </PopoverContent>
-    </Popover>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 })

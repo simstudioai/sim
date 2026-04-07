@@ -118,6 +118,22 @@ app.kubernetes.io/component: ollama
 {{- end }}
 
 {{/*
+Worker specific labels
+*/}}
+{{- define "sim.worker.labels" -}}
+{{ include "sim.labels" . }}
+app.kubernetes.io/component: worker
+{{- end }}
+
+{{/*
+Worker selector labels
+*/}}
+{{- define "sim.worker.selectorLabels" -}}
+{{ include "sim.selectorLabels" . }}
+app.kubernetes.io/component: worker
+{{- end }}
+
+{{/*
 Migrations specific labels
 */}}
 {{- define "sim.migrations.labels" -}}

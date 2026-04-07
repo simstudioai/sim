@@ -1,4 +1,4 @@
-import { createLogger } from '@sim/logger'
+import { createLogger, type Logger } from '@sim/logger'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
@@ -49,12 +49,22 @@ import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 const logger = createLogger('BlockExecutor')
 
 export class BlockExecutor {
+  private execLogger: Logger
+
   constructor(
     private blockHandlers: BlockHandler[],
     private resolver: VariableResolver,
     private contextExtensions: ContextExtensions,
     private state: BlockStateWriter
-  ) {}
+  ) {
+    this.execLogger = logger.withMetadata({
+      workflowId: this.contextExtensions.metadata?.workflowId,
+      workspaceId: this.contextExtensions.workspaceId,
+      executionId: this.contextExtensions.executionId,
+      userId: this.contextExtensions.userId,
+      requestId: this.contextExtensions.metadata?.requestId,
+    })
+  }
 
   async execute(
     ctx: ExecutionContext,
@@ -77,7 +87,7 @@ export class BlockExecutor {
     if (!isSentinel) {
       blockLog = this.createBlockLog(ctx, node.id, block, node)
       ctx.blockLogs.push(blockLog)
-      this.callOnBlockStart(ctx, node, block, blockLog.executionOrder)
+      await this.callOnBlockStart(ctx, node, block, blockLog.executionOrder)
     }
 
     const startTime = performance.now()
@@ -105,7 +115,7 @@ export class BlockExecutor {
       }
     } catch (error) {
       cleanupSelfReference?.()
-      return this.handleBlockError(
+      return await this.handleBlockError(
         error,
         ctx,
         node,
@@ -179,7 +189,7 @@ export class BlockExecutor {
         const displayOutput = filterOutputForLog(block.metadata?.id || '', normalizedOutput, {
           block,
         })
-        this.callOnBlockComplete(
+        await this.callOnBlockComplete(
           ctx,
           node,
           block,
@@ -195,7 +205,7 @@ export class BlockExecutor {
 
       return normalizedOutput
     } catch (error) {
-      return this.handleBlockError(
+      return await this.handleBlockError(
         error,
         ctx,
         node,
@@ -226,7 +236,7 @@ export class BlockExecutor {
     return this.blockHandlers.find((h) => h.canHandle(block))
   }
 
-  private handleBlockError(
+  private async handleBlockError(
     error: unknown,
     ctx: ExecutionContext,
     node: DAGNode,
@@ -236,7 +246,7 @@ export class BlockExecutor {
     resolvedInputs: Record<string, any>,
     isSentinel: boolean,
     phase: 'input_resolution' | 'execution'
-  ): NormalizedBlockOutput {
+  ): Promise<NormalizedBlockOutput> {
     const duration = performance.now() - startTime
     const errorMessage = normalizeError(error)
     const hasResolvedInputs =
@@ -273,7 +283,7 @@ export class BlockExecutor {
       }
     }
 
-    logger.error(
+    this.execLogger.error(
       phase === 'input_resolution' ? 'Failed to resolve block inputs' : 'Block execution failed',
       {
         blockId: node.id,
@@ -287,7 +297,7 @@ export class BlockExecutor {
         ? error.childWorkflowInstanceId
         : undefined
       const displayOutput = filterOutputForLog(block.metadata?.id || '', errorOutput, { block })
-      this.callOnBlockComplete(
+      await this.callOnBlockComplete(
         ctx,
         node,
         block,
@@ -306,7 +316,7 @@ export class BlockExecutor {
       if (blockLog) {
         blockLog.errorHandled = true
       }
-      logger.info('Block has error port - returning error output instead of throwing', {
+      this.execLogger.info('Block has error port - returning error output instead of throwing', {
         blockId: node.id,
         error: errorMessage,
       })
@@ -358,7 +368,7 @@ export class BlockExecutor {
           blockName = `${blockName} (iteration ${loopScope.iteration})`
           iterationIndex = loopScope.iteration
         } else {
-          logger.warn('Loop scope not found for block', { blockId, loopId })
+          this.execLogger.warn('Loop scope not found for block', { blockId, loopId })
         }
       }
     }
@@ -439,12 +449,12 @@ export class BlockExecutor {
     return redactApiKeys(result)
   }
 
-  private callOnBlockStart(
+  private async callOnBlockStart(
     ctx: ExecutionContext,
     node: DAGNode,
     block: SerializedBlock,
     executionOrder: number
-  ): void {
+  ): Promise<void> {
     const blockId = node.metadata?.originalBlockId ?? node.id
     const blockName = block.metadata?.name ?? blockId
     const blockType = block.metadata?.id ?? DEFAULTS.BLOCK_TYPE
@@ -452,18 +462,26 @@ export class BlockExecutor {
     const iterationContext = getIterationContext(ctx, node?.metadata)
 
     if (this.contextExtensions.onBlockStart) {
-      this.contextExtensions.onBlockStart(
-        blockId,
-        blockName,
-        blockType,
-        executionOrder,
-        iterationContext,
-        ctx.childWorkflowContext
-      )
+      try {
+        await this.contextExtensions.onBlockStart(
+          blockId,
+          blockName,
+          blockType,
+          executionOrder,
+          iterationContext,
+          ctx.childWorkflowContext
+        )
+      } catch (error) {
+        this.execLogger.warn('Block start callback failed', {
+          blockId,
+          blockType,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
     }
   }
 
-  private callOnBlockComplete(
+  private async callOnBlockComplete(
     ctx: ExecutionContext,
     node: DAGNode,
     block: SerializedBlock,
@@ -474,7 +492,7 @@ export class BlockExecutor {
     executionOrder: number,
     endedAt: string,
     childWorkflowInstanceId?: string
-  ): void {
+  ): Promise<void> {
     const blockId = node.metadata?.originalBlockId ?? node.id
     const blockName = block.metadata?.name ?? blockId
     const blockType = block.metadata?.id ?? DEFAULTS.BLOCK_TYPE
@@ -482,22 +500,30 @@ export class BlockExecutor {
     const iterationContext = getIterationContext(ctx, node?.metadata)
 
     if (this.contextExtensions.onBlockComplete) {
-      this.contextExtensions.onBlockComplete(
-        blockId,
-        blockName,
-        blockType,
-        {
-          input,
-          output,
-          executionTime: duration,
-          startedAt,
-          executionOrder,
-          endedAt,
-          childWorkflowInstanceId,
-        },
-        iterationContext,
-        ctx.childWorkflowContext
-      )
+      try {
+        await this.contextExtensions.onBlockComplete(
+          blockId,
+          blockName,
+          blockType,
+          {
+            input,
+            output,
+            executionTime: duration,
+            startedAt,
+            executionOrder,
+            endedAt,
+            childWorkflowInstanceId,
+          },
+          iterationContext,
+          ctx.childWorkflowContext
+        )
+      } catch (error) {
+        this.execLogger.warn('Block completion callback failed', {
+          blockId,
+          blockType,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
     }
   }
 
@@ -617,7 +643,7 @@ export class BlockExecutor {
       try {
         await ctx.onStream?.(clientStreamingExec)
       } catch (error) {
-        logger.error('Error in onStream callback', { blockId, error })
+        this.execLogger.error('Error in onStream callback', { blockId, error })
         // Cancel the client stream to release the tee'd buffer
         await processedClientStream.cancel().catch(() => {})
       }
@@ -647,7 +673,7 @@ export class BlockExecutor {
         stream: processedStream,
       })
     } catch (error) {
-      logger.error('Error in onStream callback', { blockId, error })
+      this.execLogger.error('Error in onStream callback', { blockId, error })
       await processedStream.cancel().catch(() => {})
     }
   }
@@ -671,7 +697,7 @@ export class BlockExecutor {
       const tail = decoder.decode()
       if (tail) chunks.push(tail)
     } catch (error) {
-      logger.error('Error reading executor stream for block', { blockId, error })
+      this.execLogger.error('Error reading executor stream for block', { blockId, error })
     } finally {
       try {
         await reader.cancel().catch(() => {})
@@ -702,7 +728,10 @@ export class BlockExecutor {
         }
         return
       } catch (error) {
-        logger.warn('Failed to parse streamed content for response format', { blockId, error })
+        this.execLogger.warn('Failed to parse streamed content for response format', {
+          blockId,
+          error,
+        })
       }
     }
 

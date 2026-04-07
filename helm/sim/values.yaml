@@ -64,6 +64,7 @@ app:
         INTERNAL_API_SECRET: "INTERNAL_API_SECRET"
         CRON_SECRET: "CRON_SECRET"
         API_ENCRYPTION_KEY: "API_ENCRYPTION_KEY"
+        REDIS_URL: "REDIS_URL"
 
   # Environment variables
   env:
@@ -95,6 +96,7 @@ app:
     # Optional: API Key Encryption (RECOMMENDED for production)
     # Generate 64-character hex string using: openssl rand -hex 32 (outputs 64 hex chars = 32 bytes)
     API_ENCRYPTION_KEY: ""  # OPTIONAL - encrypts API keys at rest, must be exactly 64 hex characters, if not set keys stored in plain text
+    REDIS_URL: ""           # OPTIONAL - Redis connection string for BullMQ/workers; can also come from app secret or External Secrets
     
     # Email & Communication
     EMAIL_VERIFICATION_ENABLED: "false"                   # Enable email verification for user registration and login (defaults to false)
@@ -111,19 +113,35 @@ app:
     # Google Vertex AI Configuration
     VERTEX_PROJECT: ""                                    # Google Cloud project ID for Vertex AI
     VERTEX_LOCATION: "us-central1"                        # Google Cloud region for Vertex AI (e.g., "us-central1")
-    
+
+    # Azure OpenAI Configuration (leave empty if not using Azure OpenAI)
+    AZURE_OPENAI_ENDPOINT: ""                             # Azure OpenAI service endpoint (e.g., https://your-resource.openai.azure.com)
+    AZURE_OPENAI_API_KEY: ""                              # Azure OpenAI API key
+    AZURE_OPENAI_API_VERSION: ""                          # Azure OpenAI API version (e.g., 2024-07-01-preview)
+
+    # Azure Anthropic Configuration (leave empty if not using Azure Anthropic via AI Foundry)
+    AZURE_ANTHROPIC_ENDPOINT: ""                          # Azure AI Foundry endpoint for Anthropic models
+    AZURE_ANTHROPIC_API_KEY: ""                           # Azure Anthropic API key
+    AZURE_ANTHROPIC_API_VERSION: ""                       # Azure Anthropic API version (e.g., 2023-06-01)
+
     # AI Provider API Keys (leave empty if not using)
     OPENAI_API_KEY: ""                                    # Primary OpenAI API key
     OPENAI_API_KEY_1: ""                                  # Additional OpenAI API key for load balancing
     OPENAI_API_KEY_2: ""                                  # Additional OpenAI API key for load balancing
     OPENAI_API_KEY_3: ""                                  # Additional OpenAI API key for load balancing
     MISTRAL_API_KEY: ""                                   # Mistral AI API key
+    FIREWORKS_API_KEY: ""                                 # Fireworks AI API key (for hosted model access)
     ANTHROPIC_API_KEY_1: ""                               # Primary Anthropic Claude API key
     ANTHROPIC_API_KEY_2: ""                               # Additional Anthropic API key for load balancing
     ANTHROPIC_API_KEY_3: ""                               # Additional Anthropic API key for load balancing
     OLLAMA_URL: ""                                        # Ollama local LLM server URL
     ELEVENLABS_API_KEY: ""                                # ElevenLabs API key for text-to-speech in deployed chat
     
+    # Admission & Dispatch Queue Configuration
+    ADMISSION_GATE_MAX_INFLIGHT: "500"                    # Max concurrent in-flight execution requests per pod
+    DISPATCH_MAX_QUEUE_PER_WORKSPACE: "1000"              # Max queued dispatch jobs per workspace
+    DISPATCH_MAX_QUEUE_GLOBAL: "50000"                    # Max queued dispatch jobs globally
+
     # Rate Limiting Configuration (per minute)
     RATE_LIMIT_WINDOW_MS: "60000"                         # Rate limit window duration (1 minute)
     RATE_LIMIT_FREE_SYNC: "50"                            # Sync API executions per minute
@@ -176,6 +194,11 @@ app:
     DISABLE_REGISTRATION: ""                              # Set to "true" to disable new user signups
     EMAIL_PASSWORD_SIGNUP_ENABLED: ""                     # Set to "false" to disable email/password login (SSO-only mode, server-side enforcement)
     NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED: ""         # Set to "false" to hide email/password login form (UI-side)
+    SIGNUP_EMAIL_VALIDATION_ENABLED: ""                   # Set to "true" to block 55K+ disposable email domains (requires normalized_email migration)
+
+    # Bot Protection (Cloudflare Turnstile)
+    TURNSTILE_SECRET_KEY: ""                              # Cloudflare Turnstile secret key (leave empty to disable captcha)
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: ""                    # Cloudflare Turnstile site key (leave empty to disable captcha)
 
     # Access Control (leave empty if not restricting login)
     ALLOWED_LOGIN_EMAILS: ""                             # Comma-separated list of allowed email addresses for login
@@ -210,6 +233,18 @@ app:
     # Set to "true" AFTER running the SSO registration script
     SSO_ENABLED: ""                                       # Enable SSO authentication ("true" to enable)
     NEXT_PUBLIC_SSO_ENABLED: ""                           # Show SSO login button in UI ("true" to enable)
+
+    # AWS Bedrock Credential Mode
+    # Set to "true" when the deployment uses AWS default credential chain (IAM roles, instance
+    # profiles, ECS task roles, IRSA, etc.) instead of explicit access key/secret per workflow.
+    # When enabled, the AWS Access Key ID and Secret fields are hidden in the Agent block UI.
+    NEXT_PUBLIC_BEDROCK_DEFAULT_CREDENTIALS: ""           # Set to "true" to hide Bedrock credential fields
+
+    # Azure Provider Credential Mode
+    # Set to "true" when AZURE_OPENAI_ENDPOINT/API_KEY (and/or AZURE_ANTHROPIC_*) are configured
+    # server-side. When enabled, the Azure endpoint, API key, and API version fields are hidden
+    # in the Agent block UI — users just pick an Azure model and run.
+    NEXT_PUBLIC_AZURE_CONFIGURED: ""                      # Set to "true" to hide Azure credential fields
 
     # AWS S3 Cloud Storage Configuration (optional - for file storage)
     # If configured, files will be stored in S3 instead of local storage
@@ -347,6 +382,58 @@ realtime:
   # Additional volumes for realtime deployment
   extraVolumes: []
   extraVolumeMounts: []
+
+# BullMQ worker configuration (processes background jobs when Redis is available)
+# Uses the same image as the main app with a different command.
+# Enabled by default so self-hosted deployments get the same topology as compose.
+# Without REDIS_URL the worker starts, logs that it is idle, and does no queue processing.
+worker:
+  # Enable/disable the worker deployment
+  enabled: true
+
+  # Image configuration (defaults to same image as app)
+  image:
+    repository: simstudioai/simstudio
+    tag: latest
+    pullPolicy: Always
+
+  # Number of replicas
+  replicaCount: 1
+
+  # Health check port (worker exposes a lightweight HTTP health server)
+  healthPort: 3001
+
+  # Resource limits and requests
+  resources:
+    limits:
+      memory: "4Gi"
+      cpu: "1000m"
+    requests:
+      memory: "2Gi"
+      cpu: "500m"
+
+  # Node selector for pod scheduling
+  nodeSelector: {}
+
+  # Pod security context
+  podSecurityContext:
+    fsGroup: 1001
+
+  # Container security context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+
+  # Environment variables (worker-specific tuning)
+  env:
+    NODE_ENV: "production"
+    WORKER_CONCURRENCY_WORKFLOW: "50"
+    WORKER_CONCURRENCY_WEBHOOK: "30"
+    WORKER_CONCURRENCY_SCHEDULE: "20"
+    WORKER_CONCURRENCY_MOTHERSHIP_JOB: "10"
+    WORKER_CONCURRENCY_CONNECTOR_SYNC: "5"
+    WORKER_CONCURRENCY_DOCUMENT_PROCESSING: "20"
+    WORKER_CONCURRENCY_NOTIFICATION_DELIVERY: "10"
 
 # Database migrations job configuration
 migrations:
@@ -1223,6 +1310,8 @@ externalSecrets:
       CRON_SECRET: ""
       # Path to API_ENCRYPTION_KEY in external store (optional)
       API_ENCRYPTION_KEY: ""
+      # Path to REDIS_URL in external store (optional, required for worker when not set in app.env)
+      REDIS_URL: ""
 
     # PostgreSQL password (for internal PostgreSQL)
     postgresql:

@@ -9,8 +9,6 @@ export type SubBlockValue = unknown
 
 export interface SubBlockStoreState {
   workflowValues: Record<string, Record<string, Record<string, SubBlockValue>>> // Store values per workflow ID
-  loadingWebhooks: Set<string> // Track which blockIds are currently loading webhooks
-  checkedWebhooks: Set<string> // Track which blockIds have been checked for webhooks
 }
 
 export interface SubBlockStore extends SubBlockStoreState {

@@ -70,8 +70,11 @@ interface FormStatusResponse {
 /**
  * Fetches form status for a workflow
  */
-async function fetchFormStatus(workflowId: string): Promise<FormStatusResponse> {
-  const response = await fetch(`/api/workflows/${workflowId}/form/status`)
+async function fetchFormStatus(
+  workflowId: string,
+  signal?: AbortSignal
+): Promise<FormStatusResponse> {
+  const response = await fetch(`/api/workflows/${workflowId}/form/status`, { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch form status')
@@ -83,8 +86,8 @@ async function fetchFormStatus(workflowId: string): Promise<FormStatusResponse> 
 /**
  * Fetches form detail by ID
  */
-async function fetchFormDetail(formId: string): Promise<ExistingForm> {
-  const response = await fetch(`/api/form/manage/${formId}`)
+async function fetchFormDetail(formId: string, signal?: AbortSignal): Promise<ExistingForm> {
+  const response = await fetch(`/api/form/manage/${formId}`, { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch form details')
@@ -97,14 +100,17 @@ async function fetchFormDetail(formId: string): Promise<ExistingForm> {
 /**
  * Fetches form by workflow - combines status check and detail fetch
  */
-async function fetchFormByWorkflow(workflowId: string): Promise<ExistingForm | null> {
-  const status = await fetchFormStatus(workflowId)
+async function fetchFormByWorkflow(
+  workflowId: string,
+  signal?: AbortSignal
+): Promise<ExistingForm | null> {
+  const status = await fetchFormStatus(workflowId, signal)
 
   if (!status.isDeployed || !status.form?.id) {
     return null
   }
 
-  return fetchFormDetail(status.form.id)
+  return fetchFormDetail(status.form.id, signal)
 }
 
 /**
@@ -114,7 +120,7 @@ async function fetchFormByWorkflow(workflowId: string): Promise<ExistingForm | n
 export function useFormByWorkflow(workflowId: string | null) {
   return useQuery({
     queryKey: formKeys.status(workflowId),
-    queryFn: () => fetchFormByWorkflow(workflowId!),
+    queryFn: ({ signal }) => fetchFormByWorkflow(workflowId!, signal),
     enabled: Boolean(workflowId),
     staleTime: 30 * 1000, // 30 seconds
     placeholderData: keepPreviousData,

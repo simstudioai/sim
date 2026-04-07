@@ -1,8 +1,8 @@
 import { GoogleDriveIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { AuthMode, IntegrationType } from '@/blocks/types'
+import { normalizeFileInput, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleDriveResponse } from '@/tools/google_drive/types'
 
 export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
@@ -14,6 +14,8 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
     'Integrate Google Drive into the workflow. Can create, upload, download, copy, move, delete, share files and manage permissions.',
   docsLink: 'https://docs.sim.ai/tools/google_drive',
   category: 'tools',
+  integrationType: IntegrationType.FileStorage,
+  tags: ['cloud', 'google-workspace', 'document-processing'],
   bgColor: '#E0E0E0',
   icon: GoogleDriveIcon,
   subBlocks: [
@@ -61,6 +63,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       placeholder: 'Enter credential ID',
       required: true,
     },
+    ...SERVICE_ACCOUNT_SUBBLOCKS,
     // Create/Upload File Fields
     {
       id: 'fileName',

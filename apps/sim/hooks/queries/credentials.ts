@@ -1,10 +1,11 @@
 'use client'
 
+import type { QueryClient } from '@tanstack/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { environmentKeys } from '@/hooks/queries/environment'
 import { fetchJson } from '@/hooks/selectors/helpers'
 
-export type WorkspaceCredentialType = 'oauth' | 'env_workspace' | 'env_personal'
+export type WorkspaceCredentialType = 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
 export type WorkspaceCredentialRole = 'admin' | 'member'
 export type WorkspaceCredentialMemberStatus = 'active' | 'pending' | 'revoked'
 
@@ -53,12 +54,46 @@ interface MembersResponse {
 
 export const workspaceCredentialKeys = {
   all: ['workspaceCredentials'] as const,
+  lists: () => [...workspaceCredentialKeys.all, 'list'] as const,
   list: (workspaceId?: string, type?: string, providerId?: string) =>
-    ['workspaceCredentials', workspaceId ?? 'none', type ?? 'all', providerId ?? 'all'] as const,
+    [
+      ...workspaceCredentialKeys.lists(),
+      workspaceId ?? 'none',
+      type ?? 'all',
+      providerId ?? 'all',
+    ] as const,
+  details: () => [...workspaceCredentialKeys.all, 'detail'] as const,
   detail: (credentialId?: string) =>
-    ['workspaceCredentials', 'detail', credentialId ?? 'none'] as const,
+    [...workspaceCredentialKeys.details(), credentialId ?? 'none'] as const,
   members: (credentialId?: string) =>
-    ['workspaceCredentials', 'detail', credentialId ?? 'none', 'members'] as const,
+    [...workspaceCredentialKeys.detail(credentialId), 'members'] as const,
+}
+
+/**
+ * Fetch workspace credential list from API.
+ * Used by the prefetch function for hover-based cache warming.
+ */
+export async function fetchWorkspaceCredentialList(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<WorkspaceCredential[]> {
+  const data = await fetchJson<CredentialListResponse>('/api/credentials', {
+    searchParams: { workspaceId },
+    signal,
+  })
+  return data.credentials ?? []
+}
+
+/**
+ * Prefetch workspace credentials into a QueryClient cache.
+ * Use on hover to warm data before navigation.
+ */
+export function prefetchWorkspaceCredentials(queryClient: QueryClient, workspaceId: string) {
+  queryClient.prefetchQuery({
+    queryKey: workspaceCredentialKeys.list(workspaceId),
+    queryFn: ({ signal }) => fetchWorkspaceCredentialList(workspaceId, signal),
+    staleTime: 60 * 1000,
+  })
 }
 
 export function useWorkspaceCredentials(params: {
@@ -71,7 +106,7 @@ export function useWorkspaceCredentials(params: {
 
   return useQuery<WorkspaceCredential[]>({
     queryKey: workspaceCredentialKeys.list(workspaceId, type, providerId),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!workspaceId) return []
       const data = await fetchJson<CredentialListResponse>('/api/credentials', {
         searchParams: {
@@ -79,6 +114,7 @@ export function useWorkspaceCredentials(params: {
           type,
           providerId,
         },
+        signal,
       })
       return data.credentials ?? []
     },
@@ -90,13 +126,37 @@ export function useWorkspaceCredentials(params: {
 export function useWorkspaceCredential(credentialId?: string, enabled = true) {
   return useQuery<WorkspaceCredential | null>({
     queryKey: workspaceCredentialKeys.detail(credentialId),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!credentialId) return null
-      const data = await fetchJson<CredentialResponse>(`/api/credentials/${credentialId}`)
+      const data = await fetchJson<CredentialResponse>(`/api/credentials/${credentialId}`, {
+        signal,
+      })
       return data.credential ?? null
     },
     enabled: Boolean(credentialId) && enabled,
     staleTime: 60 * 1000,
+  })
+}
+
+export function useCreateCredentialDraft() {
+  return useMutation({
+    mutationFn: async (payload: {
+      workspaceId: string
+      providerId: string
+      displayName: string
+      description?: string
+      credentialId?: string
+    }) => {
+      const response = await fetch('/api/credentials/draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to create credential draft')
+      }
+    },
   })
 }
 
@@ -113,6 +173,7 @@ export function useCreateWorkspaceCredential() {
       accountId?: string
       envKey?: string
       envOwnerUserId?: string
+      serviceAccountJson?: string
     }) => {
       const response = await fetch('/api/credentials', {
         method: 'POST',
@@ -127,12 +188,9 @@ export function useCreateWorkspaceCredential() {
 
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: () => {
       queryClient.invalidateQueries({
-        queryKey: workspaceCredentialKeys.list(variables.workspaceId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: workspaceCredentialKeys.all,
+        queryKey: workspaceCredentialKeys.lists(),
       })
     },
   })
@@ -147,6 +205,7 @@ export function useUpdateWorkspaceCredential() {
       displayName?: string
       description?: string | null
       accountId?: string
+      serviceAccountJson?: string
     }) => {
       const response = await fetch(`/api/credentials/${payload.credentialId}`, {
         method: 'PUT',
@@ -155,6 +214,7 @@ export function useUpdateWorkspaceCredential() {
           displayName: payload.displayName,
           description: payload.description,
           accountId: payload.accountId,
+          serviceAccountJson: payload.serviceAccountJson,
         }),
       })
       if (!response.ok) {
@@ -163,12 +223,51 @@ export function useUpdateWorkspaceCredential() {
       }
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({
+        queryKey: workspaceCredentialKeys.detail(variables.credentialId),
+      })
+      await queryClient.cancelQueries({ queryKey: workspaceCredentialKeys.lists() })
+
+      const previousLists = queryClient.getQueriesData<WorkspaceCredential[]>({
+        queryKey: workspaceCredentialKeys.lists(),
+      })
+
+      queryClient.setQueriesData<WorkspaceCredential[]>(
+        { queryKey: workspaceCredentialKeys.lists() },
+        (old) => {
+          if (!old) return old
+          return old.map((cred) =>
+            cred.id === variables.credentialId
+              ? {
+                  ...cred,
+                  ...(variables.displayName !== undefined
+                    ? { displayName: variables.displayName }
+                    : {}),
+                  ...(variables.description !== undefined
+                    ? { description: variables.description ?? null }
+                    : {}),
+                }
+              : cred
+          )
+        }
+      )
+
+      return { previousLists }
+    },
+    onError: (_err, _variables, context) => {
+      if (context?.previousLists) {
+        for (const [queryKey, data] of context.previousLists) {
+          queryClient.setQueryData(queryKey, data)
+        }
+      }
+    },
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: workspaceCredentialKeys.detail(variables.credentialId),
       })
       queryClient.invalidateQueries({
-        queryKey: workspaceCredentialKeys.all,
+        queryKey: workspaceCredentialKeys.lists(),
       })
     },
   })
@@ -188,9 +287,9 @@ export function useDeleteWorkspaceCredential() {
       }
       return response.json()
     },
-    onSuccess: (_data, credentialId) => {
+    onSettled: (_data, _error, credentialId) => {
       queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.detail(credentialId) })
-      queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.all })
+      queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() })
       queryClient.invalidateQueries({ queryKey: environmentKeys.all })
     },
   })
@@ -199,9 +298,11 @@ export function useDeleteWorkspaceCredential() {
 export function useWorkspaceCredentialMembers(credentialId?: string) {
   return useQuery<WorkspaceCredentialMember[]>({
     queryKey: workspaceCredentialKeys.members(credentialId),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!credentialId) return []
-      const data = await fetchJson<MembersResponse>(`/api/credentials/${credentialId}/members`)
+      const data = await fetchJson<MembersResponse>(`/api/credentials/${credentialId}/members`, {
+        signal,
+      })
       return data.members ?? []
     },
     enabled: Boolean(credentialId),
@@ -232,14 +333,13 @@ export function useUpsertWorkspaceCredentialMember() {
       }
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: workspaceCredentialKeys.members(variables.credentialId),
       })
       queryClient.invalidateQueries({
         queryKey: workspaceCredentialKeys.detail(variables.credentialId),
       })
-      queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.all })
     },
   })
 }
@@ -259,14 +359,13 @@ export function useRemoveWorkspaceCredentialMember() {
       }
       return response.json()
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: workspaceCredentialKeys.members(variables.credentialId),
       })
       queryClient.invalidateQueries({
         queryKey: workspaceCredentialKeys.detail(variables.credentialId),
       })
-      queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.all })
     },
   })
 }

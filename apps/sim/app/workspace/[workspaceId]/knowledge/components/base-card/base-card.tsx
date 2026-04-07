@@ -7,6 +7,7 @@ import { formatAbsoluteDate, formatRelativeTime } from '@/lib/core/utils/formatt
 import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import { DeleteKnowledgeBaseModal } from '../delete-knowledge-base-modal/delete-knowledge-base-modal'
 import { EditKnowledgeBaseModal } from '../edit-knowledge-base-modal/edit-knowledge-base-modal'
 import { KnowledgeBaseContextMenu } from '../knowledge-base-context-menu/knowledge-base-context-menu'
@@ -18,6 +19,8 @@ interface BaseCardProps {
   description: string
   createdAt?: string
   updatedAt?: string
+  connectorTypes?: string[]
+  chunkingConfig?: { maxSize: number; minSize: number; overlap: number }
   onUpdate?: (id: string, name: string, description: string) => Promise<void>
   onDelete?: (id: string) => Promise<void>
 }
@@ -27,26 +30,26 @@ interface BaseCardProps {
  */
 export function BaseCardSkeleton() {
   return (
-    <div className='group flex h-full cursor-pointer flex-col gap-[12px] rounded-[4px] bg-[var(--surface-3)] px-[8px] py-[6px] transition-colors hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover:bg-[var(--surface-5)]'>
-      <div className='flex items-center justify-between gap-[8px]'>
-        <div className='h-[17px] w-[120px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
-        <div className='h-[22px] w-[90px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+    <div className='group flex h-full cursor-pointer flex-col gap-3 rounded-sm bg-[var(--surface-3)] px-2 py-1.5 transition-colors hover-hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover-hover:bg-[var(--surface-5)]'>
+      <div className='flex items-center justify-between gap-2'>
+        <div className='h-[17px] w-[120px] animate-pulse rounded-sm bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+        <div className='h-[22px] w-[90px] animate-pulse rounded-sm bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
       </div>
 
-      <div className='flex flex-1 flex-col gap-[8px]'>
+      <div className='flex flex-1 flex-col gap-2'>
         <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-[6px]'>
-            <div className='h-[12px] w-[12px] animate-pulse rounded-[2px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
-            <div className='h-[15px] w-[45px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+          <div className='flex items-center gap-1.5'>
+            <div className='h-[12px] w-[12px] animate-pulse rounded-xs bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+            <div className='h-[15px] w-[45px] animate-pulse rounded-sm bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
           </div>
-          <div className='h-[15px] w-[120px] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+          <div className='h-[15px] w-[120px] animate-pulse rounded-sm bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
         </div>
 
         <div className='h-0 w-full border-[var(--divider)] border-t' />
 
-        <div className='flex h-[36px] flex-col gap-[6px]'>
-          <div className='h-[15px] w-full animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
-          <div className='h-[15px] w-[75%] animate-pulse rounded-[4px] bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+        <div className='flex h-[36px] flex-col gap-1.5'>
+          <div className='h-[15px] w-full animate-pulse rounded-sm bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
+          <div className='h-[15px] w-[75%] animate-pulse rounded-sm bg-[var(--surface-4)] dark:bg-[var(--surface-5)]' />
         </div>
       </div>
     </div>
@@ -75,6 +78,8 @@ export function BaseCard({
   docCount,
   description,
   updatedAt,
+  connectorTypes = [],
+  chunkingConfig,
   onUpdate,
   onDelete,
 }: BaseCardProps) {
@@ -170,26 +175,24 @@ export function BaseCard({
         onContextMenu={handleContextMenu}
         data-kb-card
       >
-        <div className='group flex h-full flex-col gap-[12px] rounded-[4px] bg-[var(--surface-3)] px-[8px] py-[6px] transition-colors hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover:bg-[var(--surface-5)]'>
-          <div className='flex items-center justify-between gap-[8px]'>
-            <h3 className='min-w-0 flex-1 truncate font-medium text-[14px] text-[var(--text-primary)]'>
+        <div className='group flex h-full flex-col gap-3 rounded-sm bg-[var(--surface-3)] px-2 py-1.5 transition-colors hover-hover:bg-[var(--surface-4)] dark:bg-[var(--surface-4)] dark:hover-hover:bg-[var(--surface-5)]'>
+          <div className='flex items-center justify-between gap-2'>
+            <h3 className='min-w-0 flex-1 truncate font-medium text-[var(--text-primary)] text-sm'>
               {title}
             </h3>
-            {shortId && (
-              <Badge className='flex-shrink-0 rounded-[4px] text-[12px]'>{shortId}</Badge>
-            )}
+            {shortId && <Badge className='flex-shrink-0 rounded-sm text-caption'>{shortId}</Badge>}
           </div>
 
-          <div className='flex flex-1 flex-col gap-[8px]'>
+          <div className='flex flex-1 flex-col gap-2'>
             <div className='flex items-center justify-between'>
-              <span className='flex items-center gap-[6px] text-[12px] text-[var(--text-tertiary)]'>
+              <span className='flex items-center gap-1.5 text-[var(--text-tertiary)] text-caption'>
                 <DocumentAttachment className='h-[12px] w-[12px]' />
                 {docCount} {docCount === 1 ? 'doc' : 'docs'}
               </span>
               {updatedAt && (
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <span className='text-[12px] text-[var(--text-tertiary)]'>
+                    <span className='text-[var(--text-tertiary)] text-caption'>
                       last updated: {formatRelativeTime(updatedAt)}
                     </span>
                   </Tooltip.Trigger>
@@ -200,9 +203,33 @@ export function BaseCard({
 
             <div className='h-0 w-full border-[var(--divider)] border-t' />
 
-            <p className='line-clamp-2 h-[36px] text-[12px] text-[var(--text-tertiary)] leading-[18px]'>
-              {description}
-            </p>
+            <div className='flex items-start justify-between gap-2'>
+              <p className='line-clamp-2 h-[36px] flex-1 text-[var(--text-tertiary)] text-caption leading-[18px]'>
+                {description}
+              </p>
+              {connectorTypes.length > 0 && (
+                <div className='flex flex-shrink-0 items-center'>
+                  {connectorTypes.map((type, index) => {
+                    const config = CONNECTOR_REGISTRY[type]
+                    if (!config?.icon) return null
+                    const Icon = config.icon
+                    return (
+                      <Tooltip.Root key={type}>
+                        <Tooltip.Trigger asChild>
+                          <div
+                            className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-sm bg-[var(--surface-5)]'
+                            style={{ marginLeft: index > 0 ? '-4px' : '0' }}
+                          >
+                            <Icon className='h-[12px] w-[12px] text-[var(--text-secondary)]' />
+                          </div>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>{config.name}</Tooltip.Content>
+                      </Tooltip.Root>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -210,7 +237,6 @@ export function BaseCard({
       <KnowledgeBaseContextMenu
         isOpen={isContextMenuOpen}
         position={contextMenuPosition}
-        menuRef={menuRef}
         onClose={closeContextMenu}
         onOpenInNewTab={handleOpenInNewTab}
         onViewTags={handleViewTags}
@@ -232,6 +258,7 @@ export function BaseCard({
           knowledgeBaseId={id}
           initialName={title}
           initialDescription={description === 'No description provided' ? '' : description}
+          chunkingConfig={chunkingConfig}
           onSave={handleSave}
         />
       )}

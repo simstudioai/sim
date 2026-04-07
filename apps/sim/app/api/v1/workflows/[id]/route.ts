@@ -1,9 +1,12 @@
 import { db } from '@sim/db'
-import { permissions, workflow, workflowBlocks } from '@sim/db/schema'
+import { workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { generateId } from '@/lib/core/utils/uuid'
+import { getActiveWorkflowRecord } from '@/lib/workflows/active-context'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
 
@@ -12,7 +15,7 @@ const logger = createLogger('V1WorkflowDetailsAPI')
 export const revalidate = 0
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
 
   try {
     const rateLimit = await checkRateLimit(request, 'workflow-detail')
@@ -25,37 +28,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     logger.info(`[${requestId}] Fetching workflow details for ${id}`, { userId })
 
-    const rows = await db
-      .select({
-        id: workflow.id,
-        name: workflow.name,
-        description: workflow.description,
-        color: workflow.color,
-        folderId: workflow.folderId,
-        workspaceId: workflow.workspaceId,
-        isDeployed: workflow.isDeployed,
-        deployedAt: workflow.deployedAt,
-        runCount: workflow.runCount,
-        lastRunAt: workflow.lastRunAt,
-        variables: workflow.variables,
-        createdAt: workflow.createdAt,
-        updatedAt: workflow.updatedAt,
-      })
-      .from(workflow)
-      .innerJoin(
-        permissions,
-        and(
-          eq(permissions.entityType, 'workspace'),
-          eq(permissions.entityId, workflow.workspaceId),
-          eq(permissions.userId, userId)
-        )
-      )
-      .where(eq(workflow.id, id))
-      .limit(1)
-
-    const workflowData = rows[0]
+    const workflowData = await getActiveWorkflowRecord(id)
     if (!workflowData) {
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+    }
+
+    const permission = await getUserEntityPermissions(
+      userId,
+      'workspace',
+      workflowData.workspaceId!
+    )
+    if (!permission) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
     const blockRows = await db

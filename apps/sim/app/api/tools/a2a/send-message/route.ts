@@ -6,6 +6,7 @@ import { createA2AClient, extractTextContent, isTerminalState } from '@/lib/a2a/
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId } from '@/lib/core/utils/uuid'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: `Failed to connect to agent: ${clientError instanceof Error ? clientError.message : 'Unknown error'}`,
+          error: 'Failed to connect to agent',
         },
         { status: 502 }
       )
@@ -142,7 +143,7 @@ export async function POST(request: NextRequest) {
 
     const message: Message = {
       kind: 'message',
-      messageId: crypto.randomUUID(),
+      messageId: generateId(),
       role: 'user',
       parts,
       ...(validatedData.taskId && { taskId: validatedData.taskId }),
@@ -158,7 +159,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: `Failed to send message: ${sendError instanceof Error ? sendError.message : 'Unknown error'}`,
+          error: 'Failed to send message to agent',
         },
         { status: 502 }
       )
@@ -218,7 +219,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: 'Internal server error',
       },
       { status: 500 }
     )

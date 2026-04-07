@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
 import { useForm } from 'react-hook-form'
@@ -17,6 +17,7 @@ import {
   Textarea,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import type { ChunkingConfig } from '@/lib/knowledge/types'
 
 const logger = createLogger('EditKnowledgeBaseModal')
 
@@ -26,6 +27,7 @@ interface EditKnowledgeBaseModalProps {
   knowledgeBaseId: string
   initialName: string
   initialDescription: string
+  chunkingConfig?: ChunkingConfig
   onSave: (id: string, name: string, description: string) => Promise<void>
 }
 
@@ -43,12 +45,13 @@ type FormValues = z.infer<typeof FormSchema>
 /**
  * Modal for editing knowledge base name and description
  */
-export function EditKnowledgeBaseModal({
+export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
   open,
   onOpenChange,
   knowledgeBaseId,
   initialName,
   initialDescription,
+  chunkingConfig,
   onSave,
 }: EditKnowledgeBaseModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -103,8 +106,8 @@ export function EditKnowledgeBaseModal({
 
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
           <ModalBody>
-            <div className='space-y-[12px]'>
-              <div className='flex flex-col gap-[8px]'>
+            <div className='space-y-3'>
+              <div className='flex flex-col gap-2'>
                 <Label htmlFor='kb-name'>Name</Label>
                 <Input
                   id='kb-name'
@@ -118,11 +121,11 @@ export function EditKnowledgeBaseModal({
                   data-form-type='other'
                 />
                 {errors.name && (
-                  <p className='text-[12px] text-[var(--text-error)]'>{errors.name.message}</p>
+                  <p className='text-[var(--text-error)] text-caption'>{errors.name.message}</p>
                 )}
               </div>
 
-              <div className='flex flex-col gap-[8px]'>
+              <div className='flex flex-col gap-2'>
                 <Label htmlFor='description'>Description</Label>
                 <Textarea
                   id='description'
@@ -132,24 +135,65 @@ export function EditKnowledgeBaseModal({
                   className={cn(errors.description && 'border-[var(--text-error)]')}
                 />
                 {errors.description && (
-                  <p className='text-[12px] text-[var(--text-error)]'>
+                  <p className='text-[var(--text-error)] text-caption'>
                     {errors.description.message}
                   </p>
                 )}
               </div>
+
+              {chunkingConfig && (
+                <div className='flex flex-col gap-2'>
+                  <Label>Chunking Configuration</Label>
+                  <div className='grid grid-cols-3 gap-2'>
+                    <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
+                      <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>
+                        Max Size
+                      </p>
+                      <p className='font-medium text-[var(--text-primary)] text-sm'>
+                        {chunkingConfig.maxSize.toLocaleString()}
+                        <span className='ml-0.5 font-normal text-[11px] text-[var(--text-tertiary)]'>
+                          tokens
+                        </span>
+                      </p>
+                    </div>
+                    <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
+                      <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>
+                        Min Size
+                      </p>
+                      <p className='font-medium text-[var(--text-primary)] text-sm'>
+                        {chunkingConfig.minSize.toLocaleString()}
+                        <span className='ml-0.5 font-normal text-[11px] text-[var(--text-tertiary)]'>
+                          chars
+                        </span>
+                      </p>
+                    </div>
+                    <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
+                      <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>
+                        Overlap
+                      </p>
+                      <p className='font-medium text-[var(--text-primary)] text-sm'>
+                        {chunkingConfig.overlap.toLocaleString()}
+                        <span className='ml-0.5 font-normal text-[11px] text-[var(--text-tertiary)]'>
+                          tokens
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </ModalBody>
 
           <ModalFooter>
-            <div className='flex w-full items-center justify-between gap-[12px]'>
+            <div className='flex w-full items-center justify-between gap-3'>
               {error ? (
-                <p className='min-w-0 flex-1 truncate text-[12px] text-[var(--text-error)] leading-tight'>
+                <p className='min-w-0 flex-1 truncate text-[var(--text-error)] text-caption leading-tight'>
                   {error}
                 </p>
               ) : (
                 <div />
               )}
-              <div className='flex flex-shrink-0 gap-[8px]'>
+              <div className='flex flex-shrink-0 gap-2'>
                 <Button
                   variant='default'
                   onClick={() => onOpenChange(false)}
@@ -159,7 +203,7 @@ export function EditKnowledgeBaseModal({
                   Cancel
                 </Button>
                 <Button
-                  variant='tertiary'
+                  variant='primary'
                   type='submit'
                   disabled={isSubmitting || !nameValue?.trim() || !isDirty}
                 >
@@ -172,4 +216,4 @@ export function EditKnowledgeBaseModal({
       </ModalContent>
     </Modal>
   )
-}
+})

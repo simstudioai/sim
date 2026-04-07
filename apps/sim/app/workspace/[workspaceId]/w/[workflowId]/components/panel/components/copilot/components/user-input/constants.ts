@@ -70,7 +70,6 @@ export const FOLDER_CONFIGS: Record<MentionFolderId, FolderConfig> = {
     title: 'All workflows',
     dataKey: 'workflows',
     loadingKey: 'isLoadingWorkflows',
-    // No ensureLoadedKey - workflows auto-load from registry store
     getLabel: (item) => item.name || 'Untitled Workflow',
     getId: (item) => item.id,
     emptyMessage: 'No workflows',
@@ -255,7 +254,7 @@ export const SCROLL_TOLERANCE = 8
 /**
  * Shared CSS classes for menu state text (loading, empty states)
  */
-export const MENU_STATE_TEXT_CLASSES = 'px-[8px] py-[8px] text-[12px] text-[var(--text-muted)]'
+export const MENU_STATE_TEXT_CLASSES = 'px-2 py-2 text-caption text-[var(--text-muted)]'
 
 /**
  * Calculates the next index for circular navigation (wraps around at bounds)

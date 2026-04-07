@@ -25,7 +25,7 @@ In Sim, the Knowledge Base block enables your agents to perform intelligent sema
 
 ## Usage Instructions
 
-Integrate Knowledge into the workflow. Can search, upload chunks, and create documents.
+Integrate Knowledge into the workflow. Perform full CRUD operations on documents, chunks, and tags.
 
 
 
@@ -121,5 +121,313 @@ Create a new document in a knowledge base
 |   ↳ `updatedAt` | string | Last update timestamp |
 | `message` | string | Success or error message describing the operation result |
 | `documentId` | string | ID of the created document |
+
+### `knowledge_upsert_document`
+
+Create or update a document in a knowledge base. If a document with the given ID or filename already exists, it will be replaced with the new content.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base containing the document |
+| `documentId` | string | No | Optional ID of an existing document to update. If not provided, lookup is done by filename. |
+| `name` | string | Yes | Name of the document |
+| `content` | string | Yes | Content of the document |
+| `documentTags` | json | No | Document tags |
+| `documentTags` | string | No | No description |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | object | Information about the upserted document |
+|   ↳ `documentId` | string | Document ID |
+|   ↳ `documentName` | string | Document name |
+|   ↳ `type` | string | Document type |
+|   ↳ `enabled` | boolean | Whether the document is enabled |
+|   ↳ `isUpdate` | boolean | Whether an existing document was replaced |
+|   ↳ `previousDocumentId` | string | ID of the document that was replaced, if any |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `message` | string | Success or error message describing the operation result |
+| `documentId` | string | ID of the upserted document |
+
+### `knowledge_list_tags`
+
+List all tag definitions for a knowledge base
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base to list tags for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `knowledgeBaseId` | string | ID of the knowledge base |
+| `tags` | array | Array of tag definitions for the knowledge base |
+|   ↳ `id` | string | Tag definition ID |
+|   ↳ `tagSlot` | string | Internal tag slot \(e.g. tag1, number1\) |
+|   ↳ `displayName` | string | Human-readable tag name |
+|   ↳ `fieldType` | string | Tag field type \(text, number, date, boolean\) |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `totalTags` | number | Total number of tag definitions |
+
+### `knowledge_list_documents`
+
+List documents in a knowledge base with optional filtering, search, and pagination
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base to list documents from |
+| `search` | string | No | Search query to filter documents by filename |
+| `enabledFilter` | string | No | Filter by enabled status: "all", "enabled", or "disabled" |
+| `limit` | number | No | Maximum number of documents to return \(default: 50\) |
+| `offset` | number | No | Number of documents to skip for pagination \(default: 0\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `knowledgeBaseId` | string | ID of the knowledge base |
+| `documents` | array | Array of documents in the knowledge base |
+|   ↳ `id` | string | Document ID |
+|   ↳ `filename` | string | Document filename |
+|   ↳ `fileSize` | number | File size in bytes |
+|   ↳ `mimeType` | string | MIME type of the document |
+|   ↳ `enabled` | boolean | Whether the document is enabled |
+|   ↳ `processingStatus` | string | Processing status \(pending, processing, completed, failed\) |
+|   ↳ `chunkCount` | number | Number of chunks in the document |
+|   ↳ `tokenCount` | number | Total token count across chunks |
+|   ↳ `uploadedAt` | string | Upload timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+|   ↳ `connectorId` | string | Connector ID if document was synced from an external source |
+|   ↳ `connectorType` | string | Connector type \(e.g. notion, github, confluence\) if synced |
+|   ↳ `sourceUrl` | string | Original URL in the source system if synced from a connector |
+| `totalDocuments` | number | Total number of documents matching the filter |
+| `limit` | number | Page size used |
+| `offset` | number | Offset used for pagination |
+
+### `knowledge_get_document`
+
+Get full details of a single document including tags, connector metadata, and processing status
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base the document belongs to |
+| `documentId` | string | Yes | ID of the document to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Document ID |
+| `filename` | string | Document filename |
+| `fileSize` | number | File size in bytes |
+| `mimeType` | string | MIME type of the document |
+| `enabled` | boolean | Whether the document is enabled |
+| `processingStatus` | string | Processing status \(pending, processing, completed, failed\) |
+| `processingError` | string | Error message if processing failed |
+| `chunkCount` | number | Number of chunks in the document |
+| `tokenCount` | number | Total token count across chunks |
+| `characterCount` | number | Total character count |
+| `uploadedAt` | string | Upload timestamp |
+| `updatedAt` | string | Last update timestamp |
+| `connectorId` | string | Connector ID if document was synced from an external source |
+| `sourceUrl` | string | Original URL in the source system if synced from a connector |
+| `externalId` | string | External ID from the source system |
+| `tags` | object | Tag values keyed by tag slot \(tag1-7, number1-5, date1-2, boolean1-3\) |
+
+### `knowledge_delete_document`
+
+Delete a document from a knowledge base
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base containing the document |
+| `documentId` | string | Yes | ID of the document to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `documentId` | string | ID of the deleted document |
+| `message` | string | Confirmation message |
+
+### `knowledge_list_chunks`
+
+List chunks for a document in a knowledge base with optional filtering and pagination
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base |
+| `documentId` | string | Yes | ID of the document to list chunks from |
+| `search` | string | No | Search query to filter chunks by content |
+| `enabled` | string | No | Filter by enabled status: "true", "false", or "all" \(default: "all"\) |
+| `limit` | number | No | Maximum number of chunks to return \(1-100, default: 50\) |
+| `offset` | number | No | Number of chunks to skip for pagination \(default: 0\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `knowledgeBaseId` | string | ID of the knowledge base |
+| `documentId` | string | ID of the document |
+| `chunks` | array | Array of chunks in the document |
+|   ↳ `id` | string | Chunk ID |
+|   ↳ `chunkIndex` | number | Index of the chunk within the document |
+|   ↳ `content` | string | Chunk text content |
+|   ↳ `contentLength` | number | Content length in characters |
+|   ↳ `tokenCount` | number | Token count for the chunk |
+|   ↳ `enabled` | boolean | Whether the chunk is enabled |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `totalChunks` | number | Total number of chunks matching the filter |
+| `limit` | number | Page size used |
+| `offset` | number | Offset used for pagination |
+
+### `knowledge_update_chunk`
+
+Update the content or enabled status of a chunk in a knowledge base
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base |
+| `documentId` | string | Yes | ID of the document containing the chunk |
+| `chunkId` | string | Yes | ID of the chunk to update |
+| `content` | string | No | New content for the chunk |
+| `enabled` | boolean | No | Whether the chunk should be enabled or disabled |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `documentId` | string | ID of the parent document |
+| `id` | string | Chunk ID |
+| `chunkIndex` | number | Index of the chunk within the document |
+| `content` | string | Updated chunk content |
+| `contentLength` | number | Content length in characters |
+| `tokenCount` | number | Token count for the chunk |
+| `enabled` | boolean | Whether the chunk is enabled |
+| `updatedAt` | string | Last update timestamp |
+
+### `knowledge_delete_chunk`
+
+Delete a chunk from a document in a knowledge base
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base |
+| `documentId` | string | Yes | ID of the document containing the chunk |
+| `chunkId` | string | Yes | ID of the chunk to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `chunkId` | string | ID of the deleted chunk |
+| `documentId` | string | ID of the parent document |
+| `message` | string | Confirmation message |
+
+### `knowledge_list_connectors`
+
+List all connectors for a knowledge base, showing sync status, type, and document counts
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base to list connectors for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `knowledgeBaseId` | string | ID of the knowledge base |
+| `connectors` | array | Array of connectors for the knowledge base |
+|   ↳ `id` | string | Connector ID |
+|   ↳ `connectorType` | string | Type of connector \(e.g. notion, github, confluence\) |
+|   ↳ `status` | string | Connector status \(active, paused, syncing\) |
+|   ↳ `syncIntervalMinutes` | number | Sync interval in minutes \(0 = manual only\) |
+|   ↳ `lastSyncAt` | string | Timestamp of last sync |
+|   ↳ `lastSyncError` | string | Error from last sync if failed |
+|   ↳ `lastSyncDocCount` | number | Number of documents synced in last sync |
+|   ↳ `nextSyncAt` | string | Timestamp of next scheduled sync |
+|   ↳ `consecutiveFailures` | number | Number of consecutive sync failures |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `totalConnectors` | number | Total number of connectors |
+
+### `knowledge_get_connector`
+
+Get detailed connector information including recent sync logs for monitoring sync health
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base the connector belongs to |
+| `connectorId` | string | Yes | ID of the connector to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `connector` | object | Connector details |
+|   ↳ `id` | string | Connector ID |
+|   ↳ `connectorType` | string | Type of connector |
+|   ↳ `status` | string | Connector status \(active, paused, syncing\) |
+|   ↳ `syncIntervalMinutes` | number | Sync interval in minutes |
+|   ↳ `lastSyncAt` | string | Timestamp of last sync |
+|   ↳ `lastSyncError` | string | Error from last sync if failed |
+|   ↳ `lastSyncDocCount` | number | Docs synced in last sync |
+|   ↳ `nextSyncAt` | string | Next scheduled sync timestamp |
+|   ↳ `consecutiveFailures` | number | Consecutive sync failures |
+|   ↳ `createdAt` | string | Creation timestamp |
+|   ↳ `updatedAt` | string | Last update timestamp |
+| `syncLogs` | array | Recent sync log entries |
+|   ↳ `id` | string | Sync log ID |
+|   ↳ `status` | string | Sync status |
+|   ↳ `startedAt` | string | Sync start time |
+|   ↳ `completedAt` | string | Sync completion time |
+|   ↳ `docsAdded` | number | Documents added |
+|   ↳ `docsUpdated` | number | Documents updated |
+|   ↳ `docsDeleted` | number | Documents deleted |
+|   ↳ `docsUnchanged` | number | Documents unchanged |
+|   ↳ `errorMessage` | string | Error message if sync failed |
+
+### `knowledge_trigger_sync`
+
+Trigger a manual sync for a knowledge base connector
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `knowledgeBaseId` | string | Yes | ID of the knowledge base the connector belongs to |
+| `connectorId` | string | Yes | ID of the connector to trigger sync for |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `connectorId` | string | ID of the connector that was synced |
+| `message` | string | Status message from the sync trigger |
 
 

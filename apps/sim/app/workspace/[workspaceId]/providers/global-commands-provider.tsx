@@ -11,16 +11,10 @@ import {
 } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
+import { isMacPlatform } from '@/lib/core/utils/platform'
+import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('GlobalCommands')
-
-function isMacPlatform(): boolean {
-  if (typeof window === 'undefined') return false
-  return (
-    /Mac|iPhone|iPod|iPad/i.test(navigator.platform) ||
-    /Mac|iPhone|iPod|iPad/i.test(navigator.userAgent)
-  )
-}
 
 export interface ParsedShortcut {
   key: string
@@ -64,14 +58,26 @@ function parseShortcut(shortcut: string): ParsedShortcut {
   }
 }
 
+/**
+ * Maps a KeyboardEvent.code value to the logical key name used in shortcut definitions.
+ * Needed for international keyboard layouts where e.key may produce unexpected characters
+ * (e.g. macOS Option+letter yields 'å' instead of 'a', dead keys yield 'Dead').
+ */
+function codeToKey(code: string): string | undefined {
+  if (code.startsWith('Key')) return code.slice(3).toLowerCase()
+  if (code.startsWith('Digit')) return code.slice(5)
+  return undefined
+}
+
 function matchesShortcut(e: KeyboardEvent, parsed: ParsedShortcut): boolean {
   const isMac = isMacPlatform()
   const expectedCtrl = parsed.ctrl || (parsed.mod ? !isMac : false)
   const expectedMeta = parsed.meta || (parsed.mod ? isMac : false)
   const eventKey = e.key.length === 1 ? e.key.toLowerCase() : e.key
+  const keyMatches = eventKey === parsed.key || codeToKey(e.code) === parsed.key
 
   return (
-    eventKey === parsed.key &&
+    keyMatches &&
     !!e.ctrlKey === !!expectedCtrl &&
     !!e.metaKey === !!expectedMeta &&
     !!e.shiftKey === !!parsed.shift &&
@@ -87,7 +93,7 @@ export function GlobalCommandsProvider({ children }: { children: ReactNode }) {
   const register = useCallback((commands: GlobalCommand[]) => {
     const createdIds: string[] = []
     for (const cmd of commands) {
-      const id = cmd.id ?? crypto.randomUUID()
+      const id = cmd.id ?? generateId()
       const parsed = parseShortcut(cmd.shortcut)
       registryRef.current.set(id, {
         ...cmd,

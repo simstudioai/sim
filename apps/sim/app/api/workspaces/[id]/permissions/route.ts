@@ -1,4 +1,3 @@
-import crypto from 'crypto'
 import { db } from '@sim/db'
 import { permissions, user, workspace, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -7,7 +6,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
+import { generateId } from '@/lib/core/utils/uuid'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
   getUsersWithPermissions,
   hasWorkspaceAdminAccess,
@@ -160,7 +161,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           )
 
         await tx.insert(permissions).values({
-          id: crypto.randomUUID(),
+          id: generateId(),
           userId: update.userId,
           entityType: 'workspace' as const,
           entityId: workspaceId,
@@ -188,6 +189,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const updatedUsers = await getUsersWithPermissions(workspaceId)
 
     for (const update of body.updates) {
+      captureServerEvent(
+        session.user.id,
+        'workspace_member_role_changed',
+        { workspace_id: workspaceId, new_role: update.permissions },
+        { groups: { workspace: workspaceId } }
+      )
+
       recordAudit({
         workspaceId,
         actorId: session.user.id,

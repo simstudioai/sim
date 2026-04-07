@@ -1,78 +1,73 @@
-import { Suspense } from 'react'
-import dynamic from 'next/dynamic'
-import { Background, Footer, Nav, StructuredData } from '@/app/(landing)/components'
+import { getNavBlogPosts } from '@/lib/blog/registry'
+import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
+import { season } from '@/app/_styles/fonts/season/season'
+import {
+  Collaboration,
+  // Enterprise,
+  Features,
+  Footer,
+  Hero,
+  Navbar,
+  Pricing,
+  StructuredData,
+  Templates,
+  Testimonials,
+} from '@/app/(landing)/components'
+import { LandingAnalytics } from '@/app/(landing)/landing-analytics'
 
-const Hero = dynamic(() => import('@/app/(landing)/components/hero/hero'), {
-  loading: () => <div className='h-[600px] animate-pulse bg-gray-50' />,
-})
+/**
+ * Landing page root component.
+ *
+ * ## SEO Architecture
+ * - Single `<h1>` inside Hero (only one per page).
+ * - Heading hierarchy: H1 (Hero) -> H2 (each section) -> H3 (sub-items).
+ * - Semantic landmarks: `<header>`, `<main>`, `<footer>`.
+ * - Every `<section>` has an `id` for anchor linking and `aria-labelledby` for accessibility.
+ * - `StructuredData` emits JSON-LD before any visible content.
+ *
+ * ## GEO Architecture
+ * - Above-fold content (Navbar, Hero) is statically rendered (Server Components where possible)
+ *   for immediate availability to AI crawlers.
+ * - Section `id` attributes serve as fragment anchors for precise AI citations.
+ * - Content ordering prioritizes answer-first patterns: definition (Hero) ->
+ *   examples (Templates) -> capabilities (Features) -> social proof (Collaboration) ->
+ *   enterprise (Enterprise) -> pricing (Pricing) -> testimonials (Testimonials).
+ */
+export default async function Landing() {
+  const blogPosts = await getNavBlogPosts()
 
-const LandingPricing = dynamic(
-  () => import('@/app/(landing)/components/landing-pricing/landing-pricing'),
-  {
-    loading: () => <div className='h-[400px] animate-pulse bg-gray-50' />,
-  }
-)
-
-const Integrations = dynamic(() => import('@/app/(landing)/components/integrations/integrations'), {
-  loading: () => <div className='h-[300px] animate-pulse bg-gray-50' />,
-})
-
-const Testimonials = dynamic(() => import('@/app/(landing)/components/testimonials/testimonials'), {
-  loading: () => <div className='h-[150px] animate-pulse bg-gray-50' />,
-})
-
-export default function Landing() {
   return (
-    <>
+    <div
+      className={`${season.variable} ${martianMono.variable} min-h-screen bg-[var(--landing-bg)]`}
+    >
+      <a
+        href='#main-content'
+        className='sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:font-medium focus:text-black focus:text-sm'
+      >
+        Skip to main content
+      </a>
+      <LandingAnalytics />
       <StructuredData />
-      <Background>
-        <header>
-          <Nav />
-        </header>
-        <main className='relative'>
-          <Suspense
-            fallback={
-              <div
-                className='h-[600px] animate-pulse bg-gray-50'
-                aria-label='Loading hero section'
-              />
-            }
-          >
-            <Hero />
-          </Suspense>
-          <Suspense
-            fallback={
-              <div
-                className='h-[400px] animate-pulse bg-gray-50'
-                aria-label='Loading pricing section'
-              />
-            }
-          >
-            <LandingPricing />
-          </Suspense>
-          <Suspense
-            fallback={
-              <div
-                className='h-[300px] animate-pulse bg-gray-50'
-                aria-label='Loading integrations section'
-              />
-            }
-          >
-            <Integrations />
-          </Suspense>
-          <Suspense
-            fallback={
-              <div
-                className='h-[150px] animate-pulse bg-gray-50'
-                aria-label='Loading testimonials section'
-              />
-            }
-          >
-            <Testimonials />
-          </Suspense>
-        </main>
-        <Footer />
-      </Background>
-    </>
+      <header>
+        <Navbar blogPosts={blogPosts} />
+      </header>
+      <main id='main-content'>
+        <article itemScope itemType='https://schema.org/WebPage'>
+          <meta itemProp='name' content='Sim — Build AI Agents & Run Your Agentic Workforce' />
+          <meta
+            itemProp='description'
+            content='Sim is the open-source platform to build AI agents and run your agentic workforce.'
+          />
+          <Hero />
+          <Templates />
+          <Features />
+          <Collaboration />
+          {/* <Enterprise /> */}
+          <Pricing />
+          <Testimonials />
+        </article>
+      </main>
+      <Footer />
+    </div>
   )
 }

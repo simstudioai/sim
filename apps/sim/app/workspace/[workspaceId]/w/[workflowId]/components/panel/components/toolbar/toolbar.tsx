@@ -12,7 +12,9 @@ import {
 } from 'react'
 import clsx from 'clsx'
 import { Search } from 'lucide-react'
+import { usePostHog } from 'posthog-js/react'
 import { Button } from '@/components/emcn'
+import { captureEvent } from '@/lib/posthog/client'
 import {
   getBlocksForSidebar,
   getTriggersForSidebar,
@@ -28,6 +30,7 @@ import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/component
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import type { BlockConfig } from '@/blocks/types'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSandboxBlockConstraints } from '@/hooks/use-sandbox-block-constraints'
 import { useToolbarStore } from '@/stores/panel'
 
 interface BlockItem {
@@ -108,14 +111,14 @@ const ToolbarItem = memo(function ToolbarItem({
       onClick={handleClick}
       onContextMenu={handleContextMenu}
       className={clsx(
-        'group flex h-[28px] items-center gap-[8px] rounded-[8px] px-[6px] text-[14px]',
-        'cursor-pointer hover:bg-[var(--surface-6)] active:cursor-grabbing dark:hover:bg-[var(--surface-5)]',
+        'group flex h-[28px] items-center gap-2 rounded-lg px-1.5 text-sm',
+        'cursor-pointer hover-hover:bg-[var(--surface-6)] active:cursor-grabbing dark:hover-hover:bg-[var(--surface-5)]',
         'focus-visible:bg-[var(--surface-6)] focus-visible:outline-none dark:focus-visible:bg-[var(--surface-5)]'
       )}
       onKeyDown={handleKeyDown}
     >
       <div
-        className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
+        className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
         style={{ background: item.bgColor }}
       >
         {Icon && (
@@ -310,6 +313,14 @@ export const Toolbar = memo(
     // Search state
     const [isSearchActive, setIsSearchActive] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
+    const [prevIsActive, setPrevIsActive] = useState(isActive)
+    if (isActive !== prevIsActive) {
+      setPrevIsActive(isActive)
+      if (!isActive) {
+        setIsSearchActive(false)
+        setSearchQuery('')
+      }
+    }
 
     // Toggle animation state
     const [isToggling, setIsToggling] = useState(false)
@@ -339,25 +350,28 @@ export const Toolbar = memo(
       triggersHeaderRef,
     })
 
+    const posthog = usePostHog()
     const { filterBlocks } = usePermissionConfig()
+    const sandboxAllowedBlocks = useSandboxBlockConstraints()
 
     const allTriggers = getTriggers()
     const allBlocks = getBlocks()
 
-    const blocks = useMemo(() => filterBlocks(allBlocks), [filterBlocks, allBlocks])
-    const triggers = useMemo(() => filterBlocks(allTriggers), [filterBlocks, allTriggers])
+    const blocks = useMemo(() => {
+      const permitted = filterBlocks(allBlocks)
+      if (sandboxAllowedBlocks === null) return permitted
+      return permitted.filter((b) => sandboxAllowedBlocks.includes(b.type))
+    }, [filterBlocks, allBlocks, sandboxAllowedBlocks])
+    const triggers = useMemo(() => {
+      if (sandboxAllowedBlocks !== null) return []
+      return filterBlocks(allTriggers)
+    }, [filterBlocks, allTriggers, sandboxAllowedBlocks])
 
     const isTriggersAtMinimum = toolbarTriggersHeight <= TRIGGERS_MIN_THRESHOLD
 
     /**
-     * Clear search when tab becomes inactive
+     * Filter items based on search query
      */
-    useEffect(() => {
-      if (!isActive) {
-        setIsSearchActive(false)
-        setSearchQuery('')
-      }
-    }, [isActive])
 
     /**
      * Filter items based on search query
@@ -530,8 +544,12 @@ export const Toolbar = memo(
     const handleViewDocumentation = useCallback(() => {
       if (activeItemInfo?.docsLink) {
         window.open(activeItemInfo.docsLink, '_blank', 'noopener,noreferrer')
+        captureEvent(posthog, 'docs_opened', {
+          source: 'toolbar_context_menu',
+          block_type: activeItemInfo.type,
+        })
       }
-    }, [activeItemInfo])
+    }, [activeItemInfo, posthog])
 
     /**
      * Handle clicks outside the context menu to close it
@@ -705,11 +723,11 @@ export const Toolbar = memo(
       >
         {/* Header */}
         <div
-          className='mx-[-1px] flex flex-shrink-0 cursor-pointer items-center justify-between rounded-[4px] border border-[var(--border)] bg-[var(--surface-4)] px-[12px] py-[6px]'
+          className='mx-[-1px] flex flex-shrink-0 cursor-pointer items-center justify-between border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'
           onClick={handleSearchClick}
         >
-          <h2 className='font-medium text-[14px] text-[var(--text-primary)]'>Toolbar</h2>
-          <div className='flex shrink-0 items-center gap-[8px]'>
+          <h2 className='font-medium text-[var(--text-primary)] text-sm'>Toolbar</h2>
+          <div className='flex shrink-0 items-center gap-2'>
             {!isSearchActive ? (
               <Button
                 variant='ghost'
@@ -726,7 +744,7 @@ export const Toolbar = memo(
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onBlur={handleSearchBlur}
-                className='w-full border-none bg-transparent pr-[2px] text-right font-medium text-[13px] text-[var(--text-primary)] placeholder:text-[#737373] focus:outline-none'
+                className='w-full border-none bg-transparent pr-0.5 text-right font-medium text-[var(--text-primary)] text-small placeholder:text-[var(--text-muted)] focus:outline-none'
               />
             )}
           </div>
@@ -744,12 +762,12 @@ export const Toolbar = memo(
           >
             <div
               ref={triggersHeaderRef}
-              className='px-[10px] pt-[5px] pb-[5px] font-medium text-[13px] text-[var(--text-primary)]'
+              className='px-2.5 pt-1.5 pb-1.5 font-medium text-[var(--text-primary)] text-small'
             >
               Triggers
             </div>
-            <div className='flex-1 overflow-y-auto overflow-x-hidden px-[6px]'>
-              <div ref={triggersContentRef} className='space-y-[2px] pb-[8px]'>
+            <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5'>
+              <div ref={triggersContentRef} className='space-y-1 pb-2'>
                 {filteredTriggers.map((trigger, index) => (
                   <ToolbarItem
                     key={trigger.type}
@@ -778,12 +796,12 @@ export const Toolbar = memo(
             <div
               ref={blocksHeaderRef}
               onClick={handleBlocksHeaderClick}
-              className='cursor-pointer px-[10px] pt-[5px] pb-[5px] font-medium text-[13px] text-[var(--text-primary)]'
+              className='cursor-pointer px-2.5 pt-1.5 pb-1.5 font-medium text-[var(--text-primary)] text-small'
             >
               Blocks
             </div>
-            <div className='flex-1 overflow-y-auto overflow-x-hidden px-[6px]'>
-              <div className='space-y-[2px] pb-[8px]'>
+            <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5'>
+              <div className='space-y-1 pb-2'>
                 {filteredBlocks.map((block, index) => (
                   <ToolbarItem
                     key={block.type}

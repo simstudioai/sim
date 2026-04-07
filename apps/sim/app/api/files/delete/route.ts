@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import type { StorageContext } from '@/lib/uploads/config'
 import { deleteFile, hasCloudStorage } from '@/lib/uploads/core/storage-service'
+import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
 import { extractStorageKey, inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import {
@@ -67,6 +68,7 @@ export async function POST(request: NextRequest) {
         key,
         context: storageContext,
       })
+      await deleteFileMetadata(key)
 
       logger.info(`File successfully deleted: ${key}`)
 

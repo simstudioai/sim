@@ -19,6 +19,7 @@ import {
   calculateCost,
   prepareToolExecution,
   prepareToolsWithUsageControl,
+  sumToolCosts,
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
 
@@ -76,17 +77,24 @@ const THINKING_BUDGET_TOKENS: Record<string, number> = {
 }
 
 /**
- * Checks if a model supports adaptive thinking (Opus 4.6+)
+ * Checks if a model supports adaptive thinking (thinking.type: "adaptive").
+ * Per the Anthropic API, only Opus 4.6 and Sonnet 4.6 support adaptive thinking.
+ * Opus 4.5 supports effort but NOT adaptive thinking — it uses budget_tokens with type: "enabled".
  */
 function supportsAdaptiveThinking(modelId: string): boolean {
   const normalizedModel = modelId.toLowerCase()
-  return normalizedModel.includes('opus-4-6') || normalizedModel.includes('opus-4.6')
+  return (
+    normalizedModel.includes('opus-4-6') ||
+    normalizedModel.includes('opus-4.6') ||
+    normalizedModel.includes('sonnet-4-6') ||
+    normalizedModel.includes('sonnet-4.6')
+  )
 }
 
 /**
  * Builds the thinking configuration for the Anthropic API based on model capabilities and level.
  *
- * - Opus 4.6: Uses adaptive thinking with effort parameter (recommended by Anthropic)
+ * - Opus 4.6, Sonnet 4.6: Uses adaptive thinking with effort parameter
  * - Other models: Uses budget_tokens-based extended thinking
  *
  * Returns both the thinking config and optional output_config for adaptive thinking.
@@ -103,7 +111,7 @@ function buildThinkingConfig(
     return null
   }
 
-  // Opus 4.6 uses adaptive thinking with effort parameter
+  // Models with effort support use adaptive thinking
   if (supportsAdaptiveThinking(modelId)) {
     return {
       thinking: { type: 'adaptive' },
@@ -490,7 +498,7 @@ export async function executeAnthropicProviderRequest(
       }
 
       const toolCalls = []
-      const toolResults = []
+      const toolResults: Record<string, unknown>[] = []
       const currentMessages = [...messages]
       let iterationCount = 0
       let hasUsedForcedTool = false
@@ -609,7 +617,7 @@ export async function executeAnthropicProviderRequest(
             })
 
             let resultContent: unknown
-            if (result.success) {
+            if (result.success && result.output) {
               toolResults.push(result.output)
               resultContent = result.output
             } else {
@@ -783,10 +791,12 @@ export async function executeAnthropicProviderRequest(
             }
 
             const streamCost = calculateCost(request.model, usage.input_tokens, usage.output_tokens)
+            const tc = sumToolCosts(toolResults)
             streamingResult.execution.output.cost = {
               input: accumulatedCost.input + streamCost.input,
               output: accumulatedCost.output + streamCost.output,
-              total: accumulatedCost.total + streamCost.total,
+              toolCost: tc || undefined,
+              total: accumulatedCost.total + streamCost.total + tc,
             }
 
             const streamEndTime = Date.now()
@@ -829,6 +839,7 @@ export async function executeAnthropicProviderRequest(
             cost: {
               input: accumulatedCost.input,
               output: accumulatedCost.output,
+              toolCost: undefined as number | undefined,
               total: accumulatedCost.total,
             },
           },
@@ -901,7 +912,7 @@ export async function executeAnthropicProviderRequest(
     }
 
     const toolCalls = []
-    const toolResults = []
+    const toolResults: Record<string, unknown>[] = []
     const currentMessages = [...messages]
     let iterationCount = 0
     let hasUsedForcedTool = false
@@ -1022,7 +1033,7 @@ export async function executeAnthropicProviderRequest(
           })
 
           let resultContent: unknown
-          if (result.success) {
+          if (result.success && result.output) {
             toolResults.push(result.output)
             resultContent = result.output
           } else {
@@ -1208,10 +1219,12 @@ export async function executeAnthropicProviderRequest(
             }
 
             const streamCost = calculateCost(request.model, usage.input_tokens, usage.output_tokens)
+            const tc2 = sumToolCosts(toolResults)
             streamingResult.execution.output.cost = {
               input: cost.input + streamCost.input,
               output: cost.output + streamCost.output,
-              total: cost.total + streamCost.total,
+              toolCost: tc2 || undefined,
+              total: cost.total + streamCost.total + tc2,
             }
 
             const streamEndTime = Date.now()
@@ -1254,6 +1267,7 @@ export async function executeAnthropicProviderRequest(
             cost: {
               input: cost.input,
               output: cost.output,
+              toolCost: undefined as number | undefined,
               total: cost.total,
             },
           },

@@ -2,8 +2,8 @@ import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
 import { useDeleteFolderMutation } from '@/hooks/queries/folders'
+import { useDeleteWorkflowMutation, useWorkflows } from '@/hooks/queries/workflows'
 import { useFolderStore } from '@/stores/folders/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('useDeleteSelection')
 
@@ -46,7 +46,8 @@ export function useDeleteSelection({
   onSuccess,
 }: UseDeleteSelectionProps) {
   const router = useRouter()
-  const { workflows, removeWorkflow } = useWorkflowRegistry()
+  const { data: workflowList = [] } = useWorkflows(workspaceId)
+  const deleteWorkflowMutation = useDeleteWorkflowMutation()
   const deleteFolderMutation = useDeleteFolderMutation()
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -71,7 +72,7 @@ export function useDeleteSelection({
         ? workflowIds.some((id) => isActiveWorkflow(id))
         : false
 
-      const sidebarWorkflows = Object.values(workflows).filter((w) => w.workspaceId === workspaceId)
+      const sidebarWorkflows = workflowList.filter((w) => w.workspaceId === workspaceId)
 
       const workflowsInFolders = sidebarWorkflows
         .filter((w) => w.folderId && folderIds.includes(w.folderId))
@@ -118,7 +119,7 @@ export function useDeleteSelection({
         if (nextWorkflowId) {
           router.push(`/workspace/${workspaceId}/w/${nextWorkflowId}`)
         } else {
-          router.push(`/workspace/${workspaceId}/w`)
+          router.push(`/workspace/${workspaceId}/home`)
         }
       }
 
@@ -127,7 +128,11 @@ export function useDeleteSelection({
       }
 
       const standaloneWorkflowIds = workflowIds.filter((id) => !workflowsInFolders.includes(id))
-      await Promise.all(standaloneWorkflowIds.map((id) => removeWorkflow(id)))
+      await Promise.all(
+        standaloneWorkflowIds.map((id) =>
+          deleteWorkflowMutation.mutateAsync({ workspaceId, workflowId: id })
+        )
+      )
 
       const { clearSelection, clearFolderSelection } = useFolderStore.getState()
       clearSelection()
@@ -150,12 +155,10 @@ export function useDeleteSelection({
     workflowIds,
     folderIds,
     isDeleting,
-    workflows,
+    workflowList,
     workspaceId,
     isActiveWorkflow,
     router,
-    removeWorkflow,
-    deleteFolderMutation,
     onSuccess,
   ])
 

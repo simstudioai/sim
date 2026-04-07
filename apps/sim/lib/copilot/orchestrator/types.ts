@@ -1,12 +1,18 @@
+import type { MothershipResource } from '@/lib/copilot/resource-types'
+
 export type SSEEventType =
   | 'chat_id'
+  | 'request_id'
   | 'title_updated'
   | 'content'
   | 'reasoning'
   | 'tool_call'
+  | 'tool_call_delta'
   | 'tool_generating'
   | 'tool_result'
   | 'tool_error'
+  | 'resource_added'
+  | 'resource_deleted'
   | 'subagent_start'
   | 'subagent_end'
   | 'structured_result'
@@ -17,7 +23,12 @@ export type SSEEventType =
 
 export interface SSEEvent {
   type: SSEEventType
+  /** Authoritative tool call state set by the server */
+  state?: string
   data?: Record<string, unknown>
+  /** Parent agent that produced this event */
+  agent?: string
+  /** Subagent identifier (e.g. "build", "fast_edit") */
   subagent?: string
   toolCallId?: string
   toolName?: string
@@ -33,11 +44,32 @@ export interface SSEEvent {
   content?: string
   /** Set on reasoning events */
   phase?: string
-  /** Set on tool_result events */
-  failedDependency?: boolean
+  /** UI metadata from copilot (title, icon, phaseLabel) */
+  ui?: Record<string, unknown>
+  /** Set on resource_added events */
+  resource?: { type: string; id: string; title: string }
 }
 
-export type ToolCallStatus = 'pending' | 'executing' | 'success' | 'error' | 'skipped' | 'rejected'
+export type ToolCallStatus =
+  | 'pending'
+  | 'executing'
+  | 'success'
+  | 'error'
+  | 'skipped'
+  | 'rejected'
+  | 'cancelled'
+
+const TERMINAL_TOOL_STATUSES: ReadonlySet<ToolCallStatus> = new Set([
+  'success',
+  'error',
+  'cancelled',
+  'skipped',
+  'rejected',
+])
+
+export function isTerminalToolCallStatus(status?: string): boolean {
+  return TERMINAL_TOOL_STATUSES.has(status as ToolCallStatus)
+}
 
 export interface ToolCallState {
   id: string
@@ -54,33 +86,50 @@ export interface ToolCallResult<T = unknown> {
   success: boolean
   output?: T
   error?: string
+  resources?: MothershipResource[]
 }
 
-export type ContentBlockType = 'text' | 'thinking' | 'tool_call' | 'subagent_text'
+export type ContentBlockType = 'text' | 'thinking' | 'tool_call' | 'subagent_text' | 'subagent'
 
 export interface ContentBlock {
   type: ContentBlockType
   content?: string
   toolCall?: ToolCallState
+  calledBy?: string
   timestamp: number
 }
 
 export interface StreamingContext {
   chatId?: string
-  conversationId?: string
+  requestId?: string
+  executionId?: string
+  runId?: string
   messageId: string
   accumulatedContent: string
   contentBlocks: ContentBlock[]
   toolCalls: Map<string, ToolCallState>
+  pendingToolPromises: Map<
+    string,
+    Promise<{ status: string; message?: string; data?: Record<string, unknown> }>
+  >
+  awaitingAsyncContinuation?: {
+    checkpointId: string
+    executionId?: string
+    runId?: string
+    pendingToolCallIds: string[]
+  }
   currentThinkingBlock: ContentBlock | null
   isInThinkingBlock: boolean
   subAgentParentToolCallId?: string
+  subAgentParentStack: string[]
   subAgentContent: Record<string, string>
   subAgentToolCalls: Record<string, ToolCallState[]>
   pendingContent: string
   streamComplete: boolean
   wasAborted: boolean
   errors: string[]
+  usage?: { prompt: number; completion: number }
+  cost?: { input: number; output: number; total: number }
 }
 
 export interface FileAttachment {
@@ -98,7 +147,6 @@ export interface OrchestratorRequest {
   chatId?: string
   mode?: 'agent' | 'ask' | 'plan'
   model?: string
-  conversationId?: string
   contexts?: Array<{ type: string; content: string }>
   fileAttachments?: FileAttachment[]
   commands?: string[]
@@ -116,6 +164,14 @@ export interface OrchestratorOptions {
   onComplete?: (result: OrchestratorResult) => void | Promise<void>
   onError?: (error: Error) => void | Promise<void>
   abortSignal?: AbortSignal
+  /** Fires only on explicit user stop, never on passive transport disconnect. */
+  userStopSignal?: AbortSignal
+  /**
+   * Fires when the SSE client disconnects (tab close, navigation, etc.).
+   * Used to short-circuit `waitForToolCompletion` for client-executable tools
+   * so the orchestrator doesn't block for the full 60-min timeout.
+   */
+  clientDisconnectedSignal?: AbortSignal
   interactive?: boolean
 }
 
@@ -125,9 +181,11 @@ export interface OrchestratorResult {
   contentBlocks: ContentBlock[]
   toolCalls: ToolCallSummary[]
   chatId?: string
-  conversationId?: string
+  requestId?: string
   error?: string
   errors?: string[]
+  usage?: { prompt: number; completion: number }
+  cost?: { input: number; output: number; total: number }
 }
 
 export interface ToolCallSummary {
@@ -144,5 +202,14 @@ export interface ExecutionContext {
   userId: string
   workflowId: string
   workspaceId?: string
+  chatId?: string
+  messageId?: string
+  executionId?: string
+  runId?: string
+  abortSignal?: AbortSignal
+  /** Fires only on explicit user stop, never on passive transport disconnect. */
+  userStopSignal?: AbortSignal
+  userTimezone?: string
+  userPermission?: string
   decryptedEnvVars?: Record<string, string>
 }

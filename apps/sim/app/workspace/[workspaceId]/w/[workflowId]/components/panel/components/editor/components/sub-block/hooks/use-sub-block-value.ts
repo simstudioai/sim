@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
-import { isEqual } from 'lodash'
+import { isEqual } from 'es-toolkit'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'

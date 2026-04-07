@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto'
 import { render } from '@react-email/render'
 import { db } from '@sim/db'
 import {
@@ -10,16 +9,17 @@ import {
   workspaceInvitation,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { WorkspaceInvitationEmail } from '@/components/emails'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
-import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
+import { getWorkspaceById, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceInvitationAPI')
 
@@ -74,7 +74,7 @@ export async function GET(
     const workspaceDetails = await db
       .select()
       .from(workspace)
-      .where(eq(workspace.id, invitation.workspaceId))
+      .where(and(eq(workspace.id, invitation.workspaceId), isNull(workspace.archivedAt)))
       .then((rows) => rows[0])
 
     if (!workspaceDetails) {
@@ -141,13 +141,13 @@ export async function GET(
           .where(eq(workspaceInvitation.id, invitation.id))
 
         return NextResponse.redirect(
-          new URL(`/workspace/${invitation.workspaceId}/w`, getBaseUrl())
+          new URL(`/workspace/${invitation.workspaceId}/home`, getBaseUrl())
         )
       }
 
       await db.transaction(async (tx) => {
         await tx.insert(permissions).values({
-          id: randomUUID(),
+          id: generateId(),
           entityType: 'workspace' as const,
           entityId: invitation.workspaceId,
           userId: session.user.id,
@@ -193,7 +193,18 @@ export async function GET(
         request: req,
       })
 
-      return NextResponse.redirect(new URL(`/workspace/${invitation.workspaceId}/w`, getBaseUrl()))
+      return NextResponse.redirect(
+        new URL(`/workspace/${invitation.workspaceId}/home`, getBaseUrl())
+      )
+    }
+
+    const isInvitee = session.user.email?.toLowerCase() === invitation.email.toLowerCase()
+
+    if (!isInvitee) {
+      const hasAdminAccess = await hasWorkspaceAdminAccess(session.user.id, invitation.workspaceId)
+      if (!hasAdminAccess) {
+        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+      }
     }
 
     return NextResponse.json({
@@ -233,6 +244,11 @@ export async function DELETE(
 
     if (!invitation) {
       return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
+    }
+
+    const activeWorkspace = await getWorkspaceById(invitation.workspaceId)
+    if (!activeWorkspace) {
+      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
     }
 
     const hasAdminAccess = await hasWorkspaceAdminAccess(session.user.id, invitation.workspaceId)
@@ -309,7 +325,7 @@ export async function POST(
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
     }
 
-    const newToken = randomUUID()
+    const newToken = generateId()
     const newExpiresAt = new Date()
     newExpiresAt.setDate(newExpiresAt.getDate() + 7)
 

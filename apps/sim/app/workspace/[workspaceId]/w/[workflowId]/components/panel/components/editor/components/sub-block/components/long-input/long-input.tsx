@@ -4,7 +4,6 @@ import {
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -123,11 +122,9 @@ export function LongInput({
     isStreaming: wandHook.isStreaming,
   })
 
-  useEffect(() => {
-    persistSubBlockValueRef.current = (value: string) => {
-      setSubBlockValue(value)
-    }
-  }, [setSubBlockValue])
+  persistSubBlockValueRef.current = (value: string) => {
+    setSubBlockValue(value)
+  }
 
   // Check if wand is actually enabled
   const isWandEnabled = config.wandConfig?.enabled ?? false
@@ -182,10 +179,7 @@ export function LongInput({
   )
 
   // During streaming, use local content; otherwise use the controller value
-  const value = useMemo(() => {
-    if (wandHook.isStreaming) return localContent
-    return ctrl.valueString
-  }, [wandHook.isStreaming, localContent, ctrl.valueString])
+  const value = wandHook.isStreaming ? localContent : ctrl.valueString
 
   // Base value for syncing (not including streaming)
   const baseValue = isPreview
@@ -197,12 +191,12 @@ export function LongInput({
   // Sync local content with base value when not streaming
   useEffect(() => {
     if (!wandHook.isStreaming) {
-      const baseValueString = baseValue?.toString() ?? ''
-      if (baseValueString !== localContent) {
-        setLocalContent(baseValueString)
-      }
+      setLocalContent((prev) => {
+        const baseValueString = baseValue?.toString() ?? ''
+        return baseValueString !== prev ? baseValueString : prev
+      })
     }
-  }, [baseValue, wandHook.isStreaming]) // Removed localContent to prevent infinite loop
+  }, [baseValue, wandHook.isStreaming])
 
   // Update height when rows prop changes
   useLayoutEffect(() => {
@@ -353,7 +347,7 @@ export function LongInput({
               <div
                 ref={overlayRef}
                 className={cn(
-                  'absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-[8px] py-[8px] font-medium font-sans text-sm',
+                  'absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-2 py-2 font-medium font-sans text-sm',
                   (isPreview || disabled) && 'opacity-50',
                   !(isPreview || disabled) && 'pointer-events-none'
                 )}
@@ -383,7 +377,7 @@ export function LongInput({
                     }
                     disabled={wandHook.isLoading || wandHook.isStreaming || disabled}
                     aria-label='Generate content with AI'
-                    className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-foreground hover:shadow'
+                    className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
                   >
                     <Wand2 className='h-4 w-4' />
                   </Button>
@@ -393,7 +387,7 @@ export function LongInput({
               {/* Custom resize handle */}
               {!wandHook.isStreaming && (
                 <div
-                  className='absolute right-1 bottom-1 flex h-4 w-4 cursor-ns-resize items-center justify-center rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
+                  className='absolute right-1 bottom-1 flex h-4 w-4 cursor-ns-resize items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
                   onMouseDown={startResize}
                   onDragStart={(e) => {
                     e.preventDefault()

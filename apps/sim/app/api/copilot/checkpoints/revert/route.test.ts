@@ -15,6 +15,7 @@ const {
   mockDeleteWhere,
   mockAuthorize,
   mockGetSession,
+  mockGetAccessibleCopilotChat,
 } = vi.hoisted(() => ({
   mockSelect: vi.fn(),
   mockFrom: vi.fn(),
@@ -24,6 +25,7 @@ const {
   mockDeleteWhere: vi.fn(),
   mockAuthorize: vi.fn(),
   mockGetSession: vi.fn(),
+  mockGetAccessibleCopilotChat: vi.fn(),
 }))
 
 vi.mock('@/lib/auth', () => ({
@@ -39,6 +41,10 @@ vi.mock('@/lib/core/utils/urls', () => ({
 
 vi.mock('@/lib/workflows/utils', () => ({
   authorizeWorkflowByWorkspacePermission: mockAuthorize,
+}))
+
+vi.mock('@/lib/copilot/chat-lifecycle', () => ({
+  getAccessibleCopilotChat: mockGetAccessibleCopilotChat,
 }))
 
 vi.mock('@sim/db', () => ({
@@ -102,6 +108,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
     // Mock delete chain
     mockDelete.mockReturnValue({ where: mockDeleteWhere })
     mockDeleteWhere.mockResolvedValue(undefined)
+    mockGetAccessibleCopilotChat.mockResolvedValue({ id: 'chat-123', userId: 'user-123' })
 
     global.fetch = vi.fn()
 
@@ -297,7 +304,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
           loops: {},
           parallels: {},
           isDeployed: true,
-          deploymentStatuses: { production: 'deployed' },
         },
       }
 
@@ -342,7 +348,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
             loops: {},
             parallels: {},
             isDeployed: true,
-            deploymentStatuses: { production: 'deployed' },
             lastSaved: 1640995200000,
           },
         },
@@ -363,7 +368,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
             loops: {},
             parallels: {},
             isDeployed: true,
-            deploymentStatuses: { production: 'deployed' },
             lastSaved: 1640995200000,
           }),
         }
@@ -466,7 +470,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
           edges: undefined,
           loops: null,
           parallels: undefined,
-          deploymentStatuses: null,
         },
       }
 
@@ -501,7 +504,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
         loops: {},
         parallels: {},
         isDeployed: false,
-        deploymentStatuses: {},
         lastSaved: 1640995200000,
       })
     })
@@ -761,10 +763,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
             parallel1: { branches: ['branch1', 'branch2'] },
           },
           isDeployed: true,
-          deploymentStatuses: {
-            production: 'deployed',
-            staging: 'pending',
-          },
           deployedAt: '2024-01-01T10:00:00.000Z',
         },
       }
@@ -809,10 +807,6 @@ describe('Copilot Checkpoints Revert API Route', () => {
           parallel1: { branches: ['branch1', 'branch2'] },
         },
         isDeployed: true,
-        deploymentStatuses: {
-          production: 'deployed',
-          staging: 'pending',
-        },
         deployedAt: '2024-01-01T10:00:00.000Z',
         lastSaved: 1640995200000,
       })

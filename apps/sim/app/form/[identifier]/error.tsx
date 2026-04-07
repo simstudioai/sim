@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
-import { BrandedButton } from '@/app/(auth)/components/branded-button'
+import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { StatusPageLayout } from '@/app/(auth)/components/status-page-layout'
 
 const logger = createLogger('FormError')
@@ -21,9 +21,10 @@ export default function FormError({ error, reset }: FormErrorProps) {
     <StatusPageLayout
       title='Something went wrong'
       description='We encountered an error loading this form. Please try again.'
-      hideNav
     >
-      <BrandedButton onClick={reset}>Try again</BrandedButton>
+      <button onClick={reset} className={AUTH_SUBMIT_BTN}>
+        Try again
+      </button>
     </StatusPageLayout>
   )
 }

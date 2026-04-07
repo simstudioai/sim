@@ -1,9 +1,11 @@
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { createLogger } from '@sim/logger'
+import { getCopilotToolDescription } from '@/lib/copilot/tool-descriptions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { GetBlocksMetadataInput, GetBlocksMetadataResult } from '@/lib/copilot/tools/shared/schemas'
-import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
+import { getAllowedIntegrationsFromEnv, isHosted } from '@/lib/core/config/feature-flags'
+import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { registry as blockRegistry } from '@/blocks/registry'
 import { AuthMode, type BlockConfig, isHiddenFromDisplay } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
@@ -161,7 +163,10 @@ export const getBlocksMetadataServerTool: BaseServerTool<
               return {
                 id: toolId,
                 name: tool.name || toolId,
-                description: tool.description || '',
+                description: getCopilotToolDescription(tool, {
+                  isHosted,
+                  fallbackName: toolId,
+                }),
                 inputs: tool.params || {},
                 outputs: tool.outputs || {},
               }
@@ -246,7 +251,12 @@ export const getBlocksMetadataServerTool: BaseServerTool<
           operations[opId] = {
             toolId: resolvedToolId,
             toolName: toolCfg?.name || resolvedToolId,
-            description: toolCfg?.description || undefined,
+            description: toolCfg
+              ? getCopilotToolDescription(toolCfg, {
+                  isHosted,
+                  fallbackName: resolvedToolId,
+                })
+              : undefined,
             inputs: { ...filteredToolParams, ...(operationInputs[opId] || {}) },
             outputs: toolOutputs,
             inputSchema: operationParameters[opId] || [],
@@ -332,6 +342,20 @@ function transformBlockMetadata(metadata: CopilotBlockMetadata): any {
         type: 'oauth',
         service: metadata.id, // e.g., 'gmail', 'slack', etc.
         description: `OAuth authentication required for ${metadata.name}`,
+      }
+
+      // Check if this service also supports service account credentials
+      const oauthSubBlock = metadata.inputSchema?.find(
+        (sb: CopilotSubblockMetadata) => sb.type === 'oauth-input' && sb.serviceId
+      )
+      if (oauthSubBlock?.serviceId) {
+        const serviceAccountProviderId = getServiceAccountProviderForProviderId(
+          oauthSubBlock.serviceId
+        )
+        if (serviceAccountProviderId) {
+          transformed.requiredCredentials.serviceAccountType = serviceAccountProviderId
+          transformed.requiredCredentials.description = `OAuth or service account authentication supported for ${metadata.name}`
+        }
       }
     } else if (metadata.authType === 'API Key') {
       transformed.requiredCredentials = {
@@ -687,14 +711,19 @@ function resolveAuthType(
 /**
  * Gets all available models from PROVIDER_DEFINITIONS as static options.
  * This provides fallback data when store state is not available server-side.
- * Excludes dynamic providers (ollama, vllm, openrouter) which require runtime fetching.
+ * Excludes dynamic providers (ollama, vllm, openrouter, fireworks) which require runtime fetching.
  */
 function getStaticModelOptions(): { id: string; label?: string }[] {
   const models: { id: string; label?: string }[] = []
 
   for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
     // Skip providers with dynamic/fetched models
-    if (provider.id === 'ollama' || provider.id === 'vllm' || provider.id === 'openrouter') {
+    if (
+      provider.id === 'ollama' ||
+      provider.id === 'vllm' ||
+      provider.id === 'openrouter' ||
+      provider.id === 'fireworks'
+    ) {
       continue
     }
     if (provider?.models) {
@@ -728,6 +757,7 @@ function callOptionsWithFallback(
       ollama: { models: [] },
       vllm: { models: [] },
       openrouter: { models: [] },
+      fireworks: { models: [] },
     },
   }
 

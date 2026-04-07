@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId } from '@/lib/core/utils/uuid'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -17,6 +18,7 @@ const DuplicateRequestSchema = z.object({
   workspaceId: z.string().optional(),
   parentId: z.string().nullable().optional(),
   color: z.string().optional(),
+  newId: z.string().uuid().optional(),
 })
 
 // POST /api/folders/[id]/duplicate - Duplicate a folder with all its child folders and workflows
@@ -33,7 +35,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   try {
     const body = await req.json()
-    const { name, workspaceId, parentId, color } = DuplicateRequestSchema.parse(body)
+    const {
+      name,
+      workspaceId,
+      parentId,
+      color,
+      newId: clientNewId,
+    } = DuplicateRequestSchema.parse(body)
 
     logger.info(`[${requestId}] Duplicating folder ${sourceFolderId} for user ${session.user.id}`)
 
@@ -60,7 +68,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const targetWorkspaceId = workspaceId || sourceFolder.workspaceId
 
     const { newFolderId, folderMapping } = await db.transaction(async (tx) => {
-      const newFolderId = crypto.randomUUID()
+      const newFolderId = clientNewId || generateId()
       const now = new Date()
       const targetParentId = parentId ?? sourceFolder.parentId
 
@@ -220,7 +228,7 @@ async function duplicateFolderStructure(
     )
 
   for (const childFolder of childFolders) {
-    const newChildFolderId = crypto.randomUUID()
+    const newChildFolderId = generateId()
     folderMapping.set(childFolder.id, newChildFolderId)
 
     await tx.insert(workflowFolder).values({

@@ -9,8 +9,9 @@ import type {
   ToolCallSummary,
 } from '@/lib/copilot/orchestrator/types'
 import { env } from '@/lib/core/config/env'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
-import { buildToolCallSummaries, createStreamingContext, runStreamLoop } from './stream-core'
+import { buildToolCallSummaries, createStreamingContext, runStreamLoop } from './stream/core'
 
 const logger = createLogger('CopilotSubagentOrchestrator')
 
@@ -18,6 +19,7 @@ export interface SubagentOrchestratorOptions extends Omit<OrchestratorOptions, '
   userId: string
   workflowId?: string
   workspaceId?: string
+  userPermission?: string
   onComplete?: (result: SubagentOrchestratorResult) => void | Promise<void>
 }
 
@@ -40,12 +42,12 @@ export async function orchestrateSubagentStream(
   requestPayload: Record<string, unknown>,
   options: SubagentOrchestratorOptions
 ): Promise<SubagentOrchestratorResult> {
-  const { userId, workflowId, workspaceId } = options
+  const { userId, workflowId, workspaceId, userPermission } = options
   const execContext = await buildExecutionContext(userId, workflowId, workspaceId)
 
   const msgId = requestPayload?.messageId
   const context = createStreamingContext({
-    messageId: typeof msgId === 'string' ? msgId : crypto.randomUUID(),
+    messageId: typeof msgId === 'string' ? msgId : generateId(),
   })
 
   let structuredResult: SubagentOrchestratorResult['structuredResult']
@@ -59,7 +61,12 @@ export async function orchestrateSubagentStream(
           'Content-Type': 'application/json',
           ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
         },
-        body: JSON.stringify({ ...requestPayload, userId, stream: true }),
+        body: JSON.stringify({
+          ...requestPayload,
+          userId,
+          stream: true,
+          ...(userPermission ? { userPermission } : {}),
+        }),
       },
       context,
       execContext,

@@ -3,7 +3,7 @@ import type { SelectorKey } from '@/hooks/selectors/types'
 import type { ToolResponse } from '@/tools/types'
 
 export type BlockIcon = (props: SVGProps<SVGSVGElement>) => JSX.Element
-export type ParamType = 'string' | 'number' | 'boolean' | 'json' | 'array'
+export type ParamType = 'string' | 'number' | 'boolean' | 'json' | 'array' | 'file'
 export type PrimitiveValueType =
   | 'string'
   | 'number'
@@ -15,6 +15,81 @@ export type PrimitiveValueType =
   | 'any'
 
 export type BlockCategory = 'blocks' | 'tools' | 'triggers'
+
+export enum IntegrationType {
+  AI = 'ai',
+  Analytics = 'analytics',
+  Automation = 'automation',
+  Communication = 'communication',
+  CRM = 'crm',
+  CustomerSupport = 'customer-support',
+  Databases = 'databases',
+  Design = 'design',
+  DeveloperTools = 'developer-tools',
+  Documents = 'documents',
+  Ecommerce = 'ecommerce',
+  Email = 'email',
+  FileStorage = 'file-storage',
+  HR = 'hr',
+  Media = 'media',
+  Other = 'other',
+  Productivity = 'productivity',
+  SalesIntelligence = 'sales-intelligence',
+  Search = 'search',
+  Security = 'security',
+  Social = 'social',
+}
+
+export type IntegrationTag =
+  | 'marketing'
+  | 'automation'
+  | 'webhooks'
+  | 'vector-search'
+  | 'meeting'
+  | 'calendar'
+  | 'scheduling'
+  | 'incident-management'
+  | 'monitoring'
+  | 'error-tracking'
+  | 'prediction-markets'
+  | 'document-processing'
+  | 'ocr'
+  | 'text-to-speech'
+  | 'speech-to-text'
+  | 'image-generation'
+  | 'video-generation'
+  | 'cloud'
+  | 'google-workspace'
+  | 'microsoft-365'
+  | 'data-warehouse'
+  | 'data-analytics'
+  | 'customer-support'
+  | 'project-management'
+  | 'ticketing'
+  | 'payments'
+  | 'subscriptions'
+  | 'enrichment'
+  | 'web-scraping'
+  | 'llm'
+  | 'messaging'
+  | 'version-control'
+  | 'ci-cd'
+  | 'note-taking'
+  | 'spreadsheet'
+  | 'seo'
+  | 'email-marketing'
+  | 'e-signatures'
+  | 'identity'
+  | 'secrets-management'
+  | 'hiring'
+  | 'sales-engagement'
+  | 'agentic'
+  | 'knowledge-base'
+  | 'content-management'
+  | 'forms'
+  | 'link-management'
+  | 'events'
+  | 'feature-flags'
 
 // Authentication modes for sub-blocks and summaries
 export enum AuthMode {
@@ -132,9 +207,7 @@ export type ToolOutputToValueType<T> = T extends Record<string, any>
     }
   : never
 
-export type BlockOutput =
-  | PrimitiveValueType
-  | { [key: string]: PrimitiveValueType | Record<string, any> }
+export type BlockOutput = PrimitiveValueType | { [key: string]: any }
 
 /**
  * Condition for showing an output field.
@@ -235,12 +308,14 @@ export interface SubBlockConfig {
         id: string
         icon?: React.ComponentType<{ className?: string }>
         group?: string
+        hidden?: boolean
       }[]
     | (() => {
         label: string
         id: string
         icon?: React.ComponentType<{ className?: string }>
         group?: string
+        hidden?: boolean
       }[])
   min?: number
   max?: number
@@ -252,7 +327,9 @@ export interface SubBlockConfig {
   connectionDroppable?: boolean
   hidden?: boolean
   hideFromPreview?: boolean // Hide this subblock from the workflow block preview
-  requiresFeature?: string // Environment variable name that must be truthy for this subblock to be visible
+  showWhenEnvSet?: string // Show this subblock only when the named NEXT_PUBLIC_ env var is truthy
+  hideWhenHosted?: boolean // Hide this subblock when running on hosted sim
+  hideWhenEnvSet?: string // Hide this subblock when the named NEXT_PUBLIC_ env var is truthy
   description?: string
   tooltip?: string // Tooltip text displayed via info icon next to the title
   value?: (params: Record<string, any>) => string
@@ -281,6 +358,18 @@ export interface SubBlockConfig {
           not?: boolean
         }
       })
+  /**
+   * Credential-type visibility gate. The first non-empty string value from
+   * `watchFields` is treated as a credential ID and fetched via the credentials
+   * API. The subblock is hidden unless `credential.type` matches `requiredType`.
+   *
+   * Only one subblock per block may use this. The serializer ignores it —
+   * the field is always serialized when it has a value.
+   */
+  reactiveCondition?: {
+    watchFields: string[]
+    requiredType: 'oauth' | 'service_account'
+  }
   // Props specific to 'code' sub-block type
   language?: 'javascript' | 'json' | 'python'
   generationType?: GenerationType
@@ -332,15 +421,11 @@ export interface SubBlockConfig {
   triggerId?: string
   // Dropdown/Combobox: Function to fetch options dynamically
   // Works with both 'dropdown' (select-only) and 'combobox' (editable with expression support)
-  fetchOptions?: (
-    blockId: string,
-    subBlockId: string
-  ) => Promise<Array<{ label: string; id: string }>>
+  fetchOptions?: (blockId: string) => Promise<Array<{ label: string; id: string }>>
   // Dropdown/Combobox: Function to fetch a single option's label by ID (for hydration)
   // Called when component mounts with a stored value to display the correct label before options load
   fetchOptionById?: (
     blockId: string,
-    subBlockId: string,
     optionId: string
   ) => Promise<{ label: string; id: string } | null>
 }
@@ -350,6 +435,8 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
   name: string
   description: string
   category: BlockCategory
+  integrationType?: IntegrationType
+  tags?: IntegrationTag[]
   longDescription?: string
   bestPractices?: string
   docsLink?: string

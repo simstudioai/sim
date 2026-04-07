@@ -15,12 +15,12 @@ const {
   mockLimit,
   mockUpdate,
   mockSet,
-  mockDelete,
   mockCreateSuccessResponse,
   mockCreateErrorResponse,
   mockEncryptSecret,
   mockCheckChatAccess,
   mockDeployWorkflow,
+  mockPerformChatUndeploy,
   mockLogger,
 } = vi.hoisted(() => {
   const logger = {
@@ -40,12 +40,12 @@ const {
     mockLimit: vi.fn(),
     mockUpdate: vi.fn(),
     mockSet: vi.fn(),
-    mockDelete: vi.fn(),
     mockCreateSuccessResponse: vi.fn(),
     mockCreateErrorResponse: vi.fn(),
     mockEncryptSecret: vi.fn(),
     mockCheckChatAccess: vi.fn(),
     mockDeployWorkflow: vi.fn(),
+    mockPerformChatUndeploy: vi.fn(),
     mockLogger: logger,
   }
 })
@@ -66,11 +66,10 @@ vi.mock('@sim/db', () => ({
   db: {
     select: mockSelect,
     update: mockUpdate,
-    delete: mockDelete,
   },
 }))
 vi.mock('@sim/db/schema', () => ({
-  chat: { id: 'id', identifier: 'identifier', userId: 'userId' },
+  chat: { id: 'id', identifier: 'identifier', userId: 'userId', archivedAt: 'archivedAt' },
 }))
 vi.mock('@/app/api/workflows/utils', () => ({
   createSuccessResponse: mockCreateSuccessResponse,
@@ -88,8 +87,13 @@ vi.mock('@/app/api/chat/utils', () => ({
 vi.mock('@/lib/workflows/persistence/utils', () => ({
   deployWorkflow: mockDeployWorkflow,
 }))
+vi.mock('@/lib/workflows/orchestration', () => ({
+  performChatUndeploy: mockPerformChatUndeploy,
+}))
 vi.mock('drizzle-orm', () => ({
-  eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
+  and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
+  eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
+  isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
 }))
 
 import { DELETE, GET, PATCH } from '@/app/api/chat/manage/[id]/route'
@@ -104,7 +108,7 @@ describe('Chat Edit API Route', () => {
     mockWhere.mockReturnValue({ limit: mockLimit })
     mockUpdate.mockReturnValue({ set: mockSet })
     mockSet.mockReturnValue({ where: mockWhere })
-    mockDelete.mockReturnValue({ where: mockWhere })
+    mockPerformChatUndeploy.mockResolvedValue({ success: true })
 
     mockCreateSuccessResponse.mockImplementation((data) => {
       return new Response(JSON.stringify(data), {
@@ -307,6 +311,46 @@ describe('Chat Edit API Route', () => {
       expect(data.error).toBe('Password is required when using password protection')
     })
 
+    it('should keep the existing password when updating a password-protected chat', async () => {
+      mockGetSession.mockResolvedValue({
+        user: { id: 'user-id' },
+      })
+
+      const mockChat = {
+        id: 'chat-123',
+        identifier: 'test-chat',
+        title: 'Test Chat',
+        authType: 'password',
+        password: 'encrypted-password',
+        workflowId: 'workflow-123',
+      }
+
+      mockCheckChatAccess.mockResolvedValue({
+        hasAccess: true,
+        chat: mockChat,
+        workspaceId: 'workspace-123',
+      })
+
+      const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
+        method: 'PATCH',
+        body: JSON.stringify({ authType: 'password', title: 'Updated Chat' }),
+      })
+      const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
+
+      expect(response.status).toBe(200)
+      expect(mockEncryptSecret).not.toHaveBeenCalled()
+      expect(mockSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          authType: 'password',
+          allowedEmails: [],
+          updatedAt: expect.any(Date),
+        })
+      )
+
+      const updatePayload = mockSet.mock.calls[0]?.[0]
+      expect(updatePayload.password).toBeUndefined()
+    })
+
     it('should allow access when user has workspace admin permission', async () => {
       mockGetSession.mockResolvedValue({
         user: { id: 'admin-user-id' },
@@ -386,7 +430,11 @@ describe('Chat Edit API Route', () => {
       const response = await DELETE(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(200)
-      expect(mockDelete).toHaveBeenCalled()
+      expect(mockPerformChatUndeploy).toHaveBeenCalledWith({
+        chatId: 'chat-123',
+        userId: 'user-id',
+        workspaceId: 'workspace-123',
+      })
       const data = await response.json()
       expect(data.message).toBe('Chat deployment deleted successfully')
     })
@@ -409,7 +457,11 @@ describe('Chat Edit API Route', () => {
 
       expect(response.status).toBe(200)
       expect(mockCheckChatAccess).toHaveBeenCalledWith('chat-123', 'admin-user-id')
-      expect(mockDelete).toHaveBeenCalled()
+      expect(mockPerformChatUndeploy).toHaveBeenCalledWith({
+        chatId: 'chat-123',
+        userId: 'admin-user-id',
+        workspaceId: 'workspace-123',
+      })
     })
   })
 })

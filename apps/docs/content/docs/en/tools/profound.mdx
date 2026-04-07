@@ -1,0 +1,626 @@
+---
+title: Profound
+description: AI visibility and analytics with Profound
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="profound"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Profound](https://tryprofound.com/) is an AI visibility and analytics platform that helps brands understand how they appear across AI-powered search engines, chatbots, and assistants. It tracks mentions, citations, sentiment, bot traffic, and referral patterns across platforms like ChatGPT, Perplexity, Google AI Overviews, and more.
+
+With the Profound integration in Sim, you can:
+
+- **Monitor AI Visibility**: Track share of voice, visibility scores, and mention counts across AI platforms for your brand and competitors.
+- **Analyze Sentiment**: Measure how positively or negatively your brand is discussed in AI-generated responses.
+- **Track Citations**: See which URLs are being cited by AI models and your citation share relative to competitors.
+- **Monitor Bot Traffic**: Analyze AI crawler activity on your domain, including GPTBot, ClaudeBot, and other AI agents, with hourly granularity.
+- **Track Referral Traffic**: Monitor human visits arriving from AI platforms to your website.
+- **Explore Prompt Data**: Access raw prompt-answer pairs, query fanouts, and prompt volume trends across AI platforms.
+- **Optimize Content**: Get AEO (Answer Engine Optimization) scores and actionable recommendations to improve how AI models reference your content.
+- **Manage Categories & Assets**: List and explore your tracked categories, assets (brands), topics, tags, personas, and regions.
+
+These tools let your agents automate AI visibility monitoring, competitive intelligence, and content optimization workflows. To use the Profound integration, you'll need a Profound account with API access.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Track how your brand appears across AI platforms. Monitor visibility scores, sentiment, citations, bot traffic, referrals, content optimization, and prompt volumes with Profound.
+
+
+
+## Tools
+
+### `profound_list_categories`
+
+List all organization categories in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `categories` | json | List of organization categories |
+|   ↳ `id` | string | Category ID |
+|   ↳ `name` | string | Category name |
+
+### `profound_list_regions`
+
+List all organization regions in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `regions` | json | List of organization regions |
+|   ↳ `id` | string | Region ID \(UUID\) |
+|   ↳ `name` | string | Region name |
+
+### `profound_list_models`
+
+List all AI models/platforms tracked in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `models` | json | List of AI models/platforms |
+|   ↳ `id` | string | Model ID \(UUID\) |
+|   ↳ `name` | string | Model/platform name |
+
+### `profound_list_domains`
+
+List all organization domains in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `domains` | json | List of organization domains |
+|   ↳ `id` | string | Domain ID \(UUID\) |
+|   ↳ `name` | string | Domain name |
+|   ↳ `createdAt` | string | When the domain was added |
+
+### `profound_list_assets`
+
+List all organization assets (companies/brands) across all categories in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `assets` | json | List of organization assets with category info |
+|   ↳ `id` | string | Asset ID |
+|   ↳ `name` | string | Asset/company name |
+|   ↳ `website` | string | Asset website URL |
+|   ↳ `alternateDomains` | json | Alternate domain names |
+|   ↳ `isOwned` | boolean | Whether this asset is owned by the organization |
+|   ↳ `createdAt` | string | When the asset was created |
+|   ↳ `logoUrl` | string | URL of the asset logo |
+|   ↳ `categoryId` | string | Category ID the asset belongs to |
+|   ↳ `categoryName` | string | Category name |
+
+### `profound_list_personas`
+
+List all organization personas across all categories in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `personas` | json | List of organization personas with profile details |
+|   ↳ `id` | string | Persona ID |
+|   ↳ `name` | string | Persona name |
+|   ↳ `categoryId` | string | Category ID |
+|   ↳ `categoryName` | string | Category name |
+|   ↳ `persona` | json | Persona profile with behavior, employment, and demographics |
+
+### `profound_category_topics`
+
+List topics for a specific category in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+| `categoryId` | string | Yes | Category ID \(UUID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `topics` | json | List of topics in the category |
+|   ↳ `id` | string | Topic ID \(UUID\) |
+|   ↳ `name` | string | Topic name |
+
+### `profound_category_tags`
+
+List tags for a specific category in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+| `categoryId` | string | Yes | Category ID \(UUID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tags` | json | List of tags in the category |
+|   ↳ `id` | string | Tag ID \(UUID\) |
+|   ↳ `name` | string | Tag name |
+
+### `profound_category_prompts`
+
+List prompts for a specific category in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+| `categoryId` | string | Yes | Category ID \(UUID\) |
+| `limit` | number | No | Maximum number of results \(default 10000, max 10000\) |
+| `cursor` | string | No | Pagination cursor from previous response |
+| `orderDir` | string | No | Sort direction: asc or desc \(default desc\) |
+| `promptType` | string | No | Comma-separated prompt types to filter: visibility, sentiment |
+| `topicId` | string | No | Comma-separated topic IDs \(UUIDs\) to filter by |
+| `tagId` | string | No | Comma-separated tag IDs \(UUIDs\) to filter by |
+| `regionId` | string | No | Comma-separated region IDs \(UUIDs\) to filter by |
+| `platformId` | string | No | Comma-separated platform IDs \(UUIDs\) to filter by |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `totalRows` | number | Total number of prompts |
+| `nextCursor` | string | Cursor for next page of results |
+| `prompts` | json | List of prompts |
+|   ↳ `id` | string | Prompt ID |
+|   ↳ `prompt` | string | Prompt text |
+|   ↳ `promptType` | string | Prompt type \(visibility or sentiment\) |
+|   ↳ `topicId` | string | Topic ID |
+|   ↳ `topicName` | string | Topic name |
+|   ↳ `tags` | json | Associated tags |
+|   ↳ `regions` | json | Associated regions |
+|   ↳ `platforms` | json | Associated platforms |
+|   ↳ `createdAt` | string | When the prompt was created |
+
+### `profound_category_assets`
+
+List assets (companies/brands) for a specific category in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+| `categoryId` | string | Yes | Category ID \(UUID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `assets` | json | List of assets in the category |
+|   ↳ `id` | string | Asset ID |
+|   ↳ `name` | string | Asset/company name |
+|   ↳ `website` | string | Website URL |
+|   ↳ `alternateDomains` | json | Alternate domain names |
+|   ↳ `isOwned` | boolean | Whether the asset is owned by the organization |
+|   ↳ `createdAt` | string | When the asset was created |
+|   ↳ `logoUrl` | string | URL of the asset logo |
+
+### `profound_category_personas`
+
+List personas for a specific category in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+| `categoryId` | string | Yes | Category ID \(UUID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `personas` | json | List of personas in the category |
+|   ↳ `id` | string | Persona ID |
+|   ↳ `name` | string | Persona name |
+|   ↳ `persona` | json | Persona profile with behavior, employment, and demographics |
+
+### `profound_visibility_report`
+
+Query AI visibility report for a category in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+| `categoryId` | string | Yes | Category ID \(UUID\) |
+| `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
+| `endDate` | string | Yes | End date \(YYYY-MM-DD or ISO 8601\) |
+| `metrics` | string | Yes | Comma-separated metrics: share_of_voice, mentions_count, visibility_score, executions, average_position |
+| `dimensions` | string | No | Comma-separated dimensions: date, region, topic, model, asset_name, prompt, tag, persona |
+| `dateInterval` | string | No | Date interval: hour, day, week, month, year |
+| `filters` | string | No | JSON array of filter objects, e.g. \[\{"field":"asset_name","operator":"is","value":"Company"\}\] |
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `totalRows` | number | Total number of rows in the report |
+| `data` | json | Report data rows with metrics and dimension values |
+|   ↳ `metrics` | json | Array of metric values matching requested metrics order |
+|   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
+
+### `profound_sentiment_report`
+
+Query sentiment report for a category in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+| `categoryId` | string | Yes | Category ID \(UUID\) |
+| `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
+| `endDate` | string | Yes | End date \(YYYY-MM-DD or ISO 8601\) |
+| `metrics` | string | Yes | Comma-separated metrics: positive, negative, occurrences |
+| `dimensions` | string | No | Comma-separated dimensions: theme, date, region, topic, model, asset_name, tag, prompt, sentiment_type, persona |
+| `dateInterval` | string | No | Date interval: hour, day, week, month, year |
+| `filters` | string | No | JSON array of filter objects, e.g. \[\{"field":"asset_name","operator":"is","value":"Company"\}\] |
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `totalRows` | number | Total number of rows in the report |
+| `data` | json | Report data rows with metrics and dimension values |
+|   ↳ `metrics` | json | Array of metric values matching requested metrics order |
+|   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
+
+### `profound_citations_report`
+
+Query citations report for a category in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+| `categoryId` | string | Yes | Category ID \(UUID\) |
+| `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
+| `endDate` | string | Yes | End date \(YYYY-MM-DD or ISO 8601\) |
+| `metrics` | string | Yes | Comma-separated metrics: count, citation_share |
+| `dimensions` | string | No | Comma-separated dimensions: hostname, path, date, region, topic, model, tag, prompt, url, root_domain, persona, citation_category |
+| `dateInterval` | string | No | Date interval: hour, day, week, month, year |
+| `filters` | string | No | JSON array of filter objects, e.g. \[\{"field":"hostname","operator":"is","value":"example.com"\}\] |
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `totalRows` | number | Total number of rows in the report |
+| `data` | json | Report data rows with metrics and dimension values |
+|   ↳ `metrics` | json | Array of metric values matching requested metrics order |
+|   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
+
+### `profound_query_fanouts`
+
+Query fanout report showing how AI models expand prompts into sub-queries in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+| `categoryId` | string | Yes | Category ID \(UUID\) |
+| `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
+| `endDate` | string | Yes | End date \(YYYY-MM-DD or ISO 8601\) |
+| `metrics` | string | Yes | Comma-separated metrics: fanouts_per_execution, total_fanouts, share |
+| `dimensions` | string | No | Comma-separated dimensions: prompt, query, model, region, date |
+| `dateInterval` | string | No | Date interval: hour, day, week, month, year |
+| `filters` | string | No | JSON array of filter objects |
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `totalRows` | number | Total number of rows in the report |
+| `data` | json | Report data rows with metrics and dimension values |
+|   ↳ `metrics` | json | Array of metric values matching requested metrics order |
+|   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
+
+### `profound_prompt_answers`
+
+Get raw prompt answers data for a category in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+| `categoryId` | string | Yes | Category ID \(UUID\) |
+| `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
+| `endDate` | string | Yes | End date \(YYYY-MM-DD or ISO 8601\) |
+| `filters` | string | No | JSON array of filter objects, e.g. \[\{"field":"prompt_type","operator":"is","value":"visibility"\}\] |
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `totalRows` | number | Total number of answer rows |
+| `data` | json | Raw prompt answer data |
+|   ↳ `prompt` | string | The prompt text |
+|   ↳ `promptType` | string | Prompt type \(visibility or sentiment\) |
+|   ↳ `response` | string | AI model response text |
+|   ↳ `mentions` | json | Companies/assets mentioned in the response |
+|   ↳ `citations` | json | URLs cited in the response |
+|   ↳ `topic` | string | Topic name |
+|   ↳ `region` | string | Region name |
+|   ↳ `model` | string | AI model/platform name |
+|   ↳ `asset` | string | Asset name |
+|   ↳ `createdAt` | string | Timestamp when the answer was collected |
+
+### `profound_bots_report`
+
+Query bot traffic report with hourly granularity for a domain in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+| `domain` | string | Yes | Domain to query bot traffic for \(e.g. example.com\) |
+| `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
+| `endDate` | string | No | End date \(YYYY-MM-DD or ISO 8601\). Defaults to now |
+| `metrics` | string | Yes | Comma-separated metrics: count, citations, indexing, training, last_visit |
+| `dimensions` | string | No | Comma-separated dimensions: date, hour, path, bot_name, bot_provider, bot_type |
+| `dateInterval` | string | No | Date interval: hour, day, week, month, year |
+| `filters` | string | No | JSON array of filter objects, e.g. \[\{"field":"bot_name","operator":"is","value":"GPTBot"\}\] |
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `totalRows` | number | Total number of rows in the report |
+| `data` | json | Report data rows with metrics and dimension values |
+|   ↳ `metrics` | json | Array of metric values matching requested metrics order |
+|   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
+
+### `profound_referrals_report`
+
+Query human referral traffic report with hourly granularity for a domain in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+| `domain` | string | Yes | Domain to query referral traffic for \(e.g. example.com\) |
+| `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
+| `endDate` | string | No | End date \(YYYY-MM-DD or ISO 8601\). Defaults to now |
+| `metrics` | string | Yes | Comma-separated metrics: visits, last_visit |
+| `dimensions` | string | No | Comma-separated dimensions: date, hour, path, referral_source, referral_type |
+| `dateInterval` | string | No | Date interval: hour, day, week, month, year |
+| `filters` | string | No | JSON array of filter objects, e.g. \[\{"field":"referral_source","operator":"is","value":"openai"\}\] |
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `totalRows` | number | Total number of rows in the report |
+| `data` | json | Report data rows with metrics and dimension values |
+|   ↳ `metrics` | json | Array of metric values matching requested metrics order |
+|   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
+
+### `profound_raw_logs`
+
+Get raw traffic logs with filters for a domain in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+| `domain` | string | Yes | Domain to query logs for \(e.g. example.com\) |
+| `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
+| `endDate` | string | No | End date \(YYYY-MM-DD or ISO 8601\). Defaults to now |
+| `dimensions` | string | No | Comma-separated dimensions: timestamp, method, host, path, status_code, ip, user_agent, referer, bytes_sent, duration_ms, query_params |
+| `filters` | string | No | JSON array of filter objects, e.g. \[\{"field":"path","operator":"contains","value":"/blog"\}\] |
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `totalRows` | number | Total number of log entries |
+| `data` | json | Log data rows with metrics and dimension values |
+|   ↳ `metrics` | json | Array of metric values \(count\) |
+|   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
+
+### `profound_bot_logs`
+
+Get identified bot visit logs with filters for a domain in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+| `domain` | string | Yes | Domain to query bot logs for \(e.g. example.com\) |
+| `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
+| `endDate` | string | No | End date \(YYYY-MM-DD or ISO 8601\). Defaults to now |
+| `dimensions` | string | No | Comma-separated dimensions: timestamp, method, host, path, status_code, ip, user_agent, referer, bytes_sent, duration_ms, query_params, bot_name, bot_provider, bot_types |
+| `filters` | string | No | JSON array of filter objects, e.g. \[\{"field":"bot_name","operator":"is","value":"GPTBot"\}\] |
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `totalRows` | number | Total number of bot log entries |
+| `data` | json | Bot log data rows with metrics and dimension values |
+|   ↳ `metrics` | json | Array of metric values \(count\) |
+|   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
+
+### `profound_list_optimizations`
+
+List content optimization entries for an asset in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+| `assetId` | string | Yes | Asset ID \(UUID\) |
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+| `offset` | number | No | Offset for pagination \(default 0\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `totalRows` | number | Total number of optimization entries |
+| `optimizations` | json | List of content optimization entries |
+|   ↳ `id` | string | Optimization ID \(UUID\) |
+|   ↳ `title` | string | Content title |
+|   ↳ `createdAt` | string | When the optimization was created |
+|   ↳ `extractedInput` | string | Extracted input text |
+|   ↳ `type` | string | Content type: file, text, or url |
+|   ↳ `status` | string | Optimization status |
+
+### `profound_optimization_analysis`
+
+Get detailed content optimization analysis for a specific content item in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+| `assetId` | string | Yes | Asset ID \(UUID\) |
+| `contentId` | string | Yes | Content/optimization ID \(UUID\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `content` | json | The analyzed content |
+|   ↳ `format` | string | Content format: markdown or html |
+|   ↳ `value` | string | Content text |
+| `aeoContentScore` | json | AEO content score with target zone |
+|   ↳ `value` | number | AEO score value |
+|   ↳ `targetZone` | json | Target zone range |
+|     ↳ `low` | number | Low end of target range |
+|     ↳ `high` | number | High end of target range |
+| `analysis` | json | Analysis breakdown by category |
+|   ↳ `breakdown` | json | Array of scoring breakdowns |
+|     ↳ `title` | string | Category title |
+|     ↳ `weight` | number | Category weight |
+|     ↳ `score` | number | Category score |
+| `recommendations` | json | Content optimization recommendations |
+|   ↳ `title` | string | Recommendation title |
+|   ↳ `status` | string | Status: done or pending |
+|   ↳ `impact` | json | Impact details with section and score |
+|   ↳ `suggestion` | json | Suggestion text and rationale |
+|     ↳ `text` | string | Suggestion text |
+|     ↳ `rationale` | string | Why this recommendation matters |
+
+### `profound_prompt_volume`
+
+Query prompt volume data to understand search demand across AI platforms in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+| `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
+| `endDate` | string | Yes | End date \(YYYY-MM-DD or ISO 8601\) |
+| `metrics` | string | Yes | Comma-separated metrics: volume, change |
+| `dimensions` | string | No | Comma-separated dimensions: keyword, date, platform, country_code, matching_type, frequency |
+| `dateInterval` | string | No | Date interval: hour, day, week, month, year |
+| `filters` | string | No | JSON array of filter objects, e.g. \[\{"field":"keyword","operator":"contains","value":"best"\}\] |
+| `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `totalRows` | number | Total number of rows in the report |
+| `data` | json | Volume data rows with metrics and dimension values |
+|   ↳ `metrics` | json | Array of metric values matching requested metrics order |
+|   ↳ `dimensions` | json | Array of dimension values matching requested dimensions order |
+
+### `profound_citation_prompts`
+
+Get prompts that cite a specific domain across AI platforms in Profound
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Profound API Key |
+| `inputDomain` | string | Yes | Domain to look up citations for \(e.g. ramp.com\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `data` | json | Citation prompt data for the queried domain |
+
+

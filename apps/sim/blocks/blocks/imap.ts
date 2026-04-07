@@ -1,5 +1,6 @@
 import { MailServerIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
+import { IntegrationType } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 
 export const ImapBlock: BlockConfig = {
@@ -9,6 +10,8 @@ export const ImapBlock: BlockConfig = {
   longDescription:
     'Connect to any email server via IMAP protocol to trigger workflows when new emails are received. Supports Gmail, Outlook, Yahoo, and any other IMAP-compatible email provider.',
   category: 'triggers',
+  integrationType: IntegrationType.Email,
+  tags: ['messaging', 'automation'],
   bgColor: '#6366F1',
   icon: MailServerIcon,
   triggerAllowed: true,
@@ -25,7 +28,6 @@ export const ImapBlock: BlockConfig = {
     host: { type: 'string', description: 'IMAP server hostname' },
     port: { type: 'string', description: 'IMAP server port' },
     secure: { type: 'boolean', description: 'Use SSL/TLS encryption' },
-    rejectUnauthorized: { type: 'boolean', description: 'Verify TLS certificate' },
     username: { type: 'string', description: 'Email username' },
     password: { type: 'string', description: 'Email password' },
     mailbox: { type: 'string', description: 'Mailbox to monitor' },

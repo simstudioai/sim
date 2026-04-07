@@ -957,6 +957,297 @@ describe('ExecutionEngine', () => {
     })
   })
 
+  describe('Response block exit-point behavior', () => {
+    it('should lock finalOutput and stop execution when a terminal Response block fires', async () => {
+      const startNode = createMockNode('start', 'starter')
+      const responseNode = createMockNode('response', 'response')
+
+      startNode.outgoingEdges.set('edge1', { target: 'response' })
+
+      const dag = createMockDAG([startNode, responseNode])
+      const context = createMockContext()
+      const edgeManager = createMockEdgeManager((node) => {
+        if (node.id === 'start') return ['response']
+        return []
+      })
+
+      const nodeOrchestrator = {
+        executionCount: 0,
+        executeNode: vi.fn().mockImplementation(async (_ctx: ExecutionContext, nodeId: string) => {
+          nodeOrchestrator.executionCount++
+          if (nodeId === 'response') {
+            return {
+              nodeId,
+              output: { data: { message: 'ok' }, status: 200, headers: {} },
+              isFinalOutput: true,
+            }
+          }
+          return { nodeId, output: {}, isFinalOutput: false }
+        }),
+        handleNodeCompletion: vi.fn(),
+      } as unknown as MockNodeOrchestrator
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      const result = await engine.run('start')
+
+      expect(result.success).toBe(true)
+      expect(result.output).toEqual({ data: { message: 'ok' }, status: 200, headers: {} })
+      expect(nodeOrchestrator.executionCount).toBe(2)
+    })
+
+    it('should stop execution after Response block on a branch (Router)', async () => {
+      const startNode = createMockNode('start', 'starter')
+      const routerNode = createMockNode('router', 'router')
+      const successResponse = createMockNode('success-response', 'response')
+      const errorResponse = createMockNode('error-response', 'response')
+
+      startNode.outgoingEdges.set('edge1', { target: 'router' })
+      routerNode.outgoingEdges.set('success', { target: 'success-response' })
+      routerNode.outgoingEdges.set('error', { target: 'error-response' })
+
+      const dag = createMockDAG([startNode, routerNode, successResponse, errorResponse])
+      const context = createMockContext()
+      const edgeManager = createMockEdgeManager((node) => {
+        if (node.id === 'start') return ['router']
+        if (node.id === 'router') return ['success-response']
+        return []
+      })
+
+      const executedNodes: string[] = []
+      const nodeOrchestrator = {
+        executionCount: 0,
+        executeNode: vi.fn().mockImplementation(async (_ctx: ExecutionContext, nodeId: string) => {
+          executedNodes.push(nodeId)
+          nodeOrchestrator.executionCount++
+          if (nodeId === 'success-response') {
+            return {
+              nodeId,
+              output: { data: { result: 'success' }, status: 200, headers: {} },
+              isFinalOutput: true,
+            }
+          }
+          return { nodeId, output: {}, isFinalOutput: false }
+        }),
+        handleNodeCompletion: vi.fn(),
+      } as unknown as MockNodeOrchestrator
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      const result = await engine.run('start')
+
+      expect(result.success).toBe(true)
+      expect(result.output).toEqual({ data: { result: 'success' }, status: 200, headers: {} })
+      expect(executedNodes).not.toContain('error-response')
+    })
+
+    it('should stop all branches when a parallel Response block fires first', async () => {
+      const startNode = createMockNode('start', 'starter')
+      const responseNode = createMockNode('fast-response', 'response')
+      const slowNode = createMockNode('slow-work', 'function')
+      const afterSlowNode = createMockNode('after-slow', 'function')
+
+      startNode.outgoingEdges.set('edge1', { target: 'fast-response' })
+      startNode.outgoingEdges.set('edge2', { target: 'slow-work' })
+      slowNode.outgoingEdges.set('edge3', { target: 'after-slow' })
+
+      const dag = createMockDAG([startNode, responseNode, slowNode, afterSlowNode])
+      const context = createMockContext()
+      const edgeManager = createMockEdgeManager((node) => {
+        if (node.id === 'start') return ['fast-response', 'slow-work']
+        if (node.id === 'slow-work') return ['after-slow']
+        return []
+      })
+
+      const executedNodes: string[] = []
+      const nodeOrchestrator = {
+        executionCount: 0,
+        executeNode: vi.fn().mockImplementation(async (_ctx: ExecutionContext, nodeId: string) => {
+          executedNodes.push(nodeId)
+          nodeOrchestrator.executionCount++
+          if (nodeId === 'fast-response') {
+            return {
+              nodeId,
+              output: { data: { fast: true }, status: 200, headers: {} },
+              isFinalOutput: true,
+            }
+          }
+          if (nodeId === 'slow-work') {
+            await new Promise((resolve) => setTimeout(resolve, 1))
+            return { nodeId, output: { slow: true }, isFinalOutput: false }
+          }
+          return { nodeId, output: {}, isFinalOutput: true }
+        }),
+        handleNodeCompletion: vi.fn(),
+      } as unknown as MockNodeOrchestrator
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      const result = await engine.run('start')
+
+      expect(result.success).toBe(true)
+      expect(result.output).toEqual({ data: { fast: true }, status: 200, headers: {} })
+      expect(executedNodes).not.toContain('after-slow')
+    })
+
+    it('should use standard finalOutput logic when no Response block exists', async () => {
+      const startNode = createMockNode('start', 'starter')
+      const endNode = createMockNode('end', 'function')
+      startNode.outgoingEdges.set('edge1', { target: 'end' })
+
+      const dag = createMockDAG([startNode, endNode])
+      const context = createMockContext()
+      const edgeManager = createMockEdgeManager((node) => {
+        if (node.id === 'start') return ['end']
+        return []
+      })
+
+      const nodeOrchestrator = {
+        executionCount: 0,
+        executeNode: vi.fn().mockImplementation(async (_ctx: ExecutionContext, nodeId: string) => {
+          nodeOrchestrator.executionCount++
+          if (nodeId === 'end') {
+            return { nodeId, output: { result: 'done' }, isFinalOutput: true }
+          }
+          return { nodeId, output: {}, isFinalOutput: false }
+        }),
+        handleNodeCompletion: vi.fn(),
+      } as unknown as MockNodeOrchestrator
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      const result = await engine.run('start')
+
+      expect(result.success).toBe(true)
+      expect(result.output).toEqual({ result: 'done' })
+    })
+
+    it('should not let a second Response block overwrite the first', async () => {
+      const startNode = createMockNode('start', 'starter')
+      const response1 = createMockNode('response1', 'response')
+      const response2 = createMockNode('response2', 'response')
+
+      startNode.outgoingEdges.set('edge1', { target: 'response1' })
+      startNode.outgoingEdges.set('edge2', { target: 'response2' })
+
+      const dag = createMockDAG([startNode, response1, response2])
+      const context = createMockContext()
+      const edgeManager = createMockEdgeManager((node) => {
+        if (node.id === 'start') return ['response1', 'response2']
+        return []
+      })
+
+      const nodeOrchestrator = {
+        executionCount: 0,
+        executeNode: vi.fn().mockImplementation(async (_ctx: ExecutionContext, nodeId: string) => {
+          nodeOrchestrator.executionCount++
+          if (nodeId === 'response1') {
+            return {
+              nodeId,
+              output: { data: { first: true }, status: 200, headers: {} },
+              isFinalOutput: true,
+            }
+          }
+          if (nodeId === 'response2') {
+            return {
+              nodeId,
+              output: { data: { second: true }, status: 201, headers: {} },
+              isFinalOutput: true,
+            }
+          }
+          return { nodeId, output: {}, isFinalOutput: false }
+        }),
+        handleNodeCompletion: vi.fn(),
+      } as unknown as MockNodeOrchestrator
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      const result = await engine.run('start')
+
+      expect(result.success).toBe(true)
+      expect(result.output).toEqual({ data: { first: true }, status: 200, headers: {} })
+    })
+
+    it('should not let non-Response terminals overwrite a Response block output', async () => {
+      const startNode = createMockNode('start', 'starter')
+      const responseNode = createMockNode('response', 'response')
+      const otherTerminal = createMockNode('other', 'function')
+
+      startNode.outgoingEdges.set('edge1', { target: 'response' })
+      startNode.outgoingEdges.set('edge2', { target: 'other' })
+
+      const dag = createMockDAG([startNode, responseNode, otherTerminal])
+      const context = createMockContext()
+      const edgeManager = createMockEdgeManager((node) => {
+        if (node.id === 'start') return ['response', 'other']
+        return []
+      })
+
+      const nodeOrchestrator = {
+        executionCount: 0,
+        executeNode: vi.fn().mockImplementation(async (_ctx: ExecutionContext, nodeId: string) => {
+          nodeOrchestrator.executionCount++
+          if (nodeId === 'response') {
+            return {
+              nodeId,
+              output: { data: { response: true }, status: 200, headers: {} },
+              isFinalOutput: true,
+            }
+          }
+          if (nodeId === 'other') {
+            await new Promise((resolve) => setTimeout(resolve, 1))
+            return { nodeId, output: { other: true }, isFinalOutput: true }
+          }
+          return { nodeId, output: {}, isFinalOutput: false }
+        }),
+        handleNodeCompletion: vi.fn(),
+      } as unknown as MockNodeOrchestrator
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      const result = await engine.run('start')
+
+      expect(result.success).toBe(true)
+      expect(result.output).toEqual({ data: { response: true }, status: 200, headers: {} })
+    })
+
+    it('should honor locked Response output even when a parallel node throws an error', async () => {
+      const startNode = createMockNode('start', 'starter')
+      const responseNode = createMockNode('response', 'response')
+      const errorNode = createMockNode('error-node', 'function')
+
+      startNode.outgoingEdges.set('edge1', { target: 'response' })
+      startNode.outgoingEdges.set('edge2', { target: 'error-node' })
+
+      const dag = createMockDAG([startNode, responseNode, errorNode])
+      const context = createMockContext()
+      const edgeManager = createMockEdgeManager((node) => {
+        if (node.id === 'start') return ['response', 'error-node']
+        return []
+      })
+
+      const nodeOrchestrator = {
+        executionCount: 0,
+        executeNode: vi.fn().mockImplementation(async (_ctx: ExecutionContext, nodeId: string) => {
+          nodeOrchestrator.executionCount++
+          if (nodeId === 'response') {
+            return {
+              nodeId,
+              output: { data: { ok: true }, status: 200, headers: {} },
+              isFinalOutput: true,
+            }
+          }
+          if (nodeId === 'error-node') {
+            await new Promise((resolve) => setTimeout(resolve, 1))
+            throw new Error('Parallel branch failed')
+          }
+          return { nodeId, output: {}, isFinalOutput: false }
+        }),
+        handleNodeCompletion: vi.fn(),
+      } as unknown as MockNodeOrchestrator
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      const result = await engine.run('start')
+
+      expect(result.success).toBe(true)
+      expect(result.output).toEqual({ data: { ok: true }, status: 200, headers: {} })
+    })
+  })
+
   describe('Cancellation flag behavior', () => {
     it('should set cancelledFlag when abort signal fires', async () => {
       const abortController = new AbortController()

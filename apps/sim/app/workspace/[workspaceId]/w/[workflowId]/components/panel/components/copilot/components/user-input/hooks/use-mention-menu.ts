@@ -283,7 +283,7 @@ export function useMentionMenu({
       // Add leading space only if not at start and previous char isn't whitespace
       const needsLeadingSpace = before.length > 0 && !before.endsWith(' ')
       // Always add trailing space for easy continued typing
-      const insertion = `${needsLeadingSpace ? ' ' : ''}@${label}  `
+      const insertion = `${needsLeadingSpace ? ' ' : ''}@${label} `
 
       const next = `${before}${insertion}${after}`
       onMessageChange(next)

@@ -1,7 +1,13 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { McpClient } from '@/lib/mcp/client'
-import { McpDomainNotAllowedError, validateMcpDomain } from '@/lib/mcp/domain-check'
+import {
+  McpDnsResolutionError,
+  McpDomainNotAllowedError,
+  McpSsrfError,
+  validateMcpDomain,
+  validateMcpServerSsrf,
+} from '@/lib/mcp/domain-check'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
 import type { McpTransport } from '@/lib/mcp/types'
@@ -39,6 +45,20 @@ interface TestConnectionResult {
   supportedCapabilities?: string[]
   toolCount?: number
   warnings?: string[]
+}
+
+/**
+ * Extracts a user-friendly error message from connection errors.
+ * Keeps diagnostic info (timeout, DNS, HTTP status) but strips
+ * verbose internals (Zod details, full response bodies, stack traces).
+ */
+function sanitizeConnectionError(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return 'Unknown connection error'
+  }
+
+  const firstLine = error.message.split('\n')[0]
+  return firstLine.length > 200 ? `${firstLine.slice(0, 200)}...` : firstLine
 }
 
 /**
@@ -81,6 +101,18 @@ export const POST = withMcpAuth('write')(
         throw e
       }
 
+      try {
+        await validateMcpServerSsrf(body.url)
+      } catch (e) {
+        if (e instanceof McpDnsResolutionError) {
+          return createMcpErrorResponse(e, e.message, 502)
+        }
+        if (e instanceof McpSsrfError) {
+          return createMcpErrorResponse(e, e.message, 403)
+        }
+        throw e
+      }
+
       // Build initial config for resolution
       const initialConfig = {
         id: `test-${requestId}`,
@@ -105,11 +137,23 @@ export const POST = withMcpAuth('write')(
         logger.warn(`[${requestId}] Some environment variables not found:`, { missingVars })
       }
 
-      // Re-validate domain after env var resolution
+      // Re-validate domain and SSRF after env var resolution
       try {
         validateMcpDomain(testConfig.url)
       } catch (e) {
         if (e instanceof McpDomainNotAllowedError) {
+          return createMcpErrorResponse(e, e.message, 403)
+        }
+        throw e
+      }
+
+      try {
+        await validateMcpServerSsrf(testConfig.url)
+      } catch (e) {
+        if (e instanceof McpDnsResolutionError) {
+          return createMcpErrorResponse(e, e.message, 502)
+        }
+        if (e instanceof McpSsrfError) {
           return createMcpErrorResponse(e, e.message, 403)
         }
         throw e
@@ -137,8 +181,7 @@ export const POST = withMcpAuth('write')(
         } catch (toolError) {
           logger.warn(`[${requestId}] Connection established but could not list tools:`, toolError)
           result.success = false
-          const errorMessage = toolError instanceof Error ? toolError.message : 'Unknown error'
-          result.error = `Connection established but could not list tools: ${errorMessage}`
+          result.error = 'Connection established but could not list tools'
           result.warnings = result.warnings || []
           result.warnings.push(
             'Server connected but tool listing failed - connection may be incomplete'
@@ -163,11 +206,7 @@ export const POST = withMcpAuth('write')(
         logger.warn(`[${requestId}] MCP server test failed:`, error)
 
         result.success = false
-        if (error instanceof Error) {
-          result.error = error.message
-        } else {
-          result.error = 'Unknown connection error'
-        }
+        result.error = sanitizeConnectionError(error)
       } finally {
         if (client) {
           try {

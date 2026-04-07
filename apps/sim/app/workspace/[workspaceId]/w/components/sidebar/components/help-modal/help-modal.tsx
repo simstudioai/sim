@@ -12,7 +12,6 @@ import {
   Button,
   Combobox,
   Input,
-  Label,
   Modal,
   ModalBody,
   ModalContent,
@@ -89,21 +88,25 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
   })
 
   /**
-   * Reset all state when modal opens/closes
+   * Reset all form and UI state to prepare for a fresh modal session
    */
+  const resetModalState = useCallback(() => {
+    setSubmitStatus(null)
+    setImages([])
+    setIsDragging(false)
+    setIsProcessing(false)
+    reset({
+      subject: '',
+      message: '',
+      type: DEFAULT_REQUEST_TYPE,
+    })
+  }, [reset])
+
   useEffect(() => {
     if (open) {
-      setSubmitStatus(null)
-      setImages([])
-      setIsDragging(false)
-      setIsProcessing(false)
-      reset({
-        subject: '',
-        message: '',
-        type: DEFAULT_REQUEST_TYPE,
-      })
+      resetModalState()
     }
-  }, [open, reset])
+  }, [open, resetModalState])
 
   /**
    * Fix z-index for popover/dropdown when inside modal
@@ -123,8 +126,8 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
             element.hasAttribute('data-radix-popover-content') ||
             (element.hasAttribute('role') && element.getAttribute('role') === 'dialog') ||
             element.querySelector('[role="listbox"]') !== null ||
-            element.classList.contains('rounded-[8px]') ||
-            element.classList.contains('rounded-[4px]')
+            element.classList.contains('rounded-lg') ||
+            element.classList.contains('rounded-sm')
 
           if (hasPopoverStructure && element.offsetParent !== null) {
             element.style.zIndex = '10000101'
@@ -426,9 +429,9 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
         <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
           <ModalBody>
             <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
-              <div className='space-y-[12px]'>
-                <div className='flex flex-col gap-[8px]'>
-                  <Label htmlFor='type'>Request</Label>
+              <div className='space-y-3'>
+                <div className='flex flex-col gap-2'>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Request</p>
                   <Combobox
                     id='type'
                     options={REQUEST_TYPE_OPTIONS}
@@ -442,8 +445,8 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
                   />
                 </div>
 
-                <div className='flex flex-col gap-[8px]'>
-                  <Label htmlFor='subject'>Subject</Label>
+                <div className='flex flex-col gap-2'>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Subject</p>
                   <Input
                     id='subject'
                     placeholder='Brief description of your request'
@@ -452,8 +455,8 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
                   />
                 </div>
 
-                <div className='flex flex-col gap-[8px]'>
-                  <Label htmlFor='message'>Message</Label>
+                <div className='flex flex-col gap-2'>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>Message</p>
                   <Textarea
                     id='message'
                     placeholder='Please provide details about your request...'
@@ -463,8 +466,10 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
                   />
                 </div>
 
-                <div className='flex flex-col gap-[8px]'>
-                  <Label>Attach Images (Optional)</Label>
+                <div className='flex flex-col gap-2'>
+                  <p className='font-medium text-[var(--text-secondary)] text-sm'>
+                    Attach Images (Optional)
+                  </p>
                   <Button
                     type='button'
                     variant='default'
@@ -474,7 +479,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
                     className={cn(
-                      '!bg-[var(--surface-1)] hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--border-1)] border-dashed py-[10px]',
+                      '!bg-[var(--surface-1)] hover-hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--border-1)] border-dashed py-2.5',
                       {
                         'border-[var(--surface-7)]': isDragging,
                       }
@@ -488,11 +493,11 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
                       className='hidden'
                       multiple
                     />
-                    <div className='flex flex-col gap-[2px] text-center'>
+                    <div className='flex flex-col gap-0.5 text-center'>
                       <span className='text-[var(--text-primary)]'>
                         {isDragging ? 'Drop images here' : 'Drop images here or click to browse'}
                       </span>
-                      <span className='text-[11px] text-[var(--text-tertiary)]'>
+                      <span className='text-[var(--text-tertiary)] text-xs'>
                         PNG, JPEG, WebP, GIF (max 20MB each)
                       </span>
                     </div>
@@ -501,11 +506,13 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
 
                 {images.length > 0 && (
                   <div className='space-y-2'>
-                    <Label>Uploaded Images</Label>
+                    <p className='font-medium text-[var(--text-secondary)] text-sm'>
+                      Uploaded Images
+                    </p>
                     <div className='grid grid-cols-2 gap-3'>
                       {images.map((image, index) => (
                         <div
-                          className='group relative overflow-hidden rounded-[4px] border'
+                          className='group relative overflow-hidden rounded-sm border'
                           key={index}
                         >
                           <div className='relative flex max-h-[120px] min-h-[80px] w-full items-center justify-center'>
@@ -525,7 +532,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
                               <X className='h-[18px] w-[18px] text-white' />
                             </button>
                           </div>
-                          <div className='truncate p-[6px] text-[12px]'>{image.name}</div>
+                          <div className='truncate p-1.5 text-caption'>{image.name}</div>
                         </div>
                       ))}
                     </div>
@@ -539,7 +546,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
             <Button variant='default' onClick={handleClose} type='button' disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type='submit' variant='tertiary' disabled={isSubmitting || isProcessing}>
+            <Button type='submit' variant='primary' disabled={isSubmitting || isProcessing}>
               {isSubmitting
                 ? 'Submitting...'
                 : submitStatus === 'error'

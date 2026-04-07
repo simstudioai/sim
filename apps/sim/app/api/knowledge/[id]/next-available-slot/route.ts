@@ -1,7 +1,7 @@
-import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { generateId } from '@/lib/core/utils/uuid'
 import { getNextAvailableSlot, getTagDefinitions } from '@/lib/knowledge/tags/service'
 import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
 
@@ -9,7 +9,7 @@ const logger = createLogger('NextAvailableSlotAPI')
 
 // GET /api/knowledge/[id]/next-available-slot - Get the next available tag slot for a knowledge base and field type
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   const { id: knowledgeBaseId } = await params
   const { searchParams } = new URL(req.url)
   const fieldType = searchParams.get('fieldType')
@@ -30,7 +30,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, session.user.id)
     if (!accessCheck.hasAccess) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return NextResponse.json(
+        { error: accessCheck.notFound ? 'Not found' : 'Forbidden' },
+        { status: accessCheck.notFound ? 404 : 403 }
+      )
     }
 
     // Get existing definitions once and reuse

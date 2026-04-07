@@ -17,16 +17,11 @@
  */
 
 import { db } from '@sim/db'
-import {
-  workflow,
-  workflowBlocks,
-  workflowEdges,
-  workflowSchedule,
-  workspace,
-} from '@sim/db/schema'
+import { workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { count, eq, inArray } from 'drizzle-orm'
+import { and, count, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { archiveWorkflowsForWorkspace } from '@/lib/workflows/lifecycle'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import { internalErrorResponse, listResponse, notFoundResponse } from '@/app/api/v1/admin/responses'
 import {
@@ -51,7 +46,7 @@ export const GET = withAdminAuthParams<RouteParams>(async (request, context) => 
     const [workspaceData] = await db
       .select({ id: workspace.id })
       .from(workspace)
-      .where(eq(workspace.id, workspaceId))
+      .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
       .limit(1)
 
     if (!workspaceData) {
@@ -59,11 +54,14 @@ export const GET = withAdminAuthParams<RouteParams>(async (request, context) => 
     }
 
     const [countResult, workflows] = await Promise.all([
-      db.select({ total: count() }).from(workflow).where(eq(workflow.workspaceId, workspaceId)),
+      db
+        .select({ total: count() })
+        .from(workflow)
+        .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt))),
       db
         .select()
         .from(workflow)
-        .where(eq(workflow.workspaceId, workspaceId))
+        .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt)))
         .orderBy(workflow.name)
         .limit(limit)
         .offset(offset),
@@ -91,7 +89,7 @@ export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) 
     const [workspaceData] = await db
       .select({ id: workspace.id })
       .from(workspace)
-      .where(eq(workspace.id, workspaceId))
+      .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
       .limit(1)
 
     if (!workspaceData) {
@@ -101,27 +99,19 @@ export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) 
     const workflowsToDelete = await db
       .select({ id: workflow.id })
       .from(workflow)
-      .where(eq(workflow.workspaceId, workspaceId))
+      .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt)))
 
     if (workflowsToDelete.length === 0) {
       return NextResponse.json({ success: true, deleted: 0 })
     }
 
-    const workflowIds = workflowsToDelete.map((w) => w.id)
-
-    await db.transaction(async (tx) => {
-      await Promise.all([
-        tx.delete(workflowBlocks).where(inArray(workflowBlocks.workflowId, workflowIds)),
-        tx.delete(workflowEdges).where(inArray(workflowEdges.workflowId, workflowIds)),
-        tx.delete(workflowSchedule).where(inArray(workflowSchedule.workflowId, workflowIds)),
-      ])
-
-      await tx.delete(workflow).where(eq(workflow.workspaceId, workspaceId))
+    const deletedCount = await archiveWorkflowsForWorkspace(workspaceId, {
+      requestId: `admin-workspace-${workspaceId}`,
     })
 
-    logger.info(`Admin API: Deleted ${workflowIds.length} workflows from workspace ${workspaceId}`)
+    logger.info(`Admin API: Deleted ${deletedCount} workflows from workspace ${workspaceId}`)
 
-    return NextResponse.json({ success: true, deleted: workflowIds.length })
+    return NextResponse.json({ success: true, deleted: deletedCount })
   } catch (error) {
     logger.error('Admin API: Failed to delete workspace workflows', { error, workspaceId })
     return internalErrorResponse('Failed to delete workflows')

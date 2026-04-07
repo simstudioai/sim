@@ -50,6 +50,7 @@
 'use client'
 
 import * as React from 'react'
+import { DismissableLayerBranch } from '@radix-ui/react-dismissable-layer'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { Check, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { createPortal } from 'react-dom'
@@ -66,25 +67,25 @@ type PopoverVariant = 'default' | 'secondary'
 const STYLES = {
   /** Base classes shared by all interactive items */
   itemBase:
-    'flex min-w-0 cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] font-base disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed',
+    'flex min-w-0 cursor-pointer items-center gap-2 rounded-md px-1.5 font-medium disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed',
 
   /** Content container */
-  content: 'px-[6px] py-[6px] rounded-[6px]',
+  content: 'px-1.5 py-1.5 rounded-md',
 
   /** Size variants */
   size: {
-    sm: { item: 'h-[22px] text-[11px]', icon: 'h-3 w-3', section: 'px-[6px] py-[4px] text-[11px]' },
+    sm: { item: 'h-[22px] text-xs', icon: 'h-3 w-3', section: 'px-1.5 py-1 text-xs' },
     md: {
-      item: 'h-[26px] text-[13px]',
+      item: 'h-[26px] text-caption',
       icon: 'h-3.5 w-3.5',
-      section: 'px-[6px] py-[4px] text-[13px]',
+      section: 'px-1.5 py-1 text-xs',
     },
   } satisfies Record<PopoverSize, { item: string; icon: string; section: string }>,
 
   /** Color scheme variants */
   colorScheme: {
     default: {
-      text: 'text-[var(--text-primary)]',
+      text: 'text-[var(--text-body)]',
       section: 'text-[var(--text-tertiary)]',
       search: 'text-[var(--text-muted)]',
       searchInput: 'text-[var(--text-primary)] placeholder:text-[var(--text-muted)]',
@@ -97,8 +98,8 @@ const STYLES = {
       search: 'text-[var(--text-muted-inverse)] dark:text-[var(--text-muted)]',
       searchInput:
         'text-white placeholder:text-[var(--text-muted-inverse)] dark:text-[var(--text-primary)] dark:placeholder:text-[var(--text-muted)]',
-      content: 'bg-[#1b1b1b] text-white dark:bg-[var(--surface-3)] dark:text-foreground',
-      divider: 'border-[#363636] dark:border-[var(--border-1)]',
+      content: 'bg-[var(--surface-inverted)] text-white dark:text-foreground',
+      divider: 'border-[var(--border-inverted)]',
     },
   } satisfies Record<
     PopoverColorScheme,
@@ -115,19 +116,19 @@ const STYLES = {
   /** Interactive state styles: default, secondary (brand), inverted (dark bg in light mode) */
   states: {
     default: {
-      active: 'bg-[var(--border-1)] text-[var(--text-primary)] [&_svg]:text-[var(--text-primary)]',
-      hover:
-        'hover:bg-[var(--border-1)] hover:text-[var(--text-primary)] hover:[&_svg]:text-[var(--text-primary)]',
+      active: 'bg-[var(--surface-active)]',
+      hover: 'hover-hover:bg-[var(--surface-active)]',
     },
     secondary: {
       active: 'bg-[var(--brand-secondary)] text-white [&_svg]:text-white',
-      hover: 'hover:bg-[var(--brand-secondary)] hover:text-white hover:[&_svg]:text-white',
+      hover:
+        'hover-hover:bg-[var(--brand-secondary)] hover-hover:text-white hover-hover:[&_svg]:text-white',
     },
     inverted: {
       active:
-        'bg-[#363636] text-white [&_svg]:text-white dark:bg-[var(--surface-5)] dark:text-[var(--text-primary)] dark:[&_svg]:text-[var(--text-primary)]',
+        'bg-[var(--surface-inverted-hover)] text-white [&_svg]:text-white dark:text-[var(--text-primary)] dark:[&_svg]:text-[var(--text-primary)]',
       hover:
-        'hover:bg-[#363636] hover:text-white hover:[&_svg]:text-white dark:hover:bg-[var(--surface-5)] dark:hover:text-[var(--text-primary)] dark:hover:[&_svg]:text-[var(--text-primary)]',
+        'hover-hover:bg-[var(--surface-inverted-hover)] hover-hover:text-white hover-hover:[&_svg]:text-white dark:hover-hover:text-[var(--text-primary)] dark:hover-hover:[&_svg]:text-[var(--text-primary)]',
     },
   },
 } as const
@@ -225,6 +226,7 @@ const Popover: React.FC<PopoverProps> = ({
   size = 'md',
   colorScheme = 'default',
   open,
+  onOpenChange,
   ...props
 }) => {
   const [currentFolder, setCurrentFolder] = React.useState<string | null>(null)
@@ -250,21 +252,33 @@ const Popover: React.FC<PopoverProps> = ({
     }
   }, [])
 
+  /** Resets all navigation state to initial values */
+  const resetState = React.useCallback(() => {
+    setCurrentFolder(null)
+    setFolderTitle(null)
+    setOnFolderSelect(null)
+    setSearchQuery('')
+    setLastHoveredItem(null)
+    setIsKeyboardNav(false)
+    setSelectedIndex(-1)
+    registeredItemsRef.current = []
+  }, [])
+
   React.useEffect(() => {
-    if (open === false) {
-      setCurrentFolder(null)
-      setFolderTitle(null)
-      setOnFolderSelect(null)
-      setSearchQuery('')
-      setLastHoveredItem(null)
-      setIsKeyboardNav(false)
-      setSelectedIndex(-1)
-      registeredItemsRef.current = []
-    } else {
-      // Reset hover state when opening to prevent stale submenu from previous menu
-      setLastHoveredItem(null)
+    if (!open) {
+      resetState()
     }
-  }, [open])
+  }, [open, resetState])
+
+  const handleOpenChange = React.useCallback(
+    (nextOpen: boolean) => {
+      if (nextOpen) {
+        setLastHoveredItem(null)
+      }
+      onOpenChange?.(nextOpen)
+    },
+    [onOpenChange]
+  )
 
   const openFolder = React.useCallback(
     (id: string, title: string, onLoad?: () => void | Promise<void>, onSelect?: () => void) => {
@@ -335,7 +349,7 @@ const Popover: React.FC<PopoverProps> = ({
 
   return (
     <PopoverContext.Provider value={contextValue}>
-      <PopoverPrimitive.Root open={open} {...props}>
+      <PopoverPrimitive.Root open={open} onOpenChange={handleOpenChange} {...props}>
         {children}
       </PopoverPrimitive.Root>
     </PopoverContext.Provider>
@@ -400,6 +414,18 @@ export interface PopoverContentProps
    * @default true
    */
   avoidCollisions?: boolean
+  /**
+   * Show an arrow pointing toward the anchor element.
+   * The arrow color matches the popover background based on the current color scheme.
+   * @default false
+   */
+  showArrow?: boolean
+  /**
+   * Custom className for the arrow element.
+   * Overrides the default color-scheme-based fill when provided.
+   * Useful when the popover background is overridden via className.
+   */
+  arrowClassName?: string
 }
 
 /**
@@ -424,6 +450,8 @@ const PopoverContent = React.forwardRef<
       collisionPadding = 8,
       border = false,
       avoidCollisions = true,
+      showArrow = false,
+      arrowClassName,
       onOpenAutoFocus,
       onCloseAutoFocus,
       ...restProps
@@ -578,10 +606,12 @@ const PopoverContent = React.forwardRef<
         onCloseAutoFocus={handleCloseAutoFocus}
         {...restProps}
         className={cn(
-          'z-[10000200] flex flex-col overflow-auto outline-none will-change-transform',
+          'z-[var(--z-popover)] flex flex-col outline-none',
+          showArrow ? 'overflow-visible' : 'overflow-auto',
           STYLES.colorScheme[colorScheme].content,
           STYLES.content,
-          hasUserWidthConstraint && '[&_.flex-1]:truncate [&_[data-popover-section]]:truncate',
+          hasUserWidthConstraint &&
+            '[&_.flex-1:not([data-popover-scroll])]:truncate [&_[data-popover-section]]:truncate',
           border && 'border border-[var(--border-1)]',
           className
         )}
@@ -599,7 +629,37 @@ const PopoverContent = React.forwardRef<
           ...style,
         }}
       >
-        {children}
+        {showArrow ? (
+          <div
+            className='flex flex-1 flex-col overflow-auto'
+            style={{ maxHeight: `${maxHeight || 400}px` }}
+          >
+            {children}
+          </div>
+        ) : (
+          children
+        )}
+        {showArrow && (
+          <PopoverPrimitive.Arrow width={14} height={7} asChild>
+            <svg
+              width={14}
+              height={7}
+              viewBox='0 0 14 7'
+              preserveAspectRatio='none'
+              className={
+                arrowClassName ??
+                cn(
+                  colorScheme === 'inverted'
+                    ? 'fill-[var(--surface-inverted)] stroke-[var(--border-inverted)]'
+                    : 'fill-[var(--surface-3)] stroke-[var(--border-1)] dark:fill-[var(--surface-3)]'
+                )
+              }
+            >
+              <polygon points='0,0 14,0 7,7' className='stroke-none' />
+              <polyline points='0,0 7,7 14,0' fill='none' strokeWidth={1} />
+            </svg>
+          </PopoverPrimitive.Arrow>
+        )}
       </PopoverPrimitive.Content>
     )
 
@@ -621,7 +681,7 @@ const PopoverScrollArea = React.forwardRef<HTMLDivElement, PopoverScrollAreaProp
     <div
       className={cn(
         'min-h-0 overflow-auto overscroll-contain',
-        '[&>div:has([data-popover-section]):not(:first-child)]:mt-[6px]',
+        '[&>div:has([data-popover-section]):not(:first-child)]:mt-1.5',
         className
       )}
       ref={ref}
@@ -734,7 +794,7 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
           STYLES.colorScheme[colorScheme].text,
           STYLES.size[size].item,
           getItemStateClasses(variant, colorScheme, !!isActive),
-          suppressHover && 'hover:!bg-transparent',
+          suppressHover && 'hover-hover:!bg-transparent',
           disabled && 'pointer-events-none cursor-not-allowed opacity-50',
           className
         )}
@@ -773,7 +833,7 @@ const PopoverSection = React.forwardRef<HTMLDivElement, PopoverSectionProps>(
     return (
       <div
         className={cn(
-          'mt-[6px] min-w-0 font-base first:mt-0 first:pt-0',
+          'mt-1.5 min-w-0 font-medium first:mt-0 first:pt-0',
           STYLES.colorScheme[colorScheme].section,
           STYLES.size[size].section,
           className
@@ -928,7 +988,7 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
             STYLES.colorScheme[colorScheme].text,
             STYLES.size[size].item,
             getItemStateClasses(variant, colorScheme, isActive || isHoverOpen),
-            suppressHover && 'hover:!bg-transparent',
+            suppressHover && 'hover-hover:!bg-transparent',
             className
           )}
           role='menuitem'
@@ -948,9 +1008,9 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
         {isHoverOpen &&
           typeof document !== 'undefined' &&
           createPortal(
-            <div
+            <DismissableLayerBranch
               className={cn(
-                'fixed z-[10000201] min-w-[120px]',
+                'fixed z-[calc(var(--z-popover)+1)] min-w-[120px]',
                 STYLES.content,
                 STYLES.colorScheme[colorScheme].content,
                 'shadow-lg'
@@ -958,10 +1018,11 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
               style={{
                 top: submenuPosition.top,
                 left: submenuPosition.left,
+                pointerEvents: 'auto',
               }}
             >
               {children}
-            </div>,
+            </DismissableLayerBranch>,
             document.body
           )}
       </>
@@ -1035,7 +1096,7 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
         {folderTitle && !onFolderSelect && (
           <div
             className={cn(
-              'font-base',
+              'font-medium',
               STYLES.colorScheme[colorScheme].section,
               STYLES.size[size].section
             )}
@@ -1081,7 +1142,7 @@ const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
     }, [setSearchQuery, onValueChange])
 
     return (
-      <div ref={ref} className={cn('flex items-center px-[8px] py-[6px]', className)} {...props}>
+      <div ref={ref} className={cn('flex items-center px-2 py-1.5', className)} {...props}>
         <Search
           className={cn(
             'mr-2 shrink-0',
@@ -1092,9 +1153,9 @@ const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
         <input
           ref={inputRef}
           className={cn(
-            'w-full bg-transparent font-base focus:outline-none',
+            'w-full bg-transparent font-medium focus:outline-none',
             STYLES.colorScheme[colorScheme].searchInput,
-            size === 'sm' ? 'text-[11px]' : 'text-[13px]'
+            size === 'sm' ? 'text-xs' : 'text-caption'
           )}
           placeholder={placeholder}
           value={searchQuery}
@@ -1125,7 +1186,7 @@ const PopoverDivider = React.forwardRef<HTMLDivElement, PopoverDividerProps>(
     return (
       <div
         ref={ref}
-        className={cn('my-[6px] border-t', STYLES.colorScheme[colorScheme].divider, className)}
+        className={cn('my-1.5 border-t', STYLES.colorScheme[colorScheme].divider, className)}
         role='separator'
         {...props}
       />

@@ -1,21 +1,24 @@
 import { LinearIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { LinearResponse } from '@/tools/linear/types'
 import { getTrigger } from '@/triggers'
 
 export const LinearBlock: BlockConfig<LinearResponse> = {
   type: 'linear',
-  name: 'Linear',
+  name: 'Linear (Legacy)',
   description: 'Interact with Linear issues, projects, and more',
+  hideFromToolbar: true,
   authMode: AuthMode.OAuth,
   triggerAllowed: true,
   longDescription:
     'Integrate Linear into the workflow. Can manage issues, comments, projects, labels, workflow states, cycles, attachments, and more. Can also trigger workflows based on Linear webhook events.',
   docsLink: 'https://docs.sim.ai/tools/linear',
   category: 'tools',
+  integrationType: IntegrationType.Productivity,
+  tags: ['project-management', 'ticketing'],
   icon: LinearIcon,
   bgColor: '#5E6AD2',
   subBlocks: [
@@ -1530,7 +1533,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               projectId: effectiveProjectId || undefined,
               includeArchived: params.includeArchived,
               first: params.first ? Number(params.first) : undefined,
-              after: params.after,
+              after: params.after?.trim() || undefined,
             }
 
           case 'linear_get_issue':
@@ -1597,7 +1600,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               teamId: effectiveTeamId,
               includeArchived: params.includeArchived,
               first: params.first ? Number(params.first) : undefined,
-              after: params.after,
+              after: params.after?.trim() || undefined,
             }
 
           case 'linear_add_label_to_issue':
@@ -1648,7 +1651,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               ...baseParams,
               issueId: params.issueId.trim(),
               first: params.first ? Number(params.first) : undefined,
-              after: params.after,
+              after: params.after?.trim() || undefined,
             }
 
           case 'linear_list_projects':
@@ -1657,7 +1660,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               teamId: effectiveTeamId,
               includeArchived: params.includeArchived,
               first: params.first ? Number(params.first) : undefined,
-              after: params.after,
+              after: params.after?.trim() || undefined,
             }
 
           case 'linear_get_project':
@@ -1712,7 +1715,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               first: params.first ? Number(params.first) : undefined,
-              after: params.after,
+              after: params.after?.trim() || undefined,
             }
 
           case 'linear_get_viewer':
@@ -1723,7 +1726,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               ...baseParams,
               teamId: effectiveTeamId,
               first: params.first ? Number(params.first) : undefined,
-              after: params.after,
+              after: params.after?.trim() || undefined,
             }
 
           case 'linear_create_label':
@@ -1762,7 +1765,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               ...baseParams,
               teamId: effectiveTeamId,
               first: params.first ? Number(params.first) : undefined,
-              after: params.after,
+              after: params.after?.trim() || undefined,
             }
 
           case 'linear_create_workflow_state':
@@ -1793,7 +1796,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               ...baseParams,
               teamId: effectiveTeamId,
               first: params.first ? Number(params.first) : undefined,
-              after: params.after,
+              after: params.after?.trim() || undefined,
             }
 
           case 'linear_get_cycle':
@@ -1858,7 +1861,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               ...baseParams,
               issueId: params.issueId.trim(),
               first: params.first ? Number(params.first) : undefined,
-              after: params.after,
+              after: params.after?.trim() || undefined,
             }
 
           case 'linear_update_attachment':
@@ -1899,7 +1902,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               ...baseParams,
               issueId: params.issueId.trim(),
               first: params.first ? Number(params.first) : undefined,
-              after: params.after,
+              after: params.after?.trim() || undefined,
             }
 
           case 'linear_delete_issue_relation':
@@ -1925,7 +1928,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               first: params.first ? Number(params.first) : undefined,
-              after: params.after,
+              after: params.after?.trim() || undefined,
             }
 
           case 'linear_create_project_update':
@@ -1947,14 +1950,14 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               ...baseParams,
               projectId: effectiveProjectId,
               first: params.first ? Number(params.first) : undefined,
-              after: params.after,
+              after: params.after?.trim() || undefined,
             }
 
           case 'linear_list_notifications':
             return {
               ...baseParams,
               first: params.first ? Number(params.first) : undefined,
-              after: params.after,
+              after: params.after?.trim() || undefined,
             }
 
           case 'linear_update_notification':
@@ -1986,7 +1989,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               first: params.first ? Number(params.first) : undefined,
-              after: params.after,
+              after: params.after?.trim() || undefined,
               includeArchived: false,
             }
 
@@ -2021,7 +2024,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               first: params.first ? Number(params.first) : undefined,
-              after: params.after,
+              after: params.after?.trim() || undefined,
               includeArchived: false,
             }
 
@@ -2115,7 +2118,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               first: params.first ? Number(params.first) : undefined,
-              after: params.after,
+              after: params.after?.trim() || undefined,
             }
 
           // Customer Tier Operations
@@ -2157,7 +2160,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               first: params.first ? Number(params.first) : undefined,
-              after: params.after,
+              after: params.after?.trim() || undefined,
             }
 
           // Project Management Operations
@@ -2210,7 +2213,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               ...baseParams,
               projectId: effectiveProjectId || undefined,
               first: params.first ? Number(params.first) : undefined,
-              after: params.after,
+              after: params.after?.trim() || undefined,
             }
 
           case 'linear_add_label_to_project':
@@ -2275,7 +2278,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
               ...baseParams,
               projectId: params.projectIdForMilestone.trim(),
               first: params.first ? Number(params.first) : undefined,
-              after: params.after,
+              after: params.after?.trim() || undefined,
             }
 
           // Project Status Operations
@@ -2326,7 +2329,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
             return {
               ...baseParams,
               first: params.first ? Number(params.first) : undefined,
-              after: params.after,
+              after: params.after?.trim() || undefined,
             }
 
           default:
@@ -2538,6 +2541,65 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       'linear_customer_request_created',
       'linear_customer_request_updated',
       'linear_webhook',
+    ],
+  },
+}
+
+/**
+ * Linear V2 Block
+ *
+ * Uses automatic webhook registration via the Linear GraphQL API.
+ * Inherits all tool operations from the legacy block.
+ */
+export const LinearV2Block: BlockConfig<LinearResponse> = {
+  ...LinearBlock,
+  type: 'linear_v2',
+  name: 'Linear',
+  hideFromToolbar: false,
+  subBlocks: [
+    ...LinearBlock.subBlocks.filter(
+      (sb) =>
+        !sb.id?.startsWith('webhookUrlDisplay') &&
+        !sb.id?.startsWith('webhookSecret') &&
+        !sb.id?.startsWith('triggerSave') &&
+        !sb.id?.startsWith('triggerInstructions') &&
+        !sb.id?.startsWith('selectedTriggerId')
+    ),
+    // V2 Trigger SubBlocks
+    ...getTrigger('linear_issue_created_v2').subBlocks,
+    ...getTrigger('linear_issue_updated_v2').subBlocks,
+    ...getTrigger('linear_issue_removed_v2').subBlocks,
+    ...getTrigger('linear_comment_created_v2').subBlocks,
+    ...getTrigger('linear_comment_updated_v2').subBlocks,
+    ...getTrigger('linear_project_created_v2').subBlocks,
+    ...getTrigger('linear_project_updated_v2').subBlocks,
+    ...getTrigger('linear_cycle_created_v2').subBlocks,
+    ...getTrigger('linear_cycle_updated_v2').subBlocks,
+    ...getTrigger('linear_label_created_v2').subBlocks,
+    ...getTrigger('linear_label_updated_v2').subBlocks,
+    ...getTrigger('linear_project_update_created_v2').subBlocks,
+    ...getTrigger('linear_customer_request_created_v2').subBlocks,
+    ...getTrigger('linear_customer_request_updated_v2').subBlocks,
+    ...getTrigger('linear_webhook_v2').subBlocks,
+  ],
+  triggers: {
+    enabled: true,
+    available: [
+      'linear_issue_created_v2',
+      'linear_issue_updated_v2',
+      'linear_issue_removed_v2',
+      'linear_comment_created_v2',
+      'linear_comment_updated_v2',
+      'linear_project_created_v2',
+      'linear_project_updated_v2',
+      'linear_cycle_created_v2',
+      'linear_cycle_updated_v2',
+      'linear_label_created_v2',
+      'linear_label_updated_v2',
+      'linear_project_update_created_v2',
+      'linear_customer_request_created_v2',
+      'linear_customer_request_updated_v2',
+      'linear_webhook_v2',
     ],
   },
 }

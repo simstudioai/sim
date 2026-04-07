@@ -4,7 +4,6 @@ import { createLogger } from '@sim/logger'
 import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import Editor from 'react-simple-code-editor'
-import { useUpdateNodeInternals } from 'reactflow'
 import {
   Button,
   Code,
@@ -173,7 +172,6 @@ export function ConditionInput({
   const [visualLineHeights, setVisualLineHeights] = useState<{
     [key: string]: number[]
   }>({})
-  const updateNodeInternals = useUpdateNodeInternals()
   const batchRemoveEdges = useWorkflowStore((state) => state.batchRemoveEdges)
   const edges = useWorkflowStore((state) => state.edges)
 
@@ -352,17 +350,8 @@ export function ConditionInput({
     if (newValue !== prevStoreValueRef.current) {
       prevStoreValueRef.current = newValue
       setStoreValue(newValue)
-      updateNodeInternals(blockId)
     }
-  }, [
-    conditionalBlocks,
-    blockId,
-    subBlockId,
-    setStoreValue,
-    updateNodeInternals,
-    isReady,
-    isPreview,
-  ])
+  }, [conditionalBlocks, blockId, subBlockId, setStoreValue, isReady, isPreview])
 
   // Cleanup when component unmounts
   useEffect(() => {
@@ -708,8 +697,6 @@ export function ConditionInput({
 
     shouldPersistRef.current = true
     setConditionalBlocks((blocks) => updateBlockTitles(blocks.filter((block) => block.id !== id)))
-
-    setTimeout(() => updateNodeInternals(blockId), 0)
   }
 
   const moveBlock = (id: string, direction: 'up' | 'down') => {
@@ -737,8 +724,6 @@ export function ConditionInput({
     ]
     shouldPersistRef.current = true
     setConditionalBlocks(updateBlockTitles(newBlocks))
-
-    setTimeout(() => updateNodeInternals(blockId), 0)
   }
 
   // Add useEffect to handle keyboard events for both dropdowns
@@ -845,26 +830,26 @@ export function ConditionInput({
   }
 
   return (
-    <div className='space-y-[8px]' ref={containerRef}>
+    <div className='space-y-2' ref={containerRef}>
       {conditionalBlocks.map((block, index) => (
         <div
           key={block.id}
-          className='group relative overflow-visible rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-3)] dark:bg-[#1F1F1F]'
+          className='group relative overflow-visible rounded-sm border border-[var(--border-1)] bg-[var(--surface-3)] dark:bg-[var(--code-bg)]'
         >
           <div
             className={cn(
-              'flex items-center justify-between overflow-hidden bg-transparent px-[10px] py-[5px]',
+              'flex items-center justify-between overflow-hidden bg-transparent px-2.5 py-[5px]',
               isRouterMode
                 ? 'rounded-t-[4px] border-[var(--border-1)] border-b'
                 : block.title === 'else'
-                  ? 'rounded-[4px] border-0'
+                  ? 'rounded-sm border-0'
                   : 'rounded-t-[4px] border-[var(--border-1)] border-b'
             )}
           >
-            <span className='font-medium text-[14px] text-[var(--text-tertiary)]'>
+            <span className='font-medium text-[var(--text-tertiary)] text-sm'>
               {isRouterMode ? `Route ${index + 1}` : block.title}
             </span>
-            <div className='flex items-center gap-[8px]'>
+            <div className='flex items-center gap-2'>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <Button
@@ -929,7 +914,7 @@ export function ConditionInput({
                     disabled={
                       isPreview || disabled || conditionalBlocks.length <= (isRouterMode ? 1 : 2)
                     }
-                    className='h-auto p-0 text-[var(--text-error)] hover:text-[var(--text-error)]'
+                    className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
                   >
                     <Trash className='h-[14px] w-[14px]' />
                     <span className='sr-only'>Delete Block</span>
@@ -1007,7 +992,7 @@ export function ConditionInput({
               {/* Custom resize handle */}
               {!isPreview && !disabled && (
                 <div
-                  className='absolute right-1 bottom-1 flex h-4 w-4 cursor-ns-resize items-center justify-center rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
+                  className='absolute right-1 bottom-1 flex h-4 w-4 cursor-ns-resize items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
                   onMouseDown={(e) => startRouterResize(e, block.id)}
                   onDragStart={(e) => {
                     e.preventDefault()

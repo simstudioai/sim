@@ -5,6 +5,7 @@ title: Parallel
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
 
 The Parallel block is a container that executes multiple instances concurrently for faster workflow processing. Process items simultaneously instead of sequentially.
 
@@ -148,11 +149,8 @@ Each parallel instance runs independently:
 
 ### Limitations
 
-<Callout type="warning">
-  Container blocks (Loops and Parallels) cannot be nested inside each other. This means:
-  - You cannot place a Loop block inside a Parallel block
-  - You cannot place another Parallel block inside a Parallel block
-  - You cannot place any container block inside another container block
+<Callout type="info">
+  Container blocks (Loops and Parallels) support nesting. You can place parallels inside parallels, loops inside parallels, and any combination of container blocks to build complex multi-dimensional workflows.
 </Callout>
 
 <Callout type="info">
@@ -221,3 +219,13 @@ Understanding when to use each:
 - **Independent operations only**: Ensure operations don't depend on each other
 - **Handle rate limits**: Add delays or throttling for API-heavy workflows
 - **Error handling**: Each instance should handle its own errors gracefully
+
+<FAQ items={[
+  { question: "What is the maximum number of concurrent instances?", answer: "The maximum is 20 concurrent instances. This limit exists to prevent resource exhaustion and ensure stable execution." },
+  { question: "Can parallel instances share state with each other?", answer: "No. Each parallel instance runs in complete isolation with its own variable scope. There is no shared state between instances, and one instance cannot read or write data from another during execution." },
+  { question: "What happens if one parallel instance fails?", answer: "Failures in one instance do not affect other instances. Each instance runs independently, so the remaining instances will continue to execute normally." },
+  { question: "Can I nest Parallel blocks inside other Parallel or Loop blocks?", answer: "Yes. Container blocks (Parallels and Loops) support nesting. You can place parallels inside parallels, loops inside parallels, and any combination to build multi-dimensional workflows." },
+  { question: "How do I access results after the Parallel block completes?", answer: "Use <blockname.results> where blockname is the normalized name of your Parallel block (lowercase, no spaces). This returns an array containing the results from all instances." },
+  { question: "Is the order of results guaranteed?", answer: "No. Because instances execute concurrently, the order of results in the output array is not guaranteed to match the input order. If ordering matters, include an index or identifier in each instance's output." },
+  { question: "What is the difference between count-based and collection-based parallel?", answer: "Count-based runs a fixed number of identical instances (e.g., run 5 times). Collection-based distributes items from an array or object across instances, with each instance processing one item. Use count-based for repeated operations and collection-based for batch processing." },
+]} />

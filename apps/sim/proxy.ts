@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
+import { sendToProfound } from './lib/analytics/profound'
 import { isAuthDisabled, isHosted } from './lib/core/config/feature-flags'
 import { generateRuntimeCSP } from './lib/core/security/csp'
 
@@ -36,11 +37,11 @@ function handleRootPathRedirects(
   }
 
   // For root path, redirect authenticated users to workspace
-  // Unless they have a 'from' query parameter (e.g., ?from=nav, ?from=settings)
+  // Unless they have a 'home' query parameter (e.g., ?home)
   // This allows intentional navigation to the homepage from anywhere in the app
   if (hasActiveSession) {
-    const from = url.searchParams.get('from')
-    if (!from) {
+    const isBrowsingHome = url.searchParams.has('home')
+    if (!isBrowsingHome) {
       return NextResponse.redirect(new URL('/workspace', request.url))
     }
   }
@@ -137,36 +138,6 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
   return null
 }
 
-const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content'] as const
-const UTM_COOKIE_NAME = 'sim_utm'
-const UTM_COOKIE_MAX_AGE = 3600
-
-/**
- * Sets a `sim_utm` cookie when UTM params are present on auth pages.
- * Captures UTM values, the HTTP Referer, landing page, and a timestamp.
- */
-function setUtmCookie(request: NextRequest, response: NextResponse): void {
-  const { searchParams, pathname } = request.nextUrl
-  const hasUtm = UTM_KEYS.some((key) => searchParams.get(key))
-  if (!hasUtm) return
-
-  const utmData: Record<string, string> = {}
-  for (const key of UTM_KEYS) {
-    const value = searchParams.get(key)
-    if (value) utmData[key] = value
-  }
-  utmData.referrer_url = request.headers.get('referer') || ''
-  utmData.landing_page = pathname
-  utmData.created_at = Date.now().toString()
-
-  response.cookies.set(UTM_COOKIE_NAME, JSON.stringify(utmData), {
-    path: '/',
-    maxAge: UTM_COOKIE_MAX_AGE,
-    sameSite: 'lax',
-    httpOnly: false, // Client-side hook needs to detect cookie presence
-  })
-}
-
 export async function proxy(request: NextRequest) {
   const url = request.nextUrl
 
@@ -174,61 +145,63 @@ export async function proxy(request: NextRequest) {
   const hasActiveSession = isAuthDisabled || !!sessionCookie
 
   const redirect = handleRootPathRedirects(request, hasActiveSession)
-  if (redirect) return redirect
+  if (redirect) return track(request, redirect)
 
   if (url.pathname === '/login' || url.pathname === '/signup') {
     if (hasActiveSession) {
-      const redirect = NextResponse.redirect(new URL('/workspace', request.url))
-      setUtmCookie(request, redirect)
-      return redirect
+      return track(request, NextResponse.redirect(new URL('/workspace', request.url)))
     }
     const response = NextResponse.next()
     response.headers.set('Content-Security-Policy', generateRuntimeCSP())
-    setUtmCookie(request, response)
-    return response
+    return track(request, response)
   }
 
+  // Chat pages are publicly accessible embeds — CSP is set in next.config.ts headers
   if (url.pathname.startsWith('/chat/')) {
-    return NextResponse.next()
+    return track(request, NextResponse.next())
   }
 
   // Allow public access to template pages for SEO
   if (url.pathname.startsWith('/templates')) {
-    return NextResponse.next()
+    return track(request, NextResponse.next())
   }
 
   if (url.pathname.startsWith('/workspace')) {
     // Allow public access to workspace template pages - they handle their own redirects
     if (url.pathname.match(/^\/workspace\/[^/]+\/templates/)) {
-      return NextResponse.next()
+      return track(request, NextResponse.next())
     }
 
     if (!hasActiveSession) {
-      return NextResponse.redirect(new URL('/login', request.url))
+      return track(request, NextResponse.redirect(new URL('/login', request.url)))
     }
-    return NextResponse.next()
+    return track(request, NextResponse.next())
   }
 
   const invitationRedirect = handleInvitationRedirects(request, hasActiveSession)
-  if (invitationRedirect) return invitationRedirect
+  if (invitationRedirect) return track(request, invitationRedirect)
 
   const workspaceInvitationRedirect = handleWorkspaceInvitationAPI(request, hasActiveSession)
-  if (workspaceInvitationRedirect) return workspaceInvitationRedirect
+  if (workspaceInvitationRedirect) return track(request, workspaceInvitationRedirect)
 
   const securityBlock = handleSecurityFiltering(request)
-  if (securityBlock) return securityBlock
+  if (securityBlock) return track(request, securityBlock)
 
   const response = NextResponse.next()
   response.headers.set('Vary', 'User-Agent')
 
-  if (
-    url.pathname.startsWith('/workspace') ||
-    url.pathname.startsWith('/chat') ||
-    url.pathname === '/'
-  ) {
+  if (url.pathname.startsWith('/workspace') || url.pathname === '/') {
     response.headers.set('Content-Security-Policy', generateRuntimeCSP())
   }
 
+  return track(request, response)
+}
+
+/**
+ * Sends request data to Profound analytics (fire-and-forget) and returns the response.
+ */
+function track(request: NextRequest, response: NextResponse): NextResponse {
+  sendToProfound(request, response.status)
   return response
 }
 

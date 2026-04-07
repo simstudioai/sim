@@ -45,6 +45,7 @@ vi.mock('@sim/db', () => ({
     blockId: 'block_id',
     deploymentVersionId: 'deployment_version_id',
     id: 'id',
+    archivedAt: 'archived_at',
   },
 }))
 
@@ -52,6 +53,7 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn((...args) => ({ type: 'eq', args })),
   and: vi.fn((...args) => ({ type: 'and', args })),
   inArray: vi.fn((...args) => ({ type: 'inArray', args })),
+  isNull: vi.fn((...args) => ({ type: 'isNull', args })),
   sql: vi.fn((strings, ...values) => ({ type: 'sql', strings, values })),
 }))
 
@@ -794,6 +796,7 @@ describe('Schedule Deploy Utilities', () => {
 
       expect(mockOnConflictDoUpdate).toHaveBeenCalledWith({
         target: expect.any(Array),
+        targetWhere: expect.objectContaining({ type: 'isNull' }),
         set: expect.objectContaining({
           blockId: 'block-1',
           cronExpression: '0 9 * * *',

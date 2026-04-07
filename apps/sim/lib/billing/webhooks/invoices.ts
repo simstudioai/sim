@@ -15,6 +15,7 @@ import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
 import { addCredits, getCreditBalance, removeCredits } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
 import { blockOrgMembers, unblockOrgMembers } from '@/lib/billing/organizations/membership'
+import { isEnterprise, isOrgPlan, isTeam } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -155,7 +156,7 @@ async function sendPaymentFailureEmails(
     // Get users to notify
     let usersToNotify: Array<{ email: string; name: string | null }> = []
 
-    if (sub.plan === 'team' || sub.plan === 'enterprise') {
+    if (isOrgPlan(sub.plan)) {
       // For team/enterprise, notify all owners and admins
       const members = await db
         .select({
@@ -240,7 +241,7 @@ export async function getBilledOverageForSubscription(sub: {
   plan: string | null
   referenceId: string
 }): Promise<number> {
-  if (sub.plan === 'team') {
+  if (isTeam(sub.plan)) {
     const ownerRows = await db
       .select({ userId: member.userId })
       .from(member)
@@ -275,7 +276,7 @@ export async function getBilledOverageForSubscription(sub: {
 }
 
 export async function resetUsageForSubscription(sub: { plan: string | null; referenceId: string }) {
-  if (sub.plan === 'team' || sub.plan === 'enterprise') {
+  if (isOrgPlan(sub.plan)) {
     const membersRows = await db
       .select({ userId: member.userId })
       .from(member)
@@ -479,7 +480,7 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
 
     // Only reset usage here if the tenant was previously blocked; otherwise invoice.created already reset it
     let wasBlocked = false
-    if (sub.plan === 'team' || sub.plan === 'enterprise') {
+    if (isOrgPlan(sub.plan)) {
       const membersRows = await db
         .select({ userId: member.userId })
         .from(member)
@@ -502,22 +503,37 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
       wasBlocked = row.length > 0 ? !!row[0].blocked : false
     }
 
-    if (sub.plan === 'team' || sub.plan === 'enterprise') {
-      await unblockOrgMembers(sub.referenceId, 'payment_failed')
-    } else {
-      // Only unblock users blocked for payment_failed, not disputes
-      await db
-        .update(userStats)
-        .set({ billingBlocked: false, billingBlockedReason: null })
-        .where(
-          and(
-            eq(userStats.userId, sub.referenceId),
-            eq(userStats.billingBlockedReason, 'payment_failed')
+    // For proration invoices (mid-cycle upgrades/seat changes), only unblock if real money
+    // was collected. A $0 credit invoice from a downgrade should not unblock a user who
+    // was blocked for a different failed payment.
+    const isProrationInvoice = invoice.billing_reason === 'subscription_update'
+    const shouldUnblock = !isProrationInvoice || (invoice.amount_paid ?? 0) > 0
+
+    if (shouldUnblock) {
+      if (isOrgPlan(sub.plan)) {
+        await unblockOrgMembers(sub.referenceId, 'payment_failed')
+      } else {
+        await db
+          .update(userStats)
+          .set({ billingBlocked: false, billingBlockedReason: null })
+          .where(
+            and(
+              eq(userStats.userId, sub.referenceId),
+              eq(userStats.billingBlockedReason, 'payment_failed')
+            )
           )
-        )
+      }
+    } else {
+      logger.info('Skipping unblock for zero-amount proration invoice', {
+        invoiceId: invoice.id,
+        billingReason: invoice.billing_reason,
+        amountPaid: invoice.amount_paid,
+      })
     }
 
-    if (wasBlocked) {
+    // Only reset usage for cycle renewals — proration invoices should not wipe
+    // accumulated usage mid-cycle.
+    if (wasBlocked && !isProrationInvoice) {
       await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
     }
   } catch (error) {
@@ -583,14 +599,6 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
 
     // Block users after first payment failure
     if (attemptCount >= 1) {
-      logger.error('Payment failure - blocking users', {
-        invoiceId: invoice.id,
-        customerId,
-        attemptCount,
-        isOverageInvoice,
-        stripeSubscriptionId,
-      })
-
       const records = await db
         .select()
         .from(subscriptionTable)
@@ -599,7 +607,16 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
 
       if (records.length > 0) {
         const sub = records[0]
-        if (sub.plan === 'team' || sub.plan === 'enterprise') {
+
+        logger.error('Payment failure - blocking users', {
+          invoiceId: invoice.id,
+          customerId,
+          attemptCount,
+          isOverageInvoice,
+          stripeSubscriptionId,
+        })
+
+        if (isOrgPlan(sub.plan)) {
           const memberCount = await blockOrgMembers(sub.referenceId, 'payment_failed')
           logger.info('Blocked team/enterprise members due to payment failure', {
             organizationId: sub.referenceId,
@@ -686,7 +703,7 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
     const sub = records[0]
 
     // Enterprise plans have no overages - reset usage and exit
-    if (sub.plan === 'enterprise') {
+    if (isEnterprise(sub.plan)) {
       await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
       return
     }
@@ -708,7 +725,7 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
     // Apply credits to reduce overage at end of cycle
     let creditsApplied = 0
     if (remainingOverage > 0) {
-      const entityType = sub.plan === 'team' || sub.plan === 'enterprise' ? 'organization' : 'user'
+      const entityType = isOrgPlan(sub.plan) ? 'organization' : 'user'
       const entityId = sub.referenceId
       const { balance: creditBalance } = await getCreditBalance(entityId)
 

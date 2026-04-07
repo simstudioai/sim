@@ -2,6 +2,22 @@ import type { z } from 'zod'
 
 export interface ServerToolContext {
   userId: string
+  workspaceId?: string
+  userPermission?: string
+  chatId?: string
+  messageId?: string
+  abortSignal?: AbortSignal
+  /** Fires only on explicit user stop, never on passive transport disconnect. */
+  userStopSignal?: AbortSignal
+}
+
+export function assertServerToolNotAborted(
+  context?: ServerToolContext,
+  message = 'Request aborted before tool mutation could be applied.'
+): void {
+  if (context?.userStopSignal?.aborted) {
+    throw new Error(message)
+  }
 }
 
 /**

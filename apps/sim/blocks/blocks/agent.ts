@@ -1,26 +1,35 @@
 import { createLogger } from '@sim/logger'
 import { AgentIcon } from '@/components/icons'
-import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
-import { AuthMode } from '@/blocks/types'
-import { getApiKeyCondition, getModelOptions } from '@/blocks/utils'
+import { AuthMode, IntegrationType } from '@/blocks/types'
+import {
+  getModelOptions,
+  getProviderCredentialSubBlocks,
+  RESPONSE_FORMAT_WAND_CONFIG,
+} from '@/blocks/utils'
 import {
   getBaseModelProviders,
   getMaxTemperature,
+  getModelsWithDeepResearch,
+  getModelsWithoutMemory,
+  getModelsWithReasoningEffort,
+  getModelsWithThinking,
+  getModelsWithVerbosity,
   getReasoningEffortValuesForModel,
   getThinkingLevelsForModel,
   getVerbosityValuesForModel,
-  MODELS_WITH_DEEP_RESEARCH,
-  MODELS_WITH_REASONING_EFFORT,
-  MODELS_WITH_THINKING,
-  MODELS_WITH_VERBOSITY,
-  MODELS_WITHOUT_MEMORY,
-  providers,
   supportsTemperature,
-} from '@/providers/utils'
+} from '@/providers/models'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { ToolResponse } from '@/tools/types'
 
 const logger = createLogger('AgentBlock')
+const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
+const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
+const MODELS_WITH_THINKING = getModelsWithThinking()
+const MODELS_WITH_DEEP_RESEARCH = getModelsWithDeepResearch()
+const MODELS_WITHOUT_MEMORY = getModelsWithoutMemory()
 
 interface AgentResponse extends ToolResponse {
   output: {
@@ -69,7 +78,9 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
   `,
   docsLink: 'https://docs.sim.ai/blocks/agent',
   category: 'blocks',
-  bgColor: 'var(--brand-primary-hex)',
+  integrationType: IntegrationType.AI,
+  tags: ['llm', 'agentic', 'automation'],
+  bgColor: 'var(--brand)',
   icon: AgentIcon,
   subBlocks: [
     {
@@ -119,36 +130,8 @@ Return ONLY the JSON array.`,
       type: 'combobox',
       placeholder: 'Type or select a model...',
       required: true,
-      defaultValue: 'claude-sonnet-4-5',
+      defaultValue: 'claude-sonnet-4-6',
       options: getModelOptions,
-    },
-    {
-      id: 'vertexCredential',
-      title: 'Google Cloud Account',
-      type: 'oauth-input',
-      serviceId: 'vertex-ai',
-      canonicalParamId: 'oauthCredential',
-      mode: 'basic',
-      requiredScopes: getScopesForService('vertex-ai'),
-      placeholder: 'Select Google Cloud account',
-      required: true,
-      condition: {
-        field: 'model',
-        value: providers.vertex.models,
-      },
-    },
-    {
-      id: 'manualCredential',
-      title: 'Google Cloud Account',
-      type: 'short-input',
-      canonicalParamId: 'oauthCredential',
-      mode: 'advanced',
-      placeholder: 'Enter credential ID',
-      required: true,
-      condition: {
-        field: 'model',
-        value: providers.vertex.models,
-      },
     },
     {
       id: 'reasoningEffort',
@@ -163,9 +146,6 @@ Return ONLY the JSON array.`,
       ],
       dependsOn: ['model'],
       fetchOptions: async (blockId: string) => {
-        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
-        const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
-
         const autoOption = { label: 'auto', id: 'auto' }
 
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -222,9 +202,6 @@ Return ONLY the JSON array.`,
       ],
       dependsOn: ['model'],
       fetchOptions: async (blockId: string) => {
-        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
-        const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
-
         const autoOption = { label: 'auto', id: 'auto' }
 
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -283,9 +260,6 @@ Return ONLY the JSON array.`,
       ],
       dependsOn: ['model'],
       fetchOptions: async (blockId: string) => {
-        const { useSubBlockStore } = await import('@/stores/workflows/subblock/store')
-        const { useWorkflowRegistry } = await import('@/stores/workflows/registry/store')
-
         const noneOption = { label: 'none', id: 'none' }
 
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -315,100 +289,7 @@ Return ONLY the JSON array.`,
       },
     },
 
-    {
-      id: 'azureEndpoint',
-      title: 'Azure Endpoint',
-      type: 'short-input',
-      password: true,
-      placeholder: 'https://your-resource.services.ai.azure.com',
-      connectionDroppable: false,
-      condition: {
-        field: 'model',
-        value: [...providers['azure-openai'].models, ...providers['azure-anthropic'].models],
-      },
-    },
-    {
-      id: 'azureApiVersion',
-      title: 'Azure API Version',
-      type: 'short-input',
-      placeholder: 'Enter API version',
-      connectionDroppable: false,
-      condition: {
-        field: 'model',
-        value: [...providers['azure-openai'].models, ...providers['azure-anthropic'].models],
-      },
-    },
-    {
-      id: 'vertexProject',
-      title: 'Vertex AI Project',
-      type: 'short-input',
-      placeholder: 'your-gcp-project-id',
-      connectionDroppable: false,
-      required: true,
-      condition: {
-        field: 'model',
-        value: providers.vertex.models,
-      },
-    },
-    {
-      id: 'vertexLocation',
-      title: 'Vertex AI Location',
-      type: 'short-input',
-      placeholder: 'us-central1',
-      connectionDroppable: false,
-      required: true,
-      condition: {
-        field: 'model',
-        value: providers.vertex.models,
-      },
-    },
-    {
-      id: 'bedrockAccessKeyId',
-      title: 'AWS Access Key ID',
-      type: 'short-input',
-      password: true,
-      placeholder: 'Enter your AWS Access Key ID',
-      connectionDroppable: false,
-      required: true,
-      condition: {
-        field: 'model',
-        value: providers.bedrock.models,
-      },
-    },
-    {
-      id: 'bedrockSecretKey',
-      title: 'AWS Secret Access Key',
-      type: 'short-input',
-      password: true,
-      placeholder: 'Enter your AWS Secret Access Key',
-      connectionDroppable: false,
-      required: true,
-      condition: {
-        field: 'model',
-        value: providers.bedrock.models,
-      },
-    },
-    {
-      id: 'bedrockRegion',
-      title: 'AWS Region',
-      type: 'short-input',
-      placeholder: 'us-east-1',
-      connectionDroppable: false,
-      condition: {
-        field: 'model',
-        value: providers.bedrock.models,
-      },
-    },
-    {
-      id: 'apiKey',
-      title: 'API Key',
-      type: 'short-input',
-      placeholder: 'Enter your API key',
-      password: true,
-      connectionDroppable: false,
-      required: true,
-      condition: getApiKeyCondition(),
-    },
+    ...getProviderCredentialSubBlocks(),
     {
       id: 'tools',
       title: 'Tools',
@@ -553,97 +434,7 @@ Return ONLY the JSON array.`,
         value: MODELS_WITH_DEEP_RESEARCH,
         not: true,
       },
-      wandConfig: {
-        enabled: true,
-        maintainHistory: true,
-        prompt: `You are an expert programmer specializing in creating JSON schemas according to a specific format.
-Generate ONLY the JSON schema based on the user's request.
-The output MUST be a single, valid JSON object, starting with { and ending with }.
-The JSON object MUST have the following top-level properties: 'name' (string), 'description' (string), 'strict' (boolean, usually true), and 'schema' (object).
-The 'schema' object must define the structure and MUST contain 'type': 'object', 'properties': {...}, 'additionalProperties': false, and 'required': [...].
-Inside 'properties', use standard JSON Schema properties (type, description, enum, items for arrays, etc.).
-
-Current schema: {context}
-
-Do not include any explanations, markdown formatting, or other text outside the JSON object.
-
-Valid Schema Examples:
-
-Example 1:
-{
-    "name": "reddit_post",
-    "description": "Fetches the reddit posts in the given subreddit",
-    "strict": true,
-    "schema": {
-        "type": "object",
-        "properties": {
-            "title": {
-                "type": "string",
-                "description": "The title of the post"
-            },
-            "content": {
-                "type": "string",
-                "description": "The content of the post"
-            }
-        },
-        "additionalProperties": false,
-        "required": [ "title", "content" ]
-    }
-}
-
-Example 2:
-{
-    "name": "get_weather",
-    "description": "Fetches the current weather for a specific location.",
-    "strict": true,
-    "schema": {
-        "type": "object",
-        "properties": {
-            "location": {
-                "type": "string",
-                "description": "The city and state, e.g., San Francisco, CA"
-            },
-            "unit": {
-                "type": "string",
-                "description": "Temperature unit",
-                "enum": ["celsius", "fahrenheit"]
-            }
-        },
-        "additionalProperties": false,
-        "required": ["location", "unit"]
-    }
-}
-
-Example 3 (Array Input):
-{
-    "name": "process_items",
-    "description": "Processes a list of items with specific IDs.",
-    "strict": true,
-    "schema": {
-        "type": "object",
-        "properties": {
-            "item_ids": {
-                "type": "array",
-                "description": "A list of unique item identifiers to process.",
-                "items": {
-                    "type": "string",
-                    "description": "An item ID"
-                }
-            },
-            "processing_mode": {
-                "type": "string",
-                "description": "The mode for processing",
-                "enum": ["fast", "thorough"]
-            }
-        },
-        "additionalProperties": false,
-        "required": ["item_ids", "processing_mode"]
-    }
-}
-`,
-        placeholder: 'Describe the JSON schema structure you need...',
-        generationType: 'json-schema',
-      },
+      wandConfig: RESPONSE_FORMAT_WAND_CONFIG,
     },
     {
       id: 'previousInteractionId',
@@ -667,7 +458,7 @@ Example 3 (Array Input):
     ],
     config: {
       tool: (params: Record<string, any>) => {
-        const model = params.model || 'claude-sonnet-4-5'
+        const model = params.model || 'claude-sonnet-4-6'
         if (!model) {
           throw new Error('No model selected')
         }
@@ -748,7 +539,7 @@ Example 3 (Array Input):
     apiKey: { type: 'string', description: 'Provider API key' },
     azureEndpoint: { type: 'string', description: 'Azure endpoint URL' },
     azureApiVersion: { type: 'string', description: 'Azure API version' },
-    oauthCredential: { type: 'string', description: 'OAuth credential for Vertex AI' },
+    vertexCredential: { type: 'string', description: 'OAuth credential for Vertex AI' },
     vertexProject: { type: 'string', description: 'Google Cloud project ID for Vertex AI' },
     vertexLocation: { type: 'string', description: 'Google Cloud location for Vertex AI' },
     bedrockAccessKeyId: { type: 'string', description: 'AWS Access Key ID for Bedrock' },

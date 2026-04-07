@@ -1,16 +1,19 @@
 import { db } from '@sim/db'
 import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, ne } from 'drizzle-orm'
+import { and, eq, inArray, ne } from 'drizzle-orm'
 import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
-import { hasActiveSubscription } from '@/lib/billing/core/subscription'
+import { hasPaidSubscription } from '@/lib/billing/core/subscription'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { restoreUserProSubscription } from '@/lib/billing/organizations/membership'
+import { isEnterprise, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import {
   getBilledOverageForSubscription,
   resetUsageForSubscription,
 } from '@/lib/billing/webhooks/invoices'
+import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('StripeSubscriptionWebhooks')
 
@@ -66,7 +69,7 @@ async function cleanupOrganizationSubscription(organizationId: string): Promise<
   // Check if other active subscriptions still point to this org
   // Note: The subscription being deleted is already marked as 'canceled' by better-auth
   // before this handler runs, so we only find truly active ones
-  if (await hasActiveSubscription(organizationId)) {
+  if (await hasPaidSubscription(organizationId)) {
     logger.info('Skipping organization deletion - other active subscriptions exist', {
       organizationId,
     })
@@ -118,16 +121,13 @@ export async function handleSubscriptionCreated(subscriptionData: {
       .where(
         and(
           eq(subscription.referenceId, subscriptionData.referenceId),
-          eq(subscription.status, 'active'),
+          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES),
           ne(subscription.id, subscriptionData.id) // Exclude current subscription
         )
       )
 
     const wasFreePreviously = otherActiveSubscriptions.length === 0
-    const isPaidPlan =
-      subscriptionData.plan === 'pro' ||
-      subscriptionData.plan === 'team' ||
-      subscriptionData.plan === 'enterprise'
+    const isPaidPlan = isPaid(subscriptionData.plan)
 
     if (wasFreePreviously && isPaidPlan) {
       logger.info('Detected free -> paid transition, resetting usage', {
@@ -154,6 +154,14 @@ export async function handleSubscriptionCreated(subscriptionData: {
         wasFreePreviously,
         isPaidPlan,
         otherActiveSubscriptionsCount: otherActiveSubscriptions.length,
+      })
+    }
+
+    if (wasFreePreviously && isPaidPlan) {
+      captureServerEvent(subscriptionData.referenceId, 'subscription_created', {
+        plan: subscriptionData.plan ?? 'unknown',
+        status: subscriptionData.status,
+        reference_id: subscriptionData.referenceId,
       })
     }
   } catch (error) {
@@ -190,7 +198,7 @@ export async function handleSubscriptionDeleted(subscription: {
     const stripe = requireStripeClient()
 
     // Enterprise plans have no overages - reset usage and cleanup org
-    if (subscription.plan === 'enterprise') {
+    if (isEnterprise(subscription.plan)) {
       await resetUsageForSubscription({
         plan: subscription.plan,
         referenceId: subscription.referenceId,
@@ -206,6 +214,12 @@ export async function handleSubscriptionDeleted(subscription: {
         organizationDeleted,
         membersSynced,
       })
+
+      captureServerEvent(subscription.referenceId, 'subscription_cancelled', {
+        plan: subscription.plan ?? 'unknown',
+        reference_id: subscription.referenceId,
+      })
+
       return
     }
 
@@ -316,12 +330,12 @@ export async function handleSubscriptionDeleted(subscription: {
     let organizationDeleted = false
     let membersSynced = 0
 
-    if (subscription.plan === 'team') {
+    if (isTeam(subscription.plan)) {
       const cleanup = await cleanupOrganizationSubscription(subscription.referenceId)
       restoredProCount = cleanup.restoredProCount
       membersSynced = cleanup.membersSynced
       organizationDeleted = cleanup.organizationDeleted
-    } else if (subscription.plan === 'pro') {
+    } else if (isPro(subscription.plan)) {
       await syncUsageLimitsFromSubscription(subscription.referenceId)
       membersSynced = 1
     }
@@ -337,6 +351,11 @@ export async function handleSubscriptionDeleted(subscription: {
       restoredProCount,
       organizationDeleted,
       membersSynced,
+    })
+
+    captureServerEvent(subscription.referenceId, 'subscription_cancelled', {
+      plan: subscription.plan ?? 'unknown',
+      reference_id: subscription.referenceId,
     })
   } catch (error) {
     logger.error('Failed to handle subscription deletion', {

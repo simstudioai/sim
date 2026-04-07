@@ -2,6 +2,7 @@
   "name": "@sim/logger",
   "version": "0.1.0",
   "private": true,
+  "sideEffects": false,
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
@@ -16,6 +17,10 @@
   },
   "scripts": {
     "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
     "test": "vitest run",
     "test:watch": "vitest"
   },

@@ -53,7 +53,7 @@ export const hubspotUpdateContactTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.hubapi.com/crm/v3/objects/contacts/${params.contactId}`
+      const baseUrl = `https://api.hubapi.com/crm/v3/objects/contacts/${params.contactId.trim()}`
       if (params.idProperty) {
         return `${baseUrl}?idProperty=${params.idProperty}`
       }

@@ -1,78 +1,53 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { Command } from 'cmdk'
-import { Database, HelpCircle, Layout, Settings } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
 import { createPortal } from 'react-dom'
 import { Library } from '@/components/emcn'
+import { Calendar, Database, File, HelpCircle, Settings, Table } from '@/components/emcn/icons'
+import { Search } from '@/components/emcn/icons/search'
 import { cn } from '@/lib/core/utils/cn'
+import { captureEvent } from '@/lib/posthog/client'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import type {
   SearchBlockItem,
   SearchDocItem,
   SearchToolOperationItem,
 } from '@/stores/modals/search/types'
-import { useSettingsModalStore } from '@/stores/modals/settings/store'
+import {
+  BlocksGroup,
+  DocsGroup,
+  FilesGroup,
+  KnowledgeBasesGroup,
+  PagesGroup,
+  TablesGroup,
+  TasksGroup,
+  ToolOpsGroup,
+  ToolsGroup,
+  TriggersGroup,
+  WorkflowsGroup,
+  WorkspacesGroup,
+} from './components/search-groups'
+import type { PageItem, SearchModalProps, TaskItem, WorkflowItem, WorkspaceItem } from './utils'
+import { filterAndSort } from './utils'
 
-function customFilter(value: string, search: string): number {
-  const searchLower = search.toLowerCase()
-  const valueLower = value.toLowerCase()
-
-  if (valueLower === searchLower) return 1
-  if (valueLower.startsWith(searchLower)) return 0.9
-  if (valueLower.includes(searchLower)) return 0.7
-
-  const searchWords = searchLower.split(/\s+/).filter(Boolean)
-  if (searchWords.length > 1) {
-    const allWordsMatch = searchWords.every((word) => valueLower.includes(word))
-    if (allWordsMatch) return 0.5
-  }
-
-  return 0
-}
-
-interface SearchModalProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  workflows?: WorkflowItem[]
-  workspaces?: WorkspaceItem[]
-  isOnWorkflowPage?: boolean
-}
-
-interface WorkflowItem {
-  id: string
-  name: string
-  href: string
-  color: string
-  isCurrent?: boolean
-}
-
-interface WorkspaceItem {
-  id: string
-  name: string
-  href: string
-  isCurrent?: boolean
-}
-
-interface PageItem {
-  id: string
-  name: string
-  icon: React.ComponentType<{ className?: string }>
-  href?: string
-  onClick?: () => void
-  shortcut?: string
-  hidden?: boolean
-}
+export type { SearchModalProps } from './utils'
 
 export function SearchModal({
   open,
   onOpenChange,
   workflows = [],
   workspaces = [],
+  tasks = [],
+  tables = [],
+  files = [],
+  knowledgeBases = [],
   isOnWorkflowPage = false,
 }: SearchModalProps) {
   const params = useParams()
@@ -80,8 +55,16 @@ export function SearchModal({
   const workspaceId = params.workspaceId as string
   const inputRef = useRef<HTMLInputElement>(null)
   const [mounted, setMounted] = useState(false)
-  const openSettingsModal = useSettingsModalStore((state) => state.openModal)
+  const { navigateToSettings } = useSettingsNavigation()
   const { config: permissionConfig } = usePermissionConfig()
+  const posthog = usePostHog()
+
+  const routerRef = useRef(router)
+  routerRef.current = router
+  const onOpenChangeRef = useRef(onOpenChange)
+  onOpenChangeRef.current = onOpenChange
+  const posthogRef = useRef(posthog)
+  posthogRef.current = posthog
 
   useEffect(() => {
     setMounted(true)
@@ -99,18 +82,18 @@ export function SearchModal({
     (): PageItem[] =>
       [
         {
-          id: 'logs',
-          name: 'Logs',
-          icon: Library,
-          href: `/workspace/${workspaceId}/logs`,
-          shortcut: '⌘⇧L',
+          id: 'tables',
+          name: 'Tables',
+          icon: Table,
+          href: `/workspace/${workspaceId}/tables`,
+          hidden: permissionConfig.hideTablesTab,
         },
         {
-          id: 'templates',
-          name: 'Templates',
-          icon: Layout,
-          href: `/workspace/${workspaceId}/templates`,
-          hidden: permissionConfig.hideTemplates,
+          id: 'files',
+          name: 'Files',
+          icon: File,
+          href: `/workspace/${workspaceId}/files`,
+          hidden: permissionConfig.hideFilesTab,
         },
         {
           id: 'knowledge-base',
@@ -119,14 +102,19 @@ export function SearchModal({
           href: `/workspace/${workspaceId}/knowledge`,
           hidden: permissionConfig.hideKnowledgeBaseTab,
         },
-        // TODO: Uncomment when working on tables
-        // {
-        //   id: 'tables',
-        //   name: 'Tables',
-        //   icon: Table,
-        //   href: `/workspace/${workspaceId}/tables`,
-        //   hidden: permissionConfig.hideTablesTab,
-        // },
+        {
+          id: 'scheduled-tasks',
+          name: 'Scheduled Tasks',
+          icon: Calendar,
+          href: `/workspace/${workspaceId}/scheduled-tasks`,
+        },
+        {
+          id: 'logs',
+          name: 'Logs',
+          icon: Library,
+          href: `/workspace/${workspaceId}/logs`,
+          shortcut: '⌘⇧L',
+        },
         {
           id: 'help',
           name: 'Help',
@@ -137,33 +125,45 @@ export function SearchModal({
           id: 'settings',
           name: 'Settings',
           icon: Settings,
-          onClick: openSettingsModal,
+          onClick: navigateToSettings,
         },
       ].filter((page) => !page.hidden),
     [
       workspaceId,
       openHelpModal,
-      openSettingsModal,
-      permissionConfig.hideTemplates,
+      navigateToSettings,
       permissionConfig.hideKnowledgeBaseTab,
+      permissionConfig.hideTablesTab,
+      permissionConfig.hideFilesTab,
     ]
   )
 
+  const [search, setSearch] = useState('')
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
+    if (open) setSearch('')
+  }
+
   useEffect(() => {
-    if (open && inputRef.current) {
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype,
-        'value'
-      )?.set
-      if (nativeInputValueSetter) {
-        nativeInputValueSetter.call(inputRef.current, '')
-        inputRef.current.dispatchEvent(new Event('input', { bubbles: true }))
-      }
-      inputRef.current.focus()
+    if (!open || !inputRef.current) return
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      'value'
+    )?.set
+    if (nativeInputValueSetter) {
+      nativeInputValueSetter.call(inputRef.current, '')
+      inputRef.current.dispatchEvent(new Event('input', { bubbles: true }))
     }
+    inputRef.current.focus()
   }, [open])
 
-  const handleSearchChange = useCallback(() => {
+  const deferredSearch = useDeferredValue(search)
+  const deferredSearchRef = useRef(deferredSearch)
+  deferredSearchRef.current = deferredSearch
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value)
     requestAnimationFrame(() => {
       const list = document.querySelector('[cmdk-list]')
       if (list) {
@@ -178,13 +178,13 @@ export function SearchModal({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
-        onOpenChange(false)
+        onOpenChangeRef.current(false)
       }
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [open, onOpenChange])
+  }, [open])
 
   const handleBlockSelect = useCallback(
     (block: SearchBlockItem, type: 'block' | 'trigger' | 'tool') => {
@@ -195,9 +195,14 @@ export function SearchModal({
           detail: { type: block.type, enableTriggerMode },
         })
       )
-      onOpenChange(false)
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: type,
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
     },
-    [onOpenChange]
+    [workspaceId]
   )
 
   const handleToolOperationSelect = useCallback(
@@ -207,32 +212,99 @@ export function SearchModal({
           detail: { type: op.blockType, presetOperation: op.operationId },
         })
       )
-      onOpenChange(false)
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'tool_operation',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
     },
-    [onOpenChange]
+    [workspaceId]
   )
 
   const handleWorkflowSelect = useCallback(
     (workflow: WorkflowItem) => {
       if (!workflow.isCurrent && workflow.href) {
-        router.push(workflow.href)
+        routerRef.current.push(workflow.href)
         window.dispatchEvent(
           new CustomEvent(SIDEBAR_SCROLL_EVENT, { detail: { itemId: workflow.id } })
         )
       }
-      onOpenChange(false)
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'workflow',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
     },
-    [router, onOpenChange]
+    [workspaceId]
   )
 
   const handleWorkspaceSelect = useCallback(
     (workspace: WorkspaceItem) => {
       if (!workspace.isCurrent && workspace.href) {
-        router.push(workspace.href)
+        routerRef.current.push(workspace.href)
       }
-      onOpenChange(false)
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'workspace',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
     },
-    [router, onOpenChange]
+    [workspaceId]
+  )
+
+  const handleTaskSelect = useCallback(
+    (task: TaskItem) => {
+      routerRef.current.push(task.href)
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'task',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
+    },
+    [workspaceId]
+  )
+
+  const handleTableSelect = useCallback(
+    (item: TaskItem) => {
+      routerRef.current.push(item.href)
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'table',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
+    },
+    [workspaceId]
+  )
+
+  const handleFileSelect = useCallback(
+    (item: TaskItem) => {
+      routerRef.current.push(item.href)
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'file',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
+    },
+    [workspaceId]
+  )
+
+  const handleKbSelect = useCallback(
+    (item: TaskItem) => {
+      routerRef.current.push(item.href)
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'knowledge_base',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
+    },
+    [workspaceId]
   )
 
   const handlePageSelect = useCallback(
@@ -243,268 +315,171 @@ export function SearchModal({
         if (page.href.startsWith('http')) {
           window.open(page.href, '_blank', 'noopener,noreferrer')
         } else {
-          router.push(page.href)
+          routerRef.current.push(page.href)
         }
       }
-      onOpenChange(false)
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'page',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
     },
-    [router, onOpenChange]
+    [workspaceId]
   )
 
   const handleDocSelect = useCallback(
     (doc: SearchDocItem) => {
       window.open(doc.href, '_blank', 'noopener,noreferrer')
-      onOpenChange(false)
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'docs',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
     },
-    [onOpenChange]
+    [workspaceId]
   )
 
-  const showBlocks = isOnWorkflowPage && blocks.length > 0
-  const showTools = isOnWorkflowPage && tools.length > 0
-  const showTriggers = isOnWorkflowPage && triggers.length > 0
-  const showToolOperations = isOnWorkflowPage && toolOperations.length > 0
-  const showDocs = isOnWorkflowPage && docs.length > 0
+  const handleBlockSelectAsBlock = useCallback(
+    (block: SearchBlockItem) => handleBlockSelect(block, 'block'),
+    [handleBlockSelect]
+  )
+
+  const handleBlockSelectAsTool = useCallback(
+    (tool: SearchBlockItem) => handleBlockSelect(tool, 'tool'),
+    [handleBlockSelect]
+  )
+
+  const handleBlockSelectAsTrigger = useCallback(
+    (trigger: SearchBlockItem) => handleBlockSelect(trigger, 'trigger'),
+    [handleBlockSelect]
+  )
+
+  const handleOverlayClick = useCallback(() => {
+    onOpenChangeRef.current(false)
+  }, [])
+
+  const filteredBlocks = useMemo(() => {
+    if (!isOnWorkflowPage) return []
+    return filterAndSort(blocks, (b) => `${b.name} block-${b.id}`, deferredSearch)
+  }, [isOnWorkflowPage, blocks, deferredSearch])
+
+  const filteredTools = useMemo(() => {
+    if (!isOnWorkflowPage) return []
+    return filterAndSort(tools, (t) => `${t.name} tool-${t.id}`, deferredSearch)
+  }, [isOnWorkflowPage, tools, deferredSearch])
+
+  const filteredTriggers = useMemo(() => {
+    if (!isOnWorkflowPage) return []
+    return filterAndSort(triggers, (t) => `${t.name} trigger-${t.id}`, deferredSearch)
+  }, [isOnWorkflowPage, triggers, deferredSearch])
+
+  const filteredToolOps = useMemo(() => {
+    if (!isOnWorkflowPage) return []
+    return filterAndSort(
+      toolOperations,
+      (op) => `${op.searchValue} operation-${op.id}`,
+      deferredSearch
+    )
+  }, [isOnWorkflowPage, toolOperations, deferredSearch])
+
+  const filteredDocs = useMemo(() => {
+    if (!isOnWorkflowPage) return []
+    return filterAndSort(docs, (d) => `${d.name} docs documentation doc-${d.id}`, deferredSearch)
+  }, [isOnWorkflowPage, docs, deferredSearch])
+
+  const filteredTables = useMemo(
+    () => filterAndSort(tables, (t) => `${t.name} table-${t.id}`, deferredSearch),
+    [tables, deferredSearch]
+  )
+  const filteredFiles = useMemo(
+    () => filterAndSort(files, (f) => `${f.name} file-${f.id}`, deferredSearch),
+    [files, deferredSearch]
+  )
+  const filteredKnowledgeBases = useMemo(
+    () =>
+      filterAndSort(knowledgeBases, (kb) => `${kb.name} knowledge-base-${kb.id}`, deferredSearch),
+    [knowledgeBases, deferredSearch]
+  )
+
+  const filteredWorkflows = useMemo(
+    () => filterAndSort(workflows, (w) => `${w.name} workflow-${w.id}`, deferredSearch),
+    [workflows, deferredSearch]
+  )
+  const filteredTasks = useMemo(
+    () => filterAndSort(tasks, (t) => `${t.name} task-${t.id}`, deferredSearch),
+    [tasks, deferredSearch]
+  )
+  const filteredWorkspaces = useMemo(
+    () => filterAndSort(workspaces, (w) => `${w.name} workspace-${w.id}`, deferredSearch),
+    [workspaces, deferredSearch]
+  )
+  const filteredPages = useMemo(
+    () => filterAndSort(pages, (p) => `${p.name} page-${p.id}`, deferredSearch),
+    [pages, deferredSearch]
+  )
 
   if (!mounted) return null
 
   return createPortal(
     <>
-      {/* Overlay */}
       <div
         className={cn(
-          'fixed inset-0 z-40 bg-[#E4E4E4]/50 backdrop-blur-[0.75px] transition-opacity duration-100 dark:bg-[#0D0D0D]/50',
+          'fixed inset-0 z-40 transition-opacity duration-100',
           open ? 'opacity-100' : 'pointer-events-none opacity-0'
         )}
-        onClick={() => onOpenChange(false)}
+        onClick={handleOverlayClick}
         aria-hidden={!open}
       />
 
-      {/* Command palette - always rendered for instant opening, hidden with CSS */}
       <div
         role='dialog'
         aria-modal={open}
         aria-hidden={!open}
         aria-label='Search'
         className={cn(
-          '-translate-x-1/2 fixed top-[15%] left-1/2 z-50 w-[500px] overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--surface-4)] shadow-lg',
+          '-translate-x-1/2 fixed top-[15%] z-50 w-[500px] rounded-xl border-[4px] border-black/[0.06] bg-[var(--bg)] shadow-[0_24px_80px_-16px_rgba(0,0,0,0.15)] dark:border-white/[0.06] dark:shadow-[0_24px_80px_-16px_rgba(0,0,0,0.4)]',
           open ? 'visible opacity-100' : 'invisible opacity-0'
         )}
+        style={{
+          left: isOnWorkflowPage
+            ? 'calc(50% + (var(--sidebar-width) - var(--panel-width)) / 2)'
+            : 'calc(var(--sidebar-width) / 2 + 50%)',
+        }}
       >
-        <Command label='Search' filter={customFilter}>
-          <Command.Input
-            ref={inputRef}
-            autoFocus
-            onValueChange={handleSearchChange}
-            placeholder='Search anything...'
-            className='w-full border-0 border-[var(--border)] border-b bg-transparent px-[12px] py-[10px] font-base text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none'
-          />
-          <Command.List className='scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto p-[8px]'>
-            <Command.Empty className='flex items-center justify-center px-[16px] py-[24px] text-[15px] text-[var(--text-subtle)]'>
+        <Command label='Search' shouldFilter={false}>
+          <div className='mx-2 mt-2 mb-1 flex items-center gap-1.5 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 dark:bg-[var(--surface-4)]'>
+            <Search className='h-[14px] w-[14px] flex-shrink-0 text-[var(--text-muted)]' />
+            <Command.Input
+              ref={inputRef}
+              autoFocus
+              onValueChange={handleSearchChange}
+              placeholder='Search anything...'
+              className='w-full bg-transparent py-1.5 font-base text-[var(--text-primary)] text-sm outline-none placeholder:text-[var(--text-muted)] focus:outline-none'
+            />
+          </div>
+          <Command.List className='scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent max-h-[400px] overflow-y-auto overflow-x-hidden p-2 [&_[cmdk-group]+[cmdk-group]]:mt-2.5'>
+            <Command.Empty className='flex items-center justify-center px-4 py-6 text-[var(--text-subtle)] text-sm'>
               No results found.
             </Command.Empty>
 
-            {showBlocks && (
-              <Command.Group heading='Blocks' className={groupHeadingClassName}>
-                {blocks.map((block) => (
-                  <CommandItem
-                    key={block.id}
-                    value={`${block.name} block-${block.id}`}
-                    onSelect={() => handleBlockSelect(block, 'block')}
-                    icon={block.icon}
-                    bgColor={block.bgColor}
-                    showColoredIcon
-                  >
-                    {block.name}
-                  </CommandItem>
-                ))}
-              </Command.Group>
-            )}
-
-            {showTools && (
-              <Command.Group heading='Tools' className={groupHeadingClassName}>
-                {tools.map((tool) => (
-                  <CommandItem
-                    key={tool.id}
-                    value={`${tool.name} tool-${tool.id}`}
-                    onSelect={() => handleBlockSelect(tool, 'tool')}
-                    icon={tool.icon}
-                    bgColor={tool.bgColor}
-                    showColoredIcon
-                  >
-                    {tool.name}
-                  </CommandItem>
-                ))}
-              </Command.Group>
-            )}
-
-            {showTriggers && (
-              <Command.Group heading='Triggers' className={groupHeadingClassName}>
-                {triggers.map((trigger) => (
-                  <CommandItem
-                    key={trigger.id}
-                    value={`${trigger.name} trigger-${trigger.id}`}
-                    onSelect={() => handleBlockSelect(trigger, 'trigger')}
-                    icon={trigger.icon}
-                    bgColor={trigger.bgColor}
-                    showColoredIcon
-                  >
-                    {trigger.name}
-                  </CommandItem>
-                ))}
-              </Command.Group>
-            )}
-
-            {workflows.length > 0 && (
-              <Command.Group heading='Workflows' className={groupHeadingClassName}>
-                {workflows.map((workflow) => (
-                  <Command.Item
-                    key={workflow.id}
-                    value={`${workflow.name} workflow-${workflow.id}`}
-                    onSelect={() => handleWorkflowSelect(workflow)}
-                    className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
-                  >
-                    <div
-                      className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px]'
-                      style={{ backgroundColor: workflow.color }}
-                    />
-                    <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
-                      {workflow.name}
-                      {workflow.isCurrent && ' (current)'}
-                    </span>
-                  </Command.Item>
-                ))}
-              </Command.Group>
-            )}
-
-            {showToolOperations && (
-              <Command.Group heading='Tool Operations' className={groupHeadingClassName}>
-                {toolOperations.map((op) => (
-                  <CommandItem
-                    key={op.id}
-                    value={`${op.searchValue} operation-${op.id}`}
-                    onSelect={() => handleToolOperationSelect(op)}
-                    icon={op.icon}
-                    bgColor={op.bgColor}
-                    showColoredIcon
-                  >
-                    {op.name}
-                  </CommandItem>
-                ))}
-              </Command.Group>
-            )}
-
-            {workspaces.length > 0 && (
-              <Command.Group heading='Workspaces' className={groupHeadingClassName}>
-                {workspaces.map((workspace) => (
-                  <Command.Item
-                    key={workspace.id}
-                    value={`${workspace.name} workspace-${workspace.id}`}
-                    onSelect={() => handleWorkspaceSelect(workspace)}
-                    className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
-                  >
-                    <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
-                      {workspace.name}
-                      {workspace.isCurrent && ' (current)'}
-                    </span>
-                  </Command.Item>
-                ))}
-              </Command.Group>
-            )}
-
-            {showDocs && (
-              <Command.Group heading='Docs' className={groupHeadingClassName}>
-                {docs.map((doc) => (
-                  <CommandItem
-                    key={doc.id}
-                    value={`${doc.name} docs documentation doc-${doc.id}`}
-                    onSelect={() => handleDocSelect(doc)}
-                    icon={doc.icon}
-                    bgColor='#6B7280'
-                    showColoredIcon
-                  >
-                    {doc.name}
-                  </CommandItem>
-                ))}
-              </Command.Group>
-            )}
-
-            {pages.length > 0 && (
-              <Command.Group heading='Pages' className={groupHeadingClassName}>
-                {pages.map((page) => {
-                  const Icon = page.icon
-                  return (
-                    <Command.Item
-                      key={page.id}
-                      value={`${page.name} page-${page.id}`}
-                      onSelect={() => handlePageSelect(page)}
-                      className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
-                    >
-                      <div className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-                        <Icon className='h-[14px] w-[14px] text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]' />
-                      </div>
-                      <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
-                        {page.name}
-                      </span>
-                      {page.shortcut && (
-                        <span className='ml-auto flex-shrink-0 font-medium text-[13px] text-[var(--text-subtle)]'>
-                          {page.shortcut}
-                        </span>
-                      )}
-                    </Command.Item>
-                  )
-                })}
-              </Command.Group>
-            )}
+            <BlocksGroup items={filteredBlocks} onSelect={handleBlockSelectAsBlock} />
+            <ToolsGroup items={filteredTools} onSelect={handleBlockSelectAsTool} />
+            <TriggersGroup items={filteredTriggers} onSelect={handleBlockSelectAsTrigger} />
+            <WorkflowsGroup items={filteredWorkflows} onSelect={handleWorkflowSelect} />
+            <TasksGroup items={filteredTasks} onSelect={handleTaskSelect} />
+            <TablesGroup items={filteredTables} onSelect={handleTableSelect} />
+            <FilesGroup items={filteredFiles} onSelect={handleFileSelect} />
+            <KnowledgeBasesGroup items={filteredKnowledgeBases} onSelect={handleKbSelect} />
+            <ToolOpsGroup items={filteredToolOps} onSelect={handleToolOperationSelect} />
+            <WorkspacesGroup items={filteredWorkspaces} onSelect={handleWorkspaceSelect} />
+            <DocsGroup items={filteredDocs} onSelect={handleDocSelect} />
+            <PagesGroup items={filteredPages} onSelect={handlePageSelect} />
           </Command.List>
         </Command>
       </div>
     </>,
     document.body
-  )
-}
-
-const groupHeadingClassName =
-  '[&_[cmdk-group-heading]]:pt-[2px] [&_[cmdk-group-heading]]:pb-[4px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-[13px] [&_[cmdk-group-heading]]:text-[var(--text-subtle)] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide'
-
-interface CommandItemProps {
-  value: string
-  onSelect: () => void
-  icon: React.ComponentType<{ className?: string }>
-  bgColor: string
-  showColoredIcon?: boolean
-  children: React.ReactNode
-}
-
-function CommandItem({
-  value,
-  onSelect,
-  icon: Icon,
-  bgColor,
-  showColoredIcon,
-  children,
-}: CommandItemProps) {
-  return (
-    <Command.Item
-      value={value}
-      onSelect={onSelect}
-      className='group flex h-[28px] w-full cursor-pointer items-center gap-[8px] rounded-[6px] px-[10px] text-left text-[15px] aria-selected:bg-[var(--border)] aria-selected:shadow-sm data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
-    >
-      <div
-        className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-[4px]'
-        style={{ background: showColoredIcon ? bgColor : 'transparent' }}
-      >
-        <Icon
-          className={cn(
-            'transition-transform duration-100 group-hover:scale-110',
-            showColoredIcon
-              ? '!h-[10px] !w-[10px] text-white'
-              : 'h-[14px] w-[14px] text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'
-          )}
-        />
-      </div>
-      <span className='truncate font-medium text-[var(--text-tertiary)] group-aria-selected:text-[var(--text-primary)]'>
-        {children}
-      </span>
-    </Command.Item>
   )
 }

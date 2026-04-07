@@ -8,22 +8,24 @@ import { cn } from '@/lib/core/utils/cn'
  * Switch component styled to match Sim's design system.
  * Uses brand color for checked state, neutral border for unchecked.
  */
-const Switch = React.forwardRef<
-  React.ElementRef<typeof SwitchPrimitives.Root>,
-  React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>
->(({ className, disabled, ...props }, ref) => (
-  <SwitchPrimitives.Root
-    disabled={disabled}
-    className={cn(
-      'peer inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full bg-[var(--border-1)] transition-colors focus-visible:outline-none data-[disabled]:cursor-not-allowed data-[state=checked]:bg-[var(--brand-tertiary-2)] data-[disabled]:opacity-50',
-      className
-    )}
-    {...props}
-    ref={ref}
-  >
-    <SwitchPrimitives.Thumb className='pointer-events-none block h-4 w-4 rounded-full bg-[var(--white)] shadow-sm ring-0 transition-transform data-[state=checked]:translate-x-[18px] data-[state=unchecked]:translate-x-0.5' />
-  </SwitchPrimitives.Root>
-))
+const Switch = React.memo(
+  React.forwardRef<
+    React.ElementRef<typeof SwitchPrimitives.Root>,
+    React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>
+  >(({ className, disabled, ...props }, ref) => (
+    <SwitchPrimitives.Root
+      disabled={disabled}
+      className={cn(
+        'peer relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full bg-[var(--border-1)] transition-colors before:absolute before:inset-[-12px] before:content-[""] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--text-muted)_30%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-2)] data-[disabled]:cursor-not-allowed data-[state=checked]:bg-[var(--text-primary)] data-[disabled]:opacity-50',
+        className
+      )}
+      {...props}
+      ref={ref}
+    >
+      <SwitchPrimitives.Thumb className='pointer-events-none block h-4 w-4 rounded-full bg-[var(--surface-2)] shadow-sm ring-0 transition-transform data-[state=checked]:translate-x-[18px] data-[state=unchecked]:translate-x-0.5' />
+    </SwitchPrimitives.Root>
+  ))
+)
 
 Switch.displayName = 'Switch'
 

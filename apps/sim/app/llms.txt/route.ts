@@ -1,66 +1,65 @@
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
-export async function GET() {
+export function GET() {
   const baseUrl = getBaseUrl()
 
-  const llmsContent = `# Sim
+  const content = `# Sim
 
-> Sim is an open-source AI agent workflow builder. 70,000+ developers at startups to Fortune 500 companies deploy agentic workflows on the Sim platform. SOC2 and HIPAA compliant.
+> Sim is the open-source platform to build AI agents and run your agentic workforce. Connect integrations and LLMs to deploy and orchestrate agentic workflows.
 
-Sim provides a visual drag-and-drop interface for building and deploying AI agent workflows. Connect to 100+ integrations and ship production-ready AI automations.
+Sim lets teams create agents, workflows, knowledge bases, tables, and docs. It supports both product discovery pages and deeper technical documentation.
 
-## Core Pages
+## Preferred URLs
 
-- [Homepage](${baseUrl}): Main landing page with product overview and features
-- [Templates](${baseUrl}/templates): Pre-built workflow templates to get started quickly
+- [Homepage](${baseUrl}): Product overview and primary entry point
+- [Integrations directory](${baseUrl}/integrations): Public catalog of integrations and automation capabilities
+- [Models directory](${baseUrl}/models): Public catalog of AI models, pricing, context windows, and capabilities
+- [Blog](${baseUrl}/blog): Announcements, guides, and product context
 - [Changelog](${baseUrl}/changelog): Product updates and release notes
-- [Sim Studio Blog](${baseUrl}/studio): Announcements, insights, and guides for AI workflows
 
 ## Documentation
 
-- [Documentation](https://docs.sim.ai): Complete guides and API reference
-- [Quickstart](https://docs.sim.ai/quickstart): Get started in 5 minutes
-- [API Reference](https://docs.sim.ai/api): REST API documentation
+- [Documentation](https://docs.sim.ai): Product guides and technical reference
+- [Quickstart](https://docs.sim.ai/quickstart): Fastest path to getting started
+- [API Reference](https://docs.sim.ai/api): API documentation
 
 ## Key Concepts
 
 - **Workspace**: Container for workflows, data sources, and executions
 - **Workflow**: Directed graph of blocks defining an agentic process
-- **Block**: Individual step (LLM call, tool call, HTTP request, code execution)
+- **Block**: Individual step such as an LLM call, tool call, HTTP request, or code execution
 - **Trigger**: Event or schedule that initiates workflow execution
 - **Execution**: A single run of a workflow with logs and outputs
+- **Knowledge Base**: Document store used for retrieval-augmented generation
 
 ## Capabilities
 
-- Visual workflow builder with drag-and-drop canvas
-- Multi-model LLM orchestration (OpenAI, Anthropic, Google, Mistral, xAI)
-- Retrieval-augmented generation (RAG) with vector databases
-- 100+ integrations (Slack, Gmail, Notion, Airtable, databases)
+- AI agent creation and deployment
+- Agentic workflow orchestration
+- Integrations across business tools, databases, and communication platforms
+- Multi-model LLM orchestration
+- Knowledge bases and retrieval-augmented generation
+- Table creation and management
+- Document creation and processing
 - Scheduled and webhook-triggered executions
-- Real-time collaboration and version control
 
 ## Use Cases
 
-- AI agent workflow automation
-- RAG pipelines and document processing
-- Chatbot and copilot workflows for SaaS
-- Email and customer support automation
-- Internal operations (sales, marketing, legal, finance)
+- AI agent deployment and orchestration
+- Knowledge bases and RAG pipelines
+- Customer support automation
+- Internal operations workflows across sales, marketing, legal, and finance
 
-## Links
+## Additional Links
 
 - [GitHub Repository](https://github.com/simstudioai/sim): Open-source codebase
-- [Discord Community](https://discord.gg/Hr4UWYEcTT): Get help and connect with users
-- [X/Twitter](https://x.com/simdotai): Product updates and announcements
-
-## Optional
-
-- [Careers](https://jobs.ashbyhq.com/sim): Join the Sim team
+- [Docs](https://docs.sim.ai): Canonical documentation source
 - [Terms of Service](${baseUrl}/terms): Legal terms
 - [Privacy Policy](${baseUrl}/privacy): Data handling practices
+- [Sitemap](${baseUrl}/sitemap.xml): Public URL inventory
 `
 
-  return new Response(llmsContent, {
+  return new Response(content, {
     headers: {
       'Content-Type': 'text/markdown; charset=utf-8',
       'Cache-Control': 'public, max-age=86400, s-maxage=86400',

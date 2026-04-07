@@ -709,6 +709,17 @@ kubectl create secret generic my-postgresql-secret \
 
 See `examples/values-existing-secret.yaml` for more details.
 
+### Worker and Redis
+
+The Helm chart enables the BullMQ worker by default so the deployment topology matches Docker Compose. If `REDIS_URL` is not configured, the worker pod will still start but remain idle and do no queue processing. This is expected.
+
+Queue-backed API, webhook, and schedule execution requires Redis. Installs without Redis continue to use the inline execution path. If you do not want the worker pod at all, set:
+
+```yaml
+worker:
+  enabled: false
+```
+
 ### External Secrets Parameters
 
 | Parameter | Description | Default |

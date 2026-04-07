@@ -1,19 +1,19 @@
-'use client'
-
-import { useEffect } from 'react'
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getEnv } from '@/lib/core/config/env'
-import { LegalLayout } from '@/app/(landing)/components'
+import { ExternalRedirect, LegalLayout } from '@/app/(landing)/components'
+
+export const metadata: Metadata = {
+  title: 'Terms of Service',
+  description:
+    'Read the terms and conditions for using the Sim platform, including subscription plans, data ownership, and acceptable use.',
+  alternates: { canonical: '/terms' },
+}
 
 export default function TermsOfService() {
-  useEffect(() => {
-    const termsUrl = getEnv('NEXT_PUBLIC_TERMS_URL')
-    if (termsUrl?.startsWith('http')) {
-      window.location.href = termsUrl
-    }
-  }, [])
   return (
     <LegalLayout title='Terms of Service'>
+      <ExternalRedirect url={getEnv('NEXT_PUBLIC_TERMS_URL') ?? ''} />
       <section>
         <p className='mb-4'>Last Updated: October 11, 2025</p>
         <p>
@@ -289,7 +289,7 @@ export default function TermsOfService() {
           Agreement. The arbitration will be conducted by JAMS, an established alternative dispute
           resolution provider.
         </p>
-        <p className='mb-4 border-[var(--brand-primary-hex)] border-l-4 bg-[var(--brand-primary-hex)]/10 p-3'>
+        <p className='mb-4 border-[var(--landing-border-strong)] border-l-4 bg-[var(--landing-bg-elevated)] p-3 text-[var(--landing-text)]'>
           YOU AND COMPANY AGREE THAT EACH OF US MAY BRING CLAIMS AGAINST THE OTHER ONLY ON AN
           INDIVIDUAL BASIS AND NOT ON A CLASS, REPRESENTATIVE, OR COLLECTIVE BASIS. ONLY INDIVIDUAL
           RELIEF IS AVAILABLE, AND DISPUTES OF MORE THAN ONE CUSTOMER OR USER CANNOT BE ARBITRATED
@@ -300,7 +300,7 @@ export default function TermsOfService() {
           timely written notice of your decision to opt out to:{' '}
           <Link
             href='mailto:legal@sim.ai'
-            className='text-[var(--brand-primary-hex)] underline hover:text-[var(--brand-primary-hover-hex)]'
+            className='text-[var(--landing-text)] underline hover:text-white'
           >
             legal@sim.ai{' '}
           </Link>
@@ -350,7 +350,7 @@ export default function TermsOfService() {
           Our Copyright Agent can be reached at:{' '}
           <Link
             href='mailto:copyright@sim.ai'
-            className='text-[var(--brand-primary-hex)] underline hover:text-[var(--brand-primary-hover-hex)]'
+            className='text-[var(--landing-text)] underline hover:text-white'
           >
             copyright@sim.ai
           </Link>
@@ -363,7 +363,7 @@ export default function TermsOfService() {
           If you have any questions about these Terms, please contact us at:{' '}
           <Link
             href='mailto:legal@sim.ai'
-            className='text-[var(--brand-primary-hex)] underline hover:text-[var(--brand-primary-hover-hex)]'
+            className='text-[var(--landing-text)] underline hover:text-white'
           >
             legal@sim.ai
           </Link>

@@ -1,5 +1,5 @@
 import { MistralIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, type SubBlockType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, IntegrationType, type SubBlockType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { MistralParserOutput } from '@/tools/mistral/types'
 
@@ -12,6 +12,8 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
   longDescription: `Integrate Mistral Parse into the workflow. Can extract text from uploaded PDF documents, or from a URL.`,
   docsLink: 'https://docs.sim.ai/tools/mistral_parse',
   category: 'tools',
+  integrationType: IntegrationType.AI,
+  tags: ['document-processing', 'ocr'],
   bgColor: '#000000',
   icon: MistralIcon,
   subBlocks: [
@@ -68,6 +70,7 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
       placeholder: 'Enter your Mistral API key',
       password: true,
       required: true,
+      hideWhenHosted: true,
     },
   ],
   tools: {
@@ -75,13 +78,12 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
     config: {
       tool: () => 'mistral_parser',
       params: (params) => {
-        if (!params || !params.apiKey || params.apiKey.trim() === '') {
-          throw new Error('Mistral API key is required')
+        const parameters: Record<string, unknown> = {
+          resultType: params.resultType || 'markdown',
         }
 
-        const parameters: Record<string, unknown> = {
-          apiKey: params.apiKey.trim(),
-          resultType: params.resultType || 'markdown',
+        if (params.apiKey?.trim()) {
+          parameters.apiKey = params.apiKey.trim()
         }
 
         const inputMethod = params.inputMethod || 'url'
@@ -195,6 +197,7 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
       placeholder: 'Enter your Mistral API key',
       password: true,
       required: true,
+      hideWhenHosted: true,
     },
   ],
   tools: {
@@ -206,13 +209,12 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
         fallbackToolId: 'mistral_parser_v2',
       }),
       params: (params) => {
-        if (!params || !params.apiKey || params.apiKey.trim() === '') {
-          throw new Error('Mistral API key is required')
+        const parameters: Record<string, unknown> = {
+          resultType: params.resultType || 'markdown',
         }
 
-        const parameters: Record<string, unknown> = {
-          apiKey: params.apiKey.trim(),
-          resultType: params.resultType || 'markdown',
+        if (params.apiKey?.trim()) {
+          parameters.apiKey = params.apiKey.trim()
         }
 
         // Use canonical document param directly
@@ -327,6 +329,7 @@ export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
       placeholder: 'Enter your Mistral API key',
       password: true,
       required: true,
+      hideWhenHosted: true,
     },
   ],
   tools: {
@@ -334,13 +337,12 @@ export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
     config: {
       tool: () => 'mistral_parser_v3',
       params: (params) => {
-        if (!params || !params.apiKey || params.apiKey.trim() === '') {
-          throw new Error('Mistral API key is required')
+        const parameters: Record<string, unknown> = {
+          resultType: params.resultType || 'markdown',
         }
 
-        const parameters: Record<string, unknown> = {
-          apiKey: params.apiKey.trim(),
-          resultType: params.resultType || 'markdown',
+        if (params.apiKey?.trim()) {
+          parameters.apiKey = params.apiKey.trim()
         }
 
         // V3 pattern: use canonical document param directly

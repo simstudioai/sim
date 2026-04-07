@@ -1,23 +1,27 @@
-import Background from '@/app/(landing)/components/background/background'
+import Collaboration from '@/app/(landing)/components/collaboration/collaboration'
+import Enterprise from '@/app/(landing)/components/enterprise/enterprise'
+import ExternalRedirect from '@/app/(landing)/components/external-redirect'
+import Features from '@/app/(landing)/components/features/features'
 import Footer from '@/app/(landing)/components/footer/footer'
 import Hero from '@/app/(landing)/components/hero/hero'
-import Integrations from '@/app/(landing)/components/integrations/integrations'
-import LandingPricing from '@/app/(landing)/components/landing-pricing/landing-pricing'
-import LandingTemplates from '@/app/(landing)/components/landing-templates/landing-templates'
 import LegalLayout from '@/app/(landing)/components/legal-layout'
-import Nav from '@/app/(landing)/components/nav/nav'
+import Navbar from '@/app/(landing)/components/navbar/navbar'
+import Pricing from '@/app/(landing)/components/pricing/pricing'
 import StructuredData from '@/app/(landing)/components/structured-data'
+import Templates from '@/app/(landing)/components/templates/templates'
 import Testimonials from '@/app/(landing)/components/testimonials/testimonials'
 
 export {
-  Integrations,
-  Testimonials,
-  LandingTemplates,
-  Nav,
-  Background,
-  Hero,
-  LandingPricing,
+  Collaboration,
+  Enterprise,
+  ExternalRedirect,
+  Features,
   Footer,
-  StructuredData,
+  Hero,
   LegalLayout,
+  Navbar,
+  Pricing,
+  StructuredData,
+  Templates,
+  Testimonials,
 }

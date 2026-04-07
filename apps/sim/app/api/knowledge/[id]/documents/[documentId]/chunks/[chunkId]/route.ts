@@ -1,8 +1,8 @@
-import { randomUUID } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { generateId } from '@/lib/core/utils/uuid'
 import { deleteChunk, updateChunk } from '@/lib/knowledge/chunks/service'
 import { checkChunkAccess } from '@/app/api/knowledge/utils'
 
@@ -17,7 +17,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string; chunkId: string }> }
 ) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   const { id: knowledgeBaseId, documentId, chunkId } = await params
 
   try {
@@ -65,7 +65,7 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string; chunkId: string }> }
 ) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   const { id: knowledgeBaseId, documentId, chunkId } = await params
 
   try {
@@ -93,6 +93,16 @@ export async function PUT(
         `[${requestId}] User ${session.user.id} attempted unauthorized chunk update: ${accessCheck.reason}`
       )
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (accessCheck.document?.connectorId) {
+      logger.warn(
+        `[${requestId}] User ${session.user.id} attempted to update chunk on connector-synced document: Doc=${documentId}`
+      )
+      return NextResponse.json(
+        { error: 'Chunks from connector-synced documents are read-only' },
+        { status: 403 }
+      )
     }
 
     const body = await req.json()
@@ -137,7 +147,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string; chunkId: string }> }
 ) {
-  const requestId = randomUUID().slice(0, 8)
+  const requestId = generateId().slice(0, 8)
   const { id: knowledgeBaseId, documentId, chunkId } = await params
 
   try {
@@ -165,6 +175,16 @@ export async function DELETE(
         `[${requestId}] User ${session.user.id} attempted unauthorized chunk deletion: ${accessCheck.reason}`
       )
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (accessCheck.document?.connectorId) {
+      logger.warn(
+        `[${requestId}] User ${session.user.id} attempted to delete chunk on connector-synced document: Doc=${documentId}`
+      )
+      return NextResponse.json(
+        { error: 'Chunks from connector-synced documents are read-only' },
+        { status: 403 }
+      )
     }
 
     await deleteChunk(chunkId, documentId, requestId)

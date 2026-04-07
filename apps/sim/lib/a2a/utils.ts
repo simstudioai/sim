@@ -1,4 +1,13 @@
-import type { DataPart, FilePart, Message, Part, Task, TaskState, TextPart } from '@a2a-js/sdk'
+import type {
+  Artifact,
+  DataPart,
+  FilePart,
+  Message,
+  Part,
+  Task,
+  TaskState,
+  TextPart,
+} from '@a2a-js/sdk'
 import {
   type BeforeArgs,
   type CallInterceptor,
@@ -7,6 +16,8 @@ import {
   ClientFactoryOptions,
 } from '@a2a-js/sdk/client'
 import { createLogger } from '@sim/logger'
+import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import { generateId } from '@/lib/core/utils/uuid'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import { A2A_TERMINAL_STATES } from './constants'
 
@@ -43,6 +54,11 @@ class ApiKeyInterceptor implements CallInterceptor {
  * Tries standard path first, falls back to root URL for compatibility.
  */
 export async function createA2AClient(agentUrl: string, apiKey?: string): Promise<Client> {
+  const validation = await validateUrlWithDNS(agentUrl, 'agentUrl')
+  if (!validation.isValid) {
+    throw new Error(validation.error || 'Agent URL validation failed')
+  }
+
   const factoryOptions = apiKey
     ? ClientFactoryOptions.createFrom(ClientFactoryOptions.default, {
         clientConfig: {
@@ -186,7 +202,7 @@ export function createTextPart(text: string): Part {
 export function createUserMessage(text: string): Message {
   return {
     kind: 'message',
-    messageId: crypto.randomUUID(),
+    messageId: generateId(),
     role: 'user',
     parts: [{ kind: 'text', text }],
   }
@@ -195,7 +211,7 @@ export function createUserMessage(text: string): Message {
 export function createAgentMessage(text: string): Message {
   return {
     kind: 'message',
-    messageId: crypto.randomUUID(),
+    messageId: generateId(),
     role: 'agent',
     parts: [{ kind: 'text', text }],
   }
@@ -245,6 +261,12 @@ export interface ParsedSSEChunk {
   content: string
   /** Final content if this chunk contains the final event */
   finalContent?: string
+  /** Final success flag if this chunk contains the final event */
+  finalSuccess?: boolean
+  /** Terminal task state if known */
+  terminalState?: 'completed' | 'failed' | 'canceled' | 'input-required'
+  /** Final artifacts if present on terminal event */
+  finalArtifacts?: Artifact[]
   /** Whether this chunk indicates the stream is done */
   isDone: boolean
 }
@@ -282,10 +304,50 @@ export function parseWorkflowSSEChunk(chunk: string): ParsedSSEChunk {
     try {
       const parsed = JSON.parse(dataContent)
 
-      if (parsed.event === 'chunk' && parsed.data?.content) {
-        result.content += parsed.data.content
-      } else if (parsed.event === 'final' && parsed.data?.output?.content) {
-        result.finalContent = parsed.data.output.content
+      if (
+        (parsed.event === 'chunk' && parsed.data?.content) ||
+        (parsed.type === 'stream:chunk' && parsed.data?.chunk)
+      ) {
+        const chunkText = parsed.data?.content ?? parsed.data?.chunk
+        if (chunkText) {
+          result.content += chunkText
+        }
+      } else if (parsed.event === 'error' || parsed.type === 'execution:error') {
+        result.finalSuccess = false
+        result.terminalState = 'failed'
+        result.isDone = true
+      } else if (parsed.type === 'execution:completed') {
+        if (parsed.data?.output?.content) {
+          result.finalContent = parsed.data.output.content
+        } else if (parsed.data?.output) {
+          result.finalContent = JSON.stringify(parsed.data.output)
+        }
+        result.finalArtifacts = (parsed.data?.output?.artifacts as Artifact[] | undefined) || []
+        result.finalSuccess = parsed.data?.success !== false
+        result.terminalState = result.finalSuccess ? 'completed' : 'failed'
+        result.isDone = true
+      } else if (parsed.type === 'execution:paused') {
+        if (parsed.data?.output?.content) {
+          result.finalContent = parsed.data.output.content
+        } else if (parsed.data?.output) {
+          result.finalContent = JSON.stringify(parsed.data.output)
+        }
+        result.finalSuccess = true
+        result.terminalState = 'input-required'
+        result.isDone = true
+      } else if (parsed.type === 'execution:cancelled') {
+        result.finalSuccess = false
+        result.terminalState = 'canceled'
+        result.isDone = true
+      } else if (parsed.event === 'final') {
+        if (parsed.data?.output?.content) {
+          result.finalContent = parsed.data.output.content
+        } else if (parsed.data?.output) {
+          result.finalContent = JSON.stringify(parsed.data.output)
+        }
+        result.finalArtifacts = (parsed.data?.output?.artifacts as Artifact[] | undefined) || []
+        result.finalSuccess = parsed.data?.success !== false
+        result.terminalState = result.finalSuccess ? 'completed' : 'failed'
         result.isDone = true
       }
     } catch {

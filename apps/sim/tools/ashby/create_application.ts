@@ -13,27 +13,7 @@ interface AshbyCreateApplicationParams {
 
 interface AshbyCreateApplicationResponse extends ToolResponse {
   output: {
-    id: string
-    status: string
-    candidate: {
-      id: string
-      name: string
-    }
-    job: {
-      id: string
-      title: string
-    }
-    currentInterviewStage: {
-      id: string
-      title: string
-      type: string
-    } | null
-    source: {
-      id: string
-      title: string
-    } | null
-    createdAt: string
-    updatedAt: string
+    applicationId: string
   }
 }
 
@@ -132,74 +112,12 @@ export const createApplicationTool: ToolConfig<
     return {
       success: true,
       output: {
-        id: r.id ?? null,
-        status: r.status ?? null,
-        candidate: {
-          id: r.candidate?.id ?? null,
-          name: r.candidate?.name ?? null,
-        },
-        job: {
-          id: r.job?.id ?? null,
-          title: r.job?.title ?? null,
-        },
-        currentInterviewStage: r.currentInterviewStage
-          ? {
-              id: r.currentInterviewStage.id ?? null,
-              title: r.currentInterviewStage.title ?? null,
-              type: r.currentInterviewStage.type ?? null,
-            }
-          : null,
-        source: r.source
-          ? {
-              id: r.source.id ?? null,
-              title: r.source.title ?? null,
-            }
-          : null,
-        createdAt: r.createdAt ?? null,
-        updatedAt: r.updatedAt ?? null,
+        applicationId: r.applicationId ?? null,
       },
     }
   },
 
   outputs: {
-    id: { type: 'string', description: 'Created application UUID' },
-    status: { type: 'string', description: 'Application status (Active, Hired, Archived, Lead)' },
-    candidate: {
-      type: 'object',
-      description: 'Associated candidate',
-      properties: {
-        id: { type: 'string', description: 'Candidate UUID' },
-        name: { type: 'string', description: 'Candidate name' },
-      },
-    },
-    job: {
-      type: 'object',
-      description: 'Associated job',
-      properties: {
-        id: { type: 'string', description: 'Job UUID' },
-        title: { type: 'string', description: 'Job title' },
-      },
-    },
-    currentInterviewStage: {
-      type: 'object',
-      description: 'Current interview stage',
-      optional: true,
-      properties: {
-        id: { type: 'string', description: 'Stage UUID' },
-        title: { type: 'string', description: 'Stage title' },
-        type: { type: 'string', description: 'Stage type' },
-      },
-    },
-    source: {
-      type: 'object',
-      description: 'Application source',
-      optional: true,
-      properties: {
-        id: { type: 'string', description: 'Source UUID' },
-        title: { type: 'string', description: 'Source title' },
-      },
-    },
-    createdAt: { type: 'string', description: 'ISO 8601 creation timestamp' },
-    updatedAt: { type: 'string', description: 'ISO 8601 last update timestamp' },
+    applicationId: { type: 'string', description: 'Created application UUID' },
   },
 }

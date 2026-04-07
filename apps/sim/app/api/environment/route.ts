@@ -8,8 +8,9 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { generateId } from '@/lib/core/utils/uuid'
 import { syncPersonalEnvCredentialsForUser } from '@/lib/credentials/environment'
-import type { EnvironmentVariable } from '@/stores/settings/environment'
+import type { EnvironmentVariable } from '@/lib/environment/api'
 
 const logger = createLogger('EnvironmentAPI')
 
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
       await db
         .insert(environment)
         .values({
-          id: crypto.randomUUID(),
+          id: generateId(),
           userId: session.user.id,
           variables: encryptedVariables,
           updatedAt: new Date(),

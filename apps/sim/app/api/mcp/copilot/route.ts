@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import {
@@ -18,11 +17,8 @@ import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { validateOAuthAccessToken } from '@/lib/auth/oauth-token'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import {
-  ORCHESTRATION_TIMEOUT_MS,
-  SIM_AGENT_API_URL,
-  SIM_AGENT_VERSION,
-} from '@/lib/copilot/constants'
+import { createRunSegment } from '@/lib/copilot/async-runs/repository'
+import { ORCHESTRATION_TIMEOUT_MS, SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
 import { orchestrateSubagentStream } from '@/lib/copilot/orchestrator/subagent'
 import {
@@ -33,6 +29,7 @@ import { DIRECT_TOOL_DEFS, SUBAGENT_TOOL_DEFS } from '@/lib/copilot/tools/mcp/de
 import { env } from '@/lib/core/config/env'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { generateId } from '@/lib/core/utils/uuid'
 import {
   authorizeWorkflowByWorkspacePermission,
   resolveWorkflowIdForUser,
@@ -40,11 +37,11 @@ import {
 
 const logger = createLogger('CopilotMcpAPI')
 const mcpRateLimiter = new RateLimiter()
-const DEFAULT_COPILOT_MODEL = 'claude-opus-4-5'
+const DEFAULT_COPILOT_MODEL = 'claude-opus-4-6'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-export const maxDuration = 300
+export const maxDuration = 3600
 
 interface CopilotKeyAuthResult {
   success: boolean
@@ -521,7 +518,7 @@ async function handleMcpRequestWithSdk(
   try {
     await transport.handleRequest(requestAdapter as any, responseCapture as any, parsedBody)
     await responseCapture.waitForHeaders()
-    // Must exceed the longest possible tool execution (build = 5 min).
+    // Must exceed the longest possible tool execution.
     // Using ORCHESTRATION_TIMEOUT_MS + 60 s buffer so the orchestrator can
     // finish or time-out on its own before the transport is torn down.
     await responseCapture.waitForEnd(ORCHESTRATION_TIMEOUT_MS + 60_000)
@@ -634,10 +631,14 @@ async function handleDirectToolCall(
   userId: string
 ): Promise<CallToolResult> {
   try {
-    const execContext = await prepareExecutionContext(userId, (args.workflowId as string) || '')
+    const execContext = await prepareExecutionContext(
+      userId,
+      (args.workflowId as string) || '',
+      (args.chatId as string) || undefined
+    )
 
     const toolCall = {
-      id: randomUUID(),
+      id: generateId(),
       name: toolDef.toolId,
       status: 'pending' as const,
       params: args as Record<string, any>,
@@ -714,7 +715,7 @@ async function handleBuildToolCall(
       }
     }
 
-    const chatId = randomUUID()
+    const chatId = generateId()
 
     const requestPayload = {
       message: requestText,
@@ -723,19 +724,32 @@ async function handleBuildToolCall(
       model: DEFAULT_COPILOT_MODEL,
       mode: 'agent',
       commands: ['fast'],
-      messageId: randomUUID(),
-      version: SIM_AGENT_VERSION,
-      headless: true,
+      messageId: generateId(),
       chatId,
-      source: 'mcp',
     }
+
+    const executionId = generateId()
+    const runId = generateId()
+    const messageId = requestPayload.messageId as string
+
+    await createRunSegment({
+      id: runId,
+      executionId,
+      chatId,
+      userId,
+      workflowId: resolved.workflowId,
+      streamId: messageId,
+    }).catch(() => {})
 
     const result = await orchestrateCopilotStream(requestPayload, {
       userId,
       workflowId: resolved.workflowId,
       chatId,
+      executionId,
+      runId,
+      goRoute: '/api/mcp',
       autoExecuteTools: true,
-      timeout: 300000,
+      timeout: ORCHESTRATION_TIMEOUT_MS,
       interactive: false,
       abortSignal,
     })

@@ -3,20 +3,20 @@ import { workflow, workspaceNotificationSubscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { generateId } from '@/lib/core/utils/uuid'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
-import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 import { MAX_EMAIL_RECIPIENTS, MAX_NOTIFICATIONS_PER_TYPE, MAX_WORKFLOW_IDS } from './constants'
 
 const logger = createLogger('WorkspaceNotificationsAPI')
 
 const notificationTypeSchema = z.enum(['webhook', 'email', 'slack'])
 const levelFilterSchema = z.array(z.enum(['info', 'error']))
-const triggerFilterSchema = z.array(z.enum(CORE_TRIGGER_TYPES))
+const triggerFilterSchema = z.array(z.string().min(1))
 
 const alertRuleSchema = z.enum([
   'consecutive_failures',
@@ -82,7 +82,7 @@ const createNotificationSchema = z
     workflowIds: z.array(z.string()).max(MAX_WORKFLOW_IDS).default([]),
     allWorkflows: z.boolean().default(false),
     levelFilter: levelFilterSchema.default(['info', 'error']),
-    triggerFilter: triggerFilterSchema.default([...CORE_TRIGGER_TYPES]),
+    triggerFilter: triggerFilterSchema.default([]),
     includeFinalOutput: z.boolean().default(false),
     includeTraceSpans: z.boolean().default(false),
     includeRateLimits: z.boolean().default(false),
@@ -232,7 +232,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const [subscription] = await db
       .insert(workspaceNotificationSubscription)
       .values({
-        id: uuidv4(),
+        id: generateId(),
         workspaceId,
         notificationType: data.notificationType,
         workflowIds: data.workflowIds,
@@ -256,6 +256,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       subscriptionId: subscription.id,
       type: data.notificationType,
     })
+
+    captureServerEvent(
+      session.user.id,
+      'notification_channel_created',
+      {
+        workspace_id: workspaceId,
+        notification_type: data.notificationType,
+        alert_rule: data.alertConfig?.rule ?? null,
+      },
+      { groups: { workspace: workspaceId } }
+    )
 
     recordAudit({
       workspaceId,

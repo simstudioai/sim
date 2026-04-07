@@ -1,9 +1,17 @@
 import { db } from '@sim/db'
 import { member, organization, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
+import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { getPlanPricing } from '@/lib/billing/core/billing'
-import { getEffectiveSeats, getFreeTierLimit } from '@/lib/billing/subscriptions/utils'
+import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
+import { getPlanTierDollars, isEnterprise, isPaid, isTeam } from '@/lib/billing/plan-helpers'
+import {
+  ENTITLED_SUBSCRIPTION_STATUSES,
+  getEffectiveSeats,
+  getFreeTierLimit,
+  hasUsableSubscriptionStatus,
+} from '@/lib/billing/subscriptions/utils'
 
 const logger = createLogger('OrganizationBilling')
 
@@ -16,7 +24,12 @@ async function getOrganizationSubscription(organizationId: string) {
     const orgSubs = await db
       .select()
       .from(subscription)
-      .where(and(eq(subscription.referenceId, organizationId), eq(subscription.status, 'active')))
+      .where(
+        and(
+          eq(subscription.referenceId, organizationId),
+          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+        )
+      )
       .limit(1)
 
     return orgSubs.length > 0 ? orgSubs[0] : null
@@ -128,7 +141,23 @@ export async function getOrganizationBillingData(
     })
 
     // Calculate aggregated statistics
-    const totalCurrentUsage = members.reduce((sum, member) => sum + member.currentUsage, 0)
+    let totalCurrentUsage = members.reduce((sum, m) => sum + m.currentUsage, 0)
+
+    // Deduct daily refresh from pooled usage
+    if (isPaid(subscription.plan) && subscription.periodStart) {
+      const planDollars = getPlanTierDollars(subscription.plan)
+      if (planDollars > 0) {
+        const memberIds = members.map((m) => m.userId)
+        const refreshConsumed = await computeDailyRefreshConsumed({
+          userIds: memberIds,
+          periodStart: subscription.periodStart,
+          periodEnd: subscription.periodEnd ?? null,
+          planDollars,
+          seats: subscription.seats ?? 1,
+        })
+        totalCurrentUsage = Math.max(0, totalCurrentUsage - refreshConsumed)
+      }
+    }
 
     // Get per-seat pricing for the plan
     const { basePrice: pricePerSeat } = getPlanPricing(subscription.plan)
@@ -144,7 +173,7 @@ export async function getOrganizationBillingData(
     let minimumBillingAmount: number
     let totalUsageLimit: number
 
-    if (subscription.plan === 'enterprise') {
+    if (isEnterprise(subscription.plan)) {
       // Enterprise has fixed pricing set through custom Stripe product
       // Their usage limit is configured to match their monthly cost
       const configuredLimit = organizationData.orgUsageLimit
@@ -219,8 +248,15 @@ export async function updateOrganizationUsageLimit(
       return { success: false, error: 'No active subscription found' }
     }
 
+    if (
+      !hasUsableSubscriptionStatus(subscription.status) ||
+      (await isOrganizationBillingBlocked(organizationId))
+    ) {
+      return { success: false, error: 'An active subscription is required to edit usage limits' }
+    }
+
     // Enterprise plans have fixed usage limits that cannot be changed
-    if (subscription.plan === 'enterprise') {
+    if (isEnterprise(subscription.plan)) {
       return {
         success: false,
         error: 'Enterprise plans have fixed usage limits that cannot be changed',
@@ -228,7 +264,7 @@ export async function updateOrganizationUsageLimit(
     }
 
     // Only team plans can update their usage limits
-    if (subscription.plan !== 'team') {
+    if (!isTeam(subscription.plan)) {
       return {
         success: false,
         error: 'Only team organizations can update usage limits',
