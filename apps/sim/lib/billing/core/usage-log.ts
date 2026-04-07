@@ -23,6 +23,7 @@ export type UsageLogSource =
   | 'mcp_copilot'
   | 'mothership_block'
   | 'knowledge-base'
+  | 'voice-input'
 
 /**
  * Metadata for 'model' category charges

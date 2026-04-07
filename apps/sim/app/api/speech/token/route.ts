@@ -4,7 +4,10 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { recordUsage } from '@/lib/billing/core/usage-log'
 import { env } from '@/lib/core/config/env'
+import { getCostMultiplier } from '@/lib/core/config/feature-flags'
+import { RateLimiter } from '@/lib/core/rate-limiter'
 import { validateAuthToken } from '@/lib/core/security/deployment'
 
 const logger = createLogger('SpeechTokenAPI')
@@ -13,11 +16,27 @@ export const dynamic = 'force-dynamic'
 
 const ELEVENLABS_TOKEN_URL = 'https://api.elevenlabs.io/v1/single-use-token/realtime_scribe'
 
-async function validateChatAuth(request: NextRequest, chatId: string): Promise<boolean> {
+const VOICE_SESSION_COST_PER_MIN = 0.008
+const VOICE_SESSION_MAX_MINUTES = 3
+const VOICE_SESSION_COST = VOICE_SESSION_COST_PER_MIN * VOICE_SESSION_MAX_MINUTES
+
+const STT_TOKEN_RATE_LIMIT = {
+  maxTokens: 20,
+  refillRate: 150,
+  refillIntervalMs: 60 * 60 * 1000,
+} as const
+
+const rateLimiter = new RateLimiter()
+
+async function validateChatAuth(
+  request: NextRequest,
+  chatId: string
+): Promise<{ valid: boolean; ownerId?: string }> {
   try {
     const chatResult = await db
       .select({
         id: chat.id,
+        userId: chat.userId,
         isActive: chat.isActive,
         authType: chat.authType,
         password: chat.password,
@@ -26,21 +45,26 @@ async function validateChatAuth(request: NextRequest, chatId: string): Promise<b
       .where(eq(chat.id, chatId))
       .limit(1)
 
-    if (chatResult.length === 0 || !chatResult[0].isActive) return false
+    if (chatResult.length === 0 || !chatResult[0].isActive) {
+      return { valid: false }
+    }
 
     const chatData = chatResult[0]
-    if (chatData.authType === 'public') return true
+
+    if (chatData.authType === 'public') {
+      return { valid: true, ownerId: chatData.userId }
+    }
 
     const cookieName = `chat_auth_${chatId}`
     const authCookie = request.cookies.get(cookieName)
     if (authCookie && validateAuthToken(authCookie.value, chatId, chatData.password)) {
-      return true
+      return { valid: true, ownerId: chatData.userId }
     }
 
-    return false
+    return { valid: false }
   } catch (error) {
     logger.error('Error validating chat auth for STT:', error)
-    return false
+    return { valid: false }
   }
 }
 
@@ -49,15 +73,37 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}))
     const chatId = body?.chatId as string | undefined
 
+    let billingUserId: string | undefined
+
     if (chatId) {
-      const isChatAuthed = await validateChatAuth(request, chatId)
-      if (!isChatAuthed) {
+      const chatAuth = await validateChatAuth(request, chatId)
+      if (!chatAuth.valid) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
+      billingUserId = chatAuth.ownerId
     } else {
       const session = await getSession()
       if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      billingUserId = session.user.id
+    }
+
+    if (billingUserId) {
+      const rateCheck = await rateLimiter.checkRateLimitDirect(
+        `stt-token:${billingUserId}`,
+        STT_TOKEN_RATE_LIMIT
+      )
+      if (!rateCheck.allowed) {
+        return NextResponse.json(
+          { error: 'Voice input rate limit exceeded. Please try again later.' },
+          {
+            status: 429,
+            headers: {
+              'Retry-After': String(Math.ceil((rateCheck.retryAfterMs ?? 60000) / 1000)),
+            },
+          }
+        )
       }
     }
 
@@ -83,6 +129,23 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json()
+
+    if (billingUserId) {
+      await recordUsage({
+        userId: billingUserId,
+        entries: [
+          {
+            category: 'fixed',
+            source: 'voice-input',
+            description: `Voice input session (${VOICE_SESSION_MAX_MINUTES} min)`,
+            cost: VOICE_SESSION_COST * getCostMultiplier(),
+          },
+        ],
+      }).catch((err) => {
+        logger.warn('Failed to record voice input usage, continuing:', err)
+      })
+    }
+
     return NextResponse.json({ token: data.token })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to generate speech token'

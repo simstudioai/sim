@@ -8,6 +8,7 @@ const logger = createLogger('useSpeechToText')
 const ELEVENLABS_WS_URL = 'wss://api.elevenlabs.io/v1/speech-to-text/realtime'
 const SAMPLE_RATE = 16000
 const CHUNK_SEND_INTERVAL_MS = 250
+export const MAX_SESSION_MS = 3 * 60 * 1000
 
 export type PermissionState = 'prompt' | 'granted' | 'denied'
 
@@ -62,6 +63,8 @@ export function useSpeechToText({
 
   const pcmBufferRef = useRef<Float32Array[]>([])
   const sendIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const sessionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const stopStreamingRef = useRef<() => void>(() => {})
   const isFirstChunkRef = useRef(true)
   const committedTextRef = useRef('')
 
@@ -69,12 +72,25 @@ export function useSpeechToText({
   languageRef.current = language
 
   useEffect(() => {
-    const supported =
+    const browserOk =
       typeof window !== 'undefined' &&
       typeof AudioContext !== 'undefined' &&
       typeof WebSocket !== 'undefined' &&
       typeof navigator?.mediaDevices?.getUserMedia === 'function'
-    setIsSupported(supported)
+
+    if (!browserOk) {
+      setIsSupported(false)
+      return
+    }
+
+    fetch('/api/settings/voice', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : { sttAvailable: false }))
+      .then((data) => {
+        if (mountedRef.current) setIsSupported(data.sttAvailable === true)
+      })
+      .catch(() => {
+        if (mountedRef.current) setIsSupported(false)
+      })
   }, [])
 
   const flushAudioBuffer = useCallback(() => {
@@ -111,6 +127,11 @@ export function useSpeechToText({
   }, [])
 
   const cleanup = useCallback(() => {
+    if (sessionTimerRef.current) {
+      clearTimeout(sessionTimerRef.current)
+      sessionTimerRef.current = null
+    }
+
     if (sendIntervalRef.current) {
       clearInterval(sendIntervalRef.current)
       sendIntervalRef.current = null
@@ -267,6 +288,12 @@ export function useSpeechToText({
       sendIntervalRef.current = setInterval(flushAudioBuffer, CHUNK_SEND_INTERVAL_MS)
 
       setIsListening(true)
+
+      sessionTimerRef.current = setTimeout(() => {
+        logger.info('Voice input session reached max duration, stopping')
+        stopStreamingRef.current()
+      }, MAX_SESSION_MS)
+
       return true
     } catch (error) {
       logger.error('Failed to start speech streaming', error)
@@ -281,6 +308,11 @@ export function useSpeechToText({
   }, [cleanup, flushAudioBuffer])
 
   const stopStreaming = useCallback(() => {
+    if (sessionTimerRef.current) {
+      clearTimeout(sessionTimerRef.current)
+      sessionTimerRef.current = null
+    }
+
     flushAudioBuffer()
 
     const ws = wsRef.current
@@ -324,6 +356,8 @@ export function useSpeechToText({
 
     setIsListening(false)
   }, [flushAudioBuffer])
+
+  stopStreamingRef.current = stopStreaming
 
   const toggleListening = useCallback(() => {
     if (isListening) {

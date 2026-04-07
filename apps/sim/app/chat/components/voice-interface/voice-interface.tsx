@@ -6,6 +6,7 @@ import { Mic, MicOff, Phone } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
+import { MAX_SESSION_MS } from '@/hooks/use-speech-to-text'
 
 const ParticlesVisualization = dynamic(
   () =>
@@ -94,6 +95,7 @@ export function VoiceInterface({
   const processorRef = useRef<ScriptProcessorNode | null>(null)
   const pcmBufferRef = useRef<Float32Array[]>([])
   const sendIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const sessionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isFirstChunkRef = useRef(true)
   const committedTextRef = useRef('')
   const onVoiceTranscriptRef = useRef(onVoiceTranscript)
@@ -106,6 +108,10 @@ export function VoiceInterface({
   }, [])
 
   const stopSendingAudio = useCallback(() => {
+    if (sessionTimerRef.current) {
+      clearTimeout(sessionTimerRef.current)
+      sessionTimerRef.current = null
+    }
     if (sendIntervalRef.current) {
       clearInterval(sendIntervalRef.current)
       sendIntervalRef.current = null
@@ -321,7 +327,14 @@ export function VoiceInterface({
     updateState('listening')
     setCurrentTranscript('')
     startSendingAudio()
-  }, [connectWebSocket, updateState, startSendingAudio])
+
+    sessionTimerRef.current = setTimeout(() => {
+      logger.info('Voice session reached max duration, stopping')
+      stopSendingAudio()
+      closeWebSocket()
+      updateState('idle')
+    }, MAX_SESSION_MS)
+  }, [connectWebSocket, updateState, startSendingAudio, stopSendingAudio, closeWebSocket])
 
   const stopListening = useCallback(() => {
     stopSendingAudio()

@@ -2274,6 +2274,7 @@ export const usageLogSourceEnum = pgEnum('usage_log_source', [
   'mcp_copilot',
   'mothership_block',
   'knowledge-base',
+  'voice-input',
 ])
 
 export const usageLog = pgTable(
