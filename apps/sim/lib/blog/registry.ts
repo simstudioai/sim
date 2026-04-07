@@ -192,13 +192,12 @@ export async function getRelatedPosts(slug: string, limit = 3): Promise<BlogMeta
   const posts = await getAllPostMeta()
   const current = posts.find((p) => p.slug === slug)
   if (!current) return []
-  const scored = posts
-    .filter((p) => p.slug !== slug)
+  const others = posts.filter((p) => p.slug !== slug)
+  const scored = others
     .map((p) => ({
       post: p,
       score: p.tags.filter((t) => current.tags.includes(t)).length,
     }))
-    .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score || byDateDesc(a.post, b.post))
     .slice(0, limit)
     .map((x) => x.post)
