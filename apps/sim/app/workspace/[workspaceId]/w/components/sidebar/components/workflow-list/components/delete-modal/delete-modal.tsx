@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
 
 interface DeleteModalProps {
@@ -48,12 +48,14 @@ export function DeleteModal({
   itemName,
 }: DeleteModalProps) {
   const [confirmationText, setConfirmationText] = useState('')
+  const [prevIsOpen, setPrevIsOpen] = useState(false)
 
-  useEffect(() => {
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen)
     if (isOpen) {
       setConfirmationText('')
     }
-  }, [isOpen])
+  }
 
   const isMultiple = Array.isArray(itemName) && itemName.length > 1
   const isSingle = !isMultiple
