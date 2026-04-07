@@ -28,6 +28,28 @@ type CheckFn = () => Promise<{
 }>
 
 const PROVIDER_CHECKS: Record<string, CheckFn> = {
+  zoom: async () => {
+    const { buildMeetingOutputs } = await import('@/triggers/zoom/utils')
+    const { zoomHandler } = await import('@/lib/webhooks/providers/zoom')
+    const outputs = buildMeetingOutputs() as Record<string, TriggerOutput>
+    const result = await zoomHandler.formatInput!({
+      webhook: {},
+      workflow: { id: 'check-alignment', userId: 'check-alignment' },
+      body: {
+        event: 'meeting.started',
+        event_ts: 1700000000000,
+        payload: { account_id: 'acct_1', object: { id: 123456789, uuid: 'abc' } },
+      },
+      headers: {},
+      requestId: 'check-trigger-alignment',
+    })
+    const input = result.input as Record<string, unknown>
+    return {
+      referenceLabel: 'buildMeetingOutputs()',
+      outputKeys: Object.keys(outputs).sort(),
+      formatInputKeys: Object.keys(input).sort(),
+    }
+  },
   gong: async () => {
     const { buildCallOutputs } = await import('@/triggers/gong/utils')
     const { gongHandler } = await import('@/lib/webhooks/providers/gong')

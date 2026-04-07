@@ -40,6 +40,30 @@ describe('gongHandler formatInput', () => {
 
     expect((input as Record<string, unknown>).callId).toBe('')
   })
+
+  it('exposes content topics and highlights alongside trackers', async () => {
+    const { input } = await gongHandler.formatInput!({
+      webhook: {},
+      workflow: { id: 'wf', userId: 'u' },
+      body: {
+        callData: {
+          metaData: { id: '99' },
+          content: {
+            trackers: [{ id: 't1', name: 'Competitor', count: 2 }],
+            topics: [{ name: 'Pricing', duration: 120 }],
+            highlights: [{ title: 'Action items' }],
+          },
+        },
+      },
+      headers: {},
+      requestId: 'gong-format-content',
+    })
+    const rec = input as Record<string, unknown>
+    expect(rec.callId).toBe('99')
+    expect(rec.trackers).toEqual([{ id: 't1', name: 'Competitor', count: 2 }])
+    expect(rec.topics).toEqual([{ name: 'Pricing', duration: 120 }])
+    expect(rec.highlights).toEqual([{ title: 'Action items' }])
+  })
 })
 
 describe('gongHandler verifyAuth (JWT)', () => {

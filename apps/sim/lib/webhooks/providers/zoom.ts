@@ -9,6 +9,8 @@ import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import type {
   AuthContext,
   EventMatchContext,
+  FormatInputContext,
+  FormatInputResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 
@@ -93,6 +95,14 @@ async function resolveZoomChallengeSecrets(
 }
 
 export const zoomHandler: WebhookProviderHandler = {
+  /**
+   * Zoom delivers the standard app webhook envelope (`event`, `event_ts`, `payload`).
+   * Pass through unchanged so trigger outputs match runtime input.
+   */
+  async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
+    return { input: body }
+  },
+
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
     const secretToken = providerConfig.secretToken as string | undefined
     if (!secretToken) {

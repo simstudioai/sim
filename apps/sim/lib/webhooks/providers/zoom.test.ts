@@ -52,6 +52,22 @@ describe('Zoom webhook provider', () => {
     expect(zid).toBe('zoom:meeting.participant_joined:123:participant-1')
   })
 
+  it('formatInput passes through the Zoom webhook envelope', async () => {
+    const body = {
+      event: 'meeting.started',
+      event_ts: 1700000000000,
+      payload: { account_id: 'acct', object: { id: 1 } },
+    }
+    const { input } = await zoomHandler.formatInput!({
+      webhook: {},
+      workflow: { id: 'wf', userId: 'u' },
+      body,
+      headers: {},
+      requestId: 'zoom-format',
+    })
+    expect(input).toBe(body)
+  })
+
   it('matchEvent never executes endpoint validation payloads', async () => {
     const result = await zoomHandler.matchEvent!({
       webhook: { id: 'w' },

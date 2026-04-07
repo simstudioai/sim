@@ -87,11 +87,28 @@ export function buildCallOutputs(): Record<string, TriggerOutput> {
       started: { type: 'string', description: 'Actual start time (ISO 8601)' },
       duration: { type: 'number', description: 'Call duration in seconds' },
       primaryUserId: { type: 'string', description: 'Primary Gong user ID' },
-      direction: { type: 'string', description: 'Call direction (Conference, Call, etc.)' },
-      system: { type: 'string', description: 'Meeting system (Zoom, Teams, etc.)' },
-      scope: { type: 'string', description: 'Call scope (External or Internal)' },
+      workspaceId: { type: 'string', description: 'Gong workspace ID' },
+      direction: { type: 'string', description: 'Call direction (Inbound, Outbound, etc.)' },
+      system: { type: 'string', description: 'Communication platform used (e.g. Zoom, Teams)' },
+      scope: { type: 'string', description: 'Call scope (Internal, External, or Unknown)' },
       media: { type: 'string', description: 'Media type (Video or Audio)' },
-      language: { type: 'string', description: 'Call language code' },
+      language: { type: 'string', description: 'Language code (ISO-639-2B)' },
+      sdrDisposition: {
+        type: 'string',
+        description: 'SDR disposition classification (when present)',
+      },
+      clientUniqueId: {
+        type: 'string',
+        description: 'Call identifier from the origin recording system (when present)',
+      },
+      customData: {
+        type: 'string',
+        description: 'Custom metadata from call creation (when present)',
+      },
+      purpose: { type: 'string', description: 'Call purpose (when present)' },
+      meetingUrl: { type: 'string', description: 'Web conference provider URL (when present)' },
+      isPrivate: { type: 'boolean', description: 'Whether the call is private (when present)' },
+      calendarEventId: { type: 'string', description: 'Calendar event identifier (when present)' },
     },
     parties: {
       type: 'array',
@@ -103,7 +120,16 @@ export function buildCallOutputs(): Record<string, TriggerOutput> {
     },
     trackers: {
       type: 'array',
-      description: 'Array of tracked topics/keywords with counts',
+      description:
+        'Keyword and smart trackers from call content (same shape as Gong extensive-calls `content.trackers`)',
+    },
+    topics: {
+      type: 'array',
+      description: 'Topic segments with durations from call content (`content.topics`)',
+    },
+    highlights: {
+      type: 'array',
+      description: 'AI-generated highlights from call content (`content.highlights`)',
     },
   } as Record<string, TriggerOutput>
 }

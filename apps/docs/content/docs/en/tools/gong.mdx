@@ -33,7 +33,9 @@ By combining these capabilities, you can automate sales coaching workflows, extr
 
 Integrate Gong into your workflow. Access call recordings, transcripts, user data, activity stats, scorecards, trackers, library content, coaching metrics, and more via the Gong API.
 
+## Webhook triggers
 
+[Gong automation rules](https://help.gong.io/docs/create-a-webhook-rule) can **Fire webhook** with a JSON body that includes `callData` (with `metaData`, `parties`, `context`, and nested `content`), plus `isTest` when sent from the Gong UI. Sim maps this to workflow input with a stable `eventType` of `gong.automation_rule`, a string `callId` from `metaData.id`, the full `callData` object, a flattened `metaData` object, and arrays at the top level for `parties`, `context`, `trackers` (from `callData.content.trackers`), `topics` (from `callData.content.topics`), and `highlights` (from `callData.content.highlights`). Metadata fields match the call objects documented under `gong_get_call` and extensive calls above (`workspaceId`, `meetingUrl`, `purpose`, `isPrivate`, `calendarEventId`, etc.) when Gong includes them.
 
 ## Tools
 

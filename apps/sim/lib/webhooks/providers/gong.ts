@@ -139,6 +139,8 @@ export const gongHandler: WebhookProviderHandler = {
         parties: (callData?.parties as unknown[]) || [],
         context: (callData?.context as unknown[]) || [],
         trackers: (content?.trackers as unknown[]) || [],
+        topics: (content?.topics as unknown[]) || [],
+        highlights: (content?.highlights as unknown[]) || [],
         eventType: 'gong.automation_rule',
         callId,
       },
