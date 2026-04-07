@@ -1,8 +1,3 @@
----
-description: Add a knowledge base connector for syncing documents from an external source
-argument-hint: <service-name> [api-docs-url]
----
-
 # Add Connector Skill
 
 You are an expert at adding knowledge base connectors to Sim. A connector syncs documents from an external source (Confluence, Google Drive, Notion, etc.) into a knowledge base.
