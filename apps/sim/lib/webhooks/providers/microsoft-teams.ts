@@ -254,6 +254,7 @@ async function formatTeamsGraphNotification(
 
                 const isOneDriveShareLink =
                   contentHost === '1drv.ms' ||
+                  contentHost === '1drv.com' ||
                   contentHost === 'microsoftpersonalcontent.com' ||
                   contentHost.endsWith('.microsoftpersonalcontent.com')
 
