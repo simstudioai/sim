@@ -133,34 +133,43 @@ export function BaseCard({
   const handleOpenInNewTab = useCallback(() => {
     actionTakenRef.current = true
     window.open(href, '_blank')
-    requestAnimationFrame(() => {
+    setTimeout(() => {
       actionTakenRef.current = false
-    })
+    }, 0)
   }, [href])
 
   const handleViewTags = useCallback(() => {
     actionTakenRef.current = true
     setIsTagsModalOpen(true)
-    requestAnimationFrame(() => {
+    setTimeout(() => {
       actionTakenRef.current = false
-    })
+    }, 0)
   }, [])
 
   const handleEdit = useCallback(() => {
     actionTakenRef.current = true
     setIsEditModalOpen(true)
-    requestAnimationFrame(() => {
+    setTimeout(() => {
       actionTakenRef.current = false
-    })
+    }, 0)
   }, [])
 
   const handleDelete = useCallback(() => {
     actionTakenRef.current = true
     setIsDeleteModalOpen(true)
-    requestAnimationFrame(() => {
+    setTimeout(() => {
       actionTakenRef.current = false
-    })
+    }, 0)
   }, [])
+
+  const handleCopyId = useCallback(() => {
+    if (!id) return
+    actionTakenRef.current = true
+    navigator.clipboard.writeText(id)
+    setTimeout(() => {
+      actionTakenRef.current = false
+    }, 0)
+  }, [id])
 
   const handleConfirmDelete = useCallback(async () => {
     if (!id || !onDelete) return
@@ -257,7 +266,7 @@ export function BaseCard({
         onClose={closeContextMenu}
         onOpenInNewTab={handleOpenInNewTab}
         onViewTags={handleViewTags}
-        onCopyId={id ? () => navigator.clipboard.writeText(id) : undefined}
+        onCopyId={id ? handleCopyId : undefined}
         onEdit={handleEdit}
         onDelete={handleDelete}
         showOpenInNewTab={true}
