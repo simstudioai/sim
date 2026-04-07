@@ -179,8 +179,8 @@ export async function processContextsServer(
         if (!result) return null
         return { type: 'file', tag: ctx.label ? `@${ctx.label}` : '@', content: result.content }
       }
-      if (ctx.kind === 'folder' && 'folderId' in ctx && ctx.folderId) {
-        const result = await resolveFolderResource(ctx.folderId)
+      if (ctx.kind === 'folder' && 'folderId' in ctx && ctx.folderId && currentWorkspaceId) {
+        const result = await resolveFolderResource(ctx.folderId, currentWorkspaceId)
         if (!result) return null
         return { type: 'folder', tag: ctx.label ? `@${ctx.label}` : '@', content: result.content }
       }
@@ -783,7 +783,7 @@ export async function resolveActiveResourceContext(
         return await resolveFileResource(resourceId, workspaceId)
       }
       case 'folder': {
-        return await resolveFolderResource(resourceId)
+        return await resolveFolderResource(resourceId, workspaceId)
       }
       default:
         return null
@@ -822,20 +822,23 @@ async function resolveFileResource(
   }
 }
 
-async function resolveFolderResource(folderId: string): Promise<AgentContext | null> {
+async function resolveFolderResource(
+  folderId: string,
+  workspaceId: string
+): Promise<AgentContext | null> {
   try {
     const { workflowFolder, workflow } = await import('@sim/db/schema')
     const [folder] = await db
       .select({ id: workflowFolder.id, name: workflowFolder.name })
       .from(workflowFolder)
-      .where(eq(workflowFolder.id, folderId))
+      .where(and(eq(workflowFolder.id, folderId), eq(workflowFolder.workspaceId, workspaceId)))
       .limit(1)
     if (!folder) return null
 
     const workflows = await db
       .select({ id: workflow.id, name: workflow.name })
       .from(workflow)
-      .where(eq(workflow.folderId, folderId))
+      .where(and(eq(workflow.folderId, folderId), eq(workflow.workspaceId, workspaceId)))
 
     const workflowList = workflows.map((w) => `- ${w.name} (id: ${w.id})`).join('\n')
     const content = `Folder: ${folder.name} (id: ${folder.id})\nWorkflows:\n${workflowList || '(empty)'}`
