@@ -441,6 +441,11 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
+  folder_restored: {
+    folder_id: string
+    workspace_id: string
+  }
+
   logs_filter_applied: {
     filter_type: 'status' | 'workflow' | 'folder' | 'trigger' | 'time'
     workspace_id: string

@@ -6,6 +6,7 @@ import {
   webhook,
   workflow,
   workflowDeploymentVersion,
+  workflowFolder,
   workflowMcpTool,
   workflowSchedule,
 } from '@sim/db/schema'
@@ -22,6 +23,7 @@ const logger = createLogger('WorkflowLifecycle')
 interface ArchiveWorkflowOptions {
   requestId: string
   notifySocket?: boolean
+  archivedAt?: Date
 }
 
 async function notifyWorkflowArchived(workflowId: string, requestId: string): Promise<void> {
@@ -120,7 +122,7 @@ export async function archiveWorkflow(
     return { archived: false, workflow: existingWorkflow }
   }
 
-  const now = new Date()
+  const now = options.archivedAt ?? new Date()
   const affectedWorkflowMcpServers = await db
     .select({ serverId: workflowMcpTool.serverId })
     .from(workflowMcpTool)
@@ -257,12 +259,28 @@ export async function restoreWorkflow(
     }
   }
 
+  let clearFolderId = false
+  if (existingWorkflow.folderId) {
+    const [folder] = await db
+      .select({ archivedAt: workflowFolder.archivedAt })
+      .from(workflowFolder)
+      .where(eq(workflowFolder.id, existingWorkflow.folderId))
+
+    if (!folder || folder.archivedAt) {
+      clearFolderId = true
+    }
+  }
+
   const now = new Date()
 
   await db.transaction(async (tx) => {
     await tx
       .update(workflow)
-      .set({ archivedAt: null, updatedAt: now })
+      .set({
+        archivedAt: null,
+        updatedAt: now,
+        ...(clearFolderId && { folderId: null }),
+      })
       .where(eq(workflow.id, workflowId))
 
     await tx

@@ -50,6 +50,7 @@ export const auditMock = {
     FOLDER_CREATED: 'folder.created',
     FOLDER_DELETED: 'folder.deleted',
     FOLDER_DUPLICATED: 'folder.duplicated',
+    FOLDER_RESTORED: 'folder.restored',
     FORM_CREATED: 'form.created',
     FORM_UPDATED: 'form.updated',
     FORM_DELETED: 'form.deleted',

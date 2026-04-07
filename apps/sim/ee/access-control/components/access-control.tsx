@@ -1290,7 +1290,7 @@ export function AccessControl() {
               <span className='text-[var(--text-error)]'>
                 All members will be removed from this group.
               </span>{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              <span className='text-[var(--text-tertiary)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
           <ModalFooter>

@@ -614,7 +614,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                 {memberToRemove?.email}
               </span>{' '}
               from this workspace?{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              <span className='text-[var(--text-tertiary)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
           <ModalFooter>
@@ -646,7 +646,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
               <span className='font-medium text-[var(--text-primary)]'>
                 {invitationToRemove?.email}
               </span>
-              ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              ? <span className='text-[var(--text-tertiary)]'>This action cannot be undone.</span>
             </p>
           </ModalBody>
           <ModalFooter>
