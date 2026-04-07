@@ -109,7 +109,6 @@ interface UserInputProps {
   userId?: string
   onContextAdd?: (context: ChatContext) => void
   onEnterWhileEmpty?: () => boolean
-  onPrimedDismiss?: () => void
 }
 
 export function UserInput({
@@ -123,7 +122,6 @@ export function UserInput({
   userId,
   onContextAdd,
   onEnterWhileEmpty,
-  onPrimedDismiss,
 }: UserInputProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { data: workflowsById = {} } = useWorkflowMap(workspaceId)
@@ -551,9 +549,8 @@ export function UserInput({
 
       setValue(newValue)
       restartRecognition(newValue)
-      if (newValue.trim()) onPrimedDismiss?.()
     },
-    [restartRecognition, onPrimedDismiss]
+    [restartRecognition]
   )
 
   const handleSelectAdjust = useCallback(() => {
