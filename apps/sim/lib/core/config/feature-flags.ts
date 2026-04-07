@@ -151,6 +151,18 @@ export const isInvitationsDisabled = isTruthy(env.DISABLE_INVITATIONS)
 export const isPublicApiDisabled = isTruthy(env.DISABLE_PUBLIC_API)
 
 /**
+ * Is Google OAuth login disabled
+ * When true, the Google OAuth login button is hidden even when credentials are configured
+ */
+export const isGoogleAuthDisabled = isTruthy(env.DISABLE_GOOGLE_AUTH)
+
+/**
+ * Is GitHub OAuth login disabled
+ * When true, the GitHub OAuth login button is hidden even when credentials are configured
+ */
+export const isGithubAuthDisabled = isTruthy(env.DISABLE_GITHUB_AUTH)
+
+/**
  * Is React Grab enabled for UI element debugging
  * When true and in development mode, enables React Grab for copying UI element context to clipboard
  */
