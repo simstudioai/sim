@@ -1,8 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 
 const languages = {
@@ -15,8 +21,6 @@ const languages = {
 }
 
 export function LanguageDropdown() {
-  const [isOpen, setIsOpen] = useState(false)
-  const [hoveredIndex, setHoveredIndex] = useState<number>(-1)
   const pathname = usePathname()
   const params = useParams()
   const router = useRouter()
@@ -38,15 +42,10 @@ export function LanguageDropdown() {
         setCurrentLang('en')
       }
     }
-  }, [params, currentLang])
+  }, [params])
 
   const handleLanguageChange = (locale: string) => {
-    if (locale === currentLang) {
-      setIsOpen(false)
-      return
-    }
-
-    setIsOpen(false)
+    if (locale === currentLang) return
 
     const segments = pathname.split('/').filter(Boolean)
 
@@ -64,85 +63,44 @@ export function LanguageDropdown() {
     router.push(newPath)
   }
 
-  useEffect(() => {
-    if (!isOpen) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsOpen(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [isOpen])
-
-  // Reset hovered index when popover closes
-  useEffect(() => {
-    if (!isOpen) {
-      setHoveredIndex(-1)
-    }
-  }, [isOpen])
-
   const languageEntries = Object.entries(languages)
 
   return (
-    <div className='relative'>
-      <button
-        onClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          setIsOpen(!isOpen)
-        }}
-        aria-haspopup='listbox'
-        aria-expanded={isOpen}
-        aria-controls='language-menu'
-        className='flex cursor-pointer items-center gap-1.5 rounded-[6px] px-3 py-2 font-normal text-[0.9375rem] text-foreground/60 leading-[1.4] transition-colors hover:bg-foreground/8 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-        style={{
-          fontFamily:
-            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-        }}
-      >
-        <span>{languages[currentLang as keyof typeof languages]?.name}</span>
-        <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', isOpen && 'rotate-180')} />
-      </button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className='flex cursor-pointer items-center gap-1.5 rounded-[8px] px-2.5 py-1.5 text-[13px] text-foreground/50 transition-colors duration-200 hover:bg-neutral-100 hover:text-foreground/70 focus:outline-none dark:hover:bg-neutral-800 dark:hover:text-foreground/70'>
+          <span>{languages[currentLang as keyof typeof languages]?.name}</span>
+          <svg width='8' height='5' viewBox='0 0 10 6' fill='none' className='flex-shrink-0'>
+            <path
+              d='M1 1L5 5L9 1'
+              stroke='currentColor'
+              strokeWidth='1.33'
+              strokeLinecap='square'
+              strokeLinejoin='miter'
+            />
+          </svg>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end' sideOffset={6} className='min-w-[160px]'>
+        {languageEntries.map(([code, lang]) => {
+          const isSelected = currentLang === code
 
-      {isOpen && (
-        <>
-          <div className='fixed inset-0 z-[1000]' aria-hidden onClick={() => setIsOpen(false)} />
-          <div
-            id='language-menu'
-            role='listbox'
-            className='absolute top-full right-0 z-[1001] mt-2 max-h-[400px] min-w-[160px] overflow-auto rounded-[6px] bg-white px-[6px] py-[6px] shadow-lg dark:bg-neutral-900'
-          >
-            {languageEntries.map(([code, lang], index) => {
-              const isSelected = currentLang === code
-              const isHovered = hoveredIndex === index
-
-              return (
-                <button
-                  key={code}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    handleLanguageChange(code)
-                  }}
-                  onMouseEnter={() => setHoveredIndex(index)}
-                  onMouseLeave={() => setHoveredIndex(-1)}
-                  role='option'
-                  aria-selected={isSelected}
-                  className={cn(
-                    'flex h-[26px] w-full min-w-0 cursor-pointer items-center gap-[8px] rounded-[6px] px-[6px] text-[13px] transition-colors',
-                    'text-neutral-700 dark:text-neutral-200',
-                    isHovered && 'bg-neutral-100 dark:bg-neutral-800',
-                    'focus:outline-none'
-                  )}
-                >
-                  <span className='text-[13px]'>{lang.flag}</span>
-                  <span className='flex-1 text-left leading-none'>{lang.name}</span>
-                  {isSelected && <Check className='ml-auto h-3.5 w-3.5' />}
-                </button>
-              )
-            })}
-          </div>
-        </>
-      )}
-    </div>
+          return (
+            <DropdownMenuItem
+              key={code}
+              onClick={() => handleLanguageChange(code)}
+              className={cn(
+                'flex cursor-pointer items-center gap-2 text-[13px]',
+                isSelected && 'font-medium'
+              )}
+            >
+              <span className='text-[13px]'>{lang.flag}</span>
+              <span className='flex-1'>{lang.name}</span>
+              {isSelected && <Check className='ml-auto h-3.5 w-3.5' />}
+            </DropdownMenuItem>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

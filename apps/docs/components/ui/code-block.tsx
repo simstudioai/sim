@@ -17,6 +17,7 @@ export function CodeBlock(props: React.ComponentProps<typeof FumadocsCodeBlock>)
   return (
     <FumadocsCodeBlock
       {...props}
+      className={cn('!border !border-fd-border !shadow-none', props.className)}
       Actions={({ className }) => (
         <div className={cn('empty:hidden', className)}>
           <button
