@@ -301,6 +301,7 @@ import {
   cloudwatchGetLogEventsTool,
   cloudwatchGetMetricStatisticsTool,
   cloudwatchListMetricsTool,
+  cloudwatchPutMetricDataTool,
   cloudwatchQueryLogsTool,
 } from '@/tools/cloudwatch'
 import {
@@ -3457,6 +3458,7 @@ export const tools: Record<string, ToolConfig> = {
   cloudwatch_get_log_events: cloudwatchGetLogEventsTool,
   cloudwatch_list_metrics: cloudwatchListMetricsTool,
   cloudwatch_get_metric_statistics: cloudwatchGetMetricStatisticsTool,
+  cloudwatch_put_metric_data: cloudwatchPutMetricDataTool,
   dynamodb_get: dynamodbGetTool,
   dynamodb_put: dynamodbPutTool,
   dynamodb_query: dynamodbQueryTool,
