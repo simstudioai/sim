@@ -5551,17 +5551,10 @@ export function FirefliesIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 export const AvianIcon = (props: SVGProps<SVGSVGElement>) => (
-  <svg
-    {...props}
-    fill='currentColor'
-    height='1em'
-    viewBox='0 0 24 24'
-    width='1em'
-    xmlns='http://www.w3.org/2000/svg'
-  >
+  <svg {...props} viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'>
     <title>Avian</title>
     <path
-      d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm3.5 7.5L12 13l-3.5-3.5L12 6l3.5 3.5zM8 14.5l4 4 4-4H8z'
+      d='M21 3c-1.5 2-3.5 3.5-6 4.5C13.5 5.5 11 4.5 8 5c-2 .3-3.8 1.2-5 2.5 1.5-.3 3-.2 4.5.3-1.5 1-2.5 2.5-3 4.2 1.2-.8 2.5-1.2 4-1.2-1 1.5-1.2 3.2-.8 5 2-2.5 4.5-4 7.5-4.5.2 1.5-.2 3-1 4.2 2-.5 3.5-1.8 4.5-3.5.5 1 .5 2.2.3 3.5 1.5-1.8 2-4 1.5-6.5C22 7 22 5 21 3z'
       fill='#6366F1'
     />
   </svg>

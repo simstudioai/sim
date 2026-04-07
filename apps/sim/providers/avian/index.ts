@@ -15,6 +15,7 @@ import {
   calculateCost,
   prepareToolExecution,
   prepareToolsWithUsageControl,
+  sumToolCosts,
   trackForcedToolUsage,
 } from '@/providers/utils'
 import { executeTool } from '@/tools'
@@ -123,28 +124,25 @@ export const avianProvider: ProviderConfig = {
         )
 
         const streamingResult = {
-          stream: createReadableStreamFromAvianStream(
-            streamResponse as any,
-            (content, usage) => {
-              streamingResult.execution.output.content = content
-              streamingResult.execution.output.tokens = {
-                input: usage.prompt_tokens,
-                output: usage.completion_tokens,
-                total: usage.total_tokens,
-              }
-
-              const costResult = calculateCost(
-                request.model,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              streamingResult.execution.output.cost = {
-                input: costResult.input,
-                output: costResult.output,
-                total: costResult.total,
-              }
+          stream: createReadableStreamFromAvianStream(streamResponse as any, (content, usage) => {
+            streamingResult.execution.output.content = content
+            streamingResult.execution.output.tokens = {
+              input: usage.prompt_tokens,
+              output: usage.completion_tokens,
+              total: usage.total_tokens,
             }
-          ),
+
+            const costResult = calculateCost(
+              request.model,
+              usage.prompt_tokens,
+              usage.completion_tokens
+            )
+            streamingResult.execution.output.cost = {
+              input: costResult.input,
+              output: costResult.output,
+              total: costResult.total,
+            }
+          }),
           execution: {
             success: true,
             output: {
@@ -205,7 +203,7 @@ export const avianProvider: ProviderConfig = {
         total: currentResponse.usage?.total_tokens || 0,
       }
       const toolCalls = []
-      const toolResults = []
+      const toolResults: Record<string, unknown>[] = []
       const currentMessages = [...allMessages]
       let iterationCount = 0
       let hasUsedForcedTool = false
@@ -325,7 +323,7 @@ export const avianProvider: ProviderConfig = {
             })
 
             let resultContent: any
-            if (result.success) {
+            if (result.success && result.output) {
               toolResults.push(result.output)
               resultContent = result.output
             } else {
@@ -456,28 +454,27 @@ export const avianProvider: ProviderConfig = {
         const accumulatedCost = calculateCost(request.model, tokens.input, tokens.output)
 
         const streamingResult = {
-          stream: createReadableStreamFromAvianStream(
-            streamResponse as any,
-            (content, usage) => {
-              streamingResult.execution.output.content = content
-              streamingResult.execution.output.tokens = {
-                input: tokens.input + usage.prompt_tokens,
-                output: tokens.output + usage.completion_tokens,
-                total: tokens.total + usage.total_tokens,
-              }
-
-              const streamCost = calculateCost(
-                request.model,
-                usage.prompt_tokens,
-                usage.completion_tokens
-              )
-              streamingResult.execution.output.cost = {
-                input: accumulatedCost.input + streamCost.input,
-                output: accumulatedCost.output + streamCost.output,
-                total: accumulatedCost.total + streamCost.total,
-              }
+          stream: createReadableStreamFromAvianStream(streamResponse as any, (content, usage) => {
+            streamingResult.execution.output.content = content
+            streamingResult.execution.output.tokens = {
+              input: tokens.input + usage.prompt_tokens,
+              output: tokens.output + usage.completion_tokens,
+              total: tokens.total + usage.total_tokens,
             }
-          ),
+
+            const streamCost = calculateCost(
+              request.model,
+              usage.prompt_tokens,
+              usage.completion_tokens
+            )
+            const tc = sumToolCosts(toolResults)
+            streamingResult.execution.output.cost = {
+              input: accumulatedCost.input + streamCost.input,
+              output: accumulatedCost.output + streamCost.output,
+              toolCost: tc || undefined,
+              total: accumulatedCost.total + streamCost.total + tc,
+            }
+          }),
           execution: {
             success: true,
             output: {
@@ -508,6 +505,7 @@ export const avianProvider: ProviderConfig = {
               cost: {
                 input: accumulatedCost.input,
                 output: accumulatedCost.output,
+                toolCost: undefined as number | undefined,
                 total: accumulatedCost.total,
               },
             },
