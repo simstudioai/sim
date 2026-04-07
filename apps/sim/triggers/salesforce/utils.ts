@@ -1,3 +1,4 @@
+import { extractSalesforceObjectTypeFromPayload } from '@/lib/webhooks/salesforce-payload-utils'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
@@ -18,32 +19,6 @@ function normalizeToken(s: string): string {
     .trim()
     .toLowerCase()
     .replace(/[\s-]+/g, '_')
-}
-
-function payloadObjectType(body: Record<string, unknown>): string | undefined {
-  const direct =
-    (typeof body.objectType === 'string' && body.objectType) ||
-    (typeof body.sobjectType === 'string' && body.sobjectType) ||
-    undefined
-  if (direct) {
-    return direct
-  }
-  const attrs = body.attributes as Record<string, unknown> | undefined
-  if (typeof attrs?.type === 'string') {
-    return attrs.type
-  }
-  const record = body.record
-  if (record && typeof record === 'object' && !Array.isArray(record)) {
-    const r = record as Record<string, unknown>
-    if (typeof r.sobjectType === 'string') {
-      return r.sobjectType
-    }
-    const ra = r.attributes as Record<string, unknown> | undefined
-    if (typeof ra?.type === 'string') {
-      return ra.type
-    }
-  }
-  return undefined
 }
 
 const RECORD_CREATED = new Set([
@@ -115,7 +90,7 @@ export function isSalesforceEventMatch(
     if (!want) {
       return true
     }
-    const got = payloadObjectType(body)
+    const got = extractSalesforceObjectTypeFromPayload(body)
     if (!got) {
       return false
     }
@@ -123,7 +98,7 @@ export function isSalesforceEventMatch(
   }
 
   const wantType = configuredObjectType?.trim()
-  const gotType = payloadObjectType(body)
+  const gotType = extractSalesforceObjectTypeFromPayload(body)
   if (wantType) {
     if (!gotType) {
       return false

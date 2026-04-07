@@ -9,6 +9,7 @@ import type {
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { verifyTokenAuth } from '@/lib/webhooks/providers/utils'
+import { extractSalesforceObjectTypeFromPayload } from '@/lib/webhooks/salesforce-payload-utils'
 
 const logger = createLogger('WebhookProvider:Salesforce')
 
@@ -23,39 +24,6 @@ function asRecord(body: unknown): Record<string, unknown> {
   return body && typeof body === 'object' && !Array.isArray(body)
     ? (body as Record<string, unknown>)
     : {}
-}
-
-function extractObjectTypeFromPayload(body: Record<string, unknown>): string | undefined {
-  const direct =
-    (typeof body.objectType === 'string' && body.objectType) ||
-    (typeof body.sobjectType === 'string' && body.sobjectType) ||
-    undefined
-  if (direct) {
-    return direct
-  }
-
-  const attrs = body.attributes as Record<string, unknown> | undefined
-  if (typeof attrs?.type === 'string') {
-    return attrs.type
-  }
-
-  const record = body.record
-  if (record && typeof record === 'object' && !Array.isArray(record)) {
-    const r = record as Record<string, unknown>
-    if (typeof r.sobjectType === 'string') {
-      return r.sobjectType
-    }
-    const ra = r.attributes as Record<string, unknown> | undefined
-    if (typeof ra?.type === 'string') {
-      return ra.type
-    }
-  }
-
-  return undefined
-}
-
-function normalizeSObjectType(t: string): string {
-  return t.trim().toLowerCase()
 }
 
 function extractRecordCore(body: Record<string, unknown>): Record<string, unknown> {
@@ -176,7 +144,7 @@ export const salesforceHandler: WebhookProviderHandler = {
 
     const record = extractRecordCore(body)
     const objectType =
-      extractObjectTypeFromPayload(body) ||
+      extractSalesforceObjectTypeFromPayload(body) ||
       (typeof record.attributes === 'object' &&
       record.attributes &&
       typeof (record.attributes as Record<string, unknown>).type === 'string'
