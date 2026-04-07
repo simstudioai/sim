@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Badge, DocumentAttachment, Tooltip } from '@/components/emcn'
 import { formatAbsoluteDate, formatRelativeTime } from '@/lib/core/utils/formatting'
@@ -100,6 +100,7 @@ export function BaseCard({
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isTagsModalOpen, setIsTagsModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const actionTakenRef = useRef(false)
 
   const searchParams = new URLSearchParams({
     kbName: title,
@@ -110,7 +111,7 @@ export function BaseCard({
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
-      if (isContextMenuOpen) {
+      if (isContextMenuOpen || actionTakenRef.current) {
         e.preventDefault()
         return
       }
@@ -130,19 +131,35 @@ export function BaseCard({
   )
 
   const handleOpenInNewTab = useCallback(() => {
+    actionTakenRef.current = true
     window.open(href, '_blank')
+    requestAnimationFrame(() => {
+      actionTakenRef.current = false
+    })
   }, [href])
 
   const handleViewTags = useCallback(() => {
+    actionTakenRef.current = true
     setIsTagsModalOpen(true)
+    requestAnimationFrame(() => {
+      actionTakenRef.current = false
+    })
   }, [])
 
   const handleEdit = useCallback(() => {
+    actionTakenRef.current = true
     setIsEditModalOpen(true)
+    requestAnimationFrame(() => {
+      actionTakenRef.current = false
+    })
   }, [])
 
   const handleDelete = useCallback(() => {
+    actionTakenRef.current = true
     setIsDeleteModalOpen(true)
+    requestAnimationFrame(() => {
+      actionTakenRef.current = false
+    })
   }, [])
 
   const handleConfirmDelete = useCallback(async () => {
