@@ -16,7 +16,7 @@ interface VideoProps {
 
 export function Video({
   src,
-  className = 'w-full rounded-xl border border-border shadow-sm overflow-hidden outline-none focus:outline-none',
+  className = 'w-full rounded-xl border border-border overflow-hidden outline-none focus:outline-none',
   autoPlay = true,
   loop = true,
   muted = true,

@@ -2,12 +2,36 @@
 
 import { type ReactNode, useEffect, useState } from 'react'
 import type { Folder, Item, Separator } from 'fumadocs-core/page-tree'
-import { ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { i18n } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
-const LANG_PREFIXES = ['/en', '/es', '/fr', '/de', '/ja', '/zh']
+function SidebarChevron({ open, className }: { open: boolean; className?: string }) {
+  return (
+    <svg
+      width='5'
+      height='8'
+      viewBox='0 0 6 10'
+      fill='none'
+      className={cn(
+        'flex-shrink-0 transition-transform duration-200',
+        open && 'rotate-90',
+        className
+      )}
+    >
+      <path
+        d='M1 1L5 5L1 9'
+        stroke='currentColor'
+        strokeWidth='1.33'
+        strokeLinecap='square'
+        strokeLinejoin='miter'
+      />
+    </svg>
+  )
+}
+
+const LANG_PREFIXES = i18n.languages.map((l) => `/${l}`)
 
 function stripLangPrefix(path: string): string {
   for (const prefix of LANG_PREFIXES) {
@@ -26,6 +50,22 @@ function isActive(url: string, pathname: string, nested = true): boolean {
   )
 }
 
+const ITEM_BASE =
+  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors text-fd-muted-foreground hover:bg-fd-accent/50 hover:text-fd-accent-foreground'
+const ITEM_ACTIVE_MOBILE = 'bg-fd-primary/10 font-medium text-fd-primary'
+
+const ITEM_DESKTOP =
+  'lg:mb-[0.0625rem] lg:block lg:rounded-lg lg:px-2.5 lg:py-1.5 lg:font-normal lg:text-[13px] lg:leading-tight'
+const ITEM_TEXT = 'lg:text-[#3b3b3b] lg:dark:text-[#cdcdcd]'
+const ITEM_HOVER = 'lg:hover:bg-[#f2f2f2] lg:dark:hover:bg-[#262626]'
+const ITEM_ACTIVE =
+  'lg:bg-[#ececec] lg:font-normal lg:text-[#3b3b3b] lg:dark:bg-[#2c2c2c] lg:dark:text-[#cdcdcd]'
+
+const FOLDER_TEXT = 'lg:text-[#3b3b3b] lg:font-medium lg:dark:text-[#cdcdcd]'
+const FOLDER_HOVER = 'lg:hover:bg-[#f2f2f2] lg:dark:hover:bg-[#262626]'
+const FOLDER_ACTIVE =
+  'lg:bg-[#ececec] lg:text-[#3b3b3b] lg:dark:bg-[#2c2c2c] lg:dark:text-[#cdcdcd]'
+
 export function SidebarItem({ item }: { item: Item }) {
   const pathname = usePathname()
   const active = isActive(item.url, pathname, false)
@@ -35,16 +75,12 @@ export function SidebarItem({ item }: { item: Item }) {
       href={item.url}
       data-active={active}
       className={cn(
-        // Mobile styles (default)
-        'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-        'text-fd-muted-foreground hover:bg-fd-accent/50 hover:text-fd-accent-foreground',
-        active && 'bg-fd-primary/10 font-medium text-fd-primary',
-        // Desktop styles (lg+)
-        'lg:mb-[0.0625rem] lg:block lg:rounded-md lg:px-2.5 lg:py-1.5 lg:font-normal lg:text-[13px] lg:leading-tight',
-        'lg:text-gray-600 lg:dark:text-gray-400',
-        !active && 'lg:hover:bg-gray-100/60 lg:dark:hover:bg-gray-800/40',
-        active &&
-          'lg:bg-emerald-50/80 lg:font-normal lg:text-emerald-600 lg:dark:bg-emerald-900/15 lg:dark:text-emerald-400'
+        ITEM_BASE,
+        active && ITEM_ACTIVE_MOBILE,
+        ITEM_DESKTOP,
+        ITEM_TEXT,
+        !active && ITEM_HOVER,
+        active && ITEM_ACTIVE
       )}
     >
       {item.name}
@@ -81,16 +117,12 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
         href={item.index.url}
         data-active={active}
         className={cn(
-          // Mobile styles (default)
-          'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-          'text-fd-muted-foreground hover:bg-fd-accent/50 hover:text-fd-accent-foreground',
-          active && 'bg-fd-primary/10 font-medium text-fd-primary',
-          // Desktop styles (lg+)
-          'lg:mb-[0.0625rem] lg:block lg:rounded-md lg:px-2.5 lg:py-1.5 lg:font-normal lg:text-[13px] lg:leading-tight',
-          'lg:text-gray-600 lg:dark:text-gray-400',
-          !active && 'lg:hover:bg-gray-100/60 lg:dark:hover:bg-gray-800/40',
-          active &&
-            'lg:bg-emerald-50/80 lg:font-normal lg:text-emerald-600 lg:dark:bg-emerald-900/15 lg:dark:text-emerald-400'
+          ITEM_BASE,
+          active && ITEM_ACTIVE_MOBILE,
+          ITEM_DESKTOP,
+          ITEM_TEXT,
+          !active && ITEM_HOVER,
+          active && ITEM_ACTIVE
         )}
       >
         {item.name}
@@ -102,66 +134,48 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
     <div className='flex flex-col lg:mb-[0.0625rem]'>
       <div className='flex w-full items-center lg:gap-0.5'>
         {item.index ? (
-          <Link
-            href={item.index.url}
-            data-active={active}
-            className={cn(
-              // Mobile styles (default)
-              'flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-              'text-fd-muted-foreground hover:bg-fd-accent/50 hover:text-fd-accent-foreground',
-              active && 'bg-fd-primary/10 font-medium text-fd-primary',
-              // Desktop styles (lg+)
-              'lg:block lg:flex-1 lg:rounded-md lg:px-2.5 lg:py-1.5 lg:font-medium lg:text-[13px] lg:leading-tight',
-              'lg:text-gray-800 lg:dark:text-gray-200',
-              !active && 'lg:hover:bg-gray-100/60 lg:dark:hover:bg-gray-800/40',
-              active &&
-                'lg:bg-emerald-50/80 lg:text-emerald-600 lg:dark:bg-emerald-900/15 lg:dark:text-emerald-400'
+          <>
+            <Link
+              href={item.index.url}
+              data-active={active}
+              className={cn(
+                'flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+                'text-fd-muted-foreground hover:bg-fd-accent/50 hover:text-fd-accent-foreground',
+                active && ITEM_ACTIVE_MOBILE,
+                'lg:block lg:flex-1 lg:rounded-lg lg:px-2.5 lg:py-1.5 lg:text-[13px] lg:leading-tight',
+                FOLDER_TEXT,
+                !active && FOLDER_HOVER,
+                active && FOLDER_ACTIVE
+              )}
+            >
+              {item.name}
+            </Link>
+            {hasChildren && (
+              <button
+                onClick={() => setOpen(!open)}
+                className={cn(
+                  'rounded p-1 hover:bg-fd-accent/50',
+                  'lg:cursor-pointer lg:rounded lg:p-1 lg:transition-colors lg:hover:bg-[#f2f2f2] lg:dark:hover:bg-[#262626]'
+                )}
+                aria-label={open ? 'Collapse' : 'Expand'}
+              >
+                <SidebarChevron open={open} className='text-[#5e5e5e] dark:text-[#939393]' />
+              </button>
             )}
-          >
-            {item.name}
-          </Link>
+          </>
         ) : (
           <button
             onClick={() => setOpen(!open)}
             className={cn(
-              // Mobile styles (default)
               'flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
               'text-fd-muted-foreground hover:bg-fd-accent/50',
-              // Desktop styles (lg+)
-              'lg:flex lg:w-full lg:cursor-pointer lg:items-center lg:justify-between lg:rounded-md lg:px-2.5 lg:py-1.5 lg:text-left lg:font-medium lg:text-[13px] lg:leading-tight',
-              'lg:text-gray-800 lg:hover:bg-gray-100/60 lg:dark:text-gray-200 lg:dark:hover:bg-gray-800/40'
+              'lg:flex lg:w-full lg:cursor-pointer lg:items-center lg:justify-between lg:rounded-lg lg:px-2.5 lg:py-1.5 lg:text-left lg:text-[13px] lg:leading-tight',
+              FOLDER_TEXT,
+              FOLDER_HOVER
             )}
           >
             <span>{item.name}</span>
-            {/* Desktop-only chevron for non-index folders */}
-            <ChevronRight
-              className={cn(
-                'ml-auto hidden h-3 w-3 flex-shrink-0 text-gray-400 transition-transform duration-200 ease-in-out lg:block dark:text-gray-500',
-                open && 'rotate-90'
-              )}
-            />
-          </button>
-        )}
-        {hasChildren && (
-          <button
-            onClick={() => setOpen(!open)}
-            className={cn(
-              // Mobile styles
-              'rounded p-1 hover:bg-fd-accent/50',
-              // Desktop styles
-              'lg:cursor-pointer lg:rounded lg:p-1 lg:transition-colors lg:hover:bg-gray-100/60 lg:dark:hover:bg-gray-800/40'
-            )}
-            aria-label={open ? 'Collapse' : 'Expand'}
-          >
-            <ChevronRight
-              className={cn(
-                // Mobile styles
-                'h-4 w-4 transition-transform',
-                // Desktop styles
-                'lg:h-3 lg:w-3 lg:text-gray-400 lg:duration-200 lg:ease-in-out lg:dark:text-gray-500',
-                open && 'rotate-90'
-              )}
-            />
+            <SidebarChevron open={open} className='ml-auto text-[#5e5e5e] dark:text-[#939393]' />
           </button>
         )}
       </div>
@@ -173,10 +187,8 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
           )}
         >
           <div className='overflow-hidden'>
-            {/* Mobile: simple indent */}
             <div className='ml-4 flex flex-col gap-0.5 lg:hidden'>{children}</div>
-            {/* Desktop: styled with border */}
-            <ul className='mt-0.5 ml-2 hidden space-y-[0.0625rem] border-gray-200/60 border-l pl-2.5 lg:block dark:border-gray-700/60'>
+            <ul className='mt-0.5 ml-2 hidden space-y-[0.0625rem] border-[#ececec] border-l pl-2.5 lg:block dark:border-[#2c2c2c]'>
               {children}
             </ul>
           </div>
@@ -188,16 +200,24 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
 
 export function SidebarSeparator({ item }: { item: Separator }) {
   return (
-    <p
-      className={cn(
-        // Mobile styles
-        'mt-4 mb-2 px-2 font-medium text-fd-muted-foreground text-xs',
-        // Desktop styles
-        'lg:mt-4 lg:mb-1.5 lg:px-2.5 lg:font-semibold lg:text-[10px] lg:text-gray-500/80 lg:uppercase lg:tracking-wide lg:dark:text-gray-500'
-      )}
+    <div
+      data-separator
+      className={cn('mt-5 mb-1.5 px-2', 'lg:relative lg:mt-0 lg:mb-1.5 lg:px-[13px] lg:pt-0')}
     >
-      {item.name}
-    </p>
+      <div className='separator-divider hidden'>
+        <div className='h-[20px]' />
+        <div className='h-px bg-[#ececec] dark:bg-[#2c2c2c]' />
+        <div className='h-[20px]' />
+      </div>
+      <p
+        className={cn(
+          'font-medium text-fd-muted-foreground text-xs',
+          'lg:font-semibold lg:text-[#5e5e5e] lg:text-[10px] lg:uppercase lg:tracking-[0.06em] lg:dark:text-[#939393]'
+        )}
+      >
+        {item.name}
+      </p>
+    </div>
   )
 }
 

@@ -9,7 +9,7 @@ export function LLMCopyButton({ content }: { content: string }) {
   return (
     <button
       onClick={onClick}
-      className='flex cursor-pointer items-center gap-1.5 rounded-lg border border-border/40 bg-background px-2.5 py-2 text-muted-foreground/60 text-sm leading-none transition-all hover:border-border hover:bg-accent/50 hover:text-muted-foreground'
+      className='flex cursor-pointer items-center gap-1.5 rounded-[5px] border border-transparent px-2.5 py-2 text-[13px] text-foreground/40 leading-none transition-colors duration-200 hover:border-border/40 hover:bg-neutral-100 hover:text-foreground/70 dark:hover:bg-neutral-800'
       aria-label={checked ? 'Copied to clipboard' : 'Copy page content'}
     >
       {checked ? (
