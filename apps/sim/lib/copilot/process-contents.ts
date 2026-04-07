@@ -178,6 +178,11 @@ export async function processContextsServer(
         if (!result) return null
         return { type: 'file', tag: ctx.label ? `@${ctx.label}` : '@', content: result.content }
       }
+      if (ctx.kind === 'folder' && 'folderId' in ctx && ctx.folderId) {
+        const result = await resolveFolderResource(ctx.folderId)
+        if (!result) return null
+        return { type: 'folder', tag: ctx.label ? `@${ctx.label}` : '@', content: result.content }
+      }
       if (ctx.kind === 'docs') {
         try {
           const { searchDocumentationServerTool } = await import(
@@ -776,6 +781,9 @@ export async function resolveActiveResourceContext(
       case 'file': {
         return await resolveFileResource(resourceId, workspaceId)
       }
+      case 'folder': {
+        return await resolveFolderResource(resourceId)
+      }
       default:
         return null
     }
@@ -810,5 +818,30 @@ async function resolveFileResource(
       size: record.size,
       uploadedAt: record.uploadedAt,
     }),
+  }
+}
+
+async function resolveFolderResource(folderId: string): Promise<AgentContext | null> {
+  try {
+    const { workflowFolder, workflow } = await import('@sim/db/schema')
+    const [folder] = await db
+      .select({ id: workflowFolder.id, name: workflowFolder.name })
+      .from(workflowFolder)
+      .where(eq(workflowFolder.id, folderId))
+      .limit(1)
+    if (!folder) return null
+
+    const workflows = await db
+      .select({ id: workflow.id, name: workflow.name })
+      .from(workflow)
+      .where(eq(workflow.folderId, folderId))
+
+    const workflowList = workflows.map((w) => `- ${w.name} (id: ${w.id})`).join('\n')
+    const content = `Folder: ${folder.name} (id: ${folder.id})\nWorkflows:\n${workflowList || '(empty)'}`
+
+    return { type: 'active_resource', tag: '@active_resource', content }
+  } catch (error) {
+    logger.error('Failed to resolve folder resource', { folderId, error })
+    return null
   }
 }
