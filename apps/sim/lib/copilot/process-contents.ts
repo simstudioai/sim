@@ -33,6 +33,7 @@ export type AgentContextType =
   | 'templates'
   | 'workflow_block'
   | 'docs'
+  | 'folder'
   | 'active_resource'
 
 export interface AgentContext {

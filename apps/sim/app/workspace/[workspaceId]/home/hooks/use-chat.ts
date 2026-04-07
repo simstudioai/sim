@@ -294,6 +294,7 @@ function mapStoredMessage(msg: TaskStoredMessage): ChatMessage {
       ...(c.knowledgeId && { knowledgeId: c.knowledgeId }),
       ...(c.tableId && { tableId: c.tableId }),
       ...(c.fileId && { fileId: c.fileId }),
+      ...(c.folderId && { folderId: c.folderId }),
     }))
   }
 
@@ -1953,6 +1954,7 @@ export function useChat(
         ...('knowledgeId' in c && c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
         ...('tableId' in c && c.tableId ? { tableId: c.tableId } : {}),
         ...('fileId' in c && c.fileId ? { fileId: c.fileId } : {}),
+        ...('folderId' in c && c.folderId ? { folderId: c.folderId } : {}),
       }))
 
       setMessages((prev) => [
