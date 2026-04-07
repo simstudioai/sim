@@ -183,7 +183,7 @@ export const PlusMenuDropdown = React.memo(
                     )
                   })
                 ) : (
-                  <div className='px-2 py-[5px] text-center font-medium text-[12px] text-[var(--text-tertiary)]'>
+                  <div className='px-2 py-1.5 text-center font-medium text-[12px] text-[var(--text-tertiary)]'>
                     No results
                   </div>
                 )
