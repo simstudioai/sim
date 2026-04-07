@@ -1,7 +1,16 @@
 import { db } from '@sim/db'
-import { workflow, workflowFolder } from '@sim/db/schema'
+import {
+  a2aAgent,
+  chat,
+  form,
+  webhook,
+  workflow,
+  workflowFolder,
+  workflowMcpTool,
+  workflowSchedule,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { archiveWorkflowsByIdsInWorkspace } from '@/lib/workflows/lifecycle'
 import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
@@ -22,7 +31,13 @@ export async function deleteFolderRecursively(
   const childFolders = await db
     .select({ id: workflowFolder.id })
     .from(workflowFolder)
-    .where(and(eq(workflowFolder.parentId, folderId), eq(workflowFolder.workspaceId, workspaceId)))
+    .where(
+      and(
+        eq(workflowFolder.parentId, folderId),
+        eq(workflowFolder.workspaceId, workspaceId),
+        isNull(workflowFolder.archivedAt)
+      )
+    )
 
   for (const childFolder of childFolders) {
     const childStats = await deleteFolderRecursively(childFolder.id, workspaceId)
@@ -50,7 +65,10 @@ export async function deleteFolderRecursively(
     stats.workflows += workflowsInFolder.length
   }
 
-  await db.delete(workflowFolder).where(eq(workflowFolder.id, folderId))
+  await db
+    .update(workflowFolder)
+    .set({ archivedAt: new Date() })
+    .where(eq(workflowFolder.id, folderId))
   stats.folders += 1
 
   return stats
@@ -81,7 +99,13 @@ export async function countWorkflowsInFolderRecursively(
   const childFolders = await db
     .select({ id: workflowFolder.id })
     .from(workflowFolder)
-    .where(and(eq(workflowFolder.parentId, folderId), eq(workflowFolder.workspaceId, workspaceId)))
+    .where(
+      and(
+        eq(workflowFolder.parentId, folderId),
+        eq(workflowFolder.workspaceId, workspaceId),
+        isNull(workflowFolder.archivedAt)
+      )
+    )
 
   for (const childFolder of childFolders) {
     count += await countWorkflowsInFolderRecursively(childFolder.id, workspaceId)
@@ -152,4 +176,143 @@ export async function performDeleteFolder(
   })
 
   return { success: true, deletedItems: deletionStats }
+}
+
+/**
+ * Recursively restores a folder and its archived children: unarchives child folders,
+ * then restores all archived workflows in each folder.
+ */
+async function restoreFolderRecursively(
+  folderId: string,
+  workspaceId: string
+): Promise<{ folders: number; workflows: number }> {
+  const stats = { folders: 0, workflows: 0 }
+
+  await db.update(workflowFolder).set({ archivedAt: null }).where(eq(workflowFolder.id, folderId))
+  stats.folders += 1
+
+  const archivedWorkflows = await db
+    .select({ id: workflow.id })
+    .from(workflow)
+    .where(
+      and(
+        eq(workflow.folderId, folderId),
+        eq(workflow.workspaceId, workspaceId),
+        isNotNull(workflow.archivedAt)
+      )
+    )
+
+  if (archivedWorkflows.length > 0) {
+    const workflowIds = archivedWorkflows.map((wf) => wf.id)
+    const now = new Date()
+    const restoreSet = { archivedAt: null, updatedAt: now }
+
+    await db.transaction(async (tx) => {
+      await tx.update(workflow).set(restoreSet).where(inArray(workflow.id, workflowIds))
+      await tx
+        .update(workflowSchedule)
+        .set(restoreSet)
+        .where(inArray(workflowSchedule.workflowId, workflowIds))
+      await tx.update(webhook).set(restoreSet).where(inArray(webhook.workflowId, workflowIds))
+      await tx.update(chat).set(restoreSet).where(inArray(chat.workflowId, workflowIds))
+      await tx.update(form).set(restoreSet).where(inArray(form.workflowId, workflowIds))
+      await tx
+        .update(workflowMcpTool)
+        .set(restoreSet)
+        .where(inArray(workflowMcpTool.workflowId, workflowIds))
+      await tx.update(a2aAgent).set(restoreSet).where(inArray(a2aAgent.workflowId, workflowIds))
+    })
+
+    stats.workflows += archivedWorkflows.length
+  }
+
+  const archivedChildren = await db
+    .select({ id: workflowFolder.id })
+    .from(workflowFolder)
+    .where(
+      and(
+        eq(workflowFolder.parentId, folderId),
+        eq(workflowFolder.workspaceId, workspaceId),
+        isNotNull(workflowFolder.archivedAt)
+      )
+    )
+
+  for (const child of archivedChildren) {
+    const childStats = await restoreFolderRecursively(child.id, workspaceId)
+    stats.folders += childStats.folders
+    stats.workflows += childStats.workflows
+  }
+
+  return stats
+}
+
+/** Parameters for {@link performRestoreFolder}. */
+export interface PerformRestoreFolderParams {
+  folderId: string
+  workspaceId: string
+  userId: string
+  folderName?: string
+}
+
+/** Outcome of {@link performRestoreFolder}. */
+export interface PerformRestoreFolderResult {
+  success: boolean
+  error?: string
+  restoredItems?: { folders: number; workflows: number }
+}
+
+/**
+ * Restores an archived folder and all its archived children and workflows.
+ * If the folder's parent is still archived, moves it to the root level.
+ */
+export async function performRestoreFolder(
+  params: PerformRestoreFolderParams
+): Promise<PerformRestoreFolderResult> {
+  const { folderId, workspaceId, userId, folderName } = params
+
+  const [folder] = await db
+    .select()
+    .from(workflowFolder)
+    .where(and(eq(workflowFolder.id, folderId), eq(workflowFolder.workspaceId, workspaceId)))
+
+  if (!folder) {
+    return { success: false, error: 'Folder not found' }
+  }
+
+  if (!folder.archivedAt) {
+    return { success: false, error: 'Folder is not archived' }
+  }
+
+  if (folder.parentId) {
+    const [parentFolder] = await db
+      .select({ archivedAt: workflowFolder.archivedAt })
+      .from(workflowFolder)
+      .where(eq(workflowFolder.id, folder.parentId))
+
+    if (parentFolder?.archivedAt) {
+      await db.update(workflowFolder).set({ parentId: null }).where(eq(workflowFolder.id, folderId))
+    }
+  }
+
+  const restoredStats = await restoreFolderRecursively(folderId, workspaceId)
+
+  logger.info('Restored folder and all contents:', { folderId, restoredStats })
+
+  recordAudit({
+    workspaceId,
+    actorId: userId,
+    action: AuditAction.FOLDER_RESTORED,
+    resourceType: AuditResourceType.FOLDER,
+    resourceId: folderId,
+    resourceName: folderName ?? folder.name,
+    description: `Restored folder "${folderName ?? folder.name}"`,
+    metadata: {
+      affected: {
+        workflows: restoredStats.workflows,
+        subfolders: restoredStats.folders - 1,
+      },
+    },
+  })
+
+  return { success: true, restoredItems: restoredStats }
 }

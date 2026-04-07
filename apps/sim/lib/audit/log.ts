@@ -67,6 +67,7 @@ export const AuditAction = {
   FOLDER_CREATED: 'folder.created',
   FOLDER_DELETED: 'folder.deleted',
   FOLDER_DUPLICATED: 'folder.duplicated',
+  FOLDER_RESTORED: 'folder.restored',
 
   // Forms
   FORM_CREATED: 'form.created',

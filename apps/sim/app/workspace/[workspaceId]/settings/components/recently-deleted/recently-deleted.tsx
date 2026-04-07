@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Search } from 'lucide-react'
+import { Folder, Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button, Combobox, SModalTabs, SModalTabsList, SModalTabsTrigger } from '@/components/emcn'
 import { Input } from '@/components/ui'
@@ -9,6 +9,7 @@ import { formatDate } from '@/lib/core/utils/formatting'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 import { DeletedItemSkeleton } from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/deleted-item-skeleton'
+import { useFolders, useRestoreFolder } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery, useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useRestoreTable, useTablesList } from '@/hooks/queries/tables'
 import { useRestoreWorkflow, useWorkflows } from '@/hooks/queries/workflows'
@@ -29,10 +30,12 @@ function getResourceHref(
       return `${base}/knowledge/${id}`
     case 'file':
       return `${base}/files`
+    case 'folder':
+      return `${base}/w`
   }
 }
 
-type ResourceType = 'all' | 'workflow' | 'table' | 'knowledge' | 'file'
+type ResourceType = 'all' | 'workflow' | 'table' | 'knowledge' | 'file' | 'folder'
 
 type SortColumn = 'deleted' | 'name' | 'type'
 
@@ -51,7 +54,9 @@ const SORT_OPTIONS: { column: SortColumn; direction: 'asc' | 'desc'; label: stri
 
 const ICON_CLASS = 'h-[14px] w-[14px]'
 
-const RESOURCE_TYPE_TO_MOTHERSHIP: Record<Exclude<ResourceType, 'all'>, MothershipResourceType> = {
+const RESOURCE_TYPE_TO_MOTHERSHIP: Partial<
+  Record<Exclude<ResourceType, 'all'>, MothershipResourceType>
+> = {
   workflow: 'workflow',
   table: 'table',
   knowledge: 'knowledgebase',
@@ -70,6 +75,7 @@ interface DeletedResource {
 const TABS: { id: ResourceType; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'workflow', label: 'Workflows' },
+  { id: 'folder', label: 'Folders' },
   { id: 'table', label: 'Tables' },
   { id: 'knowledge', label: 'Knowledge Bases' },
   { id: 'file', label: 'Files' },
@@ -77,6 +83,7 @@ const TABS: { id: ResourceType; label: string }[] = [
 
 const TYPE_LABEL: Record<Exclude<ResourceType, 'all'>, string> = {
   workflow: 'Workflow',
+  folder: 'Folder',
   table: 'Table',
   knowledge: 'Knowledge Base',
   file: 'File',
@@ -97,7 +104,13 @@ function ResourceIcon({ resource }: { resource: DeletedResource }) {
     )
   }
 
+  if (resource.type === 'folder') {
+    const color = resource.color ?? '#6B7280'
+    return <Folder className={ICON_CLASS} style={{ color }} />
+  }
+
   const mothershipType = RESOURCE_TYPE_TO_MOTHERSHIP[resource.type]
+  if (!mothershipType) return null
   const config = RESOURCE_REGISTRY[mothershipType]
   return (
     <>
@@ -120,23 +133,30 @@ export function RecentlyDeleted() {
   const [restoredItems, setRestoredItems] = useState<Map<string, DeletedResource>>(new Map())
 
   const workflowsQuery = useWorkflows(workspaceId, { scope: 'archived' })
+  const foldersQuery = useFolders(workspaceId, { scope: 'archived' })
   const tablesQuery = useTablesList(workspaceId, 'archived')
   const knowledgeQuery = useKnowledgeBasesQuery(workspaceId, { scope: 'archived' })
   const filesQuery = useWorkspaceFiles(workspaceId, 'archived')
 
   const restoreWorkflow = useRestoreWorkflow()
+  const restoreFolder = useRestoreFolder()
   const restoreTable = useRestoreTable()
   const restoreKnowledgeBase = useRestoreKnowledgeBase()
   const restoreWorkspaceFile = useRestoreWorkspaceFile()
 
   const isLoading =
     workflowsQuery.isLoading ||
+    foldersQuery.isLoading ||
     tablesQuery.isLoading ||
     knowledgeQuery.isLoading ||
     filesQuery.isLoading
 
   const error =
-    workflowsQuery.error || tablesQuery.error || knowledgeQuery.error || filesQuery.error
+    workflowsQuery.error ||
+    foldersQuery.error ||
+    tablesQuery.error ||
+    knowledgeQuery.error ||
+    filesQuery.error
 
   const resources = useMemo<DeletedResource[]>(() => {
     const items: DeletedResource[] = []
@@ -149,6 +169,17 @@ export function RecentlyDeleted() {
         deletedAt: wf.archivedAt ? new Date(wf.archivedAt) : new Date(wf.lastModified),
         workspaceId: wf.workspaceId ?? workspaceId,
         color: wf.color,
+      })
+    }
+
+    for (const folder of foldersQuery.data ?? []) {
+      items.push({
+        id: folder.id,
+        name: folder.name,
+        type: 'folder',
+        deletedAt: folder.archivedAt ? new Date(folder.archivedAt) : new Date(folder.updatedAt),
+        workspaceId: folder.workspaceId,
+        color: folder.color,
       })
     }
 
@@ -193,6 +224,7 @@ export function RecentlyDeleted() {
     return items
   }, [
     workflowsQuery.data,
+    foldersQuery.data,
     tablesQuery.data,
     knowledgeQuery.data,
     filesQuery.data,
@@ -247,6 +279,12 @@ export function RecentlyDeleted() {
       case 'workflow':
         restoreWorkflow.mutate(
           { workflowId: resource.id, workspaceId: resource.workspaceId },
+          { onSettled, onSuccess }
+        )
+        break
+      case 'folder':
+        restoreFolder.mutate(
+          { folderId: resource.id, workspaceId: resource.workspaceId },
           { onSettled, onSuccess }
         )
         break
