@@ -5,6 +5,7 @@ import { getCopilotToolDescription } from '@/lib/copilot/tool-descriptions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { GetBlocksMetadataInput, GetBlocksMetadataResult } from '@/lib/copilot/tools/shared/schemas'
 import { getAllowedIntegrationsFromEnv, isHosted } from '@/lib/core/config/feature-flags'
+import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { registry as blockRegistry } from '@/blocks/registry'
 import { AuthMode, type BlockConfig, isHiddenFromDisplay } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
@@ -341,6 +342,20 @@ function transformBlockMetadata(metadata: CopilotBlockMetadata): any {
         type: 'oauth',
         service: metadata.id, // e.g., 'gmail', 'slack', etc.
         description: `OAuth authentication required for ${metadata.name}`,
+      }
+
+      // Check if this service also supports service account credentials
+      const oauthSubBlock = metadata.inputSchema?.find(
+        (sb: CopilotSubblockMetadata) => sb.type === 'oauth-input' && sb.serviceId
+      )
+      if (oauthSubBlock?.serviceId) {
+        const serviceAccountProviderId = getServiceAccountProviderForProviderId(
+          oauthSubBlock.serviceId
+        )
+        if (serviceAccountProviderId) {
+          transformed.requiredCredentials.serviceAccountType = serviceAccountProviderId
+          transformed.requiredCredentials.description = `OAuth or service account authentication supported for ${metadata.name}`
+        }
       }
     } else if (metadata.authType === 'API Key') {
       transformed.requiredCredentials = {
