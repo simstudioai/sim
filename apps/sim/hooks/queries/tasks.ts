@@ -48,6 +48,7 @@ export interface TaskStoredMessageContext {
   knowledgeId?: string
   tableId?: string
   fileId?: string
+  folderId?: string
 }
 
 export interface TaskStoredMessage {

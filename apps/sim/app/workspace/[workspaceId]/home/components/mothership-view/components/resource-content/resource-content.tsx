@@ -5,7 +5,13 @@ import { createLogger } from '@sim/logger'
 import { Square } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
-import { Download, FileX, SquareArrowUpRight, WorkflowX } from '@/components/emcn/icons'
+import {
+  Download,
+  FileX,
+  Folder as FolderIcon,
+  SquareArrowUpRight,
+  WorkflowX,
+} from '@/components/emcn/icons'
 import {
   cancelRunToolExecution,
   markRunToolManuallyStopped,
@@ -37,6 +43,7 @@ import {
 import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/components'
 import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
+import { useFolders } from '@/hooks/queries/folders'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -147,6 +154,9 @@ export const ResourceContent = memo(function ResourceContent({
         />
       )
 
+    case 'folder':
+      return <EmbeddedFolder key={resource.id} workspaceId={workspaceId} folderId={resource.id} />
+
     case 'generic':
       return (
         <GenericResourceContent key={resource.id} data={genericResourceData ?? { entries: [] }} />
@@ -172,6 +182,7 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
       return (
         <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={resource.id} />
       )
+    case 'folder':
     case 'generic':
       return null
     default:
@@ -446,6 +457,72 @@ function EmbeddedFile({ workspaceId, fileId, previewMode, streamingContent }: Em
         previewMode={previewMode}
         streamingContent={streamingContent}
       />
+    </div>
+  )
+}
+
+interface EmbeddedFolderProps {
+  workspaceId: string
+  folderId: string
+}
+
+function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
+  const { data: folderList, isPending: isFoldersPending } = useFolders(workspaceId)
+  const { data: workflowList = [] } = useWorkflows(workspaceId)
+
+  const folder = useMemo(
+    () => (folderList ?? []).find((f) => f.id === folderId),
+    [folderList, folderId]
+  )
+
+  const folderWorkflows = useMemo(
+    () => workflowList.filter((w) => w.folderId === folderId),
+    [workflowList, folderId]
+  )
+
+  if (isFoldersPending) return LOADING_SKELETON
+
+  if (!folder) {
+    return (
+      <div className='flex h-full flex-col items-center justify-center gap-3'>
+        <FolderIcon className='h-[32px] w-[32px] text-[var(--text-icon)]' />
+        <div className='flex flex-col items-center gap-1'>
+          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Folder not found</h2>
+          <p className='text-[var(--text-body)] text-small'>
+            This folder may have been deleted or moved
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className='flex h-full flex-col overflow-y-auto p-6'>
+      <h2 className='mb-4 font-medium text-[16px] text-[var(--text-primary)]'>{folder.name}</h2>
+      {folderWorkflows.length === 0 ? (
+        <p className='text-[13px] text-[var(--text-muted)]'>No workflows in this folder</p>
+      ) : (
+        <div className='flex flex-col gap-1'>
+          {folderWorkflows.map((w) => (
+            <button
+              key={w.id}
+              type='button'
+              onClick={() => window.open(`/workspace/${workspaceId}/w/${w.id}`, '_blank')}
+              className='flex items-center gap-2 rounded-[6px] px-3 py-2 text-left transition-colors hover:bg-[var(--surface-4)]'
+            >
+              <div
+                className='h-[12px] w-[12px] flex-shrink-0 rounded-[3px] border-[2px]'
+                style={{
+                  backgroundColor: w.color,
+                  borderColor: `${w.color}60`,
+                  backgroundClip: 'padding-box',
+                }}
+              />
+              <span className='truncate text-[13px] text-[var(--text-primary)]'>{w.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

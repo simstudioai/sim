@@ -3,7 +3,7 @@
 import type React from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Database, Table as TableIcon } from '@/components/emcn/icons'
+import { Database, Folder as FolderIcon, Table as TableIcon } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
@@ -175,6 +175,7 @@ export function UserInput({
       if (ctx.kind === 'knowledge' && ctx.knowledgeId) keys.add(`knowledgebase:${ctx.knowledgeId}`)
       if (ctx.kind === 'table' && ctx.tableId) keys.add(`table:${ctx.tableId}`)
       if (ctx.kind === 'file' && ctx.fileId) keys.add(`file:${ctx.fileId}`)
+      if (ctx.kind === 'folder' && ctx.folderId) keys.add(`folder:${ctx.folderId}`)
     }
     return keys
   }, [contextManagement.selectedContexts])
@@ -663,6 +664,9 @@ export function UserInput({
             mentionIconNode = <FileDocIcon className={iconClasses} />
             break
           }
+          case 'folder':
+            mentionIconNode = <FolderIcon className={iconClasses} />
+            break
         }
       }
 
