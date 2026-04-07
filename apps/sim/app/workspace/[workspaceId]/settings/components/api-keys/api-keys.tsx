@@ -384,7 +384,7 @@ export function ApiKeys() {
               <span className='text-[var(--text-error)]'>
                 will immediately revoke access for any integrations using it.
               </span>{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              This action cannot be undone.
             </p>
           </ModalBody>
           <ModalFooter>

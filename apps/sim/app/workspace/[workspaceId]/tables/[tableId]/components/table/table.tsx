@@ -1852,9 +1852,7 @@ export function Table({
                 <span className='text-[var(--text-error)]'>
                   All {tableData?.rowCount ?? 0} rows will be removed.
                 </span>{' '}
-                <span className='text-[var(--text-tertiary)]'>
-                  You can restore it from Recently Deleted in Settings.
-                </span>
+                You can restore it from Recently Deleted in Settings.
               </p>
             </ModalBody>
             <ModalFooter>
@@ -1892,7 +1890,7 @@ export function Table({
               <span className='text-[var(--text-error)]'>
                 This will remove all data in this column.
               </span>{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              This action cannot be undone.
             </p>
           </ModalBody>
           <ModalFooter>

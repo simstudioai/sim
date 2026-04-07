@@ -370,7 +370,7 @@ export function TemplateDeploy({
               <span className='font-medium text-[var(--text-primary)]'>
                 {existingTemplate?.name || formData.name || 'this template'}
               </span>
-              ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              ? This action cannot be undone.
             </p>
           </ModalBody>
           <ModalFooter>

@@ -383,7 +383,7 @@ export function DocumentTagsModal({
 
   return (
     <Modal open={open} onOpenChange={handleClose}>
-      <ModalContent size='md'>
+      <ModalContent size='sm'>
         <ModalHeader>
           <div className='flex items-center justify-between'>
             <span>Document Tags</span>
