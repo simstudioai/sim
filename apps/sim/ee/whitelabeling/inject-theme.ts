@@ -31,6 +31,7 @@ export function generateThemeCSS(): string {
 
   if (process.env.NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR) {
     cssVars.push(`--brand-hover: ${process.env.NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR};`)
+    cssVars.push(`--brand-accent-hover: ${process.env.NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR};`)
     cssVars.push(
       `--auth-primary-btn-hover-bg: ${process.env.NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR};`
     )

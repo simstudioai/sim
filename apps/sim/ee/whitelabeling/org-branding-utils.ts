@@ -74,6 +74,7 @@ export function generateOrgThemeCSS(settings: OrganizationWhitelabelSettings): s
 
   if (settings.primaryHoverColor) {
     vars.push(`--brand-hover: ${settings.primaryHoverColor};`)
+    vars.push(`--brand-accent-hover: ${settings.primaryHoverColor};`)
     vars.push(`--auth-primary-btn-hover-bg: ${settings.primaryHoverColor};`)
     vars.push(`--auth-primary-btn-hover-border: ${settings.primaryHoverColor};`)
     vars.push(`--auth-primary-btn-hover-text: ${getContrastTextColor(settings.primaryHoverColor)};`)
