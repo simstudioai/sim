@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 
 const logger = createLogger('ProfilePictureUpload')
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
-const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg']
+const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml']
 
 interface UseProfilePictureUploadProps {
   onUpload?: (url: string | null) => void
@@ -41,7 +41,7 @@ export function useProfilePictureUpload({
       return `File "${file.name}" is too large. Maximum size is 5MB.`
     }
     if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      return `File "${file.name}" is not a supported image format. Please use PNG or JPEG.`
+      return `File "${file.name}" is not a supported image format. Please use PNG, JPEG, or SVG.`
     }
     return null
   }, [])
