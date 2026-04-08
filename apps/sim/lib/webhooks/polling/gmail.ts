@@ -488,7 +488,7 @@ async function processEmails(
           const result = await processPolledWebhookEvent(
             webhookData,
             workflowData,
-            webhookPayload as unknown as Record<string, unknown>,
+            webhookPayload,
             requestId
           )
 

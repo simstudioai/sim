@@ -708,7 +708,7 @@ interface PolledWorkflowRecord {
 export async function processPolledWebhookEvent(
   foundWebhook: PolledWebhookRecord,
   foundWorkflow: PolledWorkflowRecord,
-  body: Record<string, unknown>,
+  body: Record<string, unknown> | object,
   requestId: string
 ): Promise<PolledWebhookEventResult> {
   if (!foundWebhook.provider) {

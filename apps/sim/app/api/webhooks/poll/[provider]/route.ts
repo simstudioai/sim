@@ -7,8 +7,11 @@ import { pollProvider, VALID_POLLING_PROVIDERS } from '@/lib/webhooks/polling'
 
 const logger = createLogger('PollingAPI')
 
+/** Lock TTL in seconds — matches maxDuration so the lock auto-expires if the function times out. */
+const LOCK_TTL_SECONDS = 180
+
 export const dynamic = 'force-dynamic'
-export const maxDuration = 180
+export const maxDuration = LOCK_TTL_SECONDS
 
 export async function GET(
   request: NextRequest,
@@ -29,7 +32,7 @@ export async function GET(
     if (authError) return authError
 
     lockValue = requestId
-    const locked = await acquireLock(LOCK_KEY, lockValue, 180)
+    const locked = await acquireLock(LOCK_KEY, lockValue, LOCK_TTL_SECONDS)
     if (!locked) {
       return NextResponse.json(
         {

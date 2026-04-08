@@ -275,7 +275,7 @@ async function processRssItems(
           const result = await processPolledWebhookEvent(
             webhookData,
             workflowData,
-            payload as unknown as Record<string, unknown>,
+            payload,
             requestId
           )
 
