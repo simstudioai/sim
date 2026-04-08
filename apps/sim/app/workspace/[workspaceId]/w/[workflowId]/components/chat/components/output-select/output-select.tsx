@@ -38,6 +38,8 @@ const TagIcon: React.FC<{
   </div>
 )
 
+const EXCLUDED_OUTPUT_TYPES = new Set(['starter', 'start_trigger', 'human_in_the_loop'] as const)
+
 /**
  * Props for the OutputSelect component
  */
@@ -119,8 +121,6 @@ export function OutputSelect({
 
     const blockArray = Object.values(workflowBlocks)
     if (blockArray.length === 0) return outputs
-
-    const EXCLUDED_OUTPUT_TYPES = new Set(['starter', 'start_trigger', 'human_in_the_loop'])
 
     blockArray.forEach((block: any) => {
       if (EXCLUDED_OUTPUT_TYPES.has(block.type) || !block?.id || !block?.type) return
