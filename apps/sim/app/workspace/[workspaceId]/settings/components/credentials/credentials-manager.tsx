@@ -1012,7 +1012,9 @@ export function CredentialsManager() {
         )
       }
 
-      await Promise.all(mutations)
+      const results = await Promise.allSettled(mutations)
+      const firstFailure = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')
+      if (firstFailure) throw firstFailure.reason
 
       setWorkspaceVars(mergedWorkspaceVars)
       setNewWorkspaceRows([createEmptyEnvVar()])
