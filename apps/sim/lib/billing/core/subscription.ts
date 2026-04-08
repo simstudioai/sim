@@ -24,10 +24,10 @@ import {
 import type { UserSubscriptionState } from '@/lib/billing/types'
 import {
   isAccessControlEnabled,
+  isBillingEnabled,
   isCredentialSetsEnabled,
   isHosted,
   isInboxEnabled,
-  isProd,
   isSsoEnabled,
 } from '@/lib/core/config/feature-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -98,7 +98,7 @@ export async function hasPaidSubscription(referenceId: string): Promise<boolean>
  */
 export async function isProPlan(userId: string): Promise<boolean> {
   try {
-    if (!isProd) {
+    if (!isBillingEnabled) {
       return true
     }
 
@@ -125,7 +125,7 @@ export async function isProPlan(userId: string): Promise<boolean> {
  */
 export async function isTeamPlan(userId: string): Promise<boolean> {
   try {
-    if (!isProd) {
+    if (!isBillingEnabled) {
       return true
     }
 
@@ -149,7 +149,7 @@ export async function isTeamPlan(userId: string): Promise<boolean> {
  */
 export async function isEnterprisePlan(userId: string): Promise<boolean> {
   try {
-    if (!isProd) {
+    if (!isBillingEnabled) {
       return true
     }
 
@@ -177,7 +177,7 @@ export async function isEnterprisePlan(userId: string): Promise<boolean> {
  */
 export async function isEnterpriseOrgAdminOrOwner(userId: string): Promise<boolean> {
   try {
-    if (!isProd) {
+    if (!isBillingEnabled) {
       return true
     }
 
@@ -241,7 +241,7 @@ export async function isEnterpriseOrgAdminOrOwner(userId: string): Promise<boole
  */
 export async function isTeamOrgAdminOrOwner(userId: string): Promise<boolean> {
   try {
-    if (!isProd) {
+    if (!isBillingEnabled) {
       return true
     }
 
@@ -304,7 +304,7 @@ export async function isOrganizationOnTeamOrEnterprisePlan(
   organizationId: string
 ): Promise<boolean> {
   try {
-    if (!isProd) {
+    if (!isBillingEnabled) {
       return true
     }
 
@@ -340,7 +340,7 @@ export async function isOrganizationOnTeamOrEnterprisePlan(
  */
 export async function isOrganizationOnEnterprisePlan(organizationId: string): Promise<boolean> {
   try {
-    if (!isProd) {
+    if (!isBillingEnabled) {
       return true
     }
 
@@ -445,7 +445,7 @@ export async function hasInboxAccess(userId: string): Promise<boolean> {
     if (isInboxEnabled) {
       return true
     }
-    if (!isProd) {
+    if (!isBillingEnabled) {
       return true
     }
     const [sub, billingStatus] = await Promise.all([
@@ -490,7 +490,7 @@ export async function hasLiveSyncAccess(userId: string): Promise<boolean> {
  */
 export async function hasExceededCostLimit(userId: string): Promise<boolean> {
   try {
-    if (!isProd) {
+    if (!isBillingEnabled) {
       return false
     }
 
@@ -560,7 +560,7 @@ export async function getUserSubscriptionState(userId: string): Promise<UserSubs
 
     // Determine plan types based on subscription (avoid redundant DB calls)
     const isPro =
-      !isProd ||
+      !isBillingEnabled ||
       !!(
         subscription &&
         (checkProPlan(subscription) ||
@@ -568,9 +568,9 @@ export async function getUserSubscriptionState(userId: string): Promise<UserSubs
           checkEnterprisePlan(subscription))
       )
     const isTeam =
-      !isProd ||
+      !isBillingEnabled ||
       !!(subscription && (checkTeamPlan(subscription) || checkEnterprisePlan(subscription)))
-    const isEnterprise = !isProd || !!(subscription && checkEnterprisePlan(subscription))
+    const isEnterprise = !isBillingEnabled || !!(subscription && checkEnterprisePlan(subscription))
     const isFree = !isPro && !isTeam && !isEnterprise
 
     // Determine plan name
@@ -581,7 +581,7 @@ export async function getUserSubscriptionState(userId: string): Promise<UserSubs
 
     // Check cost limit using already-fetched user stats
     let hasExceededLimit = false
-    if (isProd && statsRecords.length > 0) {
+    if (isBillingEnabled && statsRecords.length > 0) {
       let limit = getFreeTierLimit() // Default free tier limit
       if (subscription) {
         // Team/Enterprise: Use organization limit
