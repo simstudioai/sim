@@ -54,6 +54,25 @@ function isReadableStream(response: any): response is ReadableStream {
   return response instanceof ReadableStream
 }
 
+const ZERO_COST = Object.freeze({ input: 0, output: 0, total: 0 })
+
+/**
+ * Zeros out cost on a StreamingExecution for BYOK users.
+ * Providers calculate cost inside streaming callbacks, so we override the cost
+ * property on execution.output to always return zero regardless of callback writes.
+ */
+function zeroCostForBYOK(response: StreamingExecution): void {
+  const output = response.execution?.output
+  if (!output || typeof output !== 'object') return
+
+  Object.defineProperty(output, 'cost', {
+    get: () => ZERO_COST,
+    set: () => {},
+    configurable: true,
+    enumerable: true,
+  })
+}
+
 export async function executeProviderRequest(
   providerId: string,
   request: ProviderRequest
@@ -80,6 +99,12 @@ export async function executeProviderRequest(
       )
       resolvedRequest = { ...resolvedRequest, apiKey: result.apiKey }
       isBYOK = result.isBYOK
+      logger.info('API key resolved', {
+        provider: providerId,
+        model: request.model,
+        workspaceId: request.workspaceId,
+        isBYOK,
+      })
     } catch (error) {
       logger.error('Failed to resolve API key:', {
         provider: providerId,
@@ -88,6 +113,11 @@ export async function executeProviderRequest(
       })
       throw error
     }
+  } else {
+    logger.info('No workspaceId provided, skipping BYOK check', {
+      provider: providerId,
+      model: request.model,
+    })
   }
 
   resolvedRequest.isBYOK = isBYOK
@@ -118,7 +148,10 @@ export async function executeProviderRequest(
   const response = await provider.executeRequest(sanitizedRequest)
 
   if (isStreamingExecution(response)) {
-    logger.info('Provider returned StreamingExecution')
+    logger.info('Provider returned StreamingExecution', { isBYOK })
+    if (isBYOK) {
+      zeroCostForBYOK(response)
+    }
     return response
   }
 
@@ -154,9 +187,9 @@ export async function executeProviderRequest(
         },
       }
       if (isBYOK) {
-        logger.debug(`Not billing model usage for ${response.model} - workspace BYOK key used`)
+        logger.info(`Not billing model usage for ${response.model} - workspace BYOK key used`)
       } else {
-        logger.debug(
+        logger.info(
           `Not billing model usage for ${response.model} - user provided API key or not hosted model`
         )
       }
