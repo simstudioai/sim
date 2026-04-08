@@ -46,6 +46,7 @@ const MAX_PAGES = 500
 const MAX_SAFE_TITLE_LENGTH = 200
 const STALE_PROCESSING_MINUTES = 45
 const RETRY_WINDOW_DAYS = 7
+const MAX_CONSECUTIVE_FAILURES = 10
 
 /** Sanitizes a document title for use in S3 storage keys. */
 function sanitizeStorageTitle(title: string): string {
@@ -796,15 +797,25 @@ export async function executeSync(
 
       const now = new Date()
       const failures = (connector.consecutiveFailures ?? 0) + 1
+      const disabled = failures >= MAX_CONSECUTIVE_FAILURES
       const backoffMinutes = Math.min(failures * 30, 1440)
-      const nextSync = new Date(now.getTime() + backoffMinutes * 60 * 1000)
+      const nextSync = disabled ? null : new Date(now.getTime() + backoffMinutes * 60 * 1000)
+
+      if (disabled) {
+        logger.warn('Connector disabled after repeated failures', {
+          connectorId,
+          consecutiveFailures: failures,
+        })
+      }
 
       await db
         .update(knowledgeConnector)
         .set({
-          status: 'error',
+          status: disabled ? 'disabled' : 'error',
           lastSyncAt: now,
-          lastSyncError: errorMessage,
+          lastSyncError: disabled
+            ? 'Connector disabled after repeated sync failures. Please reconnect.'
+            : errorMessage,
           nextSyncAt: nextSync,
           consecutiveFailures: failures,
           updatedAt: now,
