@@ -230,7 +230,7 @@ async function resolveAccessToken(
   connector: { credentialId: string | null; encryptedApiKey: string | null },
   connectorConfig: { auth: ConnectorAuthConfig },
   userId: string
-): Promise<string | null> {
+): Promise<string> {
   if (connectorConfig.auth.mode === 'apiKey') {
     if (!connector.encryptedApiKey) {
       throw new Error('API key connector is missing encrypted API key')
@@ -243,11 +243,22 @@ async function resolveAccessToken(
     throw new Error('OAuth connector is missing credential ID')
   }
 
-  return refreshAccessTokenIfNeeded(
-    connector.credentialId,
-    userId,
-    `sync-${connector.credentialId}`
-  )
+  const requestId = `sync-${connector.credentialId}`
+  const token = await refreshAccessTokenIfNeeded(connector.credentialId, userId, requestId)
+
+  if (!token) {
+    logger.error(`[${requestId}] refreshAccessTokenIfNeeded returned null`, {
+      credentialId: connector.credentialId,
+      userId,
+      authMode: connectorConfig.auth.mode,
+      authProvider: connectorConfig.auth.provider,
+    })
+    throw new Error(
+      `Failed to obtain access token for credential ${connector.credentialId} (provider: ${connectorConfig.auth.provider})`
+    )
+  }
+
+  return token
 }
 
 /**
@@ -306,10 +317,6 @@ export async function executeSync(
   const sourceConfig = connector.sourceConfig as Record<string, unknown>
 
   let accessToken = await resolveAccessToken(connector, connectorConfig, userId)
-
-  if (!accessToken) {
-    throw new Error('Failed to obtain access token')
-  }
 
   const lockResult = await db
     .update(knowledgeConnector)
