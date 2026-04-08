@@ -20,9 +20,12 @@ export function CopyCodeButton({ code, className }: CopyCodeButtonProps) {
     timerRef.current = setTimeout(() => setCopied(false), 2000)
   }, [code])
 
-  useEffect(() => () => {
-    if (timerRef.current) clearTimeout(timerRef.current)
-  }, [])
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    },
+    []
+  )
 
   return (
     <button
