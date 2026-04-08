@@ -171,6 +171,7 @@ export const allNavigationItems: NavigationItem[] = [
     section: 'enterprise',
     requiresHosted: true,
     requiresEnterprise: true,
+    selfHostedOverride: isBillingEnabled,
   },
   {
     id: 'admin',
