@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { WordpressIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('WordPressConnector')
 
@@ -59,10 +59,10 @@ function extractTagNames(tags: Record<string, { name: string }>): string[] {
 /**
  * Converts a WordPress post to an ExternalDocument.
  */
-async function postToDocument(post: WordPressPost): Promise<ExternalDocument> {
+function postToDocument(post: WordPressPost): ExternalDocument {
   const plainText = htmlToPlainText(post.content)
   const fullContent = `# ${post.title}\n\n${plainText}`
-  const contentHash = await computeContentHash(fullContent)
+  const contentHash = `wordpress:${post.ID}:${post.modified || ''}`
   const categories = extractCategoryNames(post.categories)
   const tags = extractTagNames(post.tags)
 
@@ -182,7 +182,7 @@ export const wordpressConnector: ConnectorConfig = {
     const data = (await response.json()) as WordPressPostsResponse
     const posts = data.posts || []
 
-    const documents = await Promise.all(posts.map(postToDocument))
+    const documents = posts.map(postToDocument)
 
     const totalFetched = totalDocsFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
@@ -226,7 +226,7 @@ export const wordpressConnector: ConnectorConfig = {
       }
 
       const post = (await response.json()) as WordPressPost
-      return await postToDocument(post)
+      return postToDocument(post)
     } catch (error) {
       logger.warn('Failed to get WordPress document', {
         externalId,

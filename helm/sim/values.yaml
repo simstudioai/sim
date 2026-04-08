@@ -985,6 +985,15 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    connectorSync:
+      enabled: true
+      name: connector-sync
+      schedule: "*/5 * * * *"
+      path: "/api/knowledge/connectors/sync"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
   # Global CronJob settings
   image:
     repository: curlimages/curl

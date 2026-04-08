@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { SalesforceIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('SalesforceConnector')
 
@@ -12,7 +12,14 @@ const PAGE_SIZE = 200
 
 /** SOQL field lists per object type. */
 const OBJECT_FIELDS: Record<string, string[]> = {
-  KnowledgeArticleVersion: ['Id', 'Title', 'Summary', 'LastModifiedDate', 'ArticleNumber'],
+  KnowledgeArticleVersion: [
+    'Id',
+    'Title',
+    'Summary',
+    'LastModifiedDate',
+    'ArticleNumber',
+    'PublishStatus',
+  ],
   Case: ['Id', 'Subject', 'Description', 'Status', 'LastModifiedDate', 'CaseNumber'],
   Account: ['Id', 'Name', 'Description', 'Industry', 'LastModifiedDate'],
   Opportunity: [
@@ -146,33 +153,49 @@ function getRecordStatus(objectType: string, record: Record<string, unknown>): s
 }
 
 /**
- * Converts a Salesforce record to an ExternalDocument.
+ * Creates a lightweight stub for a Salesforce record with metadata-based hash.
+ * Content is deferred and fetched later via getDocument only for new/changed docs.
  */
-async function recordToDocument(
+function recordToStub(
   record: Record<string, unknown>,
   objectType: string,
   instanceUrl: string
-): Promise<ExternalDocument> {
+): ExternalDocument {
   const id = record.Id as string
-  const content = buildRecordContent(objectType, record)
-  const contentHash = await computeContentHash(content)
   const title = buildRecordTitle(objectType, record)
-
+  const lastModified = (record.LastModifiedDate as string) || ''
   const baseUrl = instanceUrl.replace(`/services/data/${API_VERSION}/`, '')
 
   return {
     externalId: id,
     title,
-    content,
+    content: '',
+    contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: `${baseUrl}/${id}`,
-    contentHash,
+    contentHash: `salesforce:${id}:${lastModified}`,
     metadata: {
       objectType,
-      lastModified: (record.LastModifiedDate as string) || undefined,
+      lastModified: lastModified || undefined,
       recordNumber: getRecordNumber(objectType, record),
       status: getRecordStatus(objectType, record),
     },
+  }
+}
+
+/**
+ * Builds a full ExternalDocument with content from a Salesforce record.
+ */
+function recordToDocument(
+  record: Record<string, unknown>,
+  objectType: string,
+  instanceUrl: string
+): ExternalDocument {
+  const stub = recordToStub(record, objectType, instanceUrl)
+  return {
+    ...stub,
+    content: buildRecordContent(objectType, record),
+    contentDeferred: false,
   }
 }
 
@@ -257,8 +280,8 @@ export const salesforceConnector: ConnectorConfig = {
     const records = (data.records || []) as Record<string, unknown>[]
     const nextRecordsUrl = data.nextRecordsUrl as string | undefined
 
-    const documents: ExternalDocument[] = await Promise.all(
-      records.map((record) => recordToDocument(record, objectType, instanceUrl))
+    const documents: ExternalDocument[] = records.map((record) =>
+      recordToStub(record, objectType, instanceUrl)
     )
 
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0

@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { JiraIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, joinTagArray, parseTagDate } from '@/connectors/utils'
+import { joinTagArray, parseTagDate } from '@/connectors/utils'
 import { extractAdfText, getJiraCloudId } from '@/tools/jira/utils'
 
 const logger = createLogger('JiraConnector')
@@ -33,16 +33,12 @@ function buildIssueContent(fields: Record<string, unknown>): string {
 }
 
 /**
- * Converts a Jira issue API response to an ExternalDocument.
+ * Extracts common metadata fields from a Jira issue into an ExternalDocument
+ * stub with deferred content. The contentHash is metadata-based so it is
+ * identical whether produced during listing or full fetch.
  */
-async function issueToDocument(
-  issue: Record<string, unknown>,
-  domain: string
-): Promise<ExternalDocument> {
+function issueToStub(issue: Record<string, unknown>, domain: string): ExternalDocument {
   const fields = (issue.fields || {}) as Record<string, unknown>
-  const content = buildIssueContent(fields)
-  const contentHash = await computeContentHash(content)
-
   const key = issue.key as string
   const issueType = fields.issuetype as Record<string, unknown> | undefined
   const status = fields.status as Record<string, unknown> | undefined
@@ -51,14 +47,16 @@ async function issueToDocument(
   const reporter = fields.reporter as Record<string, unknown> | undefined
   const project = fields.project as Record<string, unknown> | undefined
   const labels = Array.isArray(fields.labels) ? (fields.labels as string[]) : []
+  const updated = (fields.updated as string) ?? ''
 
   return {
     externalId: String(issue.id),
     title: `${key}: ${(fields.summary as string) || 'Untitled'}`,
-    content,
+    content: '',
+    contentDeferred: true,
     mimeType: 'text/plain',
     sourceUrl: `https://${domain}/browse/${key}`,
-    contentHash,
+    contentHash: `jira:${issue.id}:${updated}`,
     metadata: {
       key,
       issueType: issueType?.name,
@@ -71,6 +69,22 @@ async function issueToDocument(
       created: fields.created,
       updated: fields.updated,
     },
+  }
+}
+
+/**
+ * Converts a fully-fetched Jira issue (with description and comments) into an
+ * ExternalDocument with resolved content.
+ */
+function issueToFullDocument(issue: Record<string, unknown>, domain: string): ExternalDocument {
+  const stub = issueToStub(issue, domain)
+  const fields = (issue.fields || {}) as Record<string, unknown>
+  const content = buildIssueContent(fields)
+
+  return {
+    ...stub,
+    content,
+    contentDeferred: false,
   }
 }
 
@@ -162,7 +176,7 @@ export const jiraConnector: ConnectorConfig = {
     params.append('maxResults', String(Math.min(PAGE_SIZE, remaining)))
     params.append(
       'fields',
-      'summary,description,comment,issuetype,status,priority,assignee,reporter,project,labels,created,updated'
+      'summary,issuetype,status,priority,assignee,reporter,project,labels,created,updated'
     )
 
     const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search?${params.toString()}`
@@ -190,9 +204,7 @@ export const jiraConnector: ConnectorConfig = {
     const issues = (data.issues || []) as Record<string, unknown>[]
     const total = (data.total as number) ?? 0
 
-    const documents: ExternalDocument[] = await Promise.all(
-      issues.map((issue) => issueToDocument(issue, domain))
-    )
+    const documents: ExternalDocument[] = issues.map((issue) => issueToStub(issue, domain))
 
     const nextStart = startAt + issues.length
     const hasMore = nextStart < total && (maxIssues <= 0 || nextStart < maxIssues)
@@ -239,7 +251,7 @@ export const jiraConnector: ConnectorConfig = {
     }
 
     const issue = await response.json()
-    return issueToDocument(issue, domain)
+    return issueToFullDocument(issue, domain)
   },
 
   validateConfig: async (

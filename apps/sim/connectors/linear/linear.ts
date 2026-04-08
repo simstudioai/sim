@@ -3,7 +3,7 @@ import { LinearIcon } from '@/components/icons'
 import type { RetryOptions } from '@/lib/knowledge/documents/utils'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, joinTagArray, parseTagDate } from '@/connectors/utils'
+import { joinTagArray, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('LinearConnector')
 
@@ -278,36 +278,34 @@ export const linearConnector: ConnectorConfig = {
     const nodes = (issuesConn.nodes || []) as Record<string, unknown>[]
     const pageInfo = issuesConn.pageInfo as Record<string, unknown>
 
-    const documents: ExternalDocument[] = await Promise.all(
-      nodes.map(async (issue) => {
-        const content = buildIssueContent(issue)
-        const contentHash = await computeContentHash(content)
+    const documents: ExternalDocument[] = nodes.map((issue) => {
+      const content = buildIssueContent(issue)
+      const contentHash = `linear:${issue.id}:${issue.updatedAt}`
 
-        const labelNodes = ((issue.labels as Record<string, unknown>)?.nodes || []) as Record<
-          string,
-          unknown
-        >[]
+      const labelNodes = ((issue.labels as Record<string, unknown>)?.nodes || []) as Record<
+        string,
+        unknown
+      >[]
 
-        return {
-          externalId: issue.id as string,
-          title: `${(issue.identifier as string) || ''}: ${(issue.title as string) || 'Untitled'}`,
-          content,
-          mimeType: 'text/plain' as const,
-          sourceUrl: (issue.url as string) || undefined,
-          contentHash,
-          metadata: {
-            identifier: issue.identifier,
-            state: (issue.state as Record<string, unknown>)?.name,
-            priority: issue.priorityLabel,
-            assignee: (issue.assignee as Record<string, unknown>)?.name,
-            labels: labelNodes.map((l) => l.name as string),
-            team: (issue.team as Record<string, unknown>)?.name,
-            project: (issue.project as Record<string, unknown>)?.name,
-            lastModified: issue.updatedAt,
-          },
-        }
-      })
-    )
+      return {
+        externalId: issue.id as string,
+        title: `${(issue.identifier as string) || ''}: ${(issue.title as string) || 'Untitled'}`,
+        content,
+        mimeType: 'text/plain' as const,
+        sourceUrl: (issue.url as string) || undefined,
+        contentHash,
+        metadata: {
+          identifier: issue.identifier,
+          state: (issue.state as Record<string, unknown>)?.name,
+          priority: issue.priorityLabel,
+          assignee: (issue.assignee as Record<string, unknown>)?.name,
+          labels: labelNodes.map((l) => l.name as string),
+          team: (issue.team as Record<string, unknown>)?.name,
+          project: (issue.project as Record<string, unknown>)?.name,
+          lastModified: issue.updatedAt,
+        },
+      }
+    })
 
     const hasNextPage = Boolean(pageInfo.hasNextPage)
     const endCursor = (pageInfo.endCursor as string) || undefined
@@ -335,7 +333,7 @@ export const linearConnector: ConnectorConfig = {
       if (!issue) return null
 
       const content = buildIssueContent(issue)
-      const contentHash = await computeContentHash(content)
+      const contentHash = `linear:${issue.id}:${issue.updatedAt}`
 
       const labelNodes = ((issue.labels as Record<string, unknown>)?.nodes || []) as Record<
         string,
@@ -346,7 +344,7 @@ export const linearConnector: ConnectorConfig = {
         externalId: issue.id as string,
         title: `${(issue.identifier as string) || ''}: ${(issue.title as string) || 'Untitled'}`,
         content,
-        mimeType: 'text/plain',
+        mimeType: 'text/plain' as const,
         sourceUrl: (issue.url as string) || undefined,
         contentHash,
         metadata: {
@@ -379,7 +377,6 @@ export const linearConnector: ConnectorConfig = {
     }
 
     try {
-      // Verify the token works by fetching teams
       const data = await linearGraphQL(accessToken, TEAMS_QUERY, undefined, VALIDATE_RETRY_OPTIONS)
       const teamsConn = data.teams as Record<string, unknown>
       const teams = (teamsConn.nodes || []) as Record<string, unknown>[]
@@ -391,7 +388,6 @@ export const linearConnector: ConnectorConfig = {
         }
       }
 
-      // If teamId specified, verify it exists
       const teamId = sourceConfig.teamId as string | undefined
       if (teamId) {
         const found = teams.some((t) => t.id === teamId)
