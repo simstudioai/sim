@@ -13,32 +13,85 @@ interface FAQProps {
   title?: string
 }
 
+function FAQItemRow({
+  item,
+  isOpen,
+  onToggle,
+}: {
+  item: FAQItem
+  isOpen: boolean
+  onToggle: () => void
+}) {
+  return (
+    <div>
+      <button
+        type='button'
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        className='flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left font-[470] text-[0.875rem] text-[rgba(0,0,0,0.8)] transition-colors hover:bg-[rgba(0,0,0,0.02)] dark:text-[rgba(255,255,255,0.85)] dark:hover:bg-[rgba(255,255,255,0.03)]'
+      >
+        <ChevronRight
+          className={`h-3.5 w-3.5 shrink-0 text-[rgba(0,0,0,0.3)] transition-transform duration-200 dark:text-[rgba(255,255,255,0.3)] ${
+            isOpen ? 'rotate-90' : ''
+          }`}
+        />
+        {item.question}
+      </button>
+      <div
+        className='grid transition-[grid-template-rows,opacity] duration-200 ease-in-out'
+        style={{
+          gridTemplateRows: isOpen ? '1fr' : '0fr',
+          opacity: isOpen ? 1 : 0,
+        }}
+      >
+        <div className='overflow-hidden'>
+          <div className='px-4 pt-2 pb-2.5 pl-11 text-[0.875rem] text-[rgba(0,0,0,0.7)] leading-relaxed dark:text-[rgba(255,255,255,0.7)]'>
+            {item.answer}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function FAQ({ items, title = 'Common Questions' }: FAQProps) {
   const [openIndex, setOpenIndex] = useState<number | null>(null)
 
+  const faqSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: items.map((item) => ({
+      '@type': 'Question',
+      name: item.question,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: item.answer,
+      },
+    })),
+  }
+
   return (
     <div className='mt-12'>
-      <h2 className='mb-4 font-bold text-xl'>{title}</h2>
-      <div className='rounded-xl border border-border'>
+      <script
+        type='application/ld+json'
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
+      <h2 className='mb-4 font-[500] text-xl'>{title}</h2>
+      <div className='border-[rgba(0,0,0,0.08)] border-t border-b dark:border-[rgba(255,255,255,0.08)]'>
         {items.map((item, index) => (
-          <div key={index} className={index !== items.length - 1 ? 'border-border border-b' : ''}>
-            <button
-              type='button'
-              onClick={() => setOpenIndex(openIndex === index ? null : index)}
-              className='flex w-full cursor-pointer items-center gap-3 px-5 py-4 text-left font-medium text-[0.9375rem]'
-            >
-              <ChevronRight
-                className={`h-4 w-4 shrink-0 text-fd-muted-foreground transition-transform duration-200 ${
-                  openIndex === index ? 'rotate-90' : ''
-                }`}
-              />
-              {item.question}
-            </button>
-            {openIndex === index && (
-              <div className='px-5 pb-4 pl-12 text-[0.9375rem] text-fd-muted-foreground leading-relaxed'>
-                {item.answer}
-              </div>
-            )}
+          <div
+            key={index}
+            className={
+              index !== items.length - 1
+                ? 'border-[rgba(0,0,0,0.08)] border-b dark:border-[rgba(255,255,255,0.08)]'
+                : ''
+            }
+          >
+            <FAQItemRow
+              item={item}
+              isOpen={openIndex === index}
+              onToggle={() => setOpenIndex(openIndex === index ? null : index)}
+            />
           </div>
         ))}
       </div>

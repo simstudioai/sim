@@ -45,6 +45,8 @@ app:
     RESEND_API_KEY: "your-resend-api-key"
     GOOGLE_CLIENT_ID: "your-google-client-id"
     GOOGLE_CLIENT_SECRET: "your-google-client-secret"
+    # DISABLE_GOOGLE_AUTH: "true"                      # Uncomment to hide Google OAuth login
+    # DISABLE_GITHUB_AUTH: "true"                      # Uncomment to hide GitHub OAuth login
 
 # Realtime service
 realtime:

@@ -5,6 +5,7 @@ import { memo } from 'react'
 import { Command } from 'cmdk'
 import { Blimp } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { workflowBorderColor } from '@/lib/workspaces/colors'
 import type { CommandItemProps } from '../utils'
 import { COMMAND_ITEM_CLASSNAME } from '../utils'
 
@@ -64,7 +65,7 @@ export const MemoizedWorkflowItem = memo(
           className='h-[14px] w-[14px] flex-shrink-0 rounded-sm border-[2px]'
           style={{
             backgroundColor: color,
-            borderColor: `${color}60`,
+            borderColor: workflowBorderColor(color),
             backgroundClip: 'padding-box',
           }}
         />

@@ -2,14 +2,37 @@ import { createLogger } from '@sim/logger'
 import { OutlookIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('OutlookConnector')
 
 const GRAPH_API_BASE = 'https://graph.microsoft.com/v1.0/me'
 const DEFAULT_MAX_CONVERSATIONS = 500
 const MESSAGES_PER_PAGE = 50
-const MESSAGE_FIELDS = [
+/**
+ * Fields requested when listing messages (no body — deferred to getDocument).
+ */
+const LIST_MESSAGE_FIELDS = [
+  'id',
+  'conversationId',
+  'subject',
+  'from',
+  'toRecipients',
+  'receivedDateTime',
+  'sentDateTime',
+  'categories',
+  'importance',
+  'inferenceClassification',
+  'hasAttachments',
+  'webLink',
+  'isDraft',
+  'parentFolderId',
+].join(',')
+
+/**
+ * Fields requested when fetching full message content in getDocument.
+ */
+const FULL_MESSAGE_FIELDS = [
   'id',
   'conversationId',
   'subject',
@@ -84,7 +107,7 @@ function buildInitialUrl(sourceConfig: Record<string, unknown>): string {
 
   const params = new URLSearchParams({
     $top: String(MESSAGES_PER_PAGE),
-    $select: MESSAGE_FIELDS,
+    $select: LIST_MESSAGE_FIELDS,
   })
 
   // Build $filter clauses
@@ -353,7 +376,6 @@ export const outlookConnector: ConnectorConfig = {
       const headers: Record<string, string> = {
         Authorization: `Bearer ${accessToken}`,
         Accept: 'application/json',
-        Prefer: 'outlook.body-content-type="text"',
       }
 
       const response = await fetchWithRetry(url, { method: 'GET', headers })
@@ -385,7 +407,8 @@ export const outlookConnector: ConnectorConfig = {
           continue
         }
 
-        const convId = msg.conversationId || msg.id
+        if (!msg.conversationId) continue
+        const convId = msg.conversationId
         if (!conversations[convId]) {
           conversations[convId] = []
         }
@@ -407,8 +430,8 @@ export const outlookConnector: ConnectorConfig = {
       }
     }
 
-    // Phase 2: Group conversations into documents
-    logger.info('Grouping Outlook messages into conversations', {
+    // Phase 2: Build lightweight stubs — content is deferred to getDocument
+    logger.info('Building Outlook conversation stubs', {
       totalMessages: syncContext?._totalMessagesFetched,
       totalConversations: Object.keys(conversations).length,
     })
@@ -433,23 +456,26 @@ export const outlookConnector: ConnectorConfig = {
 
     const documents: ExternalDocument[] = []
     for (const [convId, msgs] of limited) {
-      const result = formatConversation(convId, msgs)
-      if (!result) continue
+      if (msgs.length === 0) continue
 
-      const contentHash = await computeContentHash(result.content)
+      const lastDate = msgs.reduce((max, m) => {
+        const d = m.receivedDateTime || ''
+        return d > max ? d : max
+      }, '')
 
-      // Use the first message's webLink as the source URL
+      const subject = msgs[0].subject || 'No Subject'
       const firstWithLink = msgs.find((m) => m.webLink)
-      const sourceUrl = firstWithLink?.webLink || `https://outlook.office.com/mail/inbox`
+      const sourceUrl = firstWithLink?.webLink || 'https://outlook.office.com/mail/inbox'
 
       documents.push({
         externalId: convId,
-        title: result.subject,
-        content: result.content,
+        title: subject,
+        content: '',
+        contentDeferred: true,
         mimeType: 'text/plain',
         sourceUrl,
-        contentHash,
-        metadata: result.metadata,
+        contentHash: `outlook:${convId}:${lastDate}`,
+        metadata: {},
       })
     }
 
@@ -462,14 +488,25 @@ export const outlookConnector: ConnectorConfig = {
     externalId: string
   ): Promise<ExternalDocument | null> => {
     try {
-      // Fetch messages for this conversation
+      // Scope to the same folder as listDocuments so contentHash stays consistent
+      const folder = (sourceConfig.folder as string) || 'inbox'
+      const basePath =
+        folder === 'all'
+          ? `${GRAPH_API_BASE}/messages`
+          : `${GRAPH_API_BASE}/mailFolders/${WELL_KNOWN_FOLDERS[folder] || folder}/messages`
+
+      const filterParts = [
+        `conversationId eq '${externalId.replace(/'/g, "''")}'`,
+        'isDraft eq false',
+      ]
+
       const params = new URLSearchParams({
-        $filter: `conversationId eq '${externalId.replace(/'/g, "''")}'`,
-        $select: MESSAGE_FIELDS,
-        $top: '50',
+        $filter: filterParts.join(' and '),
+        $select: FULL_MESSAGE_FIELDS,
+        $top: '250',
       })
 
-      const url = `${GRAPH_API_BASE}/messages?${params.toString()}`
+      const url = `${basePath}?${params.toString()}`
 
       const response = await fetchWithRetry(url, {
         method: 'GET',
@@ -493,16 +530,21 @@ export const outlookConnector: ConnectorConfig = {
       const result = formatConversation(externalId, messages)
       if (!result) return null
 
-      const contentHash = await computeContentHash(result.content)
+      const lastDate = messages.reduce((max, m) => {
+        const d = m.receivedDateTime || ''
+        return d > max ? d : max
+      }, '')
+
       const firstWithLink = messages.find((m) => m.webLink)
 
       return {
         externalId,
         title: result.subject,
         content: result.content,
+        contentDeferred: false,
         mimeType: 'text/plain',
         sourceUrl: firstWithLink?.webLink || 'https://outlook.office.com/mail/inbox',
-        contentHash,
+        contentHash: `outlook:${externalId}:${lastDate}`,
         metadata: result.metadata,
       }
     } catch (error) {

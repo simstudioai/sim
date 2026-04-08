@@ -15,6 +15,7 @@ import {
 import { type AuthResult, AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
 import { acquireLock, getRedisClient, releaseLock } from '@/lib/core/config/redis'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import { getClientIp } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { generateId } from '@/lib/core/utils/uuid'
@@ -52,10 +53,9 @@ function getCallerFingerprint(request: NextRequest, userId?: string | null): str
     return `user:${userId}`
   }
 
-  const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-  const realIp = request.headers.get('x-real-ip')?.trim()
+  const clientIp = getClientIp(request)
   const userAgent = request.headers.get('user-agent')?.trim() || 'unknown'
-  return `public:${forwardedFor || realIp || 'unknown'}:${userAgent}`
+  return `public:${clientIp}:${userAgent}`
 }
 
 function hasCallerAccessToTask(

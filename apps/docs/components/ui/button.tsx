@@ -9,7 +9,7 @@ const variants = {
 } as const
 
 export const buttonVariants = cva(
-  'inline-flex items-center justify-center rounded-md p-2 text-sm font-medium transition-colors duration-100 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fd-ring',
+  'inline-flex items-center justify-center rounded-[5px] p-2 text-sm font-medium transition-colors duration-100 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fd-ring',
   {
     variants: {
       variant: variants,

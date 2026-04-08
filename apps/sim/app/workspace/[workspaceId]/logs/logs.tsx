@@ -33,6 +33,7 @@ import {
   type TriggerData,
   type WorkflowData,
 } from '@/lib/logs/search-suggestions'
+import { workflowBorderColor } from '@/lib/workspaces/colors'
 import type {
   FilterTag,
   HeaderAction,
@@ -157,7 +158,7 @@ function getColorIcon(
         width: 10,
         height: 10,
         ...(withRing && {
-          borderColor: `${color}60`,
+          borderColor: workflowBorderColor(color),
           backgroundClip: 'padding-box' as const,
         }),
       }}
@@ -742,7 +743,7 @@ export default function Logs() {
                   className='h-[10px] w-[10px] rounded-[3px] border-[1.5px]'
                   style={{
                     backgroundColor: workflowColor,
-                    borderColor: `${workflowColor}60`,
+                    borderColor: workflowBorderColor(workflowColor),
                     backgroundClip: 'padding-box',
                   }}
                 />
@@ -1441,7 +1442,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
                   className='h-[8px] w-[8px] flex-shrink-0 rounded-xs border-[1.5px]'
                   style={{
                     backgroundColor: selectedWorkflow.color,
-                    borderColor: `${selectedWorkflow.color}60`,
+                    borderColor: workflowBorderColor(selectedWorkflow.color),
                     backgroundClip: 'padding-box',
                   }}
                 />

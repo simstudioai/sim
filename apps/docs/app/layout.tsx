@@ -8,10 +8,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#0c0c0c' },
-  ],
+  themeColor: '#000000',
 }
 
 export const metadata = {
@@ -49,15 +46,7 @@ export const metadata = {
   classification: 'Developer Documentation',
   manifest: '/favicon/site.webmanifest',
   icons: {
-    icon: [
-      { url: '/icon.svg', type: 'image/svg+xml', sizes: 'any' },
-      { url: '/favicon/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
-      { url: '/favicon/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
-      { url: '/favicon/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/favicon/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
-    ],
     apple: '/favicon/apple-touch-icon.png',
-    shortcut: '/icon.svg',
   },
   appleWebApp: {
     capable: true,
@@ -68,9 +57,7 @@ export const metadata = {
     telephone: false,
   },
   other: {
-    'apple-mobile-web-app-capable': 'yes',
-    'mobile-web-app-capable': 'yes',
-    'msapplication-TileColor': '#33C482',
+    'msapplication-TileColor': '#000000',
   },
   openGraph: {
     type: 'website',

@@ -109,6 +109,8 @@ app:
     GOOGLE_CLIENT_SECRET: ""                              # Google OAuth client secret
     GITHUB_CLIENT_ID: ""                                  # GitHub OAuth client ID
     GITHUB_CLIENT_SECRET: ""                              # GitHub OAuth client secret
+    DISABLE_GOOGLE_AUTH: ""                               # Set to "true" to hide Google OAuth login
+    DISABLE_GITHUB_AUTH: ""                               # Set to "true" to hide GitHub OAuth login
 
     # Google Vertex AI Configuration
     VERTEX_PROJECT: ""                                    # Google Cloud project ID for Vertex AI
@@ -979,6 +981,15 @@ cronjobs:
       name: inactivity-alert-poll
       schedule: "*/15 * * * *"
       path: "/api/notifications/poll"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+    connectorSync:
+      enabled: true
+      name: connector-sync
+      schedule: "*/5 * * * *"
+      path: "/api/knowledge/connectors/sync"
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1

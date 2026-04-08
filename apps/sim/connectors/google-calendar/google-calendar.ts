@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { GoogleCalendarIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, parseTagDate } from '@/connectors/utils'
+import { parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('GoogleCalendarConnector')
 
@@ -195,13 +195,11 @@ function getTimeRange(sourceConfig: Record<string, unknown>): { timeMin: string;
 /**
  * Converts a CalendarEvent to an ExternalDocument.
  */
-async function eventToDocument(event: CalendarEvent): Promise<ExternalDocument | null> {
+function eventToDocument(event: CalendarEvent): ExternalDocument | null {
   if (event.status === 'cancelled') return null
 
   const content = eventToContent(event)
   if (!content.trim()) return null
-
-  const contentHash = await computeContentHash(content)
 
   const startTime = event.start?.dateTime || event.start?.date || ''
   const attendeeCount = event.attendees?.filter((a) => !a.resource).length || 0
@@ -212,7 +210,7 @@ async function eventToDocument(event: CalendarEvent): Promise<ExternalDocument |
     content,
     mimeType: 'text/plain',
     sourceUrl: event.htmlLink || `https://calendar.google.com/calendar/event?eid=${event.id}`,
-    contentHash,
+    contentHash: `gcal:${event.id}:${event.updated ?? ''}`,
     metadata: {
       startTime,
       endTime: event.end?.dateTime || event.end?.date || '',
@@ -348,7 +346,7 @@ export const googleCalendarConnector: ConnectorConfig = {
 
     const documents: ExternalDocument[] = []
     for (const event of events) {
-      const doc = await eventToDocument(event)
+      const doc = eventToDocument(event)
       if (doc) documents.push(doc)
     }
 
@@ -392,7 +390,7 @@ export const googleCalendarConnector: ConnectorConfig = {
 
     if (event.status === 'cancelled') return null
 
-    return eventToDocument(event)
+    return eventToDocument(event) ?? null
   },
 
   validateConfig: async (

@@ -1,0 +1,238 @@
+---
+title: Athena
+description: Run SQL queries on data in Amazon S3 using AWS Athena
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="athena"
+  color="linear-gradient(45deg, #4D27A8 0%, #A166FF 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Amazon Athena](https://aws.amazon.com/athena/) is an interactive query service from AWS that makes it easy to analyze data directly in Amazon S3 using standard SQL. Athena is serverless, so there is no infrastructure to manage, and you pay only for the queries you run.
+
+With Athena, you can:
+
+- **Query data in S3**: Run SQL queries directly against data stored in Amazon S3 without loading it into a database
+- **Support multiple formats**: Query CSV, JSON, Parquet, ORC, Avro, and other common data formats
+- **Integrate with AWS Glue**: Use the AWS Glue Data Catalog to manage table metadata and schemas
+- **Scale automatically**: Handle queries of any size without provisioning servers or clusters
+- **Save and reuse queries**: Create named queries for frequently used SQL statements
+
+In Sim, the Athena integration enables your agents to run SQL queries against data in S3, check query execution status, retrieve results, and manage saved queries — all within your agent workflows. Supported operations include:
+
+- **Start Query**: Execute SQL queries against your S3 data
+- **Get Query Execution**: Check the status and details of a running or completed query
+- **Get Query Results**: Retrieve the results of a completed query
+- **Stop Query**: Cancel a running query execution
+- **List Query Executions**: View recent query execution IDs
+- **Create Named Query**: Save a query for reuse
+- **Get Named Query**: Retrieve details of a saved query
+- **List Named Queries**: View all saved query IDs
+
+This integration empowers Sim agents to automate data analysis tasks using AWS Athena, enabling workflows that query, monitor, and manage large-scale data in S3 without manual effort or infrastructure management.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate AWS Athena into workflows. Execute SQL queries against data in S3, check query status, retrieve results, manage named queries, and list executions. Requires AWS access key and secret access key.
+
+
+
+## Tools
+
+### `athena_start_query`
+
+Start an SQL query execution in AWS Athena
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `queryString` | string | Yes | SQL query string to execute |
+| `database` | string | No | Database name within the catalog |
+| `catalog` | string | No | Data catalog name \(default: AwsDataCatalog\) |
+| `outputLocation` | string | No | S3 output location for query results \(e.g., s3://bucket/path/\) |
+| `workGroup` | string | No | Workgroup to execute the query in \(default: primary\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `queryExecutionId` | string | Unique ID of the started query execution |
+
+### `athena_get_query_execution`
+
+Get the status and details of an Athena query execution
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `queryExecutionId` | string | Yes | Query execution ID to check |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `queryExecutionId` | string | Query execution ID |
+| `query` | string | SQL query string |
+| `state` | string | Query state \(QUEUED, RUNNING, SUCCEEDED, FAILED, CANCELLED\) |
+| `stateChangeReason` | string | Reason for state change \(e.g., error message\) |
+| `statementType` | string | Statement type \(DDL, DML, UTILITY\) |
+| `database` | string | Database name |
+| `catalog` | string | Data catalog name |
+| `workGroup` | string | Workgroup name |
+| `submissionDateTime` | number | Query submission time \(Unix epoch ms\) |
+| `completionDateTime` | number | Query completion time \(Unix epoch ms\) |
+| `dataScannedInBytes` | number | Amount of data scanned in bytes |
+| `engineExecutionTimeInMillis` | number | Engine execution time in milliseconds |
+| `queryPlanningTimeInMillis` | number | Query planning time in milliseconds |
+| `queryQueueTimeInMillis` | number | Time the query spent in queue in milliseconds |
+| `totalExecutionTimeInMillis` | number | Total execution time in milliseconds |
+| `outputLocation` | string | S3 location of query results |
+
+### `athena_get_query_results`
+
+Retrieve the results of a completed Athena query execution
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `queryExecutionId` | string | Yes | Query execution ID to get results for |
+| `maxResults` | number | No | Maximum number of rows to return \(1-1000\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `columns` | array | Column metadata \(name and type\) |
+| `rows` | array | Result rows as key-value objects |
+| `nextToken` | string | Pagination token for next page of results |
+| `updateCount` | number | Number of rows affected \(for INSERT/UPDATE statements\) |
+
+### `athena_stop_query`
+
+Stop a running Athena query execution
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `queryExecutionId` | string | Yes | Query execution ID to stop |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the query was successfully stopped |
+
+### `athena_list_query_executions`
+
+List recent Athena query execution IDs
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `workGroup` | string | No | Workgroup to list executions for \(default: primary\) |
+| `maxResults` | number | No | Maximum number of results \(0-50\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `queryExecutionIds` | array | List of query execution IDs |
+| `nextToken` | string | Pagination token for next page |
+
+### `athena_create_named_query`
+
+Create a saved/named query in AWS Athena
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `name` | string | Yes | Name for the saved query |
+| `database` | string | Yes | Database the query runs against |
+| `queryString` | string | Yes | SQL query string to save |
+| `description` | string | No | Description of the named query |
+| `workGroup` | string | No | Workgroup to create the named query in |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `namedQueryId` | string | ID of the created named query |
+
+### `athena_get_named_query`
+
+Get details of a saved/named query in AWS Athena
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `namedQueryId` | string | Yes | Named query ID to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `namedQueryId` | string | Named query ID |
+| `name` | string | Name of the saved query |
+| `description` | string | Query description |
+| `database` | string | Database the query runs against |
+| `queryString` | string | SQL query string |
+| `workGroup` | string | Workgroup name |
+
+### `athena_list_named_queries`
+
+List saved/named query IDs in AWS Athena
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `workGroup` | string | No | Workgroup to list named queries for |
+| `maxResults` | number | No | Maximum number of results \(0-50\) |
+| `nextToken` | string | No | Pagination token from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `namedQueryIds` | array | List of named query IDs |
+| `nextToken` | string | Pagination token for next page |
+
+

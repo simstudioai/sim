@@ -1634,8 +1634,21 @@ Do not include any explanations, markdown formatting, or other text outside the 
 
     // Trigger outputs (when used as webhook trigger)
     event_type: { type: 'string', description: 'Type of Slack event that triggered the workflow' },
+    subtype: {
+      type: 'string',
+      description:
+        'Message subtype (e.g., channel_join, channel_leave, bot_message). Null for regular user messages',
+    },
     channel_name: { type: 'string', description: 'Human-readable channel name' },
+    channel_type: {
+      type: 'string',
+      description: 'Type of channel (e.g., channel, group, im, mpim)',
+    },
     user_name: { type: 'string', description: 'Username who triggered the event' },
+    bot_id: {
+      type: 'string',
+      description: 'Bot ID if the message was sent by a bot. Null for human users',
+    },
     timestamp: { type: 'string', description: 'Message timestamp from the triggering event' },
     thread_ts: {
       type: 'string',

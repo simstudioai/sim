@@ -27,6 +27,7 @@ import type {
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
+import { useTasks } from '@/hooks/queries/tasks'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
@@ -53,6 +54,7 @@ export function useAvailableResources(
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
   const { data: knowledgeBases } = useKnowledgeBasesQuery(workspaceId)
   const { data: folders = [] } = useFolders(workspaceId)
+  const { data: tasks = [] } = useTasks(workspaceId)
 
   return useMemo(
     () => [
@@ -97,8 +99,16 @@ export function useAvailableResources(
           isOpen: existingKeys.has(`knowledgebase:${kb.id}`),
         })),
       },
+      {
+        type: 'task' as const,
+        items: tasks.map((t) => ({
+          id: t.id,
+          name: t.name,
+          isOpen: existingKeys.has(`task:${t.id}`),
+        })),
+      },
     ],
-    [workflows, folders, tables, files, knowledgeBases, existingKeys]
+    [workflows, folders, tables, files, knowledgeBases, tasks, existingKeys]
   )
 }
 

@@ -99,7 +99,11 @@ function SignupFormContent({
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const turnstileRef = useRef<TurnstileInstance>(null)
-  const turnstileSiteKey = useMemo(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'), [])
+  const [turnstileSiteKey, setTurnstileSiteKey] = useState<string | undefined>()
+
+  useEffect(() => {
+    setTurnstileSiteKey(getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'))
+  }, [])
   const redirectUrl = useMemo(
     () => searchParams.get('redirect') || searchParams.get('callbackUrl') || '',
     [searchParams]
@@ -266,10 +270,8 @@ function SignupFormContent({
           name: sanitizedName,
         },
         {
-          fetchOptions: {
-            headers: {
-              ...(token ? { 'x-captcha-response': token } : {}),
-            },
+          headers: {
+            ...(token ? { 'x-captcha-response': token } : {}),
           },
           onError: (ctx) => {
             logger.error('Signup error:', ctx.error)
@@ -278,10 +280,7 @@ function SignupFormContent({
             let errorCode = 'unknown'
             if (ctx.error.code?.includes('USER_ALREADY_EXISTS')) {
               errorCode = 'user_already_exists'
-              errorMessage.push(
-                'An account with this email already exists. Please sign in instead.'
-              )
-              setEmailError(errorMessage[0])
+              setEmailError('An account with this email already exists. Please sign in instead.')
             } else if (
               ctx.error.code?.includes('BAD_REQUEST') ||
               ctx.error.message?.includes('Email and password sign up is not enabled')

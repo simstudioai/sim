@@ -173,7 +173,7 @@ export function Skills() {
             <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{skillToDelete?.name}</span>?{' '}
-              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              This action cannot be undone.
             </p>
           </ModalBody>
           <ModalFooter>

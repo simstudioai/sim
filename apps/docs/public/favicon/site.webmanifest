@@ -33,7 +33,7 @@
       "type": "image/png"
     }
   ],
-  "theme_color": "#33C482",
+  "theme_color": "#000000",
   "background_color": "#ffffff",
   "display": "standalone",
   "categories": ["productivity", "developer", "business"],

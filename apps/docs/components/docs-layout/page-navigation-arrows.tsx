@@ -20,7 +20,7 @@ export function PageNavigationArrows({ previous, next }: PageNavigationArrowsPro
       {previous && (
         <Link
           href={previous.url}
-          className='inline-flex items-center justify-center gap-1.5 rounded-lg border border-border/40 bg-background px-2.5 py-1.5 text-muted-foreground/60 text-sm transition-all hover:border-border hover:bg-accent/50 hover:text-muted-foreground'
+          className='inline-flex items-center justify-center rounded-[5px] border border-transparent px-2.5 py-2 text-foreground/40 transition-colors duration-200 hover:border-border/40 hover:bg-neutral-100 hover:text-foreground/70 dark:hover:bg-neutral-800'
           aria-label='Previous page'
           title='Previous page'
         >
@@ -30,7 +30,7 @@ export function PageNavigationArrows({ previous, next }: PageNavigationArrowsPro
       {next && (
         <Link
           href={next.url}
-          className='inline-flex items-center justify-center gap-1.5 rounded-lg border border-border/40 bg-background px-2.5 py-1.5 text-muted-foreground/60 text-sm transition-all hover:border-border hover:bg-accent/50 hover:text-muted-foreground'
+          className='inline-flex items-center justify-center rounded-[5px] border border-transparent px-2.5 py-2 text-foreground/40 transition-colors duration-200 hover:border-border/40 hover:bg-neutral-100 hover:text-foreground/70 dark:hover:bg-neutral-800'
           aria-label='Next page'
           title='Next page'
         >

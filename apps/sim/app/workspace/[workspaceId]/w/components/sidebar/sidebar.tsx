@@ -37,6 +37,7 @@ import {
   Wordmark,
 } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
+import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { buildFolderTree } from '@/lib/folders/tree'
@@ -72,7 +73,10 @@ import {
   useWorkflowOperations,
   useWorkspaceManagement,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { groupWorkflowsByFolder } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
+import {
+  createSidebarDragGhost,
+  groupWorkflowsByFolder,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import {
   useDuplicateWorkspace,
   useExportWorkspace,
@@ -159,6 +163,30 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
   onMorePointerDown: () => void
   onMoreClick: (e: React.MouseEvent<HTMLButtonElement>, taskId: string) => void
 }) {
+  const dragGhostRef = useRef<HTMLElement | null>(null)
+
+  const handleDragStart = useCallback(
+    (e: React.DragEvent) => {
+      e.dataTransfer.effectAllowed = 'copyMove'
+      e.dataTransfer.setData(
+        SIM_RESOURCES_DRAG_TYPE,
+        JSON.stringify([{ type: 'task', id: task.id, title: task.name }])
+      )
+      const ghost = createSidebarDragGhost(task.name, { kind: 'task' })
+      void ghost.offsetHeight
+      e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
+      dragGhostRef.current = ghost
+    },
+    [task.id, task.name]
+  )
+
+  const handleDragEnd = useCallback(() => {
+    if (dragGhostRef.current) {
+      dragGhostRef.current.remove()
+      dragGhostRef.current = null
+    }
+  }, [])
+
   return (
     <SidebarTooltip label={task.name} enabled={showCollapsedTooltips}>
       <Link
@@ -182,6 +210,9 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
           }
         }}
         onContextMenu={task.id !== 'new' ? (e) => onContextMenu(e, task.id) : undefined}
+        draggable={task.id !== 'new'}
+        onDragStart={task.id !== 'new' ? handleDragStart : undefined}
+        onDragEnd={task.id !== 'new' ? handleDragEnd : undefined}
       >
         <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
         <div className='min-w-0 flex-1 truncate font-base text-[var(--text-body)]'>{task.name}</div>

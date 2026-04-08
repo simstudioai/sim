@@ -39,7 +39,7 @@ export function Heading({ as, className, ...props }: HeadingProps) {
 
   return (
     <As className={cn('group flex scroll-m-28 flex-row items-center gap-2', className)} {...props}>
-      <a data-card='' href={`#${props.id}`} className='peer' onClick={handleClick}>
+      <a href={`#${props.id}`} className='peer' onClick={handleClick}>
         {props.children}
       </a>
       {copied ? (

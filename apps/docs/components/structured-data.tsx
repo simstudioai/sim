@@ -1,5 +1,3 @@
-import Script from 'next/script'
-
 interface StructuredDataProps {
   title: string
   description: string
@@ -68,29 +66,6 @@ export function StructuredData({
     })),
   }
 
-  const websiteStructuredData = url === baseUrl && {
-    '@context': 'https://schema.org',
-    '@type': 'WebSite',
-    name: 'Sim Documentation',
-    url: baseUrl,
-    description:
-      'Documentation for Sim — the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows.',
-    publisher: {
-      '@type': 'Organization',
-      name: 'Sim',
-      url: baseUrl,
-    },
-    potentialAction: {
-      '@type': 'SearchAction',
-      target: {
-        '@type': 'EntryPoint',
-        urlTemplate: `${baseUrl}/search?q={search_term_string}`,
-      },
-      'query-input': 'required name=search_term_string',
-    },
-    inLanguage: ['en', 'es', 'fr', 'de', 'ja', 'zh'],
-  }
-
   const softwareStructuredData = {
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
@@ -121,34 +96,22 @@ export function StructuredData({
 
   return (
     <>
-      <Script
-        id='article-structured-data'
+      <script
         type='application/ld+json'
         dangerouslySetInnerHTML={{
           __html: JSON.stringify(articleStructuredData),
         }}
       />
       {breadcrumbStructuredData && (
-        <Script
-          id='breadcrumb-structured-data'
+        <script
           type='application/ld+json'
           dangerouslySetInnerHTML={{
             __html: JSON.stringify(breadcrumbStructuredData),
           }}
         />
       )}
-      {websiteStructuredData && (
-        <Script
-          id='website-structured-data'
-          type='application/ld+json'
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify(websiteStructuredData),
-          }}
-        />
-      )}
       {url === baseUrl && (
-        <Script
-          id='software-structured-data'
+        <script
           type='application/ld+json'
           dangerouslySetInnerHTML={{
             __html: JSON.stringify(softwareStructuredData),

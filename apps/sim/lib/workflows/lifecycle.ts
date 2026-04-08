@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import {
   a2aAgent,
+  apiKey,
   chat,
   form,
   webhook,
@@ -9,12 +10,14 @@ import {
   workflowFolder,
   workflowMcpTool,
   workflowSchedule,
+  workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { getWorkflowById } from '@/lib/workflows/utils'
 
@@ -377,5 +380,31 @@ export async function archiveWorkflowsByIdsInWorkspace(
   return archiveWorkflows(
     workflows.map((entry) => entry.id),
     options
+  )
+}
+
+/**
+ * Disables all resources owned by a banned user by archiving every workspace
+ * they own (cascading to workflows, chats, forms, KBs, tables, files, etc.)
+ * and deleting their personal API keys.
+ */
+export async function disableUserResources(userId: string): Promise<void> {
+  const requestId = generateRequestId()
+  logger.info(`[${requestId}] Disabling resources for banned user ${userId}`)
+
+  const { archiveWorkspace } = await import('@/lib/workspaces/lifecycle')
+
+  const ownedWorkspaces = await db
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(and(eq(workspace.ownerId, userId), isNull(workspace.archivedAt)))
+
+  await Promise.all([
+    ...ownedWorkspaces.map((w) => archiveWorkspace(w.id, { requestId })),
+    db.delete(apiKey).where(eq(apiKey.userId, userId)),
+  ])
+
+  logger.info(
+    `[${requestId}] Disabled resources for user ${userId}: archived ${ownedWorkspaces.length} workspaces, deleted API keys`
   )
 }

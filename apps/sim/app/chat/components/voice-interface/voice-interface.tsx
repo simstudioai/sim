@@ -6,6 +6,13 @@ import { Mic, MicOff, Phone } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
+import { arrayBufferToBase64, floatTo16BitPCM } from '@/lib/speech/audio'
+import {
+  CHUNK_SEND_INTERVAL_MS,
+  ELEVENLABS_WS_URL,
+  MAX_CHAT_SESSION_MS,
+  SAMPLE_RATE,
+} from '@/lib/speech/config'
 
 const ParticlesVisualization = dynamic(
   () =>
@@ -16,38 +23,6 @@ const ParticlesVisualization = dynamic(
 )
 
 const logger = createLogger('VoiceInterface')
-
-interface SpeechRecognitionEvent extends Event {
-  resultIndex: number
-  results: SpeechRecognitionResultList
-}
-
-interface SpeechRecognitionErrorEvent extends Event {
-  error: string
-  message?: string
-}
-
-interface SpeechRecognition extends EventTarget {
-  continuous: boolean
-  interimResults: boolean
-  lang: string
-  start(): void
-  stop(): void
-  abort(): void
-  onstart: ((this: SpeechRecognition, ev: Event) => any) | null
-  onend: ((this: SpeechRecognition, ev: Event) => any) | null
-  onresult: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any) | null
-  onerror: ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => any) | null
-}
-
-interface SpeechRecognitionStatic {
-  new (): SpeechRecognition
-}
-
-type WindowWithSpeech = Window & {
-  SpeechRecognition?: SpeechRecognitionStatic
-  webkitSpeechRecognition?: SpeechRecognitionStatic
-}
 
 interface VoiceInterfaceProps {
   onCallEnd?: () => void
@@ -60,6 +35,7 @@ interface VoiceInterfaceProps {
   audioContextRef?: RefObject<AudioContext | null>
   messages?: Array<{ content: string; type: 'user' | 'assistant' }>
   className?: string
+  chatId?: string
 }
 
 export function VoiceInterface({
@@ -73,6 +49,7 @@ export function VoiceInterface({
   audioContextRef: sharedAudioContextRef,
   messages = [],
   className,
+  chatId,
 }: VoiceInterfaceProps) {
   const [state, setState] = useState<'idle' | 'listening' | 'agent_speaking'>('idle')
   const [isInitialized, setIsInitialized] = useState(false)
@@ -91,79 +68,177 @@ export function VoiceInterface({
     currentStateRef.current = next
   }, [])
 
-  const recognitionRef = useRef<SpeechRecognition | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const animationFrameRef = useRef<number | null>(null)
   const isMutedRef = useRef(false)
-  const responseTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  const isSupported =
-    typeof window !== 'undefined' &&
-    !!(
-      (window as WindowWithSpeech).SpeechRecognition ||
-      (window as WindowWithSpeech).webkitSpeechRecognition
-    )
+  const wsRef = useRef<WebSocket | null>(null)
+  const processorRef = useRef<ScriptProcessorNode | null>(null)
+  const pcmBufferRef = useRef<Float32Array[]>([])
+  const sendIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const sessionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const committedTextRef = useRef('')
+  const lastPartialRef = useRef('')
+  const onVoiceTranscriptRef = useRef(onVoiceTranscript)
+
+  onVoiceTranscriptRef.current = onVoiceTranscript
 
   const updateIsMuted = useCallback((next: boolean) => {
     setIsMuted(next)
     isMutedRef.current = next
   }, [])
 
-  const setResponseTimeout = useCallback(() => {
-    if (responseTimeoutRef.current) {
-      clearTimeout(responseTimeoutRef.current)
+  const stopSendingAudio = useCallback(() => {
+    if (sessionTimerRef.current) {
+      clearTimeout(sessionTimerRef.current)
+      sessionTimerRef.current = null
     }
-
-    responseTimeoutRef.current = setTimeout(() => {
-      if (currentStateRef.current === 'listening') {
-        updateState('idle')
-      }
-    }, 5000)
+    if (sendIntervalRef.current) {
+      clearInterval(sendIntervalRef.current)
+      sendIntervalRef.current = null
+    }
+    pcmBufferRef.current = []
   }, [])
 
-  const clearResponseTimeout = useCallback(() => {
-    if (responseTimeoutRef.current) {
-      clearTimeout(responseTimeoutRef.current)
-      responseTimeoutRef.current = null
+  const flushAudioBuffer = useCallback(() => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+
+    const chunks = pcmBufferRef.current
+    if (chunks.length === 0) return
+    pcmBufferRef.current = []
+
+    let totalLength = 0
+    for (const chunk of chunks) totalLength += chunk.length
+    const merged = new Float32Array(totalLength)
+    let offset = 0
+    for (const chunk of chunks) {
+      merged.set(chunk, offset)
+      offset += chunk.length
     }
+
+    const pcm16 = floatTo16BitPCM(merged)
+
+    ws.send(
+      JSON.stringify({
+        message_type: 'input_audio_chunk',
+        audio_base_64: arrayBufferToBase64(pcm16),
+        sample_rate: SAMPLE_RATE,
+        commit: false,
+      })
+    )
   }, [])
 
-  useEffect(() => {
-    if (isPlayingAudio && state !== 'agent_speaking') {
-      clearResponseTimeout()
-      updateState('agent_speaking')
-      setCurrentTranscript('')
+  const startSendingAudio = useCallback(() => {
+    if (sendIntervalRef.current) return
+    pcmBufferRef.current = []
+    sendIntervalRef.current = setInterval(flushAudioBuffer, CHUNK_SEND_INTERVAL_MS)
+  }, [flushAudioBuffer])
 
-      updateIsMuted(true)
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getAudioTracks().forEach((track) => {
-          track.enabled = false
-        })
+  const closeWebSocket = useCallback(() => {
+    stopSendingAudio()
+    if (wsRef.current) {
+      if (
+        wsRef.current.readyState === WebSocket.OPEN ||
+        wsRef.current.readyState === WebSocket.CONNECTING
+      ) {
+        wsRef.current.close()
+      }
+      wsRef.current = null
+    }
+  }, [stopSendingAudio])
+
+  const connectWebSocket = useCallback(async (): Promise<boolean> => {
+    try {
+      const body: Record<string, string> = {}
+      if (chatId) body.chatId = chatId
+
+      const tokenResponse = await fetch('/api/speech/token', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+
+      if (!tokenResponse.ok) {
+        logger.error('Failed to get STT token', { status: tokenResponse.status })
+        return false
       }
 
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.abort()
-        } catch (error) {
-          logger.debug('Error aborting speech recognition:', error)
+      const { token } = await tokenResponse.json()
+
+      const params = new URLSearchParams({
+        token,
+        model_id: 'scribe_v2_realtime',
+        audio_format: 'pcm_16000',
+        commit_strategy: 'vad',
+        vad_silence_threshold_secs: '1.0',
+      })
+
+      const ws = new WebSocket(`${ELEVENLABS_WS_URL}?${params.toString()}`)
+      wsRef.current = ws
+      committedTextRef.current = ''
+
+      return new Promise<boolean>((resolve) => {
+        ws.onopen = () => resolve(true)
+        ws.onerror = () => {
+          logger.error('STT WebSocket connection error')
+          resolve(false)
         }
-      }
-    } else if (!isPlayingAudio && state === 'agent_speaking') {
-      updateState('idle')
-      setCurrentTranscript('')
 
-      updateIsMuted(false)
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getAudioTracks().forEach((track) => {
-          track.enabled = true
-        })
-      }
+        ws.onmessage = (event) => {
+          if (isCallEndedRef.current) return
+
+          try {
+            const msg = JSON.parse(event.data)
+
+            if (msg.message_type === 'partial_transcript') {
+              if (msg.text) {
+                lastPartialRef.current = msg.text
+                setCurrentTranscript(msg.text)
+              }
+            } else if (
+              msg.message_type === 'committed_transcript' ||
+              msg.message_type === 'committed_transcript_with_timestamps'
+            ) {
+              const finalText = msg.text || lastPartialRef.current
+              lastPartialRef.current = ''
+              if (finalText) {
+                committedTextRef.current = committedTextRef.current
+                  ? `${committedTextRef.current} ${finalText}`
+                  : finalText
+                setCurrentTranscript('')
+                onVoiceTranscriptRef.current?.(finalText)
+              }
+            } else if (
+              msg.message_type === 'error' ||
+              msg.message_type === 'auth_error' ||
+              msg.message_type === 'quota_exceeded'
+            ) {
+              logger.error('ElevenLabs STT error', { type: msg.message_type, error: msg.error })
+            }
+          } catch {
+            // Ignore non-JSON messages
+          }
+        }
+
+        ws.onclose = () => {
+          wsRef.current = null
+          if (currentStateRef.current === 'listening' && !isCallEndedRef.current) {
+            stopSendingAudio()
+            updateState('idle')
+          }
+        }
+      })
+    } catch (error) {
+      logger.error('Failed to connect STT WebSocket', error)
+      return false
     }
-  }, [isPlayingAudio, state, clearResponseTimeout, updateState, updateIsMuted])
+  }, [chatId])
 
-  const setupAudio = useCallback(async () => {
+  const setupAudioPipeline = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -171,33 +246,40 @@ export function VoiceInterface({
           noiseSuppression: true,
           autoGainControl: true,
           channelCount: 1,
+          sampleRate: SAMPLE_RATE,
         },
       })
 
       setPermissionStatus('granted')
       mediaStreamRef.current = stream
 
-      if (!audioContextRef.current) {
-        const AudioContext = window.AudioContext || window.webkitAudioContext
-        audioContextRef.current = new AudioContext()
+      const ac = new AudioContext({ sampleRate: SAMPLE_RATE })
+      audioContextRef.current = ac
+
+      if (ac.state === 'suspended') {
+        await ac.resume()
       }
 
-      const audioContext = audioContextRef.current
-      if (audioContext.state === 'suspended') {
-        await audioContext.resume()
-      }
+      const source = ac.createMediaStreamSource(stream)
 
-      const source = audioContext.createMediaStreamSource(stream)
-      const analyser = audioContext.createAnalyser()
+      const analyser = ac.createAnalyser()
       analyser.fftSize = 256
       analyser.smoothingTimeConstant = 0.8
-
       source.connect(analyser)
       analyserRef.current = analyser
 
+      const processor = ac.createScriptProcessor(4096, 1, 1)
+      processor.onaudioprocess = (e) => {
+        if (!isMutedRef.current && currentStateRef.current === 'listening') {
+          pcmBufferRef.current.push(new Float32Array(e.inputBuffer.getChannelData(0)))
+        }
+      }
+      source.connect(processor)
+      processor.connect(ac.destination)
+      processorRef.current = processor
+
       const updateVisualization = () => {
         if (!analyserRef.current) return
-
         const bufferLength = analyserRef.current.frequencyBinCount
         const dataArray = new Uint8Array(bufferLength)
         analyserRef.current.getByteFrequencyData(dataArray)
@@ -212,143 +294,57 @@ export function VoiceInterface({
         setAudioLevels(levels)
         animationFrameRef.current = requestAnimationFrame(updateVisualization)
       }
-
       updateVisualization()
-      setIsInitialized(true)
+
       return true
     } catch (error) {
-      logger.error('Error setting up audio:', error)
+      logger.error('Error setting up audio pipeline:', error)
       setPermissionStatus('denied')
       return false
     }
   }, [])
 
-  const setupSpeechRecognition = useCallback(() => {
-    if (!isSupported) return
+  const startListening = useCallback(async () => {
+    if (currentStateRef.current !== 'idle' || isMutedRef.current || isCallEndedRef.current) return
 
-    const w = window as WindowWithSpeech
-    const SpeechRecognition = w.SpeechRecognition || w.webkitSpeechRecognition
-    if (!SpeechRecognition) return
-
-    const recognition = new SpeechRecognition()
-
-    recognition.continuous = true
-    recognition.interimResults = true
-    recognition.lang = 'en-US'
-
-    recognition.onstart = () => {}
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const currentState = currentStateRef.current
-
-      if (isMutedRef.current || currentState !== 'listening') {
-        return
-      }
-
-      let finalTranscript = ''
-      let interimTranscript = ''
-
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i]
-        const transcript = result[0].transcript
-
-        if (result.isFinal) {
-          finalTranscript += transcript
-        } else {
-          interimTranscript += transcript
-        }
-      }
-
-      setCurrentTranscript(interimTranscript || finalTranscript)
-
-      if (finalTranscript.trim()) {
-        setCurrentTranscript('')
-
-        if (recognitionRef.current) {
-          try {
-            recognitionRef.current.stop()
-          } catch (error) {
-            // Ignore
-          }
-        }
-
-        setResponseTimeout()
-
-        onVoiceTranscript?.(finalTranscript)
-      }
-    }
-
-    recognition.onend = () => {
-      if (isCallEndedRef.current) return
-
-      const currentState = currentStateRef.current
-
-      if (currentState === 'listening' && !isMutedRef.current) {
-        setTimeout(() => {
-          if (isCallEndedRef.current) return
-
-          if (
-            recognitionRef.current &&
-            currentStateRef.current === 'listening' &&
-            !isMutedRef.current
-          ) {
-            try {
-              recognitionRef.current.start()
-            } catch (error) {
-              logger.debug('Error restarting speech recognition:', error)
-            }
-          }
-        }, 1000)
-      }
-    }
-
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      if (event.error === 'aborted') {
-        return
-      }
-
-      if (event.error === 'not-allowed') {
-        setPermissionStatus('denied')
-      }
-    }
-
-    recognitionRef.current = recognition
-  }, [isSupported, onVoiceTranscript, setResponseTimeout])
-
-  const startListening = useCallback(() => {
-    if (!isInitialized || isMuted || state !== 'idle') {
-      return
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      const connected = await connectWebSocket()
+      if (!connected || isCallEndedRef.current) return
     }
 
     updateState('listening')
     setCurrentTranscript('')
+    startSendingAudio()
 
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.start()
-      } catch (error) {
-        logger.error('Error starting recognition:', error)
-      }
-    }
-  }, [isInitialized, isMuted, state, updateState])
+    sessionTimerRef.current = setTimeout(() => {
+      logger.info('Voice session reached max duration, stopping')
+      stopSendingAudio()
+      closeWebSocket()
+      updateState('idle')
+    }, MAX_CHAT_SESSION_MS)
+  }, [connectWebSocket, updateState, startSendingAudio, stopSendingAudio, closeWebSocket])
 
   const stopListening = useCallback(() => {
+    stopSendingAudio()
     updateState('idle')
     setCurrentTranscript('')
+  }, [updateState, stopSendingAudio])
 
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop()
-      } catch (error) {
-        // Ignore
+  useEffect(() => {
+    if (isPlayingAudio && state === 'listening') {
+      stopSendingAudio()
+      closeWebSocket()
+      updateState('agent_speaking')
+      setCurrentTranscript('')
+
+      updateIsMuted(true)
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getAudioTracks().forEach((track) => {
+          track.enabled = false
+        })
       }
-    }
-  }, [updateState])
-
-  const handleInterrupt = useCallback(() => {
-    if (state === 'agent_speaking') {
-      onInterrupt?.()
-      updateState('listening')
+    } else if (!isPlayingAudio && state === 'agent_speaking') {
+      updateState('idle')
       setCurrentTranscript('')
 
       updateIsMuted(false)
@@ -357,36 +353,57 @@ export function VoiceInterface({
           track.enabled = true
         })
       }
+    }
+  }, [isPlayingAudio, state, updateState, updateIsMuted, stopSendingAudio, closeWebSocket])
 
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.start()
-        } catch (error) {
-          logger.error('Could not start recognition after interrupt:', error)
-        }
+  const handleInterrupt = useCallback(() => {
+    if (state === 'agent_speaking') {
+      onInterrupt?.()
+
+      updateIsMuted(false)
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getAudioTracks().forEach((track) => {
+          track.enabled = true
+        })
       }
+
+      updateState('idle')
+      setCurrentTranscript('')
     }
   }, [state, onInterrupt, updateState, updateIsMuted])
 
   const handleCallEnd = useCallback(() => {
     isCallEndedRef.current = true
 
+    stopSendingAudio()
+    closeWebSocket()
     updateState('idle')
     setCurrentTranscript('')
     updateIsMuted(false)
 
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.abort()
-      } catch (error) {
-        logger.error('Error stopping speech recognition:', error)
-      }
+    if (processorRef.current) {
+      processorRef.current.disconnect()
+      processorRef.current = null
     }
 
-    clearResponseTimeout()
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop())
+      mediaStreamRef.current = null
+    }
+
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.close().catch(() => {})
+      audioContextRef.current = null
+    }
+
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current)
+      animationFrameRef.current = null
+    }
+
     onInterrupt?.()
     onCallEnd?.()
-  }, [onCallEnd, onInterrupt, clearResponseTimeout, updateState, updateIsMuted])
+  }, [onCallEnd, onInterrupt, updateState, updateIsMuted, stopSendingAudio, closeWebSocket])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -423,11 +440,25 @@ export function VoiceInterface({
   }, [isMuted, state, handleInterrupt, stopListening, startListening, updateIsMuted])
 
   useEffect(() => {
-    if (isSupported) {
-      setupSpeechRecognition()
-      setupAudio()
+    isCallEndedRef.current = false
+    let cancelled = false
+
+    async function init() {
+      const audioOk = await setupAudioPipeline()
+      if (!audioOk || cancelled) return
+
+      const wsOk = await connectWebSocket()
+      if (!wsOk || cancelled) return
+
+      setIsInitialized(true)
     }
-  }, [isSupported, setupSpeechRecognition, setupAudio])
+
+    init()
+
+    return () => {
+      cancelled = true
+    }
+  }, [setupAudioPipeline, connectWebSocket])
 
   useEffect(() => {
     if (isInitialized && !isMuted && state === 'idle') {
@@ -439,13 +470,16 @@ export function VoiceInterface({
     return () => {
       isCallEndedRef.current = true
 
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.abort()
-        } catch (_e) {
-          // Ignore
-        }
-        recognitionRef.current = null
+      stopSendingAudio()
+
+      if (wsRef.current) {
+        wsRef.current.close()
+        wsRef.current = null
+      }
+
+      if (processorRef.current) {
+        processorRef.current.disconnect()
+        processorRef.current = null
       }
 
       if (mediaStreamRef.current) {
@@ -462,13 +496,8 @@ export function VoiceInterface({
         cancelAnimationFrame(animationFrameRef.current)
         animationFrameRef.current = null
       }
-
-      if (responseTimeoutRef.current) {
-        clearTimeout(responseTimeoutRef.current)
-        responseTimeoutRef.current = null
-      }
     }
-  }, [])
+  }, [stopSendingAudio])
 
   const getStatusText = () => {
     switch (state) {

@@ -1,7 +1,7 @@
 import { i18n } from '@/lib/i18n'
 import { source } from '@/lib/source'
 
-export const revalidate = false
+export const revalidate = 3600
 
 export async function GET() {
   const baseUrl = 'https://docs.sim.ai'
@@ -28,8 +28,6 @@ export async function GET() {
 
         return `  <url>
     <loc>${url}</loc>
-    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
-    <changefreq>weekly</changefreq>
     <priority>${getPriority(urlWithoutLang)}</priority>
     ${i18n.languages.length > 1 ? generateAlternateLinks(baseUrl, urlWithoutLang) : ''}
   </url>`
@@ -51,7 +49,7 @@ ${urls}
 }
 
 function generateAlternateLinks(baseUrl: string, urlWithoutLang: string): string {
-  return i18n.languages
+  const langLinks = i18n.languages
     .map((lang) => {
       const url =
         lang === i18n.defaultLanguage
@@ -60,4 +58,5 @@ function generateAlternateLinks(baseUrl: string, urlWithoutLang: string): string
       return `    <xhtml:link rel="alternate" hreflang="${lang}" href="${url}" />`
     })
     .join('\n')
+  return `${langLinks}\n    <xhtml:link rel="alternate" hreflang="x-default" href="${baseUrl}${urlWithoutLang}" />`
 }

@@ -70,6 +70,12 @@ export async function POST(request: NextRequest) {
       output: { events },
     })
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: error.errors[0]?.message ?? 'Invalid request' },
+        { status: 400 }
+      )
+    }
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to describe CloudFormation stack events'
     logger.error('DescribeStackEvents failed', { error: errorMessage })

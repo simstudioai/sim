@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
+import { getClientIp } from '@/lib/core/utils/request'
 import type {
   AuthContext,
   EventFilterContext,
@@ -30,10 +31,7 @@ export const genericHandler: WebhookProviderHandler = {
 
     const allowedIps = providerConfig.allowedIps
     if (allowedIps && Array.isArray(allowedIps) && allowedIps.length > 0) {
-      const clientIp =
-        request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-        request.headers.get('x-real-ip') ||
-        'unknown'
+      const clientIp = getClientIp(request)
 
       if (clientIp === 'unknown' || !allowedIps.includes(clientIp)) {
         logger.warn(`[${requestId}] Forbidden webhook access attempt - IP not allowed: ${clientIp}`)

@@ -883,7 +883,8 @@ export function DeployModal({
               ?{' '}
               <span className='text-[var(--text-error)]'>
                 This will permanently remove the agent configuration.
-              </span>
+              </span>{' '}
+              This action cannot be undone.
             </p>
           </ModalBody>
           <ModalFooter>

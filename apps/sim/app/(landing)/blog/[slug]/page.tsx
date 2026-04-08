@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/emcn'
 import { FAQ } from '@/lib/blog/faq'
 import { getAllPostMeta, getPostBySlug, getRelatedPosts } from '@/lib/blog/registry'
-import { buildArticleJsonLd, buildBreadcrumbJsonLd, buildPostMetadata } from '@/lib/blog/seo'
+import { buildPostGraphJsonLd, buildPostMetadata } from '@/lib/blog/seo'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { BackLink } from '@/app/(landing)/blog/[slug]/back-link'
 import { ShareButton } from '@/app/(landing)/blog/[slug]/share-button'
@@ -30,27 +30,27 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   const { slug } = await params
   const post = await getPostBySlug(slug)
   const Article = post.Content
-  const jsonLd = buildArticleJsonLd(post)
-  const breadcrumbLd = buildBreadcrumbJsonLd(post)
+  const graphJsonLd = buildPostGraphJsonLd(post)
   const related = await getRelatedPosts(slug, 3)
 
   return (
-    <article className='w-full' itemScope itemType='https://schema.org/BlogPosting'>
+    <article
+      className='w-full bg-[var(--landing-bg)]'
+      itemScope
+      itemType='https://schema.org/TechArticle'
+    >
       <script
         type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(graphJsonLd) }}
       />
-      <script
-        type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }}
-      />
-      <header className='mx-auto max-w-[1450px] px-6 pt-8 sm:px-8 sm:pt-12 md:px-12 md:pt-16'>
+      <header className='px-5 pt-[60px] lg:px-16 lg:pt-[100px]'>
         <div className='mb-6'>
           <BackLink />
         </div>
+
         <div className='flex flex-col gap-8 md:flex-row md:gap-12'>
           <div className='w-full flex-shrink-0 md:w-[450px]'>
-            <div className='relative w-full overflow-hidden rounded-lg'>
+            <div className='relative w-full overflow-hidden rounded-[5px]'>
               <Image
                 src={post.ogImage}
                 alt={post.title}
@@ -65,18 +65,35 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             </div>
           </div>
           <div className='flex flex-1 flex-col justify-between'>
-            <h1
-              className='text-balance font-[500] text-[36px] text-[var(--landing-text)] leading-tight tracking-tight sm:text-[48px] md:text-[56px] lg:text-[64px]'
-              itemProp='headline'
-            >
-              {post.title}
-            </h1>
-            <div className='mt-4 flex items-center justify-between'>
+            <div>
+              <h1
+                className='text-balance font-[430] font-season text-[28px] text-white leading-[110%] tracking-[-0.02em] sm:text-[36px] md:text-[44px] lg:text-[52px]'
+                itemProp='headline'
+              >
+                {post.title}
+              </h1>
+              <p className='mt-4 font-[430] font-season text-[var(--landing-text-body)] text-base leading-[150%] tracking-[0.02em] sm:text-lg'>
+                {post.description}
+              </p>
+            </div>
+            <div className='mt-6 flex items-center gap-6'>
+              <time
+                className='font-martian-mono text-[var(--landing-text-subtle)] text-xs uppercase tracking-[0.1em]'
+                dateTime={post.date}
+                itemProp='datePublished'
+              >
+                {new Date(post.date).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })}
+              </time>
+              <meta itemProp='dateModified' content={post.updated ?? post.date} />
               <div className='flex items-center gap-3'>
                 {(post.authors || [post.author]).map((a, idx) => (
                   <div key={idx} className='flex items-center gap-2'>
                     {a?.avatarUrl ? (
-                      <Avatar className='size-6'>
+                      <Avatar className='size-5'>
                         <AvatarImage src={a.avatarUrl} alt={a.name} />
                         <AvatarFallback>{a.name.slice(0, 2)}</AvatarFallback>
                       </Avatar>
@@ -85,7 +102,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                       href={a?.url || '#'}
                       target='_blank'
                       rel='noopener noreferrer author'
-                      className='text-[var(--landing-text-muted)] text-sm leading-[1.5] hover:text-[var(--landing-text)] sm:text-md'
+                      className='font-martian-mono text-[var(--landing-text-muted)] text-xs uppercase tracking-[0.1em] hover:text-white'
                       itemProp='author'
                       itemScope
                       itemType='https://schema.org/Person'
@@ -95,78 +112,72 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                   </div>
                 ))}
               </div>
-              <ShareButton url={`${getBaseUrl()}/blog/${slug}`} title={post.title} />
+              <div className='ml-auto'>
+                <ShareButton url={`${getBaseUrl()}/blog/${slug}`} title={post.title} />
+              </div>
             </div>
-          </div>
-        </div>
-        <hr className='mt-8 border-[var(--landing-bg-elevated)] border-t sm:mt-12' />
-        <div className='flex flex-col gap-6 py-8 sm:flex-row sm:items-start sm:justify-between sm:gap-8 sm:py-10'>
-          <div className='flex flex-shrink-0 items-center gap-4'>
-            <time
-              className='block text-[var(--landing-text-muted)] text-sm leading-[1.5] sm:text-md'
-              dateTime={post.date}
-              itemProp='datePublished'
-            >
-              {new Date(post.date).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-              })}
-            </time>
-            <meta itemProp='dateModified' content={post.updated ?? post.date} />
-          </div>
-          <div className='flex-1'>
-            <p className='m-0 block translate-y-[-4px] font-[400] text-[var(--landing-text-muted)] text-lg leading-[1.5] sm:text-[20px] md:text-[26px]'>
-              {post.description}
-            </p>
           </div>
         </div>
       </header>
 
-      <div className='mx-auto max-w-[900px] px-6 pb-20 sm:px-8 md:px-12' itemProp='articleBody'>
-        <div className='prose prose-lg prose-invert max-w-none prose-blockquote:border-[var(--landing-border-strong)] prose-hr:border-[var(--landing-bg-elevated)] prose-a:text-[var(--landing-text)] prose-blockquote:text-[var(--landing-text-muted)] prose-code:text-[var(--landing-text)] prose-headings:text-[var(--landing-text)] prose-li:text-[var(--landing-text-muted)] prose-p:text-[var(--landing-text-muted)] prose-strong:text-[var(--landing-text)]'>
-          <Article />
-          {post.faq && post.faq.length > 0 ? <FAQ items={post.faq} /> : null}
-        </div>
-      </div>
-      {related.length > 0 && (
-        <div className='mx-auto max-w-[900px] px-6 pb-24 sm:px-8 md:px-12'>
-          <h2 className='mb-4 font-[500] text-[24px] text-[var(--landing-text)]'>Related posts</h2>
-          <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3'>
-            {related.map((p) => (
-              <Link key={p.slug} href={`/blog/${p.slug}`} className='group'>
-                <div className='overflow-hidden rounded-lg border border-[var(--landing-bg-elevated)]'>
-                  <Image
-                    src={p.ogImage}
-                    alt={p.title}
-                    width={600}
-                    height={315}
-                    className='h-[160px] w-full object-cover'
-                    sizes='(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'
-                    loading='lazy'
-                    unoptimized
-                  />
-                  <div className='p-3'>
-                    <div className='mb-1 text-[var(--landing-text-muted)] text-xs'>
-                      {new Date(p.date).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </div>
-                    <div className='font-[500] text-[var(--landing-text)] text-sm leading-tight'>
-                      {p.title}
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            ))}
+      <div className='mt-8 h-px w-full bg-[var(--landing-bg-elevated)]' />
+
+      <div className='mx-5 border-[var(--landing-bg-elevated)] border-x lg:mx-16'>
+        <div className='mx-auto max-w-[900px] px-6 py-16' itemProp='articleBody'>
+          <div className='prose prose-lg prose-invert max-w-none prose-blockquote:border-[var(--landing-border-strong)] prose-hr:border-[var(--landing-bg-elevated)] prose-headings:font-[430] prose-headings:font-season prose-a:text-white prose-blockquote:text-[var(--landing-text-muted)] prose-code:text-white prose-headings:text-white prose-li:text-[var(--landing-text-body)] prose-p:text-[var(--landing-text-body)] prose-strong:text-white prose-headings:tracking-[-0.02em]'>
+            <Article />
+            {post.faq && post.faq.length > 0 ? <FAQ items={post.faq} /> : null}
           </div>
         </div>
-      )}
+
+        {related.length > 0 && (
+          <>
+            <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+            <nav aria-label='Related posts' className='flex flex-col sm:flex-row'>
+              {related.map((p) => (
+                <Link
+                  key={p.slug}
+                  href={`/blog/${p.slug}`}
+                  className='group flex flex-1 flex-col gap-4 border-[var(--landing-bg-elevated)] border-t p-6 transition-colors first:border-t-0 hover:bg-[var(--landing-bg-elevated)] sm:border-t-0 sm:border-l sm:first:border-l-0'
+                >
+                  <div className='relative aspect-video w-full overflow-hidden rounded-[5px]'>
+                    <Image
+                      src={p.ogImage}
+                      alt={p.title}
+                      fill
+                      sizes='(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw'
+                      className='object-cover'
+                      loading='lazy'
+                      unoptimized
+                    />
+                  </div>
+                  <div className='flex flex-col gap-2'>
+                    <span className='font-martian-mono text-[var(--landing-text-subtle)] text-xs uppercase tracking-[0.1em]'>
+                      {new Date(p.date).toLocaleDateString('en-US', {
+                        month: 'short',
+                        year: '2-digit',
+                      })}
+                    </span>
+                    <h3 className='font-[430] font-season text-lg text-white leading-tight tracking-[-0.01em]'>
+                      {p.title}
+                    </h3>
+                    <p className='line-clamp-2 text-[#F6F6F0]/50 text-sm leading-[150%]'>
+                      {p.description}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </nav>
+          </>
+        )}
+      </div>
+
+      <div className='-mt-px h-px w-full bg-[var(--landing-bg-elevated)]' />
+
       <meta itemProp='publisher' content='Sim' />
       <meta itemProp='inLanguage' content='en-US' />
       <meta itemProp='keywords' content={post.tags.join(', ')} />
+      {post.wordCount && <meta itemProp='wordCount' content={String(post.wordCount)} />}
     </article>
   )
 }
