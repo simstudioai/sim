@@ -1,7 +1,14 @@
-import React, { type HTMLAttributes, memo, type ReactNode, useMemo } from 'react'
+import React, {
+  type HTMLAttributes,
+  memo,
+  type ReactNode,
+  useCallback,
+  useMemo,
+  useState,
+} from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Tooltip } from '@/components/emcn'
+import { Check, Copy, Tooltip } from '@/components/emcn'
 
 export function LinkWithPreview({ href, children }: { href: string; children: React.ReactNode }) {
   return (
@@ -20,6 +27,26 @@ export function LinkWithPreview({ href, children }: { href: string; children: Re
         <span className='truncate font-medium text-xs'>{href}</span>
       </Tooltip.Content>
     </Tooltip.Root>
+  )
+}
+
+function CopyCodeButton({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(code)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }, [code])
+
+  return (
+    <button
+      type='button'
+      onClick={handleCopy}
+      className='flex items-center gap-1 rounded px-1.5 py-0.5 text-gray-400 text-xs transition-colors hover:bg-gray-700 hover:text-gray-200'
+    >
+      {copied ? <Check className='size-3.5' /> : <Copy className='size-3.5' />}
+    </button>
   )
 }
 
@@ -102,6 +129,9 @@ function createCustomComponents(LinkComponent: typeof LinkWithPreview) {
             <span className='font-sans text-gray-400 text-xs'>
               {codeProps.className?.replace('language-', '') || 'code'}
             </span>
+            <CopyCodeButton
+              code={typeof codeContent === 'string' ? codeContent : String(codeContent ?? '')}
+            />
           </div>
           <pre className='overflow-x-auto p-4 font-mono text-gray-200 dark:text-gray-100'>
             {codeContent}

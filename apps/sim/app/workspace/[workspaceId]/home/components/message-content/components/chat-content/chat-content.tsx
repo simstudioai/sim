@@ -1,6 +1,13 @@
 'use client'
 
-import { Children, type ComponentPropsWithoutRef, isValidElement, useMemo } from 'react'
+import {
+  Children,
+  type ComponentPropsWithoutRef,
+  isValidElement,
+  useCallback,
+  useMemo,
+  useState,
+} from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import 'prismjs/components/prism-typescript'
@@ -8,7 +15,7 @@ import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'
 import 'prismjs/components/prism-markup'
 import '@/components/emcn/components/code/code.css'
-import { Checkbox, highlight, languages } from '@/components/emcn'
+import { Check, Checkbox, Copy, highlight, languages } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import {
   PendingTagIndicator,
@@ -41,6 +48,26 @@ function extractTextContent(node: React.ReactNode): string {
   if (isValidElement(node))
     return extractTextContent((node.props as { children?: React.ReactNode }).children)
   return ''
+}
+
+function CopyCodeButton({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(code)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }, [code])
+
+  return (
+    <button
+      type='button'
+      onClick={handleCopy}
+      className='flex items-center gap-1 rounded px-1.5 py-0.5 text-[var(--text-tertiary)] text-xs transition-colors hover:bg-[var(--surface-4)] hover:text-[var(--text-secondary)]'
+    >
+      {copied ? <Check className='size-3.5' /> : <Copy className='size-3.5' />}
+    </button>
+  )
 }
 
 const PROSE_CLASSES = cn(
@@ -125,11 +152,10 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
 
     return (
       <div className='not-prose my-6 overflow-hidden rounded-lg border border-[var(--divider)]'>
-        {language && (
-          <div className='border-[var(--divider)] border-b bg-[var(--surface-4)] px-4 py-2 text-[var(--text-tertiary)] text-xs dark:bg-[var(--surface-4)]'>
-            {language}
-          </div>
-        )}
+        <div className='flex items-center justify-between border-[var(--divider)] border-b bg-[var(--surface-4)] px-4 py-2 dark:bg-[var(--surface-4)]'>
+          <span className='text-[var(--text-tertiary)] text-xs'>{language || 'code'}</span>
+          <CopyCodeButton code={codeString} />
+        </div>
         <div className='code-editor-theme bg-[var(--surface-5)] dark:bg-[var(--code-bg)]'>
           <pre
             className='m-0 overflow-x-auto whitespace-pre p-4 font-[430] font-mono text-[var(--text-primary)] text-small leading-[21px]'
