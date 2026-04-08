@@ -150,6 +150,16 @@ import {
   ashbyUpdateCandidateTool,
 } from '@/tools/ashby'
 import {
+  athenaCreateNamedQueryTool,
+  athenaGetNamedQueryTool,
+  athenaGetQueryExecutionTool,
+  athenaGetQueryResultsTool,
+  athenaListNamedQueriesTool,
+  athenaListQueryExecutionsTool,
+  athenaStartQueryTool,
+  athenaStopQueryTool,
+} from '@/tools/athena'
+import {
   attioAssertRecordTool,
   attioCreateCommentTool,
   attioCreateListEntryTool,
@@ -3424,6 +3434,14 @@ export const tools: Record<string, ToolConfig> = {
   rds_delete: rdsDeleteTool,
   rds_execute: rdsExecuteTool,
   rds_introspect: rdsIntrospectTool,
+  athena_start_query: athenaStartQueryTool,
+  athena_get_query_execution: athenaGetQueryExecutionTool,
+  athena_get_query_results: athenaGetQueryResultsTool,
+  athena_stop_query: athenaStopQueryTool,
+  athena_list_query_executions: athenaListQueryExecutionsTool,
+  athena_create_named_query: athenaCreateNamedQueryTool,
+  athena_get_named_query: athenaGetNamedQueryTool,
+  athena_list_named_queries: athenaListNamedQueriesTool,
   cloudformation_describe_stacks: cloudformationDescribeStacksTool,
   cloudformation_list_stack_resources: cloudformationListStackResourcesTool,
   cloudformation_detect_stack_drift: cloudformationDetectStackDriftTool,

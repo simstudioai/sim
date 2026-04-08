@@ -13,6 +13,7 @@ import { ApolloBlock } from '@/blocks/blocks/apollo'
 import { ArxivBlock } from '@/blocks/blocks/arxiv'
 import { AsanaBlock } from '@/blocks/blocks/asana'
 import { AshbyBlock } from '@/blocks/blocks/ashby'
+import { AthenaBlock } from '@/blocks/blocks/athena'
 import { AttioBlock } from '@/blocks/blocks/attio'
 import { BoxBlock } from '@/blocks/blocks/box'
 import { BrandfetchBlock } from '@/blocks/blocks/brandfetch'
@@ -236,6 +237,7 @@ export const registry: Record<string, BlockConfig> = {
   arxiv: ArxivBlock,
   asana: AsanaBlock,
   ashby: AshbyBlock,
+  athena: AthenaBlock,
   attio: AttioBlock,
   brandfetch: BrandfetchBlock,
   box: BoxBlock,
