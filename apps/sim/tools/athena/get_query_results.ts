@@ -42,7 +42,7 @@ export const getQueryResultsTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of rows to return (1-1000)',
+      description: 'Maximum number of rows to return (1-999)',
     },
     nextToken: {
       type: 'string',

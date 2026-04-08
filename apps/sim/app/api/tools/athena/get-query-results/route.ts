@@ -14,7 +14,7 @@ const GetQueryResultsSchema = z.object({
   queryExecutionId: z.string().min(1, 'Query execution ID is required'),
   maxResults: z.preprocess(
     (v) => (v === '' || v === undefined || v === null ? undefined : v),
-    z.number({ coerce: true }).int().positive().max(1000).optional()
+    z.number({ coerce: true }).int().positive().max(999).optional()
   ),
   nextToken: z.string().optional(),
 })
