@@ -81,7 +81,7 @@ export const PlusMenuDropdown = React.memo(
           e.preventDefault()
           const firstItem = contentRef.current?.querySelector<HTMLElement>('[role="menuitem"]')
           firstItem?.focus()
-        } else if (e.key === 'Enter') {
+        } else if (e.key === 'Enter' || e.key === 'Tab') {
           e.preventDefault()
           const first = filteredItemsRef.current?.[0]
           if (first) handleSelect({ type: first.type, id: first.item.id, title: first.item.name })
@@ -98,6 +98,12 @@ export const PlusMenuDropdown = React.memo(
         if (items[0] && items[0] === document.activeElement) {
           e.preventDefault()
           searchRef.current?.focus()
+        }
+      } else if (e.key === 'Tab') {
+        const focused = document.activeElement as HTMLElement | null
+        if (focused?.getAttribute('role') === 'menuitem') {
+          e.preventDefault()
+          focused.click()
         }
       }
     }, [])
