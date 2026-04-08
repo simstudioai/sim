@@ -20,16 +20,16 @@ export async function GET(
   const { provider } = await params
   const requestId = generateShortId()
 
-  if (!VALID_POLLING_PROVIDERS.has(provider)) {
-    return NextResponse.json({ error: `Unknown polling provider: ${provider}` }, { status: 404 })
-  }
-
   const LOCK_KEY = `${provider}-polling-lock`
   let lockValue: string | undefined
 
   try {
     const authError = verifyCronAuth(request, `${provider} webhook polling`)
     if (authError) return authError
+
+    if (!VALID_POLLING_PROVIDERS.has(provider)) {
+      return NextResponse.json({ error: `Unknown polling provider: ${provider}` }, { status: 404 })
+    }
 
     lockValue = requestId
     const locked = await acquireLock(LOCK_KEY, lockValue, LOCK_TTL_SECONDS)

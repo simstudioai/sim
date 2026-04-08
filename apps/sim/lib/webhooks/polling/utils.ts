@@ -86,7 +86,9 @@ export async function fetchActiveWebhooks(
       and(
         eq(webhook.provider, provider),
         eq(webhook.isActive, true),
+        isNull(webhook.archivedAt),
         eq(workflow.isDeployed, true),
+        isNull(workflow.archivedAt),
         or(
           eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
           and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))

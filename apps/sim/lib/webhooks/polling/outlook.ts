@@ -1,5 +1,5 @@
 import { htmlToText } from 'html-to-text'
-import { pollingIdempotency } from '@/lib/core/idempotency'
+import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import type { PollingProviderHandler, PollWebhookContext } from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
