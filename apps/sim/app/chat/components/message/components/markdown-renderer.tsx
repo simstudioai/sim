@@ -1,8 +1,18 @@
-import React, { type HTMLAttributes, memo, type ReactNode, useMemo } from 'react'
+import React, { type HTMLAttributes, isValidElement, memo, type ReactNode, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Tooltip } from '@/components/emcn'
 import { CopyCodeButton } from '@/components/ui/copy-code-button'
+
+function extractTextContent(node: ReactNode): string {
+  if (typeof node === 'string') return node
+  if (typeof node === 'number') return String(node)
+  if (!node) return ''
+  if (Array.isArray(node)) return node.map(extractTextContent).join('')
+  if (isValidElement(node))
+    return extractTextContent((node.props as { children?: ReactNode }).children)
+  return ''
+}
 
 export function LinkWithPreview({ href, children }: { href: string; children: React.ReactNode }) {
   return (
@@ -104,7 +114,7 @@ function createCustomComponents(LinkComponent: typeof LinkWithPreview) {
               {codeProps.className?.replace('language-', '') || 'code'}
             </span>
             <CopyCodeButton
-              code={typeof codeContent === 'string' ? codeContent : String(codeContent ?? '')}
+              code={extractTextContent(codeContent)}
               className='text-gray-400 hover:bg-gray-700 hover:text-gray-200'
             />
           </div>
