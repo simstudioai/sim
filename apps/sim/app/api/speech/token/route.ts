@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { hasExceededCostLimit } from '@/lib/billing/core/subscription'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/feature-flags'
@@ -106,6 +107,16 @@ export async function POST(request: NextRequest) {
               'Retry-After': String(Math.ceil((rateCheck.retryAfterMs ?? 60000) / 1000)),
             },
           }
+        )
+      }
+    }
+
+    if (billingUserId && isBillingEnabled) {
+      const exceeded = await hasExceededCostLimit(billingUserId)
+      if (exceeded) {
+        return NextResponse.json(
+          { error: 'Usage limit exceeded. Please upgrade your plan to continue.' },
+          { status: 402 }
         )
       }
     }
