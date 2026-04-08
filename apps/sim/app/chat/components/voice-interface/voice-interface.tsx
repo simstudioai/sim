@@ -81,7 +81,6 @@ export function VoiceInterface({
   const sessionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const committedTextRef = useRef('')
   const lastPartialRef = useRef('')
-  const billedRef = useRef(false)
   const onVoiceTranscriptRef = useRef(onVoiceTranscript)
 
   onVoiceTranscriptRef.current = onVoiceTranscript
@@ -153,9 +152,8 @@ export function VoiceInterface({
 
   const connectWebSocket = useCallback(async (): Promise<boolean> => {
     try {
-      const body: Record<string, string | boolean> = {}
+      const body: Record<string, string> = {}
       if (chatId) body.chatId = chatId
-      if (billedRef.current) body.skipBilling = true
 
       const tokenResponse = await fetch('/api/speech/token', {
         method: 'POST',
@@ -170,7 +168,6 @@ export function VoiceInterface({
       }
 
       const { token } = await tokenResponse.json()
-      billedRef.current = true
 
       const params = new URLSearchParams({
         token,

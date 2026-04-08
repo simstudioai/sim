@@ -74,7 +74,6 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}))
     const chatId = body?.chatId as string | undefined
-    const skipBilling = body?.skipBilling === true
 
     let billingUserId: string | undefined
 
@@ -144,7 +143,7 @@ export async function POST(request: NextRequest) {
 
     const data = await response.json()
 
-    if (billingUserId && !skipBilling) {
+    if (billingUserId) {
       await recordUsage({
         userId: billingUserId,
         entries: [
