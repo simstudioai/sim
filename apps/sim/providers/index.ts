@@ -54,12 +54,17 @@ function isReadableStream(response: any): response is ReadableStream {
   return response instanceof ReadableStream
 }
 
-const ZERO_COST = Object.freeze({ input: 0, output: 0, total: 0 })
+const ZERO_COST = Object.freeze({
+  input: 0,
+  output: 0,
+  total: 0,
+  pricing: Object.freeze({ input: 0, output: 0, updatedAt: '' }),
+})
 
 /**
- * Zeros out cost on a StreamingExecution for BYOK users.
- * Providers calculate cost inside streaming callbacks, so we override the cost
- * property on execution.output to always return zero regardless of callback writes.
+ * Prevents streaming callbacks from writing non-zero cost for BYOK users.
+ * The property is frozen via defineProperty because providers set cost inside
+ * streaming callbacks that fire after this function returns.
  */
 function zeroCostForBYOK(response: StreamingExecution): void {
   const output = response.execution?.output
@@ -113,11 +118,6 @@ export async function executeProviderRequest(
       })
       throw error
     }
-  } else {
-    logger.info('No workspaceId provided, skipping BYOK check', {
-      provider: providerId,
-      model: request.model,
-    })
   }
 
   resolvedRequest.isBYOK = isBYOK
