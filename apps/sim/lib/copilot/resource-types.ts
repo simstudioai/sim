@@ -4,6 +4,7 @@ export type MothershipResourceType =
   | 'workflow'
   | 'knowledgebase'
   | 'folder'
+  | 'task'
   | 'generic'
 
 export interface MothershipResource {

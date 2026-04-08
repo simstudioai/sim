@@ -4,6 +4,7 @@ import { type ElementType, type ReactNode, useMemo } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import {
+  Blimp,
   Database,
   File as FileIcon,
   Folder as FolderIcon,
@@ -19,6 +20,7 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { tableKeys } from '@/hooks/queries/tables'
+import { taskKeys } from '@/hooks/queries/tasks'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -151,6 +153,15 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={FolderIcon} />,
   },
+  task: {
+    type: 'task',
+    label: 'Tasks',
+    icon: Blimp,
+    renderTabIcon: (_resource, className) => (
+      <Blimp className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Blimp} />,
+  },
 } as const
 
 export const RESOURCE_TYPES = Object.values(RESOURCE_REGISTRY)
@@ -184,6 +195,9 @@ const RESOURCE_INVALIDATORS: Record<
   },
   folder: (qc) => {
     qc.invalidateQueries({ queryKey: folderKeys.lists() })
+  },
+  task: (qc, wId) => {
+    qc.invalidateQueries({ queryKey: taskKeys.list(wId) })
   },
 }
 

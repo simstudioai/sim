@@ -28,6 +28,38 @@ export function buildDragResources(
   ]
 }
 
+/**
+ * Creates a lightweight drag ghost element showing the label of the item(s) being dragged.
+ * Append to `document.body`, pass to `e.dataTransfer.setDragImage`, then remove on dragend.
+ */
+export function createSidebarDragGhost(label: string): HTMLElement {
+  const ghost = document.createElement('div')
+  ghost.style.cssText = `
+    position: fixed;
+    top: -500px;
+    left: 0;
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    background: var(--surface-active);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+    color: var(--text-body);
+    white-space: nowrap;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    z-index: 9999;
+  `
+  ghost.textContent = label
+  document.body.appendChild(ghost)
+  return ghost
+}
+
 export function compareByOrder<T extends { sortOrder: number; createdAt?: Date; id: string }>(
   a: T,
   b: T

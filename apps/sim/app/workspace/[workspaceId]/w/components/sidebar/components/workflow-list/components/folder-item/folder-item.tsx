@@ -19,7 +19,10 @@ import {
   useSidebarDragContext,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
-import { buildDragResources } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
+import {
+  buildDragResources,
+  createSidebarDragGhost,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import {
   useCanDelete,
   useDeleteFolder,
@@ -138,6 +141,7 @@ export function FolderItem({
   })
 
   const isEditingRef = useRef(false)
+  const dragGhostRef = useRef<HTMLElement | null>(null)
 
   const handleCreateWorkflowInFolder = useCallback(() => {
     const name = generateCreativeWorkflowName()
@@ -205,9 +209,16 @@ export function FolderItem({
         e.dataTransfer.setData(SIM_RESOURCES_DRAG_TYPE, JSON.stringify(resources))
       }
 
+      const total = selection.folderIds.length + selection.workflowIds.length
+      const ghostLabel = total > 1 ? `${folder.name} +${total - 1} more` : folder.name
+      const ghost = createSidebarDragGhost(ghostLabel)
+      void ghost.offsetHeight
+      e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
+      dragGhostRef.current = ghost
+
       onDragStartProp?.()
     },
-    [folder.id, workspaceId, onDragStartProp]
+    [folder.id, folder.name, workspaceId, onDragStartProp]
   )
 
   const {
@@ -220,6 +231,10 @@ export function FolderItem({
   })
 
   const handleDragEnd = useCallback(() => {
+    if (dragGhostRef.current) {
+      dragGhostRef.current.remove()
+      dragGhostRef.current = null
+    }
     handleDragEndBase()
     onDragEndProp?.()
   }, [handleDragEndBase, onDragEndProp])

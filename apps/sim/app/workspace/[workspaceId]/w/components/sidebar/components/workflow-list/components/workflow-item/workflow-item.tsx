@@ -17,7 +17,10 @@ import {
   useItemRename,
   useSidebarDragContext,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { buildDragResources } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
+import {
+  buildDragResources,
+  createSidebarDragGhost,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import {
   useCanDelete,
   useDeleteSelection,
@@ -200,6 +203,7 @@ export function WorkflowItem({
   }, [isActiveWorkflow, isWorkflowLocked])
 
   const isEditingRef = useRef(false)
+  const dragGhostRef = useRef<HTMLElement | null>(null)
 
   const {
     isOpen: isContextMenuOpen,
@@ -346,9 +350,17 @@ export function WorkflowItem({
         e.dataTransfer.setData(SIM_RESOURCES_DRAG_TYPE, JSON.stringify(resources))
       }
 
+      const total = selection.workflowIds.length + selection.folderIds.length
+      const ghostLabel = total > 1 ? `${workflow.name} +${total - 1} more` : workflow.name
+      const ghost = createSidebarDragGhost(ghostLabel)
+      // Force reflow so the browser can capture the rendered element
+      void ghost.offsetHeight
+      e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
+      dragGhostRef.current = ghost
+
       onDragStartProp?.()
     },
-    [workflow.id, workspaceId, onDragStartProp]
+    [workflow.id, workflow.name, workspaceId, onDragStartProp]
   )
 
   const {
@@ -361,6 +373,10 @@ export function WorkflowItem({
   })
 
   const handleDragEnd = useCallback(() => {
+    if (dragGhostRef.current) {
+      dragGhostRef.current.remove()
+      dragGhostRef.current = null
+    }
     handleDragEndBase()
     onDragEndProp?.()
   }, [handleDragEndBase, onDragEndProp])
