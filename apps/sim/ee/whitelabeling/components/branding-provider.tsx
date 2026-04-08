@@ -9,12 +9,10 @@ import { useOrganizations } from '@/hooks/queries/organization'
 
 interface BrandingContextValue {
   config: BrandConfig
-  isLoading: boolean
 }
 
 const BrandingContext = createContext<BrandingContextValue>({
   config: getBrandConfig(),
-  isLoading: false,
 })
 
 interface BrandingProviderProps {
@@ -26,11 +24,9 @@ interface BrandingProviderProps {
  * Injects CSS variable overrides when org colors are configured.
  */
 export function BrandingProvider({ children }: BrandingProviderProps) {
-  const { data: orgsData, isLoading: orgsLoading } = useOrganizations()
+  const { data: orgsData } = useOrganizations()
   const orgId = orgsData?.activeOrganization?.id
-  const { data: orgSettings, isLoading: settingsLoading } = useWhitelabelSettings(orgId)
-
-  const isLoading = orgsLoading || (Boolean(orgId) && settingsLoading)
+  const { data: orgSettings } = useWhitelabelSettings(orgId)
 
   const brandConfig = useMemo(
     () => mergeOrgBrandConfig(orgSettings ?? null, getBrandConfig()),
@@ -43,7 +39,7 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
   )
 
   return (
-    <BrandingContext.Provider value={{ config: brandConfig, isLoading }}>
+    <BrandingContext.Provider value={{ config: brandConfig }}>
       {themeCSS && <style>{themeCSS}</style>}
       {children}
     </BrandingContext.Provider>
@@ -56,12 +52,4 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
  */
 export function useOrgBrandConfig(): BrandConfig {
   return useContext(BrandingContext).config
-}
-
-/**
- * Returns true while org branding is being fetched.
- * Use this to avoid rendering the logo until the correct one is known.
- */
-export function useOrgBrandLoading(): boolean {
-  return useContext(BrandingContext).isLoading
 }
