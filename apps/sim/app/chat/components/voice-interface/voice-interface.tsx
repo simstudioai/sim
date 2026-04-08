@@ -6,7 +6,13 @@ import { Mic, MicOff, Phone } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
-import { MAX_SESSION_MS } from '@/hooks/use-speech-to-text'
+import { arrayBufferToBase64, floatTo16BitPCM } from '@/lib/speech/audio'
+import {
+  CHUNK_SEND_INTERVAL_MS,
+  ELEVENLABS_WS_URL,
+  MAX_SESSION_MS,
+  SAMPLE_RATE,
+} from '@/lib/speech/config'
 
 const ParticlesVisualization = dynamic(
   () =>
@@ -17,29 +23,6 @@ const ParticlesVisualization = dynamic(
 )
 
 const logger = createLogger('VoiceInterface')
-
-const ELEVENLABS_WS_URL = 'wss://api.elevenlabs.io/v1/speech-to-text/realtime'
-const SAMPLE_RATE = 16000
-const CHUNK_SEND_INTERVAL_MS = 250
-
-function floatTo16BitPCM(float32Array: Float32Array): ArrayBuffer {
-  const buffer = new ArrayBuffer(float32Array.length * 2)
-  const view = new DataView(buffer)
-  for (let i = 0; i < float32Array.length; i++) {
-    const s = Math.max(-1, Math.min(1, float32Array[i]))
-    view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true)
-  }
-  return buffer
-}
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer)
-  let binary = ''
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i])
-  }
-  return btoa(binary)
-}
 
 interface VoiceInterfaceProps {
   onCallEnd?: () => void
@@ -125,13 +108,6 @@ export function VoiceInterface({
     if (!ws || ws.readyState !== WebSocket.OPEN) return
 
     const chunks = pcmBufferRef.current
-    // #region agent log
-    if (chunks.length > 0)
-      console.warn('[DBG-1e2b84] H4 flush', {
-        chunksLen: chunks.length,
-        wsOpen: ws.readyState === WebSocket.OPEN,
-      })
-    // #endregion
     if (chunks.length === 0) return
     pcmBufferRef.current = []
 
@@ -189,12 +165,7 @@ export function VoiceInterface({
       })
 
       if (!tokenResponse.ok) {
-        const errBody = await tokenResponse.json().catch(() => ({}))
-        logger.error('Failed to get STT token', {
-          status: tokenResponse.status,
-          error: errBody.error,
-          chatId,
-        })
+        logger.error('Failed to get STT token', { status: tokenResponse.status })
         return false
       }
 
@@ -215,12 +186,8 @@ export function VoiceInterface({
 
       return new Promise<boolean>((resolve) => {
         ws.onopen = () => resolve(true)
-        ws.onerror = (event) => {
-          logger.error('STT WebSocket connection error', {
-            url: ws.url,
-            readyState: ws.readyState,
-            event: String(event),
-          })
+        ws.onerror = () => {
+          logger.error('STT WebSocket connection error')
           resolve(false)
         }
 
@@ -229,13 +196,6 @@ export function VoiceInterface({
 
           try {
             const msg = JSON.parse(event.data)
-            // #region agent log
-            console.warn('[DBG-1e2b84] H2 ws-msg', {
-              type: msg.message_type,
-              text: msg.text?.substring(0, 50),
-              error: msg.error,
-            })
-            // #endregion
 
             if (msg.message_type === 'partial_transcript') {
               if (msg.text) {
@@ -269,9 +229,6 @@ export function VoiceInterface({
 
         ws.onclose = () => {
           wsRef.current = null
-          // #region agent log
-          console.warn('[DBG-1e2b84] WS closed', { state: currentStateRef.current })
-          // #endregion
           if (currentStateRef.current === 'listening' && !isCallEndedRef.current) {
             stopSendingAudio()
             updateState('idle')
@@ -315,31 +272,9 @@ export function VoiceInterface({
       analyserRef.current = analyser
 
       const processor = ac.createScriptProcessor(4096, 1, 1)
-      // #region agent log
-      let _dbgAudioCount = 0
-      // #endregion
       processor.onaudioprocess = (e) => {
         if (!isMutedRef.current && currentStateRef.current === 'listening') {
           pcmBufferRef.current.push(new Float32Array(e.inputBuffer.getChannelData(0)))
-          // #region agent log
-          _dbgAudioCount++
-          if (_dbgAudioCount % 50 === 1)
-            console.warn('[DBG-1e2b84] H1 audio-captured', {
-              count: _dbgAudioCount,
-              bufLen: pcmBufferRef.current.length,
-              state: currentStateRef.current,
-            })
-          // #endregion
-        } else {
-          // #region agent log
-          _dbgAudioCount++
-          if (_dbgAudioCount % 100 === 1)
-            console.warn('[DBG-1e2b84] H1 audio-SKIPPED', {
-              count: _dbgAudioCount,
-              state: currentStateRef.current,
-              muted: isMutedRef.current,
-            })
-          // #endregion
         }
       }
       source.connect(processor)
@@ -373,15 +308,6 @@ export function VoiceInterface({
   }, [])
 
   const startListening = useCallback(async () => {
-    // #region agent log
-    console.warn('[DBG-1e2b84] H3 startListening', {
-      state: currentStateRef.current,
-      muted: isMutedRef.current,
-      callEnded: isCallEndedRef.current,
-      hasWs: !!wsRef.current,
-      wsState: wsRef.current?.readyState,
-    })
-    // #endregion
     if (currentStateRef.current !== 'idle' || isMutedRef.current || isCallEndedRef.current) return
 
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -392,11 +318,6 @@ export function VoiceInterface({
     updateState('listening')
     setCurrentTranscript('')
     startSendingAudio()
-    // #region agent log
-    console.warn('[DBG-1e2b84] H3 startListening-done', {
-      state: currentStateRef.current,
-      sendInterval: !!sendIntervalRef.current,
-    })
 
     sessionTimerRef.current = setTimeout(() => {
       logger.info('Voice session reached max duration, stopping')

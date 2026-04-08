@@ -2,13 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { arrayBufferToBase64, floatTo16BitPCM } from '@/lib/speech/audio'
+import {
+  CHUNK_SEND_INTERVAL_MS,
+  ELEVENLABS_WS_URL,
+  MAX_SESSION_MS,
+  SAMPLE_RATE,
+} from '@/lib/speech/config'
 
 const logger = createLogger('useSpeechToText')
 
-const ELEVENLABS_WS_URL = 'wss://api.elevenlabs.io/v1/speech-to-text/realtime'
-const SAMPLE_RATE = 16000
-const CHUNK_SEND_INTERVAL_MS = 250
-export const MAX_SESSION_MS = 3 * 60 * 1000
+export { MAX_SESSION_MS } from '@/lib/speech/config'
 
 export type PermissionState = 'prompt' | 'granted' | 'denied'
 
@@ -22,25 +26,6 @@ interface UseSpeechToTextReturn {
   isSupported: boolean
   permissionState: PermissionState
   toggleListening: () => void
-}
-
-function floatTo16BitPCM(float32Array: Float32Array): ArrayBuffer {
-  const buffer = new ArrayBuffer(float32Array.length * 2)
-  const view = new DataView(buffer)
-  for (let i = 0; i < float32Array.length; i++) {
-    const s = Math.max(-1, Math.min(1, float32Array[i]))
-    view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true)
-  }
-  return buffer
-}
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer)
-  let binary = ''
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i])
-  }
-  return btoa(binary)
 }
 
 export function useSpeechToText({

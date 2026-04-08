@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { hasSTTService } from '@/lib/speech/transcriber'
+import { hasSTTService } from '@/lib/speech/config'
 
 /**
  * Returns whether server-side STT is configured.
