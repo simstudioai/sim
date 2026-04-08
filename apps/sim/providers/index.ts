@@ -58,7 +58,7 @@ const ZERO_COST = Object.freeze({
   input: 0,
   output: 0,
   total: 0,
-  pricing: Object.freeze({ input: 0, output: 0, updatedAt: '' }),
+  pricing: Object.freeze({ input: 0, output: 0, updatedAt: new Date(0).toISOString() }),
 })
 
 /**
@@ -68,7 +68,10 @@ const ZERO_COST = Object.freeze({
  */
 function zeroCostForBYOK(response: StreamingExecution): void {
   const output = response.execution?.output
-  if (!output || typeof output !== 'object') return
+  if (!output || typeof output !== 'object') {
+    logger.warn('zeroCostForBYOK: output not available at intercept time; cost may not be zeroed')
+    return
+  }
 
   Object.defineProperty(output, 'cost', {
     get: () => ZERO_COST,

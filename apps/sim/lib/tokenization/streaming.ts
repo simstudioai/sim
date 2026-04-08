@@ -30,6 +30,11 @@ export function processStreamingBlockLog(log: BlockLog, streamedContent: string)
     return false
   }
 
+  // Skip recalculation if cost was explicitly set by the billing layer (e.g. BYOK zero cost)
+  if (log.output?.cost?.pricing) {
+    return false
+  }
+
   // Check if we have content to tokenize
   if (!streamedContent?.trim()) {
     return false
