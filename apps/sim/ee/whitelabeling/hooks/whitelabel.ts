@@ -66,7 +66,7 @@ export function useUpdateWhitelabelSettings() {
       const { data } = await response.json()
       return data as OrganizationWhitelabelSettings
     },
-    onSuccess: (_data, { orgId }) => {
+    onSettled: (_data, _error, { orgId }) => {
       queryClient.invalidateQueries({ queryKey: whitelabelKeys.settings(orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(orgId) })
     },

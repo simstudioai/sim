@@ -1,12 +1,12 @@
 import { db } from '@sim/db'
-import { member, organization } from '@sim/db/schema'
+import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
-import { isEnterpriseOrgAdminOrOwner } from '@/lib/billing/core/subscription'
+import { checkEnterprisePlan, USABLE_SUBSCRIPTION_STATUSES } from '@/lib/billing/core/subscription'
 import type { OrganizationWhitelabelSettings } from '@/lib/branding/types'
 
 const logger = createLogger('WhitelabelAPI')
@@ -140,9 +140,18 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
-    const hasAccess = await isEnterpriseOrgAdminOrOwner(session.user.id)
+    const [orgSubscription] = await db
+      .select()
+      .from(subscription)
+      .where(
+        and(
+          eq(subscription.referenceId, organizationId),
+          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
+        )
+      )
+      .limit(1)
 
-    if (!hasAccess) {
+    if (!orgSubscription || !checkEnterprisePlan(orgSubscription)) {
       return NextResponse.json(
         { error: 'Whitelabeling is available on Enterprise plans only' },
         { status: 403 }
