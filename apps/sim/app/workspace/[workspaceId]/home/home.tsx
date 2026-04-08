@@ -273,10 +273,6 @@ export function Home({ chatId }: HomeProps = {}) {
           return context.tableId ? { type: 'table', id: context.tableId } : null
         case 'file':
           return context.fileId ? { type: 'file', id: context.fileId } : null
-        case 'folder':
-          return { type: 'folder', id: context.folderId }
-        case 'past_chat':
-          return { type: 'task', id: context.chatId }
         default:
           return null
       }
