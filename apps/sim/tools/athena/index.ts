@@ -15,3 +15,5 @@ export const athenaListNamedQueriesTool = listNamedQueriesTool
 export const athenaListQueryExecutionsTool = listQueryExecutionsTool
 export const athenaStartQueryTool = startQueryTool
 export const athenaStopQueryTool = stopQueryTool
+
+export * from '@/tools/athena/types'
