@@ -407,7 +407,8 @@ export const outlookConnector: ConnectorConfig = {
           continue
         }
 
-        const convId = msg.conversationId || msg.id
+        if (!msg.conversationId) continue
+        const convId = msg.conversationId
         if (!conversations[convId]) {
           conversations[convId] = []
         }
