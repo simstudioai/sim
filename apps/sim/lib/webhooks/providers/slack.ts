@@ -246,7 +246,12 @@ export const slackHandler: WebhookProviderHandler = {
     }
 
     const now = Math.floor(Date.now() / 1000)
-    const skew = Math.abs(now - Number(timestamp))
+    const parsedTimestamp = Number(timestamp)
+    if (Number.isNaN(parsedTimestamp)) {
+      logger.warn(`[${requestId}] Slack webhook timestamp is not a valid number`, { timestamp })
+      return new NextResponse('Unauthorized - Invalid timestamp', { status: 401 })
+    }
+    const skew = Math.abs(now - parsedTimestamp)
     if (skew > SLACK_TIMESTAMP_MAX_SKEW) {
       logger.warn(`[${requestId}] Slack webhook timestamp too old`, {
         timestamp,
@@ -336,13 +341,13 @@ export const slackHandler: WebhookProviderHandler = {
       input: {
         event: {
           event_type: eventType,
-          subtype: (rawEvent?.subtype as string) || null,
+          subtype: (rawEvent?.subtype as string) ?? '',
           channel,
           channel_name: '',
-          channel_type: (rawEvent?.channel_type as string) || null,
+          channel_type: (rawEvent?.channel_type as string) ?? '',
           user: (rawEvent?.user as string) || '',
           user_name: '',
-          bot_id: (rawEvent?.bot_id as string) || null,
+          bot_id: (rawEvent?.bot_id as string) ?? '',
           text,
           timestamp: messageTs,
           thread_ts: (rawEvent?.thread_ts as string) || '',
