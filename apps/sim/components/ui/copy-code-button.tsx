@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, Copy } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 
@@ -11,12 +11,18 @@ interface CopyCodeButtonProps {
 
 export function CopyCodeButton({ code, className }: CopyCodeButtonProps) {
   const [copied, setCopied] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(code)
+  const handleCopy = useCallback(async () => {
+    await navigator.clipboard.writeText(code)
     setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => setCopied(false), 2000)
   }, [code])
+
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+  }, [])
 
   return (
     <button

@@ -1,18 +1,9 @@
-import React, { type HTMLAttributes, isValidElement, memo, type ReactNode, useMemo } from 'react'
+import React, { type HTMLAttributes, memo, type ReactNode, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Tooltip } from '@/components/emcn'
 import { CopyCodeButton } from '@/components/ui/copy-code-button'
-
-function extractTextContent(node: ReactNode): string {
-  if (typeof node === 'string') return node
-  if (typeof node === 'number') return String(node)
-  if (!node) return ''
-  if (Array.isArray(node)) return node.map(extractTextContent).join('')
-  if (isValidElement(node))
-    return extractTextContent((node.props as { children?: ReactNode }).children)
-  return ''
-}
+import { extractTextContent } from '@/lib/core/utils/react-node-text'
 
 export function LinkWithPreview({ href, children }: { href: string; children: React.ReactNode }) {
   return (
