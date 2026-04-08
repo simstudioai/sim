@@ -473,7 +473,7 @@ export const outlookConnector: ConnectorConfig = {
         contentDeferred: true,
         mimeType: 'text/plain',
         sourceUrl,
-        contentHash: `outlook:${convId}:${lastDate}:${msgs.length}`,
+        contentHash: `outlook:${convId}:${lastDate}`,
         metadata: {},
       })
     }
@@ -532,7 +532,7 @@ export const outlookConnector: ConnectorConfig = {
         contentDeferred: false,
         mimeType: 'text/plain',
         sourceUrl: firstWithLink?.webLink || 'https://outlook.office.com/mail/inbox',
-        contentHash: `outlook:${externalId}:${lastDate}:${messages.length}`,
+        contentHash: `outlook:${externalId}:${lastDate}`,
         metadata: result.metadata,
       }
     } catch (error) {
