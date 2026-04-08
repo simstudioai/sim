@@ -240,7 +240,7 @@ export async function POST(
               onBlockComplete,
               skipLoggingComplete: true,
               abortSignal,
-              executionMode: 'stream',
+              executionMode: 'sync',
             },
             executionId
           ),
