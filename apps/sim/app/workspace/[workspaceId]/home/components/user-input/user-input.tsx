@@ -671,10 +671,14 @@ export function UserInput({
           : range.token
       const matchingCtx = contexts.find((c) => c.label === mentionLabel)
 
+      const wfId =
+        matchingCtx?.kind === 'workflow' || matchingCtx?.kind === 'current_workflow'
+          ? matchingCtx.workflowId
+          : undefined
       const mentionIconNode = matchingCtx ? (
         <ContextMentionIcon
           context={matchingCtx}
-          workflowColor={workflowsById[matchingCtx.workflowId ?? '']?.color ?? null}
+          workflowColor={wfId ? (workflowsById[wfId]?.color ?? null) : null}
           className='absolute inset-0 m-auto h-[12px] w-[12px] text-[var(--text-icon)]'
         />
       ) : null
