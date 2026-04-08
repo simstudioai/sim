@@ -488,14 +488,25 @@ export const outlookConnector: ConnectorConfig = {
     externalId: string
   ): Promise<ExternalDocument | null> => {
     try {
-      // Fetch messages for this conversation
+      // Scope to the same folder as listDocuments so contentHash stays consistent
+      const folder = (sourceConfig.folder as string) || 'inbox'
+      const basePath =
+        folder === 'all'
+          ? `${GRAPH_API_BASE}/messages`
+          : `${GRAPH_API_BASE}/mailFolders/${WELL_KNOWN_FOLDERS[folder] || folder}/messages`
+
+      const filterParts = [
+        `conversationId eq '${externalId.replace(/'/g, "''")}'`,
+        'isDraft eq false',
+      ]
+
       const params = new URLSearchParams({
-        $filter: `conversationId eq '${externalId.replace(/'/g, "''")}'`,
+        $filter: filterParts.join(' and '),
         $select: FULL_MESSAGE_FIELDS,
         $top: '250',
       })
 
-      const url = `${GRAPH_API_BASE}/messages?${params.toString()}`
+      const url = `${basePath}?${params.toString()}`
 
       const response = await fetchWithRetry(url, {
         method: 'GET',
