@@ -9,13 +9,13 @@ import { useOrganizations } from '@/hooks/queries/organization'
 
 const BRAND_CACHE_KEY = 'sim-wl'
 
+/** Locally-cached brand URLs persisted to localStorage between page loads. */
 interface BrandCache {
   logoUrl?: string
   wordmarkUrl?: string
 }
 
 function readCache(): BrandCache | null {
-  if (typeof window === 'undefined') return null
   try {
     const raw = localStorage.getItem(BRAND_CACHE_KEY)
     return raw ? JSON.parse(raw) : null
@@ -49,8 +49,20 @@ interface BrandingProviderProps {
   children: React.ReactNode
 }
 
+/**
+ * Provides merged branding (instance env vars + org DB settings) to the workspace.
+ * Injects CSS variable overrides when org colors are configured.
+ *
+ * Logo and wordmark URLs are cached in localStorage so returning visitors see
+ * the correct brand assets immediately without waiting for the API response.
+ * The cache is read after hydration to avoid server/client HTML mismatches.
+ */
 export function BrandingProvider({ children }: BrandingProviderProps) {
-  const [cache] = useState<BrandCache | null>(readCache)
+  const [cache, setCache] = useState<BrandCache | null>(null)
+
+  useEffect(() => {
+    setCache(readCache())
+  }, [])
 
   const { data: orgsData, isLoading: orgsLoading } = useOrganizations()
   const orgId = orgsData?.activeOrganization?.id
@@ -88,6 +100,10 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
   )
 }
 
+/**
+ * Returns the merged brand config (org settings overlaid on instance defaults).
+ * Use this inside the workspace instead of `getBrandConfig()`.
+ */
 export function useOrgBrandConfig(): BrandConfig {
   return useContext(BrandingContext).config
 }
