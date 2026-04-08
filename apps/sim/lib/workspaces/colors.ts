@@ -79,12 +79,8 @@ function withAlpha(hexColor: string, alpha: number): string {
 
 /**
  * Returns the hex color with 60/ff (~38%) alpha — used for workflow color border accents.
- *
- * @param color - A hex color string (e.g. `#2ABBF8`)
- * @returns The color string with `60` appended as the hex alpha channel
+ * Returns `undefined` when `color` is undefined so callers can pass it directly to `borderColor`.
  */
-export function workflowBorderColor(color: string): string
-export function workflowBorderColor(color: string | undefined): string | undefined
 export function workflowBorderColor(color: string | undefined): string | undefined {
   return color ? `${color}60` : undefined
 }
