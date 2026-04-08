@@ -96,8 +96,9 @@ export function VoiceInterface({
   const pcmBufferRef = useRef<Float32Array[]>([])
   const sendIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const sessionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isFirstChunkRef = useRef(true)
   const committedTextRef = useRef('')
+  const lastPartialRef = useRef('')
+  const billedRef = useRef(false)
   const onVoiceTranscriptRef = useRef(onVoiceTranscript)
 
   onVoiceTranscriptRef.current = onVoiceTranscript
@@ -124,6 +125,13 @@ export function VoiceInterface({
     if (!ws || ws.readyState !== WebSocket.OPEN) return
 
     const chunks = pcmBufferRef.current
+    // #region agent log
+    if (chunks.length > 0)
+      console.warn('[DBG-1e2b84] H4 flush', {
+        chunksLen: chunks.length,
+        wsOpen: ws.readyState === WebSocket.OPEN,
+      })
+    // #endregion
     if (chunks.length === 0) return
     pcmBufferRef.current = []
 
@@ -137,24 +145,20 @@ export function VoiceInterface({
     }
 
     const pcm16 = floatTo16BitPCM(merged)
-    const message: Record<string, unknown> = {
-      message_type: 'input_audio_chunk',
-      audio_base_64: arrayBufferToBase64(pcm16),
-      sample_rate: SAMPLE_RATE,
-      commit: false,
-    }
 
-    if (isFirstChunkRef.current) {
-      isFirstChunkRef.current = false
-      message.previous_text = committedTextRef.current || undefined
-    }
-
-    ws.send(JSON.stringify(message))
+    ws.send(
+      JSON.stringify({
+        message_type: 'input_audio_chunk',
+        audio_base_64: arrayBufferToBase64(pcm16),
+        sample_rate: SAMPLE_RATE,
+        commit: false,
+      })
+    )
   }, [])
 
   const startSendingAudio = useCallback(() => {
     if (sendIntervalRef.current) return
-    isFirstChunkRef.current = true
+    pcmBufferRef.current = []
     sendIntervalRef.current = setInterval(flushAudioBuffer, CHUNK_SEND_INTERVAL_MS)
   }, [flushAudioBuffer])
 
@@ -173,8 +177,9 @@ export function VoiceInterface({
 
   const connectWebSocket = useCallback(async (): Promise<boolean> => {
     try {
-      const body: Record<string, string> = {}
+      const body: Record<string, string | boolean> = {}
       if (chatId) body.chatId = chatId
+      if (billedRef.current) body.skipBilling = true
 
       const tokenResponse = await fetch('/api/speech/token', {
         method: 'POST',
@@ -184,11 +189,17 @@ export function VoiceInterface({
       })
 
       if (!tokenResponse.ok) {
-        logger.error('Failed to get STT token', { status: tokenResponse.status })
+        const errBody = await tokenResponse.json().catch(() => ({}))
+        logger.error('Failed to get STT token', {
+          status: tokenResponse.status,
+          error: errBody.error,
+          chatId,
+        })
         return false
       }
 
       const { token } = await tokenResponse.json()
+      billedRef.current = true
 
       const params = new URLSearchParams({
         token,
@@ -201,12 +212,15 @@ export function VoiceInterface({
       const ws = new WebSocket(`${ELEVENLABS_WS_URL}?${params.toString()}`)
       wsRef.current = ws
       committedTextRef.current = ''
-      isFirstChunkRef.current = true
 
       return new Promise<boolean>((resolve) => {
         ws.onopen = () => resolve(true)
-        ws.onerror = () => {
-          logger.error('STT WebSocket connection error')
+        ws.onerror = (event) => {
+          logger.error('STT WebSocket connection error', {
+            url: ws.url,
+            readyState: ws.readyState,
+            event: String(event),
+          })
           resolve(false)
         }
 
@@ -215,19 +229,32 @@ export function VoiceInterface({
 
           try {
             const msg = JSON.parse(event.data)
+            // #region agent log
+            console.warn('[DBG-1e2b84] H2 ws-msg', {
+              type: msg.message_type,
+              text: msg.text?.substring(0, 50),
+              error: msg.error,
+            })
+            // #endregion
 
-            if (msg.message_type === 'partial_transcript' && msg.text) {
-              setCurrentTranscript(msg.text)
+            if (msg.message_type === 'partial_transcript') {
+              if (msg.text) {
+                lastPartialRef.current = msg.text
+                setCurrentTranscript(msg.text)
+              }
             } else if (
-              (msg.message_type === 'committed_transcript' ||
-                msg.message_type === 'committed_transcript_with_timestamps') &&
-              msg.text
+              msg.message_type === 'committed_transcript' ||
+              msg.message_type === 'committed_transcript_with_timestamps'
             ) {
-              committedTextRef.current = committedTextRef.current
-                ? `${committedTextRef.current} ${msg.text}`
-                : msg.text
-              setCurrentTranscript('')
-              onVoiceTranscriptRef.current?.(msg.text)
+              const finalText = msg.text || lastPartialRef.current
+              lastPartialRef.current = ''
+              if (finalText) {
+                committedTextRef.current = committedTextRef.current
+                  ? `${committedTextRef.current} ${finalText}`
+                  : finalText
+                setCurrentTranscript('')
+                onVoiceTranscriptRef.current?.(finalText)
+              }
             } else if (
               msg.message_type === 'error' ||
               msg.message_type === 'auth_error' ||
@@ -242,6 +269,13 @@ export function VoiceInterface({
 
         ws.onclose = () => {
           wsRef.current = null
+          // #region agent log
+          console.warn('[DBG-1e2b84] WS closed', { state: currentStateRef.current })
+          // #endregion
+          if (currentStateRef.current === 'listening' && !isCallEndedRef.current) {
+            stopSendingAudio()
+            updateState('idle')
+          }
         }
       })
     } catch (error) {
@@ -281,9 +315,31 @@ export function VoiceInterface({
       analyserRef.current = analyser
 
       const processor = ac.createScriptProcessor(4096, 1, 1)
+      // #region agent log
+      let _dbgAudioCount = 0
+      // #endregion
       processor.onaudioprocess = (e) => {
         if (!isMutedRef.current && currentStateRef.current === 'listening') {
           pcmBufferRef.current.push(new Float32Array(e.inputBuffer.getChannelData(0)))
+          // #region agent log
+          _dbgAudioCount++
+          if (_dbgAudioCount % 50 === 1)
+            console.warn('[DBG-1e2b84] H1 audio-captured', {
+              count: _dbgAudioCount,
+              bufLen: pcmBufferRef.current.length,
+              state: currentStateRef.current,
+            })
+          // #endregion
+        } else {
+          // #region agent log
+          _dbgAudioCount++
+          if (_dbgAudioCount % 100 === 1)
+            console.warn('[DBG-1e2b84] H1 audio-SKIPPED', {
+              count: _dbgAudioCount,
+              state: currentStateRef.current,
+              muted: isMutedRef.current,
+            })
+          // #endregion
         }
       }
       source.connect(processor)
@@ -317,6 +373,15 @@ export function VoiceInterface({
   }, [])
 
   const startListening = useCallback(async () => {
+    // #region agent log
+    console.warn('[DBG-1e2b84] H3 startListening', {
+      state: currentStateRef.current,
+      muted: isMutedRef.current,
+      callEnded: isCallEndedRef.current,
+      hasWs: !!wsRef.current,
+      wsState: wsRef.current?.readyState,
+    })
+    // #endregion
     if (currentStateRef.current !== 'idle' || isMutedRef.current || isCallEndedRef.current) return
 
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -327,6 +392,11 @@ export function VoiceInterface({
     updateState('listening')
     setCurrentTranscript('')
     startSendingAudio()
+    // #region agent log
+    console.warn('[DBG-1e2b84] H3 startListening-done', {
+      state: currentStateRef.current,
+      sendInterval: !!sendIntervalRef.current,
+    })
 
     sessionTimerRef.current = setTimeout(() => {
       logger.info('Voice session reached max duration, stopping')
@@ -343,8 +413,9 @@ export function VoiceInterface({
   }, [updateState, stopSendingAudio])
 
   useEffect(() => {
-    if (isPlayingAudio && state !== 'agent_speaking') {
+    if (isPlayingAudio && state === 'listening') {
       stopSendingAudio()
+      closeWebSocket()
       updateState('agent_speaking')
       setCurrentTranscript('')
 
@@ -365,7 +436,7 @@ export function VoiceInterface({
         })
       }
     }
-  }, [isPlayingAudio, state, updateState, updateIsMuted, stopSendingAudio])
+  }, [isPlayingAudio, state, updateState, updateIsMuted, stopSendingAudio, closeWebSocket])
 
   const handleInterrupt = useCallback(() => {
     if (state === 'agent_speaking') {
@@ -378,11 +449,10 @@ export function VoiceInterface({
         })
       }
 
-      updateState('listening')
+      updateState('idle')
       setCurrentTranscript('')
-      startSendingAudio()
     }
-  }, [state, onInterrupt, updateState, updateIsMuted, startSendingAudio])
+  }, [state, onInterrupt, updateState, updateIsMuted])
 
   const handleCallEnd = useCallback(() => {
     isCallEndedRef.current = true
@@ -392,6 +462,26 @@ export function VoiceInterface({
     updateState('idle')
     setCurrentTranscript('')
     updateIsMuted(false)
+
+    if (processorRef.current) {
+      processorRef.current.disconnect()
+      processorRef.current = null
+    }
+
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop())
+      mediaStreamRef.current = null
+    }
+
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.close().catch(() => {})
+      audioContextRef.current = null
+    }
+
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current)
+      animationFrameRef.current = null
+    }
 
     onInterrupt?.()
     onCallEnd?.()
@@ -432,6 +522,7 @@ export function VoiceInterface({
   }, [isMuted, state, handleInterrupt, stopListening, startListening, updateIsMuted])
 
   useEffect(() => {
+    isCallEndedRef.current = false
     let cancelled = false
 
     async function init() {

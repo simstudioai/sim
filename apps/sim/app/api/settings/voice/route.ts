@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
 import { hasSTTService } from '@/lib/speech/transcriber'
 
+/**
+ * Returns whether server-side STT is configured.
+ * Unauthenticated — the response is a single boolean,
+ * not sensitive data, and deployed chat visitors need it.
+ */
 export async function GET() {
-  const session = await getSession()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
   return NextResponse.json({ sttAvailable: hasSTTService() })
 }

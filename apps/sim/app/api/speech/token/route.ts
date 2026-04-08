@@ -6,9 +6,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { env } from '@/lib/core/config/env'
-import { getCostMultiplier } from '@/lib/core/config/feature-flags'
+import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { validateAuthToken } from '@/lib/core/security/deployment'
+import { getClientIp } from '@/lib/core/utils/request'
 
 const logger = createLogger('SpeechTokenAPI')
 
@@ -21,9 +22,9 @@ const VOICE_SESSION_MAX_MINUTES = 3
 const VOICE_SESSION_COST = VOICE_SESSION_COST_PER_MIN * VOICE_SESSION_MAX_MINUTES
 
 const STT_TOKEN_RATE_LIMIT = {
-  maxTokens: 20,
-  refillRate: 150,
-  refillIntervalMs: 60 * 60 * 1000,
+  maxTokens: 30,
+  refillRate: 3,
+  refillIntervalMs: 72 * 1000,
 } as const
 
 const rateLimiter = new RateLimiter()
@@ -72,6 +73,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}))
     const chatId = body?.chatId as string | undefined
+    const skipBilling = body?.skipBilling === true
 
     let billingUserId: string | undefined
 
@@ -89,26 +91,23 @@ export async function POST(request: NextRequest) {
       billingUserId = session.user.id
     }
 
-    const clientIp =
-      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-      request.headers.get('x-real-ip')?.trim() ||
-      'unknown'
+    if (isBillingEnabled) {
+      const rateLimitKey = chatId
+        ? `stt-token:chat:${chatId}:${getClientIp(request)}`
+        : `stt-token:user:${billingUserId}`
 
-    const rateLimitKey = chatId
-      ? `stt-token:chat:${chatId}:${clientIp}`
-      : `stt-token:user:${billingUserId}`
-
-    const rateCheck = await rateLimiter.checkRateLimitDirect(rateLimitKey, STT_TOKEN_RATE_LIMIT)
-    if (!rateCheck.allowed) {
-      return NextResponse.json(
-        { error: 'Voice input rate limit exceeded. Please try again later.' },
-        {
-          status: 429,
-          headers: {
-            'Retry-After': String(Math.ceil((rateCheck.retryAfterMs ?? 60000) / 1000)),
-          },
-        }
-      )
+      const rateCheck = await rateLimiter.checkRateLimitDirect(rateLimitKey, STT_TOKEN_RATE_LIMIT)
+      if (!rateCheck.allowed) {
+        return NextResponse.json(
+          { error: 'Voice input rate limit exceeded. Please try again later.' },
+          {
+            status: 429,
+            headers: {
+              'Retry-After': String(Math.ceil((rateCheck.retryAfterMs ?? 60000) / 1000)),
+            },
+          }
+        )
+      }
     }
 
     const apiKey = env.ELEVENLABS_API_KEY
@@ -134,7 +133,7 @@ export async function POST(request: NextRequest) {
 
     const data = await response.json()
 
-    if (billingUserId) {
+    if (billingUserId && !skipBilling) {
       await recordUsage({
         userId: billingUserId,
         entries: [

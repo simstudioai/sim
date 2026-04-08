@@ -120,7 +120,9 @@ export function useSpeechToText({
 
     if (isFirstChunkRef.current) {
       isFirstChunkRef.current = false
-      message.previous_text = committedTextRef.current || undefined
+      if (committedTextRef.current) {
+        message.previous_text = committedTextRef.current
+      }
     }
 
     ws.send(JSON.stringify(message))
