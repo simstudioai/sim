@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { sendToProfound } from './lib/analytics/profound'
 import { isAuthDisabled, isHosted } from './lib/core/config/feature-flags'
 import { generateRuntimeCSP } from './lib/core/security/csp'
+import { getClientIp } from './lib/core/utils/request'
 
 const logger = createLogger('Proxy')
 
@@ -114,7 +115,7 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
   if (isSuspicious && !isWebhookEndpoint && !isMcpEndpoint && !isMcpOauthDiscoveryEndpoint) {
     logger.warn('Blocked suspicious request', {
       userAgent,
-      ip: request.headers.get('x-forwarded-for') || 'unknown',
+      ip: getClientIp(request),
       url: request.url,
       method: request.method,
       pattern: SUSPICIOUS_UA_PATTERNS.find((pattern) => pattern.test(userAgent))?.toString(),

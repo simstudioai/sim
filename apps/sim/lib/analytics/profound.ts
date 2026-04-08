@@ -8,6 +8,7 @@
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
+import { getClientIp } from '@/lib/core/utils/request'
 import { getBaseDomain } from '@/lib/core/utils/urls'
 
 const logger = createLogger('ProfoundAnalytics')
@@ -101,10 +102,10 @@ export function sendToProfound(request: Request, statusCode: number): void {
       host: getBaseDomain(),
       path: url.pathname,
       status_code: statusCode,
-      ip:
-        request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-        request.headers.get('x-real-ip') ||
-        '0.0.0.0',
+      ip: (() => {
+        const resolved = getClientIp(request)
+        return resolved === 'unknown' ? '0.0.0.0' : resolved
+      })(),
       user_agent: request.headers.get('user-agent') || '',
       ...(Object.keys(queryParams).length > 0 && { query_params: queryParams }),
       ...(request.headers.get('referer') && { referer: request.headers.get('referer')! }),
