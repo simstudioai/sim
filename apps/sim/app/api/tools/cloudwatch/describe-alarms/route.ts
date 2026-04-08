@@ -51,7 +51,9 @@ export async function POST(request: NextRequest) {
     const command = new DescribeAlarmsCommand({
       ...(validatedData.alarmNamePrefix && { AlarmNamePrefix: validatedData.alarmNamePrefix }),
       ...(validatedData.stateValue && { StateValue: validatedData.stateValue as StateValue }),
-      ...(validatedData.alarmType && { AlarmTypes: [validatedData.alarmType as AlarmType] }),
+      AlarmTypes: validatedData.alarmType
+        ? [validatedData.alarmType as AlarmType]
+        : (['MetricAlarm', 'CompositeAlarm'] as AlarmType[]),
       ...(validatedData.limit !== undefined && { MaxRecords: validatedData.limit }),
     })
 
