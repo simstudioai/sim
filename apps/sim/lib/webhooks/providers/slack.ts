@@ -180,6 +180,56 @@ async function fetchSlackMessageText(
   }
 }
 
+async function fetchSlackChannelName(channel: string, botToken: string): Promise<string> {
+  try {
+    const response = await fetch(
+      `https://slack.com/api/conversations.info?channel=${encodeURIComponent(channel)}`,
+      { headers: { Authorization: `Bearer ${botToken}` } }
+    )
+    const data = (await response.json()) as {
+      ok: boolean
+      error?: string
+      channel?: { name?: string }
+    }
+    if (!data.ok) {
+      logger.warn('Slack conversations.info failed', { channel, error: data.error })
+      return ''
+    }
+    return data.channel?.name ?? ''
+  } catch (error) {
+    logger.warn('Error fetching Slack channel name', {
+      channel,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return ''
+  }
+}
+
+async function fetchSlackUserName(userId: string, botToken: string): Promise<string> {
+  try {
+    const response = await fetch(
+      `https://slack.com/api/users.info?user=${encodeURIComponent(userId)}`,
+      { headers: { Authorization: `Bearer ${botToken}` } }
+    )
+    const data = (await response.json()) as {
+      ok: boolean
+      error?: string
+      user?: { name?: string; real_name?: string }
+    }
+    if (!data.ok) {
+      logger.warn('Slack users.info failed', { userId, error: data.error })
+      return ''
+    }
+    return data.user?.real_name || data.user?.name || ''
+  } catch (error) {
+    logger.warn('Error fetching Slack user name', {
+      userId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return ''
+  }
+}
+
 /** Maximum allowed timestamp skew (5 minutes) per Slack docs. */
 const SLACK_TIMESTAMP_MAX_SKEW = 300
 
@@ -322,10 +372,19 @@ export const slackHandler: WebhookProviderHandler = {
       ? (item?.ts as string) || ''
       : (rawEvent?.ts as string) || (rawEvent?.event_ts as string) || ''
 
+    const userId: string = (rawEvent?.user as string) || ''
+
     let text: string = (rawEvent?.text as string) || ''
     if (isReactionEvent && channel && messageTs && botToken) {
       text = await fetchSlackMessageText(channel, messageTs, botToken)
     }
+
+    const [channelName, userName] = botToken
+      ? await Promise.all([
+          channel ? fetchSlackChannelName(channel, botToken) : Promise.resolve(''),
+          userId ? fetchSlackUserName(userId, botToken) : Promise.resolve(''),
+        ])
+      : ['', '']
 
     const rawFiles: unknown[] = (rawEvent?.files as unknown[]) ?? []
     const hasFiles = rawFiles.length > 0
@@ -343,10 +402,10 @@ export const slackHandler: WebhookProviderHandler = {
           event_type: eventType,
           subtype: (rawEvent?.subtype as string) ?? '',
           channel,
-          channel_name: '',
+          channel_name: channelName,
           channel_type: (rawEvent?.channel_type as string) ?? '',
-          user: (rawEvent?.user as string) || '',
-          user_name: '',
+          user: userId,
+          user_name: userName,
           bot_id: (rawEvent?.bot_id as string) ?? '',
           text,
           timestamp: messageTs,
