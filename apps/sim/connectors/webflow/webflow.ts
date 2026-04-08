@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { WebflowIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('WebflowConnector')
 
@@ -194,8 +194,8 @@ export const webflowConnector: ConnectorConfig = {
     }
 
     const items = data.items || []
-    let documents: ExternalDocument[] = await Promise.all(
-      items.map((item) => itemToDocument(item, currentCollectionId, collectionName))
+    let documents: ExternalDocument[] = items.map((item) =>
+      itemToDocument(item, currentCollectionId, collectionName)
     )
 
     if (maxItems > 0) {
@@ -373,13 +373,14 @@ export const webflowConnector: ConnectorConfig = {
 /**
  * Converts a Webflow CMS item to an ExternalDocument.
  */
-async function itemToDocument(
+function itemToDocument(
   item: WebflowItem,
   collectionId: string,
   collectionName: string
-): Promise<ExternalDocument> {
+): ExternalDocument {
   const plainText = itemToPlainText(item, collectionName)
-  const contentHash = await computeContentHash(plainText)
+  const lastModified = item.lastUpdated || item.lastPublished || item.createdOn || ''
+  const contentHash = `webflow:${item.id}:${lastModified}`
   const title = extractItemTitle(item)
   const slug = (item.fieldData?.slug as string) || ''
 

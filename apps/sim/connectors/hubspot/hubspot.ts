@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { HubspotIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, parseTagDate } from '@/connectors/utils'
+import { parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('HubSpotConnector')
 
@@ -140,16 +140,15 @@ function buildRecordContent(objectType: string, properties: Record<string, strin
 /**
  * Converts a HubSpot CRM record to an ExternalDocument.
  */
-async function recordToDocument(
+function recordToDocument(
   record: Record<string, unknown>,
   objectType: string,
   portalId: string
-): Promise<ExternalDocument> {
+): ExternalDocument {
   const id = record.id as string
   const properties = (record.properties || {}) as Record<string, string | null>
 
   const content = buildRecordContent(objectType, properties)
-  const contentHash = await computeContentHash(content)
   const title = buildRecordTitle(objectType, properties)
 
   const lastModified =
@@ -161,7 +160,7 @@ async function recordToDocument(
     content,
     mimeType: 'text/plain',
     sourceUrl: `https://app.hubspot.com/contacts/${portalId}/record/${objectType}/${id}`,
-    contentHash,
+    contentHash: `hubspot:${id}:${lastModified ?? ''}`,
     metadata: {
       objectType,
       owner: properties.hubspot_owner_id || undefined,
@@ -260,8 +259,8 @@ export const hubspotConnector: ConnectorConfig = {
     const paging = data.paging as { next?: { after?: string } } | undefined
     const nextCursor = paging?.next?.after
 
-    const documents: ExternalDocument[] = await Promise.all(
-      results.map((record) => recordToDocument(record, objectType, portalId))
+    const documents: ExternalDocument[] = results.map((record) =>
+      recordToDocument(record, objectType, portalId)
     )
 
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
@@ -322,7 +321,7 @@ export const hubspotConnector: ConnectorConfig = {
     }
 
     const record = await response.json()
-    return recordToDocument(record, objectType, portalId)
+    return recordToDocument(record as Record<string, unknown>, objectType, portalId)
   },
 
   validateConfig: async (

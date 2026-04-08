@@ -2,6 +2,8 @@ import React, { type HTMLAttributes, memo, type ReactNode, useMemo } from 'react
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Tooltip } from '@/components/emcn'
+import { CopyCodeButton } from '@/components/ui/copy-code-button'
+import { extractTextContent } from '@/lib/core/utils/react-node-text'
 
 export function LinkWithPreview({ href, children }: { href: string; children: React.ReactNode }) {
   return (
@@ -102,6 +104,10 @@ function createCustomComponents(LinkComponent: typeof LinkWithPreview) {
             <span className='font-sans text-gray-400 text-xs'>
               {codeProps.className?.replace('language-', '') || 'code'}
             </span>
+            <CopyCodeButton
+              code={extractTextContent(codeContent)}
+              className='text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+            />
           </div>
           <pre className='overflow-x-auto p-4 font-mono text-gray-200 dark:text-gray-100'>
             {codeContent}

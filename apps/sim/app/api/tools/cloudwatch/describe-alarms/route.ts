@@ -88,6 +88,12 @@ export async function POST(request: NextRequest) {
       output: { alarms: [...metricAlarms, ...compositeAlarms] },
     })
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: error.errors[0]?.message ?? 'Invalid request' },
+        { status: 400 }
+      )
+    }
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to describe CloudWatch alarms'
     logger.error('DescribeAlarms failed', { error: errorMessage })

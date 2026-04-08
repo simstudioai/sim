@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { IntercomIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('IntercomConnector')
 
@@ -309,7 +309,6 @@ export const intercomConnector: ConnectorConfig = {
         const content = formatArticle(article)
         if (!content.trim()) continue
 
-        const contentHash = await computeContentHash(content)
         const updatedAt = new Date(article.updated_at * 1000).toISOString()
 
         documents.push({
@@ -318,7 +317,7 @@ export const intercomConnector: ConnectorConfig = {
           content,
           mimeType: 'text/plain',
           sourceUrl: `https://app.intercom.com/a/apps/_/articles/articles/${article.id}/show`,
-          contentHash,
+          contentHash: `intercom:article-${article.id}:${article.updated_at}`,
           metadata: {
             type: 'article',
             state: article.state,
@@ -337,28 +336,23 @@ export const intercomConnector: ConnectorConfig = {
       const conversations = await fetchConversations(accessToken, maxItems, conversationState)
 
       for (const conversation of conversations) {
-        const detail = await fetchConversationDetail(accessToken, conversation.id)
-        const content = formatConversation(detail)
-        if (!content.trim()) continue
-
-        const contentHash = await computeContentHash(content)
         const updatedAt = new Date(conversation.updated_at * 1000).toISOString()
         const tags = conversation.tags?.tags?.map((t) => t.name) || []
 
         documents.push({
           externalId: `conversation-${conversation.id}`,
           title: conversation.title || `Conversation #${conversation.id}`,
-          content,
+          content: '',
+          contentDeferred: true,
           mimeType: 'text/plain',
           sourceUrl: `https://app.intercom.com/a/apps/_/inbox/inbox/all/conversations/${conversation.id}`,
-          contentHash,
+          contentHash: `intercom:conversation-${conversation.id}:${conversation.updated_at}`,
           metadata: {
             type: 'conversation',
             state: conversation.state,
             tags: tags.join(', '),
             updatedAt,
             createdAt: new Date(conversation.created_at * 1000).toISOString(),
-            messageCount: (detail.conversation_parts?.total_count ?? 0) + 1,
           },
         })
       }
@@ -383,7 +377,6 @@ export const intercomConnector: ConnectorConfig = {
         const content = formatArticle(article)
         if (!content.trim()) return null
 
-        const contentHash = await computeContentHash(content)
         const updatedAt = new Date(article.updated_at * 1000).toISOString()
 
         return {
@@ -392,7 +385,7 @@ export const intercomConnector: ConnectorConfig = {
           content,
           mimeType: 'text/plain',
           sourceUrl: `https://app.intercom.com/a/apps/_/articles/articles/${article.id}/show`,
-          contentHash,
+          contentHash: `intercom:article-${article.id}:${article.updated_at}`,
           metadata: {
             type: 'article',
             state: article.state,
@@ -410,7 +403,6 @@ export const intercomConnector: ConnectorConfig = {
         const content = formatConversation(detail)
         if (!content.trim()) return null
 
-        const contentHash = await computeContentHash(content)
         const updatedAt = new Date(detail.updated_at * 1000).toISOString()
         const tags = detail.tags?.tags?.map((t) => t.name) || []
 
@@ -418,9 +410,10 @@ export const intercomConnector: ConnectorConfig = {
           externalId,
           title: detail.title || `Conversation #${detail.id}`,
           content,
+          contentDeferred: false,
           mimeType: 'text/plain',
           sourceUrl: `https://app.intercom.com/a/apps/_/inbox/inbox/all/conversations/${detail.id}`,
-          contentHash,
+          contentHash: `intercom:conversation-${detail.id}:${detail.updated_at}`,
           metadata: {
             type: 'conversation',
             state: detail.state,

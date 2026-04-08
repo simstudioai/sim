@@ -50,6 +50,12 @@ export async function POST(request: NextRequest) {
       item: result.attributes,
     })
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: error.errors[0]?.message ?? 'Invalid request' },
+        { status: 400 }
+      )
+    }
     const errorMessage = error instanceof Error ? error.message : 'DynamoDB update failed'
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }

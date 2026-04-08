@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { AsanaIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, joinTagArray, parseTagDate } from '@/connectors/utils'
+import { joinTagArray, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('AsanaConnector')
 
@@ -240,7 +240,6 @@ export const asanaConnector: ConnectorConfig = {
 
       for (const task of result.data) {
         const content = buildTaskContent(task)
-        const contentHash = await computeContentHash(content)
         const tagNames = task.tags?.map((t) => t.name).filter(Boolean) || []
 
         documents.push({
@@ -249,7 +248,7 @@ export const asanaConnector: ConnectorConfig = {
           content,
           mimeType: 'text/plain',
           sourceUrl: task.permalink_url || undefined,
-          contentHash,
+          contentHash: `asana:${task.gid}:${task.modified_at ?? ''}`,
           metadata: {
             project: currentProjectGid,
             assignee: task.assignee?.name,
@@ -315,7 +314,6 @@ export const asanaConnector: ConnectorConfig = {
       if (!task) return null
 
       const content = buildTaskContent(task)
-      const contentHash = await computeContentHash(content)
       const tagNames = task.tags?.map((t) => t.name).filter(Boolean) || []
 
       return {
@@ -324,7 +322,7 @@ export const asanaConnector: ConnectorConfig = {
         content,
         mimeType: 'text/plain',
         sourceUrl: task.permalink_url || undefined,
-        contentHash,
+        contentHash: `asana:${task.gid}:${task.modified_at ?? ''}`,
         metadata: {
           assignee: task.assignee?.name,
           completed: task.completed,

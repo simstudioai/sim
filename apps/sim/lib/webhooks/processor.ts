@@ -4,12 +4,13 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing/core/subscription'
+import { tryAdmit } from '@/lib/core/admission/gate'
 import { getInlineJobQueue, getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import { isProd } from '@/lib/core/config/feature-flags'
 import { generateId } from '@/lib/core/utils/uuid'
-import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
+import { DispatchQueueFullError, enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import {
@@ -18,6 +19,7 @@ import {
   requiresPendingWebhookVerification,
 } from '@/lib/webhooks/pending-verification'
 import { getProviderHandler } from '@/lib/webhooks/providers'
+import { blockExistsInDeployment } from '@/lib/workflows/persistence/utils'
 import { executeWebhookJob } from '@/background/webhook-execution'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { isPollingWebhookProvider } from '@/triggers/constants'
@@ -670,5 +672,217 @@ export async function queueWebhookExecution(
     }
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export interface PolledWebhookEventResult {
+  success: boolean
+  error?: string
+  statusCode?: number
+}
+
+interface PolledWebhookRecord {
+  id: string
+  path: string
+  provider: string | null
+  blockId: string | null
+  providerConfig: unknown
+  credentialSetId: string | null
+  workflowId: string
+}
+
+interface PolledWorkflowRecord {
+  id: string
+  userId: string
+  workspaceId: string
+}
+
+/**
+ * Processes a polled webhook event directly, bypassing the HTTP trigger route.
+ * Used by polling services (Gmail, Outlook, IMAP, RSS) to avoid the self-POST
+ * anti-pattern where they would otherwise POST back to /api/webhooks/trigger/{path}.
+ *
+ * Performs only the steps actually needed for polling providers:
+ * admission control, preprocessing, block existence check, and queue execution.
+ */
+export async function processPolledWebhookEvent(
+  foundWebhook: PolledWebhookRecord,
+  foundWorkflow: PolledWorkflowRecord,
+  body: Record<string, unknown> | object,
+  requestId: string
+): Promise<PolledWebhookEventResult> {
+  if (!foundWebhook.provider) {
+    return { success: false, error: 'Webhook has no provider', statusCode: 400 }
+  }
+  const provider = foundWebhook.provider
+
+  const ticket = tryAdmit()
+  if (!ticket) {
+    logger.warn(`[${requestId}] Admission gate rejected polled webhook event`)
+    return { success: false, error: 'Server at capacity', statusCode: 429 }
+  }
+
+  try {
+    const preprocessResult = await checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId)
+    if (preprocessResult.error) {
+      return { success: false, error: 'Preprocessing failed', statusCode: 500 }
+    }
+
+    if (foundWebhook.blockId) {
+      const blockExists = await blockExistsInDeployment(foundWorkflow.id, foundWebhook.blockId)
+      if (!blockExists) {
+        logger.info(
+          `[${requestId}] Trigger block ${foundWebhook.blockId} not found in deployment for workflow ${foundWorkflow.id}`
+        )
+        return { success: false, error: 'Trigger block not found in deployment', statusCode: 404 }
+      }
+    }
+
+    const providerConfig = (foundWebhook.providerConfig as Record<string, unknown>) || {}
+    const credentialId = providerConfig.credentialId as string | undefined
+    const credentialSetId = foundWebhook.credentialSetId as string | undefined
+
+    if (credentialSetId) {
+      const billingCheck = await verifyCredentialSetBilling(credentialSetId)
+      if (!billingCheck.valid) {
+        logger.warn(`[${requestId}] Credential set billing check failed: ${billingCheck.error}`)
+        return { success: false, error: billingCheck.error, statusCode: 403 }
+      }
+    }
+
+    const actorUserId = preprocessResult.actorUserId
+    if (!actorUserId) {
+      logger.error(`[${requestId}] No actorUserId provided for webhook ${foundWebhook.id}`)
+      return { success: false, error: 'Unable to resolve billing account', statusCode: 500 }
+    }
+
+    const executionId = preprocessResult.executionId ?? generateId()
+    const correlation =
+      preprocessResult.correlation ??
+      ({
+        executionId,
+        requestId,
+        source: 'webhook' as const,
+        workflowId: foundWorkflow.id,
+        webhookId: foundWebhook.id,
+        path: foundWebhook.path,
+        provider,
+        triggerType: 'webhook',
+      } satisfies AsyncExecutionCorrelation)
+
+    const payload = {
+      webhookId: foundWebhook.id,
+      workflowId: foundWorkflow.id,
+      userId: actorUserId,
+      executionId,
+      requestId,
+      correlation,
+      provider,
+      body,
+      headers: { 'content-type': 'application/json' } as Record<string, string>,
+      path: foundWebhook.path,
+      blockId: foundWebhook.blockId ?? undefined,
+      workspaceId: foundWorkflow.workspaceId,
+      ...(credentialId ? { credentialId } : {}),
+    }
+
+    if (isPollingWebhookProvider(payload.provider) && !shouldExecuteInline()) {
+      const jobId = isBullMQEnabled()
+        ? await enqueueWorkspaceDispatch({
+            id: executionId,
+            workspaceId: foundWorkflow.workspaceId,
+            lane: 'runtime',
+            queueName: 'webhook-execution',
+            bullmqJobName: 'webhook-execution',
+            bullmqPayload: createBullMQJobData(payload, {
+              workflowId: foundWorkflow.id,
+              userId: actorUserId,
+              correlation,
+            }),
+            metadata: {
+              workflowId: foundWorkflow.id,
+              userId: actorUserId,
+              correlation,
+            },
+          })
+        : await (await getJobQueue()).enqueue('webhook-execution', payload, {
+            metadata: {
+              workflowId: foundWorkflow.id,
+              workspaceId: foundWorkflow.workspaceId,
+              userId: actorUserId,
+              correlation,
+            },
+          })
+      logger.info(
+        `[${requestId}] Queued polling webhook execution task ${jobId} for ${provider} webhook via job queue`
+      )
+    } else {
+      const jobQueue = await getInlineJobQueue()
+      const jobId = isBullMQEnabled()
+        ? await enqueueWorkspaceDispatch({
+            id: executionId,
+            workspaceId: foundWorkflow.workspaceId,
+            lane: 'runtime',
+            queueName: 'webhook-execution',
+            bullmqJobName: 'webhook-execution',
+            bullmqPayload: createBullMQJobData(payload, {
+              workflowId: foundWorkflow.id,
+              userId: actorUserId,
+              correlation,
+            }),
+            metadata: {
+              workflowId: foundWorkflow.id,
+              userId: actorUserId,
+              correlation,
+            },
+          })
+        : await jobQueue.enqueue('webhook-execution', payload, {
+            metadata: {
+              workflowId: foundWorkflow.id,
+              workspaceId: foundWorkflow.workspaceId,
+              userId: actorUserId,
+              correlation,
+            },
+          })
+      logger.info(`[${requestId}] Queued ${provider} webhook execution ${jobId} via inline backend`)
+
+      if (!isBullMQEnabled()) {
+        void (async () => {
+          try {
+            await jobQueue.startJob(jobId)
+            const output = await executeWebhookJob(payload)
+            await jobQueue.completeJob(jobId, output)
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error)
+            logger.error(`[${requestId}] Webhook execution failed`, {
+              jobId,
+              error: errorMessage,
+            })
+            try {
+              await jobQueue.markJobFailed(jobId, errorMessage)
+            } catch (markFailedError) {
+              logger.error(`[${requestId}] Failed to mark job as failed`, {
+                jobId,
+                error:
+                  markFailedError instanceof Error
+                    ? markFailedError.message
+                    : String(markFailedError),
+              })
+            }
+          }
+        })()
+      }
+    }
+
+    return { success: true }
+  } catch (error: unknown) {
+    if (error instanceof DispatchQueueFullError) {
+      logger.warn(`[${requestId}] Dispatch queue full for polled webhook: ${error.message}`)
+      return { success: false, error: 'Service temporarily at capacity', statusCode: 503 }
+    }
+    logger.error(`[${requestId}] Failed to process polled webhook event:`, error)
+    return { success: false, error: 'Internal server error', statusCode: 500 }
+  } finally {
+    ticket.release()
   }
 }

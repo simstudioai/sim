@@ -9,7 +9,9 @@ import 'prismjs/components/prism-css'
 import 'prismjs/components/prism-markup'
 import '@/components/emcn/components/code/code.css'
 import { Checkbox, highlight, languages } from '@/components/emcn'
+import { CopyCodeButton } from '@/components/ui/copy-code-button'
 import { cn } from '@/lib/core/utils/cn'
+import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import {
   PendingTagIndicator,
   parseSpecialTags,
@@ -31,16 +33,6 @@ const LANG_ALIASES: Record<string, string> = {
   xml: 'markup',
   yml: 'yaml',
   py: 'python',
-}
-
-function extractTextContent(node: React.ReactNode): string {
-  if (typeof node === 'string') return node
-  if (typeof node === 'number') return String(node)
-  if (!node) return ''
-  if (Array.isArray(node)) return node.map(extractTextContent).join('')
-  if (isValidElement(node))
-    return extractTextContent((node.props as { children?: React.ReactNode }).children)
-  return ''
 }
 
 const PROSE_CLASSES = cn(
@@ -125,11 +117,13 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
 
     return (
       <div className='not-prose my-6 overflow-hidden rounded-lg border border-[var(--divider)]'>
-        {language && (
-          <div className='border-[var(--divider)] border-b bg-[var(--surface-4)] px-4 py-2 text-[var(--text-tertiary)] text-xs dark:bg-[var(--surface-4)]'>
-            {language}
-          </div>
-        )}
+        <div className='flex items-center justify-between border-[var(--divider)] border-b bg-[var(--surface-4)] px-4 py-2 dark:bg-[var(--surface-4)]'>
+          <span className='text-[var(--text-tertiary)] text-xs'>{language || 'code'}</span>
+          <CopyCodeButton
+            code={codeString}
+            className='text-[var(--text-tertiary)] hover:bg-[var(--surface-5)] hover:text-[var(--text-secondary)]'
+          />
+        </div>
         <div className='code-editor-theme bg-[var(--surface-5)] dark:bg-[var(--code-bg)]'>
           <pre
             className='m-0 overflow-x-auto whitespace-pre p-4 font-[430] font-mono text-[var(--text-primary)] text-small leading-[21px]'
