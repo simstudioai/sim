@@ -127,10 +127,11 @@ interface WorkspaceVariableRowProps {
   renamingKey: string | null
   pendingKeyValue: string
   hasCredential: boolean
-  isAdmin: boolean
+  canEdit: boolean
   onRenameStart: (key: string) => void
   onPendingKeyChange: (value: string) => void
   onRenameEnd: (key: string, value: string) => void
+  onValueChange: (key: string, value: string) => void
   onDelete: (key: string) => void
   onViewDetails: (envKey: string) => void
 }
@@ -141,17 +142,15 @@ function WorkspaceVariableRow({
   renamingKey,
   pendingKeyValue,
   hasCredential,
-  isAdmin,
+  canEdit,
   onRenameStart,
   onPendingKeyChange,
   onRenameEnd,
+  onValueChange,
   onDelete,
   onViewDetails,
 }: WorkspaceVariableRowProps) {
   const [valueFocused, setValueFocused] = useState(false)
-
-  const maskedValueStyle =
-    isAdmin && !valueFocused ? ({ WebkitTextSecurity: 'disc' } as React.CSSProperties) : undefined
 
   return (
     <div className='contents'>
@@ -167,24 +166,31 @@ function WorkspaceVariableRow({
         autoCapitalize='off'
         spellCheck='false'
         readOnly
-        onFocus={(e) => e.target.removeAttribute('readOnly')}
+        onFocus={(e) => {
+          if (canEdit) e.target.removeAttribute('readOnly')
+        }}
         className='h-9'
       />
       <div />
       <EmcnInput
-        value={isAdmin ? value : value ? '\u2022'.repeat(value.length) : ''}
+        value={canEdit ? value : value ? '\u2022'.repeat(value.length) : ''}
+        type={canEdit && !valueFocused ? 'password' : 'text'}
+        onChange={(e) => onValueChange(envKey, e.target.value)}
         readOnly
-        onFocus={() => {
-          if (isAdmin) setValueFocused(true)
+        onFocus={(e) => {
+          if (canEdit) {
+            setValueFocused(true)
+            e.target.removeAttribute('readOnly')
+          }
         }}
         onBlur={() => {
-          if (isAdmin) setValueFocused(false)
+          if (canEdit) setValueFocused(false)
         }}
+        name={`workspace_env_value_${envKey}_${Math.random()}`}
         autoComplete='off'
         autoCorrect='off'
         autoCapitalize='off'
         spellCheck='false'
-        style={maskedValueStyle}
         className='h-9'
       />
       <Button
@@ -195,14 +201,18 @@ function WorkspaceVariableRow({
       >
         Details
       </Button>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button variant='ghost' onClick={() => onDelete(envKey)} className='h-9 w-9'>
-            <Trash />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content>Delete secret</Tooltip.Content>
-      </Tooltip.Root>
+      {canEdit ? (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <Button variant='ghost' onClick={() => onDelete(envKey)} className='h-9 w-9'>
+              <Trash />
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content>Delete secret</Tooltip.Content>
+        </Tooltip.Root>
+      ) : (
+        <div />
+      )}
     </div>
   )
 }
@@ -316,7 +326,7 @@ export function CredentialsManager() {
   const { data: workspacePermissions } = useWorkspacePermissionsQuery(workspaceId || null)
   const queryClient = useQueryClient()
 
-  const isAdmin = useMemo(() => {
+  const isWorkspaceAdmin = useMemo(() => {
     const userId = session?.user?.id
     if (!userId || !workspacePermissions?.users) return false
     const currentUser = workspacePermissions.users.find((user) => user.userId === userId)
@@ -790,6 +800,10 @@ export function CredentialsManager() {
     },
     [pendingKeyValue, renamingKey]
   )
+
+  const handleWorkspaceValueChange = useCallback((key: string, value: string) => {
+    setWorkspaceVars((prev) => ({ ...prev, [key]: value }))
+  }, [])
 
   const handleDeleteWorkspaceVar = useCallback((key: string) => {
     setWorkspaceVars((prev) => {
@@ -1536,25 +1550,27 @@ export function CredentialsManager() {
                         renamingKey={renamingKey}
                         pendingKeyValue={pendingKeyValue}
                         hasCredential={envKeyToCredential.has(key)}
-                        isAdmin={isAdmin}
+                        canEdit={isWorkspaceAdmin}
                         onRenameStart={setRenamingKey}
                         onPendingKeyChange={setPendingKeyValue}
                         onRenameEnd={handleWorkspaceKeyRename}
+                        onValueChange={handleWorkspaceValueChange}
                         onDelete={handleDeleteWorkspaceVar}
                         onViewDetails={(envKey) => handleViewDetails(envKey, 'env_workspace')}
                       />
                     ))}
-                    {(searchTerm.trim()
-                      ? filteredNewWorkspaceRows
-                      : newWorkspaceRows.map((row, index) => ({ row, originalIndex: index }))
-                    ).map(({ row, originalIndex }) => (
-                      <NewWorkspaceVariableRow
-                        key={row.id || originalIndex}
-                        envVar={row}
-                        index={originalIndex}
-                        onUpdate={updateNewWorkspaceRow}
-                      />
-                    ))}
+                    {isWorkspaceAdmin &&
+                      (searchTerm.trim()
+                        ? filteredNewWorkspaceRows
+                        : newWorkspaceRows.map((row, index) => ({ row, originalIndex: index }))
+                      ).map(({ row, originalIndex }) => (
+                        <NewWorkspaceVariableRow
+                          key={row.id || originalIndex}
+                          envVar={row}
+                          index={originalIndex}
+                          onUpdate={updateNewWorkspaceRow}
+                        />
+                      ))}
                     <div className={`${COL_SPAN_ALL} h-[8px]`} />
                   </>
                 )}
