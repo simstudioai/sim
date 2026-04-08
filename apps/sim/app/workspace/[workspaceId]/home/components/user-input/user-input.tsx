@@ -243,6 +243,7 @@ export function UserInput({
     isListening,
     isSupported: isSttSupported,
     toggleListening: rawToggle,
+    resetTranscript,
   } = useSpeechToText({ onTranscript: handleTranscript })
 
   const toggleListening = useCallback(() => {
@@ -432,13 +433,15 @@ export function UserInput({
     )
     setValue('')
     valueRef.current = ''
+    sttPrefixRef.current = ''
+    resetTranscript()
     currentFiles.clearAttachedFiles()
     currentContext.clearContexts()
 
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
-  }, [onSubmit, textareaRef])
+  }, [onSubmit, textareaRef, resetTranscript])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

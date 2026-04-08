@@ -19,8 +19,8 @@ export const dynamic = 'force-dynamic'
 const ELEVENLABS_TOKEN_URL = 'https://api.elevenlabs.io/v1/single-use-token/realtime_scribe'
 
 const VOICE_SESSION_COST_PER_MIN = 0.008
-const VOICE_SESSION_MAX_MINUTES = 3
-const VOICE_SESSION_COST = VOICE_SESSION_COST_PER_MIN * VOICE_SESSION_MAX_MINUTES
+const WORKSPACE_SESSION_MAX_MINUTES = 3
+const CHAT_SESSION_MAX_MINUTES = 1
 
 const STT_TOKEN_RATE_LIMIT = {
   maxTokens: 30,
@@ -144,14 +144,17 @@ export async function POST(request: NextRequest) {
     const data = await response.json()
 
     if (billingUserId) {
+      const maxMinutes = chatId ? CHAT_SESSION_MAX_MINUTES : WORKSPACE_SESSION_MAX_MINUTES
+      const sessionCost = VOICE_SESSION_COST_PER_MIN * maxMinutes
+
       await recordUsage({
         userId: billingUserId,
         entries: [
           {
             category: 'fixed',
             source: 'voice-input',
-            description: `Voice input session (${VOICE_SESSION_MAX_MINUTES} min)`,
-            cost: VOICE_SESSION_COST * getCostMultiplier(),
+            description: `Voice input session (${maxMinutes} min)`,
+            cost: sessionCost * getCostMultiplier(),
           },
         ],
       }).catch((err) => {

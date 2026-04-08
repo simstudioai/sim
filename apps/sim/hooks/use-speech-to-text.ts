@@ -26,6 +26,7 @@ interface UseSpeechToTextReturn {
   isSupported: boolean
   permissionState: PermissionState
   toggleListening: () => void
+  resetTranscript: () => void
 }
 
 export function useSpeechToText({
@@ -334,17 +335,28 @@ export function useSpeechToText({
       streamRef.current = null
     }
 
-    setTimeout(() => {
-      if (wsRef.current) {
-        wsRef.current.close()
-        wsRef.current = null
-      }
-    }, 2000)
+    const wsToClose = wsRef.current
+    wsRef.current = null
+    if (wsToClose) {
+      setTimeout(() => {
+        if (
+          wsToClose.readyState === WebSocket.OPEN ||
+          wsToClose.readyState === WebSocket.CONNECTING
+        ) {
+          wsToClose.close()
+        }
+      }, 2000)
+    }
 
     setIsListening(false)
   }, [flushAudioBuffer])
 
   stopStreamingRef.current = stopStreaming
+
+  const resetTranscript = useCallback(() => {
+    committedTextRef.current = ''
+    isFirstChunkRef.current = true
+  }, [])
 
   const toggleListening = useCallback(() => {
     if (isListening) {
@@ -367,5 +379,6 @@ export function useSpeechToText({
     isSupported,
     permissionState,
     toggleListening,
+    resetTranscript,
   }
 }

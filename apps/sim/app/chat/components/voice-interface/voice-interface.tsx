@@ -10,7 +10,7 @@ import { arrayBufferToBase64, floatTo16BitPCM } from '@/lib/speech/audio'
 import {
   CHUNK_SEND_INTERVAL_MS,
   ELEVENLABS_WS_URL,
-  MAX_SESSION_MS,
+  MAX_CHAT_SESSION_MS,
   SAMPLE_RATE,
 } from '@/lib/speech/config'
 
@@ -321,7 +321,7 @@ export function VoiceInterface({
       stopSendingAudio()
       closeWebSocket()
       updateState('idle')
-    }, MAX_SESSION_MS)
+    }, MAX_CHAT_SESSION_MS)
   }, [connectWebSocket, updateState, startSendingAudio, stopSendingAudio, closeWebSocket])
 
   const stopListening = useCallback(() => {
