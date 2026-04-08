@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { createLogger } from '@sim/logger'
 import { Compass, MoreHorizontal } from 'lucide-react'
 import Image from 'next/image'
@@ -97,11 +98,16 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useTaskEvents } from '@/hooks/use-task-events'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
+import { useDraftTaskStore } from '@/stores/draft-tasks/store'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
+
+function isPlaceholderTask(id: string): boolean {
+  return id === 'new' || id.startsWith('draft-')
+}
 
 export function SidebarTooltip({
   children,
@@ -169,7 +175,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
           (isCurrentRoute || isSelected || isMenuOpen) && 'bg-[var(--surface-active)]'
         )}
         onClick={(e) => {
-          if (task.id === 'new') return
+          if (isPlaceholderTask(task.id)) return
           if (e.metaKey || e.ctrlKey) return
           if (e.shiftKey) {
             e.preventDefault()
@@ -181,11 +187,11 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
             })
           }
         }}
-        onContextMenu={task.id !== 'new' ? (e) => onContextMenu(e, task.id) : undefined}
+        onContextMenu={!isPlaceholderTask(task.id) ? (e) => onContextMenu(e, task.id) : undefined}
       >
         <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
         <div className='min-w-0 flex-1 truncate font-base text-[var(--text-body)]'>{task.name}</div>
-        {task.id !== 'new' && (
+        {!isPlaceholderTask(task.id) && (
           <div className='relative flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center'>
             {isActive && !isCurrentRoute && !isMenuOpen && (
               <span className='absolute h-[7px] w-[7px] animate-ping rounded-full bg-amber-400 opacity-30 group-hover:hidden' />
@@ -603,6 +609,11 @@ export const Sidebar = memo(function Sidebar() {
     [workspaces, workspaceId]
   )
 
+  const handleNewTaskFromNav = useCallback(() => {
+    flushSync(() => useDraftTaskStore.getState().createDraft())
+    router.push(`/workspace/${workspaceId}/home`)
+  }, [router, workspaceId])
+
   const topNavItems = useMemo(
     () => [
       {
@@ -610,6 +621,7 @@ export const Sidebar = memo(function Sidebar() {
         label: 'Home',
         icon: Home,
         href: `/workspace/${workspaceId}/home`,
+        onClick: handleNewTaskFromNav,
       },
       {
         id: 'search',
@@ -618,7 +630,7 @@ export const Sidebar = memo(function Sidebar() {
         onClick: openSearchModal,
       },
     ],
-    [workspaceId, openSearchModal]
+    [workspaceId, openSearchModal, handleNewTaskFromNav]
   )
 
   const workspaceNavItems = useMemo(
@@ -694,24 +706,53 @@ export const Sidebar = memo(function Sidebar() {
 
   useTaskEvents(workspaceId)
 
-  const tasks = useMemo(
-    () =>
-      fetchedTasks.length > 0
-        ? fetchedTasks.map((t) => ({
-            ...t,
-            href: `/workspace/${workspaceId}/task/${t.id}`,
-          }))
-        : [
-            {
-              id: 'new',
-              name: 'New task',
-              href: `/workspace/${workspaceId}/home`,
-              isActive: false,
-              isUnread: false,
-            },
-          ],
-    [fetchedTasks, workspaceId]
-  )
+  const draftTaskId = useDraftTaskStore((s) => s.draftTaskId)
+  const prevFetchedTaskIdsRef = useRef<Set<string>>(new Set(fetchedTasks.map((t) => t.id)))
+
+  useEffect(() => {
+    const currentIds = new Set(fetchedTasks.map((t) => t.id))
+    if (draftTaskId) {
+      const hasNewTask = fetchedTasks.some((t) => !prevFetchedTaskIdsRef.current.has(t.id))
+      if (hasNewTask) {
+        useDraftTaskStore.getState().removeDraft()
+      }
+    }
+    prevFetchedTaskIdsRef.current = currentIds
+  }, [draftTaskId, fetchedTasks])
+
+  const tasks = useMemo(() => {
+    const mapped = fetchedTasks.map((t) => ({
+      ...t,
+      href: `/workspace/${workspaceId}/task/${t.id}`,
+    }))
+
+    if (draftTaskId) {
+      const hasNewTask = fetchedTasks.some((t) => !prevFetchedTaskIdsRef.current.has(t.id))
+      if (!hasNewTask) {
+        mapped.unshift({
+          id: draftTaskId,
+          name: 'New task',
+          href: `/workspace/${workspaceId}/home`,
+          isActive: false,
+          isUnread: false,
+          updatedAt: new Date(),
+        })
+      }
+    }
+
+    if (mapped.length === 0) {
+      mapped.push({
+        id: 'new',
+        name: 'New task',
+        href: `/workspace/${workspaceId}/home`,
+        isActive: false,
+        isUnread: false,
+        updatedAt: new Date(),
+      })
+    }
+
+    return mapped
+  }, [fetchedTasks, workspaceId, draftTaskId])
 
   const { data: fetchedTables = [] } = useTablesList(workspaceId)
   const { data: fetchedFiles = [] } = useWorkspaceFiles(workspaceId)
@@ -753,7 +794,10 @@ export const Sidebar = memo(function Sidebar() {
     [fetchedKnowledgeBases, workspaceId, permissionConfig.hideKnowledgeBaseTab]
   )
 
-  const taskIds = useMemo(() => tasks.map((t) => t.id).filter((id) => id !== 'new'), [tasks])
+  const taskIds = useMemo(
+    () => tasks.map((t) => t.id).filter((id) => !isPlaceholderTask(id)),
+    [tasks]
+  )
 
   const { selectedTasks, handleTaskClick } = useTaskSelection({ taskIds })
 
@@ -1057,9 +1101,12 @@ export const Sidebar = memo(function Sidebar() {
   const tasksPrimaryAction = useMemo(
     () => ({
       label: 'New task',
-      onSelect: () => navigateToPage(`/workspace/${workspaceId}/home`),
+      onSelect: () => {
+        flushSync(() => useDraftTaskStore.getState().createDraft())
+        router.push(`/workspace/${workspaceId}/home`)
+      },
     }),
-    [navigateToPage, workspaceId]
+    [router, workspaceId]
   )
 
   const workflowsPrimaryAction = useMemo(
@@ -1078,10 +1125,10 @@ export const Sidebar = memo(function Sidebar() {
     [toggleCollapsed]
   )
 
-  const handleNewTask = useCallback(
-    () => navigateToPage(`/workspace/${workspaceId}/home`),
-    [navigateToPage, workspaceId]
-  )
+  const handleNewTask = useCallback(() => {
+    flushSync(() => useDraftTaskStore.getState().createDraft())
+    router.push(`/workspace/${workspaceId}/home`)
+  }, [router, workspaceId])
 
   const handleSeeMoreTasks = useCallback(() => setVisibleTaskCount((prev) => prev + 5), [])
 
@@ -1388,7 +1435,9 @@ export const Sidebar = memo(function Sidebar() {
                               <CollapsedTaskFlyoutItem
                                 key={task.id}
                                 task={task}
-                                isCurrentRoute={task.id !== 'new' && pathname === task.href}
+                                isCurrentRoute={
+                                  task.id !== 'new' && pathname === task.href
+                                }
                                 isMenuOpen={menuOpenTaskId === task.id}
                                 isEditing={task.id === taskFlyoutRename.editingId}
                                 editValue={taskFlyoutRename.value}
@@ -1411,9 +1460,11 @@ export const Sidebar = memo(function Sidebar() {
                           ) : (
                             <>
                               {tasks.slice(0, visibleTaskCount).map((task) => {
-                                const isCurrentRoute = task.id !== 'new' && pathname === task.href
+                                const isCurrentRoute =
+                                  task.id !== 'new' && pathname === task.href
                                 const isRenaming = taskFlyoutRename.editingId === task.id
-                                const isSelected = task.id !== 'new' && selectedTasks.has(task.id)
+                                const isSelected =
+                                  !isPlaceholderTask(task.id) && selectedTasks.has(task.id)
 
                                 if (isRenaming) {
                                   return (
