@@ -135,6 +135,21 @@ Use your own API keys for AI model providers instead of Sim's hosted keys to pay
 
 When configured, workflows use your key instead of Sim's hosted keys. If removed, workflows automatically fall back to hosted keys with the multiplier.
 
+## Voice Input
+
+Voice input uses ElevenLabs Scribe v2 Realtime for speech-to-text transcription. It is available in the Mothership chat and in deployed chat voice mode.
+
+| Item | Cost | Notes |
+|------|------|-------|
+| Voice session | ~5 credits ($0.024) | Flat charge per session (up to 3 minutes) |
+| Session limit | 3 minutes | After 3 minutes, the session ends automatically. Start a new session to continue. |
+
+Voice sessions are billed when the session starts (when you click the mic button or enter voice mode). Multi-turn voice conversations in deployed chat reuse the same session billing — reconnections within a single voice call are not charged again.
+
+<Callout type="info">
+  Voice input requires `ELEVENLABS_API_KEY` to be configured. When the key is not set, voice input controls are hidden.
+</Callout>
+
 ## Plans
 
 Sim has two paid plan tiers — **Pro** and **Max**. Either can be used individually or with a team. Team plans pool credits across all seats in the organization.
