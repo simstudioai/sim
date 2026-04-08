@@ -13,7 +13,8 @@ import { getOrgWhitelabelSettings } from '@/ee/whitelabeling/org-branding'
 
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession()
-  const orgId = session?.session?.activeOrganizationId
+  // The organization plugin is conditionally spread so TS can't infer activeOrganizationId on the base session type.
+  const orgId = (session?.session as { activeOrganizationId?: string } | null)?.activeOrganizationId
   const initialOrgSettings = orgId ? await getOrgWhitelabelSettings(orgId) : null
 
   return (
