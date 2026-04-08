@@ -226,12 +226,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         updates.consecutiveFailures = 0
         updates.lastSyncError = null
         if (updates.nextSyncAt === undefined) {
-          const interval = parsed.data.syncIntervalMinutes
-          if (interval && interval > 0) {
-            updates.nextSyncAt = new Date(Date.now() + interval * 60 * 1000)
-          } else {
-            updates.nextSyncAt = new Date()
-          }
+          updates.nextSyncAt = new Date()
         }
       }
     }
