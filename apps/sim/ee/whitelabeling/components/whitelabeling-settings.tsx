@@ -298,7 +298,7 @@ export function WhitelabelingSettings() {
           <div className='grid grid-cols-2 gap-4'>
             <SettingRow
               label='Logo'
-              description='Shown in the collapsed sidebar. Square image recommended (PNG or JPEG, max 5MB).'
+              description='Shown in the collapsed sidebar. Square image recommended (PNG, JPEG, or SVG, max 5MB).'
             >
               <DropZone onDrop={logoUpload.handleFileDrop} className='flex items-center gap-4'>
                 <button
@@ -345,7 +345,7 @@ export function WhitelabelingSettings() {
                 <input
                   ref={logoUpload.fileInputRef}
                   type='file'
-                  accept='image/png,image/jpeg,image/jpg'
+                  accept='image/png,image/jpeg,image/jpg,image/svg+xml'
                   onChange={logoUpload.handleFileChange}
                   className='hidden'
                 />
@@ -354,7 +354,7 @@ export function WhitelabelingSettings() {
 
             <SettingRow
               label='Wordmark'
-              description='Shown in the expanded sidebar. Wide image recommended (PNG or JPEG, max 5MB).'
+              description='Shown in the expanded sidebar. Wide image recommended (PNG, JPEG, or SVG, max 5MB).'
             >
               <DropZone onDrop={wordmarkUpload.handleFileDrop} className='flex items-center gap-4'>
                 <button
@@ -401,7 +401,7 @@ export function WhitelabelingSettings() {
                 <input
                   ref={wordmarkUpload.fileInputRef}
                   type='file'
-                  accept='image/png,image/jpeg,image/jpg'
+                  accept='image/png,image/jpeg,image/jpg,image/svg+xml'
                   onChange={wordmarkUpload.handleFileChange}
                   className='hidden'
                 />
