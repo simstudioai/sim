@@ -14,6 +14,7 @@ import { startWorkerHealthServer, updateWorkerHealthState } from '@/worker/healt
 import { processKnowledgeConnectorSync } from '@/worker/processors/knowledge-connector-sync'
 import { processKnowledgeDocument } from '@/worker/processors/knowledge-document-processing'
 import { processMothershipJobExecution } from '@/worker/processors/mothership-job-execution'
+import { processResume } from '@/worker/processors/resume'
 import { processSchedule } from '@/worker/processors/schedule'
 import { processWebhook } from '@/worker/processors/webhook'
 import { processWorkflow } from '@/worker/processors/workflow'
@@ -25,6 +26,7 @@ const DEFAULT_WORKER_PORT = 3001
 const DEFAULT_WORKFLOW_CONCURRENCY = 50
 const DEFAULT_WEBHOOK_CONCURRENCY = 30
 const DEFAULT_SCHEDULE_CONCURRENCY = 20
+const DEFAULT_RESUME_CONCURRENCY = 20
 const DEFAULT_MOTHERSHIP_JOB_CONCURRENCY = 10
 const DEFAULT_CONNECTOR_SYNC_CONCURRENCY = 5
 const DEFAULT_DOCUMENT_PROCESSING_CONCURRENCY = 20
@@ -80,6 +82,14 @@ async function main() {
     ),
   })
 
+  const resumeWorker = new Worker('resume-execution', processResume, {
+    connection,
+    concurrency: parseWorkerNumber(
+      process.env.WORKER_CONCURRENCY_RESUME,
+      DEFAULT_RESUME_CONCURRENCY
+    ),
+  })
+
   const mothershipJobWorker = new Worker(
     MOTHERSHIP_JOB_EXECUTION_QUEUE,
     processMothershipJobExecution,
@@ -132,6 +142,7 @@ async function main() {
     workflowWorker,
     webhookWorker,
     scheduleWorker,
+    resumeWorker,
     mothershipJobWorker,
     connectorSyncWorker,
     documentProcessingWorker,

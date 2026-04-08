@@ -111,6 +111,9 @@ interface StartResumeExecutionArgs {
   contextId: string
   resumeInput: unknown
   userId: string
+  sendEvent?: (event: ExecutionEvent) => void
+  onStream?: (streamingExec: StreamingExecution) => Promise<void>
+  onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
 }
 
 export class PauseResumeManager {
@@ -293,8 +296,17 @@ export class PauseResumeManager {
   }
 
   static async startResumeExecution(args: StartResumeExecutionArgs): Promise<ExecutionResult> {
-    const { resumeEntryId, resumeExecutionId, pausedExecution, contextId, resumeInput, userId } =
-      args
+    const {
+      resumeEntryId,
+      resumeExecutionId,
+      pausedExecution,
+      contextId,
+      resumeInput,
+      userId,
+      sendEvent,
+      onStream,
+      onBlockComplete,
+    } = args
 
     const pausePointsRecord = pausedExecution.pausePoints as Record<string, any>
     const pausePointForContext = pausePointsRecord?.[contextId]
@@ -309,6 +321,9 @@ export class PauseResumeManager {
         contextId,
         resumeInput,
         userId,
+        sendEvent,
+        onStream,
+        onBlockComplete,
       })
 
       if (result.status === 'paused') {
@@ -384,8 +399,20 @@ export class PauseResumeManager {
     contextId: string
     resumeInput: unknown
     userId: string
+    sendEvent?: (event: ExecutionEvent) => void
+    onStream?: (streamingExec: StreamingExecution) => Promise<void>
+    onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
   }): Promise<ExecutionResult> {
-    const { resumeExecutionId, pausedExecution, contextId, resumeInput, userId } = args
+    const {
+      resumeExecutionId,
+      pausedExecution,
+      contextId,
+      resumeInput,
+      userId,
+      sendEvent,
+      onStream: externalOnStream,
+      onBlockComplete: externalOnBlockComplete,
+    } = args
     const parentExecutionId = pausedExecution.executionId
 
     await db
@@ -798,6 +825,7 @@ export class PauseResumeManager {
       localEventSeq++
       event.eventId = localEventSeq
       eventWriter.write(event).catch(() => {})
+      sendEvent?.(event)
     }
 
     writeBufferedEvent({
@@ -887,6 +915,10 @@ export class PauseResumeManager {
           workflowId,
           data: hasError ? { ...sharedData, error: output?.error } : { ...sharedData, output },
         } as ExecutionEvent)
+
+        if (externalOnBlockComplete) {
+          await externalOnBlockComplete(blockId, callbackData.output)
+        }
       },
       onChildWorkflowInstanceReady: (
         blockId: string,
@@ -911,6 +943,11 @@ export class PauseResumeManager {
         } as ExecutionEvent)
       },
       onStream: async (streamingExec: StreamingExecution) => {
+        if (externalOnStream) {
+          await externalOnStream(streamingExec)
+          return
+        }
+
         const blockId = (streamingExec.execution as unknown as Record<string, unknown>)
           .blockId as string
         const reader = streamingExec.stream.getReader()
@@ -1244,6 +1281,17 @@ export class PauseResumeManager {
         PauseResumeManager.mapPausePoints(row.pausePoints)
       )
     )
+  }
+
+  static async getPausedExecutionById(
+    id: string
+  ): Promise<typeof pausedExecutions.$inferSelect | null> {
+    const rows = await db
+      .select()
+      .from(pausedExecutions)
+      .where(eq(pausedExecutions.id, id))
+      .limit(1)
+    return rows[0] ?? null
   }
 
   static async getPausedExecutionDetail(options: {

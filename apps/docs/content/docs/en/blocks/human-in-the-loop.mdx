@@ -93,11 +93,12 @@ Access resume data in downstream blocks using `<blockId.resumeInput.fieldName>`.
   <Tab>
     ### REST API
     
-    Programmatically resume workflows using the resume endpoint. The `contextId` is available from the block's `resumeEndpoint` output or from the paused execution detail.
+    Programmatically resume workflows using the resume endpoint. The `contextId` is available from the block's `resumeEndpoint` output or from the `_resume` object in the paused execution response.
     
     ```bash
     POST /api/resume/{workflowId}/{executionId}/{contextId}
     Content-Type: application/json
+    X-API-Key: your-api-key
     
     {
       "input": {
@@ -107,28 +108,96 @@ Access resume data in downstream blocks using `<blockId.resumeInput.fieldName>`.
     }
     ```
     
-    The response includes a new `executionId` for the resumed execution:
+    The resume endpoint automatically respects the execution mode used in the original execute call:
+    
+    - **Sync mode** (default) — The response waits for the remaining workflow to complete and returns the full result:
+    
+    ```json
+    {
+      "success": true,
+      "status": "completed",
+      "executionId": "<resumeExecutionId>",
+      "output": { ... },
+      "metadata": { "duration": 1234, "startTime": "...", "endTime": "..." }
+    }
+    ```
+    
+    If the resumed workflow hits another HITL block, the response returns `"status": "paused"` with new `_resume` URLs in the output.
+    
+    - **Stream mode** (`stream: true` on the original execute call) — The resume response streams SSE events with `selectedOutputs` chunks, just like the initial execution.
+    
+    - **Async mode** (`X-Execution-Mode: async` on the original execute call) — The resume dispatches execution to a background worker and returns immediately with `202`:
     
     ```json
     {
       "status": "started",
       "executionId": "<resumeExecutionId>",
-      "message": "Resume execution started."
+      "message": "Resume execution started asynchronously."
     }
     ```
     
-    To poll execution progress after resuming, connect to the SSE stream:
+    #### Polling execution status
+    
+    To check on a paused execution or poll for completion after an async resume:
     
     ```bash
-    GET /api/workflows/{workflowId}/executions/{resumeExecutionId}/stream
+    GET /api/resume/{workflowId}/{executionId}
+    X-API-Key: your-api-key
     ```
     
-    Build custom approval UIs or integrate with existing systems.
+    Returns the full paused execution detail with all pause points, their statuses, and resume links. Returns `404` when the execution has completed and is no longer paused.
   </Tab>
   <Tab>
     ### Webhook
     
     Add a webhook tool to the Notification section to send approval requests to external systems. Integrate with ticketing systems like Jira or ServiceNow.
+  </Tab>
+</Tabs>
+
+## API Execute Behavior
+
+When triggering a workflow via the execute API (`POST /api/workflows/{id}/execute`), HITL blocks cause the execution to pause and return the `_resume` data in the response:
+
+<Tabs items={['Sync (JSON)', 'Stream (SSE)', 'Async']}>
+  <Tab>
+    The response includes the full pause data with resume URLs:
+    
+    ```json
+    {
+      "success": true,
+      "executionId": "<executionId>",
+      "output": {
+        "data": {
+          "operation": "human",
+          "_resume": {
+            "apiUrl": "/api/resume/{workflowId}/{executionId}/{contextId}",
+            "uiUrl": "/resume/{workflowId}/{executionId}",
+            "contextId": "<contextId>",
+            "executionId": "<executionId>",
+            "workflowId": "<workflowId>"
+          }
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab>
+    Blocks before the HITL stream their `selectedOutputs` normally. When execution pauses, the final SSE event includes `status: "paused"` and the `_resume` data:
+    
+    ```
+    data: {"blockId":"agent1","chunk":"streamed content..."}
+    data: {"event":"final","data":{"success":true,"output":{...,"_resume":{...}},"status":"paused"}}
+    data: "[DONE]"
+    ```
+    
+    On resume, blocks after the HITL stream their `selectedOutputs` the same way.
+    
+    <Callout type="info">
+      HITL blocks are automatically excluded from the `selectedOutputs` dropdown since their data is always included in the pause response.
+    </Callout>
+  </Tab>
+  <Tab>
+    Returns `202` immediately. Use the polling endpoint to check when the execution pauses.
   </Tab>
 </Tabs>
 

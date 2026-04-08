@@ -44,6 +44,7 @@ export type WorkflowExecutionPayload = {
   correlation?: AsyncExecutionCorrelation
   metadata?: Record<string, any>
   callChain?: string[]
+  executionMode?: 'sync' | 'stream' | 'async'
 }
 
 /**
@@ -112,6 +113,7 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
       isClientSession: false,
       callChain: payload.callChain,
       correlation,
+      executionMode: payload.executionMode ?? 'async',
     }
 
     const snapshot = new ExecutionSnapshot(
