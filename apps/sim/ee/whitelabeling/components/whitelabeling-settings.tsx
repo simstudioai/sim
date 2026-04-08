@@ -251,7 +251,7 @@ export function WhitelabelingSettings() {
         <div className='flex flex-col gap-5'>
           <SettingRow
             label='Logo'
-            description='Displayed in the sidebar. Use a square or wide image (PNG, JPG, or WebP, max 5MB).'
+            description='Displayed in the sidebar. Use a square or wide image (PNG or JPG, max 5MB).'
           >
             <div className='flex items-center gap-4'>
               <button
@@ -299,7 +299,7 @@ export function WhitelabelingSettings() {
               <input
                 ref={fileInputRef}
                 type='file'
-                accept='image/png,image/jpeg,image/jpg,image/webp'
+                accept='image/png,image/jpeg,image/jpg'
                 onChange={handleFileChange}
                 className='hidden'
               />
