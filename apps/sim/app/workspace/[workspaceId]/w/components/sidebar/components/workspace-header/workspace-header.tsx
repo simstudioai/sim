@@ -360,7 +360,7 @@ export function WorkspaceHeader({
                 {activeWorkspaceFull ? (
                   <div
                     className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-caption text-white leading-none'
-                    style={{ backgroundColor: activeWorkspaceFull.color ?? '#6b7280' }}
+                    style={{ backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)' }}
                   >
                     {workspaceInitial}
                   </div>
@@ -406,7 +406,9 @@ export function WorkspaceHeader({
                     {activeWorkspaceFull ? (
                       <div
                         className='flex h-[32px] w-[32px] flex-shrink-0 items-center justify-center rounded-md font-medium text-caption text-white'
-                        style={{ backgroundColor: activeWorkspaceFull.color ?? '#6b7280' }}
+                        style={{
+                          backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)',
+                        }}
                       >
                         {workspaceInitial}
                       </div>
@@ -588,7 +590,7 @@ export function WorkspaceHeader({
             {activeWorkspaceFull ? (
               <div
                 className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-caption text-white leading-none'
-                style={{ backgroundColor: activeWorkspaceFull.color ?? '#6b7280' }}
+                style={{ backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)' }}
               >
                 {workspaceInitial}
               </div>
