@@ -114,6 +114,7 @@ interface StartResumeExecutionArgs {
   sendEvent?: (event: ExecutionEvent) => void
   onStream?: (streamingExec: StreamingExecution) => Promise<void>
   onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
+  abortSignal?: AbortSignal
 }
 
 export class PauseResumeManager {
@@ -306,6 +307,7 @@ export class PauseResumeManager {
       sendEvent,
       onStream,
       onBlockComplete,
+      abortSignal,
     } = args
 
     const pausePointsRecord = pausedExecution.pausePoints as Record<string, any>
@@ -324,6 +326,7 @@ export class PauseResumeManager {
         sendEvent,
         onStream,
         onBlockComplete,
+        abortSignal,
       })
 
       if (result.status === 'paused') {
@@ -402,6 +405,7 @@ export class PauseResumeManager {
     sendEvent?: (event: ExecutionEvent) => void
     onStream?: (streamingExec: StreamingExecution) => Promise<void>
     onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
+    abortSignal?: AbortSignal
   }): Promise<ExecutionResult> {
     const {
       resumeExecutionId,
@@ -412,6 +416,7 @@ export class PauseResumeManager {
       sendEvent,
       onStream: externalOnStream,
       onBlockComplete: externalOnBlockComplete,
+      abortSignal: externalAbortSignal,
     } = args
     const parentExecutionId = pausedExecution.executionId
 
@@ -1000,7 +1005,7 @@ export class PauseResumeManager {
         skipLogCreation: true,
         includeFileBase64: true,
         base64MaxBytes: undefined,
-        abortSignal: timeoutController.signal,
+        abortSignal: externalAbortSignal ?? timeoutController.signal,
       })
 
       if (

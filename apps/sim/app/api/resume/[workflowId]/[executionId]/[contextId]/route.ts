@@ -176,11 +176,12 @@ export async function POST(
           timeoutMs: preprocessResult.executionTimeout?.sync,
         },
         executionId: enqueueResult.resumeExecutionId,
-        executeFn: async ({ onStream, onBlockComplete }) =>
+        executeFn: async ({ onStream, onBlockComplete, abortSignal }) =>
           PauseResumeManager.startResumeExecution({
             ...resumeArgs,
             onStream,
             onBlockComplete,
+            abortSignal,
           }),
       })
 
