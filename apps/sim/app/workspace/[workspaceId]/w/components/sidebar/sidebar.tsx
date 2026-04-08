@@ -83,7 +83,7 @@ import {
   useImportWorkflow,
   useImportWorkspace,
 } from '@/app/workspace/[workspaceId]/w/hooks'
-import { getBrandConfig } from '@/ee/whitelabeling'
+import { useOrgBrandConfig } from '@/ee/whitelabeling/components/branding-provider'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
@@ -337,7 +337,7 @@ export const SIDEBAR_SCROLL_EVENT = 'sidebar-scroll-to-item'
  * @returns Sidebar with workflows panel
  */
 export const Sidebar = memo(function Sidebar() {
-  const brand = getBrandConfig()
+  const brand = useOrgBrandConfig()
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string | undefined

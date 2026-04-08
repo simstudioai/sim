@@ -19,3 +19,21 @@ export interface BrandConfig {
   /** Whether this instance has custom branding applied (any brand env var is set) */
   isWhitelabeled: boolean
 }
+
+/**
+ * Per-organization whitelabel settings stored in the database.
+ * Only available for enterprise organizations on the hosted platform.
+ */
+export interface OrganizationWhitelabelSettings {
+  brandName?: string
+  logoUrl?: string
+  primaryColor?: string
+  primaryHoverColor?: string
+  accentColor?: string
+  accentHoverColor?: string
+  supportEmail?: string
+  documentationUrl?: string
+  termsUrl?: string
+  privacyUrl?: string
+  hidePoweredBySim?: boolean
+}
