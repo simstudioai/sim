@@ -152,9 +152,6 @@ function WorkspaceVariableRow({
 }: WorkspaceVariableRowProps) {
   const [valueFocused, setValueFocused] = useState(false)
 
-  const maskedValueStyle =
-    canEdit && !valueFocused ? ({ WebkitTextSecurity: 'disc' } as React.CSSProperties) : undefined
-
   return (
     <div className='contents'>
       <EmcnInput
@@ -177,6 +174,7 @@ function WorkspaceVariableRow({
       <div />
       <EmcnInput
         value={canEdit ? value : value ? '\u2022'.repeat(value.length) : ''}
+        type={canEdit && !valueFocused ? 'password' : 'text'}
         onChange={(e) => onValueChange(envKey, e.target.value)}
         readOnly
         onFocus={(e) => {
@@ -188,11 +186,11 @@ function WorkspaceVariableRow({
         onBlur={() => {
           if (canEdit) setValueFocused(false)
         }}
+        name={`workspace_env_value_${envKey}_${Math.random()}`}
         autoComplete='off'
         autoCorrect='off'
         autoCapitalize='off'
         spellCheck='false'
-        style={maskedValueStyle}
         className='h-9'
       />
       <Button
@@ -203,7 +201,7 @@ function WorkspaceVariableRow({
       >
         Details
       </Button>
-      {canEdit && (
+      {canEdit ? (
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
             <Button variant='ghost' onClick={() => onDelete(envKey)} className='h-9 w-9'>
@@ -212,6 +210,8 @@ function WorkspaceVariableRow({
           </Tooltip.Trigger>
           <Tooltip.Content>Delete secret</Tooltip.Content>
         </Tooltip.Root>
+      ) : (
+        <div />
       )}
     </div>
   )
