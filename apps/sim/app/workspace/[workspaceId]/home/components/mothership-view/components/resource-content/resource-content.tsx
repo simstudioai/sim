@@ -22,6 +22,7 @@ import {
   getFileExtension,
   getMimeTypeFromExtension,
 } from '@/lib/uploads/utils/file-utils'
+import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {
   FileViewer,
   type PreviewMode,
@@ -514,7 +515,7 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
                 className='h-[12px] w-[12px] flex-shrink-0 rounded-[3px] border-[2px]'
                 style={{
                   backgroundColor: w.color,
-                  borderColor: `${w.color}60`,
+                  borderColor: workflowBorderColor(w.color),
                   backgroundClip: 'padding-box',
                 }}
               />

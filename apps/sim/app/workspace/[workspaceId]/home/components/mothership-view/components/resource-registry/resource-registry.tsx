@@ -4,6 +4,7 @@ import { type ElementType, type ReactNode, useMemo } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import {
+  Blimp,
   Database,
   File as FileIcon,
   Folder as FolderIcon,
@@ -13,12 +14,14 @@ import {
 import { WorkflowIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { cn } from '@/lib/core/utils/cn'
+import { workflowBorderColor } from '@/lib/workspaces/colors'
 import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { tableKeys } from '@/hooks/queries/tables'
+import { taskKeys } from '@/hooks/queries/tasks'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -48,7 +51,7 @@ function WorkflowTabSquare({ workflowId, className }: { workflowId: string; clas
       className={cn('flex-shrink-0 rounded-[3px] border-[2px]', className)}
       style={{
         backgroundColor: color,
-        borderColor: `${color}60`,
+        borderColor: workflowBorderColor(color),
         backgroundClip: 'padding-box',
       }}
     />
@@ -63,7 +66,7 @@ function WorkflowDropdownItem({ item }: DropdownItemRenderProps) {
         className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
         style={{
           backgroundColor: color,
-          borderColor: `${color}60`,
+          borderColor: workflowBorderColor(color),
           backgroundClip: 'padding-box',
         }}
       />
@@ -151,6 +154,15 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={FolderIcon} />,
   },
+  task: {
+    type: 'task',
+    label: 'Tasks',
+    icon: Blimp,
+    renderTabIcon: (_resource, className) => (
+      <Blimp className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Blimp} />,
+  },
 } as const
 
 export const RESOURCE_TYPES = Object.values(RESOURCE_REGISTRY)
@@ -184,6 +196,9 @@ const RESOURCE_INVALIDATORS: Record<
   },
   folder: (qc) => {
     qc.invalidateQueries({ queryKey: folderKeys.lists() })
+  },
+  task: (qc, wId) => {
+    qc.invalidateQueries({ queryKey: taskKeys.list(wId) })
   },
 }
 
