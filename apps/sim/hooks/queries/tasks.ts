@@ -49,6 +49,7 @@ export interface TaskStoredMessageContext {
   tableId?: string
   fileId?: string
   folderId?: string
+  chatId?: string
 }
 
 export interface TaskStoredMessage {

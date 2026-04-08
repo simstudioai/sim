@@ -362,7 +362,7 @@ export function WorkflowItem({
 
       onDragStartProp?.()
     },
-    [workflow.id, workflow.name, workspaceId, onDragStartProp]
+    [workflow.id, workflow.name, workflow.color, workspaceId, onDragStartProp]
   )
 
   const {

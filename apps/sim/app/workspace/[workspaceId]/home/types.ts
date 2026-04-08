@@ -270,6 +270,7 @@ export interface ChatMessageContext {
   tableId?: string
   fileId?: string
   folderId?: string
+  chatId?: string
 }
 
 export interface ChatMessage {
