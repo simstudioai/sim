@@ -999,11 +999,17 @@ export function CredentialsManager() {
       if (personalChanged) {
         mutations.push(savePersonalMutation.mutateAsync({ variables: validVariables }))
       }
-      if (workspaceId && Object.keys(toUpsert).length) {
-        mutations.push(upsertWorkspaceMutation.mutateAsync({ workspaceId, variables: toUpsert }))
-      }
-      if (workspaceId && toDelete.length) {
-        mutations.push(removeWorkspaceMutation.mutateAsync({ workspaceId, keys: toDelete }))
+      if (workspaceId && (Object.keys(toUpsert).length || toDelete.length)) {
+        mutations.push(
+          (async () => {
+            if (Object.keys(toUpsert).length) {
+              await upsertWorkspaceMutation.mutateAsync({ workspaceId, variables: toUpsert })
+            }
+            if (toDelete.length) {
+              await removeWorkspaceMutation.mutateAsync({ workspaceId, keys: toDelete })
+            }
+          })()
+        )
       }
 
       await Promise.all(mutations)
@@ -1020,7 +1026,7 @@ export function CredentialsManager() {
         queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() })
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects and queryClient are stable (TanStack Query v5)
   }, [isListSaving, envVars, workspaceVars, newWorkspaceRows, workspaceId])
 
   const handleDiscardAndNavigate = useCallback(() => {
