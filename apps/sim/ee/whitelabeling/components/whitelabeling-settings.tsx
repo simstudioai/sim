@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Camera, Loader2, X } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import Image from 'next/image'
 import { Button, Input, Label, Switch } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
@@ -22,6 +22,53 @@ import { useSubscriptionData } from '@/hooks/queries/subscription'
 const logger = createLogger('WhitelabelingSettings')
 
 const HEX_COLOR_REGEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i
+
+interface DropZoneProps {
+  onDrop: (e: React.DragEvent) => void
+  children: React.ReactNode
+  className?: string
+}
+
+function DropZone({ onDrop, children, className }: DropZoneProps) {
+  const [isDragging, setIsDragging] = useState(false)
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes('Files')) {
+      e.preventDefault()
+      setIsDragging(true)
+    }
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragging(false)
+    }
+  }, [])
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      setIsDragging(false)
+      onDrop(e)
+    },
+    [onDrop]
+  )
+
+  return (
+    <div
+      className={cn('relative', className)}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {children}
+      {isDragging && (
+        <div className='pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg border-[1.5px] border-[var(--brand)] border-dashed bg-[color-mix(in_srgb,var(--brand)_8%,transparent)]'>
+          <span className='font-medium text-[12px] text-[var(--brand)]'>Drop image</span>
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface ColorInputProps {
   label: string
@@ -82,11 +129,6 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h3 className='mb-4 font-medium text-[15px] text-[var(--text-primary)]'>{children}</h3>
 }
 
-/**
- * Whitelabeling settings for enterprise organizations on the hosted platform.
- * Allows org admins to customize branding (logo, colors, name, links) for
- * all members of their organization.
- */
 export function WhitelabelingSettings() {
   const { data: session } = useSession()
   const { data: orgsData } = useOrganizations()
@@ -115,6 +157,7 @@ export function WhitelabelingSettings() {
   const [privacyUrl, setPrivacyUrl] = useState('')
   const [hidePoweredBySim, setHidePoweredBySim] = useState(false)
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [wordmarkUrl, setWordmarkUrl] = useState<string | null>(null)
   const [formInitialized, setFormInitialized] = useState(false)
 
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -132,19 +175,19 @@ export function WhitelabelingSettings() {
     setPrivacyUrl(savedSettings.privacyUrl ?? '')
     setHidePoweredBySim(savedSettings.hidePoweredBySim ?? false)
     setLogoUrl(savedSettings.logoUrl ?? null)
+    setWordmarkUrl(savedSettings.wordmarkUrl ?? null)
     setFormInitialized(true)
   }
 
-  const {
-    previewUrl,
-    fileInputRef,
-    handleThumbnailClick,
-    handleFileChange,
-    handleRemove,
-    isUploading,
-  } = useProfilePictureUpload({
+  const logoUpload = useProfilePictureUpload({
     currentImage: logoUrl,
     onUpload: (url) => setLogoUrl(url),
+    onError: (error) => setSaveError(error),
+  })
+
+  const wordmarkUpload = useProfilePictureUpload({
+    currentImage: wordmarkUrl,
+    onUpload: (url) => setWordmarkUrl(url),
     onError: (error) => setSaveError(error),
   })
 
@@ -170,7 +213,8 @@ export function WhitelabelingSettings() {
 
     const settings: WhitelabelSettingsPayload = {
       brandName: brandName || null,
-      logoUrl: previewUrl || null,
+      logoUrl: logoUpload.previewUrl || null,
+      wordmarkUrl: wordmarkUpload.previewUrl || null,
       primaryColor: primaryColor || null,
       primaryHoverColor: primaryHoverColor || null,
       accentColor: accentColor || null,
@@ -193,7 +237,8 @@ export function WhitelabelingSettings() {
   }, [
     orgId,
     brandName,
-    previewUrl,
+    logoUpload.previewUrl,
+    wordmarkUpload.previewUrl,
     primaryColor,
     primaryHoverColor,
     accentColor,
@@ -203,6 +248,7 @@ export function WhitelabelingSettings() {
     termsUrl,
     privacyUrl,
     hidePoweredBySim,
+    updateSettings,
   ])
 
   if (isBillingEnabled) {
@@ -244,67 +290,126 @@ export function WhitelabelingSettings() {
     )
   }
 
+  const isUploading = logoUpload.isUploading || wordmarkUpload.isUploading
+
   return (
     <div className='flex flex-col gap-8'>
       <section>
         <SectionTitle>Brand Identity</SectionTitle>
         <div className='flex flex-col gap-5'>
-          <SettingRow
-            label='Logo'
-            description='Displayed in the sidebar. Use a square or wide image (PNG or JPG, max 5MB).'
-          >
-            <div className='flex items-center gap-4'>
-              <button
-                type='button'
-                onClick={handleThumbnailClick}
-                disabled={isUploading}
-                className='group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
-              >
-                {isUploading ? (
-                  <Loader2 className='h-5 w-5 animate-spin text-[var(--text-muted)]' />
-                ) : previewUrl ? (
-                  <Image
-                    src={previewUrl}
-                    alt='Brand logo'
-                    fill
-                    className='object-contain p-1'
-                    unoptimized
-                  />
-                ) : (
-                  <Camera className='h-5 w-5 text-[var(--text-muted)] transition-colors group-hover:text-[var(--text-primary)]' />
-                )}
-              </button>
-              <div className='flex gap-2'>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  onClick={handleThumbnailClick}
-                  disabled={isUploading}
-                  className='text-[13px]'
+          <div className='grid grid-cols-2 gap-4'>
+            <SettingRow
+              label='Logo'
+              description='Shown in the collapsed sidebar. Square image recommended (PNG or JPEG, max 5MB).'
+            >
+              <DropZone onDrop={logoUpload.handleFileDrop} className='flex items-center gap-4'>
+                <button
+                  type='button'
+                  onClick={logoUpload.handleThumbnailClick}
+                  disabled={logoUpload.isUploading}
+                  className='group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
                 >
-                  {previewUrl ? 'Change logo' : 'Upload logo'}
-                </Button>
-                {previewUrl && (
+                  {logoUpload.isUploading ? (
+                    <Loader2 className='h-5 w-5 animate-spin text-[var(--text-muted)]' />
+                  ) : logoUpload.previewUrl ? (
+                    <Image
+                      src={logoUpload.previewUrl}
+                      alt='Logo'
+                      fill
+                      className='object-contain p-1'
+                      unoptimized
+                    />
+                  ) : (
+                    <span className='text-[11px] text-[var(--text-muted)]'>Logo</span>
+                  )}
+                </button>
+                <div className='flex gap-2'>
                   <Button
-                    variant='ghost'
+                    variant='outline'
                     size='sm'
-                    onClick={handleRemove}
-                    className='text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                    onClick={logoUpload.handleThumbnailClick}
+                    disabled={logoUpload.isUploading}
+                    className='text-[13px]'
                   >
-                    <X className='mr-1 h-3.5 w-3.5' />
-                    Remove
+                    {logoUpload.previewUrl ? 'Change' : 'Upload'}
                   </Button>
-                )}
-              </div>
-              <input
-                ref={fileInputRef}
-                type='file'
-                accept='image/png,image/jpeg,image/jpg'
-                onChange={handleFileChange}
-                className='hidden'
-              />
-            </div>
-          </SettingRow>
+                  {logoUpload.previewUrl && (
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      onClick={logoUpload.handleRemove}
+                      className='text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                    >
+                      <X className='h-3.5 w-3.5' />
+                    </Button>
+                  )}
+                </div>
+                <input
+                  ref={logoUpload.fileInputRef}
+                  type='file'
+                  accept='image/png,image/jpeg,image/jpg'
+                  onChange={logoUpload.handleFileChange}
+                  className='hidden'
+                />
+              </DropZone>
+            </SettingRow>
+
+            <SettingRow
+              label='Wordmark'
+              description='Shown in the expanded sidebar. Wide image recommended (PNG or JPEG, max 5MB).'
+            >
+              <DropZone onDrop={wordmarkUpload.handleFileDrop} className='flex items-center gap-4'>
+                <button
+                  type='button'
+                  onClick={wordmarkUpload.handleThumbnailClick}
+                  disabled={wordmarkUpload.isUploading}
+                  className='group relative flex h-16 w-40 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
+                >
+                  {wordmarkUpload.isUploading ? (
+                    <Loader2 className='h-5 w-5 animate-spin text-[var(--text-muted)]' />
+                  ) : wordmarkUpload.previewUrl ? (
+                    <Image
+                      src={wordmarkUpload.previewUrl}
+                      alt='Wordmark'
+                      fill
+                      className='object-contain p-2'
+                      unoptimized
+                    />
+                  ) : (
+                    <span className='text-[11px] text-[var(--text-muted)]'>Wordmark</span>
+                  )}
+                </button>
+                <div className='flex gap-2'>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    onClick={wordmarkUpload.handleThumbnailClick}
+                    disabled={wordmarkUpload.isUploading}
+                    className='text-[13px]'
+                  >
+                    {wordmarkUpload.previewUrl ? 'Change' : 'Upload'}
+                  </Button>
+                  {wordmarkUpload.previewUrl && (
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      onClick={wordmarkUpload.handleRemove}
+                      className='text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                    >
+                      <X className='h-3.5 w-3.5' />
+                    </Button>
+                  )}
+                </div>
+                <input
+                  ref={wordmarkUpload.fileInputRef}
+                  type='file'
+                  accept='image/png,image/jpeg,image/jpg'
+                  onChange={wordmarkUpload.handleFileChange}
+                  className='hidden'
+                />
+              </DropZone>
+            </SettingRow>
+          </div>
 
           <SettingRow
             label='Brand name'

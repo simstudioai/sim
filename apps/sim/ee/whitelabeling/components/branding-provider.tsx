@@ -7,23 +7,32 @@ import { useWhitelabelSettings } from '@/ee/whitelabeling/hooks/whitelabel'
 import { generateOrgThemeCSS, mergeOrgBrandConfig } from '@/ee/whitelabeling/org-branding-utils'
 import { useOrganizations } from '@/hooks/queries/organization'
 
-const LOGO_CACHE_KEY = 'sim-wl-logo'
+const BRAND_CACHE_KEY = 'sim-wl'
 
-function readCachedLogoUrl(): string | null {
+interface BrandCache {
+  logoUrl?: string
+  wordmarkUrl?: string
+}
+
+function readCache(): BrandCache | null {
   if (typeof window === 'undefined') return null
   try {
-    return localStorage.getItem(LOGO_CACHE_KEY)
+    const raw = localStorage.getItem(BRAND_CACHE_KEY)
+    return raw ? JSON.parse(raw) : null
   } catch {
     return null
   }
 }
 
-function writeCachedLogoUrl(logoUrl: string | null) {
+function writeCache(logoUrl: string | null, wordmarkUrl: string | null) {
   try {
-    if (logoUrl) {
-      localStorage.setItem(LOGO_CACHE_KEY, logoUrl)
+    const entry: BrandCache = {}
+    if (logoUrl) entry.logoUrl = logoUrl
+    if (wordmarkUrl) entry.wordmarkUrl = wordmarkUrl
+    if (Object.keys(entry).length > 0) {
+      localStorage.setItem(BRAND_CACHE_KEY, JSON.stringify(entry))
     } else {
-      localStorage.removeItem(LOGO_CACHE_KEY)
+      localStorage.removeItem(BRAND_CACHE_KEY)
     }
   } catch {}
 }
@@ -40,36 +49,31 @@ interface BrandingProviderProps {
   children: React.ReactNode
 }
 
-/**
- * Provides merged branding (instance env vars + org DB settings) to the workspace.
- * Injects CSS variable overrides when org colors are configured.
- * Caches the org logo URL in localStorage to eliminate the flash on subsequent loads.
- */
 export function BrandingProvider({ children }: BrandingProviderProps) {
-  const [cachedLogoUrl] = useState<string | null>(readCachedLogoUrl)
+  const [cache] = useState<BrandCache | null>(readCache)
 
   const { data: orgsData, isLoading: orgsLoading } = useOrganizations()
   const orgId = orgsData?.activeOrganization?.id
   const { data: orgSettings, isLoading: settingsLoading } = useWhitelabelSettings(orgId)
 
-  // Once real settings arrive, keep the cache in sync.
   useEffect(() => {
     if (!orgId || settingsLoading) return
-    writeCachedLogoUrl(orgSettings?.logoUrl ?? null)
-  }, [orgId, settingsLoading, orgSettings?.logoUrl])
+    writeCache(orgSettings?.logoUrl ?? null, orgSettings?.wordmarkUrl ?? null)
+  }, [orgId, settingsLoading, orgSettings?.logoUrl, orgSettings?.wordmarkUrl])
 
-  // True while we're still resolving which logo to show.
   const brandingLoading = orgsLoading || (Boolean(orgId) && settingsLoading)
 
   const brandConfig = useMemo(() => {
     const base = mergeOrgBrandConfig(orgSettings ?? null, getBrandConfig())
-    // While loading, inject the cached logo so the correct logo appears immediately
-    // on repeat visits. Once loading completes, real data takes over.
-    if (brandingLoading && cachedLogoUrl) {
-      return { ...base, logoUrl: cachedLogoUrl }
+    if (brandingLoading && cache) {
+      return {
+        ...base,
+        ...(cache.logoUrl && !base.logoUrl && { logoUrl: cache.logoUrl }),
+        ...(cache.wordmarkUrl && !base.wordmarkUrl && { wordmarkUrl: cache.wordmarkUrl }),
+      }
     }
     return base
-  }, [orgSettings, brandingLoading, cachedLogoUrl])
+  }, [orgSettings, brandingLoading, cache])
 
   const themeCSS = useMemo(
     () => (orgSettings ? generateOrgThemeCSS(orgSettings) : ''),
@@ -84,10 +88,6 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
   )
 }
 
-/**
- * Returns the merged brand config (org settings overlaid on instance defaults).
- * Use this inside the workspace instead of `getBrandConfig()`.
- */
 export function useOrgBrandConfig(): BrandConfig {
   return useContext(BrandingContext).config
 }

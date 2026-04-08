@@ -1251,7 +1251,16 @@ export const Sidebar = memo(function Sidebar() {
                     tabIndex={isCollapsed ? -1 : undefined}
                     aria-label={brand.name}
                   >
-                    {brand.logoUrl ? (
+                    {brand.wordmarkUrl ? (
+                      <Image
+                        src={brand.wordmarkUrl}
+                        alt={brand.name}
+                        height={16}
+                        width={80}
+                        className='h-[16px] w-auto flex-shrink-0 object-contain object-left'
+                        unoptimized
+                      />
+                    ) : brand.logoUrl ? (
                       <Image
                         src={brand.logoUrl}
                         alt={brand.name}

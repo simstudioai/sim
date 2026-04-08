@@ -9,6 +9,7 @@ export interface ThemeColors {
 export interface BrandConfig {
   name: string
   logoUrl?: string
+  wordmarkUrl?: string
   faviconUrl?: string
   customCssUrl?: string
   supportEmail?: string
@@ -27,6 +28,7 @@ export interface BrandConfig {
 export interface OrganizationWhitelabelSettings {
   brandName?: string
   logoUrl?: string
+  wordmarkUrl?: string
   primaryColor?: string
   primaryHoverColor?: string
   accentColor?: string

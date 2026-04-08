@@ -20,6 +20,7 @@ export function mergeOrgBrandConfig(
     ...instanceConfig,
     name: orgSettings.brandName || instanceConfig.name,
     logoUrl: orgSettings.logoUrl || instanceConfig.logoUrl,
+    wordmarkUrl: orgSettings.wordmarkUrl || instanceConfig.wordmarkUrl,
     supportEmail: orgSettings.supportEmail || instanceConfig.supportEmail,
     documentationUrl: orgSettings.documentationUrl || instanceConfig.documentationUrl,
     termsUrl: orgSettings.termsUrl || instanceConfig.termsUrl,

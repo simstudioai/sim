@@ -21,6 +21,7 @@ const updateWhitelabelSchema = z.object({
     .nullable()
     .optional(),
   logoUrl: z.string().min(1).nullable().optional(),
+  wordmarkUrl: z.string().min(1).nullable().optional(),
   primaryColor: z
     .string()
     .regex(HEX_COLOR_REGEX, 'Primary color must be a valid hex color (e.g. #701ffc)')
