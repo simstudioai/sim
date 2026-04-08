@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { ChevronRight, Folder, FolderOpen, MoreHorizontal } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { generateId } from '@/lib/core/utils/uuid'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -18,6 +19,10 @@ import {
   useSidebarDragContext,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
+import {
+  buildDragResources,
+  createSidebarDragGhost,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import {
   useCanDelete,
   useDeleteFolder,
@@ -136,6 +141,7 @@ export function FolderItem({
   })
 
   const isEditingRef = useRef(false)
+  const dragGhostRef = useRef<HTMLElement | null>(null)
 
   const handleCreateWorkflowInFolder = useCallback(() => {
     const name = generateCreativeWorkflowName()
@@ -196,10 +202,24 @@ export function FolderItem({
           }
 
       e.dataTransfer.setData('sidebar-selection', JSON.stringify(selection))
-      e.dataTransfer.effectAllowed = 'move'
+      e.dataTransfer.effectAllowed = 'copyMove'
+
+      const resources = buildDragResources(selection, workspaceId)
+      if (resources.length > 0) {
+        e.dataTransfer.setData(SIM_RESOURCES_DRAG_TYPE, JSON.stringify(resources))
+      }
+
+      const total = selection.folderIds.length + selection.workflowIds.length
+      const ghostLabel = total > 1 ? `${folder.name} +${total - 1} more` : folder.name
+      const icon = total === 1 ? { kind: 'folder' as const } : undefined
+      const ghost = createSidebarDragGhost(ghostLabel, icon)
+      void ghost.offsetHeight
+      e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
+      dragGhostRef.current = ghost
+
       onDragStartProp?.()
     },
-    [folder.id, onDragStartProp]
+    [folder.id, folder.name, workspaceId, onDragStartProp]
   )
 
   const {
@@ -212,6 +232,10 @@ export function FolderItem({
   })
 
   const handleDragEnd = useCallback(() => {
+    if (dragGhostRef.current) {
+      dragGhostRef.current.remove()
+      dragGhostRef.current = null
+    }
     handleDragEndBase()
     onDragEndProp?.()
   }, [handleDragEndBase, onDragEndProp])

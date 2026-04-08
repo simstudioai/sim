@@ -3,31 +3,36 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { generateShortId } from '@/lib/core/utils/uuid'
-import { pollImapWebhooks } from '@/lib/webhooks/imap-polling-service'
+import { pollProvider, VALID_POLLING_PROVIDERS } from '@/lib/webhooks/polling'
 
-const logger = createLogger('ImapPollingAPI')
+const logger = createLogger('PollingAPI')
+
+/** Lock TTL in seconds — must match maxDuration so the lock auto-expires if the function times out. */
+const LOCK_TTL_SECONDS = 180
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 180 // Allow up to 3 minutes for polling to complete
+export const maxDuration = 180
 
-const LOCK_KEY = 'imap-polling-lock'
-const LOCK_TTL_SECONDS = 180 // Same as maxDuration (3 min)
-
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ provider: string }> }
+) {
+  const { provider } = await params
   const requestId = generateShortId()
-  logger.info(`IMAP webhook polling triggered (${requestId})`)
 
+  const LOCK_KEY = `${provider}-polling-lock`
   let lockValue: string | undefined
 
   try {
-    const authError = verifyCronAuth(request, 'IMAP webhook polling')
-    if (authError) {
-      return authError
+    const authError = verifyCronAuth(request, `${provider} webhook polling`)
+    if (authError) return authError
+
+    if (!VALID_POLLING_PROVIDERS.has(provider)) {
+      return NextResponse.json({ error: `Unknown polling provider: ${provider}` }, { status: 404 })
     }
 
-    lockValue = requestId // unique value to identify the holder
+    lockValue = requestId
     const locked = await acquireLock(LOCK_KEY, lockValue, LOCK_TTL_SECONDS)
-
     if (!locked) {
       return NextResponse.json(
         {
@@ -40,21 +45,21 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const results = await pollImapWebhooks()
+    const results = await pollProvider(provider)
 
     return NextResponse.json({
       success: true,
-      message: 'IMAP polling completed',
+      message: `${provider} polling completed`,
       requestId,
       status: 'completed',
       ...results,
     })
   } catch (error) {
-    logger.error(`Error during IMAP polling (${requestId}):`, error)
+    logger.error(`Error during ${provider} polling (${requestId}):`, error)
     return NextResponse.json(
       {
         success: false,
-        message: 'IMAP polling failed',
+        message: `${provider} polling failed`,
         error: error instanceof Error ? error.message : 'Unknown error',
         requestId,
       },

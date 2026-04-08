@@ -17,6 +17,7 @@ import {
   ModalFooter,
   ModalHeader,
   Plus,
+  Skeleton,
   UserPlus,
 } from '@/components/emcn'
 import { getDisplayPlanName, isFree } from '@/lib/billing/plan-helpers'
@@ -356,14 +357,16 @@ export function WorkspaceHeader({
                   }
                 }}
               >
-                <div
-                  className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-caption text-white leading-none'
-                  style={{
-                    backgroundColor: activeWorkspaceFull?.color || 'var(--brand-accent)',
-                  }}
-                >
-                  {workspaceInitial}
-                </div>
+                {activeWorkspaceFull ? (
+                  <div
+                    className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-caption text-white leading-none'
+                    style={{ backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)' }}
+                  >
+                    {workspaceInitial}
+                  </div>
+                ) : (
+                  <Skeleton className='h-[20px] w-[20px] flex-shrink-0 rounded-sm' />
+                )}
                 {!isCollapsed && (
                   <>
                     <span className='min-w-0 flex-1 truncate text-left font-base text-[var(--text-primary)] text-sm'>
@@ -400,14 +403,18 @@ export function WorkspaceHeader({
               ) : (
                 <>
                   <div className='flex items-center gap-2 px-0.5 py-0.5'>
-                    <div
-                      className='flex h-[32px] w-[32px] flex-shrink-0 items-center justify-center rounded-md font-medium text-caption text-white'
-                      style={{
-                        backgroundColor: activeWorkspaceFull?.color || 'var(--brand-accent)',
-                      }}
-                    >
-                      {workspaceInitial}
-                    </div>
+                    {activeWorkspaceFull ? (
+                      <div
+                        className='flex h-[32px] w-[32px] flex-shrink-0 items-center justify-center rounded-md font-medium text-caption text-white'
+                        style={{
+                          backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)',
+                        }}
+                      >
+                        {workspaceInitial}
+                      </div>
+                    ) : (
+                      <Skeleton className='h-[32px] w-[32px] flex-shrink-0 rounded-md' />
+                    )}
                     <div className='flex min-w-0 flex-1 flex-col'>
                       <span className='truncate font-medium text-[var(--text-primary)] text-small'>
                         {activeWorkspace?.name || 'Loading...'}
@@ -580,12 +587,16 @@ export function WorkspaceHeader({
             title={activeWorkspace?.name || 'Loading...'}
             disabled
           >
-            <div
-              className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-caption text-white leading-none'
-              style={{ backgroundColor: activeWorkspaceFull?.color || 'var(--brand-accent)' }}
-            >
-              {workspaceInitial}
-            </div>
+            {activeWorkspaceFull ? (
+              <div
+                className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-caption text-white leading-none'
+                style={{ backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)' }}
+              >
+                {workspaceInitial}
+              </div>
+            ) : (
+              <Skeleton className='h-[20px] w-[20px] flex-shrink-0 rounded-sm' />
+            )}
             {!isCollapsed && (
               <>
                 <span className='min-w-0 flex-1 truncate text-left font-base text-[var(--text-primary)] text-sm'>

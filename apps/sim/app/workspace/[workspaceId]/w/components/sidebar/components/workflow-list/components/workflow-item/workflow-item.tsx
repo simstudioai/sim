@@ -5,6 +5,8 @@ import clsx from 'clsx'
 import { MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
+import { workflowBorderColor } from '@/lib/workspaces/colors'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
@@ -16,6 +18,10 @@ import {
   useItemRename,
   useSidebarDragContext,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import {
+  buildDragResources,
+  createSidebarDragGhost,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import {
   useCanDelete,
   useDeleteSelection,
@@ -198,6 +204,7 @@ export function WorkflowItem({
   }, [isActiveWorkflow, isWorkflowLocked])
 
   const isEditingRef = useRef(false)
+  const dragGhostRef = useRef<HTMLElement | null>(null)
 
   const {
     isOpen: isContextMenuOpen,
@@ -337,10 +344,25 @@ export function WorkflowItem({
           }
 
       e.dataTransfer.setData('sidebar-selection', JSON.stringify(selection))
-      e.dataTransfer.effectAllowed = 'move'
+      e.dataTransfer.effectAllowed = 'copyMove'
+
+      const resources = buildDragResources(selection, workspaceId)
+      if (resources.length > 0) {
+        e.dataTransfer.setData(SIM_RESOURCES_DRAG_TYPE, JSON.stringify(resources))
+      }
+
+      const total = selection.workflowIds.length + selection.folderIds.length
+      const ghostLabel = total > 1 ? `${workflow.name} +${total - 1} more` : workflow.name
+      const icon = total === 1 ? { kind: 'workflow' as const, color: workflow.color } : undefined
+      const ghost = createSidebarDragGhost(ghostLabel, icon)
+      // Force reflow so the browser can capture the rendered element
+      void ghost.offsetHeight
+      e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
+      dragGhostRef.current = ghost
+
       onDragStartProp?.()
     },
-    [workflow.id, onDragStartProp]
+    [workflow.id, workflow.name, workflow.color, workspaceId, onDragStartProp]
   )
 
   const {
@@ -353,6 +375,10 @@ export function WorkflowItem({
   })
 
   const handleDragEnd = useCallback(() => {
+    if (dragGhostRef.current) {
+      dragGhostRef.current.remove()
+      dragGhostRef.current = null
+    }
     handleDragEndBase()
     onDragEndProp?.()
   }, [handleDragEndBase, onDragEndProp])
@@ -414,7 +440,7 @@ export function WorkflowItem({
           className='h-[16px] w-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
           style={{
             backgroundColor: workflow.color,
-            borderColor: `${workflow.color}60`,
+            borderColor: workflowBorderColor(workflow.color),
             backgroundClip: 'padding-box',
           }}
         />

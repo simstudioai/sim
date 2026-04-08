@@ -227,123 +227,128 @@ export function Admin() {
                 <div
                   key={u.id}
                   className={cn(
-                    'flex items-center gap-3 px-3 py-2 text-small',
+                    'flex flex-col gap-2 px-3 py-2 text-small',
                     'border-[var(--border-secondary)] border-b last:border-b-0'
                   )}
                 >
-                  <span className='w-[200px] truncate text-[var(--text-primary)]'>
-                    {u.name || '—'}
-                  </span>
-                  <span className='flex-1 truncate text-[var(--text-secondary)]'>{u.email}</span>
-                  <span className='w-[80px]'>
-                    <Badge variant={u.role === 'admin' ? 'blue' : 'gray'}>{u.role || 'user'}</Badge>
-                  </span>
-                  <span className='w-[80px]'>
-                    {u.banned ? (
-                      <Badge variant='red'>Banned</Badge>
-                    ) : (
-                      <Badge variant='green'>Active</Badge>
-                    )}
-                  </span>
-                  <span className='flex w-[250px] justify-end gap-1'>
-                    {u.id !== session?.user?.id && (
-                      <>
-                        <Button
-                          variant='active'
-                          className='h-[28px] px-2 text-[12px]'
-                          onClick={() => handleImpersonate(u.id)}
-                          disabled={pendingUserIds.has(u.id)}
-                        >
-                          {impersonatingUserId === u.id ||
-                          (impersonateUser.isPending &&
-                            (impersonateUser.variables as { userId?: string } | undefined)
-                              ?.userId === u.id)
-                            ? 'Switching...'
-                            : 'Impersonate'}
-                        </Button>
-                        <Button
-                          variant='active'
-                          className='h-[28px] px-2 text-[12px]'
-                          onClick={() => {
-                            setUserRole.reset()
-                            setUserRole.mutate({
-                              userId: u.id,
-                              role: u.role === 'admin' ? 'user' : 'admin',
-                            })
-                          }}
-                          disabled={pendingUserIds.has(u.id)}
-                        >
-                          {u.role === 'admin' ? 'Demote' : 'Promote'}
-                        </Button>
-                        {u.banned ? (
+                  <div className='flex items-center gap-3'>
+                    <span className='w-[200px] truncate text-[var(--text-primary)]'>
+                      {u.name || '—'}
+                    </span>
+                    <span className='flex-1 truncate text-[var(--text-secondary)]'>{u.email}</span>
+                    <span className='w-[80px]'>
+                      <Badge variant={u.role === 'admin' ? 'blue' : 'gray'}>
+                        {u.role || 'user'}
+                      </Badge>
+                    </span>
+                    <span className='w-[80px]'>
+                      {u.banned ? (
+                        <Badge variant='red'>Banned</Badge>
+                      ) : (
+                        <Badge variant='green'>Active</Badge>
+                      )}
+                    </span>
+                    <span className='flex w-[250px] justify-end gap-1'>
+                      {u.id !== session?.user?.id && (
+                        <>
                           <Button
                             variant='active'
-                            className='h-[28px] px-2 text-caption'
+                            className='h-[28px] px-2 text-[12px]'
+                            onClick={() => handleImpersonate(u.id)}
+                            disabled={pendingUserIds.has(u.id)}
+                          >
+                            {impersonatingUserId === u.id ||
+                            (impersonateUser.isPending &&
+                              (impersonateUser.variables as { userId?: string } | undefined)
+                                ?.userId === u.id)
+                              ? 'Switching...'
+                              : 'Impersonate'}
+                          </Button>
+                          <Button
+                            variant='active'
+                            className='h-[28px] px-2 text-[12px]'
                             onClick={() => {
-                              unbanUser.reset()
-                              unbanUser.mutate({ userId: u.id })
+                              setUserRole.reset()
+                              setUserRole.mutate({
+                                userId: u.id,
+                                role: u.role === 'admin' ? 'user' : 'admin',
+                              })
                             }}
                             disabled={pendingUserIds.has(u.id)}
                           >
-                            Unban
+                            {u.role === 'admin' ? 'Demote' : 'Promote'}
                           </Button>
-                        ) : banUserId === u.id ? (
-                          <div className='flex gap-1'>
-                            <EmcnInput
-                              value={banReason}
-                              onChange={(e) => setBanReason(e.target.value)}
-                              placeholder='Reason (optional)'
-                              className='h-[28px] w-[120px] text-caption'
-                            />
-                            <Button
-                              variant='primary'
-                              className='h-[28px] px-2 text-caption'
-                              onClick={() => {
-                                banUser.reset()
-                                banUser.mutate(
-                                  {
-                                    userId: u.id,
-                                    ...(banReason.trim() ? { banReason: banReason.trim() } : {}),
-                                  },
-                                  {
-                                    onSuccess: () => {
-                                      setBanUserId(null)
-                                      setBanReason('')
-                                    },
-                                  }
-                                )
-                              }}
-                              disabled={pendingUserIds.has(u.id)}
-                            >
-                              Confirm
-                            </Button>
+                          {u.banned ? (
                             <Button
                               variant='active'
                               className='h-[28px] px-2 text-caption'
                               onClick={() => {
+                                unbanUser.reset()
+                                unbanUser.mutate({ userId: u.id })
+                              }}
+                              disabled={pendingUserIds.has(u.id)}
+                            >
+                              Unban
+                            </Button>
+                          ) : (
+                            <Button
+                              variant='active'
+                              className={cn(
+                                'h-[28px] px-2 text-caption',
+                                banUserId === u.id
+                                  ? 'text-[var(--text-primary)]'
+                                  : 'text-[var(--text-error)]'
+                              )}
+                              onClick={() => {
+                                if (banUserId === u.id) {
+                                  setBanUserId(null)
+                                  setBanReason('')
+                                } else {
+                                  setBanUserId(u.id)
+                                  setBanReason('')
+                                }
+                              }}
+                              disabled={pendingUserIds.has(u.id)}
+                            >
+                              {banUserId === u.id ? 'Cancel' : 'Ban'}
+                            </Button>
+                          )}
+                        </>
+                      )}
+                    </span>
+                  </div>
+                  {banUserId === u.id && !u.banned && (
+                    <div className='flex items-center gap-2 pl-[200px]'>
+                      <EmcnInput
+                        value={banReason}
+                        onChange={(e) => setBanReason(e.target.value)}
+                        placeholder='Reason (optional)'
+                        className='h-[28px] flex-1 text-caption'
+                      />
+                      <Button
+                        variant='primary'
+                        className='h-[28px] px-3 text-caption'
+                        onClick={() => {
+                          banUser.reset()
+                          banUser.mutate(
+                            {
+                              userId: u.id,
+                              ...(banReason.trim() ? { banReason: banReason.trim() } : {}),
+                            },
+                            {
+                              onSuccess: () => {
                                 setBanUserId(null)
                                 setBanReason('')
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            variant='active'
-                            className='h-[28px] px-2 text-[var(--text-error)] text-caption'
-                            onClick={() => {
-                              setBanUserId(u.id)
-                              setBanReason('')
-                            }}
-                            disabled={pendingUserIds.has(u.id)}
-                          >
-                            Ban
-                          </Button>
-                        )}
-                      </>
-                    )}
-                  </span>
+                              },
+                            }
+                          )
+                        }}
+                        disabled={pendingUserIds.has(u.id)}
+                      >
+                        Confirm Ban
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

@@ -7,6 +7,17 @@ export function generateRequestId(): string {
 }
 
 /**
+ * Extract the client IP from a request, checking `x-forwarded-for` then `x-real-ip`.
+ */
+export function getClientIp(request: { headers: { get(name: string): string | null } }): string {
+  return (
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('x-real-ip')?.trim() ||
+    'unknown'
+  )
+}
+
+/**
  * No-operation function for use as default callback
  */
 export const noop = () => {}

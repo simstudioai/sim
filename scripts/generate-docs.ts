@@ -1434,13 +1434,8 @@ function parseConstFieldContent(
  * 1. Const reference (e.g., `outputs: GIT_REF_OUTPUT_PROPERTIES,`)
  * 2. Inline object (e.g., `outputs: { id: { type: 'string', ... } }`)
  */
-function extractOutputsFromToolContent(
-  content: string,
-  toolPrefix: string
-): Record<string, any> {
-  const constMatch = content.match(
-    /(?<![a-zA-Z_])outputs\s*:\s*([A-Z][A-Z_0-9]+)\s*(?:,|\}|$)/
-  )
+function extractOutputsFromToolContent(content: string, toolPrefix: string): Record<string, any> {
+  const constMatch = content.match(/(?<![a-zA-Z_])outputs\s*:\s*([A-Z][A-Z_0-9]+)\s*(?:,|\}|$)/)
   if (constMatch) {
     const resolved = resolveConstReference(constMatch[1], toolPrefix)
     if (resolved && typeof resolved === 'object') {
@@ -1649,8 +1644,7 @@ function extractToolInfo(
           lastExportMatch = m
         }
         if (lastExportMatch && lastExportMatch.index !== undefined) {
-          const bracePos =
-            lastExportMatch.index + lastExportMatch[0].length - 1
+          const bracePos = lastExportMatch.index + lastExportMatch[0].length - 1
           const ep = findMatchingClose(fileContent, bracePos)
           if (ep !== -1) {
             fullToolBlock = fileContent.substring(bracePos, ep)
@@ -1665,8 +1659,7 @@ function extractToolInfo(
         )
         const baseToolMatch = fileContent.match(baseToolRegex)
         if (baseToolMatch && baseToolMatch.index !== undefined) {
-          const baseStart =
-            baseToolMatch.index + baseToolMatch[0].length - 1
+          const baseStart = baseToolMatch.index + baseToolMatch[0].length - 1
           const endIdx = findMatchingClose(fileContent, baseStart)
           if (endIdx !== -1) {
             const baseToolContent = fileContent.substring(baseStart, endIdx)

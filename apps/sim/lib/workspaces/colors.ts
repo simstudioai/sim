@@ -77,6 +77,14 @@ function withAlpha(hexColor: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${Math.min(Math.max(alpha, 0), 1)})`
 }
 
+/**
+ * Returns the hex color with 60/ff (~38%) alpha — used for workflow color border accents.
+ * Returns `undefined` when `color` is undefined so callers can pass it directly to `borderColor`.
+ */
+export function workflowBorderColor(color: string | undefined): string | undefined {
+  return color ? `${color}60` : undefined
+}
+
 function buildGradient(fromColor: string, toColor: string, rotationSeed: number): string {
   const rotation = (rotationSeed * 25) % 360
   return `linear-gradient(${rotation}deg, ${fromColor}, ${toColor})`

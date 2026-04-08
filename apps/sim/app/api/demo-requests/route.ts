@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { env } from '@/lib/core/config/env'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
-import { generateRequestId } from '@/lib/core/utils/request'
+import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
 import { getEmailDomain } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   const requestId = generateRequestId()
 
   try {
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+    const ip = getClientIp(req)
     const storageKey = `public:demo-request:${ip}`
 
     const { allowed, remaining, resetAt } = await rateLimiter.checkRateLimitDirect(

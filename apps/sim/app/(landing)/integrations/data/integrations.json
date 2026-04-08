@@ -972,6 +972,57 @@
     "tags": ["hiring"]
   },
   {
+    "type": "athena",
+    "slug": "athena",
+    "name": "Athena",
+    "description": "Run SQL queries on data in Amazon S3 using AWS Athena",
+    "longDescription": "Integrate AWS Athena into workflows. Execute SQL queries against data in S3, check query status, retrieve results, manage named queries, and list executions. Requires AWS access key and secret access key.",
+    "bgColor": "linear-gradient(45deg, #4D27A8 0%, #A166FF 100%)",
+    "iconName": "AthenaIcon",
+    "docsUrl": "https://docs.sim.ai/tools/athena",
+    "operations": [
+      {
+        "name": "Start Query",
+        "description": "Start an SQL query execution in AWS Athena"
+      },
+      {
+        "name": "Get Query Execution",
+        "description": "Get the status and details of an Athena query execution"
+      },
+      {
+        "name": "Get Query Results",
+        "description": "Retrieve the results of a completed Athena query execution"
+      },
+      {
+        "name": "Stop Query",
+        "description": "Stop a running Athena query execution"
+      },
+      {
+        "name": "List Query Executions",
+        "description": "List recent Athena query execution IDs"
+      },
+      {
+        "name": "Create Named Query",
+        "description": "Create a saved/named query in AWS Athena"
+      },
+      {
+        "name": "Get Named Query",
+        "description": "Get details of a saved/named query in AWS Athena"
+      },
+      {
+        "name": "List Named Queries",
+        "description": "List saved/named query IDs in AWS Athena"
+      }
+    ],
+    "operationCount": 8,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationType": "analytics",
+    "tags": ["cloud", "data-analytics"]
+  },
+  {
     "type": "attio",
     "slug": "attio",
     "name": "Attio",

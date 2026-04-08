@@ -14,6 +14,7 @@ import {
 } from '@/components/emcn'
 import { Pencil, SquareArrowUpRight } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
+import { workflowBorderColor } from '@/lib/workspaces/colors'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
 import type { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import type { FolderTreeNode } from '@/stores/folders/types'
@@ -131,7 +132,7 @@ function WorkflowColorSwatch({ color }: { color: string }) {
       className='h-[16px] w-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
       style={{
         backgroundColor: color,
-        borderColor: `${color}60`,
+        borderColor: workflowBorderColor(color),
         backgroundClip: 'padding-box',
       }}
     />

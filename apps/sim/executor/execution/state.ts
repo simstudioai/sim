@@ -22,8 +22,6 @@ export interface ParallelScope {
   parallelId: string
   totalBranches: number
   branchOutputs: Map<number, NormalizedBlockOutput[]>
-  completedCount: number
-  totalExpectedNodes: number
   items?: any[]
   /** Error message if parallel validation failed (e.g., exceeded max branches) */
   validationError?: string

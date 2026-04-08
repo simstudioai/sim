@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { GoogleDocsIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, joinTagArray, parseTagDate } from '@/connectors/utils'
+import { joinTagArray, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('GoogleDocsConnector')
 
@@ -117,40 +117,23 @@ async function fetchDocContent(accessToken: string, documentId: string): Promise
 }
 
 /**
- * Converts a Drive file entry into an ExternalDocument by fetching its content
- * from the Google Docs API.
+ * Creates a lightweight stub from a Drive file entry. Content is deferred
+ * and only fetched via getDocument for new or changed documents.
  */
-async function fileToDocument(
-  accessToken: string,
-  file: DriveFile
-): Promise<ExternalDocument | null> {
-  try {
-    const content = await fetchDocContent(accessToken, file.id)
-    if (!content.trim()) {
-      logger.info(`Skipping empty document: ${file.name} (${file.id})`)
-      return null
-    }
-
-    const contentHash = await computeContentHash(content)
-
-    return {
-      externalId: file.id,
-      title: file.name || 'Untitled',
-      content,
-      mimeType: 'text/plain',
-      sourceUrl: file.webViewLink || `https://docs.google.com/document/d/${file.id}/edit`,
-      contentHash,
-      metadata: {
-        modifiedTime: file.modifiedTime,
-        createdTime: file.createdTime,
-        owners: file.owners?.map((o) => o.displayName || o.emailAddress).filter(Boolean),
-      },
-    }
-  } catch (error) {
-    logger.warn(`Failed to extract content from document: ${file.name} (${file.id})`, {
-      error: error instanceof Error ? error.message : String(error),
-    })
-    return null
+function fileToStub(file: DriveFile): ExternalDocument {
+  return {
+    externalId: file.id,
+    title: file.name || 'Untitled',
+    content: '',
+    contentDeferred: true,
+    mimeType: 'text/plain',
+    sourceUrl: file.webViewLink || `https://docs.google.com/document/d/${file.id}/edit`,
+    contentHash: `gdocs:${file.id}:${file.modifiedTime ?? ''}`,
+    metadata: {
+      modifiedTime: file.modifiedTime,
+      createdTime: file.createdTime,
+      owners: file.owners?.map((o) => o.displayName || o.emailAddress).filter(Boolean),
+    },
   }
 }
 
@@ -246,18 +229,11 @@ export const googleDocsConnector: ConnectorConfig = {
     const maxDocs = sourceConfig.maxDocs ? Number(sourceConfig.maxDocs) : 0
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
 
-    const CONCURRENCY = 5
-    const documents: ExternalDocument[] = []
-    for (let i = 0; i < files.length; i += CONCURRENCY) {
-      if (maxDocs > 0 && previouslyFetched + documents.length >= maxDocs) break
-      const batch = files.slice(i, i + CONCURRENCY)
-      const results = await Promise.all(batch.map((file) => fileToDocument(accessToken, file)))
-      documents.push(...(results.filter(Boolean) as ExternalDocument[]))
-    }
+    let documents = files.map(fileToStub)
     if (maxDocs > 0) {
       const remaining = maxDocs - previouslyFetched
       if (documents.length > remaining) {
-        documents.splice(remaining)
+        documents = documents.slice(0, remaining)
       }
     }
 
@@ -300,7 +276,17 @@ export const googleDocsConnector: ConnectorConfig = {
     if (file.trashed) return null
     if (file.mimeType !== 'application/vnd.google-apps.document') return null
 
-    return fileToDocument(accessToken, file)
+    try {
+      const content = await fetchDocContent(accessToken, file.id)
+      if (!content.trim()) return null
+
+      return { ...fileToStub(file), content, contentDeferred: false }
+    } catch (error) {
+      logger.warn(`Failed to extract content from document: ${file.name} (${file.id})`, {
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return null
+    }
   },
 
   validateConfig: async (

@@ -28,6 +28,7 @@ export class ParallelResolver implements Resolver {
     }
   }
 
+  private static OUTPUT_PROPERTIES = new Set(['result', 'results'])
   private static KNOWN_PROPERTIES = new Set(['index', 'currentItem', 'items'])
 
   canResolve(reference: string): boolean {
@@ -73,6 +74,10 @@ export class ParallelResolver implements Resolver {
       )
     }
 
+    if (rest.length > 0 && ParallelResolver.OUTPUT_PROPERTIES.has(rest[0])) {
+      return this.resolveOutput(targetParallelId, rest.slice(1), context)
+    }
+
     // Look up config using the original (non-cloned) ID
     const originalParallelId = stripOuterBranchSuffix(targetParallelId)
     const parallelConfig = this.workflow.parallels?.[originalParallelId]
@@ -116,7 +121,9 @@ export class ParallelResolver implements Resolver {
 
     if (!ParallelResolver.KNOWN_PROPERTIES.has(property)) {
       const isCollection = parallelConfig.parallelType === 'collection'
-      const availableFields = isCollection ? ['index', 'currentItem', 'items'] : ['index']
+      const availableFields = isCollection
+        ? ['index', 'currentItem', 'items', 'result']
+        : ['index', 'result']
       throw new InvalidFieldError(firstPart, property, availableFields)
     }
 
@@ -214,6 +221,22 @@ export class ParallelResolver implements Resolver {
       return key !== undefined ? (distributionItems as Record<string, unknown>)[key] : undefined
     }
     return undefined
+  }
+
+  private resolveOutput(
+    parallelId: string,
+    pathParts: string[],
+    context: ResolutionContext
+  ): unknown {
+    const output = context.executionState.getBlockOutput(parallelId)
+    if (!output || typeof output !== 'object') {
+      return undefined
+    }
+    const value = (output as Record<string, unknown>).results
+    if (pathParts.length > 0) {
+      return navigatePath(value, pathParts)
+    }
+    return value
   }
 
   private getDistributionItems(parallelConfig: SerializedParallel): unknown[] {

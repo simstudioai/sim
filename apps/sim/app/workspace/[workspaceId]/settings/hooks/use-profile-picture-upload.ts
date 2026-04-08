@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 
 const logger = createLogger('ProfilePictureUpload')
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
-const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg']
+const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml']
 
 interface UseProfilePictureUploadProps {
   onUpload?: (url: string | null) => void
@@ -27,21 +27,19 @@ export function useProfilePictureUpload({
   const [isUploading, setIsUploading] = useState(false)
 
   useEffect(() => {
-    if (currentImage !== previewUrl) {
-      if (previewRef.current && previewRef.current !== currentImage) {
-        URL.revokeObjectURL(previewRef.current)
-        previewRef.current = null
-      }
-      setPreviewUrl(currentImage || null)
+    if (previewRef.current && previewRef.current !== currentImage) {
+      URL.revokeObjectURL(previewRef.current)
+      previewRef.current = null
     }
-  }, [currentImage, previewUrl])
+    setPreviewUrl(currentImage || null)
+  }, [currentImage])
 
   const validateFile = useCallback((file: File): string | null => {
     if (file.size > MAX_FILE_SIZE) {
       return `File "${file.name}" is too large. Maximum size is 5MB.`
     }
     if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      return `File "${file.name}" is not a supported image format. Please use PNG or JPEG.`
+      return `File "${file.name}" is not a supported image format. Please use PNG, JPEG, or SVG.`
     }
     return null
   }, [])
@@ -75,50 +73,57 @@ export function useProfilePictureUpload({
     }
   }, [])
 
-  const handleFileChange = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0]
-      if (file) {
-        const validationError = validateFile(file)
-        if (validationError) {
-          onError?.(validationError)
-          return
-        }
+  const processFile = useCallback(
+    async (file: File) => {
+      const validationError = validateFile(file)
+      if (validationError) {
+        onError?.(validationError)
+        return
+      }
 
-        setFileName(file.name)
+      setFileName(file.name)
 
-        const newPreviewUrl = URL.createObjectURL(file)
+      const newPreviewUrl = URL.createObjectURL(file)
+      if (previewRef.current) URL.revokeObjectURL(previewRef.current)
+      setPreviewUrl(newPreviewUrl)
+      previewRef.current = newPreviewUrl
 
-        if (previewRef.current) {
-          URL.revokeObjectURL(previewRef.current)
-        }
-
-        setPreviewUrl(newPreviewUrl)
-        previewRef.current = newPreviewUrl
-
-        setIsUploading(true)
-        try {
-          const serverUrl = await uploadFileToServer(file)
-
-          URL.revokeObjectURL(newPreviewUrl)
-          previewRef.current = null
-          setPreviewUrl(serverUrl)
-
-          onUpload?.(serverUrl)
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : 'Failed to upload profile picture'
-          onError?.(errorMessage)
-
-          URL.revokeObjectURL(newPreviewUrl)
-          previewRef.current = null
-          setPreviewUrl(currentImage || null)
-        } finally {
-          setIsUploading(false)
-        }
+      setIsUploading(true)
+      try {
+        const serverUrl = await uploadFileToServer(file)
+        URL.revokeObjectURL(newPreviewUrl)
+        previewRef.current = null
+        setPreviewUrl(serverUrl)
+        onUpload?.(serverUrl)
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'Failed to upload profile picture'
+        onError?.(errorMessage)
+        URL.revokeObjectURL(newPreviewUrl)
+        previewRef.current = null
+        setPreviewUrl(currentImage || null)
+      } finally {
+        setIsUploading(false)
       }
     },
     [onUpload, onError, uploadFileToServer, validateFile, currentImage]
+  )
+
+  const handleFileChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      if (file) processFile(file)
+    },
+    [processFile]
+  )
+
+  const handleFileDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      const file = e.dataTransfer.files[0]
+      if (file) processFile(file)
+    },
+    [processFile]
   )
 
   const handleRemove = useCallback(() => {
@@ -148,6 +153,7 @@ export function useProfilePictureUpload({
     fileInputRef,
     handleThumbnailClick,
     handleFileChange,
+    handleFileDrop,
     handleRemove,
     isUploading,
   }

@@ -67,7 +67,9 @@ function generateMockValue(type: string, _description?: string, fieldName?: stri
 }
 
 /**
- * Recursively processes nested output structures
+ * Recursively processes nested output structures, expanding JSON-Schema-style
+ * objects/arrays that define `properties` or `items` instead of returning
+ * a generic placeholder.
  */
 function processOutputField(key: string, field: unknown, depth = 0, maxDepth = 10): unknown {
   if (depth > maxDepth) {
@@ -80,7 +82,30 @@ function processOutputField(key: string, field: unknown, depth = 0, maxDepth = 1
     'type' in field &&
     typeof (field as Record<string, unknown>).type === 'string'
   ) {
-    const typedField = field as { type: string; description?: string }
+    const typedField = field as {
+      type: string
+      description?: string
+      properties?: Record<string, unknown>
+      items?: unknown
+    }
+
+    if (
+      (typedField.type === 'object' || typedField.type === 'json') &&
+      typedField.properties &&
+      typeof typedField.properties === 'object'
+    ) {
+      const nestedObject: Record<string, unknown> = {}
+      for (const [nestedKey, nestedField] of Object.entries(typedField.properties)) {
+        nestedObject[nestedKey] = processOutputField(nestedKey, nestedField, depth + 1, maxDepth)
+      }
+      return nestedObject
+    }
+
+    if (typedField.type === 'array' && typedField.items && typeof typedField.items === 'object') {
+      const itemValue = processOutputField(`${key}_item`, typedField.items, depth + 1, maxDepth)
+      return [itemValue]
+    }
+
     return generateMockValue(typedField.type, typedField.description, key)
   }
 

@@ -10,6 +10,7 @@ import {
 import { Button, Tooltip } from '@/components/emcn'
 import { Columns3, Eye, PanelLeft, Pencil } from '@/components/emcn/icons'
 import { isEphemeralResource } from '@/lib/copilot/resource-extraction'
+import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
@@ -164,7 +165,7 @@ export function ResourceTabs({
       const resource = resources[idx]
       if (resource) {
         e.dataTransfer.setData(
-          'application/x-sim-resource',
+          SIM_RESOURCE_DRAG_TYPE,
           JSON.stringify({ type: resource.type, id: resource.id, title: resource.title })
         )
       }

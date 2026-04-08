@@ -222,6 +222,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
     if (parsed.data.status !== undefined) {
       updates.status = parsed.data.status
+      if (parsed.data.status === 'active') {
+        updates.consecutiveFailures = 0
+        updates.lastSyncError = null
+        if (updates.nextSyncAt === undefined) {
+          updates.nextSyncAt = new Date()
+        }
+      }
     }
 
     await db

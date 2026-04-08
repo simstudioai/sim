@@ -47,17 +47,13 @@ export class ParallelOrchestrator {
     private contextExtensions: ContextExtensions | null = null
   ) {}
 
-  async initializeParallelScope(
-    ctx: ExecutionContext,
-    parallelId: string,
-    terminalNodesCount = 1
-  ): Promise<ParallelScope> {
+  async initializeParallelScope(ctx: ExecutionContext, parallelId: string): Promise<ParallelScope> {
     const parallelConfig = this.dag.parallelConfigs.get(parallelId)
     if (!parallelConfig) {
       throw new Error(`Parallel config not found: ${parallelId}`)
     }
 
-    if (terminalNodesCount === 0 || parallelConfig.nodes.length === 0) {
+    if (parallelConfig.nodes.length === 0) {
       const errorMessage =
         'Parallel has no executable blocks inside. Add or enable at least one block in the parallel.'
       logger.error(errorMessage, { parallelId })
@@ -108,8 +104,6 @@ export class ParallelOrchestrator {
         parallelId,
         totalBranches: 0,
         branchOutputs: new Map(),
-        completedCount: 0,
-        totalExpectedNodes: 0,
         items: [],
         isEmpty: true,
       }
@@ -186,8 +180,6 @@ export class ParallelOrchestrator {
       parallelId,
       totalBranches: branchCount,
       branchOutputs: new Map(),
-      completedCount: 0,
-      totalExpectedNodes: branchCount * terminalNodesCount,
       items,
     }
 
@@ -253,8 +245,6 @@ export class ParallelOrchestrator {
       parallelId,
       totalBranches: 0,
       branchOutputs: new Map(),
-      completedCount: 0,
-      totalExpectedNodes: 0,
       items: [],
       validationError: errorMessage,
     }
@@ -277,32 +267,34 @@ export class ParallelOrchestrator {
     return resolveArrayInput(ctx, config.distribution, this.resolver)
   }
 
+  /**
+   * Stores a node's output in the branch outputs for later aggregation.
+   * Aggregation is triggered by the sentinel-end node via the edge mechanism,
+   * not by counting individual node completions. This avoids incorrect completion
+   * detection when branches have conditional paths (error edges, conditions).
+   */
   handleParallelBranchCompletion(
     ctx: ExecutionContext,
     parallelId: string,
     nodeId: string,
     output: NormalizedBlockOutput
-  ): boolean {
+  ): void {
     const scope = ctx.parallelExecutions?.get(parallelId)
     if (!scope) {
       logger.warn('Parallel scope not found for branch completion', { parallelId, nodeId })
-      return false
+      return
     }
 
     const branchIndex = extractBranchIndex(nodeId)
     if (branchIndex === null) {
       logger.warn('Could not extract branch index from node ID', { nodeId })
-      return false
+      return
     }
 
     if (!scope.branchOutputs.has(branchIndex)) {
       scope.branchOutputs.set(branchIndex, [])
     }
     scope.branchOutputs.get(branchIndex)!.push(output)
-    scope.completedCount++
-
-    const allComplete = scope.completedCount >= scope.totalExpectedNodes
-    return allComplete
   }
 
   async aggregateParallelResults(

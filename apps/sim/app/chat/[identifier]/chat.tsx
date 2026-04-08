@@ -127,6 +127,14 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   const [authRequired, setAuthRequired] = useState<'password' | 'email' | 'sso' | null>(null)
 
   const [isVoiceFirstMode, setIsVoiceFirstMode] = useState(false)
+  const [sttAvailable, setSttAvailable] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/settings/voice')
+      .then((r) => (r.ok ? r.json() : { sttAvailable: false }))
+      .then((data) => setSttAvailable(data.sttAvailable === true))
+      .catch(() => setSttAvailable(false))
+  }, [])
   const { isStreamingResponse, abortControllerRef, stopStreaming, handleStreamedResponse } =
     useChatStreaming()
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -443,8 +451,9 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   }, [isStreamingResponse, stopStreaming, setMessages, stopAudio])
 
   const handleVoiceStart = useCallback(() => {
+    if (!sttAvailable) return
     setIsVoiceFirstMode(true)
-  }, [])
+  }, [sttAvailable])
 
   const handleExitVoiceMode = useCallback(() => {
     setIsVoiceFirstMode(false)
@@ -494,6 +503,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
         isStreaming={isStreamingResponse}
         isPlayingAudio={isPlayingAudio}
         audioContextRef={audioContextRef}
+        chatId={chatConfig?.id}
         messages={messages.map((msg) => ({
           content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
           type: msg.type,
@@ -529,6 +539,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
             isStreaming={isStreamingResponse}
             onStopStreaming={() => stopStreaming(setMessages)}
             onVoiceStart={handleVoiceStart}
+            sttAvailable={sttAvailable}
           />
         </div>
       </div>

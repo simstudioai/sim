@@ -95,6 +95,8 @@ export const buildTimeCSPDirectives: CSPDirectives = {
         ? ['http://localhost:3002', 'ws://localhost:3002']
         : []),
     'https://api.browser-use.com',
+    'https://api.elevenlabs.io',
+    'wss://api.elevenlabs.io',
     'https://api.exa.ai',
     'https://api.firecrawl.dev',
     'https://*.googleapis.com',
@@ -197,7 +199,7 @@ export function generateRuntimeCSP(): string {
     img-src 'self' data: blob: https://*.googleusercontent.com https://*.google.com https://*.atlassian.com https://cdn.discordapp.com https://*.githubusercontent.com https://*.s3.amazonaws.com https://s3.amazonaws.com https://*.amazonaws.com https://*.blob.core.windows.net https://github.com/* https://collector.onedollarstats.com ${gtmImg} ${brandLogoDomain} ${brandFaviconDomain};
     media-src 'self' blob:;
     font-src 'self' https://fonts.gstatic.com;
-    connect-src 'self' ${appUrl} ${ollamaUrl} ${socketUrl} ${socketWsUrl} https://api.browser-use.com https://api.exa.ai https://api.firecrawl.dev https://*.googleapis.com https://*.amazonaws.com https://*.s3.amazonaws.com https://*.blob.core.windows.net https://api.github.com https://github.com/* https://*.atlassian.com https://*.supabase.co https://challenges.cloudflare.com https://collector.onedollarstats.com ${gtmConnect} ${dynamicDomainsStr};
+    connect-src 'self' ${appUrl} ${ollamaUrl} ${socketUrl} ${socketWsUrl} https://api.browser-use.com https://api.elevenlabs.io wss://api.elevenlabs.io https://api.exa.ai https://api.firecrawl.dev https://*.googleapis.com https://*.amazonaws.com https://*.s3.amazonaws.com https://*.blob.core.windows.net https://api.github.com https://github.com/* https://*.atlassian.com https://*.supabase.co https://challenges.cloudflare.com https://collector.onedollarstats.com ${gtmConnect} ${dynamicDomainsStr};
     frame-src 'self' https://challenges.cloudflare.com https://drive.google.com https://docs.google.com https://*.google.com ${gtmFrame};
     frame-ancestors 'self';
     form-action 'self';

@@ -1,19 +1,14 @@
-import { db } from '@sim/db'
-import { webhook, workflow, workflowDeploymentVersion } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import type { InferSelectModel } from 'drizzle-orm'
-import { and, eq, isNull, or, sql } from 'drizzle-orm'
 import type { FetchMessageObject, MailboxLockObject } from 'imapflow'
 import { ImapFlow } from 'imapflow'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import { generateShortId } from '@/lib/core/utils/uuid'
-import { MAX_CONSECUTIVE_FAILURES } from '@/triggers/constants'
-
-const logger = createLogger('ImapPollingService')
-
-type WebhookRecord = InferSelectModel<typeof webhook>
+import type { PollingProviderHandler, PollWebhookContext } from '@/lib/webhooks/polling/types'
+import {
+  markWebhookFailed,
+  markWebhookSuccess,
+  updateWebhookProviderConfig,
+} from '@/lib/webhooks/polling/utils'
+import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
 
 interface ImapWebhookConfig {
   host: string
@@ -21,13 +16,13 @@ interface ImapWebhookConfig {
   secure: boolean
   username: string
   password: string
-  mailbox: string | string[] // Can be single mailbox or array of mailboxes
+  mailbox: string | string[]
   searchCriteria: string
   markAsRead: boolean
   includeAttachments: boolean
   lastProcessedUid?: number
-  lastProcessedUidByMailbox?: Record<string, number> // Track UID per mailbox for multi-mailbox
-  lastCheckedTimestamp?: string // ISO timestamp of last successful poll
+  lastProcessedUidByMailbox?: Record<string, number>
+  lastCheckedTimestamp?: string
   maxEmailsPerPoll?: number
 }
 
@@ -69,206 +64,112 @@ export interface ImapWebhookPayload {
   timestamp: string
 }
 
-async function markWebhookFailed(webhookId: string) {
-  try {
-    const result = await db
-      .update(webhook)
-      .set({
-        failedCount: sql`COALESCE(${webhook.failedCount}, 0) + 1`,
-        lastFailedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(webhook.id, webhookId))
-      .returning({ failedCount: webhook.failedCount })
+export const imapPollingHandler: PollingProviderHandler = {
+  provider: 'imap',
+  label: 'IMAP',
 
-    const newFailedCount = result[0]?.failedCount || 0
-    const shouldDisable = newFailedCount >= MAX_CONSECUTIVE_FAILURES
+  async pollWebhook(ctx: PollWebhookContext): Promise<'success' | 'failure'> {
+    const { webhookData, workflowData, requestId, logger } = ctx
+    const webhookId = webhookData.id
 
-    if (shouldDisable) {
-      await db
-        .update(webhook)
-        .set({
-          isActive: false,
-          updatedAt: new Date(),
-        })
-        .where(eq(webhook.id, webhookId))
+    try {
+      const config = webhookData.providerConfig as unknown as ImapWebhookConfig
 
-      logger.warn(
-        `Webhook ${webhookId} auto-disabled after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`
-      )
-    }
-  } catch (err) {
-    logger.error(`Failed to mark webhook ${webhookId} as failed:`, err)
-  }
-}
-
-async function markWebhookSuccess(webhookId: string) {
-  try {
-    await db
-      .update(webhook)
-      .set({
-        failedCount: 0,
-        updatedAt: new Date(),
-      })
-      .where(eq(webhook.id, webhookId))
-  } catch (err) {
-    logger.error(`Failed to mark webhook ${webhookId} as successful:`, err)
-  }
-}
-
-export async function pollImapWebhooks() {
-  logger.info('Starting IMAP webhook polling')
-
-  try {
-    const activeWebhooksResult = await db
-      .select({ webhook })
-      .from(webhook)
-      .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .leftJoin(
-        workflowDeploymentVersion,
-        and(
-          eq(workflowDeploymentVersion.workflowId, workflow.id),
-          eq(workflowDeploymentVersion.isActive, true)
-        )
-      )
-      .where(
-        and(
-          eq(webhook.provider, 'imap'),
-          eq(webhook.isActive, true),
-          eq(workflow.isDeployed, true),
-          or(
-            eq(webhook.deploymentVersionId, workflowDeploymentVersion.id),
-            and(isNull(workflowDeploymentVersion.id), isNull(webhook.deploymentVersionId))
-          )
-        )
-      )
-
-    const activeWebhooks = activeWebhooksResult.map((r) => r.webhook)
-
-    if (!activeWebhooks.length) {
-      logger.info('No active IMAP webhooks found')
-      return { total: 0, successful: 0, failed: 0, details: [] }
-    }
-
-    logger.info(`Found ${activeWebhooks.length} active IMAP webhooks`)
-
-    const CONCURRENCY = 5
-
-    const running: Promise<void>[] = []
-    let successCount = 0
-    let failureCount = 0
-
-    const enqueue = async (webhookData: (typeof activeWebhooks)[number]) => {
-      const webhookId = webhookData.id
-      const requestId = generateShortId()
-
-      try {
-        const config = webhookData.providerConfig as unknown as ImapWebhookConfig
-
-        if (!config.host || !config.username || !config.password) {
-          logger.error(`[${requestId}] Missing IMAP credentials for webhook ${webhookId}`)
-          await markWebhookFailed(webhookId)
-          failureCount++
-          return
-        }
-
-        const hostValidation = await validateDatabaseHost(config.host, 'host')
-        if (!hostValidation.isValid) {
-          logger.error(
-            `[${requestId}] IMAP host validation failed for webhook ${webhookId}: ${hostValidation.error}`
-          )
-          await markWebhookFailed(webhookId)
-          failureCount++
-          return
-        }
-
-        const fetchResult = await fetchNewEmails(config, requestId, hostValidation.resolvedIP!)
-        const { emails, latestUidByMailbox } = fetchResult
-        const pollTimestamp = new Date().toISOString()
-
-        if (!emails || !emails.length) {
-          await updateWebhookLastProcessedUids(webhookId, latestUidByMailbox, pollTimestamp)
-          await markWebhookSuccess(webhookId)
-          logger.info(`[${requestId}] No new emails found for webhook ${webhookId}`)
-          successCount++
-          return
-        }
-
-        logger.info(`[${requestId}] Found ${emails.length} new emails for webhook ${webhookId}`)
-
-        const { processedCount, failedCount: emailFailedCount } = await processEmails(
-          emails,
-          webhookData,
-          config,
-          requestId,
-          hostValidation.resolvedIP!
-        )
-
-        await updateWebhookLastProcessedUids(webhookId, latestUidByMailbox, pollTimestamp)
-
-        if (emailFailedCount > 0 && processedCount === 0) {
-          await markWebhookFailed(webhookId)
-          failureCount++
-          logger.warn(
-            `[${requestId}] All ${emailFailedCount} emails failed to process for webhook ${webhookId}`
-          )
-        } else {
-          await markWebhookSuccess(webhookId)
-          successCount++
-          logger.info(
-            `[${requestId}] Successfully processed ${processedCount} emails for webhook ${webhookId}${emailFailedCount > 0 ? ` (${emailFailedCount} failed)` : ''}`
-          )
-        }
-      } catch (error) {
-        logger.error(`[${requestId}] Error processing IMAP webhook ${webhookId}:`, error)
-        await markWebhookFailed(webhookId)
-        failureCount++
+      if (!config.host || !config.username || !config.password) {
+        logger.error(`[${requestId}] Missing IMAP credentials for webhook ${webhookId}`)
+        await markWebhookFailed(webhookId, logger)
+        return 'failure'
       }
-    }
 
-    for (const webhookData of activeWebhooks) {
-      const promise: Promise<void> = enqueue(webhookData)
-        .catch((err) => {
-          logger.error('Unexpected error in webhook processing:', err)
-          failureCount++
-        })
-        .finally(() => {
-          // Self-remove from running array when completed
-          const idx = running.indexOf(promise)
-          if (idx !== -1) running.splice(idx, 1)
-        })
-
-      running.push(promise)
-
-      if (running.length >= CONCURRENCY) {
-        await Promise.race(running)
+      const hostValidation = await validateDatabaseHost(config.host, 'host')
+      if (!hostValidation.isValid) {
+        logger.error(
+          `[${requestId}] IMAP host validation failed for webhook ${webhookId}: ${hostValidation.error}`
+        )
+        await markWebhookFailed(webhookId, logger)
+        return 'failure'
       }
+
+      const { emails, latestUidByMailbox } = await fetchNewEmails(
+        config,
+        requestId,
+        hostValidation.resolvedIP!,
+        logger
+      )
+      const pollTimestamp = new Date().toISOString()
+
+      if (!emails || !emails.length) {
+        await updateImapState(webhookId, latestUidByMailbox, pollTimestamp, config, logger)
+        await markWebhookSuccess(webhookId, logger)
+        logger.info(`[${requestId}] No new emails found for webhook ${webhookId}`)
+        return 'success'
+      }
+
+      logger.info(`[${requestId}] Found ${emails.length} new emails for webhook ${webhookId}`)
+
+      const { processedCount, failedCount } = await processEmails(
+        emails,
+        webhookData,
+        workflowData,
+        config,
+        requestId,
+        hostValidation.resolvedIP!,
+        logger
+      )
+
+      await updateImapState(webhookId, latestUidByMailbox, pollTimestamp, config, logger)
+
+      if (failedCount > 0 && processedCount === 0) {
+        await markWebhookFailed(webhookId, logger)
+        logger.warn(
+          `[${requestId}] All ${failedCount} emails failed to process for webhook ${webhookId}`
+        )
+        return 'failure'
+      }
+
+      await markWebhookSuccess(webhookId, logger)
+      logger.info(
+        `[${requestId}] Successfully processed ${processedCount} emails for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
+      )
+      return 'success'
+    } catch (error) {
+      logger.error(`[${requestId}] Error processing IMAP webhook ${webhookId}:`, error)
+      await markWebhookFailed(webhookId, logger)
+      return 'failure'
     }
-
-    await Promise.allSettled(running)
-
-    const summary = {
-      total: activeWebhooks.length,
-      successful: successCount,
-      failed: failureCount,
-      details: [],
-    }
-
-    logger.info('IMAP polling completed', {
-      total: summary.total,
-      successful: summary.successful,
-      failed: summary.failed,
-    })
-
-    return summary
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    logger.error('Error in IMAP polling service:', errorMessage)
-    throw error
-  }
+  },
 }
 
-async function fetchNewEmails(config: ImapWebhookConfig, requestId: string, resolvedIP: string) {
+async function updateImapState(
+  webhookId: string,
+  uidByMailbox: Record<string, number>,
+  timestamp: string,
+  config: ImapWebhookConfig,
+  logger: ReturnType<typeof import('@sim/logger').createLogger>
+) {
+  const existingUidByMailbox = config.lastProcessedUidByMailbox || {}
+  const mergedUidByMailbox = { ...existingUidByMailbox }
+
+  for (const [mailbox, uid] of Object.entries(uidByMailbox)) {
+    mergedUidByMailbox[mailbox] = Math.max(uid, mergedUidByMailbox[mailbox] || 0)
+  }
+
+  await updateWebhookProviderConfig(
+    webhookId,
+    {
+      lastProcessedUidByMailbox: mergedUidByMailbox,
+      lastCheckedTimestamp: timestamp,
+    },
+    logger
+  )
+}
+
+async function fetchNewEmails(
+  config: ImapWebhookConfig,
+  requestId: string,
+  resolvedIP: string,
+  logger: ReturnType<typeof import('@sim/logger').createLogger>
+) {
   const client = new ImapFlow({
     host: resolvedIP,
     servername: config.host,
@@ -278,15 +179,13 @@ async function fetchNewEmails(config: ImapWebhookConfig, requestId: string, reso
       user: config.username,
       pass: config.password,
     },
-    tls: {
-      rejectUnauthorized: true,
-    },
+    tls: { rejectUnauthorized: true },
     logger: false,
   })
 
   const emails: Array<{
     uid: number
-    mailboxPath: string // Track which mailbox this email came from
+    mailboxPath: string
     envelope: FetchMessageObject['envelope']
     bodyStructure: FetchMessageObject['bodyStructure']
     source?: Buffer
@@ -305,13 +204,12 @@ async function fetchNewEmails(config: ImapWebhookConfig, requestId: string, reso
       if (totalEmailsCollected >= maxEmails) break
 
       try {
-        const mailbox = await client.mailboxOpen(mailboxPath)
+        await client.mailboxOpen(mailboxPath)
 
-        // Parse search criteria - expects JSON object from UI
-        let searchCriteria: any = { unseen: true }
+        let searchCriteria: Record<string, unknown> = { unseen: true }
         if (config.searchCriteria) {
           if (typeof config.searchCriteria === 'object') {
-            searchCriteria = config.searchCriteria
+            searchCriteria = config.searchCriteria as unknown as Record<string, unknown>
           } else if (typeof config.searchCriteria === 'string') {
             try {
               searchCriteria = JSON.parse(config.searchCriteria)
@@ -327,15 +225,11 @@ async function fetchNewEmails(config: ImapWebhookConfig, requestId: string, reso
           searchCriteria = { ...searchCriteria, uid: `${lastUidForMailbox + 1}:*` }
         }
 
-        // Add time-based filtering similar to Gmail
-        // If lastCheckedTimestamp exists, use it with 1 minute buffer
-        // If first poll (no timestamp), default to last 24 hours to avoid processing ALL unseen emails
         if (config.lastCheckedTimestamp) {
           const lastChecked = new Date(config.lastCheckedTimestamp)
           const bufferTime = new Date(lastChecked.getTime() - 60000)
           searchCriteria = { ...searchCriteria, since: bufferTime }
         } else {
-          // First poll: only get emails from last 24 hours to avoid overwhelming first run
           const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
           searchCriteria = { ...searchCriteria, since: oneDayAgo }
         }
@@ -344,15 +238,13 @@ async function fetchNewEmails(config: ImapWebhookConfig, requestId: string, reso
         try {
           const searchResult = await client.search(searchCriteria, { uid: true })
           messageUids = searchResult === false ? [] : searchResult
-        } catch (searchError) {
+        } catch {
           continue
         }
 
-        if (messageUids.length === 0) {
-          continue
-        }
+        if (messageUids.length === 0) continue
 
-        messageUids.sort((a, b) => a - b) // Sort ascending to process oldest first
+        messageUids.sort((a, b) => a - b)
         const remainingSlots = maxEmails - totalEmailsCollected
         const uidsToProcess = messageUids.slice(0, remainingSlots)
 
@@ -365,12 +257,7 @@ async function fetchNewEmails(config: ImapWebhookConfig, requestId: string, reso
 
         for await (const msg of client.fetch(
           uidsToProcess,
-          {
-            uid: true,
-            envelope: true,
-            bodyStructure: true,
-            source: true,
-          },
+          { uid: true, envelope: true, bodyStructure: true, source: true },
           { uid: true }
         )) {
           emails.push({
@@ -388,7 +275,6 @@ async function fetchNewEmails(config: ImapWebhookConfig, requestId: string, reso
     }
 
     await client.logout()
-
     return { emails, latestUidByMailbox }
   } catch (error) {
     try {
@@ -400,9 +286,6 @@ async function fetchNewEmails(config: ImapWebhookConfig, requestId: string, reso
   }
 }
 
-/**
- * Get the list of mailboxes to check based on config
- */
 function getMailboxesToCheck(config: ImapWebhookConfig): string[] {
   if (!config.mailbox || (Array.isArray(config.mailbox) && config.mailbox.length === 0)) {
     return ['INBOX']
@@ -488,7 +371,6 @@ function extractAttachmentsFromSource(
   bodyStructure: FetchMessageObject['bodyStructure']
 ): ImapAttachment[] {
   const attachments: ImapAttachment[] = []
-
   if (!bodyStructure) return attachments
 
   const content = source.toString('utf-8')
@@ -534,24 +416,13 @@ function extractAttachmentsFromSource(
   return attachments
 }
 
-/**
- * Checks if a body structure contains attachments by examining disposition
- */
 function hasAttachmentsInBodyStructure(structure: FetchMessageObject['bodyStructure']): boolean {
   if (!structure) return false
-
-  if (structure.disposition === 'attachment') {
-    return true
-  }
-
-  if (structure.disposition === 'inline' && structure.dispositionParameters?.filename) {
-    return true
-  }
-
+  if (structure.disposition === 'attachment') return true
+  if (structure.disposition === 'inline' && structure.dispositionParameters?.filename) return true
   if (structure.childNodes && Array.isArray(structure.childNodes)) {
     return structure.childNodes.some((child) => hasAttachmentsInBodyStructure(child))
   }
-
   return false
 }
 
@@ -563,10 +434,12 @@ async function processEmails(
     bodyStructure: FetchMessageObject['bodyStructure']
     source?: Buffer
   }>,
-  webhookData: WebhookRecord,
+  webhookData: PollWebhookContext['webhookData'],
+  workflowData: PollWebhookContext['workflowData'],
   config: ImapWebhookConfig,
   requestId: string,
-  resolvedIP: string
+  resolvedIP: string,
+  logger: ReturnType<typeof import('@sim/logger').createLogger>
 ) {
   let processedCount = 0
   let failedCount = 0
@@ -580,9 +453,7 @@ async function processEmails(
       user: config.username,
       pass: config.password,
     },
-    tls: {
-      rejectUnauthorized: true,
-    },
+    tls: { rejectUnauthorized: true },
     logger: false,
   })
 
@@ -644,25 +515,20 @@ async function processEmails(
               timestamp: new Date().toISOString(),
             }
 
-            const webhookUrl = `${getInternalApiBaseUrl()}/api/webhooks/trigger/${webhookData.path}`
+            const result = await processPolledWebhookEvent(
+              webhookData,
+              workflowData,
+              payload,
+              requestId
+            )
 
-            const response = await fetch(webhookUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'User-Agent': 'Sim/1.0',
-              },
-              body: JSON.stringify(payload),
-            })
-
-            if (!response.ok) {
-              const errorText = await response.text()
+            if (!result.success) {
               logger.error(
-                `[${requestId}] Failed to trigger webhook for email ${email.uid}:`,
-                response.status,
-                errorText
+                `[${requestId}] Failed to process webhook for email ${email.uid}:`,
+                result.statusCode,
+                result.error
               )
-              throw new Error(`Webhook request failed: ${response.status} - ${errorText}`)
+              throw new Error(`Webhook processing failed (${result.statusCode}): ${result.error}`)
             }
 
             if (config.markAsRead) {
@@ -684,11 +550,7 @@ async function processEmails(
               }
             }
 
-            return {
-              emailUid: email.uid,
-              webhookStatus: response.status,
-              processed: true,
-            }
+            return { emailUid: email.uid, processed: true }
           }
         )
 
@@ -716,32 +578,4 @@ async function processEmails(
   }
 
   return { processedCount, failedCount }
-}
-
-async function updateWebhookLastProcessedUids(
-  webhookId: string,
-  uidByMailbox: Record<string, number>,
-  timestamp: string
-) {
-  const result = await db.select().from(webhook).where(eq(webhook.id, webhookId))
-  const existingConfig = (result[0]?.providerConfig as Record<string, any>) || {}
-
-  const existingUidByMailbox = existingConfig.lastProcessedUidByMailbox || {}
-  const mergedUidByMailbox = { ...existingUidByMailbox }
-
-  for (const [mailbox, uid] of Object.entries(uidByMailbox)) {
-    mergedUidByMailbox[mailbox] = Math.max(uid, mergedUidByMailbox[mailbox] || 0)
-  }
-
-  await db
-    .update(webhook)
-    .set({
-      providerConfig: {
-        ...existingConfig,
-        lastProcessedUidByMailbox: mergedUidByMailbox,
-        lastCheckedTimestamp: timestamp,
-      } as any,
-      updatedAt: new Date(),
-    })
-    .where(eq(webhook.id, webhookId))
 }
