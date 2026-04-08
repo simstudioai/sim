@@ -491,7 +491,7 @@ export const outlookConnector: ConnectorConfig = {
       const params = new URLSearchParams({
         $filter: `conversationId eq '${externalId.replace(/'/g, "''")}'`,
         $select: FULL_MESSAGE_FIELDS,
-        $top: '50',
+        $top: '250',
       })
 
       const url = `${GRAPH_API_BASE}/messages?${params.toString()}`
