@@ -3,12 +3,11 @@
 import type React from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Blimp, Database, Folder as FolderIcon, Table as TableIcon } from '@/components/emcn/icons'
-import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
+import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import { useAvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import type {
   PlusMenuHandle,
@@ -672,45 +671,13 @@ export function UserInput({
           : range.token
       const matchingCtx = contexts.find((c) => c.label === mentionLabel)
 
-      let mentionIconNode: React.ReactNode = null
-      if (matchingCtx) {
-        const iconClasses = 'absolute inset-0 m-auto h-[12px] w-[12px] text-[var(--text-icon)]'
-        switch (matchingCtx.kind) {
-          case 'workflow':
-          case 'current_workflow': {
-            const wfId = (matchingCtx as { workflowId: string }).workflowId
-            const wfColor = workflowsById[wfId]?.color ?? '#888'
-            mentionIconNode = (
-              <div
-                className='absolute inset-0 m-auto h-[12px] w-[12px] rounded-[3px] border-[2px]'
-                style={{
-                  backgroundColor: wfColor,
-                  borderColor: `${wfColor}60`,
-                  backgroundClip: 'padding-box',
-                }}
-              />
-            )
-            break
-          }
-          case 'knowledge':
-            mentionIconNode = <Database className={iconClasses} />
-            break
-          case 'table':
-            mentionIconNode = <TableIcon className={iconClasses} />
-            break
-          case 'file': {
-            const FileDocIcon = getDocumentIcon('', mentionLabel)
-            mentionIconNode = <FileDocIcon className={iconClasses} />
-            break
-          }
-          case 'folder':
-            mentionIconNode = <FolderIcon className={iconClasses} />
-            break
-          case 'past_chat':
-            mentionIconNode = <Blimp className={iconClasses} />
-            break
-        }
-      }
+      const mentionIconNode = matchingCtx ? (
+        <ContextMentionIcon
+          context={matchingCtx}
+          workflowColor={workflowsById[matchingCtx.workflowId ?? '']?.color ?? null}
+          className='absolute inset-0 m-auto h-[12px] w-[12px] text-[var(--text-icon)]'
+        />
+      ) : null
 
       elements.push(
         <span

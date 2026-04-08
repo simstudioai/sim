@@ -6,6 +6,9 @@ export type {
   MothershipResourceType,
 } from '@/lib/copilot/resource-types'
 
+/** Union of all valid context kind strings, derived from {@link ChatContext}. */
+export type ChatContextKind = ChatContext['kind']
+
 export interface FileAttachmentForApi {
   id: string
   key: string
@@ -260,7 +263,7 @@ export interface ChatMessageAttachment {
 }
 
 export interface ChatMessageContext {
-  kind: string
+  kind: ChatContextKind
   label: string
   workflowId?: string
   knowledgeId?: string

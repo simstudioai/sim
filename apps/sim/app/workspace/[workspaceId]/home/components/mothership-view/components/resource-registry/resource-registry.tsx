@@ -14,6 +14,7 @@ import {
 import { WorkflowIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { cn } from '@/lib/core/utils/cn'
+import { workflowBorderColor } from '@/lib/workspaces/colors'
 import type {
   MothershipResource,
   MothershipResourceType,
@@ -50,7 +51,7 @@ function WorkflowTabSquare({ workflowId, className }: { workflowId: string; clas
       className={cn('flex-shrink-0 rounded-[3px] border-[2px]', className)}
       style={{
         backgroundColor: color,
-        borderColor: `${color}60`,
+        borderColor: workflowBorderColor(color),
         backgroundClip: 'padding-box',
       }}
     />
@@ -65,7 +66,7 @@ function WorkflowDropdownItem({ item }: DropdownItemRenderProps) {
         className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
         style={{
           backgroundColor: color,
-          borderColor: `${color}60`,
+          borderColor: workflowBorderColor(color),
           backgroundClip: 'padding-box',
         }}
       />

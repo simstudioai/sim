@@ -20,6 +20,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { hasActiveFilters } from '@/lib/logs/filters'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
 import { captureEvent } from '@/lib/posthog/client'
+import { workflowBorderColor } from '@/lib/workspaces/colors'
 import { type LogStatus, STATUS_CONFIG } from '@/app/workspace/[workspaceId]/logs/utils'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap } from '@/hooks/queries/folders'
@@ -124,7 +125,7 @@ function getColorIcon(
         width: 10,
         height: 10,
         ...(withRing && {
-          borderColor: `${color}60`,
+          borderColor: workflowBorderColor(color),
           backgroundClip: 'padding-box' as const,
         }),
       }}
@@ -604,7 +605,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                             className='h-[8px] w-[8px] flex-shrink-0 rounded-xs border-[1.5px]'
                             style={{
                               backgroundColor: selectedWorkflow.color,
-                              borderColor: `${selectedWorkflow.color}60`,
+                              borderColor: workflowBorderColor(selectedWorkflow.color),
                               backgroundClip: 'padding-box',
                             }}
                           />
@@ -735,7 +736,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                       className='h-[8px] w-[8px] flex-shrink-0 rounded-xs border-[1.5px]'
                       style={{
                         backgroundColor: selectedWorkflow.color,
-                        borderColor: `${selectedWorkflow.color}60`,
+                        borderColor: workflowBorderColor(selectedWorkflow.color),
                         backgroundClip: 'padding-box',
                       }}
                     />

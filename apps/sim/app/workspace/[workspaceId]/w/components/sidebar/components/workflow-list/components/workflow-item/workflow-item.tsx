@@ -6,6 +6,7 @@ import { MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
+import { workflowBorderColor } from '@/lib/workspaces/colors'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
@@ -439,7 +440,7 @@ export function WorkflowItem({
           className='h-[16px] w-[16px] flex-shrink-0 rounded-sm border-[2.5px]'
           style={{
             backgroundColor: workflow.color,
-            borderColor: `${workflow.color}60`,
+            borderColor: workflowBorderColor(workflow.color),
             backgroundClip: 'padding-box',
           }}
         />

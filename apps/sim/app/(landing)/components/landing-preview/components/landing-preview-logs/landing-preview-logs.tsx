@@ -5,6 +5,7 @@ import { Download } from 'lucide-react'
 import { ArrowUpDown, Badge, Library, ListFilter, Search } from '@/components/emcn'
 import type { BadgeProps } from '@/components/emcn/components/badge/badge'
 import { cn } from '@/lib/core/utils/cn'
+import { workflowBorderColor } from '@/lib/workspaces/colors'
 
 interface LogRow {
   id: string
@@ -283,7 +284,7 @@ export function LandingPreviewLogs() {
                       className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
                       style={{
                         backgroundColor: log.workflowColor,
-                        borderColor: `${log.workflowColor}60`,
+                        borderColor: workflowBorderColor(log.workflowColor),
                         backgroundClip: 'padding-box',
                       }}
                     />

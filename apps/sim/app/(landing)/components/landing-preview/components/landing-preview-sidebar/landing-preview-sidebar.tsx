@@ -11,6 +11,7 @@ import {
   Table,
 } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
+import { workflowBorderColor } from '@/lib/workspaces/colors'
 import type { PreviewWorkflow } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 
 export type SidebarView =
@@ -211,7 +212,7 @@ export function LandingPreviewSidebar({
                     className='h-[14px] w-[14px] flex-shrink-0 rounded-[4px] border-[2.5px]'
                     style={{
                       backgroundColor: workflow.color,
-                      borderColor: `${workflow.color}60`,
+                      borderColor: workflowBorderColor(workflow.color),
                       backgroundClip: 'padding-box',
                     }}
                   />

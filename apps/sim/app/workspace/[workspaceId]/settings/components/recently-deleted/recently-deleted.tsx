@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { Button, Combobox, SModalTabs, SModalTabsList, SModalTabsTrigger } from '@/components/emcn'
 import { Input } from '@/components/ui'
 import { formatDate } from '@/lib/core/utils/formatting'
+import { workflowBorderColor } from '@/lib/workspaces/colors'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 import { DeletedItemSkeleton } from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/deleted-item-skeleton'
@@ -97,7 +98,7 @@ function ResourceIcon({ resource }: { resource: DeletedResource }) {
         className='h-[14px] w-[14px] shrink-0 rounded-[3px] border-[2px]'
         style={{
           backgroundColor: color,
-          borderColor: `${color}60`,
+          borderColor: workflowBorderColor(color),
           backgroundClip: 'padding-box',
         }}
       />

@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import { useParams } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
+import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {
   DELETED_WORKFLOW_COLOR,
   DELETED_WORKFLOW_LABEL,
@@ -93,7 +94,7 @@ function WorkflowsListInner({
                       className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
                       style={{
                         backgroundColor: workflowColor,
-                        borderColor: `${workflowColor}60`,
+                        borderColor: workflowBorderColor(workflowColor),
                         backgroundClip: 'padding-box',
                       }}
                     />
