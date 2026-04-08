@@ -339,7 +339,7 @@ export function WorkflowItem({
           }
 
       e.dataTransfer.setData('sidebar-selection', JSON.stringify(selection))
-      e.dataTransfer.effectAllowed = 'move'
+      e.dataTransfer.effectAllowed = 'copyMove'
 
       const resources = buildDragResources(selection, workspaceId)
       if (resources.length > 0) {

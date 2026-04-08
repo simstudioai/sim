@@ -307,6 +307,8 @@ export function UserInput({
           for (const resource of resources) {
             handleResourceSelect(resource)
           }
+          // Reset after batch so the next non-drop insert uses the cursor position
+          atInsertPosRef.current = null
         } catch {
           // Invalid JSON — ignore
         }
@@ -319,6 +321,7 @@ export function UserInput({
         try {
           const resource = JSON.parse(resourceJson) as MothershipResource
           handleResourceSelect(resource)
+          atInsertPosRef.current = null
         } catch {
           // Invalid JSON — ignore
         }
@@ -330,11 +333,17 @@ export function UserInput({
   )
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
-    filesRef.current.handleDragEnter(e)
+    const isResourceDrag =
+      e.dataTransfer.types.includes(SIM_RESOURCE_DRAG_TYPE) ||
+      e.dataTransfer.types.includes(SIM_RESOURCES_DRAG_TYPE)
+    if (!isResourceDrag) filesRef.current.handleDragEnter(e)
   }, [])
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
-    filesRef.current.handleDragLeave(e)
+    const isResourceDrag =
+      e.dataTransfer.types.includes(SIM_RESOURCE_DRAG_TYPE) ||
+      e.dataTransfer.types.includes(SIM_RESOURCES_DRAG_TYPE)
+    if (!isResourceDrag) filesRef.current.handleDragLeave(e)
   }, [])
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
