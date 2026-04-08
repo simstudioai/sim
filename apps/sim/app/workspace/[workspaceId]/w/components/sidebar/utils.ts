@@ -1,4 +1,5 @@
 import type { MothershipResource } from '@/lib/copilot/resource-types'
+import { workflowBorderColor } from '@/lib/workspaces/colors'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -68,7 +69,7 @@ export function createSidebarDragGhost(label: string, icon?: SidebarDragGhostIco
       const square = document.createElement('div')
       square.style.cssText = `
         width: 14px; height: 14px; flex-shrink: 0;
-        border-radius: 3px; border: 2px solid ${icon.color}60;
+        border-radius: 3px; border: 2px solid ${workflowBorderColor(icon.color)};
         background: ${icon.color}; background-clip: padding-box;
       `
       ghost.appendChild(square)

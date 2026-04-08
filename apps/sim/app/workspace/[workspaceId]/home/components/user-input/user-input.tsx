@@ -211,6 +211,7 @@ export function UserInput({
       if (ctx.kind === 'table' && ctx.tableId) keys.add(`table:${ctx.tableId}`)
       if (ctx.kind === 'file' && ctx.fileId) keys.add(`file:${ctx.fileId}`)
       if (ctx.kind === 'folder' && ctx.folderId) keys.add(`folder:${ctx.folderId}`)
+      if (ctx.kind === 'past_chat') keys.add(`task:${ctx.chatId}`)
     }
     return keys
   }, [contextManagement.selectedContexts])
