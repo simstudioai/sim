@@ -29,6 +29,7 @@ export const CloudWatchBlock: BlockConfig<
     'Integrate AWS CloudWatch into workflows. Run Log Insights queries, list log groups, retrieve log events, list and get metrics, and monitor alarms. Requires AWS access key and secret access key.',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
+  docsLink: 'https://docs.sim.ai/tools/cloudwatch',
   tags: ['cloud', 'monitoring'],
   bgColor: 'linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)',
   icon: CloudWatchIcon,
@@ -72,7 +73,6 @@ export const CloudWatchBlock: BlockConfig<
       password: true,
       required: true,
     },
-    // Query Logs fields
     {
       id: 'logGroupSelector',
       title: 'Log Group',
@@ -127,6 +127,14 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
         value: ['query_logs', 'get_log_events', 'get_metric_statistics'],
       },
       required: { field: 'operation', value: ['query_logs', 'get_metric_statistics'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix epoch timestamp (in seconds) based on the user's description of a point in time.
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start time (e.g., "1 hour ago", "beginning of today")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'endTime',
@@ -138,8 +146,15 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
         value: ['query_logs', 'get_log_events', 'get_metric_statistics'],
       },
       required: { field: 'operation', value: ['query_logs', 'get_metric_statistics'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix epoch timestamp (in seconds) based on the user's description of a point in time.
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end time (e.g., "now", "end of yesterday")...',
+        generationType: 'timestamp',
+      },
     },
-    // Describe Log Groups fields
     {
       id: 'prefix',
       title: 'Log Group Name Prefix',
@@ -147,7 +162,6 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
       placeholder: '/aws/lambda/',
       condition: { field: 'operation', value: 'describe_log_groups' },
     },
-    // Get Log Events / Describe Log Streams — shared log group selector
     {
       id: 'logGroupNameSelector',
       title: 'Log Group',
@@ -170,7 +184,6 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
       required: { field: 'operation', value: ['get_log_events', 'describe_log_streams'] },
       mode: 'advanced',
     },
-    // Describe Log Streams — stream prefix filter
     {
       id: 'streamPrefix',
       title: 'Stream Name Prefix',
@@ -178,7 +191,6 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
       placeholder: '2024/03/31/',
       condition: { field: 'operation', value: 'describe_log_streams' },
     },
-    // Get Log Events — log stream selector (cascading: depends on log group)
     {
       id: 'logStreamNameSelector',
       title: 'Log Stream',
@@ -201,7 +213,6 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
       required: { field: 'operation', value: 'get_log_events' },
       mode: 'advanced',
     },
-    // List Metrics fields
     {
       id: 'metricNamespace',
       title: 'Namespace',
@@ -235,8 +246,8 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
       title: 'Recently Active Only',
       type: 'switch',
       condition: { field: 'operation', value: 'list_metrics' },
+      mode: 'advanced',
     },
-    // Publish Metric fields
     {
       id: 'metricValue',
       title: 'Value',
@@ -274,7 +285,6 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
       columns: ['name', 'value'],
       condition: { field: 'operation', value: 'put_metric_data' },
     },
-    // Get Metric Statistics fields
     {
       id: 'metricPeriod',
       title: 'Period (seconds)',
@@ -304,7 +314,6 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
       columns: ['name', 'value'],
       condition: { field: 'operation', value: 'get_metric_statistics' },
     },
-    // Describe Alarms fields
     {
       id: 'alarmNamePrefix',
       title: 'Alarm Name Prefix',
@@ -322,6 +331,7 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
         { label: 'ALARM', id: 'ALARM' },
         { label: 'INSUFFICIENT_DATA', id: 'INSUFFICIENT_DATA' },
       ],
+      value: () => '',
       condition: { field: 'operation', value: 'describe_alarms' },
     },
     {
@@ -333,9 +343,9 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
         { label: 'Metric Alarm', id: 'MetricAlarm' },
         { label: 'Composite Alarm', id: 'CompositeAlarm' },
       ],
+      value: () => '',
       condition: { field: 'operation', value: 'describe_alarms' },
     },
-    // Shared limit field
     {
       id: 'limit',
       title: 'Limit',
@@ -352,6 +362,7 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
           'describe_alarms',
         ],
       },
+      mode: 'advanced',
     },
   ],
   tools: {

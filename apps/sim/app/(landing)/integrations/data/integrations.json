@@ -2045,11 +2045,15 @@
         "description": "Get statistics for a CloudWatch metric over a time range"
       },
       {
+        "name": "Publish Metric",
+        "description": "Publish a custom metric data point to CloudWatch"
+      },
+      {
         "name": "Describe Alarms",
         "description": "List and filter CloudWatch alarms"
       }
     ],
-    "operationCount": 7,
+    "operationCount": 8,
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",

@@ -11,7 +11,7 @@ export const describeAlarmsTool: ToolConfig<
   id: 'cloudwatch_describe_alarms',
   name: 'CloudWatch Describe Alarms',
   description: 'List and filter CloudWatch alarms',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {

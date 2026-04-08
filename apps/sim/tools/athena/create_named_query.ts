@@ -11,7 +11,7 @@ export const createNamedQueryTool: ToolConfig<
   id: 'athena_create_named_query',
   name: 'Athena Create Named Query',
   description: 'Create a saved/named query in AWS Athena',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {

@@ -7,6 +7,8 @@ import { listMetricsTool } from '@/tools/cloudwatch/list_metrics'
 import { putMetricDataTool } from '@/tools/cloudwatch/put_metric_data'
 import { queryLogsTool } from '@/tools/cloudwatch/query_logs'
 
+export * from './types'
+
 export const cloudwatchDescribeAlarmsTool = describeAlarmsTool
 export const cloudwatchDescribeLogGroupsTool = describeLogGroupsTool
 export const cloudwatchDescribeLogStreamsTool = describeLogStreamsTool

@@ -11,7 +11,7 @@ export const putMetricDataTool: ToolConfig<
   id: 'cloudwatch_put_metric_data',
   name: 'CloudWatch Publish Metric',
   description: 'Publish a custom metric data point to CloudWatch',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {
