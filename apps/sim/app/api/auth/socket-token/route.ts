@@ -23,6 +23,14 @@ export async function POST() {
 
     return NextResponse.json({ token: response.token })
   } catch (error) {
+    // better-auth's sessionMiddleware throws APIError("UNAUTHORIZED") with no message
+    // when the session is missing/expired — surface this as a 401, not a 500.
+    const apiError = error as { statusCode?: number; status?: string }
+    if (apiError.statusCode === 401 || apiError.status === 'UNAUTHORIZED') {
+      logger.warn('Socket token request with invalid/expired session')
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+
     logger.error('Failed to generate socket token', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
