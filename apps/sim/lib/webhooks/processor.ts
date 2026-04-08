@@ -727,8 +727,8 @@ export async function processPolledWebhookEvent(
     if (preprocessResult.error) {
       const errorResponse = preprocessResult.error
       const statusCode = errorResponse.status
-      const body = await errorResponse.json().catch(() => ({}))
-      const errorMessage = body.error ?? 'Preprocessing failed'
+      const errorBody = await errorResponse.json().catch(() => ({}))
+      const errorMessage = errorBody.error ?? 'Preprocessing failed'
       logger.warn(`[${requestId}] Polled webhook preprocessing failed`, {
         statusCode,
         error: errorMessage,
