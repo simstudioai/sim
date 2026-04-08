@@ -67,6 +67,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const targetWorkspaceId = workspaceId || sourceFolder.workspaceId
 
+    if (targetWorkspaceId !== sourceFolder.workspaceId) {
+      const targetPermission = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        targetWorkspaceId
+      )
+
+      if (!targetPermission || targetPermission === 'read') {
+        logger.warn(
+          `[${requestId}] User ${session.user.id} denied write access to target workspace ${targetWorkspaceId}`
+        )
+        return NextResponse.json(
+          { error: 'Write or admin access required for target workspace' },
+          { status: 403 }
+        )
+      }
+    }
+
     const { newFolderId, folderMapping } = await db.transaction(async (tx) => {
       const newFolderId = clientNewId || generateId()
       const now = new Date()
