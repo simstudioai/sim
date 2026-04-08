@@ -12,7 +12,7 @@ export interface ConnectorData {
   sourceConfig: Record<string, unknown>
   syncMode: string
   syncIntervalMinutes: number
-  status: 'active' | 'paused' | 'syncing' | 'error'
+  status: 'active' | 'paused' | 'syncing' | 'error' | 'disabled'
   lastSyncAt: string | null
   lastSyncError: string | null
   lastSyncDocCount: number | null
