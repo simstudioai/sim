@@ -62,9 +62,9 @@ const ZERO_COST = Object.freeze({
 })
 
 /**
- * Prevents streaming callbacks from writing non-zero cost for BYOK users.
- * The property is frozen via defineProperty because providers set cost inside
- * streaming callbacks that fire after this function returns.
+ * Prevents streaming callbacks from writing non-zero model cost for BYOK users
+ * while preserving tool costs. The property is frozen via defineProperty because
+ * providers set cost inside streaming callbacks that fire after this function returns.
  */
 function zeroCostForBYOK(response: StreamingExecution): void {
   const output = response.execution?.output
@@ -73,9 +73,14 @@ function zeroCostForBYOK(response: StreamingExecution): void {
     return
   }
 
+  let toolCost = 0
   Object.defineProperty(output, 'cost', {
-    get: () => ZERO_COST,
-    set: () => {},
+    get: () => (toolCost > 0 ? { ...ZERO_COST, toolCost, total: toolCost } : ZERO_COST),
+    set: (value: Record<string, unknown>) => {
+      if (value?.toolCost && typeof value.toolCost === 'number') {
+        toolCost = value.toolCost
+      }
+    },
     configurable: true,
     enumerable: true,
   })
