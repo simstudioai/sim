@@ -245,12 +245,7 @@ export const auth = betterAuth({
       update: {
         after: async (user) => {
           if (user.banned) {
-            disableUserResources(user.id).catch((error) => {
-              logger.error(
-                '[databaseHooks.user.update.after] Failed to disable banned user resources',
-                { userId: user.id, error }
-              )
-            })
+            await disableUserResources(user.id)
           }
         },
       },
