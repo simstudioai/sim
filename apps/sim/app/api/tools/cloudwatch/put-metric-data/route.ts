@@ -73,7 +73,12 @@ export async function POST(request: NextRequest) {
 
     const dimensions: { Name: string; Value: string }[] = []
     if (validatedData.dimensions) {
-      const parsed = JSON.parse(validatedData.dimensions)
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(validatedData.dimensions)
+      } catch {
+        return NextResponse.json({ error: 'Invalid dimensions JSON format' }, { status: 400 })
+      }
       if (typeof parsed === 'object' && parsed !== null) {
         for (const [name, value] of Object.entries(parsed)) {
           dimensions.push({ Name: name, Value: String(value) })
