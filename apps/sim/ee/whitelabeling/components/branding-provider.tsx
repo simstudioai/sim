@@ -1,59 +1,38 @@
 'use client'
 
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { BrandConfig } from '@/lib/branding/types'
 import { getBrandConfig } from '@/ee/whitelabeling/branding'
 import { useWhitelabelSettings } from '@/ee/whitelabeling/hooks/whitelabel'
 import { generateOrgThemeCSS, mergeOrgBrandConfig } from '@/ee/whitelabeling/org-branding-utils'
 import { useOrganizations } from '@/hooks/queries/organization'
 
-const BRAND_CACHE_KEY = 'sim-wl'
+export const BRAND_COOKIE_NAME = 'sim-wl'
+const BRAND_COOKIE_MAX_AGE = 30 * 24 * 60 * 60 // 30 days
 
 /**
- * Brand assets and theme CSS cached in localStorage between page loads.
- * Injected before the first paint to eliminate the flash of default Sim
- * branding on returning visits.
+ * Brand assets and theme CSS cached in a cookie between page loads.
+ * The cookie is written client-side after org settings resolve, and read
+ * server-side in the workspace layout so the correct branding is baked into
+ * the initial HTML — eliminating any flash of default Sim branding.
  */
-interface BrandCache {
+export interface BrandCache {
   logoUrl?: string
   wordmarkUrl?: string
-  /** Pre-generated `:root { ... }` CSS string from the last resolved org settings. */
+  /** Pre-generated `:root { ... }` CSS from the last resolved org settings. */
   themeCSS?: string
 }
 
-function readCache(): BrandCache | null {
+function writeBrandCookie(cache: BrandCache | null): void {
   try {
-    const raw = localStorage.getItem(BRAND_CACHE_KEY)
-    return raw ? JSON.parse(raw) : null
-  } catch {
-    return null
-  }
-}
-
-function writeCache(
-  logoUrl: string | null,
-  wordmarkUrl: string | null,
-  themeCSS: string | null
-): void {
-  try {
-    const entry: BrandCache = {}
-    if (logoUrl) entry.logoUrl = logoUrl
-    if (wordmarkUrl) entry.wordmarkUrl = wordmarkUrl
-    if (themeCSS) entry.themeCSS = themeCSS
-    if (Object.keys(entry).length > 0) {
-      localStorage.setItem(BRAND_CACHE_KEY, JSON.stringify(entry))
+    const hasContent = cache && Object.keys(cache).length > 0
+    if (hasContent) {
+      document.cookie = `${BRAND_COOKIE_NAME}=${encodeURIComponent(JSON.stringify(cache))}; path=/; max-age=${BRAND_COOKIE_MAX_AGE}; SameSite=Lax`
     } else {
-      localStorage.removeItem(BRAND_CACHE_KEY)
+      document.cookie = `${BRAND_COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax`
     }
   } catch {}
 }
-
-/**
- * `useLayoutEffect` on the client (fires before paint), `useEffect` on the
- * server (where layout effects are a no-op). Prevents flash without
- * triggering a hydration mismatch.
- */
-const useBrowserLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
 
 interface BrandingContextValue {
   config: BrandConfig
@@ -65,23 +44,25 @@ const BrandingContext = createContext<BrandingContextValue>({
 
 interface BrandingProviderProps {
   children: React.ReactNode
+  /**
+   * Brand cache read server-side from the `sim-wl` cookie by the workspace
+   * layout. Providing this as an initial prop means the server-rendered HTML
+   * already contains the correct logo and colors — no client-side flash.
+   */
+  initialCache?: BrandCache | null
 }
 
 /**
  * Provides merged branding (instance env vars + org DB settings) to the workspace.
  * Injects a `<style>` tag with CSS variable overrides when org colors are configured.
  *
- * Brand assets and theme CSS are cached in `localStorage` so returning visitors
- * see the correct logo, wordmark, and colors before the API call resolves. The
- * cache is applied via a layout effect (before the first paint) to eliminate any
- * visible flash on subsequent page loads.
+ * On first visit the org logo loads after the API call resolves (one-time flash).
+ * On all subsequent visits the workspace layout reads the `sim-wl` cookie server-side
+ * and passes it as `initialCache`, so the server renders the correct brand from the
+ * first byte — no flash of any kind.
  */
-export function BrandingProvider({ children }: BrandingProviderProps) {
-  const [cache, setCache] = useState<BrandCache | null>(null)
-
-  useBrowserLayoutEffect(() => {
-    setCache(readCache())
-  }, [])
+export function BrandingProvider({ children, initialCache }: BrandingProviderProps) {
+  const [cache, setCache] = useState<BrandCache | null>(initialCache ?? null)
 
   const { data: orgsData, isLoading: orgsLoading } = useOrganizations()
   const orgId = orgsData?.activeOrganization?.id
@@ -90,7 +71,12 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
   useEffect(() => {
     if (!orgId || settingsLoading) return
     const themeCSS = orgSettings ? generateOrgThemeCSS(orgSettings) : null
-    writeCache(orgSettings?.logoUrl ?? null, orgSettings?.wordmarkUrl ?? null, themeCSS)
+    const next: BrandCache = {}
+    if (orgSettings?.logoUrl) next.logoUrl = orgSettings.logoUrl
+    if (orgSettings?.wordmarkUrl) next.wordmarkUrl = orgSettings.wordmarkUrl
+    if (themeCSS) next.themeCSS = themeCSS
+    writeBrandCookie(Object.keys(next).length > 0 ? next : null)
+    setCache(Object.keys(next).length > 0 ? next : null)
   }, [orgId, settingsLoading, orgSettings])
 
   const brandingLoading = orgsLoading || (Boolean(orgId) && settingsLoading)

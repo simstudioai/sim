@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers'
 import { ToastProvider } from '@/components/emcn'
 import { NavTour } from '@/app/workspace/[workspaceId]/components/product-tour'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/impersonation-banner'
@@ -7,11 +8,22 @@ import { SettingsLoader } from '@/app/workspace/[workspaceId]/providers/settings
 import { WorkspacePermissionsProvider } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { WorkspaceScopeSync } from '@/app/workspace/[workspaceId]/providers/workspace-scope-sync'
 import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
-import { BrandingProvider } from '@/ee/whitelabeling/components/branding-provider'
+import {
+  BRAND_COOKIE_NAME,
+  type BrandCache,
+  BrandingProvider,
+} from '@/ee/whitelabeling/components/branding-provider'
 
-export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
+export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
+  const cookieStore = await cookies()
+  let initialCache: BrandCache | null = null
+  try {
+    const raw = cookieStore.get(BRAND_COOKIE_NAME)?.value
+    if (raw) initialCache = JSON.parse(decodeURIComponent(raw))
+  } catch {}
+
   return (
-    <BrandingProvider>
+    <BrandingProvider initialCache={initialCache}>
       <ToastProvider>
         <SettingsLoader />
         <ProviderModelsLoader />
