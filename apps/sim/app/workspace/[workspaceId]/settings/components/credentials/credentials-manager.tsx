@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useQueryClient } from '@tanstack/react-query'
 import { Check, Clipboard, Key, Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
@@ -30,6 +31,7 @@ import {
   type PendingCredentialCreateRequest,
   readPendingCredentialCreateRequest,
 } from '@/lib/credentials/client-state'
+import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { isValidEnvVarName } from '@/executor/constants'
 import {
@@ -41,6 +43,7 @@ import {
   useWorkspaceCredentials,
   type WorkspaceCredential,
   type WorkspaceCredentialRole,
+  workspaceCredentialKeys,
 } from '@/hooks/queries/credentials'
 import {
   usePersonalEnvironment,
@@ -48,9 +51,9 @@ import {
   useSavePersonalEnvironment,
   useUpsertWorkspaceEnvironment,
   useWorkspaceEnvironment,
-  type WorkspaceEnvironmentData,
 } from '@/hooks/queries/environment'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const logger = createLogger('SecretsManager')
 
@@ -124,6 +127,7 @@ interface WorkspaceVariableRowProps {
   renamingKey: string | null
   pendingKeyValue: string
   hasCredential: boolean
+  isAdmin: boolean
   onRenameStart: (key: string) => void
   onPendingKeyChange: (value: string) => void
   onRenameEnd: (key: string, value: string) => void
@@ -137,12 +141,18 @@ function WorkspaceVariableRow({
   renamingKey,
   pendingKeyValue,
   hasCredential,
+  isAdmin,
   onRenameStart,
   onPendingKeyChange,
   onRenameEnd,
   onDelete,
   onViewDetails,
 }: WorkspaceVariableRowProps) {
+  const [valueFocused, setValueFocused] = useState(false)
+
+  const maskedValueStyle =
+    isAdmin && !valueFocused ? ({ WebkitTextSecurity: 'disc' } as React.CSSProperties) : undefined
+
   return (
     <div className='contents'>
       <EmcnInput
@@ -162,12 +172,19 @@ function WorkspaceVariableRow({
       />
       <div />
       <EmcnInput
-        value={value ? '\u2022'.repeat(value.length) : ''}
+        value={isAdmin ? value : value ? '\u2022'.repeat(value.length) : ''}
         readOnly
+        onFocus={() => {
+          if (isAdmin) setValueFocused(true)
+        }}
+        onBlur={() => {
+          if (isAdmin) setValueFocused(false)
+        }}
         autoComplete='off'
         autoCorrect='off'
         autoCapitalize='off'
         spellCheck='false'
+        style={maskedValueStyle}
         className='h-9'
       />
       <Button
@@ -297,6 +314,14 @@ export function CredentialsManager() {
   )
 
   const { data: workspacePermissions } = useWorkspacePermissionsQuery(workspaceId || null)
+  const queryClient = useQueryClient()
+
+  const isAdmin = useMemo(() => {
+    const userId = session?.user?.id
+    if (!userId || !workspacePermissions?.users) return false
+    const currentUser = workspacePermissions.users.find((user) => user.userId === userId)
+    return currentUser?.permissionType === 'admin'
+  }, [session?.user?.id, workspacePermissions?.users])
 
   const isLoading = isPersonalLoading || isWorkspaceLoading
   const variables = useMemo(() => personalEnvData || {}, [personalEnvData])
@@ -481,6 +506,15 @@ export function CredentialsManager() {
 
   hasChangesRef.current = hasChanges
   shouldBlockNavRef.current = hasChanges || isDetailsDirty
+
+  const setNavGuardDirty = useSettingsDirtyStore((s) => s.setDirty)
+  const resetNavGuard = useSettingsDirtyStore((s) => s.reset)
+
+  useEffect(() => {
+    setNavGuardDirty(hasChanges || isDetailsDirty)
+  }, [hasChanges, isDetailsDirty, setNavGuardDirty])
+
+  useEffect(() => () => resetNavGuard(), [resetNavGuard])
 
   // --- Effects ---
   useEffect(() => {
@@ -913,6 +947,7 @@ export function CredentialsManager() {
 
     const prevInitialVars = [...initialVarsRef.current]
     const prevInitialWorkspaceVars = { ...initialWorkspaceVarsRef.current }
+    const mutations: Promise<unknown>[] = []
 
     try {
       setShowUnsavedChanges(false)
@@ -934,8 +969,6 @@ export function CredentialsManager() {
         .filter((v) => v.key && v.value)
         .reduce<Record<string, string>>((acc, { key, value }) => ({ ...acc, [key]: value }), {})
 
-      await savePersonalMutation.mutateAsync({ variables: validVariables })
-
       const before = prevInitialWorkspaceVars
       const after = mergedWorkspaceVars
       const toUpsert: Record<string, string> = {}
@@ -951,14 +984,37 @@ export function CredentialsManager() {
         if (!(k in after)) toDelete.push(k)
       }
 
-      if (workspaceId) {
-        if (Object.keys(toUpsert).length) {
-          await upsertWorkspaceMutation.mutateAsync({ workspaceId, variables: toUpsert })
+      const personalChanged = (() => {
+        const initialMap = new Map(
+          prevInitialVars.filter((v) => v.key && v.value).map((v) => [v.key, v.value])
+        )
+        const currentKeys = Object.keys(validVariables)
+        if (initialMap.size !== currentKeys.length) return true
+        for (const [key, value] of Object.entries(validVariables)) {
+          if (initialMap.get(key) !== value) return true
         }
-        if (toDelete.length) {
-          await removeWorkspaceMutation.mutateAsync({ workspaceId, keys: toDelete })
-        }
+        return false
+      })()
+
+      if (personalChanged) {
+        mutations.push(savePersonalMutation.mutateAsync({ variables: validVariables }))
       }
+      if (workspaceId && (Object.keys(toUpsert).length || toDelete.length)) {
+        mutations.push(
+          (async () => {
+            if (Object.keys(toUpsert).length) {
+              await upsertWorkspaceMutation.mutateAsync({ workspaceId, variables: toUpsert })
+            }
+            if (toDelete.length) {
+              await removeWorkspaceMutation.mutateAsync({ workspaceId, keys: toDelete })
+            }
+          })()
+        )
+      }
+
+      const results = await Promise.allSettled(mutations)
+      const firstFailure = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')
+      if (firstFailure) throw firstFailure.reason
 
       setWorkspaceVars(mergedWorkspaceVars)
       setNewWorkspaceRows([createEmptyEnvVar()])
@@ -967,20 +1023,17 @@ export function CredentialsManager() {
       initialVarsRef.current = prevInitialVars
       initialWorkspaceVarsRef.current = prevInitialWorkspaceVars
       logger.error('Failed to save environment variables:', error)
+    } finally {
+      if (mutations.length > 0) {
+        queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() })
+      }
     }
-  }, [
-    isListSaving,
-    envVars,
-    workspaceVars,
-    newWorkspaceRows,
-    workspaceId,
-    savePersonalMutation,
-    upsertWorkspaceMutation,
-    removeWorkspaceMutation,
-  ])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects and queryClient are stable (TanStack Query v5)
+  }, [isListSaving, envVars, workspaceVars, newWorkspaceRows, workspaceId])
 
   const handleDiscardAndNavigate = useCallback(() => {
     shouldBlockNavRef.current = false
+    resetNavGuard()
     resetToSaved()
     setSelectedCredentialId(null)
 
@@ -989,7 +1042,7 @@ export function CredentialsManager() {
       pendingNavigationUrlRef.current = null
       router.push(url)
     }
-  }, [router, resetToSaved])
+  }, [router, resetToSaved, resetNavGuard])
 
   const renderEnvVarRow = useCallback(
     (envVar: UIEnvironmentVariable, originalIndex: number) => {
@@ -1483,6 +1536,7 @@ export function CredentialsManager() {
                         renamingKey={renamingKey}
                         pendingKeyValue={pendingKeyValue}
                         hasCredential={envKeyToCredential.has(key)}
+                        isAdmin={isAdmin}
                         onRenameStart={setRenamingKey}
                         onPendingKeyChange={setPendingKeyValue}
                         onRenameEnd={handleWorkspaceKeyRename}

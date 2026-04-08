@@ -972,6 +972,57 @@
     "tags": ["hiring"]
   },
   {
+    "type": "athena",
+    "slug": "athena",
+    "name": "Athena",
+    "description": "Run SQL queries on data in Amazon S3 using AWS Athena",
+    "longDescription": "Integrate AWS Athena into workflows. Execute SQL queries against data in S3, check query status, retrieve results, manage named queries, and list executions. Requires AWS access key and secret access key.",
+    "bgColor": "linear-gradient(45deg, #4D27A8 0%, #A166FF 100%)",
+    "iconName": "AthenaIcon",
+    "docsUrl": "https://docs.sim.ai/tools/athena",
+    "operations": [
+      {
+        "name": "Start Query",
+        "description": "Start an SQL query execution in AWS Athena"
+      },
+      {
+        "name": "Get Query Execution",
+        "description": "Get the status and details of an Athena query execution"
+      },
+      {
+        "name": "Get Query Results",
+        "description": "Retrieve the results of a completed Athena query execution"
+      },
+      {
+        "name": "Stop Query",
+        "description": "Stop a running Athena query execution"
+      },
+      {
+        "name": "List Query Executions",
+        "description": "List recent Athena query execution IDs"
+      },
+      {
+        "name": "Create Named Query",
+        "description": "Create a saved/named query in AWS Athena"
+      },
+      {
+        "name": "Get Named Query",
+        "description": "Get details of a saved/named query in AWS Athena"
+      },
+      {
+        "name": "List Named Queries",
+        "description": "List saved/named query IDs in AWS Athena"
+      }
+    ],
+    "operationCount": 8,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationType": "analytics",
+    "tags": ["cloud", "data-analytics"]
+  },
+  {
     "type": "attio",
     "slug": "attio",
     "name": "Attio",
@@ -2344,6 +2395,81 @@
     "category": "tools",
     "integrationType": "developer-tools",
     "tags": ["agentic", "automation"]
+  },
+  {
+    "type": "dagster",
+    "slug": "dagster",
+    "name": "Dagster",
+    "description": "Orchestrate data pipelines and manage job runs with Dagster",
+    "longDescription": "Connect to a Dagster instance to launch job runs, monitor run status, list available jobs across repositories, terminate or delete runs, reexecute failed runs, fetch run logs, and manage schedules and sensors. API token only required for Dagster+.",
+    "bgColor": "#ffffff",
+    "iconName": "DagsterIcon",
+    "docsUrl": "https://docs.sim.ai/tools/dagster",
+    "operations": [
+      {
+        "name": "Launch Run",
+        "description": "Launch a job run on a Dagster instance."
+      },
+      {
+        "name": "Get Run",
+        "description": "Get the status and details of a Dagster run by its ID."
+      },
+      {
+        "name": "Get Run Logs",
+        "description": "Fetch execution event logs for a Dagster run."
+      },
+      {
+        "name": "List Runs",
+        "description": "List recent Dagster runs, optionally filtered by job name."
+      },
+      {
+        "name": "List Jobs",
+        "description": "List all jobs across repositories in a Dagster instance."
+      },
+      {
+        "name": "Reexecute Run",
+        "description": "Reexecute an existing Dagster run, optionally resuming only from failed steps."
+      },
+      {
+        "name": "Terminate Run",
+        "description": "Terminate an in-progress Dagster run."
+      },
+      {
+        "name": "Delete Run",
+        "description": "Permanently delete a Dagster run record."
+      },
+      {
+        "name": "List Schedules",
+        "description": "List all schedules in a Dagster repository, optionally filtered by status."
+      },
+      {
+        "name": "Start Schedule",
+        "description": "Enable (start) a schedule in a Dagster repository."
+      },
+      {
+        "name": "Stop Schedule",
+        "description": "Disable (stop) a running schedule in Dagster."
+      },
+      {
+        "name": "List Sensors",
+        "description": "List all sensors in a Dagster repository, optionally filtered by status."
+      },
+      {
+        "name": "Start Sensor",
+        "description": "Enable (start) a sensor in a Dagster repository."
+      },
+      {
+        "name": "Stop Sensor",
+        "description": "Disable (stop) a running sensor in Dagster."
+      }
+    ],
+    "operationCount": 14,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "automation",
+    "tags": ["data-analytics", "automation"]
   },
   {
     "type": "databricks",
@@ -4015,8 +4141,14 @@
       }
     ],
     "operationCount": 12,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "gmail_poller",
+        "name": "Gmail Email Trigger",
+        "description": "Triggers when new emails are received in Gmail (requires Gmail credentials)"
+      }
+    ],
+    "triggerCount": 1,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "email",
@@ -5264,8 +5396,49 @@
       }
     ],
     "operationCount": 11,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "greenhouse_candidate_hired",
+        "name": "Greenhouse Candidate Hired",
+        "description": "Trigger workflow when a candidate is hired"
+      },
+      {
+        "id": "greenhouse_new_application",
+        "name": "Greenhouse New Application",
+        "description": "Trigger workflow when a new application is submitted"
+      },
+      {
+        "id": "greenhouse_candidate_stage_change",
+        "name": "Greenhouse Candidate Stage Change",
+        "description": "Trigger workflow when a candidate changes interview stages"
+      },
+      {
+        "id": "greenhouse_candidate_rejected",
+        "name": "Greenhouse Candidate Rejected",
+        "description": "Trigger workflow when a candidate is rejected"
+      },
+      {
+        "id": "greenhouse_offer_created",
+        "name": "Greenhouse Offer Created",
+        "description": "Trigger workflow when a new offer is created"
+      },
+      {
+        "id": "greenhouse_job_created",
+        "name": "Greenhouse Job Created",
+        "description": "Trigger workflow when a new job is created"
+      },
+      {
+        "id": "greenhouse_job_updated",
+        "name": "Greenhouse Job Updated",
+        "description": "Trigger workflow when a job is updated"
+      },
+      {
+        "id": "greenhouse_webhook",
+        "name": "Greenhouse Webhook (Endpoint Events)",
+        "description": "Trigger on whichever event types you select for this URL in Greenhouse. Sim does not filter deliveries for this trigger."
+      }
+    ],
+    "triggerCount": 8,
     "authType": "api-key",
     "category": "tools",
     "integrationType": "hr",
@@ -6818,7 +6991,7 @@
     "tags": ["sales-engagement", "email-marketing", "automation"]
   },
   {
-    "type": "linear",
+    "type": "linear_v2",
     "slug": "linear",
     "name": "Linear",
     "description": "Interact with Linear issues, projects, and more",
@@ -7143,79 +7316,79 @@
     "operationCount": 78,
     "triggers": [
       {
-        "id": "linear_issue_created",
+        "id": "linear_issue_created_v2",
         "name": "Linear Issue Created",
         "description": "Trigger workflow when a new issue is created in Linear"
       },
       {
-        "id": "linear_issue_updated",
+        "id": "linear_issue_updated_v2",
         "name": "Linear Issue Updated",
         "description": "Trigger workflow when an issue is updated in Linear"
       },
       {
-        "id": "linear_issue_removed",
+        "id": "linear_issue_removed_v2",
         "name": "Linear Issue Removed",
         "description": "Trigger workflow when an issue is removed/deleted in Linear"
       },
       {
-        "id": "linear_comment_created",
+        "id": "linear_comment_created_v2",
         "name": "Linear Comment Created",
         "description": "Trigger workflow when a new comment is created in Linear"
       },
       {
-        "id": "linear_comment_updated",
+        "id": "linear_comment_updated_v2",
         "name": "Linear Comment Updated",
         "description": "Trigger workflow when a comment is updated in Linear"
       },
       {
-        "id": "linear_project_created",
+        "id": "linear_project_created_v2",
         "name": "Linear Project Created",
         "description": "Trigger workflow when a new project is created in Linear"
       },
       {
-        "id": "linear_project_updated",
+        "id": "linear_project_updated_v2",
         "name": "Linear Project Updated",
         "description": "Trigger workflow when a project is updated in Linear"
       },
       {
-        "id": "linear_cycle_created",
+        "id": "linear_cycle_created_v2",
         "name": "Linear Cycle Created",
         "description": "Trigger workflow when a new cycle is created in Linear"
       },
       {
-        "id": "linear_cycle_updated",
+        "id": "linear_cycle_updated_v2",
         "name": "Linear Cycle Updated",
         "description": "Trigger workflow when a cycle is updated in Linear"
       },
       {
-        "id": "linear_label_created",
+        "id": "linear_label_created_v2",
         "name": "Linear Label Created",
         "description": "Trigger workflow when a new label is created in Linear"
       },
       {
-        "id": "linear_label_updated",
+        "id": "linear_label_updated_v2",
         "name": "Linear Label Updated",
         "description": "Trigger workflow when a label is updated in Linear"
       },
       {
-        "id": "linear_project_update_created",
+        "id": "linear_project_update_created_v2",
         "name": "Linear Project Update Created",
         "description": "Trigger workflow when a new project update is posted in Linear"
       },
       {
-        "id": "linear_customer_request_created",
+        "id": "linear_customer_request_created_v2",
         "name": "Linear Customer Request Created",
         "description": "Trigger workflow when a new customer request is created in Linear"
       },
       {
-        "id": "linear_customer_request_updated",
+        "id": "linear_customer_request_updated_v2",
         "name": "Linear Customer Request Updated",
         "description": "Trigger workflow when a customer request is updated in Linear"
       },
       {
-        "id": "linear_webhook",
+        "id": "linear_webhook_v2",
         "name": "Linear Webhook",
-        "description": "Trigger workflow from any Linear webhook event"
+        "description": "Trigger workflow from Linear events you select when creating the webhook in Linear (not guaranteed to be every model or event type)."
       }
     ],
     "triggerCount": 15,
@@ -8539,8 +8712,14 @@
       }
     ],
     "operationCount": 9,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "outlook_poller",
+        "name": "Outlook Email Trigger",
+        "description": "Triggers when new emails are received in Outlook (requires Microsoft credentials)"
+      }
+    ],
+    "triggerCount": 1,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "email",
@@ -9561,8 +9740,49 @@
       }
     ],
     "operationCount": 8,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "resend_email_sent",
+        "name": "Resend Email Sent",
+        "description": "Trigger workflow when an email is sent"
+      },
+      {
+        "id": "resend_email_delivered",
+        "name": "Resend Email Delivered",
+        "description": "Trigger workflow when an email is delivered"
+      },
+      {
+        "id": "resend_email_bounced",
+        "name": "Resend Email Bounced",
+        "description": "Trigger workflow when an email bounces"
+      },
+      {
+        "id": "resend_email_complained",
+        "name": "Resend Email Complained",
+        "description": "Trigger workflow when an email is marked as spam"
+      },
+      {
+        "id": "resend_email_opened",
+        "name": "Resend Email Opened",
+        "description": "Trigger workflow when an email is opened"
+      },
+      {
+        "id": "resend_email_clicked",
+        "name": "Resend Email Clicked",
+        "description": "Trigger workflow when a link in an email is clicked"
+      },
+      {
+        "id": "resend_email_failed",
+        "name": "Resend Email Failed",
+        "description": "Trigger workflow when an email fails to send"
+      },
+      {
+        "id": "resend_webhook",
+        "name": "Resend Webhook (All Events)",
+        "description": "Trigger on Resend webhook events we subscribe to (email lifecycle, contacts, domains—see Resend docs). Flattened email fields may be null for non-email events; use <code>data</code> for the full payload."
+      }
+    ],
+    "triggerCount": 8,
     "authType": "none",
     "category": "tools",
     "integrationType": "email",
@@ -12129,8 +12349,49 @@
       }
     ],
     "operationCount": 50,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "vercel_deployment_created",
+        "name": "Vercel Deployment Created",
+        "description": "Trigger workflow when a new deployment is created"
+      },
+      {
+        "id": "vercel_deployment_ready",
+        "name": "Vercel Deployment Ready",
+        "description": "Trigger workflow when a deployment is ready to serve traffic"
+      },
+      {
+        "id": "vercel_deployment_error",
+        "name": "Vercel Deployment Error",
+        "description": "Trigger workflow when a deployment fails"
+      },
+      {
+        "id": "vercel_deployment_canceled",
+        "name": "Vercel Deployment Canceled",
+        "description": "Trigger workflow when a deployment is canceled"
+      },
+      {
+        "id": "vercel_project_created",
+        "name": "Vercel Project Created",
+        "description": "Trigger workflow when a new project is created"
+      },
+      {
+        "id": "vercel_project_removed",
+        "name": "Vercel Project Removed",
+        "description": "Trigger workflow when a project is removed"
+      },
+      {
+        "id": "vercel_domain_created",
+        "name": "Vercel Domain Created",
+        "description": "Trigger workflow when a domain is created"
+      },
+      {
+        "id": "vercel_webhook",
+        "name": "Vercel Webhook (Common Events)",
+        "description": "Trigger on a curated set of common Vercel events (deployments, projects, domains, edge config). Pick a specific trigger to listen to one event type only."
+      }
+    ],
+    "triggerCount": 8,
     "authType": "api-key",
     "category": "tools",
     "integrationType": "developer-tools",
@@ -12935,33 +13196,33 @@
     "triggers": [
       {
         "id": "zoom_meeting_started",
-        "name": "Meeting Started",
-        "description": "Triggered when a Zoom meeting starts"
+        "name": "Zoom Meeting Started",
+        "description": "Trigger workflow when a Zoom meeting starts"
       },
       {
         "id": "zoom_meeting_ended",
-        "name": "Meeting Ended",
-        "description": "Triggered when a Zoom meeting ends"
+        "name": "Zoom Meeting Ended",
+        "description": "Trigger workflow when a Zoom meeting ends"
       },
       {
         "id": "zoom_participant_joined",
-        "name": "Participant Joined",
-        "description": "Triggered when a participant joins a Zoom meeting"
+        "name": "Zoom Participant Joined",
+        "description": "Trigger workflow when a participant joins a Zoom meeting"
       },
       {
         "id": "zoom_participant_left",
-        "name": "Participant Left",
-        "description": "Triggered when a participant leaves a Zoom meeting"
+        "name": "Zoom Participant Left",
+        "description": "Trigger workflow when a participant leaves a Zoom meeting"
       },
       {
         "id": "zoom_recording_completed",
-        "name": "Recording Completed",
-        "description": "Triggered when a Zoom cloud recording is completed"
+        "name": "Zoom Recording Completed",
+        "description": "Trigger workflow when a Zoom cloud recording is completed"
       },
       {
         "id": "zoom_webhook",
-        "name": "Generic Webhook",
-        "description": "Triggered on any Zoom webhook event"
+        "name": "Zoom Webhook (All Events)",
+        "description": "Trigger workflow on any Zoom webhook event"
       }
     ],
     "triggerCount": 6,

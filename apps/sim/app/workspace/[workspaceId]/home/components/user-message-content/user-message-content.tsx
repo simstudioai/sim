@@ -2,8 +2,7 @@
 
 import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
-import { Database, Folder as FolderIcon, Table as TableIcon } from '@/components/emcn/icons'
-import { getDocumentIcon } from '@/components/icons/document-icons'
+import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
 import { useWorkflows } from '@/hooks/queries/workflows'
 
@@ -53,42 +52,13 @@ function MentionHighlight({ context }: { context: ChatMessageContext }) {
     return (workflowList ?? []).find((w) => w.id === context.workflowId)?.color ?? null
   }, [workflowList, context.kind, context.workflowId])
 
-  let icon: React.ReactNode = null
-  const iconClasses = 'h-[12px] w-[12px] flex-shrink-0 text-[var(--text-icon)]'
-
-  switch (context.kind) {
-    case 'workflow':
-    case 'current_workflow':
-      icon = workflowColor ? (
-        <span
-          className='inline-block h-[12px] w-[12px] flex-shrink-0 rounded-[3px] border-[2px]'
-          style={{
-            backgroundColor: workflowColor,
-            borderColor: `${workflowColor}60`,
-            backgroundClip: 'padding-box',
-          }}
-        />
-      ) : null
-      break
-    case 'knowledge':
-      icon = <Database className={iconClasses} />
-      break
-    case 'table':
-      icon = <TableIcon className={iconClasses} />
-      break
-    case 'file': {
-      const FileDocIcon = getDocumentIcon('', context.label)
-      icon = <FileDocIcon className={iconClasses} />
-      break
-    }
-    case 'folder':
-      icon = <FolderIcon className={iconClasses} />
-      break
-  }
-
   return (
     <span className='inline-flex items-baseline gap-1 rounded-[5px] bg-[var(--surface-5)] px-[5px]'>
-      {icon && <span className='relative top-0.5 flex-shrink-0'>{icon}</span>}
+      <ContextMentionIcon
+        context={context}
+        workflowColor={workflowColor}
+        className='relative top-0.5 h-[12px] w-[12px] flex-shrink-0 text-[var(--text-icon)]'
+      />
       {context.label}
     </span>
   )

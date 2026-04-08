@@ -54,6 +54,7 @@ import {
 } from '@/hooks/queries/oauth/oauth-connections'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
+import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const logger = createLogger('IntegrationsManager')
 
@@ -246,6 +247,15 @@ export function IntegrationsManager() {
   }, [selectedCredential, selectedDisplayNameDraft])
 
   const isDetailsDirty = isDescriptionDirty || isDisplayNameDirty
+
+  const setNavGuardDirty = useSettingsDirtyStore((s) => s.setDirty)
+  const resetNavGuard = useSettingsDirtyStore((s) => s.reset)
+
+  useEffect(() => {
+    setNavGuardDirty(isDetailsDirty)
+  }, [isDetailsDirty, setNavGuardDirty])
+
+  useEffect(() => () => resetNavGuard(), [resetNavGuard])
 
   const handleSaveDetails = async () => {
     if (!selectedCredential || !isSelectedAdmin || !isDetailsDirty || updateCredential.isPending)
@@ -1126,7 +1136,7 @@ export function IntegrationsManager() {
             <span className='font-medium text-[var(--text-primary)]'>
               {credentialToDelete?.displayName}
             </span>
-            ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            ? This action cannot be undone.
           </p>
           {deleteError && (
             <div className='mt-3 rounded-lg border border-red-500/50 bg-red-50 p-3 dark:bg-red-950/30'>

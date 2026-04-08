@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import type { EnvironmentVariable } from '@/lib/environment/api'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { CustomToolDefinition } from '@/hooks/queries/custom-tools'
 import { environmentKeys } from '@/hooks/queries/environment'
-import type { EnvironmentVariable } from '@/stores/settings/environment'
 import { tools } from '@/tools/registry'
 import type { ToolConfig } from '@/tools/types'
 

@@ -447,12 +447,12 @@ export function ScheduledTasks() {
         <ModalContent size='sm'>
           <ModalHeader>Delete Scheduled Task</ModalHeader>
           <ModalBody>
-            <p className='text-[var(--text-secondary)] text-caption'>
+            <p className='text-[var(--text-secondary)]'>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>
                 {activeTask?.jobTitle || 'this task'}
               </span>
-              ? <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+              ? This action cannot be undone.
             </p>
           </ModalBody>
           <ModalFooter>

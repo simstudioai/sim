@@ -13,6 +13,7 @@ import { ApolloBlock } from '@/blocks/blocks/apollo'
 import { ArxivBlock } from '@/blocks/blocks/arxiv'
 import { AsanaBlock } from '@/blocks/blocks/asana'
 import { AshbyBlock } from '@/blocks/blocks/ashby'
+import { AthenaBlock } from '@/blocks/blocks/athena'
 import { AttioBlock } from '@/blocks/blocks/attio'
 import { BoxBlock } from '@/blocks/blocks/box'
 import { BrandfetchBlock } from '@/blocks/blocks/brandfetch'
@@ -30,6 +31,7 @@ import { ConditionBlock } from '@/blocks/blocks/condition'
 import { ConfluenceBlock, ConfluenceV2Block } from '@/blocks/blocks/confluence'
 import { CredentialBlock } from '@/blocks/blocks/credential'
 import { CursorBlock, CursorV2Block } from '@/blocks/blocks/cursor'
+import { DagsterBlock } from '@/blocks/blocks/dagster'
 import { DatabricksBlock } from '@/blocks/blocks/databricks'
 import { DatadogBlock } from '@/blocks/blocks/datadog'
 import { DevinBlock } from '@/blocks/blocks/devin'
@@ -235,6 +237,7 @@ export const registry: Record<string, BlockConfig> = {
   arxiv: ArxivBlock,
   asana: AsanaBlock,
   ashby: AshbyBlock,
+  athena: AthenaBlock,
   attio: AttioBlock,
   brandfetch: BrandfetchBlock,
   box: BoxBlock,
@@ -254,6 +257,7 @@ export const registry: Record<string, BlockConfig> = {
   confluence_v2: ConfluenceV2Block,
   cursor: CursorBlock,
   cursor_v2: CursorV2Block,
+  dagster: DagsterBlock,
   databricks: DatabricksBlock,
   datadog: DatadogBlock,
   devin: DevinBlock,

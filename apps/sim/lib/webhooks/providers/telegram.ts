@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/providers/subscription-utils'
+import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -19,6 +19,15 @@ export const telegramHandler: WebhookProviderHandler = {
       logger.warn(
         `[${requestId}] Telegram webhook request has empty User-Agent header. This may be blocked by middleware.`
       )
+    }
+    return null
+  },
+
+  extractIdempotencyId(body: unknown): string | null {
+    const obj = body as Record<string, unknown>
+    const updateId = obj.update_id
+    if (typeof updateId === 'number') {
+      return `telegram:${updateId}`
     }
     return null
   },

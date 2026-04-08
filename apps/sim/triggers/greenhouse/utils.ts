@@ -2,6 +2,26 @@ import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
 /**
+ * Top-level ids mirrored from the webhook JSON for ergonomics (see Greenhouse webhook common attributes).
+ * Always present on `formatInput`; use null when not applicable to the event.
+ */
+const greenhouseIndexedOutputs = {
+  applicationId: {
+    type: 'number',
+    description:
+      'Application id when present (`payload.application.id` or flat `payload.application_id` on offers)',
+  },
+  candidateId: {
+    type: 'number',
+    description: 'Candidate id when `payload.application.candidate.id` is present',
+  },
+  jobId: {
+    type: 'number',
+    description: 'Job id from `payload.job.id` or flat `payload.job_id` when present',
+  },
+} as const
+
+/**
  * Dropdown options for the Greenhouse trigger type selector.
  */
 export const greenhouseTriggerOptions = [
@@ -12,7 +32,7 @@ export const greenhouseTriggerOptions = [
   { label: 'Offer Created', id: 'greenhouse_offer_created' },
   { label: 'Job Created', id: 'greenhouse_job_created' },
   { label: 'Job Updated', id: 'greenhouse_job_updated' },
-  { label: 'Generic Webhook (All Events)', id: 'greenhouse_webhook' },
+  { label: 'All configured Greenhouse events', id: 'greenhouse_webhook' },
 ]
 
 /**
@@ -34,8 +54,8 @@ export const GREENHOUSE_EVENT_MAP: Record<string, string> = {
  */
 export function isGreenhouseEventMatch(triggerId: string, action: string): boolean {
   const expectedAction = GREENHOUSE_EVENT_MAP[triggerId]
-  if (!expectedAction) {
-    return true
+  if (expectedAction === undefined) {
+    return false
   }
   return action === expectedAction
 }
@@ -51,12 +71,24 @@ export function buildGreenhouseExtraFields(triggerId: string): SubBlockConfig[] 
       title: 'Secret Key (Optional)',
       type: 'short-input',
       placeholder: 'Enter the same secret key configured in Greenhouse',
-      description: 'Used to verify webhook signatures via HMAC-SHA256.',
+      description:
+        'When set, requests must include a valid Signature header (HMAC-SHA256). If left empty, the endpoint does not verify signatures—only use on a private URL you fully control.',
       password: true,
       mode: 'trigger',
       condition: { field: 'selectedTriggerId', value: triggerId },
     },
   ]
+}
+
+function buildSourceOutputs(): Record<string, TriggerOutput> {
+  return {
+    id: { type: 'number', description: 'Source ID' },
+    name: { type: 'string', description: 'Source name when provided by Greenhouse' },
+    public_name: {
+      type: 'string',
+      description: 'Public-facing source name when provided by Greenhouse',
+    },
+  }
 }
 
 /**
@@ -69,8 +101,8 @@ export function greenhouseSetupInstructions(eventType: string): string {
     'In Greenhouse, go to <strong>Configure &gt; Dev Center &gt; Webhooks</strong>.',
     'Click <strong>Create New Webhook</strong>.',
     'Paste the Webhook URL into the <strong>Endpoint URL</strong> field.',
-    'Enter a <strong>Secret Key</strong> for signature verification (optional).',
-    `Under <strong>When</strong>, select the <strong>${eventType}</strong> event.`,
+    'Enter a <strong>Secret Key</strong> for HMAC signature verification (recommended). Leave empty only if you accept unauthenticated POSTs to this URL.',
+    `Under <strong>When</strong>, select the appropriate <strong>${eventType}</strong>.`,
     'Click <strong>Create Webhook</strong> to save.',
     'Click "Save" above to activate your trigger.',
   ]
@@ -91,6 +123,7 @@ export function greenhouseSetupInstructions(eventType: string): string {
 export function buildCandidateHiredOutputs(): Record<string, TriggerOutput> {
   return {
     action: { type: 'string', description: 'The webhook event type (hire_candidate)' },
+    ...greenhouseIndexedOutputs,
     payload: {
       application: {
         id: { type: 'number', description: 'Application ID' },
@@ -114,10 +147,7 @@ export function buildCandidateHiredOutputs(): Record<string, TriggerOutput> {
           coordinator: { type: 'json', description: 'Assigned coordinator' },
         },
         jobs: { type: 'json', description: 'Associated jobs (array)' },
-        source: {
-          id: { type: 'number', description: 'Source ID' },
-          public_name: { type: 'string', description: 'Source name' },
-        },
+        source: buildSourceOutputs(),
         offer: {
           id: { type: 'number', description: 'Offer ID' },
           version: { type: 'number', description: 'Offer version' },
@@ -137,6 +167,7 @@ export function buildCandidateHiredOutputs(): Record<string, TriggerOutput> {
 export function buildNewApplicationOutputs(): Record<string, TriggerOutput> {
   return {
     action: { type: 'string', description: 'The webhook event type (new_candidate_application)' },
+    ...greenhouseIndexedOutputs,
     payload: {
       application: {
         id: { type: 'number', description: 'Application ID' },
@@ -160,10 +191,7 @@ export function buildNewApplicationOutputs(): Record<string, TriggerOutput> {
           tags: { type: 'json', description: 'Candidate tags' },
         },
         jobs: { type: 'json', description: 'Associated jobs (array)' },
-        source: {
-          id: { type: 'number', description: 'Source ID' },
-          public_name: { type: 'string', description: 'Source name' },
-        },
+        source: buildSourceOutputs(),
         answers: { type: 'json', description: 'Application question answers' },
         attachments: { type: 'json', description: 'Application attachments' },
         custom_fields: { type: 'json', description: 'Application custom fields' },
@@ -179,6 +207,7 @@ export function buildNewApplicationOutputs(): Record<string, TriggerOutput> {
 export function buildCandidateStageChangeOutputs(): Record<string, TriggerOutput> {
   return {
     action: { type: 'string', description: 'The webhook event type (candidate_stage_change)' },
+    ...greenhouseIndexedOutputs,
     payload: {
       application: {
         id: { type: 'number', description: 'Application ID' },
@@ -201,10 +230,7 @@ export function buildCandidateStageChangeOutputs(): Record<string, TriggerOutput
           phone_numbers: { type: 'json', description: 'Phone numbers' },
         },
         jobs: { type: 'json', description: 'Associated jobs (array)' },
-        source: {
-          id: { type: 'number', description: 'Source ID' },
-          public_name: { type: 'string', description: 'Source name' },
-        },
+        source: buildSourceOutputs(),
         custom_fields: { type: 'json', description: 'Application custom fields' },
       },
     },
@@ -218,6 +244,7 @@ export function buildCandidateStageChangeOutputs(): Record<string, TriggerOutput
 export function buildCandidateRejectedOutputs(): Record<string, TriggerOutput> {
   return {
     action: { type: 'string', description: 'The webhook event type (reject_candidate)' },
+    ...greenhouseIndexedOutputs,
     payload: {
       application: {
         id: { type: 'number', description: 'Application ID' },
@@ -256,6 +283,7 @@ export function buildCandidateRejectedOutputs(): Record<string, TriggerOutput> {
 export function buildOfferCreatedOutputs(): Record<string, TriggerOutput> {
   return {
     action: { type: 'string', description: 'The webhook event type (offer_created)' },
+    ...greenhouseIndexedOutputs,
     payload: {
       id: { type: 'number', description: 'Offer ID' },
       application_id: { type: 'number', description: 'Associated application ID' },
@@ -300,6 +328,7 @@ function buildJobPayload(): Record<string, TriggerOutput> {
 export function buildJobCreatedOutputs(): Record<string, TriggerOutput> {
   return {
     action: { type: 'string', description: 'The webhook event type (job_created)' },
+    ...greenhouseIndexedOutputs,
     payload: { job: buildJobPayload() },
   } as Record<string, TriggerOutput>
 }
@@ -311,6 +340,7 @@ export function buildJobCreatedOutputs(): Record<string, TriggerOutput> {
 export function buildJobUpdatedOutputs(): Record<string, TriggerOutput> {
   return {
     action: { type: 'string', description: 'The webhook event type (job_updated)' },
+    ...greenhouseIndexedOutputs,
     payload: { job: buildJobPayload() },
   } as Record<string, TriggerOutput>
 }
@@ -321,6 +351,7 @@ export function buildJobUpdatedOutputs(): Record<string, TriggerOutput> {
 export function buildWebhookOutputs(): Record<string, TriggerOutput> {
   return {
     action: { type: 'string', description: 'The webhook event type' },
+    ...greenhouseIndexedOutputs,
     payload: { type: 'json', description: 'Full event payload' },
   } as Record<string, TriggerOutput>
 }

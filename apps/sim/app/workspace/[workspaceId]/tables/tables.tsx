@@ -539,9 +539,7 @@ export function Tables() {
               <span className='text-[var(--text-error)]'>
                 All {activeTable?.rowCount} rows will be removed.
               </span>{' '}
-              <span className='text-[var(--text-tertiary)]'>
-                You can restore it from Recently Deleted in Settings.
-              </span>
+              You can restore it from Recently Deleted in Settings.
             </p>
           </ModalBody>
           <ModalFooter>

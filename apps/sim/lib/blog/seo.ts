@@ -59,27 +59,33 @@ export function buildPostMetadata(post: BlogMeta): Metadata {
 
 export function buildArticleJsonLd(post: BlogMeta) {
   return {
-    '@context': 'https://schema.org',
-    '@type': 'BlogPosting',
+    '@type': 'TechArticle',
+    url: post.canonical,
     headline: post.title,
     description: post.description,
     image: [
       {
         '@type': 'ImageObject',
         url: post.ogImage,
+        width: 1200,
+        height: 630,
         caption: post.ogAlt || post.title,
       },
     ],
     datePublished: post.date,
     dateModified: post.updated ?? post.date,
+    wordCount: post.wordCount,
+    proficiencyLevel: 'Beginner',
     author: (post.authors && post.authors.length > 0 ? post.authors : [post.author]).map((a) => ({
       '@type': 'Person',
       name: a.name,
       url: a.url,
+      ...(a.url ? { sameAs: [a.url] } : {}),
     })),
     publisher: {
       '@type': 'Organization',
       name: 'Sim',
+      url: 'https://sim.ai',
       logo: {
         '@type': 'ImageObject',
         url: 'https://sim.ai/logo/primary/medium.png',
@@ -104,7 +110,6 @@ export function buildArticleJsonLd(post: BlogMeta) {
 
 export function buildBreadcrumbJsonLd(post: BlogMeta) {
   return {
-    '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sim.ai' },
@@ -117,7 +122,6 @@ export function buildBreadcrumbJsonLd(post: BlogMeta) {
 export function buildFaqJsonLd(items: { q: string; a: string }[] | undefined) {
   if (!items || items.length === 0) return null
   return {
-    '@context': 'https://schema.org',
     '@type': 'FAQPage',
     mainEntity: items.map((it) => ({
       '@type': 'Question',
@@ -127,12 +131,41 @@ export function buildFaqJsonLd(items: { q: string; a: string }[] | undefined) {
   }
 }
 
-export function buildBlogJsonLd() {
+export function buildPostGraphJsonLd(post: BlogMeta) {
+  const graph: Record<string, unknown>[] = [buildArticleJsonLd(post), buildBreadcrumbJsonLd(post)]
+
+  const faq = buildFaqJsonLd(post.faq)
+  if (faq) {
+    graph.push(faq)
+  }
+
   return {
     '@context': 'https://schema.org',
-    '@type': 'Blog',
+    '@graph': graph,
+  }
+}
+
+export function buildCollectionPageJsonLd() {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
     name: 'Sim Blog',
     url: 'https://sim.ai/blog',
     description: 'Announcements, insights, and guides for building AI agent workflows.',
+    publisher: {
+      '@type': 'Organization',
+      name: 'Sim',
+      url: 'https://sim.ai',
+      logo: {
+        '@type': 'ImageObject',
+        url: 'https://sim.ai/logo/primary/medium.png',
+      },
+    },
+    inLanguage: 'en-US',
+    isPartOf: {
+      '@type': 'WebSite',
+      name: 'Sim',
+      url: 'https://sim.ai',
+    },
   }
 }

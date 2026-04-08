@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { format, formatDistanceToNow } from 'date-fns'
+import { format, formatDistanceToNow, isPast } from 'date-fns'
 import {
   AlertCircle,
   CheckCircle2,
@@ -380,7 +380,9 @@ function ConnectorCard({
                   <span>·</span>
                   <span>
                     Next sync:{' '}
-                    {formatDistanceToNow(new Date(connector.nextSyncAt), { addSuffix: true })}
+                    {isPast(new Date(connector.nextSyncAt))
+                      ? 'pending'
+                      : formatDistanceToNow(new Date(connector.nextSyncAt), { addSuffix: true })}
                   </span>
                 </>
               )}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
+import { useCallback, useLayoutEffect, useRef } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
@@ -37,6 +37,7 @@ interface MothershipChatProps {
   userId?: string
   chatId?: string
   onContextAdd?: (context: ChatContext) => void
+  onContextRemove?: (context: ChatContext) => void
   editValue?: string
   onEditValueConsumed?: () => void
   layout?: 'mothership-view' | 'copilot-view'
@@ -83,6 +84,7 @@ export function MothershipChat({
   userId,
   chatId,
   onContextAdd,
+  onContextRemove,
   editValue,
   onEditValueConsumed,
   layout = 'mothership-view',
@@ -99,41 +101,16 @@ export function MothershipChat({
   const hasMessages = messages.length > 0
   const initialScrollDoneRef = useRef(false)
 
-  const primedQueueIdRef = useRef<string | null>(null)
-  const primeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const messageQueueRef = useRef(messageQueue)
   messageQueueRef.current = messageQueue
   const onSendQueuedMessageRef = useRef(onSendQueuedMessage)
   onSendQueuedMessageRef.current = onSendQueuedMessage
 
-  const clearPrimed = useCallback(() => {
-    primedQueueIdRef.current = null
-    if (primeTimerRef.current) {
-      clearTimeout(primeTimerRef.current)
-      primeTimerRef.current = null
-    }
-  }, [])
-
   const handleEnterWhileEmpty = useCallback(() => {
     const topMessage = messageQueueRef.current[0]
     if (!topMessage) return false
-
-    if (primedQueueIdRef.current === topMessage.id) {
-      clearPrimed()
-      void onSendQueuedMessageRef.current(topMessage.id)
-      return true
-    }
-
-    primedQueueIdRef.current = topMessage.id
-    if (primeTimerRef.current) clearTimeout(primeTimerRef.current)
-    primeTimerRef.current = setTimeout(clearPrimed, 3000)
+    void onSendQueuedMessageRef.current(topMessage.id)
     return true
-  }, [clearPrimed])
-
-  useEffect(() => {
-    return () => {
-      if (primeTimerRef.current) clearTimeout(primeTimerRef.current)
-    }
   }, [])
 
   useLayoutEffect(() => {
@@ -232,10 +209,10 @@ export function MothershipChat({
             isInitialView={false}
             userId={userId}
             onContextAdd={onContextAdd}
+            onContextRemove={onContextRemove}
             editValue={editValue}
             onEditValueConsumed={onEditValueConsumed}
             onEnterWhileEmpty={handleEnterWhileEmpty}
-            onPrimedDismiss={clearPrimed}
           />
         </div>
       </div>

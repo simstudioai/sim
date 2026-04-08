@@ -53,21 +53,61 @@ export const notionHandler: WebhookProviderHandler = {
     providerLabel: 'Notion',
   }),
 
+  handleReachabilityTest(body: unknown, requestId: string) {
+    const obj = body as Record<string, unknown> | null
+    const verificationToken = obj?.verification_token
+
+    if (typeof verificationToken === 'string' && verificationToken.length > 0) {
+      logger.info(`[${requestId}] Notion verification request detected - returning 200`)
+      return NextResponse.json({
+        status: 'ok',
+        message: 'Webhook endpoint verified',
+      })
+    }
+
+    return null
+  },
+
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
+    const rawEntity =
+      b.entity && typeof b.entity === 'object' ? (b.entity as Record<string, unknown>) : {}
+    const rawData = b.data && typeof b.data === 'object' ? (b.data as Record<string, unknown>) : {}
+    const rawParent =
+      rawData.parent && typeof rawData.parent === 'object'
+        ? (rawData.parent as Record<string, unknown>)
+        : null
+    const { type: entityType, ...entityRest } = rawEntity
+    const { type: _rawParentType, ...parentRest } = rawParent ?? {}
+
     return {
       input: {
         id: b.id,
         type: b.type,
         timestamp: b.timestamp,
+        api_version: b.api_version,
         workspace_id: b.workspace_id,
         workspace_name: b.workspace_name,
         subscription_id: b.subscription_id,
         integration_id: b.integration_id,
         attempt_number: b.attempt_number,
         authors: b.authors || [],
-        entity: b.entity || {},
-        data: b.data || {},
+        accessible_by: b.accessible_by || [],
+        entity: {
+          ...entityRest,
+          entity_type: entityType,
+        },
+        data: {
+          ...rawData,
+          ...(rawParent
+            ? {
+                parent: {
+                  ...parentRest,
+                  parent_type: rawParent.type,
+                },
+              }
+            : {}),
+        },
       },
     }
   },
@@ -89,12 +129,23 @@ export const notionHandler: WebhookProviderHandler = {
             receivedEvent: eventType,
           }
         )
-        return NextResponse.json({
-          message: 'Event type does not match trigger configuration. Ignoring.',
-        })
+        return false
       }
     }
 
     return true
+  },
+
+  extractIdempotencyId(body: unknown) {
+    const obj = body as Record<string, unknown>
+    const id = obj.id
+    const type = obj.type
+    if (
+      (typeof id === 'string' || typeof id === 'number') &&
+      (typeof type === 'string' || typeof type === 'number')
+    ) {
+      return `notion:${String(type)}:${String(id)}`
+    }
+    return null
   },
 }

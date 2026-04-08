@@ -65,6 +65,8 @@ import {
   isBillingEnabled,
   isEmailPasswordEnabled,
   isEmailVerificationEnabled,
+  isGithubAuthDisabled,
+  isGoogleAuthDisabled,
   isHosted,
   isOrganizationsEnabled,
   isRegistrationDisabled,
@@ -80,6 +82,7 @@ import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
+import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 import { createAnonymousSession, ensureAnonymousUserExists } from './anonymous'
 
@@ -238,6 +241,13 @@ export const auth = betterAuth({
                 { userId: user.id, error }
               )
             }
+          }
+        },
+      },
+      update: {
+        after: async (user) => {
+          if (user.banned) {
+            await disableUserResources(user.id)
           }
         },
       },
@@ -607,19 +617,23 @@ export const auth = betterAuth({
     },
   },
   socialProviders: {
-    github: {
-      clientId: env.GITHUB_CLIENT_ID as string,
-      clientSecret: env.GITHUB_CLIENT_SECRET as string,
-      scope: ['user:email', 'repo'],
-    },
-    google: {
-      clientId: env.GOOGLE_CLIENT_ID as string,
-      clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-      scope: [
-        'https://www.googleapis.com/auth/userinfo.email',
-        'https://www.googleapis.com/auth/userinfo.profile',
-      ],
-    },
+    ...(!isGithubAuthDisabled && {
+      github: {
+        clientId: env.GITHUB_CLIENT_ID as string,
+        clientSecret: env.GITHUB_CLIENT_SECRET as string,
+        scope: ['user:email', 'repo'],
+      },
+    }),
+    ...(!isGoogleAuthDisabled && {
+      google: {
+        clientId: env.GOOGLE_CLIENT_ID as string,
+        clientSecret: env.GOOGLE_CLIENT_SECRET as string,
+        scope: [
+          'https://www.googleapis.com/auth/userinfo.email',
+          'https://www.googleapis.com/auth/userinfo.profile',
+        ],
+      },
+    }),
   },
   emailVerification: {
     autoSignInAfterVerification: true,

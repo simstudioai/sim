@@ -2,7 +2,7 @@ import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@/lib/core/security/encryption'
 import { generateId } from '@/lib/core/utils/uuid'
-import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/providers/subscription-utils'
+import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,
   FormatInputContext,
@@ -33,6 +33,15 @@ function validateAshbySignature(secretToken: string, signature: string, body: st
 }
 
 export const ashbyHandler: WebhookProviderHandler = {
+  extractIdempotencyId(body: unknown): string | null {
+    const obj = body as Record<string, unknown>
+    const webhookActionId = obj.webhookActionId
+    if (typeof webhookActionId === 'string' && webhookActionId) {
+      return `ashby:${webhookActionId}`
+    }
+    return null
+  },
+
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
     return {

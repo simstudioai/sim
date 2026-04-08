@@ -59,8 +59,15 @@ async function scanFrontmatters(): Promise<BlogMeta[]> {
       .catch(() => false)
     if (!hasMdx) continue
     const raw = await fs.readFile(mdxPath, 'utf-8')
-    const { data } = matter(raw)
+    const { data, content: mdxContent } = matter(raw)
     const fm = BlogFrontmatterSchema.parse(data)
+    const wordCount = mdxContent
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/import\s+.*?from\s+['"].*?['"]/g, '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/[#*_~`[\]()!|>-]/g, '')
+      .split(/\s+/)
+      .filter((w) => w.length > 0).length
     const authors = fm.authors.map((id) => authorsMap[id]).filter(Boolean)
     if (authors.length === 0) throw new Error(`Authors not found for "${slug}"`)
     results.push({
@@ -79,6 +86,7 @@ async function scanFrontmatters(): Promise<BlogMeta[]> {
       about: fm.about,
       timeRequired: fm.timeRequired,
       faq: fm.faq,
+      wordCount,
       draft: fm.draft,
       featured: fm.featured ?? false,
     })
@@ -184,13 +192,12 @@ export async function getRelatedPosts(slug: string, limit = 3): Promise<BlogMeta
   const posts = await getAllPostMeta()
   const current = posts.find((p) => p.slug === slug)
   if (!current) return []
-  const scored = posts
-    .filter((p) => p.slug !== slug)
+  const others = posts.filter((p) => p.slug !== slug)
+  const scored = others
     .map((p) => ({
       post: p,
       score: p.tags.filter((t) => current.tags.includes(t)).length,
     }))
-    .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score || byDateDesc(a.post, b.post))
     .slice(0, limit)
     .map((x) => x.post)

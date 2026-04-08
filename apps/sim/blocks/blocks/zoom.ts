@@ -3,6 +3,7 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ZoomResponse } from '@/tools/zoom/types'
+import { getTrigger } from '@/triggers'
 
 export const ZoomBlock: BlockConfig<ZoomResponse> = {
   type: 'zoom',
@@ -17,6 +18,17 @@ export const ZoomBlock: BlockConfig<ZoomResponse> = {
   tags: ['meeting', 'calendar', 'scheduling'],
   bgColor: '#2D8CFF',
   icon: ZoomIcon,
+  triggers: {
+    enabled: true,
+    available: [
+      'zoom_meeting_started',
+      'zoom_meeting_ended',
+      'zoom_participant_joined',
+      'zoom_participant_left',
+      'zoom_recording_completed',
+      'zoom_webhook',
+    ],
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -440,6 +452,12 @@ Return ONLY the date string - no explanations, no quotes, no extra text.`,
         value: ['zoom_delete_meeting'],
       },
     },
+    ...getTrigger('zoom_meeting_started').subBlocks,
+    ...getTrigger('zoom_meeting_ended').subBlocks,
+    ...getTrigger('zoom_participant_joined').subBlocks,
+    ...getTrigger('zoom_participant_left').subBlocks,
+    ...getTrigger('zoom_recording_completed').subBlocks,
+    ...getTrigger('zoom_webhook').subBlocks,
   ],
   tools: {
     access: [

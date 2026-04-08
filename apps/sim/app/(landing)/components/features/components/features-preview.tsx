@@ -18,6 +18,7 @@ import {
   xAIIcon,
 } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
+import { workflowBorderColor } from '@/lib/workspaces/colors'
 
 interface FeaturesPreviewProps {
   activeTab: number
@@ -383,7 +384,7 @@ function MiniCardIcon({ variant, color }: { variant: CardVariant; color?: string
           className='h-[7px] w-[7px] flex-shrink-0 rounded-[1.5px] border'
           style={{
             backgroundColor: c,
-            borderColor: `${c}60`,
+            borderColor: workflowBorderColor(c),
             backgroundClip: 'padding-box',
           }}
         />
@@ -470,7 +471,7 @@ function WorkflowCardBody({ color }: { color: string }) {
         className='absolute top-2.5 left-[40px] h-[14px] w-[14px] rounded-[3px] border-[2px]'
         style={{
           backgroundColor: color,
-          borderColor: `${color}60`,
+          borderColor: workflowBorderColor(color),
           backgroundClip: 'padding-box',
         }}
       />
@@ -481,7 +482,7 @@ function WorkflowCardBody({ color }: { color: string }) {
         className='absolute top-[36px] left-[68px] h-[14px] w-[14px] rounded-[3px] border-[2px]'
         style={{
           backgroundColor: color,
-          borderColor: `${color}60`,
+          borderColor: workflowBorderColor(color),
           backgroundClip: 'padding-box',
           opacity: 0.5,
         }}
@@ -896,7 +897,7 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
                 className='h-[10px] w-[10px] shrink-0 rounded-[3px] border-[1.5px]'
                 style={{
                   backgroundColor: color,
-                  borderColor: `${color}60`,
+                  borderColor: workflowBorderColor(color),
                   backgroundClip: 'padding-box',
                 }}
               />

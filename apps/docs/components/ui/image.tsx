@@ -29,7 +29,7 @@ export function Image({
     <>
       <NextImage
         className={cn(
-          'overflow-hidden rounded-xl border border-border object-cover shadow-sm',
+          'overflow-hidden rounded-xl border border-border object-cover',
           enableLightbox && 'cursor-pointer transition-opacity hover:opacity-95',
           className
         )}

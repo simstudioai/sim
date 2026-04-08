@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import type { ChatContextKind, MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 
 export interface TaskMetadata {
   id: string
@@ -42,13 +42,14 @@ export interface TaskStoredFileAttachment {
 }
 
 export interface TaskStoredMessageContext {
-  kind: string
+  kind: ChatContextKind
   label: string
   workflowId?: string
   knowledgeId?: string
   tableId?: string
   fileId?: string
   folderId?: string
+  chatId?: string
 }
 
 export interface TaskStoredMessage {

@@ -1,19 +1,23 @@
 import { db } from '@sim/db'
 import {
   a2aAgent,
+  apiKey,
   chat,
   form,
   webhook,
   workflow,
   workflowDeploymentVersion,
+  workflowFolder,
   workflowMcpTool,
   workflowSchedule,
+  workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { env } from '@/lib/core/config/env'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { getWorkflowById } from '@/lib/workflows/utils'
 
@@ -22,6 +26,7 @@ const logger = createLogger('WorkflowLifecycle')
 interface ArchiveWorkflowOptions {
   requestId: string
   notifySocket?: boolean
+  archivedAt?: Date
 }
 
 async function notifyWorkflowArchived(workflowId: string, requestId: string): Promise<void> {
@@ -120,7 +125,7 @@ export async function archiveWorkflow(
     return { archived: false, workflow: existingWorkflow }
   }
 
-  const now = new Date()
+  const now = options.archivedAt ?? new Date()
   const affectedWorkflowMcpServers = await db
     .select({ serverId: workflowMcpTool.serverId })
     .from(workflowMcpTool)
@@ -257,12 +262,28 @@ export async function restoreWorkflow(
     }
   }
 
+  let clearFolderId = false
+  if (existingWorkflow.folderId) {
+    const [folder] = await db
+      .select({ archivedAt: workflowFolder.archivedAt })
+      .from(workflowFolder)
+      .where(eq(workflowFolder.id, existingWorkflow.folderId))
+
+    if (!folder || folder.archivedAt) {
+      clearFolderId = true
+    }
+  }
+
   const now = new Date()
 
   await db.transaction(async (tx) => {
     await tx
       .update(workflow)
-      .set({ archivedAt: null, updatedAt: now })
+      .set({
+        archivedAt: null,
+        updatedAt: now,
+        ...(clearFolderId && { folderId: null }),
+      })
       .where(eq(workflow.id, workflowId))
 
     await tx
@@ -359,5 +380,31 @@ export async function archiveWorkflowsByIdsInWorkspace(
   return archiveWorkflows(
     workflows.map((entry) => entry.id),
     options
+  )
+}
+
+/**
+ * Disables all resources owned by a banned user by archiving every workspace
+ * they own (cascading to workflows, chats, forms, KBs, tables, files, etc.)
+ * and deleting their personal API keys.
+ */
+export async function disableUserResources(userId: string): Promise<void> {
+  const requestId = generateRequestId()
+  logger.info(`[${requestId}] Disabling resources for banned user ${userId}`)
+
+  const { archiveWorkspace } = await import('@/lib/workspaces/lifecycle')
+
+  const ownedWorkspaces = await db
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(and(eq(workspace.ownerId, userId), isNull(workspace.archivedAt)))
+
+  await Promise.all([
+    ...ownedWorkspaces.map((w) => archiveWorkspace(w.id, { requestId })),
+    db.delete(apiKey).where(eq(apiKey.userId, userId)),
+  ])
+
+  logger.info(
+    `[${requestId}] Disabled resources for user ${userId}: archived ${ownedWorkspaces.length} workspaces, deleted API keys`
   )
 }

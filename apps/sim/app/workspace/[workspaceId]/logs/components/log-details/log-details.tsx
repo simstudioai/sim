@@ -20,6 +20,7 @@ import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDuration } from '@/lib/core/utils/formatting'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {
   ExecutionSnapshot,
   FileCards,
@@ -431,7 +432,7 @@ export const LogDetails = memo(function LogDetails({
                             className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
                             style={{
                               backgroundColor: c,
-                              borderColor: c ? `${c}60` : undefined,
+                              borderColor: c ? workflowBorderColor(c) : undefined,
                               backgroundClip: 'padding-box',
                             }}
                           />

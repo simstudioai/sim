@@ -1187,7 +1187,7 @@ export function Document({
                   from future syncs. To temporarily hide it from search, disable it instead.
                 </span>
               ) : (
-                <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+                <>This action cannot be undone.</>
               )}
             </p>
           </ModalBody>

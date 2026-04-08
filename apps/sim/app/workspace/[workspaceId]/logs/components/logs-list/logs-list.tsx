@@ -8,6 +8,7 @@ import { Badge, buttonVariants } from '@/components/emcn'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDuration } from '@/lib/core/utils/formatting'
+import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {
   DELETED_WORKFLOW_COLOR,
   DELETED_WORKFLOW_LABEL,
@@ -90,7 +91,7 @@ const LogRow = memo(
               className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
               style={{
                 backgroundColor: workflowColor,
-                borderColor: `${workflowColor}60`,
+                borderColor: workflowBorderColor(workflowColor),
                 backgroundClip: 'padding-box',
               }}
             />

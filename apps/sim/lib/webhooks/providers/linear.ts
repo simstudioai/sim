@@ -1,9 +1,11 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { NextResponse } from 'next/server'
 import { safeCompare } from '@/lib/core/security/encryption'
 import { generateId } from '@/lib/core/utils/uuid'
-import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/providers/subscription-utils'
+import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
+  AuthContext,
   DeleteSubscriptionContext,
   EventMatchContext,
   FormatInputContext,
@@ -12,7 +14,6 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:Linear')
 
@@ -41,16 +42,73 @@ function validateLinearSignature(secret: string, signature: string, body: string
   }
 }
 
+const LINEAR_WEBHOOK_TIMESTAMP_SKEW_MS = 5 * 60 * 1000
+
 export const linearHandler: WebhookProviderHandler = {
-  verifyAuth: createHmacVerifier({
-    configKey: 'webhookSecret',
-    headerName: 'Linear-Signature',
-    validateFn: validateLinearSignature,
-    providerLabel: 'Linear',
-  }),
+  async verifyAuth({
+    request,
+    rawBody,
+    requestId,
+    providerConfig,
+  }: AuthContext): Promise<NextResponse | null> {
+    const secret = providerConfig.webhookSecret as string | undefined
+    if (!secret) {
+      return null
+    }
+
+    const signature = request.headers.get('Linear-Signature')
+    if (!signature) {
+      logger.warn(`[${requestId}] Linear webhook missing signature header`)
+      return new NextResponse('Unauthorized - Missing Linear signature', { status: 401 })
+    }
+
+    if (!validateLinearSignature(secret, signature, rawBody)) {
+      logger.warn(`[${requestId}] Linear signature verification failed`)
+      return new NextResponse('Unauthorized - Invalid Linear signature', { status: 401 })
+    }
+
+    try {
+      const parsed = JSON.parse(rawBody) as Record<string, unknown>
+      const ts = parsed.webhookTimestamp
+      if (typeof ts !== 'number' || !Number.isFinite(ts)) {
+        logger.warn(`[${requestId}] Linear webhookTimestamp missing or invalid`)
+        return new NextResponse('Unauthorized - Invalid webhook timestamp', {
+          status: 401,
+        })
+      }
+
+      if (Math.abs(Date.now() - ts) > LINEAR_WEBHOOK_TIMESTAMP_SKEW_MS) {
+        logger.warn(
+          `[${requestId}] Linear webhookTimestamp outside allowed skew (${LINEAR_WEBHOOK_TIMESTAMP_SKEW_MS}ms)`
+        )
+        return new NextResponse('Unauthorized - Webhook timestamp skew too large', {
+          status: 401,
+        })
+      }
+    } catch (error) {
+      logger.warn(
+        `[${requestId}] Linear webhook body parse failed after signature verification`,
+        error
+      )
+      return new NextResponse('Unauthorized - Invalid webhook body', { status: 401 })
+    }
+
+    return null
+  },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
+    const rawActor = b.actor
+    let actor: unknown = null
+    if (rawActor && typeof rawActor === 'object' && !Array.isArray(rawActor)) {
+      const a = rawActor as Record<string, unknown>
+      const { type: linearActorType, ...rest } = a
+      actor = {
+        ...rest,
+        actorType: typeof linearActorType === 'string' ? linearActorType : null,
+      }
+    }
+
     return {
       input: {
         action: b.action || '',
@@ -59,7 +117,8 @@ export const linearHandler: WebhookProviderHandler = {
         webhookTimestamp: b.webhookTimestamp || 0,
         organizationId: b.organizationId || '',
         createdAt: b.createdAt || '',
-        actor: b.actor || null,
+        url: typeof b.url === 'string' ? b.url : '',
+        actor,
         data: b.data || null,
         updatedFrom: b.updatedFrom || null,
       },
@@ -160,6 +219,12 @@ export const linearHandler: WebhookProviderHandler = {
       }
 
       const externalId = result.webhook?.id
+      if (typeof externalId !== 'string' || !externalId.trim()) {
+        throw new Error(
+          'Linear webhook was created but the API response did not include a webhook id.'
+        )
+      }
+
       logger.info(
         `[${ctx.requestId}] Created Linear webhook ${externalId} for webhook ${ctx.webhook.id}`
       )
@@ -227,14 +292,5 @@ export const linearHandler: WebhookProviderHandler = {
         error: error instanceof Error ? error.message : String(error),
       })
     }
-  },
-
-  extractIdempotencyId(body: unknown) {
-    const obj = body as Record<string, unknown>
-    const data = obj.data as Record<string, unknown> | undefined
-    if (obj.action && data?.id) {
-      return `${obj.action}:${data.id}`
-    }
-    return null
   },
 }
