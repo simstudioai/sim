@@ -1,4 +1,32 @@
+import type { MothershipResource } from '@/lib/copilot/resource-types'
+import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
+import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+
+/**
+ * Builds a `MothershipResource` array from a sidebar drag selection so it can
+ * be set as `application/x-sim-resources` drag data and dropped into the chat.
+ */
+export function buildDragResources(
+  selection: { workflowIds: string[]; folderIds: string[] },
+  workspaceId: string
+): MothershipResource[] {
+  const allWorkflows = getWorkflows(workspaceId)
+  const workflowMap = Object.fromEntries(allWorkflows.map((w) => [w.id, w]))
+  const folderMap = getFolderMap(workspaceId)
+  return [
+    ...selection.workflowIds.map((id) => ({
+      type: 'workflow' as const,
+      id,
+      title: workflowMap[id]?.name ?? id,
+    })),
+    ...selection.folderIds.map((id) => ({
+      type: 'folder' as const,
+      id,
+      title: folderMap[id]?.name ?? id,
+    })),
+  ]
+}
 
 export function compareByOrder<T extends { sortOrder: number; createdAt?: Date; id: string }>(
   a: T,

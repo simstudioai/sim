@@ -5,6 +5,7 @@ import clsx from 'clsx'
 import { MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
@@ -16,6 +17,7 @@ import {
   useItemRename,
   useSidebarDragContext,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { buildDragResources } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import {
   useCanDelete,
   useDeleteSelection,
@@ -338,9 +340,15 @@ export function WorkflowItem({
 
       e.dataTransfer.setData('sidebar-selection', JSON.stringify(selection))
       e.dataTransfer.effectAllowed = 'move'
+
+      const resources = buildDragResources(selection, workspaceId)
+      if (resources.length > 0) {
+        e.dataTransfer.setData(SIM_RESOURCES_DRAG_TYPE, JSON.stringify(resources))
+      }
+
       onDragStartProp?.()
     },
-    [workflow.id, onDragStartProp]
+    [workflow.id, workspaceId, onDragStartProp]
   )
 
   const {

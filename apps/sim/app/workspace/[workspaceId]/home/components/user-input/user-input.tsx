@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import { Database, Folder as FolderIcon, Table as TableIcon } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useSession } from '@/lib/auth/auth-client'
+import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useAvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
@@ -247,15 +248,17 @@ export function UserInput({
       if (textarea) {
         const currentValue = valueRef.current
         const insertAt = atInsertPosRef.current ?? textarea.selectionStart ?? currentValue.length
-        atInsertPosRef.current = null
-
         const needsSpaceBefore = insertAt > 0 && !/\s/.test(currentValue.charAt(insertAt - 1))
         const insertText = `${needsSpaceBefore ? ' ' : ''}@${resource.title} `
         const before = currentValue.slice(0, insertAt)
         const after = currentValue.slice(insertAt)
+        const newValue = `${before}${insertText}${after}`
         const newPos = before.length + insertText.length
         pendingCursorRef.current = newPos
-        setValue(`${before}${insertText}${after}`)
+        // Eagerly sync refs so successive drop-handler iterations see the updated position
+        valueRef.current = newValue
+        atInsertPosRef.current = newPos
+        setValue(newValue)
       }
 
       const context = mapResourceToContext(resource)
@@ -281,7 +284,10 @@ export function UserInput({
   }, [])
 
   const handleContainerDragOver = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes('application/x-sim-resource')) {
+    if (
+      e.dataTransfer.types.includes(SIM_RESOURCE_DRAG_TYPE) ||
+      e.dataTransfer.types.includes(SIM_RESOURCES_DRAG_TYPE)
+    ) {
       e.preventDefault()
       e.stopPropagation()
       e.dataTransfer.dropEffect = 'copy'
@@ -292,7 +298,21 @@ export function UserInput({
 
   const handleContainerDrop = useCallback(
     (e: React.DragEvent) => {
-      const resourceJson = e.dataTransfer.getData('application/x-sim-resource')
+      const resourcesJson = e.dataTransfer.getData(SIM_RESOURCES_DRAG_TYPE)
+      if (resourcesJson) {
+        e.preventDefault()
+        e.stopPropagation()
+        try {
+          const resources = JSON.parse(resourcesJson) as MothershipResource[]
+          for (const resource of resources) {
+            handleResourceSelect(resource)
+          }
+        } catch {
+          // Invalid JSON — ignore
+        }
+        return
+      }
+      const resourceJson = e.dataTransfer.getData(SIM_RESOURCE_DRAG_TYPE)
       if (resourceJson) {
         e.preventDefault()
         e.stopPropagation()

@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { ChevronRight, Folder, FolderOpen, MoreHorizontal } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { generateId } from '@/lib/core/utils/uuid'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -18,6 +19,7 @@ import {
   useSidebarDragContext,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
+import { buildDragResources } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import {
   useCanDelete,
   useDeleteFolder,
@@ -197,9 +199,15 @@ export function FolderItem({
 
       e.dataTransfer.setData('sidebar-selection', JSON.stringify(selection))
       e.dataTransfer.effectAllowed = 'move'
+
+      const resources = buildDragResources(selection, workspaceId)
+      if (resources.length > 0) {
+        e.dataTransfer.setData(SIM_RESOURCES_DRAG_TYPE, JSON.stringify(resources))
+      }
+
       onDragStartProp?.()
     },
-    [folder.id, onDragStartProp]
+    [folder.id, workspaceId, onDragStartProp]
   )
 
   const {
