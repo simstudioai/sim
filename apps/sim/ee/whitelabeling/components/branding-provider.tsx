@@ -10,13 +10,15 @@ import { useOrganizations } from '@/hooks/queries/organization'
 const BRAND_CACHE_KEY = 'sim-wl'
 
 /**
- * Locally-cached brand asset URLs persisted across page loads.
- * Written after org settings resolve; read immediately on mount to
- * eliminate the flash of the default logo on returning visits.
+ * Brand assets and theme CSS cached in localStorage between page loads.
+ * Injected before the first paint to eliminate the flash of default Sim
+ * branding on returning visits.
  */
 interface BrandCache {
   logoUrl?: string
   wordmarkUrl?: string
+  /** Pre-generated `:root { ... }` CSS string from the last resolved org settings. */
+  themeCSS?: string
 }
 
 function readCache(): BrandCache | null {
@@ -28,11 +30,16 @@ function readCache(): BrandCache | null {
   }
 }
 
-function writeCache(logoUrl: string | null, wordmarkUrl: string | null): void {
+function writeCache(
+  logoUrl: string | null,
+  wordmarkUrl: string | null,
+  themeCSS: string | null
+): void {
   try {
     const entry: BrandCache = {}
     if (logoUrl) entry.logoUrl = logoUrl
     if (wordmarkUrl) entry.wordmarkUrl = wordmarkUrl
+    if (themeCSS) entry.themeCSS = themeCSS
     if (Object.keys(entry).length > 0) {
       localStorage.setItem(BRAND_CACHE_KEY, JSON.stringify(entry))
     } else {
@@ -42,9 +49,9 @@ function writeCache(logoUrl: string | null, wordmarkUrl: string | null): void {
 }
 
 /**
- * Runs as `useLayoutEffect` on the client (before paint) and falls back to
- * `useEffect` on the server where layout effects are a no-op. This prevents
- * the flash of the default logo without triggering a hydration mismatch.
+ * `useLayoutEffect` on the client (fires before paint), `useEffect` on the
+ * server (where layout effects are a no-op). Prevents flash without
+ * triggering a hydration mismatch.
  */
 const useBrowserLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
 
@@ -64,9 +71,10 @@ interface BrandingProviderProps {
  * Provides merged branding (instance env vars + org DB settings) to the workspace.
  * Injects a `<style>` tag with CSS variable overrides when org colors are configured.
  *
- * Brand asset URLs are cached in `localStorage` so returning visitors see the
- * correct logo and wordmark immediately. The cache is applied via a layout effect
- * (before the first paint) to eliminate any visible flash on subsequent loads.
+ * Brand assets and theme CSS are cached in `localStorage` so returning visitors
+ * see the correct logo, wordmark, and colors before the API call resolves. The
+ * cache is applied via a layout effect (before the first paint) to eliminate any
+ * visible flash on subsequent page loads.
  */
 export function BrandingProvider({ children }: BrandingProviderProps) {
   const [cache, setCache] = useState<BrandCache | null>(null)
@@ -81,8 +89,9 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
 
   useEffect(() => {
     if (!orgId || settingsLoading) return
-    writeCache(orgSettings?.logoUrl ?? null, orgSettings?.wordmarkUrl ?? null)
-  }, [orgId, settingsLoading, orgSettings?.logoUrl, orgSettings?.wordmarkUrl])
+    const themeCSS = orgSettings ? generateOrgThemeCSS(orgSettings) : null
+    writeCache(orgSettings?.logoUrl ?? null, orgSettings?.wordmarkUrl ?? null, themeCSS)
+  }, [orgId, settingsLoading, orgSettings])
 
   const brandingLoading = orgsLoading || (Boolean(orgId) && settingsLoading)
 
@@ -98,10 +107,11 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
     return base
   }, [orgSettings, brandingLoading, cache])
 
-  const themeCSS = useMemo(
-    () => (orgSettings ? generateOrgThemeCSS(orgSettings) : ''),
-    [orgSettings]
-  )
+  const themeCSS = useMemo(() => {
+    if (orgSettings) return generateOrgThemeCSS(orgSettings)
+    if (brandingLoading && cache?.themeCSS) return cache.themeCSS
+    return ''
+  }, [orgSettings, brandingLoading, cache])
 
   return (
     <BrandingContext.Provider value={{ config: brandConfig }}>
