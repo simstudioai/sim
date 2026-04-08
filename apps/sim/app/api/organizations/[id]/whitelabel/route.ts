@@ -20,7 +20,7 @@ const updateWhitelabelSchema = z.object({
     .max(64, 'Brand name must be 64 characters or fewer')
     .nullable()
     .optional(),
-  logoUrl: z.string().url('Logo URL must be a valid URL').nullable().optional(),
+  logoUrl: z.string().min(1).nullable().optional(),
   primaryColor: z
     .string()
     .regex(HEX_COLOR_REGEX, 'Primary color must be a valid hex color (e.g. #701ffc)')
