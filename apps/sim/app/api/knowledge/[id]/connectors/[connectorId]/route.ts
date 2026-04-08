@@ -225,7 +225,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       if (parsed.data.status === 'active') {
         updates.consecutiveFailures = 0
         updates.lastSyncError = null
-        if (!updates.nextSyncAt) {
+        if (updates.nextSyncAt === undefined) {
           const interval = parsed.data.syncIntervalMinutes
           if (interval && interval > 0) {
             updates.nextSyncAt = new Date(Date.now() + interval * 60 * 1000)

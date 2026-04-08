@@ -507,9 +507,11 @@ function ConnectorCard({
             </div>
             <p className='text-amber-700 text-micro dark:text-amber-300'>
               Syncing has been paused due to {connector.consecutiveFailures} consecutive failures.
-              Reconnect your account to resume syncing.
+              {serviceId
+                ? ' Reconnect your account to resume syncing.'
+                : ' Use the resume button to re-enable syncing.'}
             </p>
-            {canEdit && (
+            {canEdit && serviceId && providerId && (
               <Button
                 variant='active'
                 onClick={() => {
