@@ -75,50 +75,57 @@ export function useProfilePictureUpload({
     }
   }, [])
 
-  const handleFileChange = useCallback(
-    async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0]
-      if (file) {
-        const validationError = validateFile(file)
-        if (validationError) {
-          onError?.(validationError)
-          return
-        }
+  const processFile = useCallback(
+    async (file: File) => {
+      const validationError = validateFile(file)
+      if (validationError) {
+        onError?.(validationError)
+        return
+      }
 
-        setFileName(file.name)
+      setFileName(file.name)
 
-        const newPreviewUrl = URL.createObjectURL(file)
+      const newPreviewUrl = URL.createObjectURL(file)
+      if (previewRef.current) URL.revokeObjectURL(previewRef.current)
+      setPreviewUrl(newPreviewUrl)
+      previewRef.current = newPreviewUrl
 
-        if (previewRef.current) {
-          URL.revokeObjectURL(previewRef.current)
-        }
-
-        setPreviewUrl(newPreviewUrl)
-        previewRef.current = newPreviewUrl
-
-        setIsUploading(true)
-        try {
-          const serverUrl = await uploadFileToServer(file)
-
-          URL.revokeObjectURL(newPreviewUrl)
-          previewRef.current = null
-          setPreviewUrl(serverUrl)
-
-          onUpload?.(serverUrl)
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : 'Failed to upload profile picture'
-          onError?.(errorMessage)
-
-          URL.revokeObjectURL(newPreviewUrl)
-          previewRef.current = null
-          setPreviewUrl(currentImage || null)
-        } finally {
-          setIsUploading(false)
-        }
+      setIsUploading(true)
+      try {
+        const serverUrl = await uploadFileToServer(file)
+        URL.revokeObjectURL(newPreviewUrl)
+        previewRef.current = null
+        setPreviewUrl(serverUrl)
+        onUpload?.(serverUrl)
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'Failed to upload profile picture'
+        onError?.(errorMessage)
+        URL.revokeObjectURL(newPreviewUrl)
+        previewRef.current = null
+        setPreviewUrl(currentImage || null)
+      } finally {
+        setIsUploading(false)
       }
     },
     [onUpload, onError, uploadFileToServer, validateFile, currentImage]
+  )
+
+  const handleFileChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      if (file) processFile(file)
+    },
+    [processFile]
+  )
+
+  const handleFileDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      const file = e.dataTransfer.files[0]
+      if (file) processFile(file)
+    },
+    [processFile]
   )
 
   const handleRemove = useCallback(() => {
@@ -148,6 +155,7 @@ export function useProfilePictureUpload({
     fileInputRef,
     handleThumbnailClick,
     handleFileChange,
+    handleFileDrop,
     handleRemove,
     isUploading,
   }

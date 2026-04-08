@@ -1310,6 +1310,13 @@
       "when": 1775630332078,
       "tag": "0187_fuzzy_wendell_vaughn",
       "breakpoints": true
+    },
+    {
+      "idx": 188,
+      "version": "7",
+      "when": 1775666653692,
+      "tag": "0188_short_luke_cage",
+      "breakpoints": true
     }
   ]
 }

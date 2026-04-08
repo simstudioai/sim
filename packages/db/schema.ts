@@ -947,6 +947,19 @@ export const organization = pgTable('organization', {
   slug: text('slug').notNull(),
   logo: text('logo'),
   metadata: json('metadata'),
+  whitelabelSettings: json('whitelabel_settings').$type<{
+    brandName?: string
+    logoUrl?: string
+    primaryColor?: string
+    primaryHoverColor?: string
+    accentColor?: string
+    accentHoverColor?: string
+    supportEmail?: string
+    documentationUrl?: string
+    termsUrl?: string
+    privacyUrl?: string
+    hidePoweredBySim?: boolean
+  }>(),
   orgUsageLimit: decimal('org_usage_limit'),
   storageUsedBytes: bigint('storage_used_bytes', { mode: 'number' }).notNull().default(0),
   departedMemberUsage: decimal('departed_member_usage').notNull().default('0'),

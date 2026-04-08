@@ -7,6 +7,7 @@ import {
   Lock,
   LogIn,
   Mail,
+  Palette,
   Send,
   Server,
   Settings,
@@ -31,6 +32,7 @@ export type SettingsSection =
   | 'subscription'
   | 'team'
   | 'sso'
+  | 'whitelabeling'
   | 'copilot'
   | 'mcp'
   | 'custom-tools'
@@ -161,6 +163,15 @@ export const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresEnterprise: true,
     selfHostedOverride: isSSOEnabled,
+  },
+  {
+    id: 'whitelabeling',
+    label: 'Whitelabeling',
+    icon: Palette,
+    section: 'enterprise',
+    requiresHosted: true,
+    requiresEnterprise: true,
+    selfHostedOverride: isBillingEnabled,
   },
   {
     id: 'admin',
