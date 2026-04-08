@@ -220,6 +220,7 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     /* Brand & state */
     --brand-secondary: #33b4ff;
     --brand-accent: #33c482;
+    --brand-accent-hover: #2dac72;
     --selection: #1a5cf6;
     --warning: #ea580c;
 
@@ -375,6 +376,7 @@ html[data-sidebar-collapsed] .sidebar-container .sidebar-collapse-btn {
     /* Brand & state */
     --brand-secondary: #33b4ff;
     --brand-accent: #33c482;
+    --brand-accent-hover: #2dac72;
     --selection: #4b83f7;
     --warning: #ff6600;
 

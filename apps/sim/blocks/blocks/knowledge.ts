@@ -127,6 +127,8 @@ export const KnowledgeBlock: BlockConfig = {
       title: 'Document',
       type: 'document-selector',
       canonicalParamId: 'documentId',
+      serviceId: 'knowledge',
+      selectorKey: 'knowledge.documents',
       placeholder: 'Select document',
       dependsOn: ['knowledgeBaseSelector'],
       required: true,

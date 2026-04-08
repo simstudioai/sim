@@ -1,40 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { Mic } from 'lucide-react'
-
-interface SpeechRecognitionEvent extends Event {
-  resultIndex: number
-  results: SpeechRecognitionResultList
-}
-
-interface SpeechRecognitionErrorEvent extends Event {
-  error: string
-  message?: string
-}
-
-interface SpeechRecognition extends EventTarget {
-  continuous: boolean
-  interimResults: boolean
-  lang: string
-  start(): void
-  stop(): void
-  abort(): void
-  onstart: ((this: SpeechRecognition, ev: Event) => any) | null
-  onend: ((this: SpeechRecognition, ev: Event) => any) | null
-  onresult: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any) | null
-  onerror: ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => any) | null
-}
-
-interface SpeechRecognitionStatic {
-  new (): SpeechRecognition
-}
-
-type WindowWithSpeech = Window & {
-  SpeechRecognition?: SpeechRecognitionStatic
-  webkitSpeechRecognition?: SpeechRecognitionStatic
-}
 
 interface VoiceInputProps {
   onVoiceStart: () => void
@@ -51,23 +19,10 @@ export function VoiceInput({
   large = false,
   minimal = false,
 }: VoiceInputProps) {
-  const [isSupported, setIsSupported] = useState(false)
-
-  // Check if speech recognition is supported
-  useEffect(() => {
-    const w = window as WindowWithSpeech
-    const SpeechRecognitionCtor = w.SpeechRecognition || w.webkitSpeechRecognition
-    setIsSupported(!!SpeechRecognitionCtor)
-  }, [])
-
   const handleVoiceClick = useCallback(() => {
     if (disabled) return
     onVoiceStart()
   }, [disabled, onVoiceStart])
-
-  if (!isSupported) {
-    return null
-  }
 
   if (minimal) {
     return (
@@ -88,7 +43,6 @@ export function VoiceInput({
   if (large) {
     return (
       <div className='flex flex-col items-center'>
-        {/* Large Voice Button */}
         <motion.button
           type='button'
           onClick={handleVoiceClick}
@@ -110,7 +64,6 @@ export function VoiceInput({
 
   return (
     <div className='flex items-center'>
-      {/* Voice Button - Now matches send button styling */}
       <motion.button
         type='button'
         onClick={handleVoiceClick}

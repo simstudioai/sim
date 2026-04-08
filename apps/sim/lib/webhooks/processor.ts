@@ -725,7 +725,15 @@ export async function processPolledWebhookEvent(
   try {
     const preprocessResult = await checkWebhookPreprocessing(foundWorkflow, foundWebhook, requestId)
     if (preprocessResult.error) {
-      return { success: false, error: 'Preprocessing failed', statusCode: 500 }
+      const errorResponse = preprocessResult.error
+      const statusCode = errorResponse.status
+      const errorBody = await errorResponse.json().catch(() => ({}))
+      const errorMessage = errorBody.error ?? 'Preprocessing failed'
+      logger.warn(`[${requestId}] Polled webhook preprocessing failed`, {
+        statusCode,
+        error: errorMessage,
+      })
+      return { success: false, error: errorMessage, statusCode }
     }
 
     if (foundWebhook.blockId) {

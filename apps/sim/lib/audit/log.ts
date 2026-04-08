@@ -2,6 +2,7 @@ import { auditLog, db } from '@sim/db'
 import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
+import { getClientIp } from '@/lib/core/utils/request'
 import { generateShortId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('AuditLog')
@@ -236,10 +237,7 @@ export function recordAudit(params: AuditLogParams): void {
 }
 
 async function insertAuditLog(params: AuditLogParams): Promise<void> {
-  const ipAddress =
-    params.request?.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
-    params.request?.headers.get('x-real-ip') ??
-    undefined
+  const ipAddress = params.request ? getClientIp(params.request) : undefined
   const userAgent = params.request?.headers.get('user-agent') ?? undefined
 
   let { actorName, actorEmail } = params

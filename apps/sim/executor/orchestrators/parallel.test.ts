@@ -107,7 +107,7 @@ describe('ParallelOrchestrator', () => {
     )
     const ctx = createContext()
 
-    const initializePromise = orchestrator.initializeParallelScope(ctx, 'parallel-1', 1)
+    const initializePromise = orchestrator.initializeParallelScope(ctx, 'parallel-1')
     await Promise.resolve()
 
     expect(onBlockStart).toHaveBeenCalledTimes(1)

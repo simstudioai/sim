@@ -9,13 +9,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import { useAvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
-import type {
-  PlusMenuHandle,
-  SpeechRecognitionErrorEvent,
-  SpeechRecognitionEvent,
-  SpeechRecognitionInstance,
-  WindowWithSpeech,
-} from '@/app/workspace/[workspaceId]/home/components/user-input/components'
+import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
 import {
   AnimatedPlaceholderEffect,
   AttachedFilesList,
@@ -27,7 +21,6 @@ import {
   OVERLAY_CLASSES,
   PlusMenuDropdown,
   SendButton,
-  SPEECH_RECOGNITION_LANG,
   TEXTAREA_BASE_CLASSES,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
 import type {
@@ -46,6 +39,7 @@ import {
   extractContextTokens,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
+import { useSpeechToText } from '@/hooks/use-speech-to-text'
 import type { ChatContext } from '@/stores/panel'
 
 export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
@@ -235,10 +229,29 @@ export function UserInput({
 
   const canSubmit = (value.trim().length > 0 || hasFiles) && !isSending
 
-  const [isListening, setIsListening] = useState(false)
-  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
-  const prefixRef = useRef('')
   const valueRef = useRef(value)
+  const sttPrefixRef = useRef('')
+
+  const handleTranscript = useCallback((text: string) => {
+    const prefix = sttPrefixRef.current
+    const newVal = prefix ? `${prefix} ${text}` : text
+    setValue(newVal)
+    valueRef.current = newVal
+  }, [])
+
+  const {
+    isListening,
+    isSupported: isSttSupported,
+    toggleListening: rawToggle,
+    resetTranscript,
+  } = useSpeechToText({ onTranscript: handleTranscript })
+
+  const toggleListening = useCallback(() => {
+    if (!isListening) {
+      sttPrefixRef.current = valueRef.current
+    }
+    rawToggle()
+  }, [isListening, rawToggle])
 
   const filesRef = useRef(files)
   filesRef.current = files
@@ -248,12 +261,6 @@ export function UserInput({
   onEnterWhileEmptyRef.current = onEnterWhileEmpty
   const isSendingRef = useRef(isSending)
   isSendingRef.current = isSending
-
-  useEffect(() => {
-    return () => {
-      recognitionRef.current?.abort()
-    }
-  }, [])
 
   useEffect(() => {
     valueRef.current = value
@@ -404,84 +411,6 @@ export function UserInput({
     [textareaRef]
   )
 
-  const startRecognition = useCallback((): boolean => {
-    const w = window as WindowWithSpeech
-    const SpeechRecognitionAPI = w.SpeechRecognition || w.webkitSpeechRecognition
-    if (!SpeechRecognitionAPI) return false
-
-    const recognition = new SpeechRecognitionAPI()
-    recognition.continuous = true
-    recognition.interimResults = true
-    recognition.lang = SPEECH_RECOGNITION_LANG
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      let transcript = ''
-      for (let i = 0; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript
-      }
-      const prefix = prefixRef.current
-      const newVal = prefix ? `${prefix} ${transcript}` : transcript
-      setValue(newVal)
-      valueRef.current = newVal
-    }
-
-    recognition.onend = () => {
-      if (recognitionRef.current === recognition) {
-        prefixRef.current = valueRef.current
-        try {
-          recognition.start()
-        } catch {
-          recognitionRef.current = null
-          setIsListening(false)
-        }
-      }
-    }
-
-    recognition.onerror = (e: SpeechRecognitionErrorEvent) => {
-      if (recognitionRef.current !== recognition) return
-      if (e.error === 'aborted' || e.error === 'not-allowed') {
-        recognitionRef.current = null
-        setIsListening(false)
-      }
-    }
-
-    recognitionRef.current = recognition
-    try {
-      recognition.start()
-      return true
-    } catch {
-      recognitionRef.current = null
-      return false
-    }
-  }, [])
-
-  const restartRecognition = useCallback(
-    (newPrefix: string) => {
-      if (!recognitionRef.current) return
-      prefixRef.current = newPrefix
-      recognitionRef.current.abort()
-      recognitionRef.current = null
-      if (!startRecognition()) {
-        setIsListening(false)
-      }
-    },
-    [startRecognition]
-  )
-
-  const toggleListening = useCallback(() => {
-    if (isListening) {
-      recognitionRef.current?.stop()
-      recognitionRef.current = null
-      setIsListening(false)
-      return
-    }
-
-    prefixRef.current = valueRef.current
-    if (startRecognition()) {
-      setIsListening(true)
-    }
-  }, [isListening, startRecognition])
-
   const handleSubmit = useCallback(() => {
     const currentFiles = filesRef.current
     const currentContext = contextRef.current
@@ -503,14 +432,16 @@ export function UserInput({
       currentContext.selectedContexts.length > 0 ? currentContext.selectedContexts : undefined
     )
     setValue('')
-    restartRecognition('')
+    valueRef.current = ''
+    sttPrefixRef.current = ''
+    resetTranscript()
     currentFiles.clearAttachedFiles()
     currentContext.clearContexts()
 
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
-  }, [onSubmit, restartRecognition, textareaRef])
+  }, [onSubmit, textareaRef, resetTranscript])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -589,32 +520,27 @@ export function UserInput({
     [handleSubmit, mentionTokensWithContext, value, textareaRef]
   )
 
-  const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      const newValue = e.target.value
-      const caret = e.target.selectionStart ?? newValue.length
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = e.target.value
+    const caret = e.target.selectionStart ?? newValue.length
 
-      if (
-        caret > 0 &&
-        newValue.charAt(caret - 1) === '@' &&
-        (caret === 1 || /\s/.test(newValue.charAt(caret - 2)))
-      ) {
-        const before = newValue.slice(0, caret - 1)
-        const after = newValue.slice(caret)
-        const adjusted = `${before}${after}`
-        setValue(adjusted)
-        atInsertPosRef.current = caret - 1
-        const anchor = getCaretAnchor(e.target, caret - 1)
-        plusMenuRef.current?.open(anchor)
-        restartRecognition(adjusted)
-        return
-      }
+    if (
+      caret > 0 &&
+      newValue.charAt(caret - 1) === '@' &&
+      (caret === 1 || /\s/.test(newValue.charAt(caret - 2)))
+    ) {
+      const before = newValue.slice(0, caret - 1)
+      const after = newValue.slice(caret)
+      const adjusted = `${before}${after}`
+      setValue(adjusted)
+      atInsertPosRef.current = caret - 1
+      const anchor = getCaretAnchor(e.target, caret - 1)
+      plusMenuRef.current?.open(anchor)
+      return
+    }
 
-      setValue(newValue)
-      restartRecognition(newValue)
-    },
-    [restartRecognition]
-  )
+    setValue(newValue)
+  }, [])
 
   const handleSelectAdjust = useCallback(() => {
     const textarea = textareaRef.current
@@ -803,7 +729,7 @@ export function UserInput({
           />
         </div>
         <div className='flex items-center gap-1.5'>
-          <MicButton isListening={isListening} onToggle={toggleListening} />
+          {isSttSupported && <MicButton isListening={isListening} onToggle={toggleListening} />}
           <SendButton
             isSending={isSending}
             canSubmit={canSubmit}

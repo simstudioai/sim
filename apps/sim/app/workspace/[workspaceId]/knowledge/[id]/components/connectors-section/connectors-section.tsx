@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
 import {
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   ChevronDown,
   Loader2,
@@ -66,6 +67,7 @@ const STATUS_CONFIG = {
   syncing: { label: 'Syncing', variant: 'amber' as const },
   error: { label: 'Error', variant: 'red' as const },
   paused: { label: 'Paused', variant: 'gray' as const },
+  disabled: { label: 'Disabled', variant: 'amber' as const },
 } as const
 
 export function ConnectorsSection({
@@ -159,7 +161,10 @@ export function ConnectorsSection({
           knowledgeBaseId,
           connectorId: connector.id,
           updates: {
-            status: connector.status === 'paused' ? 'active' : 'paused',
+            status:
+              connector.status === 'paused' || connector.status === 'disabled'
+                ? 'active'
+                : 'paused',
           },
         },
         {
@@ -352,7 +357,12 @@ function ConnectorCard({
     <div className='rounded-lg border border-[var(--border-1)]'>
       <div className='flex items-center justify-between px-3 py-2.5'>
         <div className='flex items-center gap-2.5'>
-          {Icon && <Icon className='h-5 w-5 flex-shrink-0' />}
+          <div className='relative flex-shrink-0'>
+            {Icon && <Icon className='h-5 w-5' />}
+            {connector.status === 'disabled' && (
+              <AlertTriangle className='-right-1 -top-1 absolute h-3 w-3 text-amber-500' />
+            )}
+          </div>
           <div className='flex flex-col gap-0.5'>
             <div className='flex items-center gap-2'>
               <span className='flex items-center gap-1.5 font-medium text-[var(--text-primary)] text-small'>
@@ -407,7 +417,12 @@ function ConnectorCard({
                     variant='ghost'
                     className='h-7 w-7 p-0'
                     onClick={onSync}
-                    disabled={connector.status === 'syncing' || isSyncPending || syncCooldown}
+                    disabled={
+                      connector.status === 'syncing' ||
+                      connector.status === 'disabled' ||
+                      isSyncPending ||
+                      syncCooldown
+                    }
                   >
                     <RefreshCw
                       className={cn(
@@ -441,7 +456,7 @@ function ConnectorCard({
                   >
                     {isUpdating ? (
                       <Loader2 className='h-3.5 w-3.5 animate-spin' />
-                    ) : connector.status === 'paused' ? (
+                    ) : connector.status === 'paused' || connector.status === 'disabled' ? (
                       <Play className='h-3.5 w-3.5' />
                     ) : (
                       <Pause className='h-3.5 w-3.5' />
@@ -449,7 +464,9 @@ function ConnectorCard({
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content>
-                  {connector.status === 'paused' ? 'Resume' : 'Pause'}
+                  {connector.status === 'paused' || connector.status === 'disabled'
+                    ? 'Resume'
+                    : 'Pause'}
                 </Tooltip.Content>
               </Tooltip.Root>
 
@@ -481,7 +498,46 @@ function ConnectorCard({
         </div>
       </div>
 
-      {missingScopes.length > 0 && (
+      {connector.status === 'disabled' && (
+        <div className='border-[var(--border-1)] border-t px-3 py-2'>
+          <div className='flex flex-col gap-1 rounded-sm border border-amber-200 bg-amber-50 px-2 py-1.5 dark:border-amber-900 dark:bg-amber-950'>
+            <div className='flex items-center gap-1.5 font-medium text-amber-800 text-caption dark:text-amber-200'>
+              <AlertTriangle className='h-3 w-3 flex-shrink-0' />
+              Connector disabled after repeated sync failures
+            </div>
+            <p className='text-amber-700 text-micro dark:text-amber-300'>
+              Syncing has been paused due to {connector.consecutiveFailures} consecutive failures.
+              {serviceId
+                ? ' Reconnect your account to resume syncing.'
+                : ' Use the resume button to re-enable syncing.'}
+            </p>
+            {canEdit && serviceId && providerId && (
+              <Button
+                variant='active'
+                onClick={() => {
+                  if (connector.credentialId) {
+                    writeOAuthReturnContext({
+                      origin: 'kb-connectors',
+                      knowledgeBaseId,
+                      displayName: connectorDef?.name ?? connector.connectorType,
+                      providerId: providerId!,
+                      preCount: credentials?.length ?? 0,
+                      workspaceId,
+                      requestedAt: Date.now(),
+                    })
+                  }
+                  setShowOAuthModal(true)
+                }}
+                className='w-full px-2 py-1 font-medium text-caption'
+              >
+                Reconnect
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {missingScopes.length > 0 && connector.status !== 'disabled' && (
         <div className='border-[var(--border-1)] border-t px-3 py-2'>
           <div className='flex flex-col gap-1 rounded-sm border bg-[var(--surface-2)] px-2 py-1.5'>
             <div className='flex items-center font-medium text-caption'>
