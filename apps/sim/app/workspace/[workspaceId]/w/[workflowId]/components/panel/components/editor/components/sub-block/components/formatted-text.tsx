@@ -9,7 +9,7 @@ export interface HighlightContext {
   highlightAll?: boolean
 }
 
-const SYSTEM_PREFIXES = new Set(['start', 'loop', 'parallel', 'variable'])
+const SYSTEM_PREFIXES = new Set(['loop', 'parallel', 'variable'])
 
 /**
  * Formats text by highlighting block references (<...>) and environment variables ({{...}})
