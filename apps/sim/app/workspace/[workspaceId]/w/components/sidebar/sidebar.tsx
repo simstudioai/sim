@@ -1,13 +1,13 @@
 'use client'
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { flushSync } from 'react-dom'
 import { createLogger } from '@sim/logger'
 import { Compass, MoreHorizontal } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import { flushSync } from 'react-dom'
 import {
   Blimp,
   Button,
@@ -1435,9 +1435,7 @@ export const Sidebar = memo(function Sidebar() {
                               <CollapsedTaskFlyoutItem
                                 key={task.id}
                                 task={task}
-                                isCurrentRoute={
-                                  task.id !== 'new' && pathname === task.href
-                                }
+                                isCurrentRoute={task.id !== 'new' && pathname === task.href}
                                 isMenuOpen={menuOpenTaskId === task.id}
                                 isEditing={task.id === taskFlyoutRename.editingId}
                                 editValue={taskFlyoutRename.value}
@@ -1460,8 +1458,7 @@ export const Sidebar = memo(function Sidebar() {
                           ) : (
                             <>
                               {tasks.slice(0, visibleTaskCount).map((task) => {
-                                const isCurrentRoute =
-                                  task.id !== 'new' && pathname === task.href
+                                const isCurrentRoute = task.id !== 'new' && pathname === task.href
                                 const isRenaming = taskFlyoutRename.editingId === task.id
                                 const isSelected =
                                   !isPlaceholderTask(task.id) && selectedTasks.has(task.id)
