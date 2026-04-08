@@ -83,7 +83,10 @@ import {
   useImportWorkflow,
   useImportWorkspace,
 } from '@/app/workspace/[workspaceId]/w/hooks'
-import { useOrgBrandConfig } from '@/ee/whitelabeling/components/branding-provider'
+import {
+  useOrgBrandConfig,
+  useOrgBrandLoading,
+} from '@/ee/whitelabeling/components/branding-provider'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
@@ -338,6 +341,7 @@ export const SIDEBAR_SCROLL_EVENT = 'sidebar-scroll-to-item'
  */
 export const Sidebar = memo(function Sidebar() {
   const brand = useOrgBrandConfig()
+  const brandLoading = useOrgBrandLoading()
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string | undefined
@@ -1251,7 +1255,7 @@ export const Sidebar = memo(function Sidebar() {
                     tabIndex={isCollapsed ? -1 : undefined}
                     aria-label={brand.name}
                   >
-                    {brand.logoUrl ? (
+                    {brandLoading ? null : brand.logoUrl ? (
                       <Image
                         src={brand.logoUrl}
                         alt={brand.name}
@@ -1272,7 +1276,7 @@ export const Sidebar = memo(function Sidebar() {
                       tabIndex={isCollapsed ? undefined : -1}
                       aria-label='Expand sidebar'
                     >
-                      {brand.logoUrl ? (
+                      {brandLoading ? null : brand.logoUrl ? (
                         <Image
                           src={brand.logoUrl}
                           alt=''

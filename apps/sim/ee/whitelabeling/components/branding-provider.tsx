@@ -7,7 +7,15 @@ import { useWhitelabelSettings } from '@/ee/whitelabeling/hooks/whitelabel'
 import { generateOrgThemeCSS, mergeOrgBrandConfig } from '@/ee/whitelabeling/org-branding-utils'
 import { useOrganizations } from '@/hooks/queries/organization'
 
-const BrandingContext = createContext<BrandConfig>(getBrandConfig())
+interface BrandingContextValue {
+  config: BrandConfig
+  isLoading: boolean
+}
+
+const BrandingContext = createContext<BrandingContextValue>({
+  config: getBrandConfig(),
+  isLoading: false,
+})
 
 interface BrandingProviderProps {
   children: React.ReactNode
@@ -18,9 +26,11 @@ interface BrandingProviderProps {
  * Injects CSS variable overrides when org colors are configured.
  */
 export function BrandingProvider({ children }: BrandingProviderProps) {
-  const { data: orgsData } = useOrganizations()
+  const { data: orgsData, isLoading: orgsLoading } = useOrganizations()
   const orgId = orgsData?.activeOrganization?.id
-  const { data: orgSettings } = useWhitelabelSettings(orgId)
+  const { data: orgSettings, isLoading: settingsLoading } = useWhitelabelSettings(orgId)
+
+  const isLoading = orgsLoading || (Boolean(orgId) && settingsLoading)
 
   const brandConfig = useMemo(
     () => mergeOrgBrandConfig(orgSettings ?? null, getBrandConfig()),
@@ -33,7 +43,7 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
   )
 
   return (
-    <BrandingContext.Provider value={brandConfig}>
+    <BrandingContext.Provider value={{ config: brandConfig, isLoading }}>
       {themeCSS && <style>{themeCSS}</style>}
       {children}
     </BrandingContext.Provider>
@@ -45,5 +55,13 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
  * Use this inside the workspace instead of `getBrandConfig()`.
  */
 export function useOrgBrandConfig(): BrandConfig {
-  return useContext(BrandingContext)
+  return useContext(BrandingContext).config
+}
+
+/**
+ * Returns true while org branding is being fetched.
+ * Use this to avoid rendering the logo until the correct one is known.
+ */
+export function useOrgBrandLoading(): boolean {
+  return useContext(BrandingContext).isLoading
 }
