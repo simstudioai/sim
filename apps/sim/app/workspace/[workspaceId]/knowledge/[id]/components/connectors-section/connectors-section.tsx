@@ -67,7 +67,7 @@ const STATUS_CONFIG = {
   syncing: { label: 'Syncing', variant: 'amber' as const },
   error: { label: 'Error', variant: 'red' as const },
   paused: { label: 'Paused', variant: 'gray' as const },
-  disabled: { label: 'Disabled', variant: 'red' as const },
+  disabled: { label: 'Disabled', variant: 'amber' as const },
 } as const
 
 export function ConnectorsSection({
@@ -417,7 +417,12 @@ function ConnectorCard({
                     variant='ghost'
                     className='h-7 w-7 p-0'
                     onClick={onSync}
-                    disabled={connector.status === 'syncing' || isSyncPending || syncCooldown}
+                    disabled={
+                      connector.status === 'syncing' ||
+                      connector.status === 'disabled' ||
+                      isSyncPending ||
+                      syncCooldown
+                    }
                   >
                     <RefreshCw
                       className={cn(
