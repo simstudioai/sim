@@ -297,6 +297,9 @@ Return ONLY the SQL query — no explanations, no markdown code blocks.`,
             if (!rest.database) {
               throw new Error('Database is required')
             }
+            if (!rest.queryString) {
+              throw new Error('SQL query string is required')
+            }
             return {
               awsRegion,
               awsAccessKeyId,

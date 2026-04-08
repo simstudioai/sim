@@ -35,9 +35,13 @@ export async function POST(request: NextRequest) {
       secretAccessKey: data.secretAccessKey,
     })
 
+    const isFirstPage = !data.nextToken
+    const adjustedMaxResults =
+      data.maxResults !== undefined && isFirstPage ? data.maxResults + 1 : data.maxResults
+
     const command = new GetQueryResultsCommand({
       QueryExecutionId: data.queryExecutionId,
-      ...(data.maxResults !== undefined && { MaxResults: data.maxResults }),
+      ...(adjustedMaxResults !== undefined && { MaxResults: adjustedMaxResults }),
       ...(data.nextToken && { NextToken: data.nextToken }),
     })
 
@@ -53,9 +57,9 @@ export async function POST(request: NextRequest) {
     const dataRows = data.nextToken ? rawRows : rawRows.slice(1)
     const rows = dataRows.map((row) => {
       const record: Record<string, string> = {}
-      const data = row.Data ?? []
+      const rowData = row.Data ?? []
       for (let i = 0; i < columns.length; i++) {
-        record[columns[i].name] = data[i]?.VarCharValue ?? ''
+        record[columns[i].name] = rowData[i]?.VarCharValue ?? ''
       }
       return record
     })
