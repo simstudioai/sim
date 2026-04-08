@@ -54,8 +54,6 @@ function createParallelScope(items: any[]) {
     parallelId: 'parallel-1',
     totalBranches: items.length,
     branchOutputs: new Map(),
-    completedCount: 0,
-    totalExpectedNodes: 1,
     items,
   }
 }
