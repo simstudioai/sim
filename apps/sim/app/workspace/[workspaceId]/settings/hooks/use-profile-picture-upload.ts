@@ -27,14 +27,12 @@ export function useProfilePictureUpload({
   const [isUploading, setIsUploading] = useState(false)
 
   useEffect(() => {
-    if (currentImage !== previewUrl) {
-      if (previewRef.current && previewRef.current !== currentImage) {
-        URL.revokeObjectURL(previewRef.current)
-        previewRef.current = null
-      }
-      setPreviewUrl(currentImage || null)
+    if (previewRef.current && previewRef.current !== currentImage) {
+      URL.revokeObjectURL(previewRef.current)
+      previewRef.current = null
     }
-  }, [currentImage, previewUrl])
+    setPreviewUrl(currentImage || null)
+  }, [currentImage])
 
   const validateFile = useCallback((file: File): string | null => {
     if (file.size > MAX_FILE_SIZE) {
