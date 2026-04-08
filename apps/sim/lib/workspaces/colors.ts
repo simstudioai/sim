@@ -83,8 +83,10 @@ function withAlpha(hexColor: string, alpha: number): string {
  * @param color - A hex color string (e.g. `#2ABBF8`)
  * @returns The color string with `60` appended as the hex alpha channel
  */
-export function workflowBorderColor(color: string): string {
-  return `${color}60`
+export function workflowBorderColor(color: string): string
+export function workflowBorderColor(color: string | undefined): string | undefined
+export function workflowBorderColor(color: string | undefined): string | undefined {
+  return color ? `${color}60` : undefined
 }
 
 function buildGradient(fromColor: string, toColor: string, rotationSeed: number): string {
