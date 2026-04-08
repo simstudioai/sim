@@ -13,7 +13,10 @@ export function mergeOrgBrandConfig(
   }
 
   const hasOrgBrand = Boolean(
-    orgSettings.brandName || orgSettings.logoUrl || orgSettings.primaryColor
+    orgSettings.brandName ||
+      orgSettings.logoUrl ||
+      orgSettings.wordmarkUrl ||
+      orgSettings.primaryColor
   )
 
   return {

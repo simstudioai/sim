@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import type { BrandConfig } from '@/lib/branding/types'
 import { getBrandConfig } from '@/ee/whitelabeling/branding'
 import { useWhitelabelSettings } from '@/ee/whitelabeling/hooks/whitelabel'
@@ -9,7 +9,11 @@ import { useOrganizations } from '@/hooks/queries/organization'
 
 const BRAND_CACHE_KEY = 'sim-wl'
 
-/** Locally-cached brand URLs persisted to localStorage between page loads. */
+/**
+ * Locally-cached brand asset URLs persisted across page loads.
+ * Written after org settings resolve; read immediately on mount to
+ * eliminate the flash of the default logo on returning visits.
+ */
 interface BrandCache {
   logoUrl?: string
   wordmarkUrl?: string
@@ -24,7 +28,7 @@ function readCache(): BrandCache | null {
   }
 }
 
-function writeCache(logoUrl: string | null, wordmarkUrl: string | null) {
+function writeCache(logoUrl: string | null, wordmarkUrl: string | null): void {
   try {
     const entry: BrandCache = {}
     if (logoUrl) entry.logoUrl = logoUrl
@@ -36,6 +40,13 @@ function writeCache(logoUrl: string | null, wordmarkUrl: string | null) {
     }
   } catch {}
 }
+
+/**
+ * Runs as `useLayoutEffect` on the client (before paint) and falls back to
+ * `useEffect` on the server where layout effects are a no-op. This prevents
+ * the flash of the default logo without triggering a hydration mismatch.
+ */
+const useBrowserLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
 
 interface BrandingContextValue {
   config: BrandConfig
@@ -51,16 +62,16 @@ interface BrandingProviderProps {
 
 /**
  * Provides merged branding (instance env vars + org DB settings) to the workspace.
- * Injects CSS variable overrides when org colors are configured.
+ * Injects a `<style>` tag with CSS variable overrides when org colors are configured.
  *
- * Logo and wordmark URLs are cached in localStorage so returning visitors see
- * the correct brand assets immediately without waiting for the API response.
- * The cache is read after hydration to avoid server/client HTML mismatches.
+ * Brand asset URLs are cached in `localStorage` so returning visitors see the
+ * correct logo and wordmark immediately. The cache is applied via a layout effect
+ * (before the first paint) to eliminate any visible flash on subsequent loads.
  */
 export function BrandingProvider({ children }: BrandingProviderProps) {
   const [cache, setCache] = useState<BrandCache | null>(null)
 
-  useEffect(() => {
+  useBrowserLayoutEffect(() => {
     setCache(readCache())
   }, [])
 
@@ -80,8 +91,8 @@ export function BrandingProvider({ children }: BrandingProviderProps) {
     if (brandingLoading && cache) {
       return {
         ...base,
-        ...(cache.logoUrl && !base.logoUrl && { logoUrl: cache.logoUrl }),
-        ...(cache.wordmarkUrl && !base.wordmarkUrl && { wordmarkUrl: cache.wordmarkUrl }),
+        ...(cache.logoUrl && { logoUrl: cache.logoUrl }),
+        ...(cache.wordmarkUrl && { wordmarkUrl: cache.wordmarkUrl }),
       }
     }
     return base
