@@ -2,9 +2,7 @@ import { db } from '@sim/db'
 import { organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import type { BrandConfig, OrganizationWhitelabelSettings } from '@/lib/branding/types'
-import { getBrandConfig } from '@/ee/whitelabeling/branding'
-import { mergeOrgBrandConfig } from '@/ee/whitelabeling/org-branding-utils'
+import type { OrganizationWhitelabelSettings } from '@/lib/branding/types'
 
 const logger = createLogger('OrgBranding')
 
@@ -26,12 +24,4 @@ export async function getOrgWhitelabelSettings(
     logger.error('Failed to fetch org whitelabel settings', { error, orgId })
     return null
   }
-}
-
-/**
- * Get the merged brand config for an org, combining instance env vars with org DB settings.
- */
-export async function getOrgBrandConfig(orgId: string): Promise<BrandConfig> {
-  const orgSettings = await getOrgWhitelabelSettings(orgId)
-  return mergeOrgBrandConfig(orgSettings, getBrandConfig())
 }

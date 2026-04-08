@@ -16,6 +16,7 @@ const SECTION_TITLES: Record<string, string> = {
   subscription: 'Subscription',
   team: 'Team',
   sso: 'Single Sign-On',
+  whitelabeling: 'Whitelabeling',
   copilot: 'Copilot Keys',
   mcp: 'MCP Tools',
   'custom-tools': 'Custom Tools',

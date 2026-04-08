@@ -387,7 +387,7 @@ export function General() {
               <Tooltip.Preview
                 src='/tooltips/auto-connect-on-drop.mp4'
                 alt='Auto-connect on drop example'
-                loop={false}
+                loop={true}
               />
             </Tooltip.Content>
           </Tooltip.Root>
