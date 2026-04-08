@@ -3,7 +3,7 @@
 import type React from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Database, Folder as FolderIcon, Table as TableIcon } from '@/components/emcn/icons'
+import { Blimp, Database, Folder as FolderIcon, Table as TableIcon } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
@@ -705,6 +705,9 @@ export function UserInput({
           }
           case 'folder':
             mentionIconNode = <FolderIcon className={iconClasses} />
+            break
+          case 'past_chat':
+            mentionIconNode = <Blimp className={iconClasses} />
             break
         }
       }

@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
-import { Database, Folder as FolderIcon, Table as TableIcon } from '@/components/emcn/icons'
+import { Blimp, Database, Folder as FolderIcon, Table as TableIcon } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -83,6 +83,9 @@ function MentionHighlight({ context }: { context: ChatMessageContext }) {
     }
     case 'folder':
       icon = <FolderIcon className={iconClasses} />
+      break
+    case 'past_chat':
+      icon = <Blimp className={iconClasses} />
       break
   }
 

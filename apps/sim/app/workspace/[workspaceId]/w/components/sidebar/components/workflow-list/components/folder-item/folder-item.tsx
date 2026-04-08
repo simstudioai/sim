@@ -211,7 +211,8 @@ export function FolderItem({
 
       const total = selection.folderIds.length + selection.workflowIds.length
       const ghostLabel = total > 1 ? `${folder.name} +${total - 1} more` : folder.name
-      const ghost = createSidebarDragGhost(ghostLabel)
+      const icon = total === 1 ? { kind: 'folder' as const } : undefined
+      const ghost = createSidebarDragGhost(ghostLabel, icon)
       void ghost.offsetHeight
       e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
       dragGhostRef.current = ghost

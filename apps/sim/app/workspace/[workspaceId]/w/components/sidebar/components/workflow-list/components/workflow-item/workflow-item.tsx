@@ -352,7 +352,8 @@ export function WorkflowItem({
 
       const total = selection.workflowIds.length + selection.folderIds.length
       const ghostLabel = total > 1 ? `${workflow.name} +${total - 1} more` : workflow.name
-      const ghost = createSidebarDragGhost(ghostLabel)
+      const icon = total === 1 ? { kind: 'workflow' as const, color: workflow.color } : undefined
+      const ghost = createSidebarDragGhost(ghostLabel, icon)
       // Force reflow so the browser can capture the rendered element
       void ghost.offsetHeight
       e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)

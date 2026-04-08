@@ -172,7 +172,7 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
         SIM_RESOURCES_DRAG_TYPE,
         JSON.stringify([{ type: 'task', id: task.id, title: task.name }])
       )
-      const ghost = createSidebarDragGhost(task.name)
+      const ghost = createSidebarDragGhost(task.name, { kind: 'task' })
       void ghost.offsetHeight
       e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
       dragGhostRef.current = ghost
