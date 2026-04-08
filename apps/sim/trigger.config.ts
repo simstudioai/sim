@@ -21,7 +21,14 @@ export default defineConfig({
         files: ['./lib/execution/isolated-vm-worker.cjs', './lib/execution/pptx-worker.cjs'],
       }),
       additionalPackages({
-        packages: ['unpdf', 'pdf-lib', 'isolated-vm', 'pptxgenjs'],
+        packages: [
+          'unpdf',
+          'pdf-lib',
+          'isolated-vm',
+          'pptxgenjs',
+          'react-dom',
+          '@react-email/render',
+        ],
       }),
     ],
   },
