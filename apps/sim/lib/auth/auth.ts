@@ -82,6 +82,7 @@ import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
+import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 import { createAnonymousSession, ensureAnonymousUserExists } from './anonymous'
 
@@ -240,6 +241,13 @@ export const auth = betterAuth({
                 { userId: user.id, error }
               )
             }
+          }
+        },
+      },
+      update: {
+        after: async (user) => {
+          if (user.banned) {
+            await disableUserResources(user.id)
           }
         },
       },
