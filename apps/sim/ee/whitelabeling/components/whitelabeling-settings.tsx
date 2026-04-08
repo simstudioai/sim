@@ -7,6 +7,7 @@ import Image from 'next/image'
 import { Button, Input, Label, Switch } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
+import { HEX_COLOR_REGEX } from '@/lib/branding'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
@@ -20,8 +21,6 @@ import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 
 const logger = createLogger('WhitelabelingSettings')
-
-const HEX_COLOR_REGEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i
 
 interface DropZoneProps {
   onDrop: (e: React.DragEvent) => void
@@ -248,7 +247,6 @@ export function WhitelabelingSettings() {
     termsUrl,
     privacyUrl,
     hidePoweredBySim,
-    updateSettings,
   ])
 
   if (isBillingEnabled) {

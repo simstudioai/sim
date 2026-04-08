@@ -1,3 +1,6 @@
+/** Matches 3- or 6-digit hex colors, e.g. `#abc` or `#701ffc`. */
+export const HEX_COLOR_REGEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i
+
 export interface ThemeColors {
   primaryColor?: string
   primaryHoverColor?: string
