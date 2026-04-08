@@ -4,12 +4,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/logger', () => {
-  const createMockLogger = () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  })
+  const createMockLogger = () => {
+    const mock = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      withMetadata: vi.fn(() => mock),
+    }
+    return mock
+  }
   return { createLogger: vi.fn(() => createMockLogger()) }
 })
 
