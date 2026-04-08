@@ -68,7 +68,7 @@ export const slackWebhookTrigger: TriggerConfig = {
         'If you don\'t have an app:<br><ul class="mt-1 ml-5 list-disc"><li>Create an app from scratch</li><li>Give it a name and select your workspace</li></ul>',
         'Go to "Basic Information", find the "Signing Secret", and paste it in the field above.',
         'Go to "OAuth & Permissions" and add bot token scopes:<br><ul class="mt-1 ml-5 list-disc"><li><code>app_mentions:read</code> - For viewing messages that tag your bot with an @</li><li><code>chat:write</code> - To send messages to channels your bot is a part of</li><li><code>files:read</code> - To access files and images shared in messages</li><li><code>reactions:read</code> - For listening to emoji reactions and fetching reacted-to message text</li></ul>',
-        'Go to "Event Subscriptions":<br><ul class="mt-1 ml-5 list-disc"><li>Enable events</li><li>Under "Subscribe to Bot Events", add <code>app_mention</code> to listen to messages that mention your bot</li><li>For reaction events, also add <code>reaction_added</code> and/or <code>reaction_removed</code></li><li>Paste the Webhook URL above into the "Request URL" field</li></ul>',
+        'Go to "Event Subscriptions":<br><ul class="mt-1 ml-5 list-disc"><li>Enable events</li><li>Under "Subscribe to Bot Events", add <code>app_mention</code> to listen to messages that mention your bot</li><li>To receive all channel messages, add <code>message.channels</code>. For DMs add <code>message.im</code>, for group DMs add <code>message.mpim</code>, for private channels add <code>message.groups</code></li><li>For reaction events, also add <code>reaction_added</code> and/or <code>reaction_removed</code></li><li>Paste the Webhook URL above into the "Request URL" field</li></ul>',
         'Go to "Install App" in the left sidebar and install the app into your desired Slack workspace and channel.',
         'Copy the "Bot User OAuth Token" (starts with <code>xoxb-</code>) and paste it in the Bot Token field above to enable file downloads.',
         'Save changes in both Slack and here.',
@@ -92,6 +92,11 @@ export const slackWebhookTrigger: TriggerConfig = {
           type: 'string',
           description: 'Type of Slack event (e.g., app_mention, message)',
         },
+        subtype: {
+          type: 'string',
+          description:
+            'Message subtype (e.g., channel_join, channel_leave, bot_message, file_share). Null for regular user messages',
+        },
         channel: {
           type: 'string',
           description: 'Slack channel ID where the event occurred',
@@ -100,6 +105,11 @@ export const slackWebhookTrigger: TriggerConfig = {
           type: 'string',
           description: 'Human-readable channel name',
         },
+        channel_type: {
+          type: 'string',
+          description:
+            'Type of channel (e.g., channel, group, im, mpim). Useful for distinguishing DMs from public channels',
+        },
         user: {
           type: 'string',
           description: 'User ID who triggered the event',
@@ -107,6 +117,10 @@ export const slackWebhookTrigger: TriggerConfig = {
         user_name: {
           type: 'string',
           description: 'Username who triggered the event',
+        },
+        bot_id: {
+          type: 'string',
+          description: 'Bot ID if the message was sent by a bot. Null for human users',
         },
         text: {
           type: 'string',
