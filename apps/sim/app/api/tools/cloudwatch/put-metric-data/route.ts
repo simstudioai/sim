@@ -48,7 +48,21 @@ const PutMetricDataSchema = z.object({
   metricName: z.string().min(1, 'Metric name is required'),
   value: z.number({ coerce: true }),
   unit: z.enum(VALID_UNITS).optional(),
-  dimensions: z.string().optional(),
+  dimensions: z
+    .string()
+    .optional()
+    .refine(
+      (val) => {
+        if (!val) return true
+        try {
+          const parsed = JSON.parse(val)
+          return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+        } catch {
+          return false
+        }
+      },
+      { message: 'dimensions must be a valid JSON object string' }
+    ),
 })
 
 export async function POST(request: NextRequest) {
@@ -73,16 +87,9 @@ export async function POST(request: NextRequest) {
 
     const dimensions: { Name: string; Value: string }[] = []
     if (validatedData.dimensions) {
-      let parsed: unknown
-      try {
-        parsed = JSON.parse(validatedData.dimensions)
-      } catch {
-        return NextResponse.json({ error: 'Invalid dimensions JSON format' }, { status: 400 })
-      }
-      if (typeof parsed === 'object' && parsed !== null) {
-        for (const [name, value] of Object.entries(parsed)) {
-          dimensions.push({ Name: name, Value: String(value) })
-        }
+      const parsed = JSON.parse(validatedData.dimensions)
+      for (const [name, value] of Object.entries(parsed)) {
+        dimensions.push({ Name: name, Value: String(value) })
       }
     }
 
