@@ -317,8 +317,6 @@ export async function executeSync(
   const userId = kbRows[0].userId
   const sourceConfig = connector.sourceConfig as Record<string, unknown>
 
-  let accessToken = await resolveAccessToken(connector, connectorConfig, userId)
-
   const lockResult = await db
     .update(knowledgeConnector)
     .set({ status: 'syncing', updatedAt: new Date() })
@@ -349,6 +347,8 @@ export async function executeSync(
   let syncExitedCleanly = false
 
   try {
+    let accessToken = await resolveAccessToken(connector, connectorConfig, userId)
+
     const externalDocs: ExternalDocument[] = []
     let cursor: string | undefined
     let hasMore = true
@@ -365,8 +365,7 @@ export async function executeSync(
 
     for (let pageNum = 0; hasMore && pageNum < MAX_PAGES; pageNum++) {
       if (pageNum > 0 && connectorConfig.auth.mode === 'oauth') {
-        const refreshed = await resolveAccessToken(connector, connectorConfig, userId)
-        if (refreshed) accessToken = refreshed
+        accessToken = await resolveAccessToken(connector, connectorConfig, userId)
       }
 
       const page = await connectorConfig.listDocuments(
@@ -504,8 +503,7 @@ export async function executeSync(
 
       if (deferredOps.length > 0) {
         if (connectorConfig.auth.mode === 'oauth') {
-          const refreshed = await resolveAccessToken(connector, connectorConfig, userId)
-          if (refreshed) accessToken = refreshed
+          accessToken = await resolveAccessToken(connector, connectorConfig, userId)
         }
 
         const hydrated = await Promise.allSettled(
