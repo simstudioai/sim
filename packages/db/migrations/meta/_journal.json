@@ -1296,13 +1296,6 @@
       "when": 1775247973312,
       "tag": "0185_new_gravity",
       "breakpoints": true
-    },
-    {
-      "idx": 186,
-      "version": "7",
-      "when": 1775584685286,
-      "tag": "0186_vengeful_ser_duncan",
-      "breakpoints": true
     }
   ]
 }
