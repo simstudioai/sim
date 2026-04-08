@@ -78,7 +78,7 @@ Defines the fields approvers fill in when responding. This data becomes availabl
 }
 ```
 
-Access resume data in downstream blocks using `<blockId.resumeInput.fieldName>`. 
+Access resume data in downstream blocks using `<blockId.fieldName>`. 
 
 ## Approval Methods
 
@@ -230,9 +230,9 @@ Agent (Generate) → Human in the Loop (QA) → Gmail (Send)
 **`response`** - Display data shown to the approver (json)
 **`submission`** - Form submission data from the approver (json)
 **`submittedAt`** - ISO timestamp when the workflow was resumed
-**`resumeInput.*`** - All fields defined in Resume Form become available after the workflow resumes
+**`<fieldName>`** - All fields defined in Resume Form become available at the top level after the workflow resumes
 
-Access using `<blockId.resumeInput.fieldName>`.
+Access using `<blockId.fieldName>`.
 
 ## Example
 
@@ -256,7 +256,7 @@ Access using `<blockId.resumeInput.fieldName>`.
 **Downstream Usage:**
 ```javascript
 // Condition block
-<approval1.resumeInput.approved> === true
+<approval1.approved> === true
 ```
 The example below shows an approval portal as seen by an approver after the workflow is paused. Approvers can review the data and provide inputs as a part of the workflow resumption. The approval portal can be accessed directly via the unique URL, `<blockId.url>`.
 
@@ -273,7 +273,7 @@ The example below shows an approval portal as seen by an approver after the work
 <FAQ items={[
   { question: "How long does the workflow stay paused?", answer: "The workflow pauses indefinitely until a human provides input through the approval portal, the REST API, or a webhook. There is no automatic timeout — it will wait until someone responds." },
   { question: "What notification channels can I use to alert approvers?", answer: "You can configure notifications through Slack, Gmail, Microsoft Teams, SMS (via Twilio), or custom webhooks. Include the approval URL in your notification message so approvers can access the portal directly." },
-  { question: "How do I access the approver's input in downstream blocks?", answer: "Use the syntax <blockId.resumeInput.fieldName> to reference specific fields from the resume form. For example, if your block ID is 'approval1' and the form has an 'approved' field, use <approval1.resumeInput.approved>." },
+  { question: "How do I access the approver's input in downstream blocks?", answer: "Use the syntax <blockId.fieldName> to reference specific fields from the resume form. For example, if your block name is 'approval1' and the form has an 'approved' field, use <approval1.approved>." },
   { question: "Can I chain multiple Human in the Loop blocks for multi-stage approvals?", answer: "Yes. You can place multiple Human in the Loop blocks in sequence to create multi-stage approval workflows. Each block pauses independently and can have its own notification configuration and resume form fields." },
   { question: "Can I resume the workflow programmatically without the portal?", answer: "Yes. Each block exposes a resume API endpoint that you can call with a POST request containing the form data as JSON. This lets you build custom approval UIs or integrate with existing systems like Jira or ServiceNow." },
   { question: "What outputs are available after the workflow resumes?", answer: "The block outputs include the approval portal URL, the resume API endpoint URL, the display data shown to the approver, the form submission data, the raw resume input, and an ISO timestamp of when the workflow was resumed." },
