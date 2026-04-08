@@ -7,7 +7,6 @@ import Image from 'next/image'
 import { Button, Input, Label, Switch } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
-import type { OrganizationWhitelabelSettings } from '@/lib/branding/types'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
@@ -15,6 +14,7 @@ import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/
 import {
   useUpdateWhitelabelSettings,
   useWhitelabelSettings,
+  type WhitelabelSettingsPayload,
 } from '@/ee/whitelabeling/hooks/whitelabel'
 import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
@@ -168,17 +168,17 @@ export function WhitelabelingSettings() {
       }
     }
 
-    const settings: OrganizationWhitelabelSettings = {
-      brandName: brandName || undefined,
-      logoUrl: previewUrl || undefined,
-      primaryColor: primaryColor || undefined,
-      primaryHoverColor: primaryHoverColor || undefined,
-      accentColor: accentColor || undefined,
-      accentHoverColor: accentHoverColor || undefined,
-      supportEmail: supportEmail || undefined,
-      documentationUrl: documentationUrl || undefined,
-      termsUrl: termsUrl || undefined,
-      privacyUrl: privacyUrl || undefined,
+    const settings: WhitelabelSettingsPayload = {
+      brandName: brandName || null,
+      logoUrl: previewUrl || null,
+      primaryColor: primaryColor || null,
+      primaryHoverColor: primaryHoverColor || null,
+      accentColor: accentColor || null,
+      accentHoverColor: accentHoverColor || null,
+      supportEmail: supportEmail || null,
+      documentationUrl: documentationUrl || null,
+      termsUrl: termsUrl || null,
+      privacyUrl: privacyUrl || null,
       hidePoweredBySim,
     }
 

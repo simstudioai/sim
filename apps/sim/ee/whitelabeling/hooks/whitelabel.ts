@@ -4,6 +4,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { OrganizationWhitelabelSettings } from '@/lib/branding/types'
 import { organizationKeys } from '@/hooks/queries/organization'
 
+/** PUT payload — string fields accept null to clear a previously-set value. */
+export type WhitelabelSettingsPayload = {
+  [K in keyof OrganizationWhitelabelSettings]: OrganizationWhitelabelSettings[K] extends
+    | string
+    | undefined
+    ? string | null
+    : OrganizationWhitelabelSettings[K]
+}
+
 /**
  * Query key factories for whitelabel-related queries
  */
@@ -41,7 +50,7 @@ export function useWhitelabelSettings(orgId: string | undefined) {
 
 interface UpdateWhitelabelVariables {
   orgId: string
-  settings: OrganizationWhitelabelSettings
+  settings: WhitelabelSettingsPayload
 }
 
 /**

@@ -14,7 +14,12 @@ const logger = createLogger('WhitelabelAPI')
 const HEX_COLOR_REGEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i
 
 const updateWhitelabelSchema = z.object({
-  brandName: z.string().trim().max(64, 'Brand name must be 64 characters or fewer').optional(),
+  brandName: z
+    .string()
+    .trim()
+    .max(64, 'Brand name must be 64 characters or fewer')
+    .nullable()
+    .optional(),
   logoUrl: z.string().url('Logo URL must be a valid URL').nullable().optional(),
   primaryColor: z
     .string()
@@ -178,6 +183,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       .set({ whitelabelSettings: merged, updatedAt: new Date() })
       .where(eq(organization.id, organizationId))
       .returning({ whitelabelSettings: organization.whitelabelSettings })
+
+    if (!updated) {
+      return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+    }
 
     recordAudit({
       workspaceId: null,
