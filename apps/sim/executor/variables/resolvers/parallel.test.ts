@@ -6,6 +6,11 @@ import type { ResolutionContext } from './reference'
 
 vi.mock('@sim/logger', () => loggerMock)
 
+interface BlockDef {
+  id: string
+  name: string
+}
+
 /**
  * Creates a minimal workflow for testing.
  */
@@ -18,7 +23,8 @@ function createTestWorkflow(
       distribution?: any
       parallelType?: 'count' | 'collection'
     }
-  > = {}
+  > = {},
+  blockDefs: BlockDef[] = []
 ) {
   const normalizedParallels: Record<
     string,
@@ -37,9 +43,18 @@ function createTestWorkflow(
       parallelType: parallel.parallelType,
     }
   }
+  const blocks = blockDefs.map((b) => ({
+    id: b.id,
+    position: { x: 0, y: 0 },
+    config: { tool: 'test', params: {} },
+    inputs: {},
+    outputs: {},
+    metadata: { id: 'function', name: b.name },
+    enabled: true,
+  }))
   return {
     version: '1.0',
-    blocks: [],
+    blocks,
     connections: [],
     loops: {},
     parallels: normalizedParallels,
@@ -54,8 +69,6 @@ function createParallelScope(items: any[]) {
     parallelId: 'parallel-1',
     totalBranches: items.length,
     branchOutputs: new Map(),
-    completedCount: 0,
-    totalExpectedNodes: 1,
     items,
   }
 }
@@ -65,13 +78,16 @@ function createParallelScope(items: any[]) {
  */
 function createTestContext(
   currentNodeId: string,
-  parallelExecutions?: Map<string, any>
+  parallelExecutions?: Map<string, any>,
+  blockOutputs?: Record<string, any>
 ): ResolutionContext {
   return {
     executionContext: {
       parallelExecutions: parallelExecutions ?? new Map(),
     },
-    executionState: {},
+    executionState: {
+      getBlockOutput: (id: string) => blockOutputs?.[id],
+    },
     currentNodeId,
   } as ResolutionContext
 }
@@ -383,6 +399,121 @@ describe('ParallelResolver', () => {
 
       expect(resolver.resolve('<parallel.currentItem>', createTestContext('block-1₍0₎'))).toBe('p1')
       expect(resolver.resolve('<parallel.currentItem>', createTestContext('block-3₍1₎'))).toBe('p4')
+    })
+  })
+
+  describe('named parallel references', () => {
+    it.concurrent('should resolve result from anywhere after parallel completes', () => {
+      const workflow = createTestWorkflow(
+        { 'parallel-1': { nodes: ['block-1'], distribution: ['a', 'b'] } },
+        [{ id: 'parallel-1', name: 'Parallel 1' }]
+      )
+      const resolver = new ParallelResolver(workflow)
+      const results = [[{ response: 'a' }], [{ response: 'b' }]]
+      const ctx = createTestContext('block-outside', new Map(), {
+        'parallel-1': { results },
+      })
+
+      expect(resolver.resolve('<parallel1.result>', ctx)).toEqual(results)
+      expect(resolver.resolve('<parallel1.results>', ctx)).toEqual(results)
+    })
+
+    it.concurrent('should resolve result with nested path', () => {
+      const workflow = createTestWorkflow(
+        { 'parallel-1': { nodes: ['block-1'], distribution: ['a', 'b'] } },
+        [{ id: 'parallel-1', name: 'Parallel 1' }]
+      )
+      const resolver = new ParallelResolver(workflow)
+      const results = [[{ response: 'a' }], [{ response: 'b' }]]
+      const ctx = createTestContext('block-outside', new Map(), {
+        'parallel-1': { results },
+      })
+
+      expect(resolver.resolve('<parallel1.result.0>', ctx)).toEqual([{ response: 'a' }])
+      expect(resolver.resolve('<parallel1.result.1.0.response>', ctx)).toBe('b')
+    })
+
+    it.concurrent('should resolve result with empty currentNodeId', () => {
+      const workflow = createTestWorkflow(
+        { 'parallel-1': { nodes: ['block-1'], distribution: ['a', 'b'] } },
+        [{ id: 'parallel-1', name: 'Parallel 1' }]
+      )
+      const resolver = new ParallelResolver(workflow)
+      const results = [[{ output: 'x' }], [{ output: 'y' }]]
+      const ctx = createTestContext('', new Map(), {
+        'parallel-1': { results },
+      })
+
+      expect(resolver.resolve('<parallel1.results>', ctx)).toEqual(results)
+    })
+
+    it.concurrent('should return undefined when no output stored yet', () => {
+      const workflow = createTestWorkflow(
+        { 'parallel-1': { nodes: ['block-1'], distribution: ['a'] } },
+        [{ id: 'parallel-1', name: 'Parallel 1' }]
+      )
+      const resolver = new ParallelResolver(workflow)
+      const ctx = createTestContext('block-outside', new Map())
+
+      expect(resolver.resolve('<parallel1.results>', ctx)).toBeUndefined()
+    })
+
+    it.concurrent('should resolve iteration properties via named reference', () => {
+      const workflow = createTestWorkflow(
+        {
+          'parallel-1': {
+            nodes: ['block-1'],
+            distribution: ['x', 'y', 'z'],
+            parallelType: 'collection',
+          },
+        },
+        [{ id: 'parallel-1', name: 'Parallel 1' }]
+      )
+      const resolver = new ParallelResolver(workflow)
+      const ctx = createTestContext('block-1₍1₎')
+
+      expect(resolver.resolve('<parallel1.index>', ctx)).toBe(1)
+      expect(resolver.resolve('<parallel1.currentItem>', ctx)).toBe('y')
+      expect(resolver.resolve('<parallel1.items>', ctx)).toEqual(['x', 'y', 'z'])
+    })
+
+    it.concurrent('should throw InvalidFieldError for unknown property on named ref', () => {
+      const workflow = createTestWorkflow(
+        {
+          'parallel-1': {
+            nodes: ['block-1'],
+            distribution: ['a'],
+            parallelType: 'collection',
+          },
+        },
+        [{ id: 'parallel-1', name: 'Parallel 1' }]
+      )
+      const resolver = new ParallelResolver(workflow)
+      const ctx = createTestContext('block-1₍0₎')
+
+      expect(() => resolver.resolve('<parallel1.unknownProp>', ctx)).toThrow(InvalidFieldError)
+    })
+
+    it.concurrent('should not resolve named ref when no matching block exists', () => {
+      const workflow = createTestWorkflow({ 'parallel-1': { nodes: ['block-1'] } }, [
+        { id: 'parallel-1', name: 'Parallel 1' },
+      ])
+      const resolver = new ParallelResolver(workflow)
+      expect(resolver.canResolve('<parallel99.index>')).toBe(false)
+    })
+
+    it.concurrent('should resolve generic parallel results from inside a branch', () => {
+      const workflow = createTestWorkflow({
+        'parallel-1': { nodes: ['block-1'], distribution: ['a', 'b'] },
+      })
+      const resolver = new ParallelResolver(workflow)
+      const results = [[{ response: 'a' }], [{ response: 'b' }]]
+      const ctx = createTestContext('block-1₍0₎', new Map(), {
+        'parallel-1': { results },
+      })
+
+      expect(resolver.resolve('<parallel.results>', ctx)).toEqual(results)
+      expect(resolver.resolve('<parallel.result>', ctx)).toEqual(results)
     })
   })
 })
