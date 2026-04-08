@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { GoogleSheetsIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, parseTagDate } from '@/connectors/utils'
+import { parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('GoogleSheetsConnector')
 
@@ -168,7 +168,6 @@ async function sheetToDocument(
       return null
     }
 
-    const contentHash = await computeContentHash(content)
     const rowCount = dataRows.length
 
     return {
@@ -177,7 +176,7 @@ async function sheetToDocument(
       content,
       mimeType: 'text/plain',
       sourceUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${sheet.sheetId}`,
-      contentHash,
+      contentHash: `gsheets:${spreadsheetId}:${sheet.sheetId}:${modifiedTime ?? ''}`,
       metadata: {
         spreadsheetId,
         spreadsheetTitle,
@@ -259,22 +258,24 @@ export const googleSheetsConnector: ConnectorConfig = {
       sheetCount: sheets.length,
     })
 
-    const documents: ExternalDocument[] = []
-    for (let i = 0; i < sheets.length; i += CONCURRENCY) {
-      const batch = sheets.slice(i, i + CONCURRENCY)
-      const results = await Promise.all(
-        batch.map((sheet) =>
-          sheetToDocument(
-            accessToken,
-            spreadsheetId,
-            metadata.properties.title,
-            sheet,
-            modifiedTime
-          )
-        )
-      )
-      documents.push(...(results.filter(Boolean) as ExternalDocument[]))
-    }
+    const documents: ExternalDocument[] = sheets.map((sheet) => ({
+      externalId: `${spreadsheetId}__sheet__${sheet.sheetId}`,
+      title: `${metadata.properties.title} - ${sheet.title}`,
+      content: '',
+      contentDeferred: true,
+      mimeType: 'text/plain',
+      sourceUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${sheet.sheetId}`,
+      contentHash: `gsheets:${spreadsheetId}:${sheet.sheetId}:${modifiedTime ?? ''}`,
+      metadata: {
+        spreadsheetId,
+        spreadsheetTitle: metadata.properties.title,
+        sheetTitle: sheet.title,
+        sheetId: sheet.sheetId,
+        rowCount: sheet.gridProperties?.rowCount,
+        columnCount: sheet.gridProperties?.columnCount,
+        ...(modifiedTime ? { modifiedTime } : {}),
+      },
+    }))
 
     return {
       documents,
@@ -324,13 +325,15 @@ export const googleSheetsConnector: ConnectorConfig = {
       return null
     }
 
-    return sheetToDocument(
+    const doc = await sheetToDocument(
       accessToken,
       spreadsheetId,
       metadata.properties.title,
       sheetEntry.properties,
       modifiedTime
     )
+    if (!doc) return null
+    return { ...doc, contentDeferred: false }
   },
 
   validateConfig: async (

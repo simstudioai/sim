@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { ServiceNowIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('ServiceNowConnector')
 
@@ -184,15 +184,13 @@ function priorityLabel(priority: string | undefined): string {
 /**
  * Converts a KB article record to an ExternalDocument.
  */
-async function kbArticleToDocument(
-  article: KBArticle,
-  instanceUrl: string
-): Promise<ExternalDocument> {
+function kbArticleToDocument(article: KBArticle, instanceUrl: string): ExternalDocument {
   const title = rawValue(article.short_description) || rawValue(article.number) || article.sys_id
   const articleText = rawValue(article.text) || rawValue(article.wiki) || ''
   const content = htmlToPlainText(articleText)
-  const contentHash = await computeContentHash(content)
   const sysId = rawValue(article.sys_id as unknown as string) || article.sys_id
+  const updatedOn = rawValue(article.sys_updated_on) || ''
+  const contentHash = `servicenow:${sysId}:${updatedOn}`
   const sourceUrl = `${instanceUrl}/kb_view.do?sys_kb_id=${sysId}`
 
   return {
@@ -218,10 +216,7 @@ async function kbArticleToDocument(
 /**
  * Converts an incident record to an ExternalDocument.
  */
-async function incidentToDocument(
-  incident: Incident,
-  instanceUrl: string
-): Promise<ExternalDocument> {
+function incidentToDocument(incident: Incident, instanceUrl: string): ExternalDocument {
   const number = rawValue(incident.number)
   const shortDesc = rawValue(incident.short_description)
   const title = number ? `${number}: ${shortDesc || 'Untitled'}` : shortDesc || incident.sys_id
@@ -258,8 +253,9 @@ async function incidentToDocument(
   }
 
   const content = parts.join('\n')
-  const contentHash = await computeContentHash(content)
   const sysId = rawValue(incident.sys_id as unknown as string) || incident.sys_id
+  const updatedOn = rawValue(incident.sys_updated_on) || ''
+  const contentHash = `servicenow:${sysId}:${updatedOn}`
   const sourceUrl = `${instanceUrl}/incident.do?sys_id=${sysId}`
 
   return {
@@ -478,8 +474,8 @@ export const servicenowConnector: ConnectorConfig = {
     const documents: ExternalDocument[] = []
     for (const record of result) {
       const doc = isKB
-        ? await kbArticleToDocument(record as unknown as KBArticle, instanceUrl)
-        : await incidentToDocument(record as unknown as Incident, instanceUrl)
+        ? kbArticleToDocument(record as unknown as KBArticle, instanceUrl)
+        : incidentToDocument(record as unknown as Incident, instanceUrl)
 
       if (doc.content.trim()) {
         documents.push(doc)
@@ -532,8 +528,8 @@ export const servicenowConnector: ConnectorConfig = {
 
       const record = result[0]
       const doc = isKB
-        ? await kbArticleToDocument(record as unknown as KBArticle, instanceUrl)
-        : await incidentToDocument(record as unknown as Incident, instanceUrl)
+        ? kbArticleToDocument(record as unknown as KBArticle, instanceUrl)
+        : incidentToDocument(record as unknown as Incident, instanceUrl)
 
       return doc.content.trim() ? doc : null
     } catch (error) {
