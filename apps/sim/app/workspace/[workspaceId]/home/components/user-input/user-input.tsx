@@ -179,7 +179,26 @@ export function UserInput({
   useEffect(() => {
     const prev = prevSelectedContextsRef.current
     const curr = contextManagement.selectedContexts
-    const removed = prev.filter((p) => !curr.some((c) => c.kind === p.kind && c.label === p.label))
+    const contextId = (ctx: ChatContext): string => {
+      switch (ctx.kind) {
+        case 'workflow':
+        case 'current_workflow':
+          return `${ctx.kind}:${ctx.workflowId}`
+        case 'knowledge':
+          return `knowledge:${ctx.knowledgeId ?? ''}`
+        case 'table':
+          return `table:${ctx.tableId}`
+        case 'file':
+          return `file:${ctx.fileId}`
+        case 'folder':
+          return `folder:${ctx.folderId}`
+        case 'past_chat':
+          return `past_chat:${ctx.chatId}`
+        default:
+          return `${ctx.kind}:${ctx.label}`
+      }
+    }
+    const removed = prev.filter((p) => !curr.some((c) => contextId(c) === contextId(p)))
     if (removed.length > 0) removed.forEach((ctx) => onContextRemoveRef.current?.(ctx))
     prevSelectedContextsRef.current = curr
   }, [contextManagement.selectedContexts])
