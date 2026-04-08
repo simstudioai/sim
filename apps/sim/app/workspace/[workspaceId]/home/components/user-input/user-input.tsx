@@ -108,6 +108,7 @@ interface UserInputProps {
   isInitialView?: boolean
   userId?: string
   onContextAdd?: (context: ChatContext) => void
+  onContextRemove?: (context: ChatContext) => void
   onEnterWhileEmpty?: () => boolean
 }
 
@@ -121,6 +122,7 @@ export function UserInput({
   isInitialView = true,
   userId,
   onContextAdd,
+  onContextRemove,
   onEnterWhileEmpty,
 }: UserInputProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
@@ -169,6 +171,18 @@ export function UserInput({
     },
     [addContext, onContextAdd]
   )
+
+  const onContextRemoveRef = useRef(onContextRemove)
+  onContextRemoveRef.current = onContextRemove
+
+  const prevSelectedContextsRef = useRef<ChatContext[]>([])
+  useEffect(() => {
+    const prev = prevSelectedContextsRef.current
+    const curr = contextManagement.selectedContexts
+    const removed = prev.filter((p) => !curr.some((c) => c.kind === p.kind && c.label === p.label))
+    if (removed.length > 0) removed.forEach((ctx) => onContextRemoveRef.current?.(ctx))
+    prevSelectedContextsRef.current = curr
+  }, [contextManagement.selectedContexts])
 
   const existingResourceKeys = useMemo(() => {
     const keys = new Set<string>()

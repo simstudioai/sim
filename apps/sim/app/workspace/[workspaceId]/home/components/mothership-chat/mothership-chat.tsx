@@ -37,6 +37,7 @@ interface MothershipChatProps {
   userId?: string
   chatId?: string
   onContextAdd?: (context: ChatContext) => void
+  onContextRemove?: (context: ChatContext) => void
   editValue?: string
   onEditValueConsumed?: () => void
   layout?: 'mothership-view' | 'copilot-view'
@@ -83,6 +84,7 @@ export function MothershipChat({
   userId,
   chatId,
   onContextAdd,
+  onContextRemove,
   editValue,
   onEditValueConsumed,
   layout = 'mothership-view',
@@ -207,6 +209,7 @@ export function MothershipChat({
             isInitialView={false}
             userId={userId}
             onContextAdd={onContextAdd}
+            onContextRemove={onContextRemove}
             editValue={editValue}
             onEditValueConsumed={onEditValueConsumed}
             onEnterWhileEmpty={handleEnterWhileEmpty}
