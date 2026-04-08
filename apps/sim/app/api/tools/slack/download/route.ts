@@ -158,6 +158,12 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { success: false, error: error.errors[0]?.message ?? 'Invalid request' },
+        { status: 400 }
+      )
+    }
     logger.error(`[${requestId}] Error downloading Slack file:`, error)
     return NextResponse.json(
       {

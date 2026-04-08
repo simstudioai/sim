@@ -77,6 +77,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, output: result.output })
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { success: false, error: error.errors[0]?.message ?? 'Invalid request' },
+        { status: 400 }
+      )
+    }
     logger.error(`[${requestId}] Error sending Slack message:`, error)
     return NextResponse.json(
       {
