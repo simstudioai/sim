@@ -150,6 +150,16 @@ import {
   ashbyUpdateCandidateTool,
 } from '@/tools/ashby'
 import {
+  athenaCreateNamedQueryTool,
+  athenaGetNamedQueryTool,
+  athenaGetQueryExecutionTool,
+  athenaGetQueryResultsTool,
+  athenaListNamedQueriesTool,
+  athenaListQueryExecutionsTool,
+  athenaStartQueryTool,
+  athenaStopQueryTool,
+} from '@/tools/athena'
+import {
   attioAssertRecordTool,
   attioCreateCommentTool,
   attioCreateListEntryTool,
@@ -2830,6 +2840,14 @@ export const tools: Record<string, ToolConfig> = {
   ashby_remove_candidate_tag: ashbyRemoveCandidateTagTool,
   ashby_search_candidates: ashbySearchCandidatesTool,
   ashby_update_candidate: ashbyUpdateCandidateTool,
+  athena_create_named_query: athenaCreateNamedQueryTool,
+  athena_get_named_query: athenaGetNamedQueryTool,
+  athena_get_query_execution: athenaGetQueryExecutionTool,
+  athena_get_query_results: athenaGetQueryResultsTool,
+  athena_list_named_queries: athenaListNamedQueriesTool,
+  athena_list_query_executions: athenaListQueryExecutionsTool,
+  athena_start_query: athenaStartQueryTool,
+  athena_stop_query: athenaStopQueryTool,
   brandfetch_get_brand: brandfetchGetBrandTool,
   brandfetch_search: brandfetchSearchTool,
   box_copy_file: boxCopyFileTool,
