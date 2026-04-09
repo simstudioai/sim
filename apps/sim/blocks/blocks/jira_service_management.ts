@@ -198,7 +198,6 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       id: 'summary',
       title: 'Summary',
       type: 'short-input',
-      required: true,
       placeholder: 'Enter request summary',
       condition: { field: 'operation', value: 'create_request' },
       wandConfig: {
@@ -597,9 +596,23 @@ Return ONLY the comment text - no explanations.`,
               requestParticipants: params.requestParticipants,
               channel: params.channel,
               requestFieldValues: params.requestFieldValues
-                ? JSON.parse(params.requestFieldValues)
+                ? (() => {
+                    try {
+                      return JSON.parse(params.requestFieldValues)
+                    } catch {
+                      throw new Error('requestFieldValues must be valid JSON')
+                    }
+                  })()
                 : undefined,
-              formAnswers: params.formAnswers ? JSON.parse(params.formAnswers) : undefined,
+              formAnswers: params.formAnswers
+                ? (() => {
+                    try {
+                      return JSON.parse(params.formAnswers)
+                    } catch {
+                      throw new Error('formAnswers must be valid JSON')
+                    }
+                  })()
+                : undefined,
             }
           case 'get_request':
             if (!params.issueIdOrKey) {
