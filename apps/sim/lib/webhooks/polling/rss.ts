@@ -297,6 +297,13 @@ async function processRssItems(
         item.link ||
         (item.title && item.pubDate ? `${item.title}-${item.pubDate}` : '')
 
+      if (!itemGuid) {
+        logger.warn(
+          `[${requestId}] Skipping RSS item with no identifiable GUID for webhook ${webhookData.id}`
+        )
+        continue
+      }
+
       await pollingIdempotency.executeWithIdempotency(
         'rss',
         `${webhookData.id}:${itemGuid}`,
