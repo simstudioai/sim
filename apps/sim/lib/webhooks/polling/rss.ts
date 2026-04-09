@@ -12,7 +12,7 @@ import {
 } from '@/lib/webhooks/polling/utils'
 import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
 
-const MAX_GUIDS_TO_TRACK = 100
+const MAX_GUIDS_TO_TRACK = 500
 
 interface RssWebhookConfig {
   feedUrl: string
@@ -87,10 +87,15 @@ export const rssPollingHandler: PollingProviderHandler = {
       }
 
       const now = new Date()
-      const { feed, items: newItems } = await fetchNewRssItems(config, requestId, logger)
+      const {
+        feed,
+        items: newItems,
+        etag,
+        lastModified,
+      } = await fetchNewRssItems(config, requestId, logger)
 
       if (!newItems.length) {
-        await updateRssState(webhookId, now.toISOString(), [], config, logger)
+        await updateRssState(webhookId, now.toISOString(), [], config, logger, etag, lastModified)
         await markWebhookSuccess(webhookId, logger)
         logger.info(`[${requestId}] No new items found for webhook ${webhookId}`)
         return 'success'
@@ -108,10 +113,23 @@ export const rssPollingHandler: PollingProviderHandler = {
       )
 
       const newGuids = newItems
-        .map((item) => item.guid || item.link || '')
+        .map(
+          (item) =>
+            item.guid ||
+            item.link ||
+            (item.title && item.pubDate ? `${item.title}-${item.pubDate}` : '')
+        )
         .filter((guid) => guid.length > 0)
 
-      await updateRssState(webhookId, now.toISOString(), newGuids, config, logger)
+      await updateRssState(
+        webhookId,
+        now.toISOString(),
+        newGuids,
+        config,
+        logger,
+        etag,
+        lastModified
+      )
 
       if (failedCount > 0 && processedCount === 0) {
         await markWebhookFailed(webhookId, logger)
@@ -139,7 +157,9 @@ async function updateRssState(
   timestamp: string,
   newGuids: string[],
   config: RssWebhookConfig,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: ReturnType<typeof import('@sim/logger').createLogger>,
+  etag?: string,
+  lastModified?: string
 ) {
   const existingGuids = config.lastSeenGuids || []
   const allGuids = [...newGuids, ...existingGuids].slice(0, MAX_GUIDS_TO_TRACK)
@@ -149,6 +169,8 @@ async function updateRssState(
     {
       lastCheckedTimestamp: timestamp,
       lastSeenGuids: allGuids,
+      ...(etag !== undefined ? { etag } : {}),
+      ...(lastModified !== undefined ? { lastModified } : {}),
     },
     logger
   )
@@ -158,7 +180,7 @@ async function fetchNewRssItems(
   config: RssWebhookConfig,
   requestId: string,
   logger: ReturnType<typeof import('@sim/logger').createLogger>
-): Promise<{ feed: RssFeed; items: RssItem[] }> {
+): Promise<{ feed: RssFeed; items: RssItem[]; etag?: string; lastModified?: string }> {
   try {
     const urlValidation = await validateUrlWithDNS(config.feedUrl, 'feedUrl')
     if (!urlValidation.isValid) {
@@ -166,24 +188,45 @@ async function fetchNewRssItems(
       throw new Error(`Invalid RSS feed URL: ${urlValidation.error}`)
     }
 
+    const headers: Record<string, string> = {
+      'User-Agent': 'Sim/1.0 RSS Poller',
+      Accept: 'application/rss+xml, application/xml, text/xml, */*',
+    }
+    if (config.etag) {
+      headers['If-None-Match'] = config.etag
+    }
+    if (config.lastModified) {
+      headers['If-Modified-Since'] = config.lastModified
+    }
+
     const response = await secureFetchWithPinnedIP(config.feedUrl, urlValidation.resolvedIP!, {
-      headers: {
-        'User-Agent': 'Sim/1.0 RSS Poller',
-        Accept: 'application/rss+xml, application/xml, text/xml, */*',
-      },
+      headers,
       timeout: 30000,
     })
+
+    if (response.status === 304) {
+      logger.info(`[${requestId}] RSS feed not modified (304) for ${config.feedUrl}`)
+      return {
+        feed: { items: [] } as RssFeed,
+        items: [],
+        etag: response.headers.get('etag') ?? config.etag,
+        lastModified: response.headers.get('last-modified') ?? config.lastModified,
+      }
+    }
 
     if (!response.ok) {
       await response.text().catch(() => {})
       throw new Error(`Failed to fetch RSS feed: ${response.status} ${response.statusText}`)
     }
 
+    const newEtag = response.headers.get('etag') ?? undefined
+    const newLastModified = response.headers.get('last-modified') ?? undefined
+
     const xmlContent = await response.text()
     const feed = await parser.parseString(xmlContent)
 
     if (!feed.items || !feed.items.length) {
-      return { feed: feed as RssFeed, items: [] }
+      return { feed: feed as RssFeed, items: [], etag: newEtag, lastModified: newLastModified }
     }
 
     const lastCheckedTime = config.lastCheckedTimestamp
@@ -192,7 +235,10 @@ async function fetchNewRssItems(
     const lastSeenGuids = new Set(config.lastSeenGuids || [])
 
     const newItems = feed.items.filter((item) => {
-      const itemGuid = item.guid || item.link || ''
+      const itemGuid =
+        item.guid ||
+        item.link ||
+        (item.title && item.pubDate ? `${item.title}-${item.pubDate}` : '')
 
       if (itemGuid && lastSeenGuids.has(itemGuid)) {
         return false
@@ -220,7 +266,12 @@ async function fetchNewRssItems(
       `[${requestId}] Found ${newItems.length} new items (processing ${limitedItems.length})`
     )
 
-    return { feed: feed as RssFeed, items: limitedItems as RssItem[] }
+    return {
+      feed: feed as RssFeed,
+      items: limitedItems as RssItem[],
+      etag: newEtag,
+      lastModified: newLastModified,
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     logger.error(`[${requestId}] Error fetching RSS feed:`, errorMessage)
@@ -241,7 +292,17 @@ async function processRssItems(
 
   for (const item of items) {
     try {
-      const itemGuid = item.guid || item.link || `${item.title}-${item.pubDate}`
+      const itemGuid =
+        item.guid ||
+        item.link ||
+        (item.title && item.pubDate ? `${item.title}-${item.pubDate}` : '')
+
+      if (!itemGuid) {
+        logger.warn(
+          `[${requestId}] Skipping RSS item with no identifiable GUID for webhook ${webhookData.id}`
+        )
+        continue
+      }
 
       await pollingIdempotency.executeWithIdempotency(
         'rss',

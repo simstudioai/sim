@@ -28,6 +28,7 @@ import { outlookHandler } from '@/lib/webhooks/providers/outlook'
 import { resendHandler } from '@/lib/webhooks/providers/resend'
 import { rssHandler } from '@/lib/webhooks/providers/rss'
 import { salesforceHandler } from '@/lib/webhooks/providers/salesforce'
+import { servicenowHandler } from '@/lib/webhooks/providers/servicenow'
 import { slackHandler } from '@/lib/webhooks/providers/slack'
 import { stripeHandler } from '@/lib/webhooks/providers/stripe'
 import { telegramHandler } from '@/lib/webhooks/providers/telegram'
@@ -72,6 +73,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   outlook: outlookHandler,
   rss: rssHandler,
   salesforce: salesforceHandler,
+  servicenow: servicenowHandler,
   slack: slackHandler,
   stripe: stripeHandler,
   telegram: telegramHandler,

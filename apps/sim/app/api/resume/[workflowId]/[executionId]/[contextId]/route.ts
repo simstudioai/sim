@@ -194,7 +194,7 @@ export async function POST(
       })
     }
 
-    if (isApiCaller && executionMode !== 'async') {
+    if (isApiCaller && executionMode === 'sync') {
       const result = await PauseResumeManager.startResumeExecution(resumeArgs)
 
       return NextResponse.json({

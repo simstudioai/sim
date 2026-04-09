@@ -20,9 +20,6 @@ export async function GET(
   const { provider } = await params
   const requestId = generateShortId()
 
-  const LOCK_KEY = `${provider}-polling-lock`
-  let lockValue: string | undefined
-
   try {
     const authError = verifyCronAuth(request, `${provider} webhook polling`)
     if (authError) return authError
@@ -31,29 +28,38 @@ export async function GET(
       return NextResponse.json({ error: `Unknown polling provider: ${provider}` }, { status: 404 })
     }
 
-    lockValue = requestId
-    const locked = await acquireLock(LOCK_KEY, lockValue, LOCK_TTL_SECONDS)
-    if (!locked) {
-      return NextResponse.json(
-        {
-          success: true,
-          message: 'Polling already in progress – skipped',
-          requestId,
-          status: 'skip',
-        },
-        { status: 202 }
-      )
+    const LOCK_KEY = `${provider}-polling-lock`
+    let lockValue: string | undefined
+
+    try {
+      lockValue = requestId
+      const locked = await acquireLock(LOCK_KEY, lockValue, LOCK_TTL_SECONDS)
+      if (!locked) {
+        return NextResponse.json(
+          {
+            success: true,
+            message: 'Polling already in progress – skipped',
+            requestId,
+            status: 'skip',
+          },
+          { status: 202 }
+        )
+      }
+
+      const results = await pollProvider(provider)
+
+      return NextResponse.json({
+        success: true,
+        message: `${provider} polling completed`,
+        requestId,
+        status: 'completed',
+        ...results,
+      })
+    } finally {
+      if (lockValue) {
+        await releaseLock(LOCK_KEY, lockValue).catch(() => {})
+      }
     }
-
-    const results = await pollProvider(provider)
-
-    return NextResponse.json({
-      success: true,
-      message: `${provider} polling completed`,
-      requestId,
-      status: 'completed',
-      ...results,
-    })
   } catch (error) {
     logger.error(`Error during ${provider} polling (${requestId}):`, error)
     return NextResponse.json(
@@ -65,9 +71,5 @@ export async function GET(
       },
       { status: 500 }
     )
-  } finally {
-    if (lockValue) {
-      await releaseLock(LOCK_KEY, lockValue).catch(() => {})
-    }
   }
 }

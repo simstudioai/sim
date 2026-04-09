@@ -6614,9 +6614,21 @@
       {
         "name": "Get Request Type Fields",
         "description": "Get the fields required to create a request of a specific type in Jira Service Management"
+      },
+      {
+        "name": "Get Form Templates",
+        "description": "List forms (ProForma/JSM Forms) in a Jira project to discover form IDs for request types"
+      },
+      {
+        "name": "Get Form Structure",
+        "description": "Get the full structure of a ProForma/JSM form including all questions, field types, choices, layout, and conditions"
+      },
+      {
+        "name": "Get Issue Forms",
+        "description": "List forms (ProForma/JSM Forms) attached to a Jira issue with metadata (name, submitted status, lock)"
       }
     ],
-    "operationCount": 21,
+    "operationCount": 24,
     "triggers": [],
     "triggerCount": 0,
     "authType": "oauth",
@@ -10784,8 +10796,34 @@
       }
     ],
     "operationCount": 4,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "servicenow_incident_created",
+        "name": "ServiceNow Incident Created",
+        "description": "Trigger workflow when a new incident is created in ServiceNow"
+      },
+      {
+        "id": "servicenow_incident_updated",
+        "name": "ServiceNow Incident Updated",
+        "description": "Trigger workflow when an incident is updated in ServiceNow"
+      },
+      {
+        "id": "servicenow_change_request_created",
+        "name": "ServiceNow Change Request Created",
+        "description": "Trigger workflow when a new change request is created in ServiceNow"
+      },
+      {
+        "id": "servicenow_change_request_updated",
+        "name": "ServiceNow Change Request Updated",
+        "description": "Trigger workflow when a change request is updated in ServiceNow"
+      },
+      {
+        "id": "servicenow_webhook",
+        "name": "ServiceNow Webhook (All Events)",
+        "description": "Trigger workflow on any ServiceNow webhook event"
+      }
+    ],
+    "triggerCount": 5,
     "authType": "none",
     "category": "tools",
     "integrationType": "customer-support",

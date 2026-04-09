@@ -1,5 +1,6 @@
 import { htmlToText } from 'html-to-text'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
+import { fetchWithRetry } from '@/lib/knowledge/documents/utils'
 import type { PollingProviderHandler, PollWebhookContext } from '@/lib/webhooks/polling/types'
 import {
   markWebhookFailed,
@@ -166,6 +167,12 @@ export const outlookPollingHandler: PollingProviderHandler = {
   },
 }
 
+/** Hard cap on total emails fetched per poll to prevent unbounded pagination loops. */
+const OUTLOOK_HARD_MAX_EMAILS = 200
+
+/** Number of items to request per Graph API page. Decoupled from the total cap so pagination actually runs. */
+const OUTLOOK_PAGE_SIZE = 50
+
 async function fetchNewOutlookEmails(
   accessToken: string,
   config: OutlookWebhookConfig,
@@ -181,53 +188,77 @@ async function fetchNewOutlookEmails(
       'id,conversationId,subject,bodyPreview,body,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,hasAttachments,isRead,parentFolderId'
     )
     params.append('$orderby', 'receivedDateTime desc')
-    params.append('$top', (config.maxEmailsPerPoll || 25).toString())
+    const maxEmails = Math.min(config.maxEmailsPerPoll || 25, OUTLOOK_HARD_MAX_EMAILS)
+    params.append('$top', OUTLOOK_PAGE_SIZE.toString())
 
     if (config.lastCheckedTimestamp) {
       const lastChecked = new Date(config.lastCheckedTimestamp)
       const bufferTime = new Date(lastChecked.getTime() - 60000)
       params.append('$filter', `receivedDateTime gt ${bufferTime.toISOString()}`)
     }
+    const allEmails: OutlookEmail[] = []
+    let nextUrl: string | undefined = `${apiUrl}?${params.toString()}`
+    logger.info(`[${requestId}] Fetching emails from: ${nextUrl}`)
 
-    const fullUrl = `${apiUrl}?${params.toString()}`
-    logger.info(`[${requestId}] Fetching emails from: ${fullUrl}`)
-
-    const response = await fetch(fullUrl, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))
-      logger.error(`[${requestId}] Microsoft Graph API error:`, {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorData,
+    while (nextUrl && allEmails.length < maxEmails) {
+      const response = await fetchWithRetry(nextUrl, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
       })
-      throw new Error(
-        `Microsoft Graph API error: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`
-      )
+
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: { message: 'Unknown error' } }))
+        logger.error(`[${requestId}] Microsoft Graph API error:`, {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+        })
+        throw new Error(
+          `Microsoft Graph API error: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`
+        )
+      }
+
+      const data = await response.json()
+      const pageEmails: OutlookEmail[] = data.value || []
+      const remaining = maxEmails - allEmails.length
+      allEmails.push(...pageEmails.slice(0, remaining))
+
+      nextUrl =
+        allEmails.length < maxEmails ? (data['@odata.nextLink'] as string | undefined) : undefined
+
+      if (pageEmails.length === 0) break
     }
 
-    const data = await response.json()
-    const emails = data.value || []
+    logger.info(`[${requestId}] Fetched ${allEmails.length} emails total`)
+
+    const emails = allEmails
 
     let resolvedFolderIds: Map<string, string> | undefined
+    let skipFolderFilter = false
     if (config.folderIds && config.folderIds.length > 0) {
-      const hasWellKnownFolders = config.folderIds.some(isWellKnownFolderName)
-      if (hasWellKnownFolders) {
+      const wellKnownFolders = config.folderIds.filter(isWellKnownFolderName)
+      if (wellKnownFolders.length > 0) {
         resolvedFolderIds = await resolveWellKnownFolderIds(
           accessToken,
           config.folderIds,
           requestId,
           logger
         )
+        if (resolvedFolderIds.size < wellKnownFolders.length) {
+          logger.warn(
+            `[${requestId}] Could not resolve all well-known folders (${resolvedFolderIds.size}/${wellKnownFolders.length}) — skipping folder filter to avoid incorrect results`
+          )
+          skipFolderFilter = true
+        }
       }
     }
 
-    const filteredEmails = filterEmailsByFolder(emails, config, resolvedFolderIds)
+    const filteredEmails = skipFolderFilter
+      ? emails
+      : filterEmailsByFolder(emails, config, resolvedFolderIds)
 
     logger.info(
       `[${requestId}] Fetched ${emails.length} emails, ${filteredEmails.length} after filtering`
@@ -262,12 +293,14 @@ async function resolveWellKnownFolderId(
   logger: ReturnType<typeof import('@sim/logger').createLogger>
 ): Promise<string | null> {
   try {
-    const response = await fetch(`https://graph.microsoft.com/v1.0/me/mailFolders/${folderName}`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    })
+    const response = await fetchWithRetry(
+      `https://graph.microsoft.com/v1.0/me/mailFolders/${folderName}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    )
 
     if (!response.ok) {
       logger.warn(
@@ -455,12 +488,11 @@ async function downloadOutlookAttachments(
   const attachments: OutlookAttachment[] = []
 
   try {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `https://graph.microsoft.com/v1.0/me/messages/${messageId}/attachments`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
         },
       }
     )
@@ -511,14 +543,17 @@ async function markOutlookEmailAsRead(
   logger: ReturnType<typeof import('@sim/logger').createLogger>
 ) {
   try {
-    const response = await fetch(`https://graph.microsoft.com/v1.0/me/messages/${messageId}`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ isRead: true }),
-    })
+    const response = await fetchWithRetry(
+      `https://graph.microsoft.com/v1.0/me/messages/${messageId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ isRead: true }),
+      }
+    )
 
     if (!response.ok) {
       logger.error(
