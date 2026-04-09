@@ -11,7 +11,7 @@ export const listQueryExecutionsTool: ToolConfig<
   id: 'athena_list_query_executions',
   name: 'Athena List Query Executions',
   description: 'List recent Athena query execution IDs',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {

@@ -144,3 +144,22 @@ export interface CloudWatchDescribeAlarmsResponse extends ToolResponse {
     }[]
   }
 }
+
+export interface CloudWatchPutMetricDataParams extends CloudWatchConnectionConfig {
+  namespace: string
+  metricName: string
+  value: number
+  unit?: string
+  dimensions?: string
+}
+
+export interface CloudWatchPutMetricDataResponse extends ToolResponse {
+  output: {
+    success: boolean
+    namespace: string
+    metricName: string
+    value: number
+    unit: string
+    timestamp: string
+  }
+}

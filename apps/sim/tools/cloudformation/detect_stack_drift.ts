@@ -11,7 +11,7 @@ export const detectStackDriftTool: ToolConfig<
   id: 'cloudformation_detect_stack_drift',
   name: 'CloudFormation Detect Stack Drift',
   description: 'Initiate drift detection on a CloudFormation stack',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {

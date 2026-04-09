@@ -11,7 +11,7 @@ export const getTemplateTool: ToolConfig<
   id: 'cloudformation_get_template',
   name: 'CloudFormation Get Template',
   description: 'Retrieve the template body for a CloudFormation stack',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {

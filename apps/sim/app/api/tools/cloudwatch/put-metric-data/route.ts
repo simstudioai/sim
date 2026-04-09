@@ -1,0 +1,136 @@
+import {
+  CloudWatchClient,
+  PutMetricDataCommand,
+  type StandardUnit,
+} from '@aws-sdk/client-cloudwatch'
+import { createLogger } from '@sim/logger'
+import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
+
+const logger = createLogger('CloudWatchPutMetricData')
+
+const VALID_UNITS = [
+  'Seconds',
+  'Microseconds',
+  'Milliseconds',
+  'Bytes',
+  'Kilobytes',
+  'Megabytes',
+  'Gigabytes',
+  'Terabytes',
+  'Bits',
+  'Kilobits',
+  'Megabits',
+  'Gigabits',
+  'Terabits',
+  'Percent',
+  'Count',
+  'Bytes/Second',
+  'Kilobytes/Second',
+  'Megabytes/Second',
+  'Gigabytes/Second',
+  'Terabytes/Second',
+  'Bits/Second',
+  'Kilobits/Second',
+  'Megabits/Second',
+  'Gigabits/Second',
+  'Terabits/Second',
+  'Count/Second',
+  'None',
+] as const
+
+const PutMetricDataSchema = z.object({
+  region: z.string().min(1, 'AWS region is required'),
+  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
+  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
+  namespace: z.string().min(1, 'Namespace is required'),
+  metricName: z.string().min(1, 'Metric name is required'),
+  value: z.number({ coerce: true }).refine((v) => Number.isFinite(v), {
+    message: 'Metric value must be a finite number',
+  }),
+  unit: z.enum(VALID_UNITS).optional(),
+  dimensions: z
+    .string()
+    .optional()
+    .refine(
+      (val) => {
+        if (!val) return true
+        try {
+          const parsed = JSON.parse(val)
+          return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+        } catch {
+          return false
+        }
+      },
+      { message: 'dimensions must be a valid JSON object string' }
+    ),
+})
+
+export async function POST(request: NextRequest) {
+  try {
+    const auth = await checkInternalAuth(request)
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const validatedData = PutMetricDataSchema.parse(body)
+
+    const client = new CloudWatchClient({
+      region: validatedData.region,
+      credentials: {
+        accessKeyId: validatedData.accessKeyId,
+        secretAccessKey: validatedData.secretAccessKey,
+      },
+    })
+
+    const timestamp = new Date()
+
+    const dimensions: { Name: string; Value: string }[] = []
+    if (validatedData.dimensions) {
+      const parsed = JSON.parse(validatedData.dimensions)
+      for (const [name, value] of Object.entries(parsed)) {
+        dimensions.push({ Name: name, Value: String(value) })
+      }
+    }
+
+    const command = new PutMetricDataCommand({
+      Namespace: validatedData.namespace,
+      MetricData: [
+        {
+          MetricName: validatedData.metricName,
+          Value: validatedData.value,
+          Timestamp: timestamp,
+          ...(validatedData.unit && { Unit: validatedData.unit as StandardUnit }),
+          ...(dimensions.length > 0 && { Dimensions: dimensions }),
+        },
+      ],
+    })
+
+    await client.send(command)
+
+    return NextResponse.json({
+      success: true,
+      output: {
+        success: true,
+        namespace: validatedData.namespace,
+        metricName: validatedData.metricName,
+        value: validatedData.value,
+        unit: validatedData.unit ?? 'None',
+        timestamp: timestamp.toISOString(),
+      },
+    })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: error.errors[0]?.message ?? 'Invalid request' },
+        { status: 400 }
+      )
+    }
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to publish CloudWatch metric'
+    logger.error('PutMetricData failed', { error: errorMessage })
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
+  }
+}

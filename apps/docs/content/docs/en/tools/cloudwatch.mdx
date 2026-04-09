@@ -10,6 +10,24 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
 />
 
+{/* MANUAL-CONTENT-START:intro */}
+[AWS CloudWatch](https://aws.amazon.com/cloudwatch/) is a monitoring and observability service that provides data and actionable insights for AWS resources, applications, and services. CloudWatch collects monitoring and operational data in the form of logs, metrics, and events, giving you a unified view of your AWS environment.
+
+With the CloudWatch integration, you can:
+
+- **Query Logs (Insights)**: Run CloudWatch Log Insights queries against one or more log groups to analyze log data with a powerful query language
+- **Describe Log Groups**: List available CloudWatch log groups in your account, optionally filtered by name prefix
+- **Get Log Events**: Retrieve log events from a specific log stream within a log group
+- **Describe Log Streams**: List log streams within a log group, ordered by last event time or filtered by name prefix
+- **List Metrics**: Browse available CloudWatch metrics, optionally filtered by namespace, metric name, or recent activity
+- **Get Metric Statistics**: Retrieve statistical data for a metric over a specified time range with configurable granularity
+- **Publish Metric**: Publish custom metric data points to CloudWatch for your own application monitoring
+- **Describe Alarms**: List and filter CloudWatch alarms by name prefix, state, or alarm type
+
+In Sim, the CloudWatch integration enables your agents to monitor AWS infrastructure, analyze application logs, track custom metrics, and respond to alarm states as part of automated DevOps and SRE workflows. This is especially powerful when combined with other AWS integrations like CloudFormation and SNS for end-to-end infrastructure management.
+{/* MANUAL-CONTENT-END */}
+
+
 ## Usage Instructions
 
 Integrate AWS CloudWatch into workflows. Run Log Insights queries, list log groups, retrieve log events, list and get metrics, and monitor alarms. Requires AWS access key and secret access key.
@@ -154,6 +172,34 @@ Get statistics for a CloudWatch metric over a time range
 | --------- | ---- | ----------- |
 | `label` | string | Metric label |
 | `datapoints` | array | Datapoints with timestamp and statistics values |
+
+### `cloudwatch_put_metric_data`
+
+Publish a custom metric data point to CloudWatch
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `namespace` | string | Yes | Metric namespace \(e.g., Custom/MyApp\) |
+| `metricName` | string | Yes | Name of the metric |
+| `value` | number | Yes | Metric value to publish |
+| `unit` | string | No | Unit of the metric \(e.g., Count, Seconds, Bytes\) |
+| `dimensions` | string | No | JSON string of dimension name/value pairs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the metric was published successfully |
+| `namespace` | string | Metric namespace |
+| `metricName` | string | Metric name |
+| `value` | number | Published metric value |
+| `unit` | string | Metric unit |
+| `timestamp` | string | Timestamp when the metric was published |
 
 ### `cloudwatch_describe_alarms`
 

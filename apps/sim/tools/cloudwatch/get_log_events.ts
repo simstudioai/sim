@@ -11,7 +11,7 @@ export const getLogEventsTool: ToolConfig<
   id: 'cloudwatch_get_log_events',
   name: 'CloudWatch Get Log Events',
   description: 'Retrieve log events from a specific CloudWatch log stream',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {

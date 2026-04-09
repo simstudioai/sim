@@ -11,7 +11,7 @@ export const getMetricStatisticsTool: ToolConfig<
   id: 'cloudwatch_get_metric_statistics',
   name: 'CloudWatch Get Metric Statistics',
   description: 'Get statistics for a CloudWatch metric over a time range',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {
