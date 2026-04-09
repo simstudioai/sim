@@ -222,26 +222,6 @@ export const REQUEST_TYPE_FIELD_PROPERTIES = {
   },
 } as const
 
-/** Output properties for a FormQuestion per OpenAPI spec */
-export const FORM_QUESTION_PROPERTIES = {
-  label: { type: 'string', description: 'Question label' },
-  type: {
-    type: 'string',
-    description:
-      'Question type: ts=short text, tl=long text, cd=dropdown, cl=multiselect, cm=checkboxes, cs=radio, da=date, dt=date-time, no=number, at=attachment, us=single user, um=multi user, te=email, tu=URL, ti=time, rt=paragraph, ob=assets',
-  },
-  validation: { type: 'json', description: 'Validation rules (rq=required)' },
-  choices: { type: 'json', description: 'Available choices for select questions', optional: true },
-  description: { type: 'string', description: 'Help text for the question', optional: true },
-  jiraField: {
-    type: 'string',
-    description: 'Linked Jira field ID (e.g., summary, customfield_10010)',
-    optional: true,
-  },
-  questionKey: { type: 'string', description: 'Question key identifier', optional: true },
-  defaultAnswer: { type: 'json', description: 'Default answer value', optional: true },
-} as const
-
 /** Output properties for a FormTemplateIndexEntry (list endpoint) per OpenAPI spec */
 export const FORM_TEMPLATE_PROPERTIES = {
   id: { type: 'string', description: 'Form template ID (UUID)' },
