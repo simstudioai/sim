@@ -39,6 +39,7 @@ import {
   cleanupExecutionBase64Cache,
   hydrateUserFilesWithBase64,
 } from '@/lib/uploads/utils/user-file-base64.server'
+import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { type ExecutionEvent, encodeSSEEvent } from '@/lib/workflows/executor/execution-events'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
@@ -213,6 +214,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
     requestId,
     correlation,
     callChain,
+    executionMode: 'async',
   }
 
   try {
@@ -789,6 +791,7 @@ async function handleExecutePost(
         enforceCredentialAccess: useAuthenticatedUserAsActor,
         workflowStateOverride: effectiveWorkflowStateOverride,
         callChain,
+        executionMode: 'sync',
       }
 
       const executionVariables = cachedWorkflowData?.variables ?? workflow.variables ?? {}
@@ -1012,6 +1015,7 @@ async function handleExecutePost(
           enforceCredentialAccess: useAuthenticatedUserAsActor,
           workflowStateOverride: effectiveWorkflowStateOverride,
           callChain,
+          executionMode: 'sync',
         }
 
         const executionVariables = cachedWorkflowData?.variables ?? workflow.variables ?? {}
@@ -1051,17 +1055,15 @@ async function handleExecutePost(
         cachedWorkflowData?.blocks || {}
       )
       const streamVariables = cachedWorkflowData?.variables ?? (workflow as any).variables
+      const streamWorkflow = {
+        id: workflow.id,
+        userId: actorUserId,
+        workspaceId,
+        isDeployed: workflow.isDeployed,
+        variables: streamVariables,
+      }
       const stream = await createStreamingResponse({
         requestId,
-        workflow: {
-          id: workflow.id,
-          userId: actorUserId,
-          workspaceId,
-          isDeployed: workflow.isDeployed,
-          variables: streamVariables,
-        },
-        input: processedInput,
-        executingUserId: actorUserId,
         streamConfig: {
           selectedOutputs: resolvedSelectedOutputs,
           isSecureMode: false,
@@ -1071,6 +1073,27 @@ async function handleExecutePost(
           timeoutMs: preprocessResult.executionTimeout?.sync,
         },
         executionId,
+        executeFn: async ({ onStream, onBlockComplete, abortSignal }) =>
+          executeWorkflow(
+            streamWorkflow,
+            requestId,
+            processedInput,
+            actorUserId,
+            {
+              enabled: true,
+              selectedOutputs: resolvedSelectedOutputs,
+              isSecureMode: false,
+              workflowTriggerType: triggerType === 'chat' ? 'chat' : 'api',
+              onStream,
+              onBlockComplete,
+              skipLoggingComplete: true,
+              includeFileBase64,
+              base64MaxBytes,
+              abortSignal,
+              executionMode: 'stream',
+            },
+            executionId
+          ),
       })
 
       return new NextResponse(stream, {
@@ -1310,6 +1333,7 @@ async function handleExecutePost(
             enforceCredentialAccess: useAuthenticatedUserAsActor,
             workflowStateOverride: effectiveWorkflowStateOverride,
             callChain,
+            executionMode: 'sync',
           }
 
           const sseExecutionVariables = cachedWorkflowData?.variables ?? workflow.variables ?? {}

@@ -20,7 +20,11 @@ export const JOB_STATUS = {
 
 export type JobStatus = (typeof JOB_STATUS)[keyof typeof JOB_STATUS]
 
-export type JobType = 'workflow-execution' | 'schedule-execution' | 'webhook-execution'
+export type JobType =
+  | 'workflow-execution'
+  | 'schedule-execution'
+  | 'webhook-execution'
+  | 'resume-execution'
 
 export type AsyncExecutionCorrelationSource = 'workflow' | 'schedule' | 'webhook'
 

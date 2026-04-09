@@ -410,14 +410,7 @@ describe('Chat Identifier API Route', () => {
 
       expect(createStreamingResponse).toHaveBeenCalledWith(
         expect.objectContaining({
-          workflow: expect.objectContaining({
-            id: 'workflow-id',
-            userId: 'user-id',
-          }),
-          input: expect.objectContaining({
-            input: 'Hello world',
-            conversationId: 'conv-123',
-          }),
+          executeFn: expect.any(Function),
           streamConfig: expect.objectContaining({
             isSecureMode: true,
             workflowTriggerType: 'chat',
@@ -494,9 +487,9 @@ describe('Chat Identifier API Route', () => {
 
       expect(createStreamingResponse).toHaveBeenCalledWith(
         expect.objectContaining({
-          input: expect.objectContaining({
-            input: 'Hello world',
-            conversationId: 'test-conversation-123',
+          executeFn: expect.any(Function),
+          streamConfig: expect.objectContaining({
+            workflowTriggerType: 'chat',
           }),
         })
       )
@@ -510,9 +503,7 @@ describe('Chat Identifier API Route', () => {
 
       expect(createStreamingResponse).toHaveBeenCalledWith(
         expect.objectContaining({
-          input: expect.objectContaining({
-            input: 'Hello world',
-          }),
+          executeFn: expect.any(Function),
         })
       )
     })
