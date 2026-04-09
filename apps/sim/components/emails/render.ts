@@ -1,4 +1,4 @@
-import { render } from '@react-email/components'
+import { render } from '@react-email/render'
 import {
   OnboardingFollowupEmail,
   OTPVerificationEmail,

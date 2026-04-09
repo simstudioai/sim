@@ -27,7 +27,6 @@ export default defineConfig({
           'isolated-vm',
           'pptxgenjs',
           'react-dom',
-          '@react-email/components',
           '@react-email/render',
         ],
       }),
