@@ -5,6 +5,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { environmentKeys } from '@/hooks/queries/environment'
 import { fetchJson } from '@/hooks/selectors/helpers'
 
+/**
+ * Key prefix for OAuth credential queries.
+ * Duplicated here to avoid circular imports with oauth-credentials.ts.
+ */
+const OAUTH_CREDENTIALS_KEY = ['oauthCredentials'] as const
+
 export type WorkspaceCredentialType = 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
 export type WorkspaceCredentialRole = 'admin' | 'member'
 export type WorkspaceCredentialMemberStatus = 'active' | 'pending' | 'revoked'
@@ -192,6 +198,9 @@ export function useCreateWorkspaceCredential() {
       queryClient.invalidateQueries({
         queryKey: workspaceCredentialKeys.lists(),
       })
+      queryClient.invalidateQueries({
+        queryKey: OAUTH_CREDENTIALS_KEY,
+      })
     },
   })
 }
@@ -269,6 +278,9 @@ export function useUpdateWorkspaceCredential() {
       queryClient.invalidateQueries({
         queryKey: workspaceCredentialKeys.lists(),
       })
+      queryClient.invalidateQueries({
+        queryKey: OAUTH_CREDENTIALS_KEY,
+      })
     },
   })
 }
@@ -290,6 +302,7 @@ export function useDeleteWorkspaceCredential() {
     onSettled: (_data, _error, credentialId) => {
       queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.detail(credentialId) })
       queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: OAUTH_CREDENTIALS_KEY })
       queryClient.invalidateQueries({ queryKey: environmentKeys.all })
     },
   })
