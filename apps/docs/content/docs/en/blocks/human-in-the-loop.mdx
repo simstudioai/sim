@@ -126,26 +126,38 @@ Access resume data in downstream blocks using `<blockId.fieldName>`.
     
     - **Stream mode** (`stream: true` on the original execute call) — The resume response streams SSE events with `selectedOutputs` chunks, just like the initial execution.
     
-    - **Async mode** (`X-Execution-Mode: async` on the original execute call) — The resume dispatches execution to a background worker and returns immediately with `202`:
+    - **Async mode** (`X-Execution-Mode: async` on the original execute call) — The resume dispatches execution to a background worker and returns immediately with `202`, including a `jobId` and `statusUrl` for polling:
     
     ```json
     {
-      "status": "started",
+      "success": true,
+      "async": true,
+      "jobId": "<jobId>",
       "executionId": "<resumeExecutionId>",
-      "message": "Resume execution started asynchronously."
+      "message": "Resume execution queued",
+      "statusUrl": "/api/jobs/<jobId>"
     }
     ```
     
     #### Polling execution status
     
-    To check on a paused execution or poll for completion after an async resume:
+    Poll the `statusUrl` from the async response to check when the resume completes:
+    
+    ```bash
+    GET /api/jobs/{jobId}
+    X-API-Key: your-api-key
+    ```
+    
+    Returns job status and, when completed, the full workflow output.
+    
+    To check on a paused execution's pause points and resume links:
     
     ```bash
     GET /api/resume/{workflowId}/{executionId}
     X-API-Key: your-api-key
     ```
     
-    Returns the full paused execution detail with all pause points, their statuses, and resume links. Returns `404` when the execution has completed and is no longer paused.
+    Returns the paused execution detail with all pause points, their statuses, and resume links. Returns `404` when the execution has completed and is no longer paused.
   </Tab>
   <Tab>
     ### Webhook
