@@ -7,7 +7,6 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { flushSync } from 'react-dom'
 import {
   Blimp,
   Button,
@@ -89,6 +88,7 @@ import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
 import {
+  useCreateTask,
   useDeleteTask,
   useDeleteTasks,
   useMarkTaskRead,
@@ -102,16 +102,11 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useTaskEvents } from '@/hooks/use-task-events'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
-import { useDraftTaskStore } from '@/stores/draft-tasks/store'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
-
-function isPlaceholderTask(id: string): boolean {
-  return id === 'new' || id.startsWith('draft-')
-}
 
 export function SidebarTooltip({
   children,
@@ -203,7 +198,6 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
           (isCurrentRoute || isSelected || isMenuOpen) && 'bg-[var(--surface-active)]'
         )}
         onClick={(e) => {
-          if (isPlaceholderTask(task.id)) return
           if (e.metaKey || e.ctrlKey) return
           if (e.shiftKey) {
             e.preventDefault()
@@ -215,42 +209,40 @@ const SidebarTaskItem = memo(function SidebarTaskItem({
             })
           }
         }}
-        onContextMenu={!isPlaceholderTask(task.id) ? (e) => onContextMenu(e, task.id) : undefined}
-        draggable={!isPlaceholderTask(task.id)}
-        onDragStart={!isPlaceholderTask(task.id) ? handleDragStart : undefined}
-        onDragEnd={!isPlaceholderTask(task.id) ? handleDragEnd : undefined}
+        onContextMenu={(e) => onContextMenu(e, task.id)}
+        draggable
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
       >
         <Blimp className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
         <div className='min-w-0 flex-1 truncate font-base text-[var(--text-body)]'>{task.name}</div>
-        {!isPlaceholderTask(task.id) && (
-          <div className='relative flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center'>
-            {isActive && !isCurrentRoute && !isMenuOpen && (
-              <span className='absolute h-[7px] w-[7px] animate-ping rounded-full bg-amber-400 opacity-30 group-hover:hidden' />
+        <div className='relative flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center'>
+          {isActive && !isCurrentRoute && !isMenuOpen && (
+            <span className='absolute h-[7px] w-[7px] animate-ping rounded-full bg-amber-400 opacity-30 group-hover:hidden' />
+          )}
+          {isActive && !isCurrentRoute && !isMenuOpen && (
+            <span className='absolute h-[7px] w-[7px] rounded-full bg-amber-400 group-hover:hidden' />
+          )}
+          {!isActive && isUnread && !isCurrentRoute && !isMenuOpen && (
+            <span className='absolute h-[7px] w-[7px] rounded-full bg-[var(--brand-accent)] group-hover:hidden' />
+          )}
+          <button
+            type='button'
+            aria-label='Task options'
+            onPointerDown={onMorePointerDown}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onMoreClick(e, task.id)
+            }}
+            className={cn(
+              'flex h-[18px] w-[18px] items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100',
+              isMenuOpen && 'opacity-100'
             )}
-            {isActive && !isCurrentRoute && !isMenuOpen && (
-              <span className='absolute h-[7px] w-[7px] rounded-full bg-amber-400 group-hover:hidden' />
-            )}
-            {!isActive && isUnread && !isCurrentRoute && !isMenuOpen && (
-              <span className='absolute h-[7px] w-[7px] rounded-full bg-[var(--brand-accent)] group-hover:hidden' />
-            )}
-            <button
-              type='button'
-              aria-label='Task options'
-              onPointerDown={onMorePointerDown}
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                onMoreClick(e, task.id)
-              }}
-              className={cn(
-                'flex h-[18px] w-[18px] items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100',
-                isMenuOpen && 'opacity-100'
-              )}
-            >
-              <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
-            </button>
-          </div>
-        )}
+          >
+            <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+          </button>
+        </div>
       </Link>
     </SidebarTooltip>
   )
@@ -530,6 +522,7 @@ export const Sidebar = memo(function Sidebar() {
     }
   }, [activeNavItemHref])
 
+  const createTaskMutation = useCreateTask()
   const deleteTaskMutation = useDeleteTask(workspaceId)
   const deleteTasksMutation = useDeleteTasks(workspaceId)
   const markTaskReadMutation = useMarkTaskRead(workspaceId)
@@ -640,11 +633,6 @@ export const Sidebar = memo(function Sidebar() {
     [workspaces, workspaceId]
   )
 
-  const handleNewTaskFromNav = useCallback(() => {
-    flushSync(() => useDraftTaskStore.getState().createDraft())
-    router.push(`/workspace/${workspaceId}/home`)
-  }, [router, workspaceId])
-
   const topNavItems = useMemo(
     () => [
       {
@@ -652,7 +640,6 @@ export const Sidebar = memo(function Sidebar() {
         label: 'Home',
         icon: Home,
         href: `/workspace/${workspaceId}/home`,
-        onClick: handleNewTaskFromNav,
       },
       {
         id: 'search',
@@ -661,7 +648,7 @@ export const Sidebar = memo(function Sidebar() {
         onClick: openSearchModal,
       },
     ],
-    [workspaceId, openSearchModal, handleNewTaskFromNav]
+    [workspaceId, openSearchModal]
   )
 
   const workspaceNavItems = useMemo(
@@ -737,53 +724,14 @@ export const Sidebar = memo(function Sidebar() {
 
   useTaskEvents(workspaceId)
 
-  const draftTaskId = useDraftTaskStore((s) => s.draftTaskId)
-  const prevFetchedTaskIdsRef = useRef<Set<string>>(new Set(fetchedTasks.map((t) => t.id)))
-
-  useEffect(() => {
-    const currentIds = new Set(fetchedTasks.map((t) => t.id))
-    if (draftTaskId) {
-      const hasNewTask = fetchedTasks.some((t) => !prevFetchedTaskIdsRef.current.has(t.id))
-      if (hasNewTask) {
-        useDraftTaskStore.getState().removeDraft()
-      }
-    }
-    prevFetchedTaskIdsRef.current = currentIds
-  }, [draftTaskId, fetchedTasks])
-
-  const tasks = useMemo(() => {
-    const mapped = fetchedTasks.map((t) => ({
-      ...t,
-      href: `/workspace/${workspaceId}/task/${t.id}`,
-    }))
-
-    if (draftTaskId) {
-      const hasNewTask = fetchedTasks.some((t) => !prevFetchedTaskIdsRef.current.has(t.id))
-      if (!hasNewTask) {
-        mapped.unshift({
-          id: draftTaskId,
-          name: 'New task',
-          href: `/workspace/${workspaceId}/home`,
-          isActive: false,
-          isUnread: false,
-          updatedAt: new Date(),
-        })
-      }
-    }
-
-    if (mapped.length === 0) {
-      mapped.push({
-        id: 'new',
-        name: 'New task',
-        href: `/workspace/${workspaceId}/home`,
-        isActive: false,
-        isUnread: false,
-        updatedAt: new Date(),
-      })
-    }
-
-    return mapped
-  }, [fetchedTasks, workspaceId, draftTaskId])
+  const tasks = useMemo(
+    () =>
+      fetchedTasks.map((t) => ({
+        ...t,
+        href: `/workspace/${workspaceId}/task/${t.id}`,
+      })),
+    [fetchedTasks, workspaceId]
+  )
 
   const { data: fetchedTables = [] } = useTablesList(workspaceId)
   const { data: fetchedFiles = [] } = useWorkspaceFiles(workspaceId)
@@ -825,10 +773,7 @@ export const Sidebar = memo(function Sidebar() {
     [fetchedKnowledgeBases, workspaceId, permissionConfig.hideKnowledgeBaseTab]
   )
 
-  const taskIds = useMemo(
-    () => tasks.map((t) => t.id).filter((id) => !isPlaceholderTask(id)),
-    [tasks]
-  )
+  const taskIds = useMemo(() => tasks.map((t) => t.id), [tasks])
 
   const { selectedTasks, handleTaskClick } = useTaskSelection({ taskIds })
 
@@ -1129,15 +1074,22 @@ export const Sidebar = memo(function Sidebar() {
     [workflowIconStyle]
   )
 
+  const handleNewTask = useCallback(async () => {
+    try {
+      const { id } = await createTaskMutation.mutateAsync({ workspaceId })
+      router.push(`/workspace/${workspaceId}/task/${id}`)
+    } catch (err) {
+      logger.error('Failed to create task', err)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router, workspaceId])
+
   const tasksPrimaryAction = useMemo(
     () => ({
       label: 'New task',
-      onSelect: () => {
-        flushSync(() => useDraftTaskStore.getState().createDraft())
-        router.push(`/workspace/${workspaceId}/home`)
-      },
+      onSelect: handleNewTask,
     }),
-    [router, workspaceId]
+    [handleNewTask]
   )
 
   const workflowsPrimaryAction = useMemo(
@@ -1155,11 +1107,6 @@ export const Sidebar = memo(function Sidebar() {
     },
     [toggleCollapsed]
   )
-
-  const handleNewTask = useCallback(() => {
-    flushSync(() => useDraftTaskStore.getState().createDraft())
-    router.push(`/workspace/${workspaceId}/home`)
-  }, [router, workspaceId])
 
   const handleSeeMoreTasks = useCallback(() => setVisibleTaskCount((prev) => prev + 5), [])
 
@@ -1475,7 +1422,7 @@ export const Sidebar = memo(function Sidebar() {
                               <CollapsedTaskFlyoutItem
                                 key={task.id}
                                 task={task}
-                                isCurrentRoute={task.id !== 'new' && pathname === task.href}
+                                isCurrentRoute={pathname === task.href}
                                 isMenuOpen={menuOpenTaskId === task.id}
                                 isEditing={task.id === taskFlyoutRename.editingId}
                                 editValue={taskFlyoutRename.value}
@@ -1498,10 +1445,9 @@ export const Sidebar = memo(function Sidebar() {
                           ) : (
                             <>
                               {tasks.slice(0, visibleTaskCount).map((task) => {
-                                const isCurrentRoute = task.id !== 'new' && pathname === task.href
+                                const isCurrentRoute = pathname === task.href
                                 const isRenaming = taskFlyoutRename.editingId === task.id
-                                const isSelected =
-                                  !isPlaceholderTask(task.id) && selectedTasks.has(task.id)
+                                const isSelected = selectedTasks.has(task.id)
 
                                 if (isRenaming) {
                                   return (

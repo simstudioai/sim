@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
-import { usePathname } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import {
   cancelRunToolExecution,
   executeRunToolOnClient,
@@ -65,6 +65,7 @@ import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 export interface UseChatReturn {
   messages: ChatMessage[]
+  isHistoryReady: boolean
   isSending: boolean
   isReconnecting: boolean
   error: string | null
@@ -410,7 +411,9 @@ export function useChat(
   initialChatId?: string,
   options?: UseChatOptions
 ): UseChatReturn {
-  const pathname = usePathname()
+  const router = useRouter()
+  const routerRef = useRef(router)
+  routerRef.current = router
   const queryClient = useQueryClient()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isSending, setIsSending] = useState(false)
@@ -506,7 +509,6 @@ export function useChat(
   const streamingBlocksRef = useRef<ContentBlock[]>([])
   const clientExecutionStartedRef = useRef<Set<string>>(new Set())
   const executionStream = useExecutionStream()
-  const isHomePage = pathname.endsWith('/home')
 
   const { data: chatHistory } = useChatHistory(initialChatId)
 
@@ -594,32 +596,6 @@ export function useChat(
     pendingRecoveryMessageRef.current = null
     setPendingRecoveryMessage(null)
   }, [initialChatId, queryClient])
-
-  useEffect(() => {
-    if (workflowIdRef.current) return
-    if (!isHomePage || !chatIdRef.current) return
-    streamGenRef.current++
-    chatIdRef.current = undefined
-    setResolvedChatId(undefined)
-    appliedChatIdRef.current = undefined
-    abortControllerRef.current = null
-    sendingRef.current = false
-    setMessages([])
-    setError(null)
-    setIsSending(false)
-    setIsReconnecting(false)
-    setResources([])
-    setActiveResourceId(null)
-    setStreamingFile(null)
-    streamingFileRef.current = null
-    genericResourceDataRef.current = { entries: [] }
-    setGenericResourceData({ entries: [] })
-    setMessageQueue([])
-    lastEventIdRef.current = 0
-    clientExecutionStartedRef.current.clear()
-    pendingRecoveryMessageRef.current = null
-    setPendingRecoveryMessage(null)
-  }, [isHomePage])
 
   const fetchStreamBatch = useCallback(
     async (
@@ -895,7 +871,10 @@ export function useChat(
 
     if (isNewChat) {
       applyChatHistorySnapshot(chatHistory, { preserveActiveStreamingMessage: true })
-    } else if (!activeStreamId || sendingRef.current) {
+    } else if (sendingRef.current) {
+      return
+    } else if (!activeStreamId) {
+      applyChatHistorySnapshot(chatHistory)
       return
     }
 
@@ -1119,11 +1098,11 @@ export function useChat(
                       })
                     }
                     if (!workflowIdRef.current) {
-                      window.history.replaceState(
-                        null,
-                        '',
+                      routerRef.current.replace(
                         `/workspace/${workspaceId}/task/${parsed.chatId}`
                       )
+                      abortControllerRef.current?.abort()
+                      streamGenRef.current++
                     }
                   }
                 }
@@ -2282,8 +2261,11 @@ export function useChat(
     }
   }, [])
 
+  const isHistoryReady = !initialChatId || chatHistory !== undefined
+
   return {
     messages,
+    isHistoryReady,
     isSending,
     isReconnecting,
     error,

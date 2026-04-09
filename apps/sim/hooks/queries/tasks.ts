@@ -181,6 +181,40 @@ export function useChatHistory(chatId: string | undefined) {
   })
 }
 
+async function createTask(workspaceId: string): Promise<{ id: string }> {
+  const response = await fetch('/api/mothership/chats', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspaceId }),
+  })
+  if (!response.ok) {
+    throw new Error('Failed to create task')
+  }
+  const { id } = (await response.json()) as { id: string }
+  return { id }
+}
+
+/**
+ * Creates an empty mothership chat task and invalidates the task list.
+ * Pre-warms the chat detail cache so the new chat page renders instantly with no fetch.
+ */
+export function useCreateTask() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ workspaceId }: { workspaceId: string }) => createTask(workspaceId),
+    onSuccess: ({ id }, { workspaceId }) => {
+      queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(id), {
+        id,
+        title: null,
+        messages: [],
+        activeStreamId: null,
+        resources: [],
+      })
+      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+    },
+  })
+}
+
 async function deleteTask(chatId: string): Promise<void> {
   const response = await fetch(`/api/mothership/chats/${chatId}`, {
     method: 'DELETE',
