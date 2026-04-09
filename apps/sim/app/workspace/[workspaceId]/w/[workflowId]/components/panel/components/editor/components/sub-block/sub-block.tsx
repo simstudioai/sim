@@ -253,7 +253,7 @@ const renderLabel = (
         {config.tooltip && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <span className='inline-flex'>
+              <span className='inline-flex' tabIndex={0} role='button'>
                 <Info className='h-3 w-3 flex-shrink-0 cursor-pointer text-muted-foreground' />
               </span>
             </Tooltip.Trigger>
@@ -269,7 +269,7 @@ const renderLabel = (
           !wandState?.isStreaming && (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
-                <span className='inline-flex'>
+                <span className='inline-flex' tabIndex={0} role='button'>
                   <AlertTriangle className='h-3 w-3 flex-shrink-0 cursor-pointer text-destructive' />
                 </span>
               </Tooltip.Trigger>
