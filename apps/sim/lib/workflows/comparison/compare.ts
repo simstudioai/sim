@@ -101,10 +101,30 @@ export function generateWorkflowDiffSummary(
         name: block.name,
       })
     }
-    result.edgeChanges.added = (currentState.edges || []).length
+
+    const edges = currentState.edges || []
+    result.edgeChanges.added = edges.length
+    for (const edge of edges) {
+      const sourceBlock = currentBlocks[edge.source]
+      const targetBlock = currentBlocks[edge.target]
+      result.edgeChanges.addedDetails.push({
+        sourceName: sourceBlock?.name || sourceBlock?.type || edge.source,
+        targetName: targetBlock?.name || targetBlock?.type || edge.target,
+      })
+    }
+
     result.loopChanges.added = Object.keys(currentState.loops || {}).length
     result.parallelChanges.added = Object.keys(currentState.parallels || {}).length
-    result.variableChanges.added = Object.keys(currentState.variables || {}).length
+
+    const variables = currentState.variables || {}
+    const varEntries = Object.entries(variables)
+    result.variableChanges.added = varEntries.length
+    for (const [id, variable] of varEntries) {
+      result.variableChanges.addedNames.push(
+        (variable as { name?: string }).name || id
+      )
+    }
+
     result.hasChanges = true
     return result
   }

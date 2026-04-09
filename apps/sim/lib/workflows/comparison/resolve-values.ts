@@ -250,7 +250,9 @@ export async function resolveValueForDisplay(
       if (label) {
         return { original: value, displayLabel: label, resolved: true }
       }
-    } catch {}
+    } catch (error) {
+      logger.warn('Failed to resolve dropdown label', { value, subBlockId: context.subBlockId, error })
+    }
   }
 
   if (SELECTOR_TYPES_HYDRATION_REQUIRED.includes(subBlockConfig.type)) {
