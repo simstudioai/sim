@@ -54,6 +54,8 @@ export async function executeResumeJob(payload: ResumeExecutionPayload) {
       executionId: resumeExecutionId,
       parentExecutionId,
       status: result.status,
+      output: result.output,
+      executedAt: new Date().toISOString(),
     }
   } catch (error) {
     logger.error('Background resume execution failed', {
