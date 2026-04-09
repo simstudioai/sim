@@ -216,7 +216,6 @@ Output: {"state": "2", "assigned_to": "john.doe", "work_notes": "Assigned and st
       condition: { field: 'operation', value: 'servicenow_delete_record' },
       required: true,
     },
-    // Trigger SubBlocks
     ...getTrigger('servicenow_incident_created').subBlocks,
     ...getTrigger('servicenow_incident_updated').subBlocks,
     ...getTrigger('servicenow_change_request_created').subBlocks,

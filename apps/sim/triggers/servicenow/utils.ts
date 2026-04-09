@@ -22,7 +22,8 @@ export function servicenowSetupInstructions(eventType: string): string {
     'Navigate to <strong>System Definition > Business Rules</strong> and create a new Business Rule.',
     `Set the table (e.g., <strong>incident</strong>, <strong>change_request</strong>), set <strong>When</strong> to <strong>after</strong>, and check <strong>${eventType}</strong>.`,
     'Check the <strong>Advanced</strong> checkbox to enable the script editor.',
-    `In the script, use <strong>RESTMessageV2</strong> to POST the record data as JSON to the <strong>Webhook URL</strong> above. Example:<br/><code style="font-size: 0.85em; display: block; margin-top: 4px; white-space: pre-wrap;">var r = new sn_ws.RESTMessageV2();\nr.setEndpoint("&lt;webhook_url&gt;");\nr.setHttpMethod("POST");\nr.setRequestHeader("Content-Type", "application/json");\nr.setRequestBody(JSON.stringify({\n  sysId: current.sys_id.toString(),\n  number: current.number.toString(),\n  shortDescription: current.short_description.toString(),\n  state: current.state.toString(),\n  priority: current.priority.toString()\n}));\nr.execute();</code>`,
+    'Copy the <strong>Webhook URL</strong> above and generate a <strong>Webhook Secret</strong> (any strong random string). Paste the secret in the <strong>Webhook Secret</strong> field here.',
+    `In the script, use <strong>RESTMessageV2</strong> to POST the record data as JSON to the <strong>Webhook URL</strong> above. Include the secret as <code>Authorization: Bearer &lt;your secret&gt;</code> or <code>X-Sim-Webhook-Secret: &lt;your secret&gt;</code>. Example:<br/><code style="font-size: 0.85em; display: block; margin-top: 4px; white-space: pre-wrap;">var r = new sn_ws.RESTMessageV2();\nr.setEndpoint("&lt;webhook_url&gt;");\nr.setHttpMethod("POST");\nr.setRequestHeader("Content-Type", "application/json");\nr.setRequestHeader("Authorization", "Bearer &lt;your_webhook_secret&gt;");\nr.setRequestBody(JSON.stringify({\n  sysId: current.sys_id.toString(),\n  number: current.number.toString(),\n  shortDescription: current.short_description.toString(),\n  state: current.state.toString(),\n  priority: current.priority.toString()\n}));\nr.execute();</code>`,
     'Activate the Business Rule and click "Save" above to activate your trigger.',
   ]
 
@@ -35,10 +36,29 @@ export function servicenowSetupInstructions(eventType: string): string {
 }
 
 /**
- * Extra fields for ServiceNow triggers (optional table filter)
+ * Webhook secret field for ServiceNow triggers
+ */
+function servicenowWebhookSecretField(triggerId: string): SubBlockConfig {
+  return {
+    id: 'webhookSecret',
+    title: 'Webhook Secret',
+    type: 'short-input',
+    placeholder: 'Generate a secret and paste it here',
+    description:
+      'Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret.',
+    password: true,
+    required: true,
+    mode: 'trigger',
+    condition: { field: 'selectedTriggerId', value: triggerId },
+  }
+}
+
+/**
+ * Extra fields for ServiceNow triggers (webhook secret + optional table filter)
  */
 export function buildServiceNowExtraFields(triggerId: string): SubBlockConfig[] {
   return [
+    servicenowWebhookSecretField(triggerId),
     {
       id: 'tableName',
       title: 'Table Name (Optional)',
