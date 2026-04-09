@@ -198,6 +198,13 @@ async function updateImapState(
     mergedUidByMailbox[mailbox] = Math.max(uid, mergedUidByMailbox[mailbox] || 0)
   }
 
+  const prevUidValidity = config.uidValidityByMailbox || {}
+  for (const [mailbox, validity] of Object.entries(uidValidityByMailbox)) {
+    if (prevUidValidity[mailbox] !== undefined && prevUidValidity[mailbox] !== validity) {
+      delete mergedUidByMailbox[mailbox]
+    }
+  }
+
   await updateWebhookProviderConfig(
     webhookId,
     {
