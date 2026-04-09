@@ -292,7 +292,10 @@ async function processRssItems(
 
   for (const item of items) {
     try {
-      const itemGuid = item.guid || item.link || `${item.title}-${item.pubDate}`
+      const itemGuid =
+        item.guid ||
+        item.link ||
+        (item.title && item.pubDate ? `${item.title}-${item.pubDate}` : '')
 
       await pollingIdempotency.executeWithIdempotency(
         'rss',
