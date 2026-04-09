@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
         requestTypeId,
       }
 
-      if (summary || requestFieldValues) {
+      if (summary || description || requestFieldValues) {
         const fieldValues =
           requestFieldValues && typeof requestFieldValues === 'object'
             ? {
