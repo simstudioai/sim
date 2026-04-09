@@ -571,8 +571,8 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
               throw new Error('Metric value is required')
             }
             const numericValue = Number(rest.metricValue)
-            if (Number.isNaN(numericValue)) {
-              throw new Error('Metric value must be a valid number')
+            if (!Number.isFinite(numericValue)) {
+              throw new Error('Metric value must be a finite number')
             }
 
             return {
