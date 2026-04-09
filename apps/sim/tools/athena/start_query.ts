@@ -5,7 +5,7 @@ export const startQueryTool: ToolConfig<AthenaStartQueryParams, AthenaStartQuery
   id: 'athena_start_query',
   name: 'Athena Start Query',
   description: 'Start an SQL query execution in AWS Athena',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {

@@ -30,6 +30,7 @@ export interface ExecuteWorkflowOptions {
     startBlockId: string
     sourceSnapshot: SerializableExecutionState
   }
+  executionMode?: 'sync' | 'stream' | 'async'
 }
 
 export interface WorkflowInfo {
@@ -70,6 +71,7 @@ export async function executeWorkflow(
       useDraftState: streamConfig?.useDraftState ?? false,
       startTime: new Date().toISOString(),
       isClientSession: false,
+      executionMode: streamConfig?.executionMode,
     }
 
     const snapshot = new ExecutionSnapshot(

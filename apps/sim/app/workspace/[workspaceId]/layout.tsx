@@ -1,5 +1,5 @@
-import { cookies } from 'next/headers'
 import { ToastProvider } from '@/components/emcn'
+import { getSession } from '@/lib/auth'
 import { NavTour } from '@/app/workspace/[workspaceId]/components/product-tour'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/impersonation-banner'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -8,22 +8,17 @@ import { SettingsLoader } from '@/app/workspace/[workspaceId]/providers/settings
 import { WorkspacePermissionsProvider } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { WorkspaceScopeSync } from '@/app/workspace/[workspaceId]/providers/workspace-scope-sync'
 import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
-import {
-  BRAND_COOKIE_NAME,
-  type BrandCache,
-  BrandingProvider,
-} from '@/ee/whitelabeling/components/branding-provider'
+import { BrandingProvider } from '@/ee/whitelabeling/components/branding-provider'
+import { getOrgWhitelabelSettings } from '@/ee/whitelabeling/org-branding'
 
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
-  const cookieStore = await cookies()
-  let initialCache: BrandCache | null = null
-  try {
-    const raw = cookieStore.get(BRAND_COOKIE_NAME)?.value
-    if (raw) initialCache = JSON.parse(decodeURIComponent(raw))
-  } catch {}
+  const session = await getSession()
+  // The organization plugin is conditionally spread so TS can't infer activeOrganizationId on the base session type.
+  const orgId = (session?.session as { activeOrganizationId?: string } | null)?.activeOrganizationId
+  const initialOrgSettings = orgId ? await getOrgWhitelabelSettings(orgId) : null
 
   return (
-    <BrandingProvider initialCache={initialCache}>
+    <BrandingProvider initialOrgSettings={initialOrgSettings}>
       <ToastProvider>
         <SettingsLoader />
         <ProviderModelsLoader />

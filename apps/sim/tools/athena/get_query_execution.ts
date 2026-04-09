@@ -11,7 +11,7 @@ export const getQueryExecutionTool: ToolConfig<
   id: 'athena_get_query_execution',
   name: 'Athena Get Query Execution',
   description: 'Get the status and details of an Athena query execution',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {

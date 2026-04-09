@@ -411,9 +411,10 @@ export interface JsmGetRequestTypesParams extends JsmBaseParams {
 export interface JsmCreateRequestParams extends JsmBaseParams {
   serviceDeskId: string
   requestTypeId: string
-  summary: string
+  summary?: string
   description?: string
   requestFieldValues?: Record<string, unknown>
+  formAnswers?: Record<string, unknown>
   raiseOnBehalfOf?: string
   requestParticipants?: string[]
   channel?: string

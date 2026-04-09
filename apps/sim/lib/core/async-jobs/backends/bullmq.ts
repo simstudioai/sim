@@ -95,6 +95,11 @@ export class BullMQJobQueue implements JobQueueBackend {
       return toJob('schedule-execution', scheduleJob)
     }
 
+    const resumeJob = await getBullMQQueue('resume-execution').getJob(jobId)
+    if (resumeJob) {
+      return toJob('resume-execution', resumeJob)
+    }
+
     return null
   }
 

@@ -5,7 +5,8 @@
  */
 
 import { createLogger } from '@sim/logger'
-import { getUserSubscriptionState } from '@/lib/billing/core/subscription'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { getPlanTypeForLimits } from '@/lib/billing/plan-helpers'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import { type PlanName, TABLE_PLAN_LIMITS, type TablePlanLimits } from './constants'
 
@@ -29,8 +30,8 @@ export async function getWorkspaceTableLimits(workspaceId: string): Promise<Tabl
       return TABLE_PLAN_LIMITS.free
     }
 
-    const subscriptionState = await getUserSubscriptionState(billedAccountUserId)
-    const planName = subscriptionState.planName as PlanName
+    const subscription = await getHighestPrioritySubscription(billedAccountUserId)
+    const planName = getPlanTypeForLimits(subscription?.plan) as PlanName
 
     const limits = TABLE_PLAN_LIMITS[planName] ?? TABLE_PLAN_LIMITS.free
 

@@ -9,7 +9,6 @@ export * from '@/lib/billing/core/organization'
 export * from '@/lib/billing/core/subscription'
 export {
   getHighestPrioritySubscription as getActiveSubscription,
-  getUserSubscriptionState as getSubscriptionState,
   hasAccessControlAccess,
   hasCredentialSetsAccess,
   hasPaidSubscription,

@@ -11,7 +11,7 @@ export const listStackResourcesTool: ToolConfig<
   id: 'cloudformation_list_stack_resources',
   name: 'CloudFormation List Stack Resources',
   description: 'List all resources in a CloudFormation stack',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {

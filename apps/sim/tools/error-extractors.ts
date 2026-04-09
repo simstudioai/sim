@@ -40,6 +40,12 @@ export interface ErrorExtractorConfig {
 
 const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
   {
+    id: 'atlassian-errors',
+    description: 'Atlassian REST API errorMessage field',
+    examples: ['Jira', 'Jira Service Management', 'Confluence'],
+    extract: (errorInfo) => errorInfo?.data?.errorMessage,
+  },
+  {
     id: 'graphql-errors',
     description: 'GraphQL errors array with message field',
     examples: ['Linear API', 'GitHub GraphQL'],
@@ -221,6 +227,7 @@ export function extractErrorMessage(errorInfo?: ErrorInfo, extractorId?: string)
 }
 
 export const ErrorExtractorId = {
+  ATLASSIAN_ERRORS: 'atlassian-errors',
   GRAPHQL_ERRORS: 'graphql-errors',
   TWITTER_ERRORS: 'twitter-errors',
   DETAILS_ARRAY: 'details-array',

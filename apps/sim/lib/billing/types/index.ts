@@ -73,16 +73,6 @@ export interface BillingData {
   daysRemaining: number
 }
 
-export interface UserSubscriptionState {
-  isPro: boolean
-  isTeam: boolean
-  isEnterprise: boolean
-  isFree: boolean
-  highestPrioritySubscription: any | null
-  hasExceededLimit: boolean
-  planName: string
-}
-
 export interface SubscriptionPlan {
   name: string
   priceId: string

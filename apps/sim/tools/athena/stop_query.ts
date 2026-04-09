@@ -5,7 +5,7 @@ export const stopQueryTool: ToolConfig<AthenaStopQueryParams, AthenaStopQueryRes
   id: 'athena_stop_query',
   name: 'Athena Stop Query',
   description: 'Stop a running Athena query execution',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {

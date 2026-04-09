@@ -1,13 +1,11 @@
 import { db } from '@sim/db'
-import { member, subscription, user, userStats } from '@sim/db/schema'
+import { member, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
-import { getUserUsageLimit } from '@/lib/billing/core/usage'
 import {
   getPlanTierCredits,
-  isOrgPlan,
   isPro as isPlanPro,
   isTeam as isPlanTeam,
 } from '@/lib/billing/plan-helpers'
@@ -16,12 +14,9 @@ import {
   checkProPlan,
   checkTeamPlan,
   ENTITLED_SUBSCRIPTION_STATUSES,
-  getFreeTierLimit,
-  getPerUserMinimumLimit,
   hasUsableSubscriptionAccess,
   USABLE_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
-import type { UserSubscriptionState } from '@/lib/billing/types'
 import {
   isAccessControlEnabled,
   isBillingEnabled,
@@ -482,145 +477,6 @@ export async function hasLiveSyncAccess(userId: string): Promise<boolean> {
   } catch (error) {
     logger.error('Error checking live sync access', { error, userId })
     return false
-  }
-}
-
-/**
- * Check if user has exceeded their cost limit based on current period usage
- */
-export async function hasExceededCostLimit(userId: string): Promise<boolean> {
-  try {
-    if (!isBillingEnabled) {
-      return false
-    }
-
-    const subscription = await getHighestPrioritySubscription(userId)
-
-    let limit = getFreeTierLimit() // Default free tier limit
-
-    if (subscription) {
-      // Team/Enterprise: Use organization limit
-      if (isOrgPlan(subscription.plan)) {
-        limit = await getUserUsageLimit(userId)
-        logger.info('Using organization limit', {
-          userId,
-          plan: subscription.plan,
-          limit,
-        })
-      } else {
-        // Pro/Free: Use individual limit
-        limit = getPerUserMinimumLimit(subscription)
-        logger.info('Using subscription-based limit', {
-          userId,
-          plan: subscription.plan,
-          limit,
-        })
-      }
-    } else {
-      logger.info('Using free tier limit', { userId, limit })
-    }
-
-    // Get user stats to check current period usage
-    const statsRecords = await db.select().from(userStats).where(eq(userStats.userId, userId))
-
-    if (statsRecords.length === 0) {
-      return false
-    }
-
-    // Use current period cost instead of total cost for accurate billing period tracking
-    const currentCost = Number.parseFloat(
-      statsRecords[0].currentPeriodCost?.toString() || statsRecords[0].totalCost.toString()
-    )
-
-    logger.info('Checking cost limit', { userId, currentCost, limit })
-
-    return currentCost >= limit
-  } catch (error) {
-    logger.error('Error checking cost limit', { error, userId })
-    return false // Be conservative in case of error
-  }
-}
-
-/**
- * Check if sharing features are enabled for user
- */
-// Removed unused feature flag helpers: isSharingEnabled, isMultiplayerEnabled, isWorkspaceCollaborationEnabled
-
-/**
- * Get comprehensive subscription state for a user
- * Single function to get all subscription information
- */
-export async function getUserSubscriptionState(userId: string): Promise<UserSubscriptionState> {
-  try {
-    // Get subscription and user stats in parallel to minimize DB calls
-    const [subscription, statsRecords] = await Promise.all([
-      getHighestPrioritySubscription(userId),
-      db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1),
-    ])
-
-    // Determine plan types based on subscription (avoid redundant DB calls)
-    const isPro =
-      !isBillingEnabled ||
-      !!(
-        subscription &&
-        (checkProPlan(subscription) ||
-          checkTeamPlan(subscription) ||
-          checkEnterprisePlan(subscription))
-      )
-    const isTeam =
-      !isBillingEnabled ||
-      !!(subscription && (checkTeamPlan(subscription) || checkEnterprisePlan(subscription)))
-    const isEnterprise = !isBillingEnabled || !!(subscription && checkEnterprisePlan(subscription))
-    const isFree = !isPro && !isTeam && !isEnterprise
-
-    // Determine plan name
-    let planName = 'free'
-    if (isEnterprise) planName = 'enterprise'
-    else if (isTeam) planName = 'team'
-    else if (isPro) planName = 'pro'
-
-    // Check cost limit using already-fetched user stats
-    let hasExceededLimit = false
-    if (isBillingEnabled && statsRecords.length > 0) {
-      let limit = getFreeTierLimit() // Default free tier limit
-      if (subscription) {
-        // Team/Enterprise: Use organization limit
-        if (isOrgPlan(subscription.plan)) {
-          limit = await getUserUsageLimit(userId)
-        } else {
-          // Pro/Free: Use individual limit
-          limit = getPerUserMinimumLimit(subscription)
-        }
-      }
-
-      const currentCost = Number.parseFloat(
-        statsRecords[0].currentPeriodCost?.toString() || statsRecords[0].totalCost.toString()
-      )
-      hasExceededLimit = currentCost >= limit
-    }
-
-    return {
-      isPro,
-      isTeam,
-      isEnterprise,
-      isFree,
-      highestPrioritySubscription: subscription,
-      hasExceededLimit,
-      planName,
-    }
-  } catch (error) {
-    logger.error('Error getting user subscription state', { error, userId })
-
-    // Return safe defaults in case of error
-    return {
-      isPro: false,
-      isTeam: false,
-      isEnterprise: false,
-      isFree: true,
-      highestPrioritySubscription: null,
-      hasExceededLimit: false,
-      planName: 'free',
-    }
   }
 }
 

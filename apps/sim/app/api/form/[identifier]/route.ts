@@ -9,6 +9,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { generateId } from '@/lib/core/utils/uuid'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
+import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
@@ -216,18 +217,33 @@ export async function POST(
         ...formData, // Spread form fields at top level for convenience
       }
 
-      // Execute workflow using streaming (for consistency with chat)
       const stream = await createStreamingResponse({
         requestId,
-        workflow: workflowForExecution,
-        input: workflowInput,
-        executingUserId: workspaceOwnerId,
         streamConfig: {
           selectedOutputs: [],
           isSecureMode: true,
-          workflowTriggerType: 'api', // Use 'api' type since form is similar
+          workflowTriggerType: 'api',
         },
         executionId,
+        executeFn: async ({ onStream, onBlockComplete, abortSignal }) =>
+          executeWorkflow(
+            workflowForExecution,
+            requestId,
+            workflowInput,
+            workspaceOwnerId,
+            {
+              enabled: true,
+              selectedOutputs: [],
+              isSecureMode: true,
+              workflowTriggerType: 'api',
+              onStream,
+              onBlockComplete,
+              skipLoggingComplete: true,
+              abortSignal,
+              executionMode: 'sync',
+            },
+            executionId
+          ),
       })
 
       // For forms, we don't stream back - we wait for completion and return success

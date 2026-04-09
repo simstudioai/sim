@@ -11,7 +11,7 @@ export const describeStackEventsTool: ToolConfig<
   id: 'cloudformation_describe_stack_events',
   name: 'CloudFormation Describe Stack Events',
   description: 'Get the event history for a CloudFormation stack',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {

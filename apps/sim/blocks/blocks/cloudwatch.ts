@@ -8,6 +8,7 @@ import type {
   CloudWatchGetLogEventsResponse,
   CloudWatchGetMetricStatisticsResponse,
   CloudWatchListMetricsResponse,
+  CloudWatchPutMetricDataResponse,
   CloudWatchQueryLogsResponse,
 } from '@/tools/cloudwatch/types'
 
@@ -19,6 +20,7 @@ export const CloudWatchBlock: BlockConfig<
   | CloudWatchDescribeAlarmsResponse
   | CloudWatchListMetricsResponse
   | CloudWatchGetMetricStatisticsResponse
+  | CloudWatchPutMetricDataResponse
 > = {
   type: 'cloudwatch',
   name: 'CloudWatch',
@@ -27,6 +29,7 @@ export const CloudWatchBlock: BlockConfig<
     'Integrate AWS CloudWatch into workflows. Run Log Insights queries, list log groups, retrieve log events, list and get metrics, and monitor alarms. Requires AWS access key and secret access key.',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
+  docsLink: 'https://docs.sim.ai/tools/cloudwatch',
   tags: ['cloud', 'monitoring'],
   bgColor: 'linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)',
   icon: CloudWatchIcon,
@@ -42,6 +45,7 @@ export const CloudWatchBlock: BlockConfig<
         { label: 'Describe Log Streams', id: 'describe_log_streams' },
         { label: 'List Metrics', id: 'list_metrics' },
         { label: 'Get Metric Statistics', id: 'get_metric_statistics' },
+        { label: 'Publish Metric', id: 'put_metric_data' },
         { label: 'Describe Alarms', id: 'describe_alarms' },
       ],
       value: () => 'query_logs',
@@ -69,7 +73,6 @@ export const CloudWatchBlock: BlockConfig<
       password: true,
       required: true,
     },
-    // Query Logs fields
     {
       id: 'logGroupSelector',
       title: 'Log Group',
@@ -124,6 +127,14 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
         value: ['query_logs', 'get_log_events', 'get_metric_statistics'],
       },
       required: { field: 'operation', value: ['query_logs', 'get_metric_statistics'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix epoch timestamp (in seconds) based on the user's description of a point in time.
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start time (e.g., "1 hour ago", "beginning of today")...',
+        generationType: 'timestamp',
+      },
     },
     {
       id: 'endTime',
@@ -135,8 +146,15 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
         value: ['query_logs', 'get_log_events', 'get_metric_statistics'],
       },
       required: { field: 'operation', value: ['query_logs', 'get_metric_statistics'] },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a Unix epoch timestamp (in seconds) based on the user's description of a point in time.
+
+Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end time (e.g., "now", "end of yesterday")...',
+        generationType: 'timestamp',
+      },
     },
-    // Describe Log Groups fields
     {
       id: 'prefix',
       title: 'Log Group Name Prefix',
@@ -144,7 +162,6 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
       placeholder: '/aws/lambda/',
       condition: { field: 'operation', value: 'describe_log_groups' },
     },
-    // Get Log Events / Describe Log Streams — shared log group selector
     {
       id: 'logGroupNameSelector',
       title: 'Log Group',
@@ -167,7 +184,6 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
       required: { field: 'operation', value: ['get_log_events', 'describe_log_streams'] },
       mode: 'advanced',
     },
-    // Describe Log Streams — stream prefix filter
     {
       id: 'streamPrefix',
       title: 'Stream Name Prefix',
@@ -175,7 +191,6 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
       placeholder: '2024/03/31/',
       condition: { field: 'operation', value: 'describe_log_streams' },
     },
-    // Get Log Events — log stream selector (cascading: depends on log group)
     {
       id: 'logStreamNameSelector',
       title: 'Log Stream',
@@ -198,30 +213,92 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
       required: { field: 'operation', value: 'get_log_events' },
       mode: 'advanced',
     },
-    // List Metrics fields
     {
       id: 'metricNamespace',
       title: 'Namespace',
       type: 'short-input',
-      placeholder: 'e.g., AWS/EC2, AWS/Lambda, AWS/RDS',
-      condition: { field: 'operation', value: ['list_metrics', 'get_metric_statistics'] },
-      required: { field: 'operation', value: 'get_metric_statistics' },
+      placeholder: 'e.g., AWS/EC2, AWS/Lambda, Custom/MyApp',
+      condition: {
+        field: 'operation',
+        value: ['list_metrics', 'get_metric_statistics', 'put_metric_data'],
+      },
+      required: {
+        field: 'operation',
+        value: ['get_metric_statistics', 'put_metric_data'],
+      },
     },
     {
       id: 'metricName',
       title: 'Metric Name',
       type: 'short-input',
-      placeholder: 'e.g., CPUUtilization, Invocations',
-      condition: { field: 'operation', value: ['list_metrics', 'get_metric_statistics'] },
-      required: { field: 'operation', value: 'get_metric_statistics' },
+      placeholder: 'e.g., CPUUtilization, Invocations, ErrorCount',
+      condition: {
+        field: 'operation',
+        value: ['list_metrics', 'get_metric_statistics', 'put_metric_data'],
+      },
+      required: {
+        field: 'operation',
+        value: ['get_metric_statistics', 'put_metric_data'],
+      },
     },
     {
       id: 'recentlyActive',
       title: 'Recently Active Only',
       type: 'switch',
       condition: { field: 'operation', value: 'list_metrics' },
+      mode: 'advanced',
     },
-    // Get Metric Statistics fields
+    {
+      id: 'metricValue',
+      title: 'Value',
+      type: 'short-input',
+      placeholder: 'e.g., 1, 42.5',
+      condition: { field: 'operation', value: 'put_metric_data' },
+      required: { field: 'operation', value: 'put_metric_data' },
+    },
+    {
+      id: 'metricUnit',
+      title: 'Unit',
+      type: 'dropdown',
+      options: [
+        { label: 'None', id: 'None' },
+        { label: 'Count', id: 'Count' },
+        { label: 'Percent', id: 'Percent' },
+        { label: 'Seconds', id: 'Seconds' },
+        { label: 'Milliseconds', id: 'Milliseconds' },
+        { label: 'Microseconds', id: 'Microseconds' },
+        { label: 'Bytes', id: 'Bytes' },
+        { label: 'Kilobytes', id: 'Kilobytes' },
+        { label: 'Megabytes', id: 'Megabytes' },
+        { label: 'Gigabytes', id: 'Gigabytes' },
+        { label: 'Terabytes', id: 'Terabytes' },
+        { label: 'Bits', id: 'Bits' },
+        { label: 'Kilobits', id: 'Kilobits' },
+        { label: 'Megabits', id: 'Megabits' },
+        { label: 'Gigabits', id: 'Gigabits' },
+        { label: 'Terabits', id: 'Terabits' },
+        { label: 'Bytes/Second', id: 'Bytes/Second' },
+        { label: 'Kilobytes/Second', id: 'Kilobytes/Second' },
+        { label: 'Megabytes/Second', id: 'Megabytes/Second' },
+        { label: 'Gigabytes/Second', id: 'Gigabytes/Second' },
+        { label: 'Terabytes/Second', id: 'Terabytes/Second' },
+        { label: 'Bits/Second', id: 'Bits/Second' },
+        { label: 'Kilobits/Second', id: 'Kilobits/Second' },
+        { label: 'Megabits/Second', id: 'Megabits/Second' },
+        { label: 'Gigabits/Second', id: 'Gigabits/Second' },
+        { label: 'Terabits/Second', id: 'Terabits/Second' },
+        { label: 'Count/Second', id: 'Count/Second' },
+      ],
+      value: () => 'None',
+      condition: { field: 'operation', value: 'put_metric_data' },
+    },
+    {
+      id: 'publishDimensions',
+      title: 'Dimensions',
+      type: 'table',
+      columns: ['name', 'value'],
+      condition: { field: 'operation', value: 'put_metric_data' },
+    },
     {
       id: 'metricPeriod',
       title: 'Period (seconds)',
@@ -251,7 +328,6 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
       columns: ['name', 'value'],
       condition: { field: 'operation', value: 'get_metric_statistics' },
     },
-    // Describe Alarms fields
     {
       id: 'alarmNamePrefix',
       title: 'Alarm Name Prefix',
@@ -269,6 +345,7 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
         { label: 'ALARM', id: 'ALARM' },
         { label: 'INSUFFICIENT_DATA', id: 'INSUFFICIENT_DATA' },
       ],
+      value: () => '',
       condition: { field: 'operation', value: 'describe_alarms' },
     },
     {
@@ -280,9 +357,9 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
         { label: 'Metric Alarm', id: 'MetricAlarm' },
         { label: 'Composite Alarm', id: 'CompositeAlarm' },
       ],
+      value: () => '',
       condition: { field: 'operation', value: 'describe_alarms' },
     },
-    // Shared limit field
     {
       id: 'limit',
       title: 'Limit',
@@ -299,6 +376,7 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
           'describe_alarms',
         ],
       },
+      mode: 'advanced',
     },
   ],
   tools: {
@@ -309,6 +387,7 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
       'cloudwatch_describe_log_streams',
       'cloudwatch_list_metrics',
       'cloudwatch_get_metric_statistics',
+      'cloudwatch_put_metric_data',
       'cloudwatch_describe_alarms',
     ],
     config: {
@@ -326,6 +405,8 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
             return 'cloudwatch_list_metrics'
           case 'get_metric_statistics':
             return 'cloudwatch_get_metric_statistics'
+          case 'put_metric_data':
+            return 'cloudwatch_put_metric_data'
           case 'describe_alarms':
             return 'cloudwatch_describe_alarms'
           default:
@@ -479,6 +560,48 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
             }
           }
 
+          case 'put_metric_data': {
+            if (!rest.metricNamespace) {
+              throw new Error('Namespace is required')
+            }
+            if (!rest.metricName) {
+              throw new Error('Metric name is required')
+            }
+            if (rest.metricValue === undefined || rest.metricValue === '') {
+              throw new Error('Metric value is required')
+            }
+            const numericValue = Number(rest.metricValue)
+            if (!Number.isFinite(numericValue)) {
+              throw new Error('Metric value must be a finite number')
+            }
+
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              namespace: rest.metricNamespace,
+              metricName: rest.metricName,
+              value: numericValue,
+              ...(rest.metricUnit && rest.metricUnit !== 'None' && { unit: rest.metricUnit }),
+              ...(rest.publishDimensions && {
+                dimensions: (() => {
+                  const dims = rest.publishDimensions
+                  if (typeof dims === 'string') return dims
+                  if (Array.isArray(dims)) {
+                    const obj: Record<string, string> = {}
+                    for (const row of dims) {
+                      const name = row.cells?.name
+                      const value = row.cells?.value
+                      if (name && value !== undefined) obj[name] = String(value)
+                    }
+                    return JSON.stringify(obj)
+                  }
+                  return JSON.stringify(dims)
+                })(),
+              }),
+            }
+          }
+
           case 'describe_alarms':
             return {
               awsRegion,
@@ -518,6 +641,12 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
     metricPeriod: { type: 'number', description: 'Granularity in seconds' },
     metricStatistics: { type: 'string', description: 'Statistic type (Average, Sum, etc.)' },
     metricDimensions: { type: 'json', description: 'Metric dimensions (Name/Value pairs)' },
+    metricValue: { type: 'number', description: 'Metric value to publish' },
+    metricUnit: { type: 'string', description: 'Metric unit (Count, Seconds, Bytes, etc.)' },
+    publishDimensions: {
+      type: 'json',
+      description: 'Dimensions for published metric (Name/Value pairs)',
+    },
     alarmNamePrefix: { type: 'string', description: 'Alarm name prefix filter' },
     stateValue: {
       type: 'string',
@@ -566,6 +695,30 @@ Return ONLY the query — no explanations, no markdown code blocks.`,
     alarms: {
       type: 'array',
       description: 'CloudWatch alarms with state and configuration',
+    },
+    success: {
+      type: 'boolean',
+      description: 'Whether the published metric was successful',
+    },
+    namespace: {
+      type: 'string',
+      description: 'Metric namespace',
+    },
+    metricName: {
+      type: 'string',
+      description: 'Metric name',
+    },
+    value: {
+      type: 'number',
+      description: 'Published metric value',
+    },
+    unit: {
+      type: 'string',
+      description: 'Metric unit',
+    },
+    timestamp: {
+      type: 'string',
+      description: 'Timestamp when metric was published',
     },
   },
 }

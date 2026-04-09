@@ -39,6 +39,7 @@ import {
   extractContextTokens,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSpeechToText } from '@/hooks/use-speech-to-text'
 import type { ChatContext } from '@/stores/panel'
 
@@ -120,6 +121,7 @@ export function UserInput({
   onEnterWhileEmpty,
 }: UserInputProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { navigateToSettings } = useSettingsNavigation()
   const { data: workflowsById = {} } = useWorkflowMap(workspaceId)
   const { data: session } = useSession()
   const [value, setValue] = useState(defaultValue)
@@ -239,12 +241,19 @@ export function UserInput({
     valueRef.current = newVal
   }, [])
 
+  const handleUsageLimitExceeded = useCallback(() => {
+    navigateToSettings({ section: 'subscription' })
+  }, [navigateToSettings])
+
   const {
     isListening,
     isSupported: isSttSupported,
     toggleListening: rawToggle,
     resetTranscript,
-  } = useSpeechToText({ onTranscript: handleTranscript })
+  } = useSpeechToText({
+    onTranscript: handleTranscript,
+    onUsageLimitExceeded: handleUsageLimitExceeded,
+  })
 
   const toggleListening = useCallback(() => {
     if (!isListening) {

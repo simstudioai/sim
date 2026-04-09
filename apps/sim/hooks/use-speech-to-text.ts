@@ -18,6 +18,7 @@ export type PermissionState = 'prompt' | 'granted' | 'denied'
 
 interface UseSpeechToTextProps {
   onTranscript: (text: string) => void
+  onUsageLimitExceeded?: () => void
   language?: string
 }
 
@@ -31,6 +32,7 @@ interface UseSpeechToTextReturn {
 
 export function useSpeechToText({
   onTranscript,
+  onUsageLimitExceeded,
   language,
 }: UseSpeechToTextProps): UseSpeechToTextReturn {
   const [isListening, setIsListening] = useState(false)
@@ -38,6 +40,7 @@ export function useSpeechToText({
   const [permissionState, setPermissionState] = useState<PermissionState>('prompt')
 
   const onTranscriptRef = useRef(onTranscript)
+  const onUsageLimitExceededRef = useRef(onUsageLimitExceeded)
   const languageRef = useRef(language)
   const mountedRef = useRef(true)
   const startingRef = useRef(false)
@@ -55,6 +58,7 @@ export function useSpeechToText({
   const committedTextRef = useRef('')
 
   onTranscriptRef.current = onTranscript
+  onUsageLimitExceededRef.current = onUsageLimitExceeded
   languageRef.current = language
 
   useEffect(() => {
@@ -165,6 +169,10 @@ export function useSpeechToText({
       })
 
       if (!tokenResponse.ok) {
+        if (tokenResponse.status === 402) {
+          onUsageLimitExceededRef.current?.()
+          return false
+        }
         const body = await tokenResponse.json().catch(() => ({}))
         throw new Error(body.error || 'Failed to get speech token')
       }
