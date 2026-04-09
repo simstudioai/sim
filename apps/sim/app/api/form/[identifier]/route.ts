@@ -246,31 +246,10 @@ export async function POST(
           ),
       })
 
-      // For forms, we don't stream back - we wait for completion and return success
-      // Consume the stream to wait for completion
       const reader = stream.getReader()
-      let lastOutput: any = null
-
       try {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-
-          // Parse SSE data if present
-          const text = new TextDecoder().decode(value)
-          const lines = text.split('\n')
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6))
-                if (data.type === 'complete' || data.output) {
-                  lastOutput = data.output || data
-                }
-              } catch {
-                // Ignore parse errors
-              }
-            }
-          }
+        while (!(await reader.read()).done) {
+          /* drain to let the workflow run to completion */
         }
       } finally {
         reader.releaseLock()
