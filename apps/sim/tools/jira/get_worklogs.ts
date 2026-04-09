@@ -32,6 +32,8 @@ export const jiraGetWorklogsTool: ToolConfig<JiraGetWorklogsParams, JiraGetWorkl
     provider: 'jira',
   },
 
+  errorExtractor: 'atlassian-errors',
+
   params: {
     accessToken: {
       type: 'string',

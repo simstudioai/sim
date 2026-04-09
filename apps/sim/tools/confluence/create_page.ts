@@ -40,6 +40,8 @@ export const confluenceCreatePageTool: ToolConfig<
     provider: 'confluence',
   },
 
+  errorExtractor: 'atlassian-errors',
+
   params: {
     accessToken: {
       type: 'string',

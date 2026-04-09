@@ -17,6 +17,8 @@ export const jiraDeleteAttachmentTool: ToolConfig<
     provider: 'jira',
   },
 
+  errorExtractor: 'atlassian-errors',
+
   params: {
     accessToken: {
       type: 'string',

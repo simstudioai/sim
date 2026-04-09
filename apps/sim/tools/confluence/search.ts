@@ -34,6 +34,8 @@ export const confluenceSearchTool: ToolConfig<ConfluenceSearchParams, Confluence
     provider: 'confluence',
   },
 
+  errorExtractor: 'atlassian-errors',
+
   params: {
     accessToken: {
       type: 'string',

@@ -12,6 +12,8 @@ export const jsmAddCustomerTool: ToolConfig<JsmAddCustomerParams, JsmAddCustomer
     provider: 'jira',
   },
 
+  errorExtractor: 'atlassian-errors',
+
   params: {
     accessToken: {
       type: 'string',

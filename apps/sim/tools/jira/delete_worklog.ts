@@ -15,6 +15,8 @@ export const jiraDeleteWorklogTool: ToolConfig<JiraDeleteWorklogParams, JiraDele
       provider: 'jira',
     },
 
+    errorExtractor: 'atlassian-errors',
+
     params: {
       accessToken: {
         type: 'string',

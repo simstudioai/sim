@@ -14,6 +14,8 @@ export const jiraAddAttachmentTool: ToolConfig<JiraAddAttachmentParams, JiraAddA
       provider: 'jira',
     },
 
+    errorExtractor: 'atlassian-errors',
+
     params: {
       accessToken: {
         type: 'string',

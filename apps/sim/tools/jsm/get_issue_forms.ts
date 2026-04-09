@@ -14,6 +14,8 @@ export const jsmGetIssueFormsTool: ToolConfig<JsmGetIssueFormsParams, JsmGetIssu
     provider: 'jira',
   },
 
+  errorExtractor: 'atlassian-errors',
+
   params: {
     accessToken: {
       type: 'string',
