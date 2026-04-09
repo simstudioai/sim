@@ -13,6 +13,8 @@ export const jsmGetCommentsTool: ToolConfig<JsmGetCommentsParams, JsmGetComments
     provider: 'jira',
   },
 
+  errorExtractor: 'atlassian-errors',
+
   params: {
     accessToken: {
       type: 'string',

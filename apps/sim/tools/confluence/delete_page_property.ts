@@ -33,6 +33,8 @@ export const confluenceDeletePagePropertyTool: ToolConfig<
     provider: 'confluence',
   },
 
+  errorExtractor: 'atlassian-errors',
+
   params: {
     accessToken: {
       type: 'string',

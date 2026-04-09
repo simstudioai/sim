@@ -13,6 +13,8 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
     provider: 'confluence',
   },
 
+  errorExtractor: 'atlassian-errors',
+
   params: {
     accessToken: {
       type: 'string',

@@ -48,7 +48,7 @@ jobs:
   # Build AMD64 images and push to ECR immediately (+ GHCR for main)
   build-amd64:
     name: Build AMD64
-    needs: [test-build, detect-version]
+    needs: [detect-version]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/dev')
     runs-on: blacksmith-8vcpu-ubuntu-2404
     permissions:
@@ -70,7 +70,7 @@ jobs:
             ecr_repo_secret: ECR_REALTIME
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -150,7 +150,7 @@ jobs:
   # Build ARM64 images for GHCR (main branch only, runs in parallel)
   build-ghcr-arm64:
     name: Build ARM64 (GHCR Only)
-    needs: [test-build, detect-version]
+    needs: [detect-version]
     runs-on: blacksmith-8vcpu-ubuntu-2404-arm
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
@@ -169,7 +169,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -264,10 +264,10 @@ jobs:
     outputs:
       docs_changed: ${{ steps.filter.outputs.docs }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 2  # Need at least 2 commits to detect changes
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
@@ -294,7 +294,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 

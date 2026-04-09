@@ -15,6 +15,8 @@ export const jiraSearchUsersTool: ToolConfig<JiraSearchUsersParams, JiraSearchUs
     provider: 'jira',
   },
 
+  errorExtractor: 'atlassian-errors',
+
   params: {
     accessToken: {
       type: 'string',

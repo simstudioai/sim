@@ -38,6 +38,8 @@ export const confluenceListSpacesTool: ToolConfig<
     provider: 'confluence',
   },
 
+  errorExtractor: 'atlassian-errors',
+
   params: {
     accessToken: {
       type: 'string',

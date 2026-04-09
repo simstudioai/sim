@@ -26,6 +26,8 @@ const {
   mockListCustomTools,
   mockGetCustomToolByIdOrTitle,
   mockGenerateInternalToken,
+  mockSecureFetchWithPinnedIP,
+  mockValidateUrlWithDNS,
 } = vi.hoisted(() => ({
   mockIsHosted: { value: false },
   mockEnv: { NEXT_PUBLIC_APP_URL: 'http://localhost:3000' } as Record<string, string | undefined>,
@@ -40,6 +42,8 @@ const {
   mockListCustomTools: vi.fn(),
   mockGetCustomToolByIdOrTitle: vi.fn(),
   mockGenerateInternalToken: vi.fn(),
+  mockSecureFetchWithPinnedIP: vi.fn(),
+  mockValidateUrlWithDNS: vi.fn(),
 }))
 
 // Mock feature flags
@@ -72,6 +76,11 @@ vi.mock('@/lib/auth/internal', () => ({
 }))
 
 vi.mock('@/lib/billing/core/usage-log', () => ({}))
+
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  secureFetchWithPinnedIP: (...args: unknown[]) => mockSecureFetchWithPinnedIP(...args),
+  validateUrlWithDNS: (...args: unknown[]) => mockValidateUrlWithDNS(...args),
+}))
 
 vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
   getHostedKeyRateLimiter: () => mockRateLimiterFns,
@@ -476,6 +485,19 @@ describe('Automatic Internal Route Detection', () => {
   beforeEach(() => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
     cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+    mockSecureFetchWithPinnedIP.mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: {
+        get: (name: string) => (name.toLowerCase() === 'content-type' ? 'application/json' : null),
+        toRecord: () => ({ 'content-type': 'application/json' }),
+      },
+      text: async () => JSON.stringify({}),
+      json: async () => ({}),
+    })
   })
 
   afterEach(() => {

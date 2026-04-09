@@ -25,11 +25,10 @@ COPY packages/testing/package.json ./packages/testing/package.json
 COPY packages/logger/package.json ./packages/logger/package.json
 COPY packages/tsconfig/package.json ./packages/tsconfig/package.json
 
-# Install turbo globally, then dependencies, then rebuild isolated-vm for Node.js
+# Install dependencies, then rebuild isolated-vm for Node.js
 # Use --linker=hoisted for flat node_modules layout (required for Docker multi-stage builds)
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
     --mount=type=cache,id=npm-cache,target=/root/.npm \
-    bun install -g turbo && \
     HUSKY=0 bun install --omit=dev --ignore-scripts --linker=hoisted && \
     cd node_modules/isolated-vm && npx node-gyp rebuild --release
 

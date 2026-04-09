@@ -41,9 +41,41 @@ export interface ErrorExtractorConfig {
 const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
   {
     id: 'atlassian-errors',
-    description: 'Atlassian REST API errorMessage field',
-    examples: ['Jira', 'Jira Service Management', 'Confluence'],
-    extract: (errorInfo) => errorInfo?.data?.errorMessage,
+    description:
+      'Atlassian REST API error formats (errorMessage, errorMessages, errors[].title, message)',
+    examples: ['Jira', 'Jira Service Management', 'Confluence', 'JSM Forms/ProForma'],
+    extract: (errorInfo) => {
+      // JSM Service Desk: singular errorMessage string
+      if (errorInfo?.data?.errorMessage) {
+        return errorInfo.data.errorMessage
+      }
+      // Jira Platform: errorMessages array
+      if (
+        Array.isArray(errorInfo?.data?.errorMessages) &&
+        errorInfo.data.errorMessages.length > 0
+      ) {
+        return errorInfo.data.errorMessages.join(', ')
+      }
+      // Confluence v2 / Forms API: RFC 7807 errors array with title/detail
+      if (Array.isArray(errorInfo?.data?.errors) && errorInfo.data.errors.length > 0) {
+        const err = errorInfo.data.errors[0]
+        if (err?.title) {
+          return err.detail ? `${err.title}: ${err.detail}` : err.title
+        }
+      }
+      // Jira Platform field-level errors object
+      if (errorInfo?.data?.errors && !Array.isArray(errorInfo.data.errors)) {
+        const fieldErrors = Object.entries(errorInfo.data.errors)
+          .map(([field, msg]) => `${field}: ${msg}`)
+          .join(', ')
+        if (fieldErrors) return fieldErrors
+      }
+      // Generic message fallback (auth/gateway errors)
+      if (errorInfo?.data?.message) {
+        return errorInfo.data.message
+      }
+      return undefined
+    },
   },
   {
     id: 'graphql-errors',

@@ -13,6 +13,8 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
     provider: 'jira',
   },
 
+  errorExtractor: 'atlassian-errors',
+
   params: {
     accessToken: {
       type: 'string',

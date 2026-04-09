@@ -32,6 +32,8 @@ export const jiraGetUsersTool: ToolConfig<JiraGetUsersParams, JiraGetUsersRespon
     provider: 'jira',
   },
 
+  errorExtractor: 'atlassian-errors',
+
   params: {
     accessToken: {
       type: 'string',
