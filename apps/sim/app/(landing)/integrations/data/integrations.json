@@ -6614,9 +6614,21 @@
       {
         "name": "Get Request Type Fields",
         "description": "Get the fields required to create a request of a specific type in Jira Service Management"
+      },
+      {
+        "name": "Get Form Templates",
+        "description": "List forms (ProForma/JSM Forms) in a Jira project to discover form IDs for request types"
+      },
+      {
+        "name": "Get Form Structure",
+        "description": "Get the full structure of a ProForma/JSM form including all questions, field types, choices, layout, and conditions"
+      },
+      {
+        "name": "Get Issue Forms",
+        "description": "List forms (ProForma/JSM Forms) attached to a Jira issue with metadata (name, submitted status, lock)"
       }
     ],
-    "operationCount": 21,
+    "operationCount": 24,
     "triggers": [],
     "triggerCount": 0,
     "authType": "oauth",

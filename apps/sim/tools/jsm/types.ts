@@ -222,6 +222,44 @@ export const REQUEST_TYPE_FIELD_PROPERTIES = {
   },
 } as const
 
+/** Output properties for a FormTemplateIndexEntry (list endpoint) per OpenAPI spec */
+export const FORM_TEMPLATE_PROPERTIES = {
+  id: { type: 'string', description: 'Form template ID (UUID)' },
+  name: { type: 'string', description: 'Form template name' },
+  updated: { type: 'string', description: 'Last updated timestamp (ISO 8601)' },
+  issueCreateIssueTypeIds: {
+    type: 'json',
+    description: 'Issue type IDs that auto-attach this form on issue create',
+  },
+  issueCreateRequestTypeIds: {
+    type: 'json',
+    description: 'Request type IDs that auto-attach this form on issue create',
+  },
+  portalRequestTypeIds: {
+    type: 'json',
+    description: 'Request type IDs that show this form on the customer portal',
+  },
+  recommendedIssueRequestTypeIds: {
+    type: 'json',
+    description: 'Request type IDs that recommend this form',
+  },
+} as const
+
+/** Output properties for a FormIndexEntry (issue forms list endpoint) per OpenAPI spec */
+export const ISSUE_FORM_PROPERTIES = {
+  id: { type: 'string', description: 'Form instance ID (UUID)' },
+  name: { type: 'string', description: 'Form name' },
+  updated: { type: 'string', description: 'Last updated timestamp (ISO 8601)' },
+  submitted: { type: 'boolean', description: 'Whether the form has been submitted' },
+  lock: { type: 'boolean', description: 'Whether the form is locked' },
+  internal: { type: 'boolean', description: 'Whether the form is internal-only', optional: true },
+  formTemplateId: {
+    type: 'string',
+    description: 'Source form template ID (UUID)',
+    optional: true,
+  },
+} as const
+
 // ---------------------------------------------------------------------------
 // Data model interfaces
 // ---------------------------------------------------------------------------
@@ -778,6 +816,89 @@ export interface JsmGetRequestTypeFieldsResponse extends ToolResponse {
   }
 }
 
+export interface JsmGetFormTemplatesParams extends JsmBaseParams {
+  projectIdOrKey: string
+}
+
+export interface JsmGetFormStructureParams extends JsmBaseParams {
+  projectIdOrKey: string
+  formId: string
+}
+
+export interface JsmGetIssueFormsParams extends JsmBaseParams {
+  issueIdOrKey: string
+}
+
+/** FormQuestion per OpenAPI spec */
+export interface JsmFormQuestion {
+  label: string
+  type: string
+  validation: { rq?: boolean; [key: string]: unknown }
+  choices?: Array<{ id: string; label: string; other?: boolean }>
+  dcId?: string
+  defaultAnswer?: Record<string, unknown>
+  description?: string
+  jiraField?: string
+  questionKey?: string
+}
+
+/** FormTemplateIndexEntry per OpenAPI spec */
+export interface JsmFormTemplate {
+  id: string
+  name: string
+  updated: string
+  issueCreateIssueTypeIds: number[]
+  issueCreateRequestTypeIds: number[]
+  portalRequestTypeIds: number[]
+  recommendedIssueRequestTypeIds: number[]
+}
+
+/** FormIndexEntry (issue form) per OpenAPI spec */
+export interface JsmIssueForm {
+  id: string
+  name: string
+  updated: string
+  submitted: boolean
+  lock: boolean
+  internal?: boolean
+  formTemplateId?: string
+}
+
+export interface JsmGetFormTemplatesResponse extends ToolResponse {
+  output: {
+    ts: string
+    projectIdOrKey: string
+    templates: JsmFormTemplate[]
+    total: number
+  }
+}
+
+export interface JsmGetFormStructureResponse extends ToolResponse {
+  output: {
+    ts: string
+    projectIdOrKey: string
+    formId: string
+    design: {
+      questions: Record<string, JsmFormQuestion>
+      layout: unknown[]
+      conditions: Record<string, unknown>
+      sections: Record<string, unknown>
+      settings: { name: string; submit: { lock: boolean; pdf: boolean }; language?: string }
+    } | null
+    updated: string | null
+    publish: Record<string, unknown> | null
+  }
+}
+
+export interface JsmGetIssueFormsResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    forms: JsmIssueForm[]
+    total: number
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Union type for all JSM responses
 // ---------------------------------------------------------------------------
@@ -805,3 +926,6 @@ export type JsmResponse =
   | JsmGetApprovalsResponse
   | JsmAnswerApprovalResponse
   | JsmGetRequestTypeFieldsResponse
+  | JsmGetFormTemplatesResponse
+  | JsmGetFormStructureResponse
+  | JsmGetIssueFormsResponse

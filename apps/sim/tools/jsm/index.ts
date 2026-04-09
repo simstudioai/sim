@@ -8,6 +8,9 @@ import { jsmCreateRequestTool } from '@/tools/jsm/create_request'
 import { jsmGetApprovalsTool } from '@/tools/jsm/get_approvals'
 import { jsmGetCommentsTool } from '@/tools/jsm/get_comments'
 import { jsmGetCustomersTool } from '@/tools/jsm/get_customers'
+import { jsmGetFormStructureTool } from '@/tools/jsm/get_form_structure'
+import { jsmGetFormTemplatesTool } from '@/tools/jsm/get_form_templates'
+import { jsmGetIssueFormsTool } from '@/tools/jsm/get_issue_forms'
 import { jsmGetOrganizationsTool } from '@/tools/jsm/get_organizations'
 import { jsmGetParticipantsTool } from '@/tools/jsm/get_participants'
 import { jsmGetQueuesTool } from '@/tools/jsm/get_queues'
@@ -31,6 +34,9 @@ export {
   jsmGetApprovalsTool,
   jsmGetCommentsTool,
   jsmGetCustomersTool,
+  jsmGetFormStructureTool,
+  jsmGetFormTemplatesTool,
+  jsmGetIssueFormsTool,
   jsmGetOrganizationsTool,
   jsmGetParticipantsTool,
   jsmGetQueuesTool,
