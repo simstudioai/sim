@@ -991,9 +991,9 @@ export class PauseResumeManager {
       },
     }
 
-    const timeoutController = createTimeoutAbortController(
-      preprocessingResult.executionTimeout?.async
-    )
+    const timeoutController = externalAbortSignal
+      ? null
+      : createTimeoutAbortController(preprocessingResult.executionTimeout?.async)
 
     let result: ExecutionResult
     let finalMetaStatus: 'complete' | 'error' | 'cancelled' = 'complete'
@@ -1005,15 +1005,15 @@ export class PauseResumeManager {
         skipLogCreation: true,
         includeFileBase64: true,
         base64MaxBytes: undefined,
-        abortSignal: externalAbortSignal ?? timeoutController.signal,
+        abortSignal: externalAbortSignal ?? timeoutController?.signal,
       })
 
       if (
         result.status === 'cancelled' &&
-        timeoutController.isTimedOut() &&
-        timeoutController.timeoutMs
+        timeoutController?.isTimedOut() &&
+        timeoutController?.timeoutMs
       ) {
-        const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+        const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController!.timeoutMs)
         logger.info('Resume execution timed out', {
           resumeExecutionId,
           timeoutMs: timeoutController.timeoutMs,
@@ -1084,7 +1084,7 @@ export class PauseResumeManager {
       finalMetaStatus = 'error'
       throw execError
     } finally {
-      timeoutController.cleanup()
+      timeoutController?.cleanup()
       try {
         await eventWriter.close()
       } catch (closeError) {

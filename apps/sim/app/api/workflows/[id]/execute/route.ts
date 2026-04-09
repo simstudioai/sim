@@ -1333,7 +1333,7 @@ async function handleExecutePost(
             enforceCredentialAccess: useAuthenticatedUserAsActor,
             workflowStateOverride: effectiveWorkflowStateOverride,
             callChain,
-            executionMode: 'stream',
+            executionMode: 'sync',
           }
 
           const sseExecutionVariables = cachedWorkflowData?.variables ?? workflow.variables ?? {}
