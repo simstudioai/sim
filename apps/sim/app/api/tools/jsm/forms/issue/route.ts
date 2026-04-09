@@ -2,25 +2,16 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
-import { getJiraCloudId, getJsmFormsApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
+import {
+  getJiraCloudId,
+  getJsmFormsApiBaseUrl,
+  getJsmHeaders,
+  parseJsmErrorMessage,
+} from '@/tools/jsm/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JsmIssueFormsAPI')
-
-function parseJsmErrorMessage(status: number, statusText: string, errorText: string): string {
-  try {
-    const errorData = JSON.parse(errorText)
-    if (errorData.errorMessage) {
-      return `JSM Forms API error: ${errorData.errorMessage}`
-    }
-  } catch {
-    if (errorText) {
-      return `JSM Forms API error: ${errorText}`
-    }
-  }
-  return `JSM Forms API error: ${status} ${statusText}`
-}
 
 export async function POST(request: NextRequest) {
   const auth = await checkInternalAuth(request)

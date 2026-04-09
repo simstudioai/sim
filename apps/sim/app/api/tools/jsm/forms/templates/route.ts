@@ -1,26 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { validateJiraCloudId } from '@/lib/core/security/input-validation'
-import { getJiraCloudId, getJsmFormsApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
+import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
+import {
+  getJiraCloudId,
+  getJsmFormsApiBaseUrl,
+  getJsmHeaders,
+  parseJsmErrorMessage,
+} from '@/tools/jsm/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JsmFormTemplatesAPI')
-
-function parseJsmErrorMessage(status: number, statusText: string, errorText: string): string {
-  try {
-    const errorData = JSON.parse(errorText)
-    if (errorData.errorMessage) {
-      return `JSM Forms API error: ${errorData.errorMessage}`
-    }
-  } catch {
-    if (errorText) {
-      return `JSM Forms API error: ${errorText}`
-    }
-  }
-  return `JSM Forms API error: ${status} ${statusText}`
-}
 
 export async function POST(request: NextRequest) {
   const auth = await checkInternalAuth(request)
@@ -52,6 +43,11 @@ export async function POST(request: NextRequest) {
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
     if (!cloudIdValidation.isValid) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
+    }
+
+    const projectIdOrKeyValidation = validateJiraIssueKey(projectIdOrKey, 'projectIdOrKey')
+    if (!projectIdOrKeyValidation.isValid) {
+      return NextResponse.json({ error: projectIdOrKeyValidation.error }, { status: 400 })
     }
 
     const baseUrl = getJsmFormsApiBaseUrl(cloudId)

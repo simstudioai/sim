@@ -35,3 +35,28 @@ export function getJsmHeaders(accessToken: string): Record<string, string> {
     'X-ExperimentalApi': 'opt-in',
   }
 }
+
+/**
+ * Parse error messages from JSM/Forms API responses
+ * @param status - HTTP status code
+ * @param statusText - HTTP status text
+ * @param errorText - Raw error response body
+ * @returns Formatted error message string
+ */
+export function parseJsmErrorMessage(
+  status: number,
+  statusText: string,
+  errorText: string
+): string {
+  try {
+    const errorData = JSON.parse(errorText)
+    if (errorData.errorMessage) {
+      return `JSM Forms API error: ${errorData.errorMessage}`
+    }
+  } catch {
+    if (errorText) {
+      return `JSM Forms API error: ${errorText}`
+    }
+  }
+  return `JSM Forms API error: ${status} ${statusText}`
+}
