@@ -1,11 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
-import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { generateShortId } from '@/lib/core/utils/uuid'
 import { pollProvider, VALID_POLLING_PROVIDERS } from '@/lib/webhooks/polling'
-import { providerPolling } from '@/background/provider-polling'
 
 const logger = createLogger('PollingAPI')
 
@@ -28,37 +26,6 @@ export async function GET(
 
     if (!VALID_POLLING_PROVIDERS.has(provider)) {
       return NextResponse.json({ error: `Unknown polling provider: ${provider}` }, { status: 404 })
-    }
-
-    if (isTriggerDevEnabled) {
-      try {
-        const handle = await providerPolling.trigger(
-          { provider, requestId },
-          {
-            concurrencyKey: provider,
-            tags: [`provider:${provider}`],
-          }
-        )
-
-        logger.info(`[${requestId}] Dispatched ${provider} polling to trigger.dev`, {
-          runId: handle.id,
-        })
-
-        return NextResponse.json({
-          success: true,
-          message: `${provider} polling dispatched`,
-          requestId,
-          runId: handle.id,
-          status: 'dispatched',
-        })
-      } catch (triggerError) {
-        logger.warn(
-          `[${requestId}] Trigger.dev dispatch failed for ${provider}, falling back to synchronous polling`,
-          {
-            error: triggerError instanceof Error ? triggerError.message : String(triggerError),
-          }
-        )
-      }
     }
 
     const LOCK_KEY = `${provider}-polling-lock`
