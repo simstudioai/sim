@@ -181,8 +181,6 @@ async function fetchNewEmails(
 
           logger.info(`[${requestId}] Falling back to search API after history API error ${status}`)
           const searchResult = await searchEmails(accessToken, config, requestId, logger)
-          // When search finds 0 emails after a history API failure, the stored historyId is likely
-          // invalid. Fetch a fresh one from the profile API to break the potential 404 retry loop.
           if (searchResult.emails.length === 0) {
             const freshHistoryId = await getGmailProfileHistoryId(accessToken, requestId, logger)
             if (freshHistoryId) {
@@ -491,9 +489,7 @@ async function processEmails(
           if (headers.date) {
             try {
               date = new Date(headers.date).toISOString()
-            } catch (_e) {
-              // Keep date as null if parsing fails
-            }
+            } catch (_e) {}
           } else if (email.internalDate) {
             date = new Date(Number.parseInt(email.internalDate)).toISOString()
           }

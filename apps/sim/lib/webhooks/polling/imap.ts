@@ -22,7 +22,6 @@ interface ImapWebhookConfig {
   includeAttachments: boolean
   lastProcessedUid?: number
   lastProcessedUidByMailbox?: Record<string, number>
-  /** Stores the UIDVALIDITY value per mailbox as strings (bigint cannot be JSON-serialized). */
   uidValidityByMailbox?: Record<string, string>
   lastCheckedTimestamp?: string
   maxEmailsPerPoll?: number
@@ -173,9 +172,7 @@ export const imapPollingHandler: PollingProviderHandler = {
       } catch (innerError) {
         try {
           await client.logout()
-        } catch {
-          // Ignore logout errors
-        }
+        } catch {}
         throw innerError
       }
     } catch (error) {
@@ -362,9 +359,7 @@ function extractTextFromSource(source: Buffer): { text: string; html: string } {
         if (lowerPart.includes('base64')) {
           try {
             text = Buffer.from(text.replace(/\s/g, ''), 'base64').toString('utf-8')
-          } catch {
-            // Keep as-is if base64 decode fails
-          }
+          } catch {}
         }
       }
     } else if (lowerPart.includes('content-type: text/html')) {
@@ -379,9 +374,7 @@ function extractTextFromSource(source: Buffer): { text: string; html: string } {
         if (lowerPart.includes('base64')) {
           try {
             html = Buffer.from(html.replace(/\s/g, ''), 'base64').toString('utf-8')
-          } catch {
-            // Keep as-is if base64 decode fails
-          }
+          } catch {}
         }
       }
     }
@@ -436,9 +429,7 @@ function extractAttachmentsFromSource(
               mimeType,
               size: buffer.length,
             })
-          } catch {
-            // Skip if decode fails
-          }
+          } catch {}
         }
       }
     }
@@ -582,9 +573,7 @@ async function processEmails(
     if (lockState.lock) {
       try {
         lockState.lock.release()
-      } catch {
-        // Ignore lock release errors
-      }
+      } catch {}
     }
   }
 

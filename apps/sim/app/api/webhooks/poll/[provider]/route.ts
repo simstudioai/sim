@@ -30,9 +30,6 @@ export async function GET(
       return NextResponse.json({ error: `Unknown polling provider: ${provider}` }, { status: 404 })
     }
 
-    // When trigger.dev is enabled, dispatch polling as an async task and return immediately.
-    // Per-provider concurrency (concurrencyKey) ensures only one poll per provider runs at a time,
-    // while different providers (gmail vs outlook) can poll in parallel.
     if (isTriggerDevEnabled) {
       try {
         const handle = await providerPolling.trigger(
@@ -55,7 +52,6 @@ export async function GET(
           status: 'dispatched',
         })
       } catch (triggerError) {
-        // If trigger.dev is unavailable, fall through to synchronous polling below.
         logger.warn(
           `[${requestId}] Trigger.dev dispatch failed for ${provider}, falling back to synchronous polling`,
           {
@@ -65,8 +61,6 @@ export async function GET(
       }
     }
 
-    // Fallback: synchronous polling when trigger.dev is not enabled (self-hosted).
-    // Redis lock prevents concurrent polls for the same provider.
     const LOCK_KEY = `${provider}-polling-lock`
     let lockValue: string | undefined
 
