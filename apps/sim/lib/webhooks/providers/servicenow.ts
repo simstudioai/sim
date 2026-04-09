@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
-import type { AuthContext, EventMatchContext, WebhookProviderHandler } from '@/lib/webhooks/providers/types'
+import type {
+  AuthContext,
+  EventMatchContext,
+  WebhookProviderHandler,
+} from '@/lib/webhooks/providers/types'
 import { verifyTokenAuth } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:ServiceNow')

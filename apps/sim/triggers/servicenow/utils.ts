@@ -131,7 +131,10 @@ export function buildChangeRequestOutputs(): Record<string, TriggerOutput> {
 }
 
 function normalizeToken(s: string): string {
-  return s.trim().toLowerCase().replace(/[\s-]+/g, '_')
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_')
 }
 
 /**
