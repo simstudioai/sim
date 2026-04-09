@@ -11,7 +11,7 @@ export const listMetricsTool: ToolConfig<
   id: 'cloudwatch_list_metrics',
   name: 'CloudWatch List Metrics',
   description: 'List available CloudWatch metrics',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {

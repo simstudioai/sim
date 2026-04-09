@@ -598,6 +598,24 @@ export const LogDetails = memo(function LogDetails({
                             {formatCost(log.cost?.output || 0)}
                           </span>
                         </div>
+                        {(() => {
+                          const models = (log.cost as Record<string, unknown>)?.models as
+                            | Record<string, { toolCost?: number }>
+                            | undefined
+                          const totalToolCost = models
+                            ? Object.values(models).reduce((sum, m) => sum + (m?.toolCost || 0), 0)
+                            : 0
+                          return totalToolCost > 0 ? (
+                            <div className='flex items-center justify-between'>
+                              <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                                Tool Usage:
+                              </span>
+                              <span className='font-medium text-[var(--text-secondary)] text-caption'>
+                                {formatCost(totalToolCost)}
+                              </span>
+                            </div>
+                          ) : null
+                        })()}
                       </div>
 
                       <div className='border-[var(--border)] border-t' />
@@ -626,7 +644,7 @@ export const LogDetails = memo(function LogDetails({
                     <div className='flex items-center justify-center rounded-md bg-[var(--surface-2)] p-2 text-center'>
                       <p className='font-medium text-[var(--text-subtle)] text-xs'>
                         Total cost includes a base execution charge of{' '}
-                        {formatCost(BASE_EXECUTION_CHARGE)} plus any model usage costs.
+                        {formatCost(BASE_EXECUTION_CHARGE)} plus any model and tool usage costs.
                       </p>
                     </div>
                   </div>

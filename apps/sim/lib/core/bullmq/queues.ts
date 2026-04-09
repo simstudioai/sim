@@ -16,6 +16,7 @@ export interface BullMQJobData<TPayload> {
 let workflowQueueInstance: Queue | null = null
 let webhookQueueInstance: Queue | null = null
 let scheduleQueueInstance: Queue | null = null
+let resumeQueueInstance: Queue | null = null
 let knowledgeConnectorSyncQueueInstance: Queue | null = null
 let knowledgeDocumentProcessingQueueInstance: Queue | null = null
 let mothershipJobExecutionQueueInstance: Queue | null = null
@@ -42,6 +43,12 @@ function getQueueDefaultOptions(type: JobType) {
       return {
         attempts: 2,
         backoff: { type: 'exponential' as const, delay: 5000 },
+        removeOnComplete: { age: 24 * 60 * 60 },
+        removeOnFail: { age: 3 * 24 * 60 * 60 },
+      }
+    case 'resume-execution':
+      return {
+        attempts: 1,
         removeOnComplete: { age: 24 * 60 * 60 },
         removeOnFail: { age: 3 * 24 * 60 * 60 },
       }
@@ -121,6 +128,11 @@ export function getBullMQQueue(type: JobType): Queue {
         scheduleQueueInstance = createQueue(type)
       }
       return scheduleQueueInstance
+    case 'resume-execution':
+      if (!resumeQueueInstance) {
+        resumeQueueInstance = createQueue(type)
+      }
+      return resumeQueueInstance
   }
 }
 
@@ -129,6 +141,7 @@ export function getBullMQQueueByName(queueName: WorkspaceDispatchQueueName): Que
     case 'workflow-execution':
     case 'webhook-execution':
     case 'schedule-execution':
+    case 'resume-execution':
       return getBullMQQueue(queueName)
     case KNOWLEDGE_CONNECTOR_SYNC_QUEUE:
       return getKnowledgeConnectorSyncQueue()

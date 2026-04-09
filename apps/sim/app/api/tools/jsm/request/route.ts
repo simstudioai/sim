@@ -12,6 +12,20 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JsmRequestAPI')
 
+function parseJsmErrorMessage(status: number, statusText: string, errorText: string): string {
+  try {
+    const errorData = JSON.parse(errorText)
+    if (errorData.errorMessage) {
+      return `JSM API error: ${errorData.errorMessage}`
+    }
+  } catch {
+    if (errorText) {
+      return `JSM API error: ${errorText}`
+    }
+  }
+  return `JSM API error: ${status} ${statusText}`
+}
+
 export async function POST(request: NextRequest) {
   const auth = await checkInternalAuth(request)
   if (!auth.success || !auth.userId) {
@@ -31,6 +45,7 @@ export async function POST(request: NextRequest) {
       description,
       raiseOnBehalfOf,
       requestFieldValues,
+      formAnswers,
       requestParticipants,
       channel,
       expand,
@@ -55,7 +70,7 @@ export async function POST(request: NextRequest) {
 
     const baseUrl = getJsmApiBaseUrl(cloudId)
 
-    const isCreateOperation = serviceDeskId && requestTypeId && summary
+    const isCreateOperation = serviceDeskId && requestTypeId && (summary || formAnswers)
 
     if (isCreateOperation) {
       const serviceDeskIdValidation = validateAlphanumericId(serviceDeskId, 'serviceDeskId')
@@ -69,15 +84,30 @@ export async function POST(request: NextRequest) {
       }
       const url = `${baseUrl}/request`
 
-      logger.info('Creating request at:', url)
+      logger.info('Creating request at:', { url, serviceDeskId, requestTypeId })
 
       const requestBody: Record<string, unknown> = {
         serviceDeskId,
         requestTypeId,
-        requestFieldValues: requestFieldValues || {
-          summary,
-          ...(description && { description }),
-        },
+      }
+
+      if (summary || description || requestFieldValues) {
+        const fieldValues =
+          requestFieldValues && typeof requestFieldValues === 'object'
+            ? {
+                ...(!requestFieldValues.summary && summary ? { summary } : {}),
+                ...(!requestFieldValues.description && description ? { description } : {}),
+                ...requestFieldValues,
+              }
+            : {
+                ...(summary && { summary }),
+                ...(description && { description }),
+              }
+        requestBody.requestFieldValues = fieldValues
+      }
+
+      if (formAnswers && typeof formAnswers === 'object') {
+        requestBody.form = { answers: formAnswers }
       }
 
       if (raiseOnBehalfOf) {
@@ -112,7 +142,10 @@ export async function POST(request: NextRequest) {
         })
 
         return NextResponse.json(
-          { error: `JSM API error: ${response.status} ${response.statusText}`, details: errorText },
+          {
+            error: parseJsmErrorMessage(response.status, response.statusText, errorText),
+            details: errorText,
+          },
           { status: response.status }
         )
       }
@@ -178,7 +211,10 @@ export async function POST(request: NextRequest) {
       })
 
       return NextResponse.json(
-        { error: `JSM API error: ${response.status} ${response.statusText}`, details: errorText },
+        {
+          error: parseJsmErrorMessage(response.status, response.statusText, errorText),
+          details: errorText,
+        },
         { status: response.status }
       )
     }

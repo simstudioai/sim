@@ -36,6 +36,7 @@ export interface ExecutionMetadata {
   }
   callChain?: string[]
   correlation?: AsyncExecutionCorrelation
+  executionMode?: 'sync' | 'stream' | 'async'
 }
 
 export interface SerializableExecutionState {

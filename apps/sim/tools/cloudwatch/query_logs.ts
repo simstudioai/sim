@@ -8,7 +8,7 @@ export const queryLogsTool: ToolConfig<CloudWatchQueryLogsParams, CloudWatchQuer
   id: 'cloudwatch_query_logs',
   name: 'CloudWatch Query Logs',
   description: 'Run a CloudWatch Log Insights query against one or more log groups',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {

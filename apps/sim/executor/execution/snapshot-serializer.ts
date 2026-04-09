@@ -112,6 +112,7 @@ export function serializePauseSnapshot(
     useDraftState,
     startTime: metadataFromContext?.startTime ?? new Date().toISOString(),
     isClientSession: metadataFromContext?.isClientSession,
+    executionMode: metadataFromContext?.executionMode,
   }
 
   const snapshot = new ExecutionSnapshot(

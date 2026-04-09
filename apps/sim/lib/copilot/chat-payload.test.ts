@@ -3,18 +3,18 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/logger', () => {
-  const createMockLogger = (): Record<string, any> => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    withMetadata: vi.fn(() => createMockLogger()),
-  })
-  return { createLogger: vi.fn(() => createMockLogger()) }
-})
+const { mockGetHighestPrioritySubscription } = vi.hoisted(() => ({
+  mockGetHighestPrioritySubscription: vi.fn(),
+}))
 
 vi.mock('@/lib/billing/core/subscription', () => ({
-  getUserSubscriptionState: vi.fn(),
+  getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
+}))
+
+vi.mock('@/lib/billing/plan-helpers', () => ({
+  isPaid: vi.fn(
+    (plan: string | null) => plan === 'pro' || plan === 'team' || plan === 'enterprise'
+  ),
 }))
 
 vi.mock('@/lib/copilot/chat-context', () => ({
@@ -57,14 +57,7 @@ vi.mock('@/tools/params', () => ({
   createUserToolSchema: vi.fn(() => ({ type: 'object', properties: {} })),
 }))
 
-import { getUserSubscriptionState } from '@/lib/billing/core/subscription'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat-payload'
-
-const mockedGetUserSubscriptionState = getUserSubscriptionState as unknown as {
-  mockResolvedValue: (value: unknown) => void
-  mockRejectedValue: (value: unknown) => void
-  mockClear: () => void
-}
 
 describe('buildIntegrationToolSchemas', () => {
   beforeEach(() => {
@@ -72,33 +65,33 @@ describe('buildIntegrationToolSchemas', () => {
   })
 
   it('appends the email footer prompt for free users', async () => {
-    mockedGetUserSubscriptionState.mockResolvedValue({ isFree: true })
+    mockGetHighestPrioritySubscription.mockResolvedValue(null)
 
     const toolSchemas = await buildIntegrationToolSchemas('user-free')
     const gmailTool = toolSchemas.find((tool) => tool.name === 'gmail_send')
 
-    expect(getUserSubscriptionState).toHaveBeenCalledWith('user-free')
+    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledWith('user-free')
     expect(gmailTool?.description).toContain('sent with sim ai')
   })
 
   it('does not append the email footer prompt for paid users', async () => {
-    mockedGetUserSubscriptionState.mockResolvedValue({ isFree: false })
+    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
 
     const toolSchemas = await buildIntegrationToolSchemas('user-paid')
     const gmailTool = toolSchemas.find((tool) => tool.name === 'gmail_send')
 
-    expect(getUserSubscriptionState).toHaveBeenCalledWith('user-paid')
+    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledWith('user-paid')
     expect(gmailTool?.description).toBe('Send emails using Gmail')
   })
 
   it('still builds integration tools when subscription lookup fails', async () => {
-    mockedGetUserSubscriptionState.mockRejectedValue(new Error('db unavailable'))
+    mockGetHighestPrioritySubscription.mockRejectedValue(new Error('db unavailable'))
 
     const toolSchemas = await buildIntegrationToolSchemas('user-error')
     const gmailTool = toolSchemas.find((tool) => tool.name === 'gmail_send')
     const brandfetchTool = toolSchemas.find((tool) => tool.name === 'brandfetch_search')
 
-    expect(getUserSubscriptionState).toHaveBeenCalledWith('user-error')
+    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledWith('user-error')
     expect(gmailTool?.description).toBe('Send emails using Gmail')
     expect(brandfetchTool?.description).toBe('Search for brands by company name')
   })

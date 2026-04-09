@@ -11,7 +11,7 @@ export const getQueryResultsTool: ToolConfig<
   id: 'athena_get_query_results',
   name: 'Athena Get Query Results',
   description: 'Retrieve the results of a completed Athena query execution',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     awsRegion: {

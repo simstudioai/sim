@@ -198,7 +198,6 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       id: 'summary',
       title: 'Summary',
       type: 'short-input',
-      required: true,
       placeholder: 'Enter request summary',
       condition: { field: 'operation', value: 'create_request' },
       wandConfig: {
@@ -238,6 +237,7 @@ Return ONLY the description text - no explanations.`,
       title: 'Raise on Behalf Of',
       type: 'short-input',
       placeholder: 'Account ID to raise request on behalf of',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'create_request' },
     },
     {
@@ -245,6 +245,7 @@ Return ONLY the description text - no explanations.`,
       title: 'Request Participants',
       type: 'short-input',
       placeholder: 'Comma-separated account IDs to add as participants',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'create_request' },
     },
     {
@@ -252,6 +253,7 @@ Return ONLY the description text - no explanations.`,
       title: 'Channel',
       type: 'short-input',
       placeholder: 'Channel (e.g., portal, email)',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'create_request' },
     },
     {
@@ -260,6 +262,16 @@ Return ONLY the description text - no explanations.`,
       type: 'long-input',
       placeholder:
         'JSON object of field values (e.g., {"summary": "Title", "customfield_10010": "value"})',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_request' },
+    },
+    {
+      id: 'formAnswers',
+      title: 'Form Answers',
+      type: 'long-input',
+      placeholder:
+        'JSON object for form-based request types (e.g., {"summary": {"text": "Title"}, "customfield_10010": {"choices": ["10320"]}})',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'create_request' },
     },
     {
@@ -571,8 +583,8 @@ Return ONLY the comment text - no explanations.`,
             if (!params.requestTypeId) {
               throw new Error('Request Type ID is required')
             }
-            if (!params.summary) {
-              throw new Error('Summary is required')
+            if (!params.summary && !params.formAnswers) {
+              throw new Error('Summary is required (unless using Form Answers)')
             }
             return {
               ...baseParams,
@@ -584,7 +596,22 @@ Return ONLY the comment text - no explanations.`,
               requestParticipants: params.requestParticipants,
               channel: params.channel,
               requestFieldValues: params.requestFieldValues
-                ? JSON.parse(params.requestFieldValues)
+                ? (() => {
+                    try {
+                      return JSON.parse(params.requestFieldValues)
+                    } catch {
+                      throw new Error('requestFieldValues must be valid JSON')
+                    }
+                  })()
+                : undefined,
+              formAnswers: params.formAnswers
+                ? (() => {
+                    try {
+                      return JSON.parse(params.formAnswers)
+                    } catch {
+                      throw new Error('formAnswers must be valid JSON')
+                    }
+                  })()
                 : undefined,
             }
           case 'get_request':
@@ -826,6 +853,10 @@ Return ONLY the comment text - no explanations.`,
     },
     channel: { type: 'string', description: 'Channel (e.g., portal, email)' },
     requestFieldValues: { type: 'string', description: 'JSON object of request field values' },
+    formAnswers: {
+      type: 'string',
+      description: 'JSON object of form answers for form-based request types',
+    },
     searchQuery: { type: 'string', description: 'Filter request types by name' },
     groupId: { type: 'string', description: 'Filter by request type group ID' },
     expand: { type: 'string', description: 'Comma-separated fields to expand' },
