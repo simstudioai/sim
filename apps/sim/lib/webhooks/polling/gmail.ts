@@ -151,44 +151,68 @@ async function fetchNewEmails(
     let latestHistoryId = config.historyId
 
     if (useHistoryApi) {
-      const historyUrl = `https://gmail.googleapis.com/gmail/v1/users/me/history?startHistoryId=${config.historyId}`
+      const messageIds = new Set<string>()
+      let pageToken: string | undefined
 
-      const historyResponse = await fetch(historyUrl, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
+      do {
+        let historyUrl = `https://gmail.googleapis.com/gmail/v1/users/me/history?startHistoryId=${config.historyId}&historyTypes=messageAdded`
+        if (pageToken) {
+          historyUrl += `&pageToken=${pageToken}`
+        }
 
-      if (!historyResponse.ok) {
-        const errorData = await historyResponse.json()
-        logger.error(`[${requestId}] Gmail history API error:`, {
-          status: historyResponse.status,
-          statusText: historyResponse.statusText,
-          error: errorData,
+        const historyResponse = await fetch(historyUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
         })
 
-        logger.info(`[${requestId}] Falling back to search API after history API failure`)
-        return searchEmails(accessToken, config, requestId, logger)
-      }
+        if (!historyResponse.ok) {
+          const status = historyResponse.status
+          const errorData = await historyResponse.json().catch(() => ({}))
+          logger.error(`[${requestId}] Gmail history API error:`, {
+            status,
+            statusText: historyResponse.statusText,
+            error: errorData,
+          })
 
-      const historyData = await historyResponse.json()
+          if (status === 403 || status === 429) {
+            throw new Error(
+              `Gmail API error ${status} — skipping to retry next poll cycle: ${JSON.stringify(errorData)}`
+            )
+          }
 
-      if (!historyData.history || !historyData.history.length) {
-        return { emails: [], latestHistoryId }
-      }
+          logger.info(`[${requestId}] Falling back to search API after history API error ${status}`)
+          const searchResult = await searchEmails(accessToken, config, requestId, logger)
+          if (searchResult.emails.length === 0) {
+            const freshHistoryId = await getGmailProfileHistoryId(accessToken, requestId, logger)
+            if (freshHistoryId) {
+              logger.info(
+                `[${requestId}] Fetched fresh historyId ${freshHistoryId} after invalid historyId (was: ${config.historyId})`
+              )
+              return { emails: [], latestHistoryId: freshHistoryId }
+            }
+          }
+          return searchResult
+        }
 
-      if (historyData.historyId) {
-        latestHistoryId = historyData.historyId
-      }
+        const historyData = await historyResponse.json()
 
-      const messageIds = new Set<string>()
-      for (const history of historyData.history) {
-        if (history.messagesAdded) {
-          for (const messageAdded of history.messagesAdded) {
-            messageIds.add(messageAdded.message.id)
+        if (historyData.historyId) {
+          latestHistoryId = historyData.historyId
+        }
+
+        if (historyData.history) {
+          for (const history of historyData.history) {
+            if (history.messagesAdded) {
+              for (const messageAdded of history.messagesAdded) {
+                messageIds.add(messageAdded.message.id)
+              }
+            }
           }
         }
-      }
 
-      if (messageIds.size === 0) {
+        pageToken = historyData.nextPageToken
+      } while (pageToken)
+
+      if (!messageIds.size) {
         return { emails: [], latestHistoryId }
       }
 
@@ -352,6 +376,29 @@ async function searchEmails(
   }
 }
 
+async function getGmailProfileHistoryId(
+  accessToken: string,
+  requestId: string,
+  logger: ReturnType<typeof import('@sim/logger').createLogger>
+): Promise<string | null> {
+  try {
+    const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!response.ok) {
+      logger.warn(
+        `[${requestId}] Failed to fetch Gmail profile for fresh historyId: ${response.status}`
+      )
+      return null
+    }
+    const profile = await response.json()
+    return (profile.historyId as string | undefined) ?? null
+  } catch (error) {
+    logger.warn(`[${requestId}] Error fetching Gmail profile:`, error)
+    return null
+  }
+}
+
 async function getEmailDetails(accessToken: string, messageId: string): Promise<GmailEmail> {
   const messageUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}?format=full`
 
@@ -442,9 +489,7 @@ async function processEmails(
           if (headers.date) {
             try {
               date = new Date(headers.date).toISOString()
-            } catch (_e) {
-              // Keep date as null if parsing fails
-            }
+            } catch (_e) {}
           } else if (email.internalDate) {
             date = new Date(Number.parseInt(email.internalDate)).toISOString()
           }

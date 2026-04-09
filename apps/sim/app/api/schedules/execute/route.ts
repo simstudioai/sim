@@ -8,6 +8,7 @@ import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateId } from '@/lib/core/utils/uuid'
 import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
+import { getWorkflowById } from '@/lib/workflows/utils'
 import {
   executeJobInline,
   executeScheduleJob,
@@ -115,7 +116,6 @@ export async function GET(request: NextRequest) {
       }
 
       try {
-        const { getWorkflowById } = await import('@/lib/workflows/utils')
         const resolvedWorkflow = schedule.workflowId
           ? await getWorkflowById(schedule.workflowId)
           : null
