@@ -1098,9 +1098,7 @@ export function useChat(
                       })
                     }
                     if (!workflowIdRef.current) {
-                      routerRef.current.replace(
-                        `/workspace/${workspaceId}/task/${parsed.chatId}`
-                      )
+                      routerRef.current.replace(`/workspace/${workspaceId}/task/${parsed.chatId}`)
                       abortControllerRef.current?.abort()
                       streamGenRef.current++
                     }

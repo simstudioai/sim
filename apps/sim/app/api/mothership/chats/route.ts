@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import {
@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
         updatedAt: copilotChats.updatedAt,
         conversationId: copilotChats.conversationId,
         lastSeenAt: copilotChats.lastSeenAt,
+        messageCount: sql<number>`jsonb_array_length(${copilotChats.messages})`.as('message_count'),
       })
       .from(copilotChats)
       .where(

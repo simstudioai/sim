@@ -1075,6 +1075,11 @@ export const Sidebar = memo(function Sidebar() {
   )
 
   const handleNewTask = useCallback(async () => {
+    const existingEmpty = fetchedTasks.find((t) => t.isEmpty)
+    if (existingEmpty) {
+      router.push(`/workspace/${workspaceId}/task/${existingEmpty.id}`)
+      return
+    }
     try {
       const { id } = await createTaskMutation.mutateAsync({ workspaceId })
       router.push(`/workspace/${workspaceId}/task/${id}`)
@@ -1082,7 +1087,7 @@ export const Sidebar = memo(function Sidebar() {
       logger.error('Failed to create task', err)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router, workspaceId])
+  }, [router, workspaceId, fetchedTasks])
 
   const tasksPrimaryAction = useMemo(
     () => ({

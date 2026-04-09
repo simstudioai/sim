@@ -7,6 +7,7 @@ export interface TaskMetadata {
   updatedAt: Date
   isActive: boolean
   isUnread: boolean
+  isEmpty: boolean
 }
 
 export interface StreamSnapshot {
@@ -91,6 +92,7 @@ interface TaskResponse {
   updatedAt: string
   conversationId: string | null
   lastSeenAt: string | null
+  messageCount: number
 }
 
 function mapTask(chat: TaskResponse): TaskMetadata {
@@ -103,6 +105,7 @@ function mapTask(chat: TaskResponse): TaskMetadata {
     isUnread:
       chat.conversationId === null &&
       (chat.lastSeenAt === null || updatedAt > new Date(chat.lastSeenAt)),
+    isEmpty: chat.messageCount === 0,
   }
 }
 
