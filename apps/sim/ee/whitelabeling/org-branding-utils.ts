@@ -12,13 +12,6 @@ export function mergeOrgBrandConfig(
     return instanceConfig
   }
 
-  const hasOrgBrand = Boolean(
-    orgSettings.brandName ||
-      orgSettings.logoUrl ||
-      orgSettings.wordmarkUrl ||
-      orgSettings.primaryColor
-  )
-
   return {
     ...instanceConfig,
     name: orgSettings.brandName || instanceConfig.name,
@@ -35,7 +28,14 @@ export function mergeOrgBrandConfig(
       ...(orgSettings.accentColor && { accentColor: orgSettings.accentColor }),
       ...(orgSettings.accentHoverColor && { accentHoverColor: orgSettings.accentHoverColor }),
     },
-    isWhitelabeled: instanceConfig.isWhitelabeled || hasOrgBrand,
+    isWhitelabeled:
+      instanceConfig.isWhitelabeled ||
+      Boolean(
+        orgSettings.brandName ||
+          orgSettings.logoUrl ||
+          orgSettings.wordmarkUrl ||
+          orgSettings.primaryColor
+      ),
   }
 }
 

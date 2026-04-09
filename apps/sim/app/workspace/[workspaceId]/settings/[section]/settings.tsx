@@ -161,7 +161,7 @@ const WhitelabelingSettings = dynamic(
     import('@/ee/whitelabeling/components/whitelabeling-settings').then(
       (m) => m.WhitelabelingSettings
     ),
-  { loading: () => <SettingsSectionSkeleton /> }
+  { loading: () => <SettingsSectionSkeleton />, ssr: false }
 )
 
 interface SettingsPageProps {

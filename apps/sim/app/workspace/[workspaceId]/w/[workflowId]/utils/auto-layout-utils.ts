@@ -4,6 +4,7 @@ import {
   DEFAULT_LAYOUT_PADDING,
   DEFAULT_VERTICAL_SPACING,
 } from '@/lib/workflows/autolayout/constants'
+import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('AutoLayoutUtils')
@@ -109,10 +110,12 @@ export async function applyAutoLayoutAndUpdateStore(
       return { success: false, error: errorMessage }
     }
 
-    // Update workflow store immediately with new positions
+    const layoutedBlocks = result.data?.layoutedBlocks || blocks
+    const mergedBlocks = mergeSubblockState(layoutedBlocks, workflowId)
+
     const newWorkflowState = {
       ...workflowStore.getWorkflowState(),
-      blocks: result.data?.layoutedBlocks || blocks,
+      blocks: mergedBlocks,
       lastSaved: Date.now(),
     }
 
@@ -167,9 +170,10 @@ export async function applyAutoLayoutAndUpdateStore(
       })
 
       // Revert the store changes since database save failed
+      const revertBlocks = mergeSubblockState(blocks, workflowId)
       useWorkflowStore.getState().replaceWorkflowState({
         ...workflowStore.getWorkflowState(),
-        blocks,
+        blocks: revertBlocks,
         lastSaved: workflowStore.lastSaved,
       })
 
