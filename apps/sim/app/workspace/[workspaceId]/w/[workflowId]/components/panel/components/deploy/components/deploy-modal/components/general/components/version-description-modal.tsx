@@ -89,7 +89,7 @@ export function VersionDescriptionModal({
   return (
     <>
       <Modal open={open} onOpenChange={(openState) => !openState && handleCloseAttempt()}>
-        <ModalContent size='md'>
+        <ModalContent size='lg'>
           <ModalHeader>
             <span>Version Description</span>
           </ModalHeader>
