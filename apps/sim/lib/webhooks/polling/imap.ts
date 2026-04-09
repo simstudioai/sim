@@ -192,16 +192,30 @@ async function updateImapState(
   uidValidityByMailbox: Record<string, string>
 ) {
   const existingUidByMailbox = config.lastProcessedUidByMailbox || {}
-  const mergedUidByMailbox = { ...existingUidByMailbox }
+  const prevUidValidity = config.uidValidityByMailbox || {}
 
-  for (const [mailbox, uid] of Object.entries(uidByMailbox)) {
-    mergedUidByMailbox[mailbox] = Math.max(uid, mergedUidByMailbox[mailbox] || 0)
+  const resetMailboxes = new Set(
+    Object.entries(uidValidityByMailbox)
+      .filter(
+        ([mailbox, validity]) =>
+          prevUidValidity[mailbox] !== undefined && prevUidValidity[mailbox] !== validity
+      )
+      .map(([mailbox]) => mailbox)
+  )
+
+  const mergedUidByMailbox: Record<string, number> = {}
+
+  for (const [mailbox, uid] of Object.entries(existingUidByMailbox)) {
+    if (!resetMailboxes.has(mailbox)) {
+      mergedUidByMailbox[mailbox] = uid
+    }
   }
 
-  const prevUidValidity = config.uidValidityByMailbox || {}
-  for (const [mailbox, validity] of Object.entries(uidValidityByMailbox)) {
-    if (prevUidValidity[mailbox] !== undefined && prevUidValidity[mailbox] !== validity) {
-      delete mergedUidByMailbox[mailbox]
+  for (const [mailbox, uid] of Object.entries(uidByMailbox)) {
+    if (resetMailboxes.has(mailbox)) {
+      mergedUidByMailbox[mailbox] = uid
+    } else {
+      mergedUidByMailbox[mailbox] = Math.max(uid, mergedUidByMailbox[mailbox] || 0)
     }
   }
 
