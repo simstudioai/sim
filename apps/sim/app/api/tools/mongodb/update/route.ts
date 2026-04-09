@@ -8,12 +8,11 @@ import { createMongoDBConnection, sanitizeCollectionName, validateFilter } from 
 const logger = createLogger('MongoDBUpdateAPI')
 
 const UpdateSchema = z.object({
-  connectionString: z.string().optional(),
-  host: z.string().default(''),
-  port: z.coerce.number().int().nonnegative().default(27017),
+  host: z.string().min(1, 'Host is required'),
+  port: z.coerce.number().int().positive('Port must be a positive integer'),
   database: z.string().min(1, 'Database name is required'),
-  username: z.string().default(''),
-  password: z.string().default(''),
+  username: z.string().min(1, 'Username is required'),
+  password: z.string().min(1, 'Password is required'),
   authSource: z.string().optional(),
   ssl: z.enum(['disabled', 'required', 'preferred']).default('preferred'),
   collection: z.string().min(1, 'Collection name is required'),
@@ -100,7 +99,6 @@ export async function POST(request: NextRequest) {
     }
 
     client = await createMongoDBConnection({
-      connectionString: params.connectionString,
       host: params.host,
       port: params.port,
       database: params.database,

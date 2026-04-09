@@ -8,7 +8,6 @@ export interface MongoDBConnectionConfig {
   password?: string
   authSource?: string
   ssl?: 'disabled' | 'required' | 'preferred'
-  connectionString?: string
 }
 
 export interface MongoDBQueryParams extends MongoDBConnectionConfig {
@@ -50,7 +49,6 @@ export interface MongoDBIntrospectParams {
   password?: string
   authSource?: string
   ssl?: 'disabled' | 'required' | 'preferred'
-  connectionString?: string
 }
 
 export interface MongoDBCollectionInfo {
