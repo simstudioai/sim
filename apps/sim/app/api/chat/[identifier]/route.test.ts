@@ -140,6 +140,10 @@ vi.mock('@/lib/workflows/streaming/streaming', () => ({
   createStreamingResponse: vi.fn().mockImplementation(async () => createMockStream()),
 }))
 
+vi.mock('@/lib/workflows/executor/execute-workflow', () => ({
+  executeWorkflow: vi.fn().mockResolvedValue({ success: true, output: {} }),
+}))
+
 vi.mock('@/lib/core/utils/sse', () => ({
   SSE_HEADERS: {
     'Content-Type': 'text/event-stream',
