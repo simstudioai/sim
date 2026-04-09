@@ -30,6 +30,8 @@ export const jiraAddCommentTool: ToolConfig<JiraAddCommentParams, JiraAddComment
     provider: 'jira',
   },
 
+  errorExtractor: 'atlassian-errors',
+
   params: {
     accessToken: {
       type: 'string',

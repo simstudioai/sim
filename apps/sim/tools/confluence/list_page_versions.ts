@@ -40,6 +40,8 @@ export const confluenceListPageVersionsTool: ToolConfig<
     provider: 'confluence',
   },
 
+  errorExtractor: 'atlassian-errors',
+
   params: {
     accessToken: {
       type: 'string',

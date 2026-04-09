@@ -13,6 +13,8 @@ export const jsmGetCustomersTool: ToolConfig<JsmGetCustomersParams, JsmGetCustom
     provider: 'jira',
   },
 
+  errorExtractor: 'atlassian-errors',
+
   params: {
     accessToken: {
       type: 'string',

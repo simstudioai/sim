@@ -17,6 +17,8 @@ export const jsmGetRequestTool: ToolConfig<JsmGetRequestParams, JsmGetRequestRes
     provider: 'jira',
   },
 
+  errorExtractor: 'atlassian-errors',
+
   params: {
     accessToken: {
       type: 'string',

@@ -41,6 +41,8 @@ export const confluenceGetTaskTool: ToolConfig<ConfluenceGetTaskParams, Confluen
       provider: 'confluence',
     },
 
+    errorExtractor: 'atlassian-errors',
+
     params: {
       accessToken: {
         type: 'string',

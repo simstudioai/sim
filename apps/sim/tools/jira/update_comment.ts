@@ -31,6 +31,8 @@ export const jiraUpdateCommentTool: ToolConfig<JiraUpdateCommentParams, JiraUpda
       provider: 'jira',
     },
 
+    errorExtractor: 'atlassian-errors',
+
     params: {
       accessToken: {
         type: 'string',
