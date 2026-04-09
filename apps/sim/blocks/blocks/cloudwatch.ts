@@ -570,6 +570,10 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
             if (rest.metricValue === undefined || rest.metricValue === '') {
               throw new Error('Metric value is required')
             }
+            const numericValue = Number(rest.metricValue)
+            if (Number.isNaN(numericValue)) {
+              throw new Error('Metric value must be a valid number')
+            }
 
             return {
               awsRegion,
@@ -577,7 +581,7 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
               awsSecretAccessKey,
               namespace: rest.metricNamespace,
               metricName: rest.metricName,
-              value: Number(rest.metricValue),
+              value: numericValue,
               ...(rest.metricUnit && rest.metricUnit !== 'None' && { unit: rest.metricUnit }),
               ...(rest.publishDimensions && {
                 dimensions: (() => {

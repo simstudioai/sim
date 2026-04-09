@@ -46,7 +46,9 @@ const PutMetricDataSchema = z.object({
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
   namespace: z.string().min(1, 'Namespace is required'),
   metricName: z.string().min(1, 'Metric name is required'),
-  value: z.number({ coerce: true }),
+  value: z.number({ coerce: true }).refine((v) => Number.isFinite(v), {
+    message: 'Metric value must be a finite number',
+  }),
   unit: z.enum(VALID_UNITS).optional(),
   dimensions: z
     .string()
