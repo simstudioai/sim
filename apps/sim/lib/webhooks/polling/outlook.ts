@@ -170,6 +170,9 @@ export const outlookPollingHandler: PollingProviderHandler = {
 /** Hard cap on total emails fetched per poll to prevent unbounded pagination loops. */
 const OUTLOOK_HARD_MAX_EMAILS = 200
 
+/** Number of items to request per Graph API page. Decoupled from the total cap so pagination actually runs. */
+const OUTLOOK_PAGE_SIZE = 50
+
 async function fetchNewOutlookEmails(
   accessToken: string,
   config: OutlookWebhookConfig,
@@ -186,7 +189,7 @@ async function fetchNewOutlookEmails(
     )
     params.append('$orderby', 'receivedDateTime desc')
     const maxEmails = Math.min(config.maxEmailsPerPoll || 25, OUTLOOK_HARD_MAX_EMAILS)
-    params.append('$top', maxEmails.toString())
+    params.append('$top', OUTLOOK_PAGE_SIZE.toString())
 
     if (config.lastCheckedTimestamp) {
       const lastChecked = new Date(config.lastCheckedTimestamp)
@@ -220,7 +223,8 @@ async function fetchNewOutlookEmails(
 
       const data = await response.json()
       const pageEmails: OutlookEmail[] = data.value || []
-      allEmails.push(...pageEmails)
+      const remaining = maxEmails - allEmails.length
+      allEmails.push(...pageEmails.slice(0, remaining))
 
       nextUrl =
         allEmails.length < maxEmails ? (data['@odata.nextLink'] as string | undefined) : undefined
@@ -230,7 +234,7 @@ async function fetchNewOutlookEmails(
 
     logger.info(`[${requestId}] Fetched ${allEmails.length} emails total`)
 
-    const emails = allEmails.slice(0, maxEmails)
+    const emails = allEmails
 
     let resolvedFolderIds: Map<string, string> | undefined
     let skipFolderFilter = false
