@@ -130,6 +130,137 @@ export function buildChangeRequestOutputs(): Record<string, TriggerOutput> {
   }
 }
 
+function normalizeToken(s: string): string {
+  return s.trim().toLowerCase().replace(/[\s-]+/g, '_')
+}
+
+/**
+ * Extracts the table name from a ServiceNow webhook payload.
+ * Business Rule scripts can send tableName in multiple formats.
+ */
+function extractTableName(body: Record<string, unknown>): string | undefined {
+  const candidates = [body.tableName, body.table_name, body.table, body.sys_class_name]
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim()) {
+      return c.trim()
+    }
+  }
+  return undefined
+}
+
+/**
+ * Extracts the event type from a ServiceNow webhook payload.
+ */
+function extractEventType(body: Record<string, unknown>): string | undefined {
+  const candidates = [body.eventType, body.event_type, body.action, body.operation]
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim()) {
+      return c.trim()
+    }
+  }
+  return undefined
+}
+
+const INCIDENT_CREATED = new Set([
+  'incident_created',
+  'insert',
+  'created',
+  'create',
+  'after_insert',
+  'afterinsert',
+])
+
+const INCIDENT_UPDATED = new Set([
+  'incident_updated',
+  'update',
+  'updated',
+  'after_update',
+  'afterupdate',
+])
+
+const CHANGE_REQUEST_CREATED = new Set([
+  'change_request_created',
+  'insert',
+  'created',
+  'create',
+  'after_insert',
+  'afterinsert',
+])
+
+const CHANGE_REQUEST_UPDATED = new Set([
+  'change_request_updated',
+  'update',
+  'updated',
+  'after_update',
+  'afterupdate',
+])
+
+/**
+ * Checks whether a ServiceNow webhook payload matches the configured trigger.
+ * Used by the ServiceNow provider handler to filter events at runtime.
+ */
+export function isServiceNowEventMatch(
+  triggerId: string,
+  body: Record<string, unknown>,
+  configuredTableName?: string
+): boolean {
+  const payloadTable = extractTableName(body)
+  const eventType = extractEventType(body)
+
+  if (triggerId === 'servicenow_webhook') {
+    if (!configuredTableName?.trim()) {
+      return true
+    }
+    if (!payloadTable) {
+      return true
+    }
+    return normalizeToken(payloadTable) === normalizeToken(configuredTableName)
+  }
+
+  if (triggerId === 'servicenow_incident_created' || triggerId === 'servicenow_incident_updated') {
+    if (configuredTableName?.trim()) {
+      if (payloadTable && normalizeToken(payloadTable) !== normalizeToken(configuredTableName)) {
+        return false
+      }
+    } else if (payloadTable && normalizeToken(payloadTable) !== 'incident') {
+      return false
+    }
+
+    if (!eventType) {
+      return true
+    }
+
+    const normalized = normalizeToken(eventType)
+    return triggerId === 'servicenow_incident_created'
+      ? INCIDENT_CREATED.has(normalized)
+      : INCIDENT_UPDATED.has(normalized)
+  }
+
+  if (
+    triggerId === 'servicenow_change_request_created' ||
+    triggerId === 'servicenow_change_request_updated'
+  ) {
+    if (configuredTableName?.trim()) {
+      if (payloadTable && normalizeToken(payloadTable) !== normalizeToken(configuredTableName)) {
+        return false
+      }
+    } else if (payloadTable && normalizeToken(payloadTable) !== 'change_request') {
+      return false
+    }
+
+    if (!eventType) {
+      return true
+    }
+
+    const normalized = normalizeToken(eventType)
+    return triggerId === 'servicenow_change_request_created'
+      ? CHANGE_REQUEST_CREATED.has(normalized)
+      : CHANGE_REQUEST_UPDATED.has(normalized)
+  }
+
+  return true
+}
+
 /**
  * Outputs for the generic webhook trigger (all events)
  */
