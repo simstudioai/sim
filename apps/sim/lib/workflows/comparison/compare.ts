@@ -14,7 +14,10 @@ import {
   normalizeVariables,
   sanitizeVariable,
 } from './normalize'
-import { formatValueForDisplay, resolveValueForDisplay } from './resolve-values'
+import { formatValueForDisplay, resolveFieldLabel, resolveValueForDisplay } from './resolve-values'
+
+const MAX_CHANGES_PER_BLOCK = 6
+const MAX_EDGE_DETAILS = 3
 
 const logger = createLogger('WorkflowComparison')
 
@@ -45,10 +48,22 @@ export interface WorkflowDiffSummary {
   addedBlocks: Array<{ id: string; type: string; name?: string }>
   removedBlocks: Array<{ id: string; type: string; name?: string }>
   modifiedBlocks: Array<{ id: string; type: string; name?: string; changes: FieldChange[] }>
-  edgeChanges: { added: number; removed: number }
+  edgeChanges: {
+    added: number
+    removed: number
+    addedDetails: Array<{ sourceName: string; targetName: string }>
+    removedDetails: Array<{ sourceName: string; targetName: string }>
+  }
   loopChanges: { added: number; removed: number; modified: number }
   parallelChanges: { added: number; removed: number; modified: number }
-  variableChanges: { added: number; removed: number; modified: number }
+  variableChanges: {
+    added: number
+    removed: number
+    modified: number
+    addedNames: string[]
+    removedNames: string[]
+    modifiedNames: string[]
+  }
   hasChanges: boolean
 }
 
@@ -63,10 +78,17 @@ export function generateWorkflowDiffSummary(
     addedBlocks: [],
     removedBlocks: [],
     modifiedBlocks: [],
-    edgeChanges: { added: 0, removed: 0 },
+    edgeChanges: { added: 0, removed: 0, addedDetails: [], removedDetails: [] },
     loopChanges: { added: 0, removed: 0, modified: 0 },
     parallelChanges: { added: 0, removed: 0, modified: 0 },
-    variableChanges: { added: 0, removed: 0, modified: 0 },
+    variableChanges: {
+      added: 0,
+      removed: 0,
+      modified: 0,
+      addedNames: [],
+      removedNames: [],
+      modifiedNames: [],
+    },
     hasChanges: false,
   }
 
@@ -79,10 +101,28 @@ export function generateWorkflowDiffSummary(
         name: block.name,
       })
     }
-    result.edgeChanges.added = (currentState.edges || []).length
+
+    const edges = currentState.edges || []
+    result.edgeChanges.added = edges.length
+    for (const edge of edges) {
+      const sourceBlock = currentBlocks[edge.source]
+      const targetBlock = currentBlocks[edge.target]
+      result.edgeChanges.addedDetails.push({
+        sourceName: sourceBlock?.name || sourceBlock?.type || edge.source,
+        targetName: targetBlock?.name || targetBlock?.type || edge.target,
+      })
+    }
+
     result.loopChanges.added = Object.keys(currentState.loops || {}).length
     result.parallelChanges.added = Object.keys(currentState.parallels || {}).length
-    result.variableChanges.added = Object.keys(currentState.variables || {}).length
+
+    const variables = currentState.variables || {}
+    const varEntries = Object.entries(variables)
+    result.variableChanges.added = varEntries.length
+    for (const [id, variable] of varEntries) {
+      result.variableChanges.addedNames.push((variable as { name?: string }).name || id)
+    }
+
     result.hasChanges = true
     return result
   }
@@ -121,7 +161,6 @@ export function generateWorkflowDiffSummary(
     const previousBlock = previousBlocks[id]
     const changes: FieldChange[] = []
 
-    // Use shared helpers for block field extraction (single source of truth)
     const {
       blockRest: currentRest,
       normalizedData: currentDataRest,
@@ -156,8 +195,6 @@ export function generateWorkflowDiffSummary(
           newValue: currentBlock.enabled,
         })
       }
-      // Check other block properties (boolean fields)
-      // Use !! to normalize: null/undefined/false are all equivalent (falsy)
       const blockFields = ['horizontalHandles', 'advancedMode', 'triggerMode', 'locked'] as const
       for (const field of blockFields) {
         if (!!currentBlock[field] !== !!previousBlock[field]) {
@@ -169,15 +206,27 @@ export function generateWorkflowDiffSummary(
         }
       }
       if (normalizedStringify(currentDataRest) !== normalizedStringify(previousDataRest)) {
-        changes.push({ field: 'data', oldValue: previousDataRest, newValue: currentDataRest })
+        const allDataKeys = new Set([
+          ...Object.keys(currentDataRest),
+          ...Object.keys(previousDataRest),
+        ])
+        for (const key of allDataKeys) {
+          if (
+            normalizedStringify(currentDataRest[key]) !== normalizedStringify(previousDataRest[key])
+          ) {
+            changes.push({
+              field: `data.${key}`,
+              oldValue: previousDataRest[key] ?? null,
+              newValue: currentDataRest[key] ?? null,
+            })
+          }
+        }
       }
     }
 
-    // Normalize trigger config values for both states before comparison
     const normalizedCurrentSubs = normalizeTriggerConfigValues(currentSubBlocks)
     const normalizedPreviousSubs = normalizeTriggerConfigValues(previousSubBlocks)
 
-    // Compare subBlocks using shared helper for filtering (single source of truth)
     const allSubBlockIds = filterSubBlockIds([
       ...new Set([...Object.keys(normalizedCurrentSubs), ...Object.keys(normalizedPreviousSubs)]),
     ])
@@ -195,11 +244,9 @@ export function generateWorkflowDiffSummary(
         continue
       }
 
-      // Use shared helper for subBlock value normalization (single source of truth)
       const currentValue = normalizeSubBlockValue(subId, currentSub.value)
       const previousValue = normalizeSubBlockValue(subId, previousSub.value)
 
-      // For string values, compare directly to catch even small text changes
       if (typeof currentValue === 'string' && typeof previousValue === 'string') {
         if (currentValue !== previousValue) {
           changes.push({ field: subId, oldValue: previousSub.value, newValue: currentSub.value })
@@ -212,7 +259,6 @@ export function generateWorkflowDiffSummary(
         }
       }
 
-      // Use shared helper for subBlock REST extraction (single source of truth)
       const currentSubRest = extractSubBlockRest(currentSub)
       const previousSubRest = extractSubBlockRest(previousSub)
 
@@ -240,11 +286,30 @@ export function generateWorkflowDiffSummary(
   const currentEdgeSet = new Set(currentEdges.map(normalizedStringify))
   const previousEdgeSet = new Set(previousEdges.map(normalizedStringify))
 
-  for (const edge of currentEdgeSet) {
-    if (!previousEdgeSet.has(edge)) result.edgeChanges.added++
+  const resolveBlockName = (blockId: string): string => {
+    const block = currentBlocks[blockId] || previousBlocks[blockId]
+    return block?.name || block?.type || blockId
   }
-  for (const edge of previousEdgeSet) {
-    if (!currentEdgeSet.has(edge)) result.edgeChanges.removed++
+
+  for (const edgeStr of currentEdgeSet) {
+    if (!previousEdgeSet.has(edgeStr)) {
+      result.edgeChanges.added++
+      const edge = JSON.parse(edgeStr) as { source: string; target: string }
+      result.edgeChanges.addedDetails.push({
+        sourceName: resolveBlockName(edge.source),
+        targetName: resolveBlockName(edge.target),
+      })
+    }
+  }
+  for (const edgeStr of previousEdgeSet) {
+    if (!currentEdgeSet.has(edgeStr)) {
+      result.edgeChanges.removed++
+      const edge = JSON.parse(edgeStr) as { source: string; target: string }
+      result.edgeChanges.removedDetails.push({
+        sourceName: resolveBlockName(edge.source),
+        targetName: resolveBlockName(edge.target),
+      })
+    }
   }
 
   const currentLoops = currentState.loops || {}
@@ -296,8 +361,18 @@ export function generateWorkflowDiffSummary(
   const currentVarIds = Object.keys(currentVars)
   const previousVarIds = Object.keys(previousVars)
 
-  result.variableChanges.added = currentVarIds.filter((id) => !previousVarIds.includes(id)).length
-  result.variableChanges.removed = previousVarIds.filter((id) => !currentVarIds.includes(id)).length
+  for (const id of currentVarIds) {
+    if (!previousVarIds.includes(id)) {
+      result.variableChanges.added++
+      result.variableChanges.addedNames.push(currentVars[id].name || id)
+    }
+  }
+  for (const id of previousVarIds) {
+    if (!currentVarIds.includes(id)) {
+      result.variableChanges.removed++
+      result.variableChanges.removedNames.push(previousVars[id].name || id)
+    }
+  }
 
   for (const id of currentVarIds) {
     if (!previousVarIds.includes(id)) continue
@@ -305,6 +380,7 @@ export function generateWorkflowDiffSummary(
     const previousVar = normalizeValue(sanitizeVariable(previousVars[id]))
     if (normalizedStringify(currentVar) !== normalizedStringify(previousVar)) {
       result.variableChanges.modified++
+      result.variableChanges.modifiedNames.push(currentVars[id].name || id)
     }
   }
 
@@ -349,56 +425,24 @@ export function formatDiffSummaryForDescription(summary: WorkflowDiffSummary): s
 
   for (const block of summary.modifiedBlocks) {
     const name = block.name || block.type
-    for (const change of block.changes.slice(0, 3)) {
+    const meaningfulChanges = block.changes.filter((c) => !c.field.endsWith('.properties'))
+    for (const change of meaningfulChanges.slice(0, MAX_CHANGES_PER_BLOCK)) {
+      const fieldLabel = resolveFieldLabel(block.type, change.field)
       const oldStr = formatValueForDisplay(change.oldValue)
       const newStr = formatValueForDisplay(change.newValue)
-      changes.push(`Modified ${name}: ${change.field} changed from "${oldStr}" to "${newStr}"`)
+      changes.push(`Modified ${name}: ${fieldLabel} changed from "${oldStr}" to "${newStr}"`)
     }
-    if (block.changes.length > 3) {
-      changes.push(`  ...and ${block.changes.length - 3} more changes in ${name}`)
+    if (meaningfulChanges.length > MAX_CHANGES_PER_BLOCK) {
+      changes.push(
+        `  ...and ${meaningfulChanges.length - MAX_CHANGES_PER_BLOCK} more changes in ${name}`
+      )
     }
   }
 
-  if (summary.edgeChanges.added > 0) {
-    changes.push(`Added ${summary.edgeChanges.added} connection(s)`)
-  }
-  if (summary.edgeChanges.removed > 0) {
-    changes.push(`Removed ${summary.edgeChanges.removed} connection(s)`)
-  }
-
-  if (summary.loopChanges.added > 0) {
-    changes.push(`Added ${summary.loopChanges.added} loop(s)`)
-  }
-  if (summary.loopChanges.removed > 0) {
-    changes.push(`Removed ${summary.loopChanges.removed} loop(s)`)
-  }
-  if (summary.loopChanges.modified > 0) {
-    changes.push(`Modified ${summary.loopChanges.modified} loop(s)`)
-  }
-
-  if (summary.parallelChanges.added > 0) {
-    changes.push(`Added ${summary.parallelChanges.added} parallel group(s)`)
-  }
-  if (summary.parallelChanges.removed > 0) {
-    changes.push(`Removed ${summary.parallelChanges.removed} parallel group(s)`)
-  }
-  if (summary.parallelChanges.modified > 0) {
-    changes.push(`Modified ${summary.parallelChanges.modified} parallel group(s)`)
-  }
-
-  const varChanges: string[] = []
-  if (summary.variableChanges.added > 0) {
-    varChanges.push(`${summary.variableChanges.added} added`)
-  }
-  if (summary.variableChanges.removed > 0) {
-    varChanges.push(`${summary.variableChanges.removed} removed`)
-  }
-  if (summary.variableChanges.modified > 0) {
-    varChanges.push(`${summary.variableChanges.modified} modified`)
-  }
-  if (varChanges.length > 0) {
-    changes.push(`Variables: ${varChanges.join(', ')}`)
-  }
+  formatEdgeChanges(summary, changes)
+  formatCountChanges(summary.loopChanges, 'loop', changes)
+  formatCountChanges(summary.parallelChanges, 'parallel group', changes)
+  formatVariableChanges(summary, changes)
 
   return changes.join('\n')
 }
@@ -437,8 +481,9 @@ export async function formatDiffSummaryForDescriptionAsync(
   const modifiedBlockPromises = summary.modifiedBlocks.map(async (block) => {
     const name = block.name || block.type
     const blockChanges: string[] = []
+    const meaningfulChanges = block.changes.filter((c) => !c.field.endsWith('.properties'))
 
-    const changesToProcess = block.changes.slice(0, 3)
+    const changesToProcess = meaningfulChanges.slice(0, MAX_CHANGES_PER_BLOCK)
     const resolvedChanges = await Promise.all(
       changesToProcess.map(async (change) => {
         const context = {
@@ -455,7 +500,7 @@ export async function formatDiffSummaryForDescriptionAsync(
         ])
 
         return {
-          field: change.field,
+          field: resolveFieldLabel(block.type, change.field),
           oldLabel: oldResolved.displayLabel,
           newLabel: newResolved.displayLabel,
         }
@@ -468,8 +513,10 @@ export async function formatDiffSummaryForDescriptionAsync(
       )
     }
 
-    if (block.changes.length > 3) {
-      blockChanges.push(`  ...and ${block.changes.length - 3} more changes in ${name}`)
+    if (meaningfulChanges.length > MAX_CHANGES_PER_BLOCK) {
+      blockChanges.push(
+        `  ...and ${meaningfulChanges.length - MAX_CHANGES_PER_BLOCK} more changes in ${name}`
+      )
     }
 
     return blockChanges
@@ -480,46 +527,10 @@ export async function formatDiffSummaryForDescriptionAsync(
     changes.push(...blockChanges)
   }
 
-  if (summary.edgeChanges.added > 0) {
-    changes.push(`Added ${summary.edgeChanges.added} connection(s)`)
-  }
-  if (summary.edgeChanges.removed > 0) {
-    changes.push(`Removed ${summary.edgeChanges.removed} connection(s)`)
-  }
-
-  if (summary.loopChanges.added > 0) {
-    changes.push(`Added ${summary.loopChanges.added} loop(s)`)
-  }
-  if (summary.loopChanges.removed > 0) {
-    changes.push(`Removed ${summary.loopChanges.removed} loop(s)`)
-  }
-  if (summary.loopChanges.modified > 0) {
-    changes.push(`Modified ${summary.loopChanges.modified} loop(s)`)
-  }
-
-  if (summary.parallelChanges.added > 0) {
-    changes.push(`Added ${summary.parallelChanges.added} parallel group(s)`)
-  }
-  if (summary.parallelChanges.removed > 0) {
-    changes.push(`Removed ${summary.parallelChanges.removed} parallel group(s)`)
-  }
-  if (summary.parallelChanges.modified > 0) {
-    changes.push(`Modified ${summary.parallelChanges.modified} parallel group(s)`)
-  }
-
-  const varChanges: string[] = []
-  if (summary.variableChanges.added > 0) {
-    varChanges.push(`${summary.variableChanges.added} added`)
-  }
-  if (summary.variableChanges.removed > 0) {
-    varChanges.push(`${summary.variableChanges.removed} removed`)
-  }
-  if (summary.variableChanges.modified > 0) {
-    varChanges.push(`${summary.variableChanges.modified} modified`)
-  }
-  if (varChanges.length > 0) {
-    changes.push(`Variables: ${varChanges.join(', ')}`)
-  }
+  formatEdgeChanges(summary, changes)
+  formatCountChanges(summary.loopChanges, 'loop', changes)
+  formatCountChanges(summary.parallelChanges, 'parallel group', changes)
+  formatVariableChanges(summary, changes)
 
   logger.info('Generated async diff description', {
     workflowId,
@@ -528,4 +539,83 @@ export async function formatDiffSummaryForDescriptionAsync(
   })
 
   return changes.join('\n')
+}
+
+function formatEdgeDetailList(
+  edges: Array<{ sourceName: string; targetName: string }>,
+  total: number,
+  verb: string,
+  changes: string[]
+): void {
+  if (edges.length === 0) {
+    changes.push(`${verb} ${total} connection(s)`)
+    return
+  }
+  for (const edge of edges.slice(0, MAX_EDGE_DETAILS)) {
+    changes.push(`${verb} connection: ${edge.sourceName} -> ${edge.targetName}`)
+  }
+  if (total > MAX_EDGE_DETAILS) {
+    changes.push(`  ...and ${total - MAX_EDGE_DETAILS} more ${verb.toLowerCase()} connection(s)`)
+  }
+}
+
+function formatEdgeChanges(summary: WorkflowDiffSummary, changes: string[]): void {
+  if (summary.edgeChanges.added > 0) {
+    formatEdgeDetailList(
+      summary.edgeChanges.addedDetails ?? [],
+      summary.edgeChanges.added,
+      'Added',
+      changes
+    )
+  }
+  if (summary.edgeChanges.removed > 0) {
+    formatEdgeDetailList(
+      summary.edgeChanges.removedDetails ?? [],
+      summary.edgeChanges.removed,
+      'Removed',
+      changes
+    )
+  }
+}
+
+function formatCountChanges(
+  counts: { added: number; removed: number; modified: number },
+  label: string,
+  changes: string[]
+): void {
+  if (counts.added > 0) changes.push(`Added ${counts.added} ${label}(s)`)
+  if (counts.removed > 0) changes.push(`Removed ${counts.removed} ${label}(s)`)
+  if (counts.modified > 0) changes.push(`Modified ${counts.modified} ${label}(s)`)
+}
+
+function formatVariableChanges(summary: WorkflowDiffSummary, changes: string[]): void {
+  const categories = [
+    {
+      count: summary.variableChanges.added,
+      names: summary.variableChanges.addedNames ?? [],
+      verb: 'added',
+    },
+    {
+      count: summary.variableChanges.removed,
+      names: summary.variableChanges.removedNames ?? [],
+      verb: 'removed',
+    },
+    {
+      count: summary.variableChanges.modified,
+      names: summary.variableChanges.modifiedNames ?? [],
+      verb: 'modified',
+    },
+  ] as const
+
+  const varParts: string[] = []
+  for (const { count, names, verb } of categories) {
+    if (count > 0) {
+      varParts.push(
+        names.length > 0 ? `${verb} ${names.map((n) => `"${n}"`).join(', ')}` : `${count} ${verb}`
+      )
+    }
+  }
+  if (varParts.length > 0) {
+    changes.push(`Variables: ${varParts.join(', ')}`)
+  }
 }
