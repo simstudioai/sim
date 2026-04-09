@@ -12,6 +12,20 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JsmRequestAPI')
 
+function parseJsmErrorMessage(status: number, statusText: string, errorText: string): string {
+  try {
+    const errorData = JSON.parse(errorText)
+    if (errorData.errorMessage) {
+      return `JSM API error: ${errorData.errorMessage}`
+    }
+  } catch {
+    if (errorText) {
+      return `JSM API error: ${errorText}`
+    }
+  }
+  return `JSM API error: ${status} ${statusText}`
+}
+
 export async function POST(request: NextRequest) {
   const auth = await checkInternalAuth(request)
   if (!auth.success || !auth.userId) {
@@ -127,20 +141,11 @@ export async function POST(request: NextRequest) {
           error: errorText,
         })
 
-        let errorMessage = `JSM API error: ${response.status} ${response.statusText}`
-        try {
-          const errorData = JSON.parse(errorText)
-          if (errorData.errorMessage) {
-            errorMessage = `JSM API error: ${errorData.errorMessage}`
-          }
-        } catch {
-          if (errorText) {
-            errorMessage = `JSM API error: ${errorText}`
-          }
-        }
-
         return NextResponse.json(
-          { error: errorMessage, details: errorText },
+          {
+            error: parseJsmErrorMessage(response.status, response.statusText, errorText),
+            details: errorText,
+          },
           { status: response.status }
         )
       }
@@ -205,20 +210,11 @@ export async function POST(request: NextRequest) {
         error: errorText,
       })
 
-      let errorMessage = `JSM API error: ${response.status} ${response.statusText}`
-      try {
-        const errorData = JSON.parse(errorText)
-        if (errorData.errorMessage) {
-          errorMessage = `JSM API error: ${errorData.errorMessage}`
-        }
-      } catch {
-        if (errorText) {
-          errorMessage = `JSM API error: ${errorText}`
-        }
-      }
-
       return NextResponse.json(
-        { error: errorMessage, details: errorText },
+        {
+          error: parseJsmErrorMessage(response.status, response.statusText, errorText),
+          details: errorText,
+        },
         { status: response.status }
       )
     }
