@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { subscription, user, workflowExecutionLogs, workspace } from '@sim/db/schema'
+import { subscription, workflowExecutionLogs, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull, lt } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -26,37 +26,25 @@ export async function GET(request: NextRequest) {
     const retentionDate = new Date()
     retentionDate.setDate(retentionDate.getDate() - Number(env.FREE_PLAN_LOG_RETENTION_DAYS || '7'))
 
-    const freeUsers = await db
-      .select({ userId: user.id })
-      .from(user)
+    /**
+     * Subquery: workspace IDs whose billed account user has no active paid
+     * subscription. Kept as a subquery (not materialized into JS) so the
+     * generated SQL is `WHERE workspace_id IN (SELECT ...)` — this avoids
+     * PostgreSQL's 65535 bind-parameter limit that was breaking cleanup once
+     * the free-user count grew beyond ~65k.
+     */
+    const freeWorkspacesSubquery = db
+      .select({ id: workspace.id })
+      .from(workspace)
       .leftJoin(
         subscription,
         and(
-          eq(user.id, subscription.referenceId),
+          eq(subscription.referenceId, workspace.billedAccountUserId),
           inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES),
           sqlIsPaid(subscription.plan)
         )
       )
       .where(isNull(subscription.id))
-
-    if (freeUsers.length === 0) {
-      logger.info('No free users found for log cleanup')
-      return NextResponse.json({ message: 'No free users found for cleanup' })
-    }
-
-    const freeUserIds = freeUsers.map((u) => u.userId)
-
-    const workspacesQuery = await db
-      .select({ id: workspace.id })
-      .from(workspace)
-      .where(inArray(workspace.billedAccountUserId, freeUserIds))
-
-    if (workspacesQuery.length === 0) {
-      logger.info('No workspaces found for free users')
-      return NextResponse.json({ message: 'No workspaces found for cleanup' })
-    }
-
-    const workspaceIds = workspacesQuery.map((w) => w.id)
 
     const results = {
       enhancedLogs: {
@@ -83,7 +71,7 @@ export async function GET(request: NextRequest) {
     let batchesProcessed = 0
     let hasMoreLogs = true
 
-    logger.info(`Starting enhanced logs cleanup for ${workspaceIds.length} workspaces`)
+    logger.info('Starting enhanced logs cleanup for free-plan workspaces')
 
     while (hasMoreLogs && batchesProcessed < MAX_BATCHES) {
       const oldEnhancedLogs = await db
@@ -105,7 +93,7 @@ export async function GET(request: NextRequest) {
         .from(workflowExecutionLogs)
         .where(
           and(
-            inArray(workflowExecutionLogs.workspaceId, workspaceIds),
+            inArray(workflowExecutionLogs.workspaceId, freeWorkspacesSubquery),
             lt(workflowExecutionLogs.createdAt, retentionDate)
           )
         )
