@@ -314,9 +314,9 @@ describe('Voyage AI Rerank Tool', () => {
 
   describe('URL Construction', () => {
     it('should return the VoyageAI rerank endpoint', () => {
-      expect(
-        tester.getRequestUrl({ apiKey: 'key', query: 'test', documents: ['doc1'] })
-      ).toBe('https://api.voyageai.com/v1/rerank')
+      expect(tester.getRequestUrl({ apiKey: 'key', query: 'test', documents: ['doc1'] })).toBe(
+        'https://api.voyageai.com/v1/rerank'
+      )
     })
   })
 
@@ -490,7 +490,7 @@ describe('Voyage AI Rerank Tool', () => {
         data: [
           { index: 2, relevance_score: 0.99 },
           { index: 0, relevance_score: 0.75 },
-          { index: 1, relevance_score: 0.30 },
+          { index: 1, relevance_score: 0.3 },
         ],
         model: 'rerank-2',
         usage: { total_tokens: 40 },
@@ -595,9 +595,7 @@ describe('Voyage AI Multimodal Embeddings Tool', () => {
     })
 
     it('should use internal proxy URL', () => {
-      expect(multimodalEmbeddingsTool.request.url).toBe(
-        '/api/tools/voyageai/multimodal-embeddings'
-      )
+      expect(multimodalEmbeddingsTool.request.url).toBe('/api/tools/voyageai/multimodal-embeddings')
     })
 
     it('should use POST method', () => {

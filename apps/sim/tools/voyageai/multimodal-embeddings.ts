@@ -1,8 +1,8 @@
+import type { ToolConfig } from '@/tools/types'
 import type {
   VoyageAIMultimodalEmbeddingsParams,
   VoyageAIMultimodalEmbeddingsResponse,
 } from '@/tools/voyageai/types'
-import type { ToolConfig } from '@/tools/types'
 
 export const multimodalEmbeddingsTool: ToolConfig<
   VoyageAIMultimodalEmbeddingsParams,

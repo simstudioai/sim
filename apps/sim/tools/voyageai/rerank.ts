@@ -1,5 +1,5 @@
-import type { VoyageAIRerankParams, VoyageAIRerankResponse } from '@/tools/voyageai/types'
 import type { ToolConfig } from '@/tools/types'
+import type { VoyageAIRerankParams, VoyageAIRerankResponse } from '@/tools/voyageai/types'
 
 export const rerankTool: ToolConfig<VoyageAIRerankParams, VoyageAIRerankResponse> = {
   id: 'voyageai_rerank',

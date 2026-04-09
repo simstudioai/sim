@@ -1,5 +1,5 @@
-import type { VoyageAIEmbeddingsParams, VoyageAIEmbeddingsResponse } from '@/tools/voyageai/types'
 import type { ToolConfig } from '@/tools/types'
+import type { VoyageAIEmbeddingsParams, VoyageAIEmbeddingsResponse } from '@/tools/voyageai/types'
 
 export const embeddingsTool: ToolConfig<VoyageAIEmbeddingsParams, VoyageAIEmbeddingsResponse> = {
   id: 'voyageai_embeddings',
@@ -25,7 +25,8 @@ export const embeddingsTool: ToolConfig<VoyageAIEmbeddingsParams, VoyageAIEmbedd
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Type of input: "query" for search queries, "document" for documents to be indexed',
+      description:
+        'Type of input: "query" for search queries, "document" for documents to be indexed',
     },
     apiKey: {
       type: 'string',

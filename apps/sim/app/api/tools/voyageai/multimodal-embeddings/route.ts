@@ -41,12 +41,10 @@ export async function POST(request: NextRequest) {
 
     const content: Array<Record<string, string>> = []
 
-    // Add text content
     if (params.input?.trim()) {
       content.push({ type: 'text', text: params.input })
     }
 
-    // Process image files → base64
     if (params.imageFiles) {
       const files = Array.isArray(params.imageFiles) ? params.imageFiles : [params.imageFiles]
       for (const rawFile of files) {
@@ -66,14 +64,16 @@ export async function POST(request: NextRequest) {
         } catch (error) {
           logger.error(`[${requestId}] Failed to process image file:`, error)
           return NextResponse.json(
-            { success: false, error: `Failed to process image file: ${error instanceof Error ? error.message : 'Unknown error'}` },
+            {
+              success: false,
+              error: `Failed to process image file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            },
             { status: 400 }
           )
         }
       }
     }
 
-    // Process image URLs
     if (params.imageUrls?.trim()) {
       let urls: string[]
       try {
@@ -97,7 +97,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Process video file → base64
     if (params.videoFile) {
       try {
         const userFile = processSingleFileToUserFile(params.videoFile, requestId, logger)
@@ -115,13 +114,15 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         logger.error(`[${requestId}] Failed to process video file:`, error)
         return NextResponse.json(
-          { success: false, error: `Failed to process video file: ${error instanceof Error ? error.message : 'Unknown error'}` },
+          {
+            success: false,
+            error: `Failed to process video file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          },
           { status: 400 }
         )
       }
     }
 
-    // Process video URL
     if (params.videoUrl?.trim()) {
       const validation = await validateUrlWithDNS(params.videoUrl, 'videoUrl')
       if (!validation.isValid) {
@@ -145,7 +146,6 @@ export async function POST(request: NextRequest) {
       model: params.model,
     })
 
-    // Build VoyageAI request
     const voyageBody: Record<string, unknown> = {
       inputs: [{ content }],
       model: params.model,

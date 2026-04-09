@@ -16,10 +16,9 @@ const describeIntegration = API_KEY ? describe : describe.skip
  * Use undici's fetch directly to bypass the global fetch mock set up in vitest.setup.ts.
  */
 async function liveFetch(url: string, init: RequestInit): Promise<Response> {
-  // vi.mocked(fetch) is the mock — call the real underlying impl
   const { request } = await import('undici')
   const resp = await request(url, {
-    method: init.method as any,
+    method: init.method as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
     headers: init.headers as Record<string, string>,
     body: init.body as string,
   })
@@ -359,7 +358,11 @@ describeIntegration('VoyageAI Integration Tests (live API)', () => {
     }, 15000)
 
     it('should reject invalid API key', async () => {
-      const headers = rerankTool.request.headers({ apiKey: 'invalid-key', query: '', documents: [] })
+      const headers = rerankTool.request.headers({
+        apiKey: 'invalid-key',
+        query: '',
+        documents: [],
+      })
       const body = rerankTool.request.body!({
         apiKey: 'invalid-key',
         query: 'test',
@@ -416,7 +419,11 @@ describeIntegration('VoyageAI Integration Tests (live API)', () => {
         query: 'What are neural networks used for?',
         documents,
       })
-      const rerankHeaders = rerankTool.request.headers({ apiKey: API_KEY!, query: '', documents: [] })
+      const rerankHeaders = rerankTool.request.headers({
+        apiKey: API_KEY!,
+        query: '',
+        documents: [],
+      })
       const rerankUrl =
         typeof rerankTool.request.url === 'function'
           ? rerankTool.request.url({ apiKey: API_KEY!, query: '', documents: [] })
@@ -451,7 +458,9 @@ describeIntegration('VoyageAI Integration Tests (live API)', () => {
 
       // The AI-related docs should score higher than the unrelated ones
       const aiDocIndices = [0, 2] // "Neural networks..." and "Deep learning..."
-      const topTwoIndices = rerankResult.output.results.slice(0, 2).map((r: any) => r.index)
+      const topTwoIndices = rerankResult.output.results
+        .slice(0, 2)
+        .map((r: { index: number }) => r.index)
       const aiDocsInTop2 = topTwoIndices.filter((i: number) => aiDocIndices.includes(i))
       expect(aiDocsInTop2.length).toBeGreaterThanOrEqual(1)
     }, 30000)

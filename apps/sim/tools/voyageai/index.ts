@@ -6,4 +6,4 @@ export const voyageaiEmbeddingsTool = embeddingsTool
 export const voyageaiMultimodalEmbeddingsTool = multimodalEmbeddingsTool
 export const voyageaiRerankTool = rerankTool
 
-export * from './types'
+export * from '@/tools/voyageai/types'

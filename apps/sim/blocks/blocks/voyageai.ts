@@ -27,7 +27,6 @@ export const VoyageAIBlock: BlockConfig = {
       ],
       value: () => 'embeddings',
     },
-    // === Text Embeddings fields ===
     {
       id: 'input',
       title: 'Input Text',
@@ -66,7 +65,6 @@ export const VoyageAIBlock: BlockConfig = {
       value: () => 'document',
       mode: 'advanced',
     },
-    // === Multimodal Embeddings fields ===
     {
       id: 'multimodalInput',
       title: 'Text Input',
@@ -153,7 +151,6 @@ export const VoyageAIBlock: BlockConfig = {
       value: () => 'document',
       mode: 'advanced',
     },
-    // === Rerank fields ===
     {
       id: 'query',
       title: 'Query',
@@ -191,7 +188,6 @@ export const VoyageAIBlock: BlockConfig = {
       condition: { field: 'operation', value: 'rerank' },
       mode: 'advanced',
     },
-    // === Common fields ===
     {
       id: 'apiKey',
       title: 'API Key',
