@@ -120,9 +120,7 @@ export function generateWorkflowDiffSummary(
     const varEntries = Object.entries(variables)
     result.variableChanges.added = varEntries.length
     for (const [id, variable] of varEntries) {
-      result.variableChanges.addedNames.push(
-        (variable as { name?: string }).name || id
-      )
+      result.variableChanges.addedNames.push((variable as { name?: string }).name || id)
     }
 
     result.hasChanges = true

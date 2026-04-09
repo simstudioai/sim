@@ -251,7 +251,11 @@ export async function resolveValueForDisplay(
         return { original: value, displayLabel: label, resolved: true }
       }
     } catch (error) {
-      logger.warn('Failed to resolve dropdown label', { value, subBlockId: context.subBlockId, error })
+      logger.warn('Failed to resolve dropdown label', {
+        value,
+        subBlockId: context.subBlockId,
+        error,
+      })
     }
   }
 
