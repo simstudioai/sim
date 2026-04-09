@@ -1,9 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
+import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { generateShortId } from '@/lib/core/utils/uuid'
 import { pollProvider, VALID_POLLING_PROVIDERS } from '@/lib/webhooks/polling'
+import { providerPolling } from '@/background/provider-polling'
 
 const logger = createLogger('PollingAPI')
 
@@ -20,9 +22,6 @@ export async function GET(
   const { provider } = await params
   const requestId = generateShortId()
 
-  const LOCK_KEY = `${provider}-polling-lock`
-  let lockValue: string | undefined
-
   try {
     const authError = verifyCronAuth(request, `${provider} webhook polling`)
     if (authError) return authError
@@ -31,29 +30,75 @@ export async function GET(
       return NextResponse.json({ error: `Unknown polling provider: ${provider}` }, { status: 404 })
     }
 
-    lockValue = requestId
-    const locked = await acquireLock(LOCK_KEY, lockValue, LOCK_TTL_SECONDS)
-    if (!locked) {
-      return NextResponse.json(
-        {
+    // When trigger.dev is enabled, dispatch polling as an async task and return immediately.
+    // Per-provider concurrency (concurrencyKey) ensures only one poll per provider runs at a time,
+    // while different providers (gmail vs outlook) can poll in parallel.
+    if (isTriggerDevEnabled) {
+      try {
+        const handle = await providerPolling.trigger(
+          { provider, requestId },
+          {
+            concurrencyKey: provider,
+            tags: [`provider:${provider}`],
+          }
+        )
+
+        logger.info(`[${requestId}] Dispatched ${provider} polling to trigger.dev`, {
+          runId: handle.id,
+        })
+
+        return NextResponse.json({
           success: true,
-          message: 'Polling already in progress – skipped',
+          message: `${provider} polling dispatched`,
           requestId,
-          status: 'skip',
-        },
-        { status: 202 }
-      )
+          runId: handle.id,
+          status: 'dispatched',
+        })
+      } catch (triggerError) {
+        // If trigger.dev is unavailable, fall through to synchronous polling below.
+        logger.warn(
+          `[${requestId}] Trigger.dev dispatch failed for ${provider}, falling back to synchronous polling`,
+          {
+            error: triggerError instanceof Error ? triggerError.message : String(triggerError),
+          }
+        )
+      }
     }
 
-    const results = await pollProvider(provider)
+    // Fallback: synchronous polling when trigger.dev is not enabled (self-hosted).
+    // Redis lock prevents concurrent polls for the same provider.
+    const LOCK_KEY = `${provider}-polling-lock`
+    let lockValue: string | undefined
 
-    return NextResponse.json({
-      success: true,
-      message: `${provider} polling completed`,
-      requestId,
-      status: 'completed',
-      ...results,
-    })
+    try {
+      lockValue = requestId
+      const locked = await acquireLock(LOCK_KEY, lockValue, LOCK_TTL_SECONDS)
+      if (!locked) {
+        return NextResponse.json(
+          {
+            success: true,
+            message: 'Polling already in progress – skipped',
+            requestId,
+            status: 'skip',
+          },
+          { status: 202 }
+        )
+      }
+
+      const results = await pollProvider(provider)
+
+      return NextResponse.json({
+        success: true,
+        message: `${provider} polling completed`,
+        requestId,
+        status: 'completed',
+        ...results,
+      })
+    } finally {
+      if (lockValue) {
+        await releaseLock(LOCK_KEY, lockValue).catch(() => {})
+      }
+    }
   } catch (error) {
     logger.error(`Error during ${provider} polling (${requestId}):`, error)
     return NextResponse.json(
@@ -65,9 +110,5 @@ export async function GET(
       },
       { status: 500 }
     )
-  } finally {
-    if (lockValue) {
-      await releaseLock(LOCK_KEY, lockValue).catch(() => {})
-    }
   }
 }

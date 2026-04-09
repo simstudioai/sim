@@ -22,6 +22,8 @@ interface ImapWebhookConfig {
   includeAttachments: boolean
   lastProcessedUid?: number
   lastProcessedUidByMailbox?: Record<string, number>
+  /** Stores the UIDVALIDITY value per mailbox as strings (bigint cannot be JSON-serialized). */
+  uidValidityByMailbox?: Record<string, string>
   lastCheckedTimestamp?: string
   maxEmailsPerPoll?: number
 }
@@ -90,48 +92,92 @@ export const imapPollingHandler: PollingProviderHandler = {
         return 'failure'
       }
 
-      const { emails, latestUidByMailbox } = await fetchNewEmails(
-        config,
-        requestId,
-        hostValidation.resolvedIP!,
-        logger
-      )
-      const pollTimestamp = new Date().toISOString()
+      const client = new ImapFlow({
+        host: hostValidation.resolvedIP!,
+        servername: config.host,
+        port: config.port || 993,
+        secure: config.secure ?? true,
+        auth: {
+          user: config.username,
+          pass: config.password,
+        },
+        tls: { rejectUnauthorized: true },
+        logger: false,
+      })
 
-      if (!emails || !emails.length) {
-        await updateImapState(webhookId, latestUidByMailbox, pollTimestamp, config, logger)
-        await markWebhookSuccess(webhookId, logger)
-        logger.info(`[${requestId}] No new emails found for webhook ${webhookId}`)
-        return 'success'
-      }
+      let emails: Awaited<ReturnType<typeof fetchNewEmails>>['emails'] = []
+      let latestUidByMailbox: Record<string, number> = {}
+      let uidValidityByMailbox: Record<string, string> = {}
 
-      logger.info(`[${requestId}] Found ${emails.length} new emails for webhook ${webhookId}`)
+      try {
+        await client.connect()
 
-      const { processedCount, failedCount } = await processEmails(
-        emails,
-        webhookData,
-        workflowData,
-        config,
-        requestId,
-        hostValidation.resolvedIP!,
-        logger
-      )
+        const result = await fetchNewEmails(client, config, requestId, logger)
+        emails = result.emails
+        latestUidByMailbox = result.latestUidByMailbox
+        uidValidityByMailbox = result.uidValidityByMailbox
 
-      await updateImapState(webhookId, latestUidByMailbox, pollTimestamp, config, logger)
+        const pollTimestamp = new Date().toISOString()
 
-      if (failedCount > 0 && processedCount === 0) {
-        await markWebhookFailed(webhookId, logger)
-        logger.warn(
-          `[${requestId}] All ${failedCount} emails failed to process for webhook ${webhookId}`
+        if (!emails.length) {
+          await updateImapState(
+            webhookId,
+            latestUidByMailbox,
+            pollTimestamp,
+            config,
+            logger,
+            uidValidityByMailbox
+          )
+          await markWebhookSuccess(webhookId, logger)
+          logger.info(`[${requestId}] No new emails found for webhook ${webhookId}`)
+          await client.logout()
+          return 'success'
+        }
+
+        logger.info(`[${requestId}] Found ${emails.length} new emails for webhook ${webhookId}`)
+
+        const { processedCount, failedCount } = await processEmails(
+          emails,
+          webhookData,
+          workflowData,
+          config,
+          client,
+          requestId,
+          logger
         )
-        return 'failure'
-      }
 
-      await markWebhookSuccess(webhookId, logger)
-      logger.info(
-        `[${requestId}] Successfully processed ${processedCount} emails for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
-      )
-      return 'success'
+        await updateImapState(
+          webhookId,
+          latestUidByMailbox,
+          pollTimestamp,
+          config,
+          logger,
+          uidValidityByMailbox
+        )
+
+        await client.logout()
+
+        if (failedCount > 0 && processedCount === 0) {
+          await markWebhookFailed(webhookId, logger)
+          logger.warn(
+            `[${requestId}] All ${failedCount} emails failed to process for webhook ${webhookId}`
+          )
+          return 'failure'
+        }
+
+        await markWebhookSuccess(webhookId, logger)
+        logger.info(
+          `[${requestId}] Successfully processed ${processedCount} emails for webhook ${webhookId}${failedCount > 0 ? ` (${failedCount} failed)` : ''}`
+        )
+        return 'success'
+      } catch (innerError) {
+        try {
+          await client.logout()
+        } catch {
+          // Ignore logout errors
+        }
+        throw innerError
+      }
     } catch (error) {
       logger.error(`[${requestId}] Error processing IMAP webhook ${webhookId}:`, error)
       await markWebhookFailed(webhookId, logger)
@@ -145,7 +191,8 @@ async function updateImapState(
   uidByMailbox: Record<string, number>,
   timestamp: string,
   config: ImapWebhookConfig,
-  logger: ReturnType<typeof import('@sim/logger').createLogger>
+  logger: ReturnType<typeof import('@sim/logger').createLogger>,
+  uidValidityByMailbox: Record<string, string>
 ) {
   const existingUidByMailbox = config.lastProcessedUidByMailbox || {}
   const mergedUidByMailbox = { ...existingUidByMailbox }
@@ -159,30 +206,18 @@ async function updateImapState(
     {
       lastProcessedUidByMailbox: mergedUidByMailbox,
       lastCheckedTimestamp: timestamp,
+      uidValidityByMailbox,
     },
     logger
   )
 }
 
 async function fetchNewEmails(
+  client: ImapFlow,
   config: ImapWebhookConfig,
   requestId: string,
-  resolvedIP: string,
   logger: ReturnType<typeof import('@sim/logger').createLogger>
 ) {
-  const client = new ImapFlow({
-    host: resolvedIP,
-    servername: config.host,
-    port: config.port || 993,
-    secure: config.secure ?? true,
-    auth: {
-      user: config.username,
-      pass: config.password,
-    },
-    tls: { rejectUnauthorized: true },
-    logger: false,
-  })
-
   const emails: Array<{
     uid: number
     mailboxPath: string
@@ -193,97 +228,93 @@ async function fetchNewEmails(
 
   const mailboxes = getMailboxesToCheck(config)
   const latestUidByMailbox: Record<string, number> = { ...(config.lastProcessedUidByMailbox || {}) }
+  const uidValidityByMailbox: Record<string, string> = { ...(config.uidValidityByMailbox || {}) }
 
-  try {
-    await client.connect()
+  const maxEmails = config.maxEmailsPerPoll || 25
+  let totalEmailsCollected = 0
 
-    const maxEmails = config.maxEmailsPerPoll || 25
-    let totalEmailsCollected = 0
+  for (const mailboxPath of mailboxes) {
+    if (totalEmailsCollected >= maxEmails) break
 
-    for (const mailboxPath of mailboxes) {
-      if (totalEmailsCollected >= maxEmails) break
+    try {
+      const mailbox = await client.mailboxOpen(mailboxPath)
 
-      try {
-        await client.mailboxOpen(mailboxPath)
+      const currentUidValidity = mailbox.uidValidity.toString()
+      const storedUidValidity = uidValidityByMailbox[mailboxPath]
 
-        let searchCriteria: Record<string, unknown> = { unseen: true }
-        if (config.searchCriteria) {
-          if (typeof config.searchCriteria === 'object') {
-            searchCriteria = config.searchCriteria as unknown as Record<string, unknown>
-          } else if (typeof config.searchCriteria === 'string') {
-            try {
-              searchCriteria = JSON.parse(config.searchCriteria)
-            } catch {
-              logger.warn(`[${requestId}] Invalid search criteria JSON, using default`)
-            }
+      if (storedUidValidity && storedUidValidity !== currentUidValidity) {
+        logger.warn(
+          `[${requestId}] UIDVALIDITY changed for ${mailboxPath} (${storedUidValidity} -> ${currentUidValidity}), discarding stored UID`
+        )
+        delete latestUidByMailbox[mailboxPath]
+      }
+      uidValidityByMailbox[mailboxPath] = currentUidValidity
+
+      let searchCriteria: Record<string, unknown> = { unseen: true }
+      if (config.searchCriteria) {
+        if (typeof config.searchCriteria === 'object') {
+          searchCriteria = config.searchCriteria as unknown as Record<string, unknown>
+        } else if (typeof config.searchCriteria === 'string') {
+          try {
+            searchCriteria = JSON.parse(config.searchCriteria)
+          } catch {
+            logger.warn(`[${requestId}] Invalid search criteria JSON, using default`)
           }
         }
-
-        const lastUidForMailbox = latestUidByMailbox[mailboxPath] || config.lastProcessedUid
-
-        if (lastUidForMailbox) {
-          searchCriteria = { ...searchCriteria, uid: `${lastUidForMailbox + 1}:*` }
-        }
-
-        if (config.lastCheckedTimestamp) {
-          const lastChecked = new Date(config.lastCheckedTimestamp)
-          const bufferTime = new Date(lastChecked.getTime() - 60000)
-          searchCriteria = { ...searchCriteria, since: bufferTime }
-        } else {
-          const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
-          searchCriteria = { ...searchCriteria, since: oneDayAgo }
-        }
-
-        let messageUids: number[] = []
-        try {
-          const searchResult = await client.search(searchCriteria, { uid: true })
-          messageUids = searchResult === false ? [] : searchResult
-        } catch {
-          continue
-        }
-
-        if (messageUids.length === 0) continue
-
-        messageUids.sort((a, b) => a - b)
-        const remainingSlots = maxEmails - totalEmailsCollected
-        const uidsToProcess = messageUids.slice(0, remainingSlots)
-
-        if (uidsToProcess.length > 0) {
-          latestUidByMailbox[mailboxPath] = Math.max(
-            ...uidsToProcess,
-            latestUidByMailbox[mailboxPath] || 0
-          )
-        }
-
-        for await (const msg of client.fetch(
-          uidsToProcess,
-          { uid: true, envelope: true, bodyStructure: true, source: true },
-          { uid: true }
-        )) {
-          emails.push({
-            uid: msg.uid,
-            mailboxPath,
-            envelope: msg.envelope,
-            bodyStructure: msg.bodyStructure,
-            source: msg.source,
-          })
-          totalEmailsCollected++
-        }
-      } catch (mailboxError) {
-        logger.warn(`[${requestId}] Error processing mailbox ${mailboxPath}:`, mailboxError)
       }
-    }
 
-    await client.logout()
-    return { emails, latestUidByMailbox }
-  } catch (error) {
-    try {
-      await client.logout()
-    } catch {
-      // Ignore logout errors
+      const lastUidForMailbox = latestUidByMailbox[mailboxPath]
+
+      if (lastUidForMailbox) {
+        searchCriteria = { ...searchCriteria, uid: `${lastUidForMailbox + 1}:*` }
+      }
+
+      if (config.lastCheckedTimestamp) {
+        const lastChecked = new Date(config.lastCheckedTimestamp)
+        const bufferTime = new Date(lastChecked.getTime() - 60000)
+        searchCriteria = { ...searchCriteria, since: bufferTime }
+      } else {
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+        searchCriteria = { ...searchCriteria, since: oneDayAgo }
+      }
+
+      let messageUids: number[] = []
+      try {
+        const searchResult = await client.search(searchCriteria, { uid: true })
+        messageUids = searchResult === false ? [] : searchResult
+      } catch {
+        continue
+      }
+
+      if (messageUids.length === 0) continue
+
+      messageUids.sort((a, b) => a - b)
+      const remainingSlots = maxEmails - totalEmailsCollected
+      const uidsToProcess = messageUids.slice(0, remainingSlots)
+
+      for await (const msg of client.fetch(
+        uidsToProcess,
+        { uid: true, envelope: true, bodyStructure: true, source: true },
+        { uid: true }
+      )) {
+        emails.push({
+          uid: msg.uid,
+          mailboxPath,
+          envelope: msg.envelope,
+          bodyStructure: msg.bodyStructure,
+          source: msg.source,
+        })
+        if (msg.uid > (latestUidByMailbox[mailboxPath] || 0)) {
+          latestUidByMailbox[mailboxPath] = msg.uid
+        }
+        totalEmailsCollected++
+      }
+    } catch (mailboxError) {
+      logger.warn(`[${requestId}] Error processing mailbox ${mailboxPath}:`, mailboxError)
     }
-    throw error
   }
+
+  return { emails, latestUidByMailbox, uidValidityByMailbox }
 }
 
 function getMailboxesToCheck(config: ImapWebhookConfig): string[] {
@@ -437,34 +468,17 @@ async function processEmails(
   webhookData: PollWebhookContext['webhookData'],
   workflowData: PollWebhookContext['workflowData'],
   config: ImapWebhookConfig,
+  client: ImapFlow,
   requestId: string,
-  resolvedIP: string,
   logger: ReturnType<typeof import('@sim/logger').createLogger>
 ) {
   let processedCount = 0
   let failedCount = 0
 
-  const client = new ImapFlow({
-    host: resolvedIP,
-    servername: config.host,
-    port: config.port || 993,
-    secure: config.secure ?? true,
-    auth: {
-      user: config.username,
-      pass: config.password,
-    },
-    tls: { rejectUnauthorized: true },
-    logger: false,
-  })
-
   let currentOpenMailbox: string | null = null
   const lockState: { lock: MailboxLockObject | null } = { lock: null }
 
   try {
-    if (config.markAsRead) {
-      await client.connect()
-    }
-
     for (const email of emails) {
       try {
         await pollingIdempotency.executeWithIdempotency(
@@ -541,7 +555,7 @@ async function processEmails(
                   lockState.lock = await client.getMailboxLock(email.mailboxPath)
                   currentOpenMailbox = email.mailboxPath
                 }
-                await client.messageFlagsAdd({ uid: email.uid }, ['\\Seen'], { uid: true })
+                await client.messageFlagsAdd(email.uid, ['\\Seen'], { uid: true })
               } catch (flagError) {
                 logger.warn(
                   `[${requestId}] Failed to mark message ${email.uid} as read:`,
@@ -565,14 +579,11 @@ async function processEmails(
       }
     }
   } finally {
-    if (config.markAsRead) {
+    if (lockState.lock) {
       try {
-        if (lockState.lock) {
-          lockState.lock.release()
-        }
-        await client.logout()
+        lockState.lock.release()
       } catch {
-        // Ignore logout errors
+        // Ignore lock release errors
       }
     }
   }
