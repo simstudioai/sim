@@ -10,12 +10,13 @@ export async function processResume(job: Job<BullMQJobData<ResumeExecutionPayloa
   const { payload } = job.data
   const isFinalAttempt = job.attemptsMade + 1 >= (job.opts.attempts ?? 1)
 
-  return runDispatchedJob(job, isFinalAttempt, async () => {
-    logger.info('Processing resume execution job', {
-      jobId: job.id,
-      resumeExecutionId: payload.resumeExecutionId,
-      workflowId: payload.workflowId,
-    })
-    return executeResumeJob(payload)
+  logger.info('Processing resume execution job', {
+    jobId: job.id,
+    resumeExecutionId: payload.resumeExecutionId,
+    workflowId: payload.workflowId,
+  })
+
+  return runDispatchedJob(job.data.metadata, () => executeResumeJob(payload), {
+    isFinalAttempt,
   })
 }
