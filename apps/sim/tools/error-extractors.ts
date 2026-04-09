@@ -47,7 +47,10 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
       if (errorInfo?.data?.errorMessage) {
         return errorInfo.data.errorMessage
       }
-      if (Array.isArray(errorInfo?.data?.errorMessages) && errorInfo.data.errorMessages.length > 0) {
+      if (
+        Array.isArray(errorInfo?.data?.errorMessages) &&
+        errorInfo.data.errorMessages.length > 0
+      ) {
         return errorInfo.data.errorMessages.join(', ')
       }
       if (errorInfo?.data?.message) {
