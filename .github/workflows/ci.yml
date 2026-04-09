@@ -48,7 +48,7 @@ jobs:
   # Build AMD64 images and push to ECR immediately (+ GHCR for main)
   build-amd64:
     name: Build AMD64
-    needs: [test-build, detect-version]
+    needs: [detect-version]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/dev')
     runs-on: blacksmith-8vcpu-ubuntu-2404
     permissions:
@@ -150,7 +150,7 @@ jobs:
   # Build ARM64 images for GHCR (main branch only, runs in parallel)
   build-ghcr-arm64:
     name: Build ARM64 (GHCR Only)
-    needs: [test-build, detect-version]
+    needs: [detect-version]
     runs-on: blacksmith-8vcpu-ubuntu-2404-arm
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
