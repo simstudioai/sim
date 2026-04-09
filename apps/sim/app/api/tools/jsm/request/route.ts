@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
       description,
       raiseOnBehalfOf,
       requestFieldValues,
+      formAnswers,
       requestParticipants,
       channel,
       expand,
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
 
     const baseUrl = getJsmApiBaseUrl(cloudId)
 
-    const isCreateOperation = serviceDeskId && requestTypeId && summary
+    const isCreateOperation = serviceDeskId && requestTypeId && (summary || formAnswers)
 
     if (isCreateOperation) {
       const serviceDeskIdValidation = validateAlphanumericId(serviceDeskId, 'serviceDeskId')
@@ -69,15 +70,30 @@ export async function POST(request: NextRequest) {
       }
       const url = `${baseUrl}/request`
 
-      logger.info('Creating request at:', url)
+      logger.info('Creating request at:', { url, serviceDeskId, requestTypeId })
 
       const requestBody: Record<string, unknown> = {
         serviceDeskId,
         requestTypeId,
-        requestFieldValues: requestFieldValues || {
-          summary,
-          ...(description && { description }),
-        },
+      }
+
+      if (summary || requestFieldValues) {
+        const fieldValues =
+          requestFieldValues && typeof requestFieldValues === 'object'
+            ? {
+                ...(!requestFieldValues.summary && summary ? { summary } : {}),
+                ...(!requestFieldValues.description && description ? { description } : {}),
+                ...requestFieldValues,
+              }
+            : {
+                ...(summary && { summary }),
+                ...(description && { description }),
+              }
+        requestBody.requestFieldValues = fieldValues
+      }
+
+      if (formAnswers && typeof formAnswers === 'object') {
+        requestBody.form = { answers: formAnswers }
       }
 
       if (raiseOnBehalfOf) {
@@ -111,8 +127,20 @@ export async function POST(request: NextRequest) {
           error: errorText,
         })
 
+        let errorMessage = `JSM API error: ${response.status} ${response.statusText}`
+        try {
+          const errorData = JSON.parse(errorText)
+          if (errorData.errorMessage) {
+            errorMessage = `JSM API error: ${errorData.errorMessage}`
+          }
+        } catch {
+          if (errorText) {
+            errorMessage = `JSM API error: ${errorText}`
+          }
+        }
+
         return NextResponse.json(
-          { error: `JSM API error: ${response.status} ${response.statusText}`, details: errorText },
+          { error: errorMessage, details: errorText },
           { status: response.status }
         )
       }
@@ -177,8 +205,20 @@ export async function POST(request: NextRequest) {
         error: errorText,
       })
 
+      let errorMessage = `JSM API error: ${response.status} ${response.statusText}`
+      try {
+        const errorData = JSON.parse(errorText)
+        if (errorData.errorMessage) {
+          errorMessage = `JSM API error: ${errorData.errorMessage}`
+        }
+      } catch {
+        if (errorText) {
+          errorMessage = `JSM API error: ${errorText}`
+        }
+      }
+
       return NextResponse.json(
-        { error: `JSM API error: ${response.status} ${response.statusText}`, details: errorText },
+        { error: errorMessage, details: errorText },
         { status: response.status }
       )
     }
