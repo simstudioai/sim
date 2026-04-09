@@ -487,12 +487,17 @@ describe('Automatic Internal Route Detection', () => {
     cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
 
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
-    mockSecureFetchWithPinnedIP.mockResolvedValue(
-      new Response(JSON.stringify({}), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      })
-    )
+    mockSecureFetchWithPinnedIP.mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: {
+        get: (name: string) => (name.toLowerCase() === 'content-type' ? 'application/json' : null),
+        toRecord: () => ({ 'content-type': 'application/json' }),
+      },
+      text: async () => JSON.stringify({}),
+      json: async () => ({}),
+    })
   })
 
   afterEach(() => {
