@@ -279,6 +279,7 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
           }
           break
         case 'Enter':
+        case 'Tab':
           e.preventDefault()
           e.stopPropagation()
           if (selected && selectedIndex >= 0 && selectedIndex < flatTagList.length) {
