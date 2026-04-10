@@ -479,6 +479,13 @@ Return ONLY the JQL query - no explanations or markdown formatting.`,
       placeholder: 'Maximum results to return (default: 50)',
       condition: { field: 'operation', value: ['search', 'get_comments', 'get_worklogs'] },
     },
+    {
+      id: 'fields',
+      title: 'Fields',
+      type: 'short-input',
+      placeholder: 'Comma-separated fields to return (e.g., key,summary,status)',
+      condition: { field: 'operation', value: 'search' },
+    },
     // Comment fields
     {
       id: 'commentBody',
@@ -922,6 +929,12 @@ Return ONLY the comment text - no explanations.`,
               jql: params.jql,
               nextPageToken: params.nextPageToken || undefined,
               maxResults: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              fields: params.fields
+                ? params.fields
+                    .split(',')
+                    .map((f: string) => f.trim())
+                    .filter(Boolean)
+                : undefined,
             }
           }
           case 'add_comment': {
@@ -1114,6 +1127,10 @@ Return ONLY the comment text - no explanations.`,
     startAt: { type: 'string', description: 'Pagination start index' },
     jql: { type: 'string', description: 'JQL (Jira Query Language) search query' },
     maxResults: { type: 'string', description: 'Maximum number of results to return' },
+    fields: {
+      type: 'string',
+      description: 'Comma-separated field names to return (e.g., key,summary,status)',
+    },
     // Comment operation inputs
     commentBody: { type: 'string', description: 'Text content for comment operations' },
     commentId: { type: 'string', description: 'Comment ID for update/delete operations' },
