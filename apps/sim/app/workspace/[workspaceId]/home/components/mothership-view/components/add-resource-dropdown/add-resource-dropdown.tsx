@@ -167,7 +167,7 @@ export function AddResourceDropdown({
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
         setActiveIndex((prev) => Math.max(prev - 1, 0))
-      } else if (e.key === 'Enter' || e.key === 'Tab') {
+      } else if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
         if (filtered.length > 0 && filtered[activeIndex]) {
           e.preventDefault()
           const { type, item } = filtered[activeIndex]

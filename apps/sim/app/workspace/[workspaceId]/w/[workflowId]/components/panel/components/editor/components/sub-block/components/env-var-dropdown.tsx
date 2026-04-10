@@ -243,9 +243,12 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
             break
           case 'Enter':
           case 'Tab':
-            e.preventDefault()
-            e.stopPropagation()
-            handleEnvVarSelect(filteredEnvVars[selectedIndex])
+            if (e.key === 'Tab' && e.shiftKey) break
+            if (filteredEnvVars[selectedIndex]) {
+              e.preventDefault()
+              e.stopPropagation()
+              handleEnvVarSelect(filteredEnvVars[selectedIndex])
+            }
             break
           case 'Escape':
             e.preventDefault()
