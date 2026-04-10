@@ -185,6 +185,15 @@ export function ResourceTabs({
   const dragStartIdx = useRef<number | null>(null)
   const autoScrollRaf = useRef<number | null>(null)
   const anchorIdRef = useRef<string | null>(null)
+  const prevChatIdRef = useRef(chatId)
+
+  // Reset selection when switching chats — component instance persists across
+  // chat switches so stale IDs would otherwise carry over.
+  if (prevChatIdRef.current !== chatId) {
+    prevChatIdRef.current = chatId
+    setSelectedIds(new Set())
+    anchorIdRef.current = null
+  }
 
   const existingKeys = useMemo(
     () => new Set(resources.map((r) => `${r.type}:${r.id}`)),
@@ -261,9 +270,15 @@ export function ResourceTabs({
       for (const r of targets) {
         onRemoveResource(r.type, r.id)
       }
-      if (isMulti) {
-        setSelectedIds(new Set())
-        anchorIdRef.current = null
+      // Clear stale selection and anchor for all removed targets
+      const removedIds = new Set(targets.map((r) => r.id))
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        for (const id of removedIds) next.delete(id)
+        return next
+      })
+      if (anchorIdRef.current && removedIds.has(anchorIdRef.current)) {
+        anchorIdRef.current = activeId
       }
       // Serialize mutations so each onMutate sees the cache updated by the prior
       // one. Continue on individual failures so remaining removals still fire.
