@@ -534,7 +534,6 @@ const SubBlockRow = memo(function SubBlockRow({
     workspaceId
   )
 
-  const credentialId = dependencyValues.credential
   const knowledgeBaseId = dependencyValues.knowledgeBaseId
 
   const dropdownLabel = useMemo(() => {
@@ -576,6 +575,7 @@ const SubBlockRow = memo(function SubBlockRow({
   const collectionIdValue = resolveContextValue('collectionId')
   const spreadsheetIdValue = resolveContextValue('spreadsheetId')
   const fileIdValue = resolveContextValue('fileId')
+  const credentialId = dependencyValues.credential ?? resolveContextValue('oauthCredential')
 
   const { displayName: selectorDisplayName } = useSelectorDisplayName({
     subBlock,
