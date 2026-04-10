@@ -110,9 +110,108 @@ The model breakdown shows:
   Pricing shown reflects rates as of September 10, 2025. Check provider documentation for current pricing.
 </Callout>
 
+## Hosted Tool Pricing
+
+When workflows use tool blocks with Sim's hosted API keys, costs are charged per operation. Use your own keys via BYOK to pay providers directly instead.
+
+<Tabs items={['Firecrawl', 'Exa', 'Serper', 'Perplexity', 'Linkup', 'Parallel AI', 'Jina AI', 'Google Cloud', 'Brandfetch']}>
+  <Tab>
+    **Firecrawl** - Web scraping, crawling, search, and extraction
+
+    | Operation | Cost |
+    |-----------|------|
+    | Scrape | $0.001 per credit used |
+    | Crawl | $0.001 per credit used |
+    | Search | $0.001 per credit used |
+    | Extract | $0.001 per credit used |
+    | Map | $0.001 per credit used |
+  </Tab>
+
+  <Tab>
+    **Exa** - AI-powered search and research
+
+    | Operation | Cost |
+    |-----------|------|
+    | Search | Dynamic (returned by API) |
+    | Get Contents | Dynamic (returned by API) |
+    | Find Similar Links | Dynamic (returned by API) |
+    | Answer | Dynamic (returned by API) |
+  </Tab>
+
+  <Tab>
+    **Serper** - Google search API
+
+    | Operation | Cost |
+    |-----------|------|
+    | Search (≤10 results) | $0.001 |
+    | Search (>10 results) | $0.002 |
+  </Tab>
+
+  <Tab>
+    **Perplexity** - AI-powered chat and web search
+
+    | Operation | Cost |
+    |-----------|------|
+    | Search | $0.005 per request |
+    | Chat | Token-based (varies by model) |
+  </Tab>
+
+  <Tab>
+    **Linkup** - Web search and content retrieval
+
+    | Operation | Cost |
+    |-----------|------|
+    | Standard search | ~$0.006 |
+    | Deep search | ~$0.055 |
+  </Tab>
+
+  <Tab>
+    **Parallel AI** - Web search, extraction, and deep research
+
+    | Operation | Cost |
+    |-----------|------|
+    | Search (≤10 results) | $0.005 |
+    | Search (>10 results) | $0.005 + $0.001 per additional result |
+    | Extract | $0.001 per URL |
+    | Deep Research | $0.005–$2.40 (varies by processor tier) |
+  </Tab>
+
+  <Tab>
+    **Jina AI** - Web reading and search
+
+    | Operation | Cost |
+    |-----------|------|
+    | Read URL | $0.20 per 1M tokens |
+    | Search | $0.20 per 1M tokens (minimum 10K tokens) |
+  </Tab>
+
+  <Tab>
+    **Google Cloud** - Translate, Maps, PageSpeed, and Books APIs
+
+    | Operation | Cost |
+    |-----------|------|
+    | Translate / Detect | $0.00002 per character |
+    | Maps (Geocode, Directions, Distance Matrix, Elevation, Timezone, Reverse Geocode, Geolocate, Validate Address) | $0.005 per request |
+    | Maps (Snap to Roads) | $0.01 per request |
+    | Maps (Place Details) | $0.017 per request |
+    | Maps (Places Search) | $0.032 per request |
+    | PageSpeed | Free |
+    | Books (Search, Details) | Free |
+  </Tab>
+
+  <Tab>
+    **Brandfetch** - Brand assets, logos, colors, and company info
+
+    | Operation | Cost |
+    |-----------|------|
+    | Search | Free |
+    | Get Brand | $0.04 per request |
+  </Tab>
+</Tabs>
+
 ## Bring Your Own Key (BYOK)
 
-Use your own API keys for AI model providers instead of Sim's hosted keys to pay base prices with no markup.
+Use your own API keys for supported providers instead of Sim's hosted keys to pay base prices with no markup.
 
 ### Supported Providers
 
@@ -121,7 +220,17 @@ Use your own API keys for AI model providers instead of Sim's hosted keys to pay
 | OpenAI | Knowledge Base embeddings, Agent block |
 | Anthropic | Agent block |
 | Google | Agent block |
-| Mistral | Knowledge Base OCR |
+| Mistral | Knowledge Base OCR, Agent block |
+| Fireworks | Agent block |
+| Firecrawl | Web scraping, crawling, search, and extraction |
+| Exa | AI-powered search and research |
+| Serper | Google search API |
+| Linkup | Web search and content retrieval |
+| Parallel AI | Web search, extraction, and deep research |
+| Perplexity | AI-powered chat and web search |
+| Jina AI | Web reading and search |
+| Google Cloud | Translate, Maps, PageSpeed, and Books APIs |
+| Brandfetch | Brand assets, logos, colors, and company info |
 
 ### Setup
 
@@ -152,20 +261,20 @@ Each voice session is billed when it starts. In deployed chat voice mode, each c
 
 ## Plans
 
-Sim has two paid plan tiers — **Pro** and **Max**. Either can be used individually or with a team. Team plans pool credits across all seats in the organization.
+Sim has two paid plan tiers - **Pro** and **Max**. Either can be used individually or with a team. Team plans pool credits across all seats in the organization.
 
 | Plan | Price | Credits Included | Daily Refresh |
 |------|-------|------------------|---------------|
-| **Community** | $0 | 1,000 (one-time) | — |
+| **Community** | $0 | 1,000 (one-time) | - |
 | **Pro** | $25/mo | 6,000/mo | +50/day |
 | **Max** | $100/mo | 25,000/mo | +200/day |
-| **Enterprise** | Custom | Custom | — |
+| **Enterprise** | Custom | Custom | - |
 
 To use Pro or Max with a team, select **Get For Team** in subscription settings and choose the tier and number of seats. Credits are pooled across the organization at the per-seat rate (e.g. Max for Teams with 3 seats = 75,000 credits/mo pooled).
 
 ### Daily Refresh Credits
 
-Paid plans include a small daily credit allowance that does not count toward your plan limit. Each day, usage up to the daily refresh amount is excluded from billable usage. This allowance resets every 24 hours and does not carry over — use it or lose it.
+Paid plans include a small daily credit allowance that does not count toward your plan limit. Each day, usage up to the daily refresh amount is excluded from billable usage. This allowance resets every 24 hours and does not carry over - use it or lose it.
 
 | Plan | Daily Refresh |
 |------|---------------|
@@ -252,7 +361,7 @@ Sim uses a **base subscription + overage** billing model:
 
 ### How It Works
 
-**Pro Plan ($25/month — 6,000 credits):**
+**Pro Plan ($25/month - 6,000 credits):**
 - Monthly subscription includes 6,000 credits of usage
 - Usage under 6,000 credits → No additional charges
 - Usage over 6,000 credits (with on-demand enabled) → Pay the overage at month end
