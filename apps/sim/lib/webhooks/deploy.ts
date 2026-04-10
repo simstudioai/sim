@@ -183,7 +183,11 @@ function buildProviderConfig(
   )
 
   triggerDef.subBlocks
-    .filter((subBlock) => subBlock.mode === 'trigger' && !SYSTEM_SUBBLOCK_IDS.includes(subBlock.id))
+    .filter(
+      (subBlock) =>
+        (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') &&
+        !SYSTEM_SUBBLOCK_IDS.includes(subBlock.id)
+    )
     .forEach((subBlock) => {
       const valueToUse = getConfigValue(block, subBlock)
       if (valueToUse !== null && valueToUse !== undefined && valueToUse !== '') {

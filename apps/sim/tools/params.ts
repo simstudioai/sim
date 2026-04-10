@@ -66,7 +66,7 @@ export interface UIComponentConfig {
   /** Canonical parameter ID if this is part of a canonical group */
   canonicalParamId?: string
   /** The mode of the source subblock (basic/advanced/both) */
-  mode?: 'basic' | 'advanced' | 'both' | 'trigger'
+  mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced'
   /** The actual subblock ID this config was derived from */
   actualSubBlockId?: string
   /** Wand configuration for AI assistance */
@@ -944,7 +944,7 @@ export function getSubBlocksForToolInput(
       if (EXCLUDED_SUBBLOCK_TYPES.has(sb.type)) continue
 
       // Skip trigger-mode-only subblocks
-      if (sb.mode === 'trigger') continue
+      if (sb.mode === 'trigger' || sb.mode === 'trigger-advanced') continue
 
       // Hide tool API key fields when running on hosted Sim or when env var is set
       if (isSubBlockHidden(sb)) continue

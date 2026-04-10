@@ -58,10 +58,17 @@ export function buildCanonicalIndex(subBlocks: SubBlockConfig[]): CanonicalIndex
       groupsById[canonicalId] = { canonicalId, advancedIds: [] }
     }
     const group = groupsById[canonicalId]
-    if (subBlock.mode === 'advanced') {
-      group.advancedIds.push(subBlock.id)
+    if (subBlock.mode === 'advanced' || subBlock.mode === 'trigger-advanced') {
+      // Deduplicate: trigger spreads may repeat the same advanced ID as the regular block
+      if (!group.advancedIds.includes(subBlock.id)) {
+        group.advancedIds.push(subBlock.id)
+      }
     } else {
-      group.basicId = subBlock.id
+      // A trigger-mode subblock must not overwrite a basicId already claimed by a non-trigger subblock.
+      // Blocks spread their trigger's subBlocks after their own, so the regular subblock always wins.
+      if (!group.basicId || subBlock.mode !== 'trigger') {
+        group.basicId = subBlock.id
+      }
     }
     canonicalIdBySubBlockId[subBlock.id] = canonicalId
   })

@@ -4421,8 +4421,14 @@
       }
     ],
     "operationCount": 10,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "google_calendar_poller",
+        "name": "Google Calendar Event Trigger",
+        "description": "Triggers when events are created, updated, or cancelled in Google Calendar"
+      }
+    ],
+    "triggerCount": 1,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "productivity",
@@ -4570,8 +4576,14 @@
       }
     ],
     "operationCount": 14,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "google_drive_poller",
+        "name": "Google Drive File Trigger",
+        "description": "Triggers when files are created, modified, or deleted in Google Drive"
+      }
+    ],
+    "triggerCount": 1,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "file-storage",
@@ -4927,8 +4939,14 @@
       }
     ],
     "operationCount": 11,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "google_sheets_poller",
+        "name": "Google Sheets New Row Trigger",
+        "description": "Triggers when new rows are added to a Google Sheet"
+      }
+    ],
+    "triggerCount": 1,
     "authType": "oauth",
     "category": "tools",
     "integrationType": "documents",

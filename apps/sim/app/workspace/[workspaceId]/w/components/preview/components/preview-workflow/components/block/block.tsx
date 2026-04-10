@@ -319,11 +319,11 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
 
       if (effectiveTrigger) {
         const isValidTriggerSubblock = isPureTriggerBlock
-          ? subBlock.mode === 'trigger' || !subBlock.mode
-          : subBlock.mode === 'trigger'
+          ? subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced' || !subBlock.mode
+          : subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced'
         if (!isValidTriggerSubblock) return false
       } else {
-        if (subBlock.mode === 'trigger') return false
+        if (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') return false
       }
 
       /** Skip value-dependent visibility checks in lightweight mode */
