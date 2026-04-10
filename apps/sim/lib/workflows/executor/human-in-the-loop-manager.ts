@@ -180,10 +180,20 @@ export class PauseResumeManager {
   static async enqueueOrStartResume(args: EnqueueResumeArgs): Promise<EnqueueResumeResult> {
     const { executionId, contextId, resumeInput, userId } = args
 
-    return await db.transaction(async (tx) => {
-      const pausedExecution = await tx
-        .select()
-        .from(pausedExecutions)
+    // Retry to handle race condition where resume request arrives
+    // before persistPauseResult commits the paused execution row.
+    // The INSERT in persistPauseResult is awaited, so the race window
+    // is only between the method call and the await returning (~10-50ms).
+    const MAX_RETRIES = 3
+    const RETRY_DELAY_MS = 200
+    let lastError: Error | null = null
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        return await db.transaction(async (tx) => {
+          const pausedExecution = await tx
+            .select()
+            .from(pausedExecutions)
         .where(eq(pausedExecutions.executionId, executionId))
         .for('update')
         .limit(1)
@@ -293,7 +303,22 @@ export class PauseResumeManager {
         resumeInput,
         userId,
       }
-    })
+      })
+      } catch (err: any) {
+        lastError = err
+        const isNotFound = err.message?.includes('Paused execution not found')
+        const isLastAttempt = attempt === MAX_RETRIES - 1
+
+        if (!isNotFound || isLastAttempt) {
+          throw err
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS))
+      }
+    }
+
+    // This should never be reached due to the for loop logic, but TypeScript needs it
+    throw lastError ?? new Error('enqueueOrStartResume failed after retries')
   }
 
   static async startResumeExecution(args: StartResumeExecutionArgs): Promise<ExecutionResult> {
