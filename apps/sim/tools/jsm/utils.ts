@@ -50,13 +50,36 @@ export function parseJsmErrorMessage(
 ): string {
   try {
     const errorData = JSON.parse(errorText)
+    // JSM Service Desk: singular errorMessage
     if (errorData.errorMessage) {
-      return `JSM Forms API error: ${errorData.errorMessage}`
+      return errorData.errorMessage
+    }
+    // Jira Platform: errorMessages array
+    if (Array.isArray(errorData.errorMessages) && errorData.errorMessages.length > 0) {
+      return errorData.errorMessages.join(', ')
+    }
+    // Confluence v2 / Forms API: RFC 7807 errors array
+    if (Array.isArray(errorData.errors) && errorData.errors.length > 0) {
+      const err = errorData.errors[0]
+      if (err?.title) {
+        return err.detail ? `${err.title}: ${err.detail}` : err.title
+      }
+    }
+    // Jira Platform field-level errors object
+    if (errorData.errors && !Array.isArray(errorData.errors)) {
+      const fieldErrors = Object.entries(errorData.errors)
+        .map(([field, msg]) => `${field}: ${msg}`)
+        .join(', ')
+      if (fieldErrors) return fieldErrors
+    }
+    // Generic message fallback
+    if (errorData.message) {
+      return errorData.message
     }
   } catch {
     if (errorText) {
-      return `JSM Forms API error: ${errorText}`
+      return errorText
     }
   }
-  return `JSM Forms API error: ${status} ${statusText}`
+  return `${status} ${statusText}`
 }
