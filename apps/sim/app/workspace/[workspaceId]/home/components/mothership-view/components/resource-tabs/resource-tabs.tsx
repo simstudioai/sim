@@ -265,18 +265,22 @@ export function ResourceTabs({
         setSelectedIds(new Set())
         anchorIdRef.current = null
       }
-      // Serialize mutations so each onMutate sees the cache from the prior one;
-      // calling .mutate() in a loop races the optimistic updates and the observer
-      // discards all but the last in-flight mutation.
+      // Serialize mutations so each onMutate sees the cache updated by the prior
+      // one. Continue on individual failures so remaining removals still fire.
       const persistable = targets.filter((r) => !isEphemeralResource(r))
       if (persistable.length > 0) {
         void (async () => {
           for (const r of persistable) {
-            await removeResource.mutateAsync({
-              chatId,
-              resourceType: r.type,
-              resourceId: r.id,
-            })
+            try {
+              await removeResource.mutateAsync({
+                chatId,
+                resourceType: r.type,
+                resourceId: r.id,
+              })
+            } catch {
+              // Individual failure — the mutation's onError already rolled back
+              // this resource in cache. Remaining removals continue.
+            }
           }
         })()
       }
