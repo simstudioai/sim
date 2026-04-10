@@ -185,6 +185,7 @@ function buildProviderConfig(
 
   const canonicalIndex = buildCanonicalIndex(triggerDef.subBlocks)
   const satisfiedCanonicalIds = new Set<string>()
+  const filledSubBlockIds = new Set<string>()
 
   const relevantSubBlocks = triggerDef.subBlocks.filter(
     (subBlock) =>
@@ -196,13 +197,14 @@ function buildProviderConfig(
     const valueToUse = getConfigValue(block, subBlock)
     if (valueToUse !== null && valueToUse !== undefined && valueToUse !== '') {
       providerConfig[subBlock.id] = valueToUse
+      filledSubBlockIds.add(subBlock.id)
       const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
       if (canonicalId) satisfiedCanonicalIds.add(canonicalId)
     }
   }
 
   for (const subBlock of relevantSubBlocks) {
-    if (providerConfig[subBlock.id] !== undefined) continue
+    if (filledSubBlockIds.has(subBlock.id)) continue
     const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
     if (canonicalId && satisfiedCanonicalIds.has(canonicalId)) continue
     if (isFieldRequired(subBlock, subBlockValues)) {
