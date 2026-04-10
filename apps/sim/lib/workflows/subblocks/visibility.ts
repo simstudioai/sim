@@ -292,7 +292,7 @@ export function resolveDependencyValue(
   for (const [memberId, memberCanonicalId] of Object.entries(
     canonicalIndex.canonicalIdBySubBlockId
   )) {
-    if (memberCanonicalId === canonicalId && values[memberId] != null) {
+    if (memberCanonicalId === canonicalId && isNonEmptyValue(values[memberId])) {
       return values[memberId]
     }
   }
