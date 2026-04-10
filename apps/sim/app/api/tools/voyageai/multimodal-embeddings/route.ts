@@ -77,7 +77,8 @@ export async function POST(request: NextRequest) {
     if (params.imageUrls?.trim()) {
       let urls: string[]
       try {
-        urls = JSON.parse(params.imageUrls)
+        const parsed = JSON.parse(params.imageUrls)
+        urls = Array.isArray(parsed) ? parsed : [parsed]
       } catch {
         urls = params.imageUrls
           .split(/[,\n]/)

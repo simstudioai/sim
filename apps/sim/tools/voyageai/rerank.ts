@@ -66,6 +66,9 @@ export const rerankTool: ToolConfig<VoyageAIRerankParams, VoyageAIRerankResponse
 
   transformResponse: async (response, params) => {
     const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.detail ?? data.message ?? `VoyageAI API error: ${response.status}`)
+    }
     const originalDocuments: string[] = params
       ? typeof params.documents === 'string'
         ? JSON.parse(params.documents)

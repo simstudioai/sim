@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { ToolTester } from '@sim/testing/builders'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { embeddingsTool } from '@/tools/voyageai/embeddings'
 import { multimodalEmbeddingsTool } from '@/tools/voyageai/multimodal-embeddings'
 import { rerankTool } from '@/tools/voyageai/rerank'
@@ -12,11 +12,7 @@ describe('Voyage AI Embeddings Tool', () => {
 
   beforeEach(() => {
     tester = new ToolTester(embeddingsTool as any)
-  })
-
-  afterEach(() => {
-    tester.cleanup()
-    vi.resetAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('Tool metadata', () => {
@@ -276,11 +272,7 @@ describe('Voyage AI Rerank Tool', () => {
 
   beforeEach(() => {
     tester = new ToolTester(rerankTool as any)
-  })
-
-  afterEach(() => {
-    tester.cleanup()
-    vi.resetAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('Tool metadata', () => {

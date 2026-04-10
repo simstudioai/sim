@@ -73,7 +73,7 @@ export const VoyageAIBlock: BlockConfig = {
       condition: { field: 'operation', value: 'multimodal_embeddings' },
     },
     {
-      id: 'imageFiles',
+      id: 'imageFilesUpload',
       title: 'Image Files',
       type: 'file-upload',
       canonicalParamId: 'imageFiles',
@@ -101,7 +101,7 @@ export const VoyageAIBlock: BlockConfig = {
       mode: 'advanced',
     },
     {
-      id: 'videoFile',
+      id: 'videoFileUpload',
       title: 'Video File',
       type: 'file-upload',
       canonicalParamId: 'videoFile',

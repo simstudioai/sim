@@ -5,7 +5,6 @@ export interface VoyageAIEmbeddingsParams {
   input: string | string[]
   model?: string
   inputType?: 'query' | 'document'
-  truncation?: boolean
 }
 
 export interface VoyageAIRerankParams {
@@ -14,7 +13,6 @@ export interface VoyageAIRerankParams {
   documents: string | string[]
   model?: string
   topK?: number
-  truncation?: boolean
 }
 
 export interface VoyageAIEmbeddingsResponse extends ToolResponse {

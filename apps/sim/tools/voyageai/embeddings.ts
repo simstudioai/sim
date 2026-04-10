@@ -57,6 +57,9 @@ export const embeddingsTool: ToolConfig<VoyageAIEmbeddingsParams, VoyageAIEmbedd
 
   transformResponse: async (response) => {
     const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.detail ?? data.message ?? `VoyageAI API error: ${response.status}`)
+    }
     return {
       success: true,
       output: {
