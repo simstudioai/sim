@@ -1232,31 +1232,30 @@ export function useChat(
                 }
                 flush()
 
-                // TODO: Uncomment when rich UI for Results tab is ready
-                // if (shouldOpenGenericResource(name)) {
-                //   if (!genericEntryMap.has(id)) {
-                //     const entryIdx = appendGenericEntry({
-                //       toolCallId: id,
-                //       toolName: name,
-                //       displayTitle: displayTitle ?? name,
-                //       status: 'executing',
-                //       params: args,
-                //     })
-                //     genericEntryMap.set(id, entryIdx)
-                //     const opened = addResource({ type: 'generic', id: 'results', title: 'Results' })
-                //     if (opened) onResourceEventRef.current?.()
-                //     else setActiveResourceId('results')
-                //   } else {
-                //     const entryIdx = genericEntryMap.get(id)
-                //     if (entryIdx !== undefined) {
-                //       updateGenericEntry(entryIdx, {
-                //         toolName: name,
-                //         ...(displayTitle && { displayTitle }),
-                //         ...(args && { params: args }),
-                //       })
-                //     }
-                //   }
-                // }
+                if (shouldOpenGenericResource(name)) {
+                  if (!genericEntryMap.has(id)) {
+                    const entryIdx = appendGenericEntry({
+                      toolCallId: id,
+                      toolName: name,
+                      displayTitle: displayTitle ?? name,
+                      status: 'executing',
+                      params: args,
+                    })
+                    genericEntryMap.set(id, entryIdx)
+                    const opened = addResource({ type: 'generic', id: 'results', title: 'Results' })
+                    if (opened) onResourceEventRef.current?.()
+                    else setActiveResourceId('results')
+                  } else {
+                    const entryIdx = genericEntryMap.get(id)
+                    if (entryIdx !== undefined) {
+                      updateGenericEntry(entryIdx, {
+                        toolName: name,
+                        ...(displayTitle && { displayTitle }),
+                        ...(args && { params: args }),
+                      })
+                    }
+                  }
+                }
 
                 if (
                   parsed.type === 'tool_call' &&
@@ -1353,18 +1352,17 @@ export function useChat(
                   flush()
                 }
 
-                // TODO: Uncomment when rich UI for Results tab is ready
-                // if (toolName && shouldOpenGenericResource(toolName)) {
-                //   const entryIdx = genericEntryMap.get(id)
-                //   if (entryIdx !== undefined) {
-                //     const entry = genericResourceDataRef.current.entries[entryIdx]
-                //     if (entry) {
-                //       updateGenericEntry(entryIdx, {
-                //         streamingArgs: (entry.streamingArgs ?? '') + delta,
-                //       })
-                //     }
-                //   }
-                // }
+                if (toolName && shouldOpenGenericResource(toolName)) {
+                  const entryIdx = genericEntryMap.get(id)
+                  if (entryIdx !== undefined) {
+                    const entry = genericResourceDataRef.current.entries[entryIdx]
+                    if (entry) {
+                      updateGenericEntry(entryIdx, {
+                        streamingArgs: (entry.streamingArgs ?? '') + delta,
+                      })
+                    }
+                  }
+                }
 
                 break
               }
@@ -1462,33 +1460,32 @@ export function useChat(
                     }
                   }
 
-                  // TODO: Uncomment when rich UI for Results tab is ready
-                  // if (
-                  //   shouldOpenGenericResource(tc.name) ||
-                  //   (isDeferredResourceTool(tc.name) && extractedResources.length === 0)
-                  // ) {
-                  //   const entryIdx = genericEntryMap.get(id)
-                  //   if (entryIdx !== undefined) {
-                  //     updateGenericEntry(entryIdx, {
-                  //       status: tc.status,
-                  //       result: tc.result ?? undefined,
-                  //       streamingArgs: undefined,
-                  //     })
-                  //   } else {
-                  //     const newIdx = appendGenericEntry({
-                  //       toolCallId: id,
-                  //       toolName: tc.name,
-                  //       displayTitle: tc.displayTitle ?? tc.name,
-                  //       status: tc.status,
-                  //       params: toolArgsMap.get(id) as Record<string, unknown> | undefined,
-                  //       result: tc.result ?? undefined,
-                  //     })
-                  //     genericEntryMap.set(id, newIdx)
-                  //     if (addResource({ type: 'generic', id: 'results', title: 'Results' })) {
-                  //       onResourceEventRef.current?.()
-                  //     }
-                  //   }
-                  // }
+                  if (
+                    shouldOpenGenericResource(tc.name) ||
+                    (isDeferredResourceTool(tc.name) && extractedResources.length === 0)
+                  ) {
+                    const entryIdx = genericEntryMap.get(id)
+                    if (entryIdx !== undefined) {
+                      updateGenericEntry(entryIdx, {
+                        status: tc.status,
+                        result: tc.result ?? undefined,
+                        streamingArgs: undefined,
+                      })
+                    } else {
+                      const newIdx = appendGenericEntry({
+                        toolCallId: id,
+                        toolName: tc.name,
+                        displayTitle: tc.displayTitle ?? tc.name,
+                        status: tc.status,
+                        params: toolArgsMap.get(id) as Record<string, unknown> | undefined,
+                        result: tc.result ?? undefined,
+                      })
+                      genericEntryMap.set(id, newIdx)
+                      if (addResource({ type: 'generic', id: 'results', title: 'Results' })) {
+                        onResourceEventRef.current?.()
+                      }
+                    }
+                  }
                 }
 
                 break
@@ -1585,13 +1582,12 @@ export function useChat(
                   }
                   flush()
 
-                  // TODO: Uncomment when rich UI for Results tab is ready
-                  // if (toolCallName && shouldOpenGenericResource(toolCallName)) {
-                  //   const entryIdx = genericEntryMap.get(id)
-                  //   if (entryIdx !== undefined) {
-                  //     updateGenericEntry(entryIdx, { status: 'error', streamingArgs: undefined })
-                  //   }
-                  // }
+                  if (toolCallName && shouldOpenGenericResource(toolCallName)) {
+                    const entryIdx = genericEntryMap.get(id)
+                    if (entryIdx !== undefined) {
+                      updateGenericEntry(entryIdx, { status: 'error', streamingArgs: undefined })
+                    }
+                  }
                 }
                 break
               }
