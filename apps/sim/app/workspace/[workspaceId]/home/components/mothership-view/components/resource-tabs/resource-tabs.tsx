@@ -10,7 +10,7 @@ import {
 import { Button, Tooltip } from '@/components/emcn'
 import { Columns3, Eye, PanelLeft, Pencil } from '@/components/emcn/icons'
 import { isEphemeralResource } from '@/lib/copilot/resource-extraction'
-import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/copilot/resource-types'
+import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
@@ -37,6 +37,44 @@ import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
 const EDGE_ZONE = 40
 const SCROLL_SPEED = 8
+
+const ADD_RESOURCE_EXCLUDED_TYPES: readonly MothershipResourceType[] = ['folder', 'task'] as const
+
+/**
+ * Builds an offscreen drag image showing all selected tabs side-by-side, so the
+ * cursor visibly carries every tab in the multi-selection. The element is
+ * appended to the document and removed on the next tick after the browser has
+ * snapshotted it.
+ */
+function buildMultiDragImage(
+  scrollNode: HTMLElement | null,
+  selected: MothershipResource[]
+): HTMLElement | null {
+  if (!scrollNode || selected.length === 0) return null
+  const container = document.createElement('div')
+  container.style.position = 'fixed'
+  container.style.top = '-10000px'
+  container.style.left = '-10000px'
+  container.style.display = 'flex'
+  container.style.alignItems = 'center'
+  container.style.gap = '6px'
+  container.style.padding = '4px'
+  container.style.pointerEvents = 'none'
+  let appendedAny = false
+  for (const r of selected) {
+    const original = scrollNode.querySelector<HTMLElement>(
+      `[data-resource-tab-id="${CSS.escape(r.id)}"]`
+    )
+    if (!original) continue
+    const clone = original.cloneNode(true) as HTMLElement
+    clone.style.opacity = '0.95'
+    container.appendChild(clone)
+    appendedAny = true
+  }
+  if (!appendedAny) return null
+  document.body.appendChild(container)
+  return container
+}
 
 const PREVIEW_MODE_ICONS = {
   editor: Columns3,
@@ -125,8 +163,10 @@ export function ResourceTabs({
   const [hoveredTabId, setHoveredTabId] = useState<string | null>(null)
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null)
   const [dropGapIdx, setDropGapIdx] = useState<number | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const dragStartIdx = useRef<number | null>(null)
   const autoScrollRaf = useRef<number | null>(null)
+  const anchorIdRef = useRef<string | null>(null)
 
   const existingKeys = useMemo(
     () => new Set(resources.map((r) => `${r.type}:${r.id}`)),
@@ -143,34 +183,79 @@ export function ResourceTabs({
     [chatId, onAddResource]
   )
 
+  const handleTabClick = useCallback(
+    (e: React.MouseEvent, idx: number) => {
+      const resource = resources[idx]
+      if (!resource) return
+      if (e.shiftKey && anchorIdRef.current) {
+        const anchorIdx = resources.findIndex((r) => r.id === anchorIdRef.current)
+        if (anchorIdx !== -1) {
+          const start = Math.min(anchorIdx, idx)
+          const end = Math.max(anchorIdx, idx)
+          const next = new Set<string>()
+          for (let i = start; i <= end; i++) next.add(resources[i].id)
+          setSelectedIds(next)
+          onSelect(resource.id)
+          return
+        }
+      }
+      anchorIdRef.current = resource.id
+      setSelectedIds(new Set([resource.id]))
+      onSelect(resource.id)
+    },
+    [resources, onSelect]
+  )
+
   const handleRemove = useCallback(
     (e: React.MouseEvent, resource: MothershipResource) => {
       e.stopPropagation()
       if (!chatId) return
-      if (!isEphemeralResource(resource)) {
-        removeResource.mutate({ chatId, resourceType: resource.type, resourceId: resource.id })
+      const isMulti = selectedIds.has(resource.id) && selectedIds.size > 1
+      const targets = isMulti ? resources.filter((r) => selectedIds.has(r.id)) : [resource]
+      for (const r of targets) {
+        if (!isEphemeralResource(r)) {
+          removeResource.mutate({ chatId, resourceType: r.type, resourceId: r.id })
+        }
+        onRemoveResource(r.type, r.id)
       }
-      onRemoveResource(resource.type, resource.id)
+      if (isMulti) {
+        setSelectedIds(new Set())
+        anchorIdRef.current = null
+      }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chatId, onRemoveResource]
+    [chatId, onRemoveResource, resources, selectedIds]
   )
 
   const handleDragStart = useCallback(
     (e: React.DragEvent, idx: number) => {
+      const resource = resources[idx]
+      if (!resource) return
+      const selected = resources.filter((r) => selectedIds.has(r.id))
+      const isMultiDrag = selected.length > 1 && selectedIds.has(resource.id)
+      if (isMultiDrag) {
+        e.dataTransfer.effectAllowed = 'copy'
+        e.dataTransfer.setData(SIM_RESOURCES_DRAG_TYPE, JSON.stringify(selected))
+        const dragImage = buildMultiDragImage(scrollNodeRef.current, selected)
+        if (dragImage) {
+          e.dataTransfer.setDragImage(dragImage, 16, 16)
+          setTimeout(() => dragImage.remove(), 0)
+        }
+        // Skip dragStartIdx so internal reorder is disabled for multi-select drags
+        dragStartIdx.current = null
+        setDraggedIdx(null)
+        return
+      }
       dragStartIdx.current = idx
       setDraggedIdx(idx)
       e.dataTransfer.effectAllowed = 'copyMove'
       e.dataTransfer.setData('text/plain', String(idx))
-      const resource = resources[idx]
-      if (resource) {
-        e.dataTransfer.setData(
-          SIM_RESOURCE_DRAG_TYPE,
-          JSON.stringify({ type: resource.type, id: resource.id, title: resource.title })
-        )
-      }
+      e.dataTransfer.setData(
+        SIM_RESOURCE_DRAG_TYPE,
+        JSON.stringify({ type: resource.type, id: resource.id, title: resource.title })
+      )
     },
-    [resources]
+    [resources, selectedIds]
   )
 
   const stopAutoScroll = useCallback(() => {
@@ -308,6 +393,7 @@ export function ResourceTabs({
             const isActive = activeId === resource.id
             const isHovered = hoveredTabId === resource.id
             const isDragging = draggedIdx === idx
+            const isSelected = selectedIds.has(resource.id) && selectedIds.size > 1
             const showGapBefore =
               dropGapIdx === idx &&
               draggedIdx !== null &&
@@ -329,6 +415,7 @@ export function ResourceTabs({
                     <Button
                       variant='subtle'
                       draggable
+                      data-resource-tab-id={resource.id}
                       onDragStart={(e) => handleDragStart(e, idx)}
                       onDragOver={(e) => handleDragOver(e, idx)}
                       onDragLeave={handleDragLeave}
@@ -339,12 +426,13 @@ export function ResourceTabs({
                           handleRemove(e, resource)
                         }
                       }}
-                      onClick={() => onSelect(resource.id)}
+                      onClick={(e) => handleTabClick(e, idx)}
                       onMouseEnter={() => setHoveredTabId(resource.id)}
                       onMouseLeave={() => setHoveredTabId(null)}
                       className={cn(
                         'group relative shrink-0 bg-transparent px-2 py-1 pr-[22px] text-caption transition-opacity duration-150',
                         isActive && 'bg-[var(--surface-4)]',
+                        isSelected && !isActive && 'bg-[var(--surface-3)]',
                         isDragging && 'opacity-30'
                       )}
                     >
@@ -394,6 +482,7 @@ export function ResourceTabs({
             existingKeys={existingKeys}
             onAdd={handleAdd}
             onSwitch={onSelect}
+            excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
           />
         )}
       </div>
