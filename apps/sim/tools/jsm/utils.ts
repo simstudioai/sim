@@ -19,7 +19,7 @@ export function getJsmApiBaseUrl(cloudId: string): string {
  * @returns The base URL for the JSM Forms API
  */
 export function getJsmFormsApiBaseUrl(cloudId: string): string {
-  return `https://api.atlassian.com/jira/forms/cloud/${cloudId}`
+  return `https://api.atlassian.com/ex/jira/${cloudId}/forms`
 }
 
 /**
