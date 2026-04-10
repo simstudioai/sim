@@ -168,8 +168,8 @@ export function AddResourceDropdown({
         e.preventDefault()
         setActiveIndex((prev) => Math.max(prev - 1, 0))
       } else if (e.key === 'Enter' || e.key === 'Tab') {
-        e.preventDefault()
         if (filtered.length > 0 && filtered[activeIndex]) {
+          e.preventDefault()
           const { type, item } = filtered[activeIndex]
           select({ type, id: item.id, title: item.name }, item.isOpen)
         }
