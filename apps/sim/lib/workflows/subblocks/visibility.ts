@@ -284,8 +284,9 @@ export function resolveDependencyValue(
 
   const { basicValue, advancedValue } = getCanonicalValues(group, values)
   const mode = resolveCanonicalMode(group, values, overrides)
-  if (mode === 'advanced') return advancedValue ?? basicValue
-  return basicValue ?? advancedValue
+  const canonicalResult =
+    mode === 'advanced' ? (advancedValue ?? basicValue) : (basicValue ?? advancedValue)
+  return canonicalResult ?? values[dependencyKey]
 }
 
 /**
