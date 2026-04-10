@@ -26,13 +26,6 @@ export async function GET(request: NextRequest) {
     const retentionDate = new Date()
     retentionDate.setDate(retentionDate.getDate() - Number(env.FREE_PLAN_LOG_RETENTION_DAYS || '7'))
 
-    /**
-     * Subquery: workspace IDs whose billed account user has no active paid
-     * subscription. Kept as a subquery (not materialized into JS) so the
-     * generated SQL is `WHERE workspace_id IN (SELECT ...)` — this avoids
-     * PostgreSQL's 65535 bind-parameter limit that was breaking cleanup once
-     * the free-user count grew beyond ~65k.
-     */
     const freeWorkspacesSubquery = db
       .select({ id: workspace.id })
       .from(workspace)
@@ -94,7 +87,7 @@ export async function GET(request: NextRequest) {
         .where(
           and(
             inArray(workflowExecutionLogs.workspaceId, freeWorkspacesSubquery),
-            lt(workflowExecutionLogs.createdAt, retentionDate)
+            lt(workflowExecutionLogs.startedAt, retentionDate)
           )
         )
         .limit(BATCH_SIZE)
