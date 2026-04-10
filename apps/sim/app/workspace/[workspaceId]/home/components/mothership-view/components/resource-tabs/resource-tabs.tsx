@@ -278,7 +278,7 @@ export function ResourceTabs({
         return next
       })
       if (anchorIdRef.current && removedIds.has(anchorIdRef.current)) {
-        anchorIdRef.current = activeId
+        anchorIdRef.current = null
       }
       // Serialize mutations so each onMutate sees the cache updated by the prior
       // one. Continue on individual failures so remaining removals still fire.
