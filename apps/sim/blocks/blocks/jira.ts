@@ -932,7 +932,7 @@ Return ONLY the comment text - no explanations.`,
               fields: params.fields
                 ? params.fields
                     .split(',')
-                    .map((f) => f.trim())
+                    .map((f: string) => f.trim())
                     .filter(Boolean)
                 : undefined,
             }
