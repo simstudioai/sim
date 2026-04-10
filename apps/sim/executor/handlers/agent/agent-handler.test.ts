@@ -667,6 +667,7 @@ describe('AgentBlockHandler', () => {
       expect(result).toEqual({
         result: 'Success',
         score: 0.95,
+        model: 'mock-model',
         tokens: { input: 10, output: 20, total: 30 },
         toolCalls: { list: [], count: 0 },
         providerTiming: { total: 100 },
