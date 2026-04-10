@@ -1070,19 +1070,20 @@ export class AgentBlockHandler implements BlockHandler {
   private processStandardResponse(result: any): BlockOutput {
     return {
       content: result.content,
-      model: result.model,
       ...this.createResponseMetadata(result),
       ...(result.interactionId && { interactionId: result.interactionId }),
     }
   }
 
   private createResponseMetadata(result: {
+    model?: string
     tokens?: { input?: number; output?: number; total?: number }
     toolCalls?: Array<any>
     timing?: any
     cost?: any
   }) {
     return {
+      model: result.model,
       tokens: result.tokens || {
         input: DEFAULTS.TOKENS.PROMPT,
         output: DEFAULTS.TOKENS.COMPLETION,
