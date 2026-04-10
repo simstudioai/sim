@@ -13,6 +13,7 @@ import {
 } from '@/lib/webhooks/provider-subscriptions'
 import { getProviderHandler } from '@/lib/webhooks/providers'
 import { syncWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
+import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -182,20 +183,32 @@ function buildProviderConfig(
     Object.entries(block.subBlocks || {}).map(([key, value]) => [key, { value: value.value }])
   )
 
-  triggerDef.subBlocks
-    .filter(
-      (subBlock) =>
-        (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') &&
-        !SYSTEM_SUBBLOCK_IDS.includes(subBlock.id)
-    )
-    .forEach((subBlock) => {
-      const valueToUse = getConfigValue(block, subBlock)
-      if (valueToUse !== null && valueToUse !== undefined && valueToUse !== '') {
-        providerConfig[subBlock.id] = valueToUse
-      } else if (isFieldRequired(subBlock, subBlockValues)) {
-        missingFields.push(subBlock.title || subBlock.id)
-      }
-    })
+  const canonicalIndex = buildCanonicalIndex(triggerDef.subBlocks)
+  const satisfiedCanonicalIds = new Set<string>()
+
+  const relevantSubBlocks = triggerDef.subBlocks.filter(
+    (subBlock) =>
+      (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') &&
+      !SYSTEM_SUBBLOCK_IDS.includes(subBlock.id)
+  )
+
+  for (const subBlock of relevantSubBlocks) {
+    const valueToUse = getConfigValue(block, subBlock)
+    if (valueToUse !== null && valueToUse !== undefined && valueToUse !== '') {
+      providerConfig[subBlock.id] = valueToUse
+      const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
+      if (canonicalId) satisfiedCanonicalIds.add(canonicalId)
+    }
+  }
+
+  for (const subBlock of relevantSubBlocks) {
+    if (providerConfig[subBlock.id] !== undefined) continue
+    const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
+    if (canonicalId && satisfiedCanonicalIds.has(canonicalId)) continue
+    if (isFieldRequired(subBlock, subBlockValues)) {
+      missingFields.push(subBlock.title || subBlock.id)
+    }
+  }
 
   const credentialConfig = triggerDef.subBlocks.find(
     (subBlock) => subBlock.id === 'triggerCredentials'
