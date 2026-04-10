@@ -41,6 +41,24 @@ const SCROLL_SPEED = 8
 const ADD_RESOURCE_EXCLUDED_TYPES: readonly MothershipResourceType[] = ['folder', 'task'] as const
 
 /**
+ * Returns the id of the nearest resource to `idx` that is in `filter`
+ * (or any resource if `filter` is null). Returns undefined if nothing qualifies.
+ */
+function findNearestId(
+  resources: MothershipResource[],
+  idx: number,
+  filter: Set<string> | null
+): string | undefined {
+  for (let offset = 1; offset < resources.length; offset++) {
+    for (const candidate of [idx + offset, idx - offset]) {
+      const r = resources[candidate]
+      if (r && (!filter || filter.has(r.id))) return r.id
+    }
+  }
+  return undefined
+}
+
+/**
  * Builds an offscreen drag image showing all selected tabs side-by-side, so the
  * cursor visibly carries every tab in the multi-selection. The element is
  * appended to the document and removed on the next tick after the browser has
@@ -187,8 +205,12 @@ export function ResourceTabs({
     (e: React.MouseEvent, idx: number) => {
       const resource = resources[idx]
       if (!resource) return
-      if (e.shiftKey && anchorIdRef.current) {
-        const anchorIdx = resources.findIndex((r) => r.id === anchorIdRef.current)
+
+      // Shift+click: contiguous range from anchor
+      if (e.shiftKey) {
+        // Fall back to activeId when no explicit anchor exists (e.g. tab opened via sidebar)
+        const anchorId = anchorIdRef.current ?? activeId
+        const anchorIdx = anchorId ? resources.findIndex((r) => r.id === anchorId) : -1
         if (anchorIdx !== -1) {
           const start = Math.min(anchorIdx, idx)
           const end = Math.max(anchorIdx, idx)
@@ -199,11 +221,34 @@ export function ResourceTabs({
           return
         }
       }
+
+      // Cmd/Ctrl+click: toggle individual tab in/out of selection
+      if (e.metaKey || e.ctrlKey) {
+        const wasSelected = selectedIds.has(resource.id)
+        if (wasSelected) {
+          const next = new Set(selectedIds)
+          next.delete(resource.id)
+          setSelectedIds(next)
+          // Only switch active if we just deselected the currently-active tab
+          if (activeId === resource.id) {
+            const fallback =
+              findNearestId(resources, idx, next) ?? findNearestId(resources, idx, null)
+            if (fallback) onSelect(fallback)
+          }
+        } else {
+          setSelectedIds((prev) => new Set(prev).add(resource.id))
+          onSelect(resource.id)
+        }
+        if (!anchorIdRef.current) anchorIdRef.current = resource.id
+        return
+      }
+
+      // Plain click: single-select
       anchorIdRef.current = resource.id
       setSelectedIds(new Set([resource.id]))
       onSelect(resource.id)
     },
-    [resources, onSelect]
+    [resources, onSelect, selectedIds, activeId]
   )
 
   const handleRemove = useCallback(
@@ -212,15 +257,28 @@ export function ResourceTabs({
       if (!chatId) return
       const isMulti = selectedIds.has(resource.id) && selectedIds.size > 1
       const targets = isMulti ? resources.filter((r) => selectedIds.has(r.id)) : [resource]
+      // Update parent state immediately for all targets
       for (const r of targets) {
-        if (!isEphemeralResource(r)) {
-          removeResource.mutate({ chatId, resourceType: r.type, resourceId: r.id })
-        }
         onRemoveResource(r.type, r.id)
       }
       if (isMulti) {
         setSelectedIds(new Set())
         anchorIdRef.current = null
+      }
+      // Serialize mutations so each onMutate sees the cache from the prior one;
+      // calling .mutate() in a loop races the optimistic updates and the observer
+      // discards all but the last in-flight mutation.
+      const persistable = targets.filter((r) => !isEphemeralResource(r))
+      if (persistable.length > 0) {
+        void (async () => {
+          for (const r of persistable) {
+            await removeResource.mutateAsync({
+              chatId,
+              resourceType: r.type,
+              resourceId: r.id,
+            })
+          }
+        })()
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -421,9 +479,9 @@ export function ResourceTabs({
                       onDragLeave={handleDragLeave}
                       onDragEnd={handleDragEnd}
                       onMouseDown={(e) => {
-                        if (e.button === 1 && chatId) {
+                        if (e.button === 1) {
                           e.preventDefault()
-                          handleRemove(e, resource)
+                          if (chatId) handleRemove(e, resource)
                         }
                       }}
                       onClick={(e) => handleTabClick(e, idx)}
