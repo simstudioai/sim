@@ -412,8 +412,6 @@ export function useChat(
   options?: UseChatOptions
 ): UseChatReturn {
   const router = useRouter()
-  const routerRef = useRef(router)
-  routerRef.current = router
   const queryClient = useQueryClient()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isSending, setIsSending] = useState(false)
@@ -1098,7 +1096,7 @@ export function useChat(
                       })
                     }
                     if (!workflowIdRef.current) {
-                      routerRef.current.replace(`/workspace/${workspaceId}/task/${parsed.chatId}`)
+                      router.replace(`/workspace/${workspaceId}/task/${parsed.chatId}`)
                       abortControllerRef.current?.abort()
                       streamGenRef.current++
                     }
@@ -2083,6 +2081,7 @@ export function useChat(
     [
       workspaceId,
       queryClient,
+      router,
       processSSEStream,
       finalize,
       resumeOrFinalize,

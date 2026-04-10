@@ -41,7 +41,9 @@ export async function GET(request: NextRequest) {
         updatedAt: copilotChats.updatedAt,
         conversationId: copilotChats.conversationId,
         lastSeenAt: copilotChats.lastSeenAt,
-        messageCount: sql<number>`jsonb_array_length(${copilotChats.messages})`.as('message_count'),
+        messageCount: sql<number>`jsonb_array_length(${copilotChats.messages})`
+          .mapWith(Number)
+          .as('message_count'),
       })
       .from(copilotChats)
       .where(

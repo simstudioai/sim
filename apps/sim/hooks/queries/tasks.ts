@@ -198,8 +198,7 @@ async function createTask(workspaceId: string): Promise<{ id: string }> {
 }
 
 /**
- * Creates an empty mothership chat task and invalidates the task list.
- * Pre-warms the chat detail cache so the new chat page renders instantly with no fetch.
+ * Pre-warms the detail cache so navigation to the new task renders without a loading flash.
  */
 export function useCreateTask() {
   const queryClient = useQueryClient()
