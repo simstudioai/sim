@@ -8,7 +8,7 @@ export function AuditLogsSkeleton() {
         <Skeleton className='h-[38px] w-[160px] rounded-lg' />
         <Skeleton className='h-[38px] w-[160px] rounded-lg' />
       </div>
-      <div className='flex items-center gap-4 border-b border-[var(--border)] pb-2'>
+      <div className='flex items-center gap-4 border-[var(--border)] border-b pb-2'>
         <Skeleton className='h-4 w-[140px]' />
         <Skeleton className='h-4 w-[120px]' />
         <Skeleton className='h-4 flex-1' />

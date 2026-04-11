@@ -7,8 +7,8 @@ import { Badge, Button, Combobox, type ComboboxOption, Skeleton } from '@/compon
 import { Input } from '@/components/ui'
 import { formatDateTime } from '@/lib/core/utils/formatting'
 import { cn } from '@/lib/utils'
-import { type AuditLogFilters, useAuditLogs } from '@/ee/audit-logs/hooks/audit-logs'
 import type { EnterpriseAuditLogEntry } from '@/app/api/v1/audit-logs/format'
+import { type AuditLogFilters, useAuditLogs } from '@/ee/audit-logs/hooks/audit-logs'
 
 const logger = createLogger('AuditLogs')
 
@@ -90,7 +90,7 @@ function AuditLogRow({ entry }: AuditLogRowProps) {
   const timestamp = formatDateTime(new Date(entry.createdAt))
 
   return (
-    <div className='border-b border-[var(--border)] last:border-b-0'>
+    <div className='border-[var(--border)] border-b last:border-b-0'>
       <button
         type='button'
         className='flex w-full items-center gap-4 px-0 py-2.5 text-left transition-colors hover-hover:bg-[var(--surface-4)]'
@@ -242,7 +242,7 @@ export function AuditLogs() {
         </Button>
       </div>
 
-      <div className='flex items-center gap-4 border-b border-[var(--border)] pb-2'>
+      <div className='flex items-center gap-4 border-[var(--border)] border-b pb-2'>
         <span className='w-[160px] flex-shrink-0 font-medium text-[var(--text-muted)] text-xs uppercase tracking-wide'>
           Timestamp
         </span>
@@ -280,11 +280,7 @@ export function AuditLogs() {
             ))}
             {hasNextPage && (
               <div className='flex justify-center py-4'>
-                <Button
-                  variant='ghost'
-                  onClick={handleLoadMore}
-                  disabled={isFetchingNextPage}
-                >
+                <Button variant='ghost' onClick={handleLoadMore} disabled={isFetchingNextPage}>
                   {isFetchingNextPage ? 'Loading...' : 'Load more'}
                 </Button>
               </div>

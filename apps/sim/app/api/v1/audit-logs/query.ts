@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { auditLog, workspace } from '@sim/db/schema'
-import { and, desc, eq, gte, ilike, inArray, lt, lte, or, type SQL } from 'drizzle-orm'
 import type { InferSelectModel } from 'drizzle-orm'
+import { and, desc, eq, gte, ilike, inArray, lt, lte, or, type SQL } from 'drizzle-orm'
 
 type DbAuditLog = InferSelectModel<typeof auditLog>
 
