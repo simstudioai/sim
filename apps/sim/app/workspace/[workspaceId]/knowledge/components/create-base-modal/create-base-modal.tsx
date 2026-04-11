@@ -40,7 +40,7 @@ interface CreateBaseModalProps {
 
 const STRATEGY_OPTIONS = [
   { value: 'auto', label: 'Auto (detect from content)' },
-  { value: 'text', label: 'Text (hierarchical splitting)' },
+  { value: 'text', label: 'Text (word boundary splitting)' },
   { value: 'recursive', label: 'Recursive (configurable separators)' },
   { value: 'sentence', label: 'Sentence' },
   { value: 'token', label: 'Token (fixed-size)' },
