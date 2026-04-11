@@ -63,10 +63,8 @@ const INTEGRATION_LINKS: FooterItem[] = [
   { label: 'Linear', href: 'https://docs.sim.ai/tools/linear', external: true },
   { label: 'Airtable', href: 'https://docs.sim.ai/tools/airtable', external: true },
   { label: 'Firecrawl', href: 'https://docs.sim.ai/tools/firecrawl', external: true },
-  { label: 'Pinecone', href: 'https://docs.sim.ai/tools/pinecone', external: true },
   { label: 'Discord', href: 'https://docs.sim.ai/tools/discord', external: true },
   { label: 'Microsoft Teams', href: 'https://docs.sim.ai/tools/microsoft_teams', external: true },
-  { label: 'Outlook', href: 'https://docs.sim.ai/tools/outlook', external: true },
   { label: 'Telegram', href: 'https://docs.sim.ai/tools/telegram', external: true },
 ]
 
