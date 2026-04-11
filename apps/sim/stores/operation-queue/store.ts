@@ -31,7 +31,13 @@ const retryTimeouts = new Map<string, NodeJS.Timeout>()
 const operationTimeouts = new Map<string, NodeJS.Timeout>()
 
 let emitWorkflowOperation:
-  | ((operation: string, target: string, payload: any, operationId?: string) => void)
+  | ((
+      workflowId: string,
+      operation: string,
+      target: string,
+      payload: any,
+      operationId?: string
+    ) => void)
   | null = null
 let emitSubblockUpdate:
   | ((
@@ -53,7 +59,13 @@ let emitVariableUpdate:
   | null = null
 
 export function registerEmitFunctions(
-  workflowEmit: (operation: string, target: string, payload: any, operationId?: string) => void,
+  workflowEmit: (
+    workflowId: string,
+    operation: string,
+    target: string,
+    payload: any,
+    operationId?: string
+  ) => void,
   subblockEmit: (
     blockId: string,
     subblockId: string,
@@ -375,7 +387,7 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       }
     } else {
       if (emitWorkflowOperation) {
-        emitWorkflowOperation(op, target, payload, nextOperation.id)
+        emitWorkflowOperation(nextOperation.workflowId, op, target, payload, nextOperation.id)
       }
     }
 

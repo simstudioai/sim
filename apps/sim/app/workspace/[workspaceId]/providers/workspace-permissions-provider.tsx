@@ -59,40 +59,61 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
   const hasOperationError = useOperationQueueStore((state) => state.hasOperationError)
   const addNotification = useNotificationStore((state) => state.addNotification)
   const removeNotification = useNotificationStore((state) => state.removeNotification)
-  const { isReconnecting } = useSocket()
-  const reconnectingNotificationIdRef = useRef<string | null>(null)
+  const { isReconnecting, isRetryingWorkflowJoin } = useSocket()
+  const realtimeStatusNotificationIdRef = useRef<string | null>(null)
+  const realtimeStatusNotificationMessageRef = useRef<string | null>(null)
 
   const isOfflineMode = hasOperationError
+  const realtimeStatusMessage = isReconnecting
+    ? 'Reconnecting...'
+    : isRetryingWorkflowJoin
+      ? 'Joining workflow...'
+      : null
+
+  const clearRealtimeStatusNotification = useCallback(() => {
+    if (!realtimeStatusNotificationIdRef.current) {
+      return
+    }
+
+    removeNotification(realtimeStatusNotificationIdRef.current)
+    realtimeStatusNotificationIdRef.current = null
+    realtimeStatusNotificationMessageRef.current = null
+  }, [removeNotification])
 
   useEffect(() => {
-    if (isReconnecting && !reconnectingNotificationIdRef.current && !isOfflineMode) {
-      const id = addNotification({
-        level: 'error',
-        message: 'Reconnecting...',
-      })
-      reconnectingNotificationIdRef.current = id
-    } else if (!isReconnecting && reconnectingNotificationIdRef.current) {
-      removeNotification(reconnectingNotificationIdRef.current)
-      reconnectingNotificationIdRef.current = null
+    if (isOfflineMode || !realtimeStatusMessage) {
+      clearRealtimeStatusNotification()
+      return
     }
 
-    return () => {
-      if (reconnectingNotificationIdRef.current) {
-        removeNotification(reconnectingNotificationIdRef.current)
-        reconnectingNotificationIdRef.current = null
-      }
+    if (
+      realtimeStatusNotificationIdRef.current &&
+      realtimeStatusNotificationMessageRef.current === realtimeStatusMessage
+    ) {
+      return
     }
-  }, [isReconnecting, isOfflineMode, addNotification, removeNotification])
+
+    clearRealtimeStatusNotification()
+
+    const id = addNotification({
+      level: 'error',
+      message: realtimeStatusMessage,
+    })
+
+    realtimeStatusNotificationIdRef.current = id
+    realtimeStatusNotificationMessageRef.current = realtimeStatusMessage
+  }, [addNotification, clearRealtimeStatusNotification, isOfflineMode, realtimeStatusMessage])
+
+  useEffect(() => {
+    return clearRealtimeStatusNotification
+  }, [clearRealtimeStatusNotification])
 
   useEffect(() => {
     if (!isOfflineMode || hasShownOfflineNotification) {
       return
     }
 
-    if (reconnectingNotificationIdRef.current) {
-      removeNotification(reconnectingNotificationIdRef.current)
-      reconnectingNotificationIdRef.current = null
-    }
+    clearRealtimeStatusNotification()
 
     try {
       addNotification({
@@ -107,7 +128,7 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
     } catch (error) {
       logger.error('Failed to add offline notification', { error })
     }
-  }, [addNotification, removeNotification, hasShownOfflineNotification, isOfflineMode])
+  }, [addNotification, clearRealtimeStatusNotification, hasShownOfflineNotification, isOfflineMode])
 
   const {
     data: workspacePermissions,

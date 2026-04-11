@@ -16,15 +16,22 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
 
       if (!userId || !userName) {
         logger.warn(`Join workflow rejected: Socket ${socket.id} not authenticated`)
-        socket.emit('join-workflow-error', { error: 'Authentication required' })
+        socket.emit('join-workflow-error', {
+          workflowId,
+          error: 'Authentication required',
+          code: 'AUTHENTICATION_REQUIRED',
+          retryable: false,
+        })
         return
       }
 
       if (!roomManager.isReady()) {
         logger.warn(`Join workflow rejected: Room manager unavailable`)
         socket.emit('join-workflow-error', {
+          workflowId,
           error: 'Realtime unavailable',
           code: 'ROOM_MANAGER_UNAVAILABLE',
+          retryable: true,
         })
         return
       }
@@ -37,13 +44,23 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
         const accessInfo = await verifyWorkflowAccess(userId, workflowId)
         if (!accessInfo.hasAccess) {
           logger.warn(`User ${userId} (${userName}) denied access to workflow ${workflowId}`)
-          socket.emit('join-workflow-error', { error: 'Access denied to workflow' })
+          socket.emit('join-workflow-error', {
+            workflowId,
+            error: 'Access denied to workflow',
+            code: 'ACCESS_DENIED',
+            retryable: false,
+          })
           return
         }
         userRole = accessInfo.role || 'read'
       } catch (error) {
         logger.warn(`Error verifying workflow access for ${userId}:`, error)
-        socket.emit('join-workflow-error', { error: 'Failed to verify workflow access' })
+        socket.emit('join-workflow-error', {
+          workflowId,
+          error: 'Failed to verify workflow access',
+          code: 'VERIFY_WORKFLOW_ACCESS_FAILED',
+          retryable: true,
+        })
         return
       }
 
@@ -179,8 +196,10 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
       await roomManager.removeUserFromRoom(socket.id, workflowId)
       const isReady = roomManager.isReady()
       socket.emit('join-workflow-error', {
+        workflowId,
         error: isReady ? 'Failed to join workflow' : 'Realtime unavailable',
-        code: isReady ? undefined : 'ROOM_MANAGER_UNAVAILABLE',
+        code: isReady ? 'JOIN_WORKFLOW_FAILED' : 'ROOM_MANAGER_UNAVAILABLE',
+        retryable: true,
       })
     }
   })

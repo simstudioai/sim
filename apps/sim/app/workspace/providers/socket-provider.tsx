@@ -15,6 +15,14 @@ import { useParams } from 'next/navigation'
 import type { Socket } from 'socket.io-client'
 import { getEnv } from '@/lib/core/config/env'
 import { generateId } from '@/lib/core/utils/uuid'
+import {
+  type SocketJoinCommand,
+  SocketJoinController,
+} from '@/app/workspace/providers/socket-join-controller'
+import {
+  isSocketWorkflowVisible,
+  resolveSocketWorkflowTarget,
+} from '@/app/workspace/providers/socket-join-target'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 import { useWorkflowRegistry as useWorkflowRegistryStore } from '@/stores/workflows/registry/store'
 
@@ -53,6 +61,7 @@ interface SocketContextType {
   isConnected: boolean
   isConnecting: boolean
   isReconnecting: boolean
+  isRetryingWorkflowJoin: boolean
   authFailed: boolean
   currentWorkflowId: string | null
   currentSocketId: string | null
@@ -61,6 +70,7 @@ interface SocketContextType {
   leaveWorkflow: () => void
   retryConnection: () => void
   emitWorkflowOperation: (
+    workflowId: string,
     operation: string,
     target: string,
     payload: any,
@@ -101,6 +111,7 @@ const SocketContext = createContext<SocketContextType>({
   isConnected: false,
   isConnecting: false,
   isReconnecting: false,
+  isRetryingWorkflowJoin: false,
   authFailed: false,
   currentWorkflowId: null,
   currentSocketId: null,
@@ -137,18 +148,24 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const [isConnected, setIsConnected] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [isReconnecting, setIsReconnecting] = useState(false)
+  const [isRetryingWorkflowJoin, setIsRetryingWorkflowJoin] = useState(false)
   const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(null)
   const [currentSocketId, setCurrentSocketId] = useState<string | null>(null)
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([])
   const [authFailed, setAuthFailed] = useState(false)
+  const [explicitWorkflowId, setExplicitWorkflowId] = useState<string | null>(null)
   const initializedRef = useRef(false)
   const socketRef = useRef<Socket | null>(null)
-  const triggerOfflineMode = useOperationQueueStore((state) => state.triggerOfflineMode)
+  const currentWorkflowIdRef = useRef<string | null>(null)
+  const explicitWorkflowIdRef = useRef<string | null>(explicitWorkflowId)
+  const joinControllerRef = useRef(new SocketJoinController())
+  const joinRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const params = useParams()
   const urlWorkflowId = params?.workflowId as string | undefined
   const urlWorkflowIdRef = useRef(urlWorkflowId)
   urlWorkflowIdRef.current = urlWorkflowId
+  explicitWorkflowIdRef.current = explicitWorkflowId
 
   const eventHandlers = useRef<{
     workflowOperation?: (data: any) => void
@@ -164,8 +181,123 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   }>({})
 
   const positionUpdateTimeouts = useRef<Map<string, number>>(new Map())
-  const isRejoiningRef = useRef<boolean>(false)
   const pendingPositionUpdates = useRef<Map<string, any>>(new Map())
+
+  const setVisibleWorkflowId = useCallback((workflowId: string | null) => {
+    currentWorkflowIdRef.current = workflowId
+    setCurrentWorkflowId(workflowId)
+  }, [])
+
+  const getRequestedWorkflowId = useCallback(() => {
+    return resolveSocketWorkflowTarget({
+      routeWorkflowId: urlWorkflowIdRef.current ?? null,
+      explicitWorkflowId: explicitWorkflowIdRef.current,
+    })
+  }, [])
+
+  const isWorkflowVisible = useCallback((workflowId?: string | null) => {
+    return isSocketWorkflowVisible({
+      workflowId: workflowId ?? currentWorkflowIdRef.current,
+      routeWorkflowId: urlWorkflowIdRef.current ?? null,
+      explicitWorkflowId: explicitWorkflowIdRef.current,
+    })
+  }, [])
+
+  const clearJoinRetryTimeout = useCallback(() => {
+    if (joinRetryTimeoutRef.current !== null) {
+      clearTimeout(joinRetryTimeoutRef.current)
+      joinRetryTimeoutRef.current = null
+    }
+  }, [])
+
+  const resetVisibleWorkflowState = useCallback((workflowId?: string | null) => {
+    if (workflowId) {
+      useOperationQueueStore.getState().cancelOperationsForWorkflow(workflowId)
+    }
+
+    positionUpdateTimeouts.current.forEach((timeoutId) => {
+      clearTimeout(timeoutId)
+    })
+    positionUpdateTimeouts.current.clear()
+    pendingPositionUpdates.current.clear()
+  }, [])
+
+  const clearJoinedWorkflowState = useCallback(
+    (cancelOperations = false) => {
+      const previousWorkflowId = currentWorkflowIdRef.current
+      resetVisibleWorkflowState(cancelOperations ? previousWorkflowId : null)
+      setPresenceUsers([])
+      setVisibleWorkflowId(null)
+    },
+    [resetVisibleWorkflowState, setVisibleWorkflowId]
+  )
+
+  const executeJoinCommands = useCallback(
+    (commands: SocketJoinCommand[]) => {
+      const socketInstance = socketRef.current
+
+      commands.forEach((command) => {
+        if (command.type === 'cancel-retry') {
+          clearJoinRetryTimeout()
+          setIsRetryingWorkflowJoin(false)
+          return
+        }
+
+        if (command.type === 'leave') {
+          setIsRetryingWorkflowJoin(false)
+          clearJoinedWorkflowState(true)
+
+          if (!socketInstance) {
+            return
+          }
+
+          logger.info('Leaving current workflow room')
+          socketInstance.emit('leave-workflow')
+          return
+        }
+
+        if (command.type === 'join') {
+          const isWorkflowSwitch =
+            currentWorkflowIdRef.current !== null &&
+            currentWorkflowIdRef.current !== command.workflowId
+
+          if (isWorkflowSwitch) {
+            resetVisibleWorkflowState(currentWorkflowIdRef.current)
+          } else {
+            resetVisibleWorkflowState()
+          }
+
+          if (!socketInstance) {
+            logger.warn('Cannot join workflow room: socket not available', {
+              workflowId: command.workflowId,
+            })
+            return
+          }
+
+          logger.info(`Joining workflow room: ${command.workflowId}`)
+          socketInstance.emit('join-workflow', {
+            workflowId: command.workflowId,
+            tabSessionId: getTabSessionId(),
+          })
+          return
+        }
+
+        clearJoinRetryTimeout()
+        setIsRetryingWorkflowJoin(true)
+        joinRetryTimeoutRef.current = setTimeout(() => {
+          joinRetryTimeoutRef.current = null
+          executeJoinCommands(joinControllerRef.current.retryJoin(command.workflowId))
+        }, command.delayMs)
+
+        logger.warn('Realtime unavailable while joining workflow, scheduling retry', {
+          workflowId: command.workflowId,
+          attempt: command.attempt,
+          delayMs: command.delayMs,
+        })
+      })
+    },
+    [clearJoinRetryTimeout, clearJoinedWorkflowState, resetVisibleWorkflowState]
+  )
 
   const generateSocketToken = async (): Promise<string> => {
     const res = await fetch('/api/auth/socket-token', {
@@ -244,17 +376,17 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             connected: socketInstance.connected,
             transport: socketInstance.io.engine?.transport?.name,
           })
-          // Note: join-workflow is handled by the useEffect watching isConnected
+          executeJoinCommands(joinControllerRef.current.setConnected(true))
         })
 
         socketInstance.on('disconnect', (reason) => {
           setIsConnected(false)
           setIsConnecting(false)
+          setIsRetryingWorkflowJoin(false)
           setCurrentSocketId(null)
-          setCurrentWorkflowId(null)
-          setPresenceUsers([])
+          executeJoinCommands(joinControllerRef.current.setConnected(false))
+          clearJoinedWorkflowState(false)
 
-          // socket.active indicates if auto-reconnect will happen
           if (socketInstance.active) {
             setIsReconnecting(true)
             logger.info('Socket disconnected, will auto-reconnect', { reason })
@@ -317,6 +449,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         })
 
         socketInstance.on('presence-update', (users: PresenceUser[]) => {
+          if (!isWorkflowVisible()) {
+            return
+          }
+
           setPresenceUsers((prev) => {
             const prevMap = new Map(prev.map((u) => [u.socketId, u]))
 
@@ -334,27 +470,52 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           })
         })
 
-        // Handle join workflow success - confirms room membership with presence list
         socketInstance.on('join-workflow-success', ({ workflowId, presenceUsers }) => {
-          isRejoiningRef.current = false
-          // Ignore stale success responses from previous navigation
-          if (urlWorkflowIdRef.current && workflowId !== urlWorkflowIdRef.current) {
+          const result = joinControllerRef.current.handleJoinSuccess(workflowId)
+
+          if (result.ignored) {
             logger.debug(`Ignoring stale join-workflow-success for ${workflowId}`)
-            return
+          } else {
+            setIsRetryingWorkflowJoin(false)
+            setVisibleWorkflowId(workflowId)
+            setPresenceUsers(presenceUsers || [])
+            logger.info(`Successfully joined workflow room: ${workflowId}`, {
+              presenceCount: presenceUsers?.length || 0,
+            })
           }
-          setCurrentWorkflowId(workflowId)
-          setPresenceUsers(presenceUsers || [])
-          logger.info(`Successfully joined workflow room: ${workflowId}`, {
-            presenceCount: presenceUsers?.length || 0,
-          })
+
+          executeJoinCommands(result.commands)
         })
 
-        socketInstance.on('join-workflow-error', ({ error, code }) => {
-          isRejoiningRef.current = false
-          logger.error('Failed to join workflow:', { error, code })
-          if (code === 'ROOM_MANAGER_UNAVAILABLE') {
-            triggerOfflineMode()
+        socketInstance.on('join-workflow-error', ({ workflowId, error, code, retryable }) => {
+          const result = joinControllerRef.current.handleJoinError({ workflowId, retryable })
+
+          if (result.ignored) {
+            logger.debug('Ignoring stale join-workflow-error', {
+              workflowId: result.workflowId,
+              error,
+              code,
+            })
+          } else if (result.retryScheduled) {
+            logger.warn('Retryable workflow join failure, waiting to retry', {
+              workflowId: result.workflowId,
+              error,
+              code,
+            })
+          } else if (result.apply) {
+            setIsRetryingWorkflowJoin(false)
+            if (result.workflowId) {
+              useOperationQueueStore.getState().cancelOperationsForWorkflow(result.workflowId)
+            }
+
+            logger.error('Failed to join workflow:', {
+              workflowId: result.workflowId,
+              error,
+              code,
+            })
           }
+
+          executeJoinCommands(result.commands)
         })
 
         socketInstance.on('workflow-operation', (data) => {
@@ -371,13 +532,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
         socketInstance.on('workflow-deleted', (data) => {
           logger.warn(`Workflow ${data.workflowId} has been deleted`)
-          setCurrentWorkflowId((current) => {
-            if (current === data.workflowId) {
-              setPresenceUsers([])
-              return null
-            }
-            return current
-          })
+          const result = joinControllerRef.current.handleWorkflowDeleted(data.workflowId)
+          if (result.shouldClearCurrent) {
+            clearJoinedWorkflowState(true)
+          }
+          executeJoinCommands(result.commands)
           eventHandlers.current.workflowDeleted?.(data)
         })
 
@@ -457,6 +616,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         })
 
         socketInstance.on('cursor-update', (data) => {
+          if (!isWorkflowVisible()) {
+            return
+          }
+
           setPresenceUsers((prev) => {
             const existingIndex = prev.findIndex((user) => user.socketId === data.socketId)
             if (existingIndex === -1) {
@@ -471,6 +634,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         })
 
         socketInstance.on('selection-update', (data) => {
+          if (!isWorkflowVisible()) {
+            return
+          }
+
           setPresenceUsers((prev) => {
             const existingIndex = prev.findIndex((user) => user.socketId === data.socketId)
             if (existingIndex === -1) {
@@ -498,21 +665,30 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           logger.warn('Operation forbidden:', error)
 
           if (error?.type === 'SESSION_ERROR') {
-            const workflowId = urlWorkflowIdRef.current
+            const workflowId = getRequestedWorkflowId()
 
-            if (workflowId && !isRejoiningRef.current) {
-              isRejoiningRef.current = true
+            if (workflowId) {
               logger.info(`Session expired, rejoining workflow: ${workflowId}`)
-              socketInstance.emit('join-workflow', {
-                workflowId,
-                tabSessionId: getTabSessionId(),
-              })
+              executeJoinCommands(joinControllerRef.current.forceRejoinWorkflow(workflowId))
             }
           }
         })
 
         socketInstance.on('workflow-state', async (workflowData) => {
           logger.info('Received workflow state from server')
+
+          if (
+            !workflowData?.id ||
+            currentWorkflowIdRef.current !== workflowData.id ||
+            !isWorkflowVisible()
+          ) {
+            logger.info('Ignoring workflow state for inactive room', {
+              workflowId: workflowData?.id,
+              currentWorkflowId: currentWorkflowIdRef.current,
+              desiredWorkflowId: urlWorkflowIdRef.current,
+            })
+            return
+          }
 
           if (workflowData?.state) {
             try {
@@ -534,6 +710,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     initializeSocket()
 
     return () => {
+      clearJoinRetryTimeout()
       positionUpdateTimeouts.current.forEach((timeoutId) => {
         clearTimeout(timeoutId)
       })
@@ -552,77 +729,34 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const hydrationPhase = useWorkflowRegistryStore((s) => s.hydration.phase)
 
   useEffect(() => {
-    if (!socket || !isConnected || !urlWorkflowId) return
-
-    if (hydrationPhase === 'creating') return
-
-    // Skip if already in the correct room
-    if (currentWorkflowId === urlWorkflowId) return
-
-    logger.info(
-      `URL workflow changed from ${currentWorkflowId} to ${urlWorkflowId}, switching rooms`
-    )
-
-    if (currentWorkflowId) {
-      logger.info(`Leaving current workflow ${currentWorkflowId} before joining ${urlWorkflowId}`)
-      socket.emit('leave-workflow')
+    if (hydrationPhase === 'creating') {
+      return
     }
 
-    logger.info(`Joining workflow room: ${urlWorkflowId}`)
-    socket.emit('join-workflow', {
-      workflowId: urlWorkflowId,
-      tabSessionId: getTabSessionId(),
-    })
-  }, [socket, isConnected, urlWorkflowId, currentWorkflowId, hydrationPhase])
+    executeJoinCommands(joinControllerRef.current.requestWorkflow(getRequestedWorkflowId()))
+  }, [
+    explicitWorkflowId,
+    getRequestedWorkflowId,
+    hydrationPhase,
+    urlWorkflowId,
+    executeJoinCommands,
+  ])
 
   const joinWorkflow = useCallback(
     (workflowId: string) => {
-      if (!socket || !user?.id) {
-        logger.warn('Cannot join workflow: socket or user not available')
+      if (!user?.id) {
+        logger.warn('Cannot join workflow: user not available')
         return
       }
 
-      if (currentWorkflowId === workflowId) {
-        logger.info(`Already in workflow ${workflowId}, skipping join`)
-        return
-      }
-
-      if (currentWorkflowId) {
-        logger.info(`Leaving current workflow ${currentWorkflowId} before joining ${workflowId}`)
-        socket.emit('leave-workflow')
-      }
-
-      logger.info(`Joining workflow: ${workflowId}`)
-      socket.emit('join-workflow', {
-        workflowId,
-        tabSessionId: getTabSessionId(),
-      })
-      // currentWorkflowId will be set by join-workflow-success handler
+      setExplicitWorkflowId(workflowId)
     },
-    [socket, user, currentWorkflowId]
+    [user]
   )
 
   const leaveWorkflow = useCallback(() => {
-    if (socket && currentWorkflowId) {
-      logger.info(`Leaving workflow: ${currentWorkflowId}`)
-      import('@/stores/operation-queue/store')
-        .then(({ useOperationQueueStore }) => {
-          useOperationQueueStore.getState().cancelOperationsForWorkflow(currentWorkflowId)
-        })
-        .catch((error) => {
-          logger.warn('Failed to cancel operations for workflow:', error)
-        })
-      socket.emit('leave-workflow')
-      setCurrentWorkflowId(null)
-      setPresenceUsers([])
-
-      positionUpdateTimeouts.current.forEach((timeoutId) => {
-        clearTimeout(timeoutId)
-      })
-      positionUpdateTimeouts.current.clear()
-      pendingPositionUpdates.current.clear()
-    }
-  }, [socket, currentWorkflowId])
+    setExplicitWorkflowId(null)
+  }, [])
 
   /**
    * Retry socket connection after auth failure.
@@ -640,8 +774,20 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   }, [authFailed])
 
   const emitWorkflowOperation = useCallback(
-    (operation: string, target: string, payload: any, operationId?: string) => {
-      if (!socket || !currentWorkflowId) {
+    (workflowId: string, operation: string, target: string, payload: any, operationId?: string) => {
+      if (
+        !socket ||
+        !currentWorkflowId ||
+        workflowId !== currentWorkflowId ||
+        !isWorkflowVisible(workflowId)
+      ) {
+        logger.debug('Skipping workflow operation emit for inactive room', {
+          workflowId,
+          currentWorkflowId,
+          desiredWorkflowId: urlWorkflowIdRef.current,
+          operation,
+          target,
+        })
         return
       }
 
@@ -653,7 +799,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
         if (commit) {
           socket.emit('workflow-operation', {
-            workflowId: currentWorkflowId,
+            workflowId,
             operation,
             target,
             payload,
@@ -670,7 +816,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         }
 
         pendingPositionUpdates.current.set(blockId, {
-          workflowId: currentWorkflowId,
+          workflowId,
           operation,
           target,
           payload,
@@ -692,7 +838,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         }
       } else {
         socket.emit('workflow-operation', {
-          workflowId: currentWorkflowId,
+          workflowId,
           operation,
           target,
           payload,
@@ -701,7 +847,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         })
       }
     },
-    [socket, currentWorkflowId]
+    [socket, currentWorkflowId, isWorkflowVisible]
   )
 
   const emitSubblockUpdate = useCallback(
@@ -712,8 +858,24 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       operationId: string | undefined,
       workflowId: string
     ) => {
-      if (!socket) {
-        logger.warn('Cannot emit subblock update: no socket connection', { workflowId, blockId })
+      if (
+        !socket ||
+        workflowId !== currentWorkflowIdRef.current ||
+        !isWorkflowVisible(workflowId)
+      ) {
+        const reason = !socket
+          ? 'socket_unavailable'
+          : workflowId !== currentWorkflowIdRef.current
+            ? 'joined_workflow_mismatch'
+            : 'workflow_not_visible'
+
+        logger.debug('Skipping subblock update emit', {
+          workflowId,
+          blockId,
+          subblockId,
+          reason,
+          currentWorkflowId: currentWorkflowIdRef.current,
+        })
         return
       }
       socket.emit('subblock-update', {
@@ -736,8 +898,24 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       operationId: string | undefined,
       workflowId: string
     ) => {
-      if (!socket) {
-        logger.warn('Cannot emit variable update: no socket connection', { workflowId, variableId })
+      if (
+        !socket ||
+        workflowId !== currentWorkflowIdRef.current ||
+        !isWorkflowVisible(workflowId)
+      ) {
+        const reason = !socket
+          ? 'socket_unavailable'
+          : workflowId !== currentWorkflowIdRef.current
+            ? 'joined_workflow_mismatch'
+            : 'workflow_not_visible'
+
+        logger.debug('Skipping variable update emit', {
+          workflowId,
+          variableId,
+          field,
+          reason,
+          currentWorkflowId: currentWorkflowIdRef.current,
+        })
         return
       }
       socket.emit('variable-update', {
@@ -755,7 +933,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const lastCursorEmit = useRef(0)
   const emitCursorUpdate = useCallback(
     (cursor: { x: number; y: number } | null) => {
-      if (!socket || !currentWorkflowId) {
+      if (!socket || !currentWorkflowId || !isWorkflowVisible(currentWorkflowId)) {
         return
       }
 
@@ -772,16 +950,16 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         lastCursorEmit.current = now
       }
     },
-    [socket, currentWorkflowId]
+    [socket, currentWorkflowId, isWorkflowVisible]
   )
 
   const emitSelectionUpdate = useCallback(
     (selection: { type: 'block' | 'edge' | 'none'; id?: string }) => {
-      if (socket && currentWorkflowId) {
+      if (socket && currentWorkflowId && isWorkflowVisible(currentWorkflowId)) {
         socket.emit('selection-update', { selection })
       }
     },
-    [socket, currentWorkflowId]
+    [socket, currentWorkflowId, isWorkflowVisible]
   )
 
   const onWorkflowOperation = useCallback((handler: (data: any) => void) => {
@@ -830,6 +1008,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       isConnected,
       isConnecting,
       isReconnecting,
+      isRetryingWorkflowJoin,
       authFailed,
       currentWorkflowId,
       currentSocketId,
@@ -858,6 +1037,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       isConnected,
       isConnecting,
       isReconnecting,
+      isRetryingWorkflowJoin,
       authFailed,
       currentWorkflowId,
       currentSocketId,
