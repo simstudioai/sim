@@ -235,6 +235,7 @@ export const env = createEnv({
     IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER:z.string().optional().default('2200'),   // Max owner in-flight leases across replicas
     IVM_DISTRIBUTED_LEASE_MIN_TTL_MS:      z.string().optional().default('120000'), // Min TTL for distributed in-flight leases (ms)
     IVM_QUEUE_TIMEOUT_MS:                  z.string().optional().default('300000'), // Max queue wait before rejection (ms)
+    IVM_MAX_EXECUTIONS_PER_WORKER:         z.string().optional().default('500'),    // Max lifetime executions before worker is recycled
 
     // Knowledge Base Processing Configuration - Shared across all processing methods
     KB_CONFIG_MAX_DURATION:                z.number().optional().default(600),     // Max processing duration in seconds (10 minutes)
