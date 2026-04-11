@@ -142,10 +142,6 @@ async function executeCode(request) {
     stdoutTruncated = true
   }
 
-  // Hoist all ivm handle declarations so finally can release them deterministically.
-  // Per isolated-vm upstream issues #198 and #377: child handles (scripts, callbacks,
-  // references, external copies) must be released before isolate.dispose() to avoid
-  // stuck-GC states and native memory leaks outside the V8 heap.
   let context = null
   let bootstrapScript = null
   let userScript = null
@@ -376,10 +372,6 @@ async function executeCode(request) {
       },
     }
   } finally {
-    // Release child handles first (scripts, callbacks, references, external copies),
-    // then dispose the isolate. Order matters: disposing the isolate while child
-    // handles still exist can cause stuck-GC states (isolated-vm issue #198).
-    // .release() is idempotent — safe to call even if the object was never assigned.
     const releaseables = [
       userScript,
       bootstrapScript,

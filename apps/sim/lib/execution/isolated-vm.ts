@@ -727,9 +727,7 @@ function spawnWorker(): Promise<WorkerInfo> {
 
     import('node:child_process')
       .then(({ spawn }) => {
-        // isolated-vm v6 requires --no-node-snapshot on Node.js 20+.
-        // Without it, Node's shared V8 snapshot heap is incompatible with isolated-vm
-        // and causes SIGSEGV on worker startup (isolated-vm issue #377).
+        // Required for isolated-vm on Node.js 20+ (issue #377)
         const proc = spawn('node', ['--no-node-snapshot', workerPath], {
           stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
           serialization: 'json',
@@ -839,10 +837,6 @@ async function acquireWorker(): Promise<WorkerInfo | null> {
   const existing = selectWorker()
   if (existing) return existing
 
-  // Count only non-retiring workers toward pool occupancy so that a replacement
-  // can be spawned pre-emptively while a retiring worker is still draining its
-  // in-flight executions.  Retiring workers stay in `workers` until they drain,
-  // but they no longer accept new work, so they shouldn't block new spawns.
   const activeWorkerCount = [...workers.values()].filter((w) => !w.retiring).length
   const currentPoolSize = activeWorkerCount + spawnInProgress
   if (currentPoolSize < POOL_SIZE) {
