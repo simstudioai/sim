@@ -145,7 +145,11 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
         logger
       )
 
-      // Update state: new pageToken and rolling knownFileIds
+      // Update state: new pageToken and rolling knownFileIds.
+      // Newest IDs are placed first so that when the set exceeds MAX_KNOWN_FILE_IDS,
+      // the oldest (least recently seen) IDs are evicted. Recent files are more
+      // likely to be modified again, so keeping them prevents misclassifying a
+      // repeat modification as a "created" event.
       const existingKnownIds = config.knownFileIds || []
       const mergedKnownIds = [...new Set([...newKnownFileIds, ...existingKnownIds])].slice(
         0,
@@ -271,9 +275,14 @@ async function fetchChanges(
   }
 
   const slicingOccurs = allChanges.length > maxFiles
+  // Drive API guarantees exactly one of nextPageToken or newStartPageToken per response.
+  // Slicing case: prefer lastNextPageToken (mid-list resume); fall back to newStartPageToken
+  // (guaranteed on final page when hasMore was false). Non-slicing case: prefer newStartPageToken
+  // (guaranteed when loop exhausted all pages); fall back to lastNextPageToken (when loop exited
+  // early due to MAX_PAGES with hasMore still true).
   const resumeToken = slicingOccurs
-    ? (lastNextPageToken ?? config.pageToken!)
-    : (newStartPageToken ?? lastNextPageToken ?? config.pageToken!)
+    ? (lastNextPageToken ?? newStartPageToken!)
+    : (newStartPageToken ?? lastNextPageToken!)
 
   return { changes: allChanges.slice(0, maxFiles), newStartPageToken: resumeToken }
 }

@@ -106,7 +106,7 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
       if (!config.lastCheckedTimestamp) {
         await updateWebhookProviderConfig(
           webhookId,
-          { lastCheckedTimestamp: new Date().toISOString() },
+          { lastCheckedTimestamp: new Date(Date.now() - 30_000).toISOString() },
           logger
         )
         await markWebhookSuccess(webhookId, logger)
@@ -139,7 +139,7 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
         failedCount > 0
           ? config.lastCheckedTimestamp
           : latestUpdated
-            ? new Date(new Date(latestUpdated).getTime() + 1).toISOString()
+            ? new Date(new Date(latestUpdated).getTime() - 5000).toISOString()
             : config.lastCheckedTimestamp
       await updateWebhookProviderConfig(webhookId, { lastCheckedTimestamp: newTimestamp }, logger)
 
@@ -182,7 +182,6 @@ async function fetchChangedEvents(
       updatedMin: config.lastCheckedTimestamp!,
       singleEvents: 'true',
       showDeleted: 'true',
-      orderBy: 'updated',
       maxResults: String(Math.min(maxEvents, 250)),
     })
 

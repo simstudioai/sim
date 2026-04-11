@@ -150,7 +150,6 @@ function getConfigValue(block: BlockState, subBlock: SubBlockConfig): unknown {
 
   if (
     (fieldValue === null || fieldValue === undefined || fieldValue === '') &&
-    Boolean(subBlock.required) &&
     subBlock.defaultValue !== undefined
   ) {
     return subBlock.defaultValue
@@ -192,8 +191,11 @@ function buildProviderConfig(
       const valueToUse = getConfigValue(block, subBlock)
       if (valueToUse !== null && valueToUse !== undefined && valueToUse !== '') {
         providerConfig[subBlock.id] = valueToUse
-      } else if (isFieldRequired(subBlock, subBlockValues)) {
-        missingFields.push(subBlock.title || subBlock.id)
+      } else {
+        delete providerConfig[subBlock.id]
+        if (isFieldRequired(subBlock, subBlockValues)) {
+          missingFields.push(subBlock.title || subBlock.id)
+        }
       }
     })
 

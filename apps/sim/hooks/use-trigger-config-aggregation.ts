@@ -66,7 +66,6 @@ export function useTriggerConfigAggregation(
       let valueToUse = fieldValue
       if (
         (fieldValue === null || fieldValue === undefined || fieldValue === '') &&
-        subBlock.required &&
         subBlock.defaultValue !== undefined
       ) {
         valueToUse = subBlock.defaultValue
