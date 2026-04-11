@@ -45,7 +45,8 @@ export function buildFilterConditions(params: AuditLogFilterParams): SQL<unknown
   if (params.actorEmail) conditions.push(eq(auditLog.actorEmail, params.actorEmail))
 
   if (params.search) {
-    const searchTerm = `%${params.search}%`
+    const escaped = params.search.replace(/[%_\\]/g, '\\$&')
+    const searchTerm = `%${escaped}%`
     conditions.push(
       or(
         ilike(auditLog.action, searchTerm),
