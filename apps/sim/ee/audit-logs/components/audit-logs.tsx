@@ -6,7 +6,7 @@ import { RefreshCw, Search } from 'lucide-react'
 import { Badge, Button, Combobox, type ComboboxOption, Skeleton } from '@/components/emcn'
 import { Input } from '@/components/ui'
 import { formatDateTime } from '@/lib/core/utils/formatting'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 import type { EnterpriseAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import { type AuditLogFilters, useAuditLogs } from '@/ee/audit-logs/hooks/audit-logs'
 
@@ -163,13 +163,15 @@ export function AuditLogs() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
+    const trimmed = searchTerm.trim()
+    if (trimmed === debouncedSearch) return
     debounceRef.current = setTimeout(() => {
-      setDebouncedSearch(searchTerm.trim())
+      setDebouncedSearch(trimmed)
     }, 300)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [searchTerm])
+  }, [searchTerm, debouncedSearch])
 
   const filters = useMemo<AuditLogFilters>(() => {
     return {

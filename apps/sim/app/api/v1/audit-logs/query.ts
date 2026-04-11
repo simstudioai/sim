@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { auditLog, workspace } from '@sim/db/schema'
 import type { InferSelectModel } from 'drizzle-orm'
-import { and, desc, eq, gte, ilike, inArray, lt, lte, or, type SQL } from 'drizzle-orm'
+import { and, desc, eq, gte, ilike, inArray, lt, lte, or, sql, type SQL } from 'drizzle-orm'
 
 type DbAuditLog = InferSelectModel<typeof auditLog>
 
@@ -67,6 +67,10 @@ export async function buildOrgScopeCondition(
   orgMemberIds: string[],
   includeDeparted: boolean
 ): Promise<SQL<unknown>> {
+  if (orgMemberIds.length === 0) {
+    return sql`1 = 0`
+  }
+
   if (!includeDeparted) {
     return inArray(auditLog.actorId, orgMemberIds)
   }
