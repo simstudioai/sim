@@ -11,12 +11,6 @@ import {
 
 const logger = createLogger('TokenChunker')
 
-/**
- * Fixed-size token chunker
- * Splits text into chunks of a fixed token size with configurable overlap.
- * Uses a sliding window approach (matching LangChain/Chonkie) where chunks
- * stay within the size limit. The window advances by chunkSize - overlap.
- */
 export class TokenChunker {
   private readonly chunkSize: number
   private readonly chunkOverlap: number

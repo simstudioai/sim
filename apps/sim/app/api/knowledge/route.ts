@@ -15,14 +15,6 @@ import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('KnowledgeBaseAPI')
 
-/**
- * Schema for creating a knowledge base
- *
- * Chunking config units:
- * - maxSize: tokens (1 token ≈ 4 characters)
- * - minSize: characters
- * - overlap: tokens (1 token ≈ 4 characters)
- */
 const CreateKnowledgeBaseSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
@@ -31,25 +23,17 @@ const CreateKnowledgeBaseSchema = z.object({
   embeddingDimension: z.literal(1536).default(1536),
   chunkingConfig: z
     .object({
-      /** Maximum chunk size in tokens (1 token ≈ 4 characters) */
       maxSize: z.number().min(100).max(4000).default(1024),
-      /** Minimum chunk size in characters */
       minSize: z.number().min(1).max(2000).default(100),
-      /** Overlap between chunks in tokens (1 token ≈ 4 characters) */
       overlap: z.number().min(0).max(500).default(200),
-      /** Chunking strategy */
       strategy: z
         .enum(['auto', 'text', 'regex', 'recursive', 'sentence', 'token'])
         .default('auto')
         .optional(),
-      /** Strategy-specific options */
       strategyOptions: z
         .object({
-          /** Regex pattern for 'regex' strategy (max 500 chars) */
           pattern: z.string().max(500).optional(),
-          /** Custom separator hierarchy for 'recursive' strategy */
           separators: z.array(z.string()).optional(),
-          /** Pre-built separator recipe for 'recursive' strategy */
           recipe: z.enum(['plain', 'markdown', 'code']).optional(),
         })
         .optional(),

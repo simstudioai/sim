@@ -60,26 +60,20 @@ const FormSchema = z
       .max(100, 'Name must be less than 100 characters')
       .refine((value) => value.trim().length > 0, 'Name cannot be empty'),
     description: z.string().max(500, 'Description must be less than 500 characters').optional(),
-    /** Minimum chunk size in characters */
     minChunkSize: z
       .number()
       .min(1, 'Min chunk size must be at least 1 character')
       .max(2000, 'Min chunk size must be less than 2000 characters'),
-    /** Maximum chunk size in tokens (1 token ≈ 4 characters) */
     maxChunkSize: z
       .number()
       .min(100, 'Max chunk size must be at least 100 tokens')
       .max(4000, 'Max chunk size must be less than 4000 tokens'),
-    /** Overlap between chunks in tokens */
     overlapSize: z
       .number()
       .min(0, 'Overlap must be non-negative')
       .max(500, 'Overlap must be less than 500 tokens'),
-    /** Chunking strategy */
     strategy: z.enum(['auto', 'text', 'regex', 'recursive', 'sentence', 'token']).default('auto'),
-    /** Regex pattern (required when strategy is 'regex') */
     regexPattern: z.string().optional(),
-    /** Custom separators for recursive strategy (comma-separated) */
     customSeparators: z.string().optional(),
   })
   .refine(
@@ -376,7 +370,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
               <div className='space-y-3'>
                 <div className='flex flex-col gap-2'>
                   <Label htmlFor='kb-name'>Name</Label>
-                  {/* Hidden decoy fields to prevent browser autofill */}
                   <input
                     type='text'
                     name='fakeusernameremembered'

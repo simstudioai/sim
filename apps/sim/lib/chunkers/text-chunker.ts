@@ -9,10 +9,6 @@ import {
   tokensToChars,
 } from '@/lib/chunkers/utils'
 
-/**
- * Lightweight text chunker optimized for RAG applications
- * Uses hierarchical splitting with simple character-based token estimation
- */
 export class TextChunker {
   private readonly chunkSize: number
   private readonly chunkOverlap: number
@@ -43,9 +39,6 @@ export class TextChunker {
     this.chunkOverlap = resolved.chunkOverlap
   }
 
-  /**
-   * Split text recursively using hierarchical separators
-   */
   private splitRecursively(text: string, separatorIndex = 0): string[] {
     const tokenCount = estimateTokens(text)
 
@@ -98,9 +91,6 @@ export class TextChunker {
     return chunks
   }
 
-  /**
-   * Main chunking method
-   */
   async chunk(text: string): Promise<Chunk[]> {
     if (!text?.trim()) {
       return []

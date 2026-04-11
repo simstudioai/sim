@@ -12,10 +12,6 @@ type JsonArray = JsonValue[]
 
 const MAX_DEPTH = 5
 
-/**
- * Structure-aware chunker for JSON and YAML content
- * Recursively decomposes objects and arrays while preserving structure
- */
 export class JsonYamlChunker {
   private chunkSize: number
   private minCharactersPerChunk: number
@@ -25,9 +21,6 @@ export class JsonYamlChunker {
     this.minCharactersPerChunk = options.minCharactersPerChunk ?? 100
   }
 
-  /**
-   * Check if content is structured JSON/YAML data (object or array, not a primitive)
-   */
   static isStructuredData(content: string): boolean {
     try {
       const parsed = JSON.parse(content)
@@ -42,9 +35,6 @@ export class JsonYamlChunker {
     }
   }
 
-  /**
-   * Chunk JSON/YAML content intelligently based on structure
-   */
   async chunk(content: string): Promise<Chunk[]> {
     try {
       let data: JsonValue
@@ -65,9 +55,6 @@ export class JsonYamlChunker {
     }
   }
 
-  /**
-   * Chunk structured data based on its structure
-   */
   private chunkStructuredData(data: JsonValue, path: string[], depth: number): Chunk[] {
     if (Array.isArray(data)) {
       return this.chunkArray(data, path, depth)
@@ -99,9 +86,6 @@ export class JsonYamlChunker {
     ]
   }
 
-  /**
-   * Chunk an array by batching items until the token budget is reached
-   */
   private chunkArray(arr: JsonArray, path: string[], depth: number): Chunk[] {
     const chunks: Chunk[] = []
     let currentBatch: JsonValue[] = []
@@ -158,9 +142,6 @@ export class JsonYamlChunker {
     return chunks
   }
 
-  /**
-   * Chunk an object by grouping key-value pairs until the token budget is reached
-   */
   private chunkObject(obj: JsonObject, path: string[], depth: number): Chunk[] {
     const chunks: Chunk[] = []
     const entries = Object.entries(obj)
@@ -239,9 +220,6 @@ export class JsonYamlChunker {
     return chunks
   }
 
-  /**
-   * Build a chunk from a batch of array items
-   */
   private buildBatchChunk(
     contextHeader: string,
     batch: JsonValue[],
@@ -256,9 +234,6 @@ export class JsonYamlChunker {
     }
   }
 
-  /**
-   * Fall back to text chunking if JSON parsing fails
-   */
   private chunkAsText(content: string): Chunk[] {
     const chunks: Chunk[] = []
     const lines = content.split('\n')
@@ -296,9 +271,6 @@ export class JsonYamlChunker {
     return chunks
   }
 
-  /**
-   * Static method for chunking JSON/YAML data with default options
-   */
   static async chunkJsonYaml(content: string, options: ChunkerOptions = {}): Promise<Chunk[]> {
     const chunker = new JsonYamlChunker(options)
     return chunker.chunk(content)

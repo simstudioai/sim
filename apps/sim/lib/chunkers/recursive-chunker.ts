@@ -52,12 +52,6 @@ const RECIPES = {
   ],
 } as const
 
-/**
- * Recursive delimiter-based chunker
- * Splits text using a configurable hierarchy of separators.
- * At each level, splits on the separator, merges small pieces, then
- * recurses to the next level for any chunks that are still too large.
- */
 export class RecursiveChunker {
   private readonly chunkSize: number
   private readonly chunkOverlap: number

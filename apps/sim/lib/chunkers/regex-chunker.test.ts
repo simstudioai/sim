@@ -73,7 +73,6 @@ describe('RegexChunker', () => {
       'should sub-chunk segments larger than chunkSize via word boundaries',
       async () => {
         const chunker = new RegexChunker({ pattern: '---', chunkSize: 10 })
-        // Each segment is well over 10 tokens (40 chars = 10 tokens)
         const longSegment =
           'This is a very long segment with many words that exceeds the chunk size limit significantly. '
         const text = `${longSegment}---${longSegment}`

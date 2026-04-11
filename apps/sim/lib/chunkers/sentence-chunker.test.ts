@@ -95,11 +95,9 @@ describe('SentenceChunker', () => {
       const text = 'The value is 3.14. That is pi.'
       const chunks = await chunker.chunk(text)
 
-      // Text is short enough for one chunk, but verify no split at 3.14
       const allText = chunks.map((c) => c.text).join(' ')
       expect(allText).toContain('3.14')
 
-      // With a large enough chunkSize to hold both sentences, verify exactly 1 chunk
       const largeChunker = new SentenceChunker({ chunkSize: 200 })
       const largeChunks = await largeChunker.chunk(text)
       expect(largeChunks).toHaveLength(1)
@@ -119,13 +117,10 @@ describe('SentenceChunker', () => {
 
   describe('exclamation and question marks', () => {
     it.concurrent('should split at exclamation and question marks', async () => {
-      // chunkSize: 25 tokens = 100 chars. Each sentence is ~25 chars, so each gets its own chunk.
       const chunker = new SentenceChunker({ chunkSize: 10 })
       const text = 'What is this? It is great! I agree.'
       const chunks = await chunker.chunk(text)
 
-      // Total text is 35 chars = 9 tokens, fits in chunkSize: 10
-      // So it returns a single chunk. Use sentence content check instead.
       const allText = chunks.map((c) => c.text).join(' ')
       expect(allText).toContain('What is this?')
       expect(allText).toContain('It is great!')
@@ -133,16 +128,10 @@ describe('SentenceChunker', () => {
     })
 
     it.concurrent('should treat ? and ! as sentence boundaries', async () => {
-      // Need sentences that individually fit in chunkSize but not combined
       const chunker = new SentenceChunker({ chunkSize: 15 })
       const text = 'What is this thing? It is really great! I strongly agree.'
       const chunks = await chunker.chunk(text)
 
-      // "What is this thing?" = 19 chars = 5 tokens
-      // "It is really great!" = 19 chars = 5 tokens
-      // "I strongly agree." = 17 chars = 5 tokens
-      // Total = 55 chars = 14 tokens, fits in 15. Need smaller chunkSize.
-      // Actually at chunkSize: 15 they all fit. Let's check the actual splitting.
       expect(chunks.length).toBeGreaterThanOrEqual(1)
       const allText = chunks.map((c) => c.text).join(' ')
       expect(allText).toContain('?')
@@ -157,23 +146,15 @@ describe('SentenceChunker', () => {
         'First sentence. Second sentence. Third sentence. Fourth sentence. Fifth sentence.'
       const chunks = await chunker.chunk(text)
 
-      // With minSentencesPerChunk: 2, each chunk (except possibly last) should contain
-      // at least 2 sentences
       expect(chunks.length).toBeGreaterThan(0)
-
-      // Verify that the chunker groups sentences together
-      // Total text fits in one chunk at size 100, so this should be 1 chunk
       expect(chunks).toHaveLength(1)
     })
 
     it.concurrent('should enforce min sentences even when token limit is reached', async () => {
-      // Each sentence is ~5 tokens, chunkSize: 6 means we'd normally split after 1
-      // But minSentencesPerChunk: 2 forces at least 2 sentences
       const chunker = new SentenceChunker({ chunkSize: 6, minSentencesPerChunk: 2 })
       const text = 'Short one. Another one. Third one here. Fourth one here.'
       const chunks = await chunker.chunk(text)
 
-      // First chunk should contain at least 2 sentences
       const firstChunkSentences = chunks[0].text
         .split(/(?<=[.!?])\s+/)
         .filter((s) => s.trim().length > 0)
@@ -186,12 +167,10 @@ describe('SentenceChunker', () => {
       'should chunk a single very long sentence via word-boundary splitting',
       async () => {
         const chunker = new SentenceChunker({ chunkSize: 10 })
-        // 10 tokens = 40 chars, make a sentence much longer than that
         const longSentence = `${'word '.repeat(50).trim()}.`
         const chunks = await chunker.chunk(longSentence)
 
         expect(chunks.length).toBeGreaterThan(1)
-        // Verify all content is preserved
         const allText = chunks.map((c) => c.text).join(' ')
         expect(allText).toContain('word')
       }
@@ -218,10 +197,6 @@ describe('SentenceChunker', () => {
       const chunks = await chunker.chunk(text)
 
       if (chunks.length > 1) {
-        // The second chunk should contain some text from the end of the first chunk
-        const firstChunkWords = chunks[0].text.split(' ')
-        const lastWordsOfFirst = firstChunkWords.slice(-3).join(' ')
-        // Overlap means the second chunk should start with content from the first
         expect(chunks[1].text.length).toBeGreaterThan(0)
       }
     })
@@ -232,7 +207,6 @@ describe('SentenceChunker', () => {
       const chunks = await chunker.chunk(text)
 
       if (chunks.length > 1) {
-        // Without overlap, the start of chunk 2 should NOT repeat the end of chunk 1
         const chunk1End = chunks[0].text.slice(-20)
         expect(chunks[1].text.startsWith(chunk1End)).toBe(false)
       }
@@ -291,7 +265,6 @@ describe('SentenceChunker', () => {
       const chunks = await chunker.chunk(text)
 
       expect(chunks.length).toBeGreaterThan(1)
-      // Allow some tolerance since sentence boundaries may cause slight overflows
       for (const chunk of chunks) {
         expect(chunk.tokenCount).toBeLessThanOrEqual(chunkSize * 2)
       }

@@ -48,7 +48,6 @@ describe('RecursiveChunker', () => {
   describe('line splitting fallback', () => {
     it.concurrent('should split at newlines when paragraphs are too large', async () => {
       const chunker = new RecursiveChunker({ chunkSize: 15 })
-      // Single paragraph (no \n\n) but has \n line breaks
       const text =
         'Line one with content here.\nLine two with content here.\nLine three with content here.\nLine four with content here.'
       const chunks = await chunker.chunk(text)
@@ -60,7 +59,6 @@ describe('RecursiveChunker', () => {
   describe('sentence splitting fallback', () => {
     it.concurrent('should split at sentence boundaries when lines are too large', async () => {
       const chunker = new RecursiveChunker({ chunkSize: 10 })
-      // Single line, no \n, but has ". " sentence boundaries
       const text =
         'First sentence here. Second sentence here. Third sentence here. Fourth sentence here.'
       const chunks = await chunker.chunk(text)
@@ -72,7 +70,6 @@ describe('RecursiveChunker', () => {
   describe('word splitting fallback', () => {
     it.concurrent('should split at spaces when sentences are too large', async () => {
       const chunker = new RecursiveChunker({ chunkSize: 5 })
-      // No paragraph, line, or sentence breaks - only spaces
       const text = 'word1 word2 word3 word4 word5 word6 word7 word8 word9 word10'
       const chunks = await chunker.chunk(text)
 
@@ -88,8 +85,6 @@ describe('RecursiveChunker', () => {
       const chunks = await chunker.chunk(text)
 
       if (chunks.length > 1) {
-        // The separator (\n\n) is prepended to parts after index 0, so subsequent
-        // chunks should start with the separator used for splitting
         expect(chunks[1].text.startsWith('\n\n') || chunks[1].text.length > 0).toBe(true)
       }
     })
@@ -170,7 +165,6 @@ describe('RecursiveChunker', () => {
       const chunks = await chunker.chunk(text)
 
       for (const chunk of chunks) {
-        // Allow small tolerance for word boundary alignment
         expect(chunk.tokenCount).toBeLessThanOrEqual(chunkSize + 5)
       }
     })
@@ -184,7 +178,6 @@ describe('RecursiveChunker', () => {
       const chunks = await chunker.chunk(text)
 
       if (chunks.length > 1) {
-        // With overlap, second chunk should contain some text from the end of the first
         expect(chunks[1].text.length).toBeGreaterThan(0)
       }
     })

@@ -1,24 +1,15 @@
 import type { Chunk } from '@/lib/chunkers/types'
 
-/**
- * Estimate token count from text length
- * 1 token ≈ 4 characters for English text
- */
+/** 1 token ≈ 4 characters for English text */
 export function estimateTokens(text: string): number {
   if (!text?.trim()) return 0
   return Math.ceil(text.length / 4)
 }
 
-/**
- * Convert token count to approximate character count
- */
 export function tokensToChars(tokens: number): number {
   return tokens * 4
 }
 
-/**
- * Clean and normalize text for chunking
- */
 export function cleanText(text: string): string {
   return text
     .replace(/\r\n/g, '\n')
@@ -29,10 +20,6 @@ export function cleanText(text: string): string {
     .trim()
 }
 
-/**
- * Add overlap between consecutive chunks using word-boundary alignment
- * Overlap is specified in characters
- */
 export function addOverlap(chunks: string[], overlapChars: number): string[] {
   if (overlapChars <= 0 || chunks.length <= 1) {
     return chunks
@@ -65,10 +52,8 @@ export function addOverlap(chunks: string[], overlapChars: number): string[] {
 }
 
 /**
- * Split text at word boundaries into segments of approximately chunkSizeChars.
  * When stepChars is provided (< chunkSizeChars), produces overlapping chunks
- * using a sliding window, matching LangChain/Chonkie behavior where
- * chunks stay within the size limit.
+ * using a sliding window where chunks stay within the size limit.
  */
 export function splitAtWordBoundaries(
   text: string,
@@ -103,9 +88,6 @@ export function splitAtWordBoundaries(
   return parts
 }
 
-/**
- * Build Chunk objects from text segments with startIndex/endIndex metadata
- */
 export function buildChunks(texts: string[], overlapTokens: number): Chunk[] {
   let previousEndIndex = 0
   const overlapChars = tokensToChars(overlapTokens)
@@ -140,9 +122,6 @@ export function buildChunks(texts: string[], overlapTokens: number): Chunk[] {
   })
 }
 
-/**
- * Resolve common chunker options with defaults and clamping
- */
 export function resolveChunkerOptions(options: {
   chunkSize?: number
   chunkOverlap?: number

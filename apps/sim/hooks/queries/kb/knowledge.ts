@@ -339,10 +339,7 @@ export interface DocumentChunkSearchParams {
   search: string
 }
 
-/**
- * Fetches all chunks matching a search query by paginating through results.
- * This is used for search functionality where we need all matching chunks.
- */
+/** Paginates through all matching chunks rather than returning a single page. */
 export async function fetchAllDocumentChunks(
   { knowledgeBaseId, documentId, search }: DocumentChunkSearchParams,
   signal?: AbortSignal
@@ -377,10 +374,6 @@ export const serializeSearchParams = (params: DocumentChunkSearchParams) =>
     search: params.search,
   })
 
-/**
- * Hook to search for chunks in a document.
- * Fetches all matching chunks and returns them for client-side pagination.
- */
 export function useDocumentChunkSearchQuery(
   params: DocumentChunkSearchParams,
   options?: {

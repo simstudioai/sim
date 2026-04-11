@@ -11,11 +11,7 @@ import {
 
 const logger = createLogger('SentenceChunker')
 
-/**
- * Sentence-based chunker
- * Groups complete sentences into chunks up to the token limit.
- * Never splits mid-sentence unless a single sentence exceeds the limit.
- */
+/** Never splits mid-sentence unless a single sentence exceeds the limit. */
 export class SentenceChunker {
   private readonly chunkSize: number
   private readonly chunkOverlap: number
@@ -28,10 +24,7 @@ export class SentenceChunker {
     this.minSentencesPerChunk = options.minSentencesPerChunk ?? 1
   }
 
-  /**
-   * Split text into sentences using a regex that avoids common false positives
-   * like abbreviations (Mr., Dr., U.S.), decimals (3.14), and ellipses (...).
-   */
+  /** Splits on sentence boundaries while avoiding abbreviations, decimals, and ellipses. */
   private splitSentences(text: string): string[] {
     return text
       .split(
@@ -101,10 +94,7 @@ export class SentenceChunker {
     return buildChunks(rawChunks, this.chunkOverlap)
   }
 
-  /**
-   * Apply sentence-level overlap using the original sentence groups,
-   * avoiding re-splitting joined text back into sentences.
-   */
+  /** Applies overlap at the sentence level using original groups to avoid re-splitting. */
   private applyOverlapFromGroups(groups: string[][]): string[] {
     if (this.chunkOverlap <= 0 || groups.length <= 1) {
       return groups.map((g) => g.join(' '))

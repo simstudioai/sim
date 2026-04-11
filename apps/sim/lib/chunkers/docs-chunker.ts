@@ -21,9 +21,6 @@ interface Frontmatter {
 
 const logger = createLogger('DocsChunker')
 
-/**
- * Docs-specific chunker that processes .mdx files and tracks header context
- */
 export class DocsChunker {
   private readonly textChunker: TextChunker
   private readonly baseUrl: string
@@ -39,9 +36,6 @@ export class DocsChunker {
     this.baseUrl = options.baseUrl ?? 'https://docs.sim.ai'
   }
 
-  /**
-   * Process all .mdx files in the docs directory
-   */
   async chunkAllDocs(docsPath: string): Promise<DocChunk[]> {
     const allChunks: DocChunk[] = []
 
@@ -67,9 +61,6 @@ export class DocsChunker {
     }
   }
 
-  /**
-   * Process a single .mdx file
-   */
   async chunkMdxFile(filePath: string, basePath: string): Promise<DocChunk[]> {
     const content = await fs.readFile(filePath, 'utf-8')
     const relativePath = path.relative(basePath, filePath)
@@ -120,9 +111,6 @@ export class DocsChunker {
     return chunks
   }
 
-  /**
-   * Find all .mdx files recursively
-   */
   private async findMdxFiles(dirPath: string): Promise<string[]> {
     const files: string[] = []
 
@@ -142,9 +130,6 @@ export class DocsChunker {
     return files
   }
 
-  /**
-   * Extract headers and their positions from markdown content
-   */
   private extractHeaders(content: string): HeaderInfo[] {
     const headers: HeaderInfo[] = []
     const headerRegex = /^(#{1,6})\s+(.+)$/gm
@@ -166,9 +151,6 @@ export class DocsChunker {
     return headers
   }
 
-  /**
-   * Generate URL-safe anchor from header text
-   */
   private generateAnchor(headerText: string): string {
     return headerText
       .toLowerCase()
@@ -178,10 +160,7 @@ export class DocsChunker {
       .replace(/^-|-$/g, '')
   }
 
-  /**
-   * Generate document URL from relative path
-   * Handles index.mdx files specially - they are served at the parent directory path
-   */
+  /** index.mdx files are served at the parent directory path */
   private generateDocumentUrl(relativePath: string): string {
     let urlPath = relativePath.replace(/\.mdx$/, '').replace(/\\/g, '/')
 
@@ -194,9 +173,6 @@ export class DocsChunker {
     return `${this.baseUrl}/${urlPath}`
   }
 
-  /**
-   * Find the most relevant header for a given position
-   */
   private findRelevantHeader(headers: HeaderInfo[], position: number): HeaderInfo | null {
     if (headers.length === 0) return null
 
@@ -213,11 +189,7 @@ export class DocsChunker {
     return relevantHeader
   }
 
-  /**
-   * Split content into chunks using the existing TextChunker with table awareness.
-   * Returns both the chunks and the cleaned content so header extraction
-   * operates on the same text that was chunked (aligned positions).
-   */
+  /** Returns both chunks and cleaned content so header extraction uses aligned positions. */
   private async splitContent(
     content: string
   ): Promise<{ chunks: string[]; cleanedContent: string }> {
@@ -238,9 +210,6 @@ export class DocsChunker {
     return { chunks: finalChunks, cleanedContent }
   }
 
-  /**
-   * Clean content by removing MDX-specific elements and excessive whitespace
-   */
   private cleanContent(content: string): string {
     return content
       .replace(/\r\n/g, '\n')
@@ -255,9 +224,6 @@ export class DocsChunker {
       .trim()
   }
 
-  /**
-   * Parse frontmatter from MDX content
-   */
   private parseFrontmatter(content: string): { data: Frontmatter; content: string } {
     const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/
     const match = content.match(frontmatterRegex)
@@ -285,9 +251,7 @@ export class DocsChunker {
     return { data, content: markdownContent }
   }
 
-  /**
-   * Detect table boundaries in markdown content to avoid splitting them
-   */
+  /** Detects table boundaries to avoid splitting tables across chunks. */
   private detectTableBoundaries(content: string): { start: number; end: number }[] {
     const tables: { start: number; end: number }[] = []
     const lines = content.split('\n')
@@ -331,16 +295,10 @@ export class DocsChunker {
     return tables
   }
 
-  /**
-   * Get character position from line number
-   */
   private getCharacterPosition(lines: string[], lineIndex: number): number {
     return lines.slice(0, lineIndex).reduce((acc, line) => acc + line.length + 1, 0)
   }
 
-  /**
-   * Merge chunks that would split tables
-   */
   private mergeTableChunks(
     chunks: string[],
     tableBoundaries: { start: number; end: number }[],
@@ -393,9 +351,6 @@ export class DocsChunker {
     return mergedChunks.filter((chunk) => chunk.length > 50)
   }
 
-  /**
-   * Enforce token size limit on chunks, using the configured chunkSize
-   */
   private enforceSizeLimit(chunks: string[]): string[] {
     const finalChunks: string[] = []
 

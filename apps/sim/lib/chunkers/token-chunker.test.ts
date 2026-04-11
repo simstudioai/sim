@@ -37,7 +37,7 @@ describe('TokenChunker', () => {
   describe('token count accuracy', () => {
     it.concurrent('should compute tokenCount as Math.ceil(text.length / 4)', async () => {
       const chunker = new TokenChunker({ chunkSize: 100 })
-      const text = 'Hello world' // 11 chars -> ceil(11/4) = 3
+      const text = 'Hello world'
       const chunks = await chunker.chunk(text)
 
       expect(chunks[0].tokenCount).toBe(Math.ceil(text.length / 4))
@@ -45,7 +45,7 @@ describe('TokenChunker', () => {
 
     it.concurrent('should compute tokenCount correctly for longer text', async () => {
       const chunker = new TokenChunker({ chunkSize: 100 })
-      const text = 'The quick brown fox jumps over the lazy dog.' // 44 chars -> ceil(44/4) = 11
+      const text = 'The quick brown fox jumps over the lazy dog.'
       const chunks = await chunker.chunk(text)
 
       expect(chunks[0].tokenCount).toBe(11)
@@ -192,7 +192,6 @@ describe('TokenChunker', () => {
 
       for (const chunk of chunks) {
         const trimmed = chunk.text.trim()
-        // Should not start or end with a partial word (space in the middle)
         expect(trimmed).toBe(chunk.text)
       }
     })

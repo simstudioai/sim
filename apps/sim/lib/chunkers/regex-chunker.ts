@@ -14,11 +14,6 @@ const logger = createLogger('RegexChunker')
 
 const MAX_PATTERN_LENGTH = 500
 
-/**
- * Regex pattern-based chunker
- * Splits text using a user-defined regex pattern, then merges small segments
- * until the chunk size limit is reached.
- */
 export class RegexChunker {
   private readonly chunkSize: number
   private readonly chunkOverlap: number
@@ -43,7 +38,6 @@ export class RegexChunker {
     try {
       const regex = new RegExp(pattern, 'g')
 
-      // Test against adversarial strings to catch catastrophic backtracking
       const testStrings = [
         'a'.repeat(10000),
         ' '.repeat(10000),

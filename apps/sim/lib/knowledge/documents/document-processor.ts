@@ -54,9 +54,6 @@ type OCRRequestBody = {
 
 const MISTRAL_MAX_PAGES = 1000
 
-/**
- * Get page count from a PDF buffer using unpdf
- */
 async function getPdfPageCount(buffer: Buffer): Promise<number> {
   try {
     const { getDocumentProxy } = await import('unpdf')
@@ -69,10 +66,6 @@ async function getPdfPageCount(buffer: Buffer): Promise<number> {
   }
 }
 
-/**
- * Split a PDF buffer into multiple smaller PDFs
- * Returns an array of PDF buffers, each with at most maxPages pages
- */
 async function splitPdfIntoChunks(
   pdfBuffer: Buffer,
   maxPages: number
@@ -122,9 +115,6 @@ class APIError extends Error {
   }
 }
 
-/**
- * Apply a specific chunking strategy to content
- */
 async function applyStrategy(
   strategy: ChunkingStrategy,
   content: string,
@@ -207,7 +197,6 @@ export async function processDocument(
     let chunks: Chunk[]
     const metadata: FileParseMetadata = parseResult.metadata ?? {}
 
-    // If an explicit strategy is set (not 'auto'), use that chunker directly
     if (strategy && strategy !== 'auto') {
       logger.info(`Using explicit chunking strategy: ${strategy}`)
       chunks = await applyStrategy(
@@ -219,7 +208,6 @@ export async function processDocument(
         strategyOptions
       )
     } else {
-      // Auto-detect based on content type
       const isJsonYaml =
         metadata.type === 'json' ||
         metadata.type === 'yaml' ||
@@ -642,9 +630,6 @@ async function executeMistralOCRRequest(
   )
 }
 
-/**
- * Process a single PDF chunk: upload to S3, OCR, cleanup
- */
 async function processChunk(
   chunk: { buffer: Buffer; startPage: number; endPage: number },
   chunkIndex: number,
@@ -662,7 +647,6 @@ async function processChunk(
   let uploadedKey: string | null = null
 
   try {
-    // Upload the chunk to S3
     const timestamp = Date.now()
     const uniqueId = Math.random().toString(36).substring(2, 9)
     const safeFileName = filename.replace(/[^a-zA-Z0-9.-]/g, '_')
@@ -694,7 +678,6 @@ async function processChunk(
 
     logger.info(`Uploaded chunk ${chunkIndex + 1} to S3: ${chunkKey}`)
 
-    // Process the chunk with Mistral OCR
     const params = {
       filePath: chunkUrl,
       apiKey,
@@ -716,7 +699,6 @@ async function processChunk(
     })
     return { index: chunkIndex, content: null }
   } finally {
-    // Clean up the chunk file from S3 after processing
     if (uploadedKey) {
       try {
         await StorageService.deleteFile({ key: uploadedKey, context: 'knowledge-base' })
@@ -751,7 +733,6 @@ async function processMistralOCRInBatches(
     `Split into ${pdfChunks.length} chunks, processing with concurrency ${MAX_CONCURRENT_CHUNKS}`
   )
 
-  // Process chunks concurrently with limited concurrency
   const results: { index: number; content: string | null }[] = []
 
   for (let i = 0; i < pdfChunks.length; i += MAX_CONCURRENT_CHUNKS) {
@@ -770,15 +751,12 @@ async function processMistralOCRInBatches(
     )
   }
 
-  // Sort by index to maintain page order and filter out nulls
   const sortedResults = results
     .sort((a, b) => a.index - b.index)
     .filter((r) => r.content !== null)
     .map((r) => r.content as string)
 
   if (sortedResults.length === 0) {
-    // Don't fall back to file parser for large PDFs - it produces poor results
-    // Better to fail clearly than return low-quality extraction
     throw new Error(
       `OCR failed for all ${pdfChunks.length} chunks of ${filename}. ` +
         `Large PDFs require OCR - file parser fallback would produce poor results.`

@@ -11,14 +11,7 @@ const DEFAULT_CONFIG = {
   INCLUDE_HEADERS_IN_EACH_CHUNK: true,
 } as const
 
-/**
- * Smart chunker for structured data (CSV, XLSX) that preserves semantic meaning
- * Preserves headers in each chunk for better semantic context
- */
 export class StructuredDataChunker {
-  /**
-   * Chunk structured data intelligently based on rows and token budget
-   */
   static async chunkStructuredData(
     content: string,
     options: StructuredDataOptions = {}
@@ -97,9 +90,6 @@ export class StructuredDataChunker {
     return chunks
   }
 
-  /**
-   * Format a chunk with headers and context
-   */
   private static formatChunk(headerLine: string, rows: string[], sheetName?: string): string {
     let content = ''
 
@@ -118,9 +108,6 @@ export class StructuredDataChunker {
     return content
   }
 
-  /**
-   * Create a chunk object with actual row indices
-   */
   private static createChunk(content: string, startRow: number, endRow: number): Chunk {
     return {
       text: content,
@@ -132,9 +119,6 @@ export class StructuredDataChunker {
     }
   }
 
-  /**
-   * Estimate average tokens per row from sample
-   */
   private static estimateTokensPerRow(sampleRows: string[]): number {
     if (sampleRows.length === 0) return 50
 
@@ -142,9 +126,6 @@ export class StructuredDataChunker {
     return Math.ceil(totalTokens / sampleRows.length)
   }
 
-  /**
-   * Calculate optimal rows per chunk based on token estimates and target size
-   */
   private static calculateOptimalRowsPerChunk(
     tokensPerRow: number,
     targetChunkSize: number
@@ -157,9 +138,6 @@ export class StructuredDataChunker {
     )
   }
 
-  /**
-   * Check if content appears to be structured data
-   */
   static isStructuredData(content: string, mimeType?: string): boolean {
     if (mimeType) {
       const structuredMimeTypes = [

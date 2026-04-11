@@ -1,17 +1,11 @@
 /**
- * Options for configuring text chunkers
- *
  * Units:
- * - chunkSize: Maximum chunk size in TOKENS (1 token ≈ 4 characters)
- * - chunkOverlap: Overlap between chunks in TOKENS
- * - minCharactersPerChunk: Minimum chunk size in CHARACTERS (filters tiny fragments)
+ * - chunkSize/chunkOverlap: TOKENS (1 token ≈ 4 characters)
+ * - minCharactersPerChunk: CHARACTERS
  */
 export interface ChunkerOptions {
-  /** Maximum chunk size in tokens (default: 1024) */
   chunkSize?: number
-  /** Overlap between chunks in tokens (default: 0) */
   chunkOverlap?: number
-  /** Minimum chunk size in characters to avoid tiny fragments (default: 100) */
   minCharactersPerChunk?: number
 }
 
@@ -52,38 +46,25 @@ export interface DocsChunkerOptions extends ChunkerOptions {
   baseUrl?: string
 }
 
-/** Available chunking strategies for knowledge base documents */
 export type ChunkingStrategy = 'auto' | 'text' | 'regex' | 'recursive' | 'sentence' | 'token'
 
-/** Pre-built separator recipes for recursive chunking */
 export type RecursiveRecipe = 'plain' | 'markdown' | 'code'
 
-/** Strategy-specific options passed through the stack */
 export interface StrategyOptions {
-  /** Regex pattern for 'regex' strategy */
   pattern?: string
-  /** Custom separator hierarchy for 'recursive' strategy */
   separators?: string[]
-  /** Pre-built separator recipe for 'recursive' strategy */
   recipe?: RecursiveRecipe
 }
 
-/** Options for sentence-based chunking */
 export interface SentenceChunkerOptions extends ChunkerOptions {
-  /** Minimum number of sentences per chunk (default: 1) */
   minSentencesPerChunk?: number
 }
 
-/** Options for recursive delimiter-based chunking */
 export interface RecursiveChunkerOptions extends ChunkerOptions {
-  /** Custom separator hierarchy (overrides recipe if provided) */
   separators?: string[]
-  /** Pre-built separator recipe (default: 'plain') */
   recipe?: RecursiveRecipe
 }
 
-/** Options for regex pattern-based chunking */
 export interface RegexChunkerOptions extends ChunkerOptions {
-  /** Regex pattern string used to split text */
   pattern: string
 }
