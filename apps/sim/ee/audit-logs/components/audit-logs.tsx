@@ -141,7 +141,8 @@ function AuditLogRow({ entry }: AuditLogRowProps) {
               <span className='text-[var(--text-primary)]'>{entry.description}</span>
             </div>
           )}
-          {entry.metadata != null && Object.keys(entry.metadata as Record<string, unknown>).length > 0 ? (
+          {entry.metadata != null &&
+          Object.keys(entry.metadata as Record<string, unknown>).length > 0 ? (
             <div className='flex gap-2'>
               <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>Details</span>
               <pre className='min-w-0 flex-1 overflow-x-auto whitespace-pre-wrap break-all text-[var(--text-secondary)] text-xs'>
