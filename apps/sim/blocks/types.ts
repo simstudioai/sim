@@ -153,10 +153,6 @@ export type SubBlockType =
   | 'response-format' // Response structure format
   | 'filter-builder' // Filter conditions builder
   | 'sort-builder' // Sort conditions builder
-  /**
-   * @deprecated Legacy trigger save subblock type.
-   */
-  | 'trigger-save' // Trigger save button with validation
   | 'file-upload' // File uploader
   | 'input-mapping' // Map parent variables to child workflow input schema
   | 'variables-input' // Variable assignments for updating workflow variables

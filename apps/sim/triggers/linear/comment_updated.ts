@@ -44,18 +44,6 @@ export const linearCommentUpdatedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'linear_comment_updated',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'linear_comment_updated',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

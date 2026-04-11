@@ -73,9 +73,11 @@ export function getTrigger(triggerId: string): TriggerConfig {
     throw new Error(`Trigger not found: ${triggerId}`)
   }
 
-  // Clone and filter out deprecated trigger-save subblocks
+  // Filter out deprecated trigger-save subblocks from legacy stored data
   const subBlocks = trigger.subBlocks
-    .filter((subBlock) => subBlock.id !== 'triggerSave' && subBlock.type !== 'trigger-save')
+    .filter(
+      (subBlock) => subBlock.id !== 'triggerSave' && (subBlock.type as string) !== 'trigger-save'
+    )
     .map((subBlock) => namespaceSubBlockId(subBlock, triggerId))
 
   const clonedTrigger = { ...trigger, subBlocks }

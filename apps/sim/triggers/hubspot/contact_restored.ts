@@ -94,17 +94,6 @@ export const hubspotContactRestoredTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_contact_restored',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_contact_restored',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',

@@ -126,7 +126,7 @@ export const linearV2TriggerOptions = [
  * Builds the complete subBlocks array for a v2 Linear trigger.
  * Webhooks are managed via API, so no webhook URL is displayed.
  *
- * Structure: [dropdown?] -> apiKey -> triggerSave -> instructions
+ * Structure: [dropdown?] -> apiKey -> instructions
  */
 export function buildLinearV2SubBlocks(options: {
   triggerId: string
@@ -170,15 +170,7 @@ export function buildLinearV2SubBlocks(options: {
     condition: { field: 'selectedTriggerId', value: triggerId },
   })
 
-  blocks.push({
-    id: 'triggerSave',
-    title: '',
-    type: 'trigger-save',
-    hideFromPreview: true,
-    mode: 'trigger',
-    triggerId,
-    condition: { field: 'selectedTriggerId', value: triggerId },
-  })
+  blocks.push()
 
   blocks.push({
     id: 'triggerInstructions',

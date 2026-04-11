@@ -108,17 +108,6 @@ export const hubspotConversationPropertyChangedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_conversation_property_changed',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_conversation_property_changed',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',
