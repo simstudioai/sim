@@ -60,7 +60,6 @@ export function splitAtWordBoundaries(
   chunkSizeChars: number,
   stepChars?: number
 ): string[] {
-  const step = Math.max(1, stepChars ?? chunkSizeChars)
   const parts: string[] = []
   let pos = 0
 
@@ -79,9 +78,16 @@ export function splitAtWordBoundaries(
       parts.push(part)
     }
 
-    const nextPos = pos + step
-    if (nextPos >= text.length) break
-    pos = nextPos
+    if (stepChars !== undefined) {
+      // Sliding window: advance by step for predictable overlap
+      const nextPos = pos + Math.max(1, stepChars)
+      if (nextPos >= text.length) break
+      pos = nextPos
+    } else {
+      // Non-overlapping: advance from end of extracted content
+      if (end >= text.length) break
+      pos = end
+    }
     while (pos < text.length && text[pos] === ' ') pos++
   }
 
