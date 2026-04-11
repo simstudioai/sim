@@ -179,9 +179,7 @@ export class StructuredDataChunker {
     const delimiters = [',', '\t', '|']
     for (const delimiter of delimiters) {
       const escaped = delimiter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      const counts = lines.map(
-        (line) => (line.match(new RegExp(escaped, 'g')) || []).length
-      )
+      const counts = lines.map((line) => (line.match(new RegExp(escaped, 'g')) || []).length)
       const avgCount = counts.reduce((a, b) => a + b, 0) / counts.length
 
       const tolerance = Math.max(1, Math.ceil(avgCount * 0.2))

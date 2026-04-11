@@ -74,9 +74,7 @@ const FormSchema = z
       .min(0, 'Overlap must be non-negative')
       .max(500, 'Overlap must be less than 500 tokens'),
     /** Chunking strategy */
-    strategy: z
-      .enum(['auto', 'text', 'regex', 'recursive', 'sentence', 'token'])
-      .default('auto'),
+    strategy: z.enum(['auto', 'text', 'regex', 'recursive', 'sentence', 'token']).default('auto'),
     /** Regex pattern (required when strategy is 'regex') */
     regexPattern: z.string().optional(),
     /** Custom separators for recursive strategy (comma-separated) */
@@ -474,14 +472,17 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                       <Button
                         type='button'
                         variant='default'
-                        className='w-full justify-between border border-[var(--border-1)] !bg-[var(--surface-1)] font-normal'
+                        className='!bg-[var(--surface-1)] w-full justify-between border border-[var(--border-1)] font-normal'
                       >
                         {STRATEGY_OPTIONS.find((o) => o.value === strategyValue)?.label ??
                           'Auto (detect from content)'}
                         <ChevronDown className='h-[12px] w-[12px] text-[var(--text-icon)]' />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align='start' className='w-[var(--radix-dropdown-menu-trigger-width)]'>
+                    <DropdownMenuContent
+                      align='start'
+                      className='w-[var(--radix-dropdown-menu-trigger-width)]'
+                    >
                       <DropdownMenuRadioGroup
                         value={strategyValue}
                         onValueChange={(value) =>

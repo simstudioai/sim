@@ -218,7 +218,9 @@ export class DocsChunker {
    * Returns both the chunks and the cleaned content so header extraction
    * operates on the same text that was chunked (aligned positions).
    */
-  private async splitContent(content: string): Promise<{ chunks: string[]; cleanedContent: string }> {
+  private async splitContent(
+    content: string
+  ): Promise<{ chunks: string[]; cleanedContent: string }> {
     const cleanedContent = this.cleanContent(content)
 
     const tableBoundaries = this.detectTableBoundaries(cleanedContent)
@@ -240,19 +242,17 @@ export class DocsChunker {
    * Clean content by removing MDX-specific elements and excessive whitespace
    */
   private cleanContent(content: string): string {
-    return (
-      content
-        .replace(/\r\n/g, '\n')
-        .replace(/\r/g, '\n')
-        .replace(/^import\s+.*$/gm, '')
-        .replace(/^export\s+.*$/gm, '')
-        .replace(/<\/?[a-zA-Z][^>]*>/g, ' ')
-        .replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ')
-        .replace(/\{[^{}]*\}/g, ' ')
-        .replace(/\n{3,}/g, '\n\n')
-        .replace(/[ \t]{2,}/g, ' ')
-        .trim()
-    )
+    return content
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/^import\s+.*$/gm, '')
+      .replace(/^export\s+.*$/gm, '')
+      .replace(/<\/?[a-zA-Z][^>]*>/g, ' ')
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ')
+      .replace(/\{[^{}]*\}/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/[ \t]{2,}/g, ' ')
+      .trim()
   }
 
   /**

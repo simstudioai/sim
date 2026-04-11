@@ -106,10 +106,7 @@ export function splitAtWordBoundaries(
 /**
  * Build Chunk objects from text segments with startIndex/endIndex metadata
  */
-export function buildChunks(
-  texts: string[],
-  overlapTokens: number
-): Chunk[] {
+export function buildChunks(texts: string[], overlapTokens: number): Chunk[] {
   let previousEndIndex = 0
   const overlapChars = tokensToChars(overlapTokens)
 

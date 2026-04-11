@@ -154,7 +154,9 @@ async function applyStrategy(
     }
     case 'regex': {
       if (!strategyOptions?.pattern) {
-        logger.warn('Regex strategy requested but no pattern provided, falling back to text chunker')
+        logger.warn(
+          'Regex strategy requested but no pattern provided, falling back to text chunker'
+        )
         const chunker = new TextChunker(baseOptions)
         return chunker.chunk(content)
       }
@@ -164,7 +166,6 @@ async function applyStrategy(
       })
       return chunker.chunk(content)
     }
-    case 'text':
     default: {
       const chunker = new TextChunker(baseOptions)
       return chunker.chunk(content)

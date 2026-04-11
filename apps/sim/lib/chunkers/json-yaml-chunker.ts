@@ -56,9 +56,7 @@ export class JsonYamlChunker {
       const chunks = this.chunkStructuredData(data, [], 0)
 
       const totalTokens = chunks.reduce((sum, c) => sum + c.tokenCount, 0)
-      logger.info(
-        `JSON chunking complete: ${chunks.length} chunks, ${totalTokens} total tokens`
-      )
+      logger.info(`JSON chunking complete: ${chunks.length} chunks, ${totalTokens} total tokens`)
 
       return chunks
     } catch (error) {
@@ -84,11 +82,13 @@ export class JsonYamlChunker {
       return []
     }
 
-    return [{
-      text: content,
-      tokenCount: estimateTokens(content),
-      metadata: { startIndex: 0, endIndex: content.length },
-    }]
+    return [
+      {
+        text: content,
+        tokenCount: estimateTokens(content),
+        metadata: { startIndex: 0, endIndex: content.length },
+      },
+    ]
   }
 
   /**
@@ -108,7 +108,9 @@ export class JsonYamlChunker {
 
       if (itemTokens > this.chunkSize) {
         if (currentBatch.length > 0) {
-          chunks.push(this.buildBatchChunk(contextHeader, currentBatch, i - currentBatch.length, i - 1))
+          chunks.push(
+            this.buildBatchChunk(contextHeader, currentBatch, i - currentBatch.length, i - 1)
+          )
           currentBatch = []
           currentTokens = 0
         }
@@ -123,7 +125,9 @@ export class JsonYamlChunker {
           })
         }
       } else if (currentTokens + itemTokens > this.chunkSize && currentBatch.length > 0) {
-        chunks.push(this.buildBatchChunk(contextHeader, currentBatch, i - currentBatch.length, i - 1))
+        chunks.push(
+          this.buildBatchChunk(contextHeader, currentBatch, i - currentBatch.length, i - 1)
+        )
         currentBatch = [item]
         currentTokens = itemTokens
       } else {
@@ -133,7 +137,14 @@ export class JsonYamlChunker {
     }
 
     if (currentBatch.length > 0) {
-      chunks.push(this.buildBatchChunk(contextHeader, currentBatch, arr.length - currentBatch.length, arr.length - 1))
+      chunks.push(
+        this.buildBatchChunk(
+          contextHeader,
+          currentBatch,
+          arr.length - currentBatch.length,
+          arr.length - 1
+        )
+      )
     }
 
     return chunks
@@ -152,11 +163,13 @@ export class JsonYamlChunker {
     if (fullTokens <= this.chunkSize) {
       const contextHeader = path.length > 0 ? `// ${path.join('.')}\n` : ''
       const text = contextHeader + fullContent
-      return [{
-        text,
-        tokenCount: estimateTokens(text),
-        metadata: { startIndex: 0, endIndex: text.length },
-      }]
+      return [
+        {
+          text,
+          tokenCount: estimateTokens(text),
+          metadata: { startIndex: 0, endIndex: text.length },
+        },
+      ]
     }
 
     const contextHeader = path.length > 0 ? `// ${path.join('.')}\n` : ''
@@ -188,7 +201,10 @@ export class JsonYamlChunker {
             metadata: { startIndex: 0, endIndex: valueStr.length },
           })
         }
-      } else if (currentTokens + valueTokens > this.chunkSize && Object.keys(currentObj).length > 0) {
+      } else if (
+        currentTokens + valueTokens > this.chunkSize &&
+        Object.keys(currentObj).length > 0
+      ) {
         const objContent = contextHeader + JSON.stringify(currentObj, null, 2)
         chunks.push({
           text: objContent,
@@ -218,7 +234,12 @@ export class JsonYamlChunker {
   /**
    * Build a chunk from a batch of array items
    */
-  private buildBatchChunk(contextHeader: string, batch: JsonValue[], startIdx: number, endIdx: number): Chunk {
+  private buildBatchChunk(
+    contextHeader: string,
+    batch: JsonValue[],
+    startIdx: number,
+    endIdx: number
+  ): Chunk {
     const batchContent = contextHeader + JSON.stringify(batch, null, 2)
     return {
       text: batchContent,
