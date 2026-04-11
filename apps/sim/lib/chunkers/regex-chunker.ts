@@ -84,7 +84,9 @@ export class RegexChunker {
     const segments = cleaned.split(this.regex).filter((s) => s.trim().length > 0)
 
     if (segments.length <= 1) {
-      logger.warn('Regex pattern did not produce any splits, falling back to word-boundary splitting')
+      logger.warn(
+        'Regex pattern did not produce any splits, falling back to word-boundary splitting'
+      )
       const chunkSizeChars = tokensToChars(this.chunkSize)
       let chunks = splitAtWordBoundaries(cleaned, chunkSizeChars)
       if (this.chunkOverlap > 0) {
