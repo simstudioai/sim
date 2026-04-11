@@ -296,7 +296,14 @@ export async function POST(req: NextRequest) {
       resourceId: workflowId,
       resourceName: name,
       description: `Created workflow "${name}"`,
-      metadata: { name },
+      metadata: {
+        name,
+        description: description || undefined,
+        color,
+        workspaceId,
+        folderId: folderId || undefined,
+        sortOrder,
+      },
       request: req,
     })
 

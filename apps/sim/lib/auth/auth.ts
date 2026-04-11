@@ -707,7 +707,8 @@ export const auth = betterAuth({
         actorEmail: resetUser.email,
         action: AuditAction.PASSWORD_RESET,
         resourceType: AuditResourceType.PASSWORD,
-        description: 'Password reset completed',
+        resourceId: resetUser.id,
+        description: `Password reset completed for ${resetUser.email}`,
       })
     },
   },

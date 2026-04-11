@@ -251,6 +251,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       resourceId: id,
       resourceName: name ?? template.name,
       description: `Updated template "${name ?? template.name}"`,
+      metadata: {
+        templateName: name ?? template.name,
+        updatedFields: Object.keys(validationResult.data).filter(
+          (k) => validationResult.data[k as keyof typeof validationResult.data] !== undefined
+        ),
+        statusChange: status !== undefined ? { from: template.status, to: status } : undefined,
+        stateUpdated: updateState || false,
+        workflowId: template.workflowId || undefined,
+      },
       request,
     })
 
@@ -317,6 +326,13 @@ export async function DELETE(
       resourceId: id,
       resourceName: template.name,
       description: `Deleted template "${template.name}"`,
+      metadata: {
+        templateName: template.name,
+        workflowId: template.workflowId || undefined,
+        creatorId: template.creatorId || undefined,
+        status: template.status,
+        tags: template.tags,
+      },
       request,
     })
 

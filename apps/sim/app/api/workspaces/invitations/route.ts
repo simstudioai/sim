@@ -243,7 +243,12 @@ export async function POST(req: NextRequest) {
       resourceId: workspaceId,
       resourceName: email,
       description: `Invited ${email} as ${permission}`,
-      metadata: { targetEmail: email, targetRole: permission },
+      metadata: {
+        targetEmail: email,
+        targetRole: permission,
+        workspaceName: workspaceDetails.name,
+        invitationId: invitationData.id,
+      },
       request: req,
     })
 

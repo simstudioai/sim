@@ -182,6 +182,20 @@ export async function POST(
       email: orgInvitation.email,
     })
 
+    recordAudit({
+      workspaceId: null,
+      actorId: session.user.id,
+      action: AuditAction.ORG_INVITATION_RESENT,
+      resourceType: AuditResourceType.ORGANIZATION,
+      resourceId: organizationId,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      resourceName: org?.name ?? undefined,
+      description: `Resent organization invitation to ${orgInvitation.email}`,
+      metadata: { invitationId, targetEmail: orgInvitation.email, targetRole: orgInvitation.role },
+      request: _request,
+    })
+
     return NextResponse.json({
       success: true,
       message: 'Invitation resent successfully',

@@ -1,5 +1,6 @@
 import {
   Card,
+  ClipboardList,
   Connections,
   HexSimple,
   Key,
@@ -27,6 +28,7 @@ export type SettingsSection =
   | 'template-profile'
   | 'credential-sets'
   | 'access-control'
+  | 'audit-logs'
   | 'apikeys'
   | 'byok'
   | 'subscription'
@@ -96,6 +98,14 @@ export const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresEnterprise: true,
     selfHostedOverride: isAccessControlEnabled,
+  },
+  {
+    id: 'audit-logs',
+    label: 'Audit Logs',
+    icon: ClipboardList,
+    section: 'enterprise',
+    requiresHosted: true,
+    requiresEnterprise: true,
   },
   {
     id: 'subscription',

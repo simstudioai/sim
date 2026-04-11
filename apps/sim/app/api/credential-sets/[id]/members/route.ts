@@ -197,7 +197,12 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       actorEmail: session.user.email ?? undefined,
       resourceName: result.set.name,
       description: `Removed member from credential set "${result.set.name}"`,
-      metadata: { targetEmail: memberToRemove.email ?? undefined },
+      metadata: {
+        memberId,
+        memberUserId: memberToRemove.userId,
+        targetEmail: memberToRemove.email ?? undefined,
+        providerId: result.set.providerId,
+      },
       request: req,
     })
 

@@ -197,8 +197,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         resourceId: id,
         actorName: session.user.name ?? undefined,
         actorEmail: session.user.email ?? undefined,
-        resourceName: formRecord.title ?? undefined,
-        description: `Updated form "${formRecord.title}"`,
+        resourceName: (title || formRecord.title) ?? undefined,
+        description: `Updated form "${title || formRecord.title}"`,
+        metadata: {
+          identifier: identifier || formRecord.identifier,
+          workflowId: formRecord.workflowId,
+          authType: authType || formRecord.authType,
+          updatedFields: Object.keys(updateData).filter((k) => k !== 'updatedAt'),
+        },
         request,
       })
 
@@ -255,6 +261,7 @@ export async function DELETE(
       actorEmail: session.user.email ?? undefined,
       resourceName: formRecord.title ?? undefined,
       description: `Deleted form "${formRecord.title}"`,
+      metadata: { identifier: formRecord.identifier, workflowId: formRecord.workflowId },
       request,
     })
 

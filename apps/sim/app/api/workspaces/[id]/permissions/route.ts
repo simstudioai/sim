@@ -202,19 +202,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         action: AuditAction.MEMBER_ROLE_CHANGED,
         resourceType: AuditResourceType.WORKSPACE,
         resourceId: workspaceId,
+        resourceName: permLookup.get(update.userId)?.email ?? update.userId,
         actorName: session.user.name ?? undefined,
         actorEmail: session.user.email ?? undefined,
-        description: `Changed permissions for user ${update.userId} to ${update.permissions}`,
+        description: `Changed permissions for ${permLookup.get(update.userId)?.email ?? update.userId} from ${permLookup.get(update.userId)?.permission ?? 'none'} to ${update.permissions}`,
         metadata: {
           targetUserId: update.userId,
           targetEmail: permLookup.get(update.userId)?.email ?? undefined,
-          changes: [
-            {
-              field: 'permissions',
-              from: permLookup.get(update.userId)?.permission ?? null,
-              to: update.permissions,
-            },
-          ],
+          previousRole: permLookup.get(update.userId)?.permission ?? null,
+          newRole: update.permissions,
         },
         request,
       })

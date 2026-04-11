@@ -261,6 +261,7 @@ export async function executeDeployMcp(
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,
         description: `Undeployed workflow "${workflowId}" from MCP server`,
+        metadata: { workflowId, source: 'copilot' },
       })
 
       return {
@@ -324,6 +325,7 @@ export async function executeDeployMcp(
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,
         description: `Updated MCP tool "${toolName}" on server`,
+        metadata: { workflowId, toolName, source: 'copilot' },
       })
 
       return {
@@ -353,6 +355,7 @@ export async function executeDeployMcp(
       resourceType: AuditResourceType.MCP_SERVER,
       resourceId: serverId,
       description: `Deployed workflow as MCP tool "${toolName}"`,
+      metadata: { workflowId, toolName, toolId, source: 'copilot' },
     })
 
     return {

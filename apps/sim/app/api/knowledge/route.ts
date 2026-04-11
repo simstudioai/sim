@@ -162,7 +162,16 @@ export async function POST(req: NextRequest) {
         resourceId: newKnowledgeBase.id,
         resourceName: validatedData.name,
         description: `Created knowledge base "${validatedData.name}"`,
-        metadata: { name: validatedData.name },
+        metadata: {
+          name: validatedData.name,
+          description: validatedData.description,
+          embeddingModel: validatedData.embeddingModel,
+          embeddingDimension: validatedData.embeddingDimension,
+          chunkingStrategy: validatedData.chunkingConfig.strategy,
+          chunkMaxSize: validatedData.chunkingConfig.maxSize,
+          chunkMinSize: validatedData.chunkingConfig.minSize,
+          chunkOverlap: validatedData.chunkingConfig.overlap,
+        },
         request: req,
       })
 

@@ -45,6 +45,10 @@ export async function POST(
       resourceId: tableId,
       resourceName: table.name,
       description: `Restored table "${table.name}"`,
+      metadata: {
+        tableName: table.name,
+        workspaceId: table.workspaceId,
+      },
       request,
     })
 

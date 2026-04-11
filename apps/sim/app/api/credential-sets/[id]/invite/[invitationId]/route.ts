@@ -159,7 +159,12 @@ export async function POST(
       resourceId: id,
       resourceName: result.set.name,
       description: `Resent credential set invitation to ${invitation.email}`,
-      metadata: { invitationId, targetEmail: invitation.email },
+      metadata: {
+        invitationId,
+        targetEmail: invitation.email,
+        providerId: result.set.providerId,
+        credentialSetName: result.set.name,
+      },
       request: req,
     })
 

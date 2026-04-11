@@ -286,7 +286,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       resourceId: connectorId,
       resourceName: connectorType,
       description: `Created ${connectorType} connector for knowledge base "${writeCheck.knowledgeBase.name}"`,
-      metadata: { knowledgeBaseId, connectorType, syncIntervalMinutes },
+      metadata: {
+        knowledgeBaseId,
+        knowledgeBaseName: writeCheck.knowledgeBase.name,
+        connectorType,
+        syncIntervalMinutes,
+        authMode: connectorConfig.auth.mode,
+      },
       request,
     })
 

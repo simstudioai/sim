@@ -209,7 +209,12 @@ export async function performFullDeploy(
     resourceId: workflowId,
     resourceName: (workflowData.name as string) || undefined,
     description: `Deployed workflow "${(workflowData.name as string) || workflowId}"`,
-    metadata: { version: deploymentVersionId },
+    metadata: {
+      deploymentVersionId,
+      version: deployResult.version,
+      previousVersionId: previousVersionId || undefined,
+      triggerWarnings: triggerSaveResult.warnings?.length ? triggerSaveResult.warnings : undefined,
+    },
     request,
   })
 
@@ -473,7 +478,12 @@ export async function performActivateVersion(
     resourceType: AuditResourceType.WORKFLOW,
     resourceId: workflowId,
     description: `Activated deployment version ${version}`,
-    metadata: { version },
+    resourceName: (workflow.name as string) || undefined,
+    metadata: {
+      version,
+      deploymentVersionId: versionRow.id,
+      previousVersionId: previousVersionId || undefined,
+    },
   })
 
   return {

@@ -193,6 +193,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       actorEmail: session.user.email ?? undefined,
       resourceName: updated.name,
       description: `Updated permission group "${updated.name}"`,
+      metadata: {
+        organizationId: result.group.organizationId,
+        updatedFields: Object.keys(updates).filter(
+          (k) => updates[k as keyof typeof updates] !== undefined
+        ),
+      },
       request: req,
     })
 
@@ -254,6 +260,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       actorEmail: session.user.email ?? undefined,
       resourceName: result.group.name,
       description: `Deleted permission group "${result.group.name}"`,
+      metadata: { organizationId: result.group.organizationId },
       request: req,
     })
 

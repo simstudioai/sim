@@ -106,6 +106,7 @@ export async function POST(request: NextRequest) {
       resourceId: kb.id,
       resourceName: kb.name,
       description: `Created knowledge base "${kb.name}" via API`,
+      metadata: { chunkingConfig },
       request,
     })
 

@@ -111,6 +111,7 @@ export async function PUT(request: NextRequest, { params }: KnowledgeRouteParams
       resourceId: id,
       resourceName: updatedKb.name,
       description: `Updated knowledge base "${updatedKb.name}" via API`,
+      metadata: { updatedFields: Object.keys(updates) },
       request,
     })
 

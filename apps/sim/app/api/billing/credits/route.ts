@@ -64,8 +64,12 @@ export async function POST(request: NextRequest) {
       actorEmail: session.user.email,
       action: AuditAction.CREDIT_PURCHASED,
       resourceType: AuditResourceType.BILLING,
+      resourceId: validation.data.requestId,
       description: `Purchased $${validation.data.amount} in credits`,
-      metadata: { amount: validation.data.amount, requestId: validation.data.requestId },
+      metadata: {
+        amountDollars: validation.data.amount,
+        requestId: validation.data.requestId,
+      },
       request,
     })
 

@@ -172,6 +172,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
       logger.info(`[${requestId}] Updated BYOK key for ${providerId} in workspace ${workspaceId}`)
 
+      recordAudit({
+        workspaceId,
+        actorId: userId,
+        actorName: session?.user?.name,
+        actorEmail: session?.user?.email,
+        action: AuditAction.BYOK_KEY_UPDATED,
+        resourceType: AuditResourceType.BYOK_KEY,
+        resourceId: existingKey[0].id,
+        resourceName: providerId,
+        description: `Updated BYOK key for ${providerId}`,
+        metadata: { providerId },
+        request,
+      })
+
       return NextResponse.json({
         success: true,
         key: {

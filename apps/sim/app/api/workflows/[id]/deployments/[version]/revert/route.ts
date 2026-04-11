@@ -127,6 +127,9 @@ export async function POST(
       actorEmail: session!.user.email ?? undefined,
       resourceName: workflowRecord?.name ?? undefined,
       description: `Reverted workflow to deployment version ${version}`,
+      metadata: {
+        targetVersion: version,
+      },
       request,
     })
 

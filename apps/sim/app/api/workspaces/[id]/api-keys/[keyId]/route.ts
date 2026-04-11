@@ -97,7 +97,12 @@ export async function PUT(
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
       resourceName: name,
-      description: `Updated workspace API key: ${name}`,
+      description: `Renamed workspace API key from "${existingKey[0].name}" to "${name}"`,
+      metadata: {
+        keyType: 'workspace',
+        previousName: existingKey[0].name,
+        newName: name,
+      },
       request,
     })
 
@@ -163,7 +168,11 @@ export async function DELETE(
       actorEmail: session.user.email ?? undefined,
       resourceName: deletedKey.name,
       description: `Revoked workspace API key: ${deletedKey.name}`,
-      metadata: { lastUsed: deletedKey.lastUsed?.toISOString() ?? null },
+      metadata: {
+        keyType: 'workspace',
+        keyName: deletedKey.name,
+        lastUsed: deletedKey.lastUsed?.toISOString() ?? null,
+      },
       request,
     })
 

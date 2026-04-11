@@ -182,7 +182,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       resourceId: newKey.id,
       resourceName: name,
       description: `Created API key "${name}"`,
-      metadata: { keyName: name },
+      metadata: { keyName: name, keyType: 'workspace', source: source ?? 'settings' },
       request,
     })
 
@@ -257,8 +257,8 @@ export async function DELETE(
       actorEmail: session?.user?.email,
       action: AuditAction.API_KEY_REVOKED,
       resourceType: AuditResourceType.API_KEY,
-      description: `Revoked ${deletedCount} API key(s)`,
-      metadata: { keyIds: keys, deletedCount },
+      description: `Revoked ${deletedCount} workspace API key(s)`,
+      metadata: { keyIds: keys, deletedCount, keyType: 'workspace' },
       request,
     })
 

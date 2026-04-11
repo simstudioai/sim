@@ -270,8 +270,14 @@ export async function DELETE(
       resourceType: AuditResourceType.WEBHOOK,
       resourceId: id,
       resourceName: foundWebhook.provider || 'generic',
-      description: 'Deleted webhook',
-      metadata: { workflowId: webhookData.workflow.id },
+      description: `Deleted ${foundWebhook.provider || 'generic'} webhook`,
+      metadata: {
+        provider: foundWebhook.provider || 'generic',
+        workflowId: webhookData.workflow.id,
+        webhookPath: foundWebhook.path || undefined,
+        blockId: foundWebhook.blockId || undefined,
+        credentialSetId: credentialSetId || undefined,
+      },
       request,
     })
 
