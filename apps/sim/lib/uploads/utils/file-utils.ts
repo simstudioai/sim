@@ -366,7 +366,7 @@ export function validateKnowledgeBaseFile(
     return null
   }
 
-  return `File "${file.name}" has an unsupported format. Please use PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSON, YAML, or YML files.`
+  return `File "${file.name}" has an unsupported format. Please use PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSON, JSONL, YAML, or YML files.`
 }
 
 /**
