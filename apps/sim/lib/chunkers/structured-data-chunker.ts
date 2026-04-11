@@ -184,7 +184,8 @@ export class StructuredDataChunker {
       )
       const avgCount = counts.reduce((a, b) => a + b, 0) / counts.length
 
-      if (avgCount > 2 && counts.every((c) => Math.abs(c - avgCount) <= 2)) {
+      const tolerance = Math.max(1, Math.ceil(avgCount * 0.2))
+      if (avgCount >= 1 && counts.every((c) => Math.abs(c - avgCount) <= tolerance)) {
         return true
       }
     }

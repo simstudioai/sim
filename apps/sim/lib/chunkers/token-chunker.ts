@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { Chunk, ChunkerOptions } from '@/lib/chunkers/types'
 import {
-  addOverlap,
   buildChunks,
   cleanText,
   estimateTokens,
@@ -15,7 +14,8 @@ const logger = createLogger('TokenChunker')
 /**
  * Fixed-size token chunker
  * Splits text into chunks of a fixed token size with configurable overlap.
- * Snaps boundaries to word boundaries for cleaner output.
+ * Uses a sliding window approach (matching LangChain/Chonkie) where chunks
+ * stay within the size limit. The window advances by chunkSize - overlap.
  */
 export class TokenChunker {
   private readonly chunkSize: number
@@ -42,19 +42,17 @@ export class TokenChunker {
     }
 
     const chunkSizeChars = tokensToChars(this.chunkSize)
-    const rawChunks = splitAtWordBoundaries(cleaned, chunkSizeChars)
+    const overlapChars = tokensToChars(this.chunkOverlap)
+    const stepChars = this.chunkOverlap > 0 ? chunkSizeChars - overlapChars : undefined
+
+    const rawChunks = splitAtWordBoundaries(cleaned, chunkSizeChars, stepChars)
 
     const filtered =
       rawChunks.length > 1
         ? rawChunks.filter((c) => c.length >= this.minCharactersPerChunk)
         : rawChunks
 
-    let chunks = filtered.length > 0 ? filtered : rawChunks
-
-    if (this.chunkOverlap > 0) {
-      const overlapChars = tokensToChars(this.chunkOverlap)
-      chunks = addOverlap(chunks, overlapChars)
-    }
+    const chunks = filtered.length > 0 ? filtered : rawChunks
 
     logger.info(`Chunked into ${chunks.length} token-based chunks`)
     return buildChunks(chunks, this.chunkOverlap)

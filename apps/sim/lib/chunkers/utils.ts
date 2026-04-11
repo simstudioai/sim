@@ -54,7 +54,7 @@ export function addOverlap(chunks: string[], overlapChars: number): string[] {
         : overlapText
 
       if (cleanOverlap.trim()) {
-        chunk = `${cleanOverlap.trim()} ${chunk}`
+        chunk = `${cleanOverlap.trim()}\n${chunk}`
       }
     }
 
@@ -65,9 +65,17 @@ export function addOverlap(chunks: string[], overlapChars: number): string[] {
 }
 
 /**
- * Split text at word boundaries into segments of approximately chunkSizeChars
+ * Split text at word boundaries into segments of approximately chunkSizeChars.
+ * When stepChars is provided (< chunkSizeChars), produces overlapping chunks
+ * using a sliding window, matching LangChain/Chonkie behavior where
+ * chunks stay within the size limit.
  */
-export function splitAtWordBoundaries(text: string, chunkSizeChars: number): string[] {
+export function splitAtWordBoundaries(
+  text: string,
+  chunkSizeChars: number,
+  stepChars?: number
+): string[] {
+  const step = stepChars ?? chunkSizeChars
   const parts: string[] = []
   let pos = 0
 
@@ -85,7 +93,10 @@ export function splitAtWordBoundaries(text: string, chunkSizeChars: number): str
     if (part) {
       parts.push(part)
     }
-    pos = end
+
+    const nextPos = pos + step
+    if (nextPos >= text.length) break
+    pos = nextPos
     while (pos < text.length && text[pos] === ' ') pos++
   }
 

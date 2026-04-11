@@ -76,11 +76,11 @@ export class DocsChunker {
 
     const { data: frontmatter, content: markdownContent } = this.parseFrontmatter(content)
 
-    const headers = this.extractHeaders(markdownContent)
-
     const documentUrl = this.generateDocumentUrl(relativePath)
 
-    const textChunks = await this.splitContent(markdownContent)
+    const { chunks: textChunks, cleanedContent } = await this.splitContent(markdownContent)
+
+    const headers = this.extractHeaders(cleanedContent)
 
     logger.info(`Generating embeddings for ${textChunks.length} chunks in ${relativePath}`)
     const embeddings: number[][] =
@@ -214,9 +214,11 @@ export class DocsChunker {
   }
 
   /**
-   * Split content into chunks using the existing TextChunker with table awareness
+   * Split content into chunks using the existing TextChunker with table awareness.
+   * Returns both the chunks and the cleaned content so header extraction
+   * operates on the same text that was chunked (aligned positions).
    */
-  private async splitContent(content: string): Promise<string[]> {
+  private async splitContent(content: string): Promise<{ chunks: string[]; cleanedContent: string }> {
     const cleanedContent = this.cleanContent(content)
 
     const tableBoundaries = this.detectTableBoundaries(cleanedContent)
@@ -231,7 +233,7 @@ export class DocsChunker {
 
     const finalChunks = this.enforceSizeLimit(processedChunks)
 
-    return finalChunks
+    return { chunks: finalChunks, cleanedContent }
   }
 
   /**
@@ -243,8 +245,10 @@ export class DocsChunker {
         .replace(/\r\n/g, '\n')
         .replace(/\r/g, '\n')
         .replace(/^import\s+.*$/gm, '')
-        .replace(/<[^>]+>/g, ' ')
+        .replace(/^export\s+.*$/gm, '')
+        .replace(/<\/?[a-zA-Z][^>]*>/g, ' ')
         .replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ')
+        .replace(/\{[^{}]*\}/g, ' ')
         .replace(/\n{3,}/g, '\n\n')
         .replace(/[ \t]{2,}/g, ' ')
         .trim()
@@ -368,7 +372,7 @@ export class DocsChunker {
         const maxEnd = Math.max(chunkEnd, ...affectedTables.map((t) => t.end))
         const completeChunk = originalContent.slice(minStart, maxEnd).trim()
 
-        if (completeChunk && !mergedChunks.some((existing) => existing.includes(completeChunk))) {
+        if (completeChunk && !mergedChunks.some((existing) => existing === completeChunk)) {
           mergedChunks.push(completeChunk)
         }
       } else {

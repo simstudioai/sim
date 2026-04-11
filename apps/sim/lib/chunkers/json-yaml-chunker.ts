@@ -150,10 +150,12 @@ export class JsonYamlChunker {
     const fullTokens = estimateTokens(fullContent)
 
     if (fullTokens <= this.chunkSize) {
+      const contextHeader = path.length > 0 ? `// ${path.join('.')}\n` : ''
+      const text = contextHeader + fullContent
       return [{
-        text: fullContent,
-        tokenCount: fullTokens,
-        metadata: { startIndex: 0, endIndex: fullContent.length },
+        text,
+        tokenCount: estimateTokens(text),
+        metadata: { startIndex: 0, endIndex: text.length },
       }]
     }
 
