@@ -839,7 +839,12 @@ async function acquireWorker(): Promise<WorkerInfo | null> {
   const existing = selectWorker()
   if (existing) return existing
 
-  const currentPoolSize = workers.size + spawnInProgress
+  // Count only non-retiring workers toward pool occupancy so that a replacement
+  // can be spawned pre-emptively while a retiring worker is still draining its
+  // in-flight executions.  Retiring workers stay in `workers` until they drain,
+  // but they no longer accept new work, so they shouldn't block new spawns.
+  const activeWorkerCount = [...workers.values()].filter((w) => !w.retiring).length
+  const currentPoolSize = activeWorkerCount + spawnInProgress
   if (currentPoolSize < POOL_SIZE) {
     try {
       return await spawnWorker()
@@ -903,7 +908,11 @@ function dispatchToWorker(
       stdout: '',
       error: { message: 'Code execution failed to start. Please try again.', name: 'Error' },
     })
-    resetWorkerIdleTimeout(workerInfo.id)
+    if (workerInfo.retiring && workerInfo.activeExecutions === 0) {
+      cleanupWorker(workerInfo.id)
+    } else {
+      resetWorkerIdleTimeout(workerInfo.id)
+    }
     // Defer to break synchronous recursion: drainQueue → dispatchToWorker → catch → drainQueue
     queueMicrotask(() => drainQueue())
   }
