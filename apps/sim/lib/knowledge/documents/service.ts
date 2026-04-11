@@ -27,6 +27,7 @@ import {
 } from 'drizzle-orm'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
+import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { createBullMQJobData, isBullMQEnabled } from '@/lib/core/bullmq'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
@@ -51,10 +52,9 @@ import { calculateCost } from '@/providers/utils'
 const logger = createLogger('DocumentService')
 
 const TIMEOUTS = {
-  OVERALL_PROCESSING: (env.KB_CONFIG_MAX_DURATION || 600) * 1000, // Default 10 minutes for KB document processing
+  OVERALL_PROCESSING: (env.KB_CONFIG_MAX_DURATION || 600) * 1000,
 } as const
 
-// Configuration for handling large documents
 const LARGE_DOC_CONFIG = {
   MAX_CHUNKS_PER_BATCH: 500,
   MAX_EMBEDDING_BATCH: env.KB_CONFIG_BATCH_SIZE || 2000,
@@ -62,9 +62,6 @@ const LARGE_DOC_CONFIG = {
   MAX_CHUNKS_PER_DOCUMENT: 100000,
 }
 
-/**
- * Create a timeout wrapper for async operations
- */
 function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
@@ -173,10 +170,6 @@ export interface DocumentTagData {
   value: string
 }
 
-/**
- * Process structured document tags and validate them against existing definitions
- * Throws an error if a tag doesn't exist or if the value doesn't match the expected type
- */
 export async function processDocumentTags(
   knowledgeBaseId: string,
   tagData: DocumentTagData[],
@@ -354,9 +347,6 @@ export async function processDocumentTags(
   return result
 }
 
-/**
- * Process documents with the configured background execution backend.
- */
 export async function processDocumentsWithQueue(
   createdDocuments: DocumentData[],
   knowledgeBaseId: string,
@@ -407,9 +397,6 @@ export async function processDocumentsWithQueue(
   return
 }
 
-/**
- * Process a document asynchronously with full error handling
- */
 export async function processDocumentAsync(
   knowledgeBaseId: string,
   documentId: string,
@@ -457,6 +444,8 @@ export async function processDocumentAsync(
       maxSize?: number
       minSize?: number
       overlap?: number
+      strategy?: ChunkingStrategy
+      strategyOptions?: StrategyOptions
     } | null
     const kbConfig = {
       maxSize: rawConfig?.maxSize ?? 1024,
@@ -478,7 +467,9 @@ export async function processDocumentAsync(
           kbConfig.overlap,
           kbConfig.minSize,
           kb[0].userId,
-          kb[0].workspaceId
+          kb[0].workspaceId,
+          rawConfig?.strategy,
+          rawConfig?.strategyOptions
         )
 
         if (processed.chunks.length > LARGE_DOC_CONFIG.MAX_CHUNKS_PER_DOCUMENT) {
@@ -529,7 +520,6 @@ export async function processDocumentAsync(
 
         const documentRecord = await db
           .select({
-            // Text tags (7 slots)
             tag1: document.tag1,
             tag2: document.tag2,
             tag3: document.tag3,
@@ -537,16 +527,13 @@ export async function processDocumentAsync(
             tag5: document.tag5,
             tag6: document.tag6,
             tag7: document.tag7,
-            // Number tags (5 slots)
             number1: document.number1,
             number2: document.number2,
             number3: document.number3,
             number4: document.number4,
             number5: document.number5,
-            // Date tags (2 slots)
             date1: document.date1,
             date2: document.date2,
-            // Boolean tags (3 slots)
             boolean1: document.boolean1,
             boolean2: document.boolean2,
             boolean3: document.boolean3,
@@ -578,7 +565,6 @@ export async function processDocumentAsync(
           embeddingModel: 'text-embedding-3-small',
           startOffset: chunk.metadata.startIndex,
           endOffset: chunk.metadata.endIndex,
-          // Copy text tags from document (7 slots)
           tag1: documentTags.tag1,
           tag2: documentTags.tag2,
           tag3: documentTags.tag3,
@@ -586,16 +572,13 @@ export async function processDocumentAsync(
           tag5: documentTags.tag5,
           tag6: documentTags.tag6,
           tag7: documentTags.tag7,
-          // Copy number tags from document (5 slots)
           number1: documentTags.number1,
           number2: documentTags.number2,
           number3: documentTags.number3,
           number4: documentTags.number4,
           number5: documentTags.number5,
-          // Copy date tags from document (2 slots)
           date1: documentTags.date1,
           date2: documentTags.date2,
-          // Copy boolean tags from document (3 slots)
           boolean1: documentTags.boolean1,
           boolean2: documentTags.boolean2,
           boolean3: documentTags.boolean3,
@@ -719,16 +702,10 @@ export async function processDocumentAsync(
   }
 }
 
-/**
- * Check if Trigger.dev is available and configured
- */
 export function isTriggerAvailable(): boolean {
   return Boolean(env.TRIGGER_SECRET_KEY) && isTriggerDevEnabled
 }
 
-/**
- * Process documents using Trigger.dev
- */
 export async function processDocumentsWithTrigger(
   documents: DocumentProcessingPayload[],
   requestId: string
@@ -777,9 +754,6 @@ export async function processDocumentsWithTrigger(
   }
 }
 
-/**
- * Create document records in database with tags
- */
 export async function createDocumentRecords(
   documents: Array<{
     filename: string
@@ -848,7 +822,6 @@ export async function createDocumentRecords(
         processingStatus: 'pending' as const,
         enabled: true,
         uploadedAt: now,
-        // Text tags - use processed tags if available, otherwise fall back to individual tag fields
         tag1: processedTags.tag1 ?? docData.tag1 ?? null,
         tag2: processedTags.tag2 ?? docData.tag2 ?? null,
         tag3: processedTags.tag3 ?? docData.tag3 ?? null,
@@ -856,16 +829,13 @@ export async function createDocumentRecords(
         tag5: processedTags.tag5 ?? docData.tag5 ?? null,
         tag6: processedTags.tag6 ?? docData.tag6 ?? null,
         tag7: processedTags.tag7 ?? docData.tag7 ?? null,
-        // Number tags (5 slots)
         number1: processedTags.number1 ?? null,
         number2: processedTags.number2 ?? null,
         number3: processedTags.number3 ?? null,
         number4: processedTags.number4 ?? null,
         number5: processedTags.number5 ?? null,
-        // Date tags (2 slots)
         date1: processedTags.date1 ?? null,
         date2: processedTags.date2 ?? null,
-        // Boolean tags (3 slots)
         boolean1: processedTags.boolean1 ?? null,
         boolean2: processedTags.boolean2 ?? null,
         boolean3: processedTags.boolean3 ?? null,
@@ -897,9 +867,6 @@ export async function createDocumentRecords(
   })
 }
 
-/**
- * A single tag filter condition passed from the API layer.
- */
 export interface TagFilterCondition {
   tagSlot: string
   fieldType: 'text' | 'number' | 'date' | 'boolean'
@@ -908,9 +875,6 @@ export interface TagFilterCondition {
   valueTo?: string
 }
 
-/**
- * Builds a Drizzle SQL condition from a tag filter.
- */
 const ALLOWED_TAG_SLOTS = new Set([
   'tag1',
   'tag2',
@@ -1039,9 +1003,6 @@ function buildTagFilterCondition(filter: TagFilterCondition): SQL | undefined {
   return undefined
 }
 
-/**
- * Get documents for a knowledge base with filtering and pagination
- */
 export async function getDocuments(
   knowledgeBaseId: string,
   options: {
@@ -1070,7 +1031,6 @@ export async function getDocuments(
     processingError: string | null
     enabled: boolean
     uploadedAt: Date
-    // Text tags
     tag1: string | null
     tag2: string | null
     tag3: string | null
@@ -1078,20 +1038,16 @@ export async function getDocuments(
     tag5: string | null
     tag6: string | null
     tag7: string | null
-    // Number tags
     number1: number | null
     number2: number | null
     number3: number | null
     number4: number | null
     number5: number | null
-    // Date tags
     date1: Date | null
     date2: Date | null
-    // Boolean tags
     boolean1: boolean | null
     boolean2: boolean | null
     boolean3: boolean | null
-    // Connector fields
     connectorId: string | null
     connectorType: string | null
     sourceUrl: string | null
@@ -1188,7 +1144,6 @@ export async function getDocuments(
       processingError: document.processingError,
       enabled: document.enabled,
       uploadedAt: document.uploadedAt,
-      // Text tags (7 slots)
       tag1: document.tag1,
       tag2: document.tag2,
       tag3: document.tag3,
@@ -1196,20 +1151,16 @@ export async function getDocuments(
       tag5: document.tag5,
       tag6: document.tag6,
       tag7: document.tag7,
-      // Number tags (5 slots)
       number1: document.number1,
       number2: document.number2,
       number3: document.number3,
       number4: document.number4,
       number5: document.number5,
-      // Date tags (2 slots)
       date1: document.date1,
       date2: document.date2,
-      // Boolean tags (3 slots)
       boolean1: document.boolean1,
       boolean2: document.boolean2,
       boolean3: document.boolean3,
-      // Connector fields
       connectorId: document.connectorId,
       connectorType: knowledgeConnector.connectorType,
       sourceUrl: document.sourceUrl,
@@ -1241,7 +1192,6 @@ export async function getDocuments(
       processingError: doc.processingError,
       enabled: doc.enabled,
       uploadedAt: doc.uploadedAt,
-      // Text tags
       tag1: doc.tag1,
       tag2: doc.tag2,
       tag3: doc.tag3,
@@ -1249,20 +1199,16 @@ export async function getDocuments(
       tag5: doc.tag5,
       tag6: doc.tag6,
       tag7: doc.tag7,
-      // Number tags
       number1: doc.number1,
       number2: doc.number2,
       number3: doc.number3,
       number4: doc.number4,
       number5: doc.number5,
-      // Date tags
       date1: doc.date1,
       date2: doc.date2,
-      // Boolean tags
       boolean1: doc.boolean1,
       boolean2: doc.boolean2,
       boolean3: doc.boolean3,
-      // Connector fields
       connectorId: doc.connectorId,
       connectorType: doc.connectorType ?? null,
       sourceUrl: doc.sourceUrl,
@@ -1276,9 +1222,6 @@ export async function getDocuments(
   }
 }
 
-/**
- * Create a single document record
- */
 export async function createSingleDocument(
   documentData: {
     filename: string
@@ -1320,7 +1263,6 @@ export async function createSingleDocument(
   const now = new Date()
 
   let processedTags: ProcessedDocumentTags = {
-    // Text tags (7 slots)
     tag1: documentData.tag1 ?? null,
     tag2: documentData.tag2 ?? null,
     tag3: documentData.tag3 ?? null,
@@ -1328,16 +1270,13 @@ export async function createSingleDocument(
     tag5: documentData.tag5 ?? null,
     tag6: documentData.tag6 ?? null,
     tag7: documentData.tag7 ?? null,
-    // Number tags (5 slots)
     number1: null,
     number2: null,
     number3: null,
     number4: null,
     number5: null,
-    // Date tags (2 slots)
     date1: null,
     date2: null,
-    // Boolean tags (3 slots)
     boolean1: null,
     boolean2: null,
     boolean3: null,
@@ -1417,9 +1356,6 @@ export async function createSingleDocument(
   }
 }
 
-/**
- * Perform bulk operations on documents
- */
 export async function bulkDocumentOperation(
   knowledgeBaseId: string,
   operation: 'enable' | 'disable' | 'delete',
@@ -1509,9 +1445,6 @@ export async function bulkDocumentOperation(
   }
 }
 
-/**
- * Perform bulk operations on all documents matching a filter
- */
 export async function bulkDocumentOperationByFilter(
   knowledgeBaseId: string,
   operation: 'enable' | 'disable' | 'delete',
@@ -1583,9 +1516,6 @@ export async function bulkDocumentOperationByFilter(
   }
 }
 
-/**
- * Mark a document as failed due to timeout
- */
 export async function markDocumentAsFailedTimeout(
   documentId: string,
   processingStartedAt: Date,
@@ -1618,9 +1548,6 @@ export async function markDocumentAsFailedTimeout(
   }
 }
 
-/**
- * Retry processing a failed document
- */
 export async function retryDocumentProcessing(
   knowledgeBaseId: string,
   documentId: string,
@@ -1673,9 +1600,6 @@ export async function retryDocumentProcessing(
   }
 }
 
-/**
- * Update a document with specified fields
- */
 export async function updateDocument(
   documentId: string,
   updateData: {
@@ -1686,7 +1610,6 @@ export async function updateDocument(
     characterCount?: number
     processingStatus?: 'pending' | 'processing' | 'completed' | 'failed'
     processingError?: string
-    // Text tags
     tag1?: string
     tag2?: string
     tag3?: string
@@ -1694,16 +1617,13 @@ export async function updateDocument(
     tag5?: string
     tag6?: string
     tag7?: string
-    // Number tags
     number1?: string
     number2?: string
     number3?: string
     number4?: string
     number5?: string
-    // Date tags
     date1?: string
     date2?: string
-    // Boolean tags
     boolean1?: string
     boolean2?: string
     boolean3?: string
@@ -1772,7 +1692,6 @@ export async function updateDocument(
     boolean2: boolean | null
     boolean3: boolean | null
   }> = {}
-  // All tag slots across all field types
   const ALL_TAG_SLOTS = [
     'tag1',
     'tag2',
@@ -1794,7 +1713,6 @@ export async function updateDocument(
   ] as const
   type TagSlot = (typeof ALL_TAG_SLOTS)[number]
 
-  // Regular field updates
   if (updateData.filename !== undefined) dbUpdateData.filename = updateData.filename
   if (updateData.enabled !== undefined) dbUpdateData.enabled = updateData.enabled
   if (updateData.chunkCount !== undefined) dbUpdateData.chunkCount = updateData.chunkCount
@@ -1812,26 +1730,21 @@ export async function updateDocument(
   ): string | number | Date | boolean | null => {
     if (value === undefined || value === '') return null
 
-    // Number slots
     if (slot.startsWith('number')) {
       return parseNumberValue(value)
     }
 
-    // Date slots
     if (slot.startsWith('date')) {
       return parseDateValue(value)
     }
 
-    // Boolean slots
     if (slot.startsWith('boolean')) {
       return parseBooleanValue(value) ?? false
     }
 
-    // Text slots: keep as string
     return value || null
   }
 
-  // Type-safe access to tag slots in updateData
   type UpdateDataWithTags = typeof updateData & Record<TagSlot, string | undefined>
   const typedUpdateData = updateData as UpdateDataWithTags
 
@@ -2044,9 +1957,6 @@ export async function hardDeleteDocuments(
   return existingIds.length
 }
 
-/**
- * Hard delete a document.
- */
 export async function deleteDocument(
   documentId: string,
   requestId: string

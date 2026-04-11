@@ -28,6 +28,7 @@ export const SUPPORTED_DOCUMENT_EXTENSIONS = [
   'html',
   'htm',
   'json',
+  'jsonl',
   'yaml',
   'yml',
 ] as const
@@ -135,6 +136,7 @@ export const SUPPORTED_MIME_TYPES: Record<SupportedDocumentExtension, string[]> 
   html: ['text/html', 'application/xhtml+xml'],
   htm: ['text/html', 'application/xhtml+xml'],
   json: ['application/json', 'text/json', 'application/x-json'],
+  jsonl: ['application/jsonl', 'application/x-jsonlines', 'text/jsonl', 'application/octet-stream'],
   yaml: ['text/yaml', 'text/x-yaml', 'application/yaml', 'application/x-yaml'],
   yml: ['text/yaml', 'text/x-yaml', 'application/yaml', 'application/x-yaml'],
 }

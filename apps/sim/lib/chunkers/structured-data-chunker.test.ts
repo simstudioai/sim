@@ -11,19 +11,16 @@ vi.mock('@sim/logger', () => loggerMock)
 describe('StructuredDataChunker', () => {
   describe('isStructuredData', () => {
     it('should detect CSV content with many columns', () => {
-      // Detection requires >2 delimiters per line on average
       const csv = 'name,age,city,country\nAlice,30,NYC,USA\nBob,25,LA,USA'
       expect(StructuredDataChunker.isStructuredData(csv)).toBe(true)
     })
 
     it('should detect TSV content with many columns', () => {
-      // Detection requires >2 delimiters per line on average
       const tsv = 'name\tage\tcity\tcountry\nAlice\t30\tNYC\tUSA\nBob\t25\tLA\tUSA'
       expect(StructuredDataChunker.isStructuredData(tsv)).toBe(true)
     })
 
     it('should detect pipe-delimited content with many columns', () => {
-      // Detection requires >2 delimiters per line on average
       const piped = 'name|age|city|country\nAlice|30|NYC|USA\nBob|25|LA|USA'
       expect(StructuredDataChunker.isStructuredData(piped)).toBe(true)
     })
@@ -64,7 +61,6 @@ describe('StructuredDataChunker', () => {
 
     it('should handle inconsistent delimiter counts', () => {
       const inconsistent = 'name,age\nAlice,30,extra\nBob'
-      // May or may not detect as structured depending on variance threshold
       const result = StructuredDataChunker.isStructuredData(inconsistent)
       expect(typeof result).toBe('boolean')
     })
@@ -100,7 +96,7 @@ Bob,25`
       const chunks = await StructuredDataChunker.chunkStructuredData(csv)
 
       expect(chunks.length).toBeGreaterThan(0)
-      expect(chunks[0].text).toContain('Rows')
+      expect(chunks[0].text).toContain('rows of data')
     })
 
     it.concurrent('should include sheet name when provided', async () => {
@@ -184,7 +180,6 @@ Alice,30`
       const csv = 'name,age,city'
       const chunks = await StructuredDataChunker.chunkStructuredData(csv)
 
-      // Only header, no data rows
       expect(chunks.length).toBeGreaterThanOrEqual(0)
     })
 
@@ -271,9 +266,8 @@ Alice,30`
       const chunks = await StructuredDataChunker.chunkStructuredData(csv, { chunkSize: 500 })
 
       expect(chunks.length).toBeGreaterThan(1)
-      // Verify total rows are distributed across chunks
       const totalRowCount = chunks.reduce((sum, chunk) => {
-        const match = chunk.text.match(/\[Rows (\d+) of data\]/)
+        const match = chunk.text.match(/\[(\d+) rows of data\]/)
         return sum + (match ? Number.parseInt(match[1]) : 0)
       }, 0)
       expect(totalRowCount).toBeGreaterThan(0)
@@ -319,9 +313,7 @@ Alice,30`
     it.concurrent('should not detect with fewer than 3 delimiters per line', async () => {
       const sparse = `a,b
 1,2`
-      // Only 1 comma per line, below threshold of >2
       const result = StructuredDataChunker.isStructuredData(sparse)
-      // May or may not pass depending on implementation threshold
       expect(typeof result).toBe('boolean')
     })
   })
@@ -337,7 +329,6 @@ Alice,30`
       const chunks = await StructuredDataChunker.chunkStructuredData(csv, { chunkSize: 200 })
 
       expect(chunks.length).toBeGreaterThan(1)
-      // Each chunk should contain header info
       for (const chunk of chunks) {
         expect(chunk.text).toContain('Headers:')
       }

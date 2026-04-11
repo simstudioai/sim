@@ -1,4 +1,5 @@
-import type { Chunk, ChunkerOptions } from '@/lib/chunkers/types'
+import { createLogger } from '@sim/logger'
+import type { Chunk, RecursiveChunkerOptions } from '@/lib/chunkers/types'
 import {
   addOverlap,
   buildChunks,
@@ -9,11 +10,11 @@ import {
   tokensToChars,
 } from '@/lib/chunkers/utils'
 
-export class TextChunker {
-  private readonly chunkSize: number
-  private readonly chunkOverlap: number
+const logger = createLogger('RecursiveChunker')
 
-  private readonly separators = [
+const RECIPES = {
+  plain: ['\n\n', '\n', '. ', ' ', ''],
+  markdown: [
     '\n---\n',
     '\n***\n',
     '\n___\n',
@@ -23,20 +24,50 @@ export class TextChunker {
     '\n#### ',
     '\n##### ',
     '\n###### ',
+    '\n```\n',
+    '\n> ',
     '\n\n',
     '\n',
     '. ',
-    '! ',
-    '? ',
-    '; ',
-    ', ',
     ' ',
-  ]
+    '',
+  ],
+  code: [
+    '\nfunction ',
+    '\nclass ',
+    '\nexport ',
+    '\nconst ',
+    '\nlet ',
+    '\nvar ',
+    '\nif ',
+    '\nfor ',
+    '\nwhile ',
+    '\nswitch ',
+    '\nreturn ',
+    '\n\n',
+    '\n',
+    '; ',
+    ' ',
+    '',
+  ],
+} as const
 
-  constructor(options: ChunkerOptions = {}) {
+export class RecursiveChunker {
+  private readonly chunkSize: number
+  private readonly chunkOverlap: number
+  private readonly separators: string[]
+
+  constructor(options: RecursiveChunkerOptions = {}) {
     const resolved = resolveChunkerOptions(options)
     this.chunkSize = resolved.chunkSize
     this.chunkOverlap = resolved.chunkOverlap
+
+    if (options.separators && options.separators.length > 0) {
+      this.separators = options.separators
+    } else {
+      const recipe = options.recipe ?? 'plain'
+      this.separators = [...RECIPES[recipe]]
+    }
   }
 
   private splitRecursively(text: string, separatorIndex = 0): string[] {
@@ -52,6 +83,11 @@ export class TextChunker {
     }
 
     const separator = this.separators[separatorIndex]
+
+    if (separator === '') {
+      return this.splitRecursively(text, this.separators.length)
+    }
+
     const parts = text.split(separator).filter((part) => part.trim())
 
     if (parts.length <= 1) {
@@ -90,12 +126,12 @@ export class TextChunker {
     return chunks
   }
 
-  async chunk(text: string): Promise<Chunk[]> {
-    if (!text?.trim()) {
+  async chunk(content: string): Promise<Chunk[]> {
+    if (!content?.trim()) {
       return []
     }
 
-    const cleaned = cleanText(text)
+    const cleaned = cleanText(content)
     let chunks = this.splitRecursively(cleaned)
 
     if (this.chunkOverlap > 0) {
@@ -103,6 +139,7 @@ export class TextChunker {
       chunks = addOverlap(chunks, overlapChars)
     }
 
+    logger.info(`Chunked into ${chunks.length} recursive chunks`)
     return buildChunks(chunks, this.chunkOverlap)
   }
 }
