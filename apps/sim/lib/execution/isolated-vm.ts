@@ -980,7 +980,8 @@ function drainQueue() {
   while (queueLength() > 0 && totalActiveExecutions < MAX_CONCURRENT) {
     const worker = selectWorker()
     if (!worker) {
-      const currentPoolSize = workers.size + spawnInProgress
+      const activeWorkerCount = [...workers.values()].filter((w) => !w.retiring).length
+      const currentPoolSize = activeWorkerCount + spawnInProgress
       if (currentPoolSize < POOL_SIZE) {
         spawnWorker()
           .then(() => drainQueue())
