@@ -870,6 +870,14 @@ function dispatchToWorker(
     totalActiveExecutions--
     ownerState.activeExecutions = Math.max(0, ownerState.activeExecutions - 1)
     maybeCleanupOwner(ownerState.ownerKey)
+    workerInfo.lifetimeExecutions++
+    if (workerInfo.lifetimeExecutions >= MAX_EXECUTIONS_PER_WORKER && !workerInfo.retiring) {
+      workerInfo.retiring = true
+      logger.info('Worker marked for retirement', {
+        workerId: workerInfo.id,
+        lifetimeExecutions: workerInfo.lifetimeExecutions,
+      })
+    }
     resolve({
       result: null,
       stdout: '',
