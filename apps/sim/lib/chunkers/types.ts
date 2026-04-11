@@ -51,3 +51,39 @@ export interface DocChunk {
 export interface DocsChunkerOptions extends ChunkerOptions {
   baseUrl?: string
 }
+
+/** Available chunking strategies for knowledge base documents */
+export type ChunkingStrategy = 'auto' | 'text' | 'regex' | 'recursive' | 'sentence' | 'token'
+
+/** Pre-built separator recipes for recursive chunking */
+export type RecursiveRecipe = 'plain' | 'markdown' | 'code'
+
+/** Strategy-specific options passed through the stack */
+export interface StrategyOptions {
+  /** Regex pattern for 'regex' strategy */
+  pattern?: string
+  /** Custom separator hierarchy for 'recursive' strategy */
+  separators?: string[]
+  /** Pre-built separator recipe for 'recursive' strategy */
+  recipe?: RecursiveRecipe
+}
+
+/** Options for sentence-based chunking */
+export interface SentenceChunkerOptions extends ChunkerOptions {
+  /** Minimum number of sentences per chunk (default: 1) */
+  minSentencesPerChunk?: number
+}
+
+/** Options for recursive delimiter-based chunking */
+export interface RecursiveChunkerOptions extends ChunkerOptions {
+  /** Custom separator hierarchy (overrides recipe if provided) */
+  separators?: string[]
+  /** Pre-built separator recipe (default: 'plain') */
+  recipe?: RecursiveRecipe
+}
+
+/** Options for regex pattern-based chunking */
+export interface RegexChunkerOptions extends ChunkerOptions {
+  /** Regex pattern string used to split text */
+  pattern: string
+}

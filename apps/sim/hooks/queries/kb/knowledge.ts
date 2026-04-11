@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/emcn'
+import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import type {
   ChunkData,
   ChunksPagination,
@@ -707,6 +708,8 @@ export interface CreateKnowledgeBaseParams {
     maxSize: number
     minSize: number
     overlap: number
+    strategy?: ChunkingStrategy
+    strategyOptions?: StrategyOptions
   }
 }
 

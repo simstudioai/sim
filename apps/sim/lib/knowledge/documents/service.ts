@@ -32,6 +32,7 @@ import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { generateId } from '@/lib/core/utils/uuid'
 import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
+import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
@@ -457,6 +458,8 @@ export async function processDocumentAsync(
       maxSize?: number
       minSize?: number
       overlap?: number
+      strategy?: ChunkingStrategy
+      strategyOptions?: StrategyOptions
     } | null
     const kbConfig = {
       maxSize: rawConfig?.maxSize ?? 1024,
@@ -478,7 +481,9 @@ export async function processDocumentAsync(
           kbConfig.overlap,
           kbConfig.minSize,
           kb[0].userId,
-          kb[0].workspaceId
+          kb[0].workspaceId,
+          rawConfig?.strategy,
+          rawConfig?.strategyOptions
         )
 
         if (processed.chunks.length > LARGE_DOC_CONFIG.MAX_CHUNKS_PER_DOCUMENT) {

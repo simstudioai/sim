@@ -1,3 +1,5 @@
+import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
+
 /**
  * Configuration for document chunking in knowledge bases
  *
@@ -13,6 +15,10 @@ export interface ChunkingConfig {
   minSize: number
   /** Overlap between chunks in tokens (default: 200, range: 0-500) */
   overlap: number
+  /** Chunking strategy (default: 'auto' for content-type detection) */
+  strategy?: ChunkingStrategy
+  /** Strategy-specific options */
+  strategyOptions?: StrategyOptions
 }
 
 export interface KnowledgeBaseWithCounts {
@@ -111,7 +117,6 @@ export interface ExtendedChunkingConfig extends ChunkingConfig {
   minCharactersPerChunk?: number
   recipe?: string
   lang?: string
-  strategy?: 'recursive' | 'semantic' | 'sentence' | 'paragraph'
   [key: string]: unknown
 }
 

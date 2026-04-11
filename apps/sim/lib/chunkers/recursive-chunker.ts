@@ -1,0 +1,137 @@
+import { createLogger } from '@sim/logger'
+import type { Chunk, RecursiveChunkerOptions } from '@/lib/chunkers/types'
+import {
+  addOverlap,
+  buildChunks,
+  cleanText,
+  estimateTokens,
+  resolveChunkerOptions,
+  tokensToChars,
+} from '@/lib/chunkers/utils'
+
+const logger = createLogger('RecursiveChunker')
+
+const RECIPES = {
+  plain: ['\n\n', '\n', '. ', ' ', ''],
+  markdown: [
+    '\n# ',
+    '\n## ',
+    '\n### ',
+    '\n#### ',
+    '\n##### ',
+    '\n###### ',
+    '\n\n',
+    '\n',
+    '. ',
+    ' ',
+    '',
+  ],
+  code: ['\nfunction ', '\nclass ', '\nexport ', '\n\n', '\n', '; ', ' ', ''],
+} as const
+
+/**
+ * Recursive delimiter-based chunker
+ * Splits text using a configurable hierarchy of separators.
+ * At each level, splits on the separator, merges small pieces, then
+ * recurses to the next level for any chunks that are still too large.
+ */
+export class RecursiveChunker {
+  private readonly chunkSize: number
+  private readonly chunkOverlap: number
+  private readonly separators: string[]
+
+  constructor(options: RecursiveChunkerOptions = {}) {
+    const resolved = resolveChunkerOptions(options)
+    this.chunkSize = resolved.chunkSize
+    this.chunkOverlap = resolved.chunkOverlap
+
+    if (options.separators && options.separators.length > 0) {
+      this.separators = options.separators
+    } else {
+      const recipe = options.recipe ?? 'plain'
+      this.separators = [...RECIPES[recipe]]
+    }
+  }
+
+  private splitRecursively(text: string, separatorIndex = 0): string[] {
+    const tokenCount = estimateTokens(text)
+
+    if (tokenCount <= this.chunkSize) {
+      return text.trim() ? [text] : []
+    }
+
+    if (separatorIndex >= this.separators.length) {
+      const chunks: string[] = []
+      const targetLength = Math.ceil((text.length * this.chunkSize) / tokenCount)
+
+      for (let i = 0; i < text.length; i += targetLength) {
+        const chunk = text.slice(i, i + targetLength).trim()
+        if (chunk) {
+          chunks.push(chunk)
+        }
+      }
+      return chunks
+    }
+
+    const separator = this.separators[separatorIndex]
+
+    if (separator === '') {
+      return this.splitRecursively(text, this.separators.length)
+    }
+
+    const parts = text.split(separator).filter((part) => part.trim())
+
+    if (parts.length <= 1) {
+      return this.splitRecursively(text, separatorIndex + 1)
+    }
+
+    const chunks: string[] = []
+    let currentChunk = ''
+
+    for (let pi = 0; pi < parts.length; pi++) {
+      const part = pi > 0 ? `${separator}${parts[pi]}` : parts[pi]
+      const testChunk = currentChunk + part
+
+      if (estimateTokens(testChunk) <= this.chunkSize) {
+        currentChunk = testChunk
+      } else {
+        if (currentChunk.trim()) {
+          chunks.push(currentChunk.trim())
+        }
+
+        if (estimateTokens(part) > this.chunkSize) {
+          const subChunks = this.splitRecursively(part, separatorIndex + 1)
+          for (const subChunk of subChunks) {
+            chunks.push(subChunk)
+          }
+          currentChunk = ''
+        } else {
+          currentChunk = part
+        }
+      }
+    }
+
+    if (currentChunk.trim()) {
+      chunks.push(currentChunk.trim())
+    }
+
+    return chunks
+  }
+
+  async chunk(content: string): Promise<Chunk[]> {
+    if (!content?.trim()) {
+      return []
+    }
+
+    const cleaned = cleanText(content)
+    let chunks = this.splitRecursively(cleaned)
+
+    if (this.chunkOverlap > 0) {
+      const overlapChars = tokensToChars(this.chunkOverlap)
+      chunks = addOverlap(chunks, overlapChars)
+    }
+
+    logger.info(`Chunked into ${chunks.length} recursive chunks`)
+    return buildChunks(chunks, this.chunkOverlap)
+  }
+}

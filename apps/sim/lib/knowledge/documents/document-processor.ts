@@ -1,7 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { PDFDocument } from 'pdf-lib'
 import { getBYOKKey } from '@/lib/api-key/byok'
-import { type Chunk, JsonYamlChunker, StructuredDataChunker, TextChunker } from '@/lib/chunkers'
+import {
+  type Chunk,
+  JsonYamlChunker,
+  RecursiveChunker,
+  RegexChunker,
+  SentenceChunker,
+  StructuredDataChunker,
+  TextChunker,
+  TokenChunker,
+} from '@/lib/chunkers'
+import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { env } from '@/lib/core/config/env'
 import { parseBuffer, parseFile } from '@/lib/file-parsers'
 import type { FileParseMetadata } from '@/lib/file-parsers/types'
@@ -112,6 +122,56 @@ class APIError extends Error {
   }
 }
 
+/**
+ * Apply a specific chunking strategy to content
+ */
+async function applyStrategy(
+  strategy: ChunkingStrategy,
+  content: string,
+  chunkSize: number,
+  chunkOverlap: number,
+  minCharactersPerChunk: number,
+  strategyOptions?: StrategyOptions
+): Promise<Chunk[]> {
+  const baseOptions = { chunkSize, chunkOverlap, minCharactersPerChunk }
+
+  switch (strategy) {
+    case 'token': {
+      const chunker = new TokenChunker(baseOptions)
+      return chunker.chunk(content)
+    }
+    case 'sentence': {
+      const chunker = new SentenceChunker(baseOptions)
+      return chunker.chunk(content)
+    }
+    case 'recursive': {
+      const chunker = new RecursiveChunker({
+        ...baseOptions,
+        separators: strategyOptions?.separators,
+        recipe: strategyOptions?.recipe,
+      })
+      return chunker.chunk(content)
+    }
+    case 'regex': {
+      if (!strategyOptions?.pattern) {
+        logger.warn('Regex strategy requested but no pattern provided, falling back to text chunker')
+        const chunker = new TextChunker(baseOptions)
+        return chunker.chunk(content)
+      }
+      const chunker = new RegexChunker({
+        ...baseOptions,
+        pattern: strategyOptions.pattern,
+      })
+      return chunker.chunk(content)
+    }
+    case 'text':
+    default: {
+      const chunker = new TextChunker(baseOptions)
+      return chunker.chunk(content)
+    }
+  }
+}
+
 export async function processDocument(
   fileUrl: string,
   filename: string,
@@ -120,7 +180,9 @@ export async function processDocument(
   chunkOverlap = 200,
   minCharactersPerChunk = 100,
   userId?: string,
-  workspaceId?: string | null
+  workspaceId?: string | null,
+  strategy?: ChunkingStrategy,
+  strategyOptions?: StrategyOptions
 ): Promise<{
   chunks: Chunk[]
   metadata: {
@@ -144,30 +206,44 @@ export async function processDocument(
     let chunks: Chunk[]
     const metadata: FileParseMetadata = parseResult.metadata ?? {}
 
-    const isJsonYaml =
-      metadata.type === 'json' ||
-      metadata.type === 'yaml' ||
-      mimeType.includes('json') ||
-      mimeType.includes('yaml')
-
-    if (isJsonYaml && JsonYamlChunker.isStructuredData(content)) {
-      logger.info('Using JSON/YAML chunker for structured data')
-      chunks = await JsonYamlChunker.chunkJsonYaml(content, {
+    // If an explicit strategy is set (not 'auto'), use that chunker directly
+    if (strategy && strategy !== 'auto') {
+      logger.info(`Using explicit chunking strategy: ${strategy}`)
+      chunks = await applyStrategy(
+        strategy,
+        content,
         chunkSize,
+        chunkOverlap,
         minCharactersPerChunk,
-      })
-    } else if (StructuredDataChunker.isStructuredData(content, mimeType)) {
-      logger.info('Using structured data chunker for spreadsheet/CSV content')
-      const rowCount = metadata.totalRows ?? metadata.rowCount
-      chunks = await StructuredDataChunker.chunkStructuredData(content, {
-        chunkSize,
-        headers: metadata.headers,
-        totalRows: typeof rowCount === 'number' ? rowCount : undefined,
-        sheetName: metadata.sheetNames?.[0],
-      })
+        strategyOptions
+      )
     } else {
-      const chunker = new TextChunker({ chunkSize, chunkOverlap, minCharactersPerChunk })
-      chunks = await chunker.chunk(content)
+      // Auto-detect based on content type
+      const isJsonYaml =
+        metadata.type === 'json' ||
+        metadata.type === 'yaml' ||
+        mimeType.includes('json') ||
+        mimeType.includes('yaml')
+
+      if (isJsonYaml && JsonYamlChunker.isStructuredData(content)) {
+        logger.info('Using JSON/YAML chunker for structured data')
+        chunks = await JsonYamlChunker.chunkJsonYaml(content, {
+          chunkSize,
+          minCharactersPerChunk,
+        })
+      } else if (StructuredDataChunker.isStructuredData(content, mimeType)) {
+        logger.info('Using structured data chunker for spreadsheet/CSV content')
+        const rowCount = metadata.totalRows ?? metadata.rowCount
+        chunks = await StructuredDataChunker.chunkStructuredData(content, {
+          chunkSize,
+          headers: metadata.headers,
+          totalRows: typeof rowCount === 'number' ? rowCount : undefined,
+          sheetName: metadata.sheetNames?.[0],
+        })
+      } else {
+        const chunker = new TextChunker({ chunkSize, chunkOverlap, minCharactersPerChunk })
+        chunks = await chunker.chunk(content)
+      }
     }
 
     const characterCount = content.length

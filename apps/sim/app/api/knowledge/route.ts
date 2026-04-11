@@ -37,6 +37,22 @@ const CreateKnowledgeBaseSchema = z.object({
       minSize: z.number().min(1).max(2000).default(100),
       /** Overlap between chunks in tokens (1 token ≈ 4 characters) */
       overlap: z.number().min(0).max(500).default(200),
+      /** Chunking strategy */
+      strategy: z
+        .enum(['auto', 'text', 'regex', 'recursive', 'sentence', 'token'])
+        .default('auto')
+        .optional(),
+      /** Strategy-specific options */
+      strategyOptions: z
+        .object({
+          /** Regex pattern for 'regex' strategy */
+          pattern: z.string().optional(),
+          /** Custom separator hierarchy for 'recursive' strategy */
+          separators: z.array(z.string()).optional(),
+          /** Pre-built separator recipe for 'recursive' strategy */
+          recipe: z.enum(['plain', 'markdown', 'code']).optional(),
+        })
+        .optional(),
     })
     .default({
       maxSize: 1024,
@@ -45,12 +61,22 @@ const CreateKnowledgeBaseSchema = z.object({
     })
     .refine(
       (data) => {
-        // Convert maxSize from tokens to characters for comparison (1 token ≈ 4 chars)
         const maxSizeInChars = data.maxSize * 4
         return data.minSize < maxSizeInChars
       },
       {
         message: 'Min chunk size (characters) must be less than max chunk size (tokens × 4)',
+      }
+    )
+    .refine(
+      (data) => {
+        if (data.strategy === 'regex' && !data.strategyOptions?.pattern) {
+          return false
+        }
+        return true
+      },
+      {
+        message: 'Regex pattern is required when using the regex chunking strategy',
       }
     ),
 })
