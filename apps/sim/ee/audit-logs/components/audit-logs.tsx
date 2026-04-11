@@ -19,6 +19,7 @@ const RESOURCE_TYPE_OPTIONS: ComboboxOption[] = [
   { label: 'BYOK Key', value: 'byok_key' },
   { label: 'Chat', value: 'chat' },
   { label: 'Connector', value: 'connector' },
+  { label: 'Credential', value: 'credential' },
   { label: 'Credential Set', value: 'credential_set' },
   { label: 'Custom Tool', value: 'custom_tool' },
   { label: 'Document', value: 'document' },

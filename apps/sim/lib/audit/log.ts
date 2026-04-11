@@ -108,10 +108,13 @@ export const AuditAction = {
 
   // OAuth / Credentials
   OAUTH_DISCONNECTED: 'oauth.disconnected',
+  CREDENTIAL_CREATED: 'credential.created',
+  CREDENTIAL_UPDATED: 'credential.updated',
   CREDENTIAL_RENAMED: 'credential.renamed',
   CREDENTIAL_DELETED: 'credential.deleted',
 
   // Password
+  PASSWORD_RESET_REQUESTED: 'password.reset_requested',
   PASSWORD_RESET: 'password.reset',
 
   // Organizations
@@ -139,7 +142,9 @@ export const AuditAction = {
   SKILL_DELETED: 'skill.deleted',
 
   // Schedules
+  SCHEDULE_CREATED: 'schedule.created',
   SCHEDULE_UPDATED: 'schedule.updated',
+  SCHEDULE_DELETED: 'schedule.deleted',
 
   // Tables
   TABLE_CREATED: 'table.created',
@@ -186,6 +191,7 @@ export const AuditResourceType = {
   BYOK_KEY: 'byok_key',
   CHAT: 'chat',
   CONNECTOR: 'connector',
+  CREDENTIAL: 'credential',
   CREDENTIAL_SET: 'credential_set',
   CUSTOM_TOOL: 'custom_tool',
   DOCUMENT: 'document',
