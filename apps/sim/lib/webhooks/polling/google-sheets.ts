@@ -397,7 +397,6 @@ async function processRows(
     // Skip empty rows — don't fire a workflow run with no data.
     if (!row || row.length === 0) {
       logger.info(`[${requestId}] Skipping empty row ${rowNumber} for webhook ${webhookData.id}`)
-      processedCount++
       continue
     }
 
