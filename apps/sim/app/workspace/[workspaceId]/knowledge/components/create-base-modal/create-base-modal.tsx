@@ -3,7 +3,7 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
-import { Loader2, RotateCcw, X } from 'lucide-react'
+import { ChevronDown, Loader2, RotateCcw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -90,6 +90,15 @@ const FormSchema = z
     {
       message: 'Min chunk size (characters) must be less than max chunk size (tokens × 4)',
       path: ['minChunkSize'],
+    }
+  )
+  .refine(
+    (data) => {
+      return data.overlapSize < data.maxChunkSize
+    },
+    {
+      message: 'Overlap must be less than max chunk size',
+      path: ['overlapSize'],
     }
   )
   .refine(
@@ -469,6 +478,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                       >
                         {STRATEGY_OPTIONS.find((o) => o.value === strategyValue)?.label ??
                           'Auto (detect from content)'}
+                        <ChevronDown className='h-[12px] w-[12px] text-[var(--text-icon)]' />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align='start' className='w-[var(--radix-dropdown-menu-trigger-width)]'>

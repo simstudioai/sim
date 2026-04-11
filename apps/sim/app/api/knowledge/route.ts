@@ -45,8 +45,8 @@ const CreateKnowledgeBaseSchema = z.object({
       /** Strategy-specific options */
       strategyOptions: z
         .object({
-          /** Regex pattern for 'regex' strategy */
-          pattern: z.string().optional(),
+          /** Regex pattern for 'regex' strategy (max 500 chars) */
+          pattern: z.string().max(500).optional(),
           /** Custom separator hierarchy for 'recursive' strategy */
           separators: z.array(z.string()).optional(),
           /** Pre-built separator recipe for 'recursive' strategy */
@@ -66,6 +66,14 @@ const CreateKnowledgeBaseSchema = z.object({
       },
       {
         message: 'Min chunk size (characters) must be less than max chunk size (tokens × 4)',
+      }
+    )
+    .refine(
+      (data) => {
+        return data.overlap < data.maxSize
+      },
+      {
+        message: 'Overlap must be less than max chunk size',
       }
     )
     .refine(

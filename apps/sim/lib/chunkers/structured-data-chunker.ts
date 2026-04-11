@@ -113,7 +113,7 @@ export class StructuredDataChunker {
     }
 
     content += rows.join('\n')
-    content += `\n\n[Rows ${rows.length} of data]`
+    content += `\n\n[${rows.length} rows of data]`
 
     return content
   }

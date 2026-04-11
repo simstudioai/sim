@@ -43,13 +43,20 @@ export class RegexChunker {
     try {
       const regex = new RegExp(pattern, 'g')
 
-      // Test against a mixed-character string to catch catastrophic backtracking
-      const testStr = 'aB1 xY2\n'.repeat(1250)
-      const start = Date.now()
-      regex.test(testStr)
-      const elapsed = Date.now() - start
-      if (elapsed > 50) {
-        throw new Error('Regex pattern appears to have catastrophic backtracking')
+      // Test against adversarial strings to catch catastrophic backtracking
+      const testStrings = [
+        'a'.repeat(10000),
+        ' '.repeat(10000),
+        'a '.repeat(5000),
+        'aB1 xY2\n'.repeat(1250),
+      ]
+      for (const testStr of testStrings) {
+        const start = Date.now()
+        regex.test(testStr)
+        const elapsed = Date.now() - start
+        if (elapsed > 50) {
+          throw new Error('Regex pattern appears to have catastrophic backtracking')
+        }
       }
 
       regex.lastIndex = 0

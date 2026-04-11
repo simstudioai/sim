@@ -6,6 +6,7 @@ import {
   cleanText,
   estimateTokens,
   resolveChunkerOptions,
+  splitAtWordBoundaries,
   tokensToChars,
 } from '@/lib/chunkers/utils'
 
@@ -14,19 +15,41 @@ const logger = createLogger('RecursiveChunker')
 const RECIPES = {
   plain: ['\n\n', '\n', '. ', ' ', ''],
   markdown: [
+    '\n---\n',
+    '\n***\n',
+    '\n___\n',
     '\n# ',
     '\n## ',
     '\n### ',
     '\n#### ',
     '\n##### ',
     '\n###### ',
+    '\n```\n',
+    '\n> ',
     '\n\n',
     '\n',
     '. ',
     ' ',
     '',
   ],
-  code: ['\nfunction ', '\nclass ', '\nexport ', '\n\n', '\n', '; ', ' ', ''],
+  code: [
+    '\nfunction ',
+    '\nclass ',
+    '\nexport ',
+    '\nconst ',
+    '\nlet ',
+    '\nvar ',
+    '\nif ',
+    '\nfor ',
+    '\nwhile ',
+    '\nswitch ',
+    '\nreturn ',
+    '\n\n',
+    '\n',
+    '; ',
+    ' ',
+    '',
+  ],
 } as const
 
 /**
@@ -61,16 +84,8 @@ export class RecursiveChunker {
     }
 
     if (separatorIndex >= this.separators.length) {
-      const chunks: string[] = []
-      const targetLength = Math.ceil((text.length * this.chunkSize) / tokenCount)
-
-      for (let i = 0; i < text.length; i += targetLength) {
-        const chunk = text.slice(i, i + targetLength).trim()
-        if (chunk) {
-          chunks.push(chunk)
-        }
-      }
-      return chunks
+      const chunkSizeChars = tokensToChars(this.chunkSize)
+      return splitAtWordBoundaries(text, chunkSizeChars)
     }
 
     const separator = this.separators[separatorIndex]
