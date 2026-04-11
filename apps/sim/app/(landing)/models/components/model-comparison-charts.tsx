@@ -3,7 +3,7 @@
 import type { ComponentType } from 'react'
 import { useMemo } from 'react'
 import Link from 'next/link'
-import { getProviderColor } from '@/app/(landing)/models/components/model-colors'
+import { getProviderColor } from '@/app/(landing)/models/components/consts'
 import type { CatalogModel } from '@/app/(landing)/models/utils'
 import {
   formatPrice,
