@@ -180,6 +180,13 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
         )
         return 'success'
       }
+      if (error instanceof Error && error.name === 'DriveRateLimitError') {
+        await markWebhookSuccess(webhookId, logger)
+        logger.warn(
+          `[${requestId}] Drive API rate limited for webhook ${webhookId}, skipping to retry next poll cycle`
+        )
+        return 'success'
+      }
       logger.error(`[${requestId}] Error processing Google Drive webhook ${webhookId}:`, error)
       await markWebhookFailed(webhookId, logger)
       return 'failure'
@@ -207,9 +214,9 @@ async function getStartPageToken(
     const status = response.status
     const errorData = await response.json().catch(() => ({}))
     if (status === 403 || status === 429) {
-      throw new Error(
-        `Drive API rate limit (${status}) — skipping to retry next poll cycle: ${JSON.stringify(errorData)}`
-      )
+      const err = new Error(`Drive API rate limit (${status}): ${JSON.stringify(errorData)}`)
+      err.name = 'DriveRateLimitError'
+      throw err
     }
     throw new Error(
       `Failed to get Drive start page token: ${status} - ${JSON.stringify(errorData)}`
@@ -261,9 +268,9 @@ async function fetchChanges(
         throw err
       }
       if (status === 403 || status === 429) {
-        throw new Error(
-          `Drive API rate limit (${status}) — skipping to retry next poll cycle: ${JSON.stringify(errorData)}`
-        )
+        const err = new Error(`Drive API rate limit (${status}): ${JSON.stringify(errorData)}`)
+        err.name = 'DriveRateLimitError'
+        throw err
       }
       throw new Error(`Failed to fetch Drive changes: ${status} - ${JSON.stringify(errorData)}`)
     }
