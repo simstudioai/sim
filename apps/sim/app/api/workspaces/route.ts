@@ -118,7 +118,7 @@ export async function POST(req: Request) {
       resourceId: newWorkspace.id,
       resourceName: newWorkspace.name,
       description: `Created workspace "${newWorkspace.name}"`,
-      metadata: { name: newWorkspace.name },
+      metadata: { name: newWorkspace.name, color: newWorkspace.color },
       request: req,
     })
 

@@ -147,6 +147,20 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         resourceId: id,
         resourceName: validatedData.name ?? updatedKnowledgeBase.name,
         description: `Updated knowledge base "${validatedData.name ?? updatedKnowledgeBase.name}"`,
+        metadata: {
+          updatedFields: Object.keys(validatedData).filter(
+            (k) => validatedData[k as keyof typeof validatedData] !== undefined
+          ),
+          ...(validatedData.name && { newName: validatedData.name }),
+          ...(validatedData.description !== undefined && {
+            description: validatedData.description,
+          }),
+          ...(validatedData.chunkingConfig && {
+            chunkMaxSize: validatedData.chunkingConfig.maxSize,
+            chunkMinSize: validatedData.chunkingConfig.minSize,
+            chunkOverlap: validatedData.chunkingConfig.overlap,
+          }),
+        },
         request: req,
       })
 
@@ -226,6 +240,9 @@ export async function DELETE(
       resourceId: id,
       resourceName: accessCheck.knowledgeBase.name,
       description: `Deleted knowledge base "${accessCheck.knowledgeBase.name || id}"`,
+      metadata: {
+        knowledgeBaseName: accessCheck.knowledgeBase.name,
+      },
       request: _request,
     })
 

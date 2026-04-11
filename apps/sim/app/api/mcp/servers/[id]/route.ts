@@ -124,6 +124,14 @@ export const PATCH = withMcpAuth<{ id: string }>('write')(
         resourceId: serverId,
         resourceName: updatedServer.name || serverId,
         description: `Updated MCP server "${updatedServer.name || serverId}"`,
+        metadata: {
+          serverName: updatedServer.name,
+          transport: updatedServer.transport,
+          url: updatedServer.url,
+          updatedFields: Object.keys(updateData).filter(
+            (k) => k !== 'workspaceId' && k !== 'updatedAt'
+          ),
+        },
         request,
       })
 

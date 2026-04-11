@@ -20,6 +20,7 @@ export const AuditAction = {
 
   // BYOK Keys
   BYOK_KEY_CREATED: 'byok_key.created',
+  BYOK_KEY_UPDATED: 'byok_key.updated',
   BYOK_KEY_DELETED: 'byok_key.deleted',
 
   // Chat
@@ -57,6 +58,7 @@ export const AuditAction = {
 
   // Environment
   ENVIRONMENT_UPDATED: 'environment.updated',
+  ENVIRONMENT_DELETED: 'environment.deleted',
 
   // Files
   FILE_UPLOADED: 'file.uploaded',
@@ -77,6 +79,7 @@ export const AuditAction = {
 
   // Invitations
   INVITATION_ACCEPTED: 'invitation.accepted',
+  INVITATION_RESENT: 'invitation.resent',
   INVITATION_REVOKED: 'invitation.revoked',
 
   // Knowledge Base Connectors
@@ -128,6 +131,7 @@ export const AuditAction = {
   ORG_INVITATION_REJECTED: 'org_invitation.rejected',
   ORG_INVITATION_CANCELLED: 'org_invitation.cancelled',
   ORG_INVITATION_REVOKED: 'org_invitation.revoked',
+  ORG_INVITATION_RESENT: 'org_invitation.resent',
 
   // Permission Groups
   PERMISSION_GROUP_CREATED: 'permission_group.created',
@@ -176,6 +180,7 @@ export const AuditAction = {
 
   // Workspaces
   WORKSPACE_CREATED: 'workspace.created',
+  WORKSPACE_UPDATED: 'workspace.updated',
   WORKSPACE_DELETED: 'workspace.deleted',
   WORKSPACE_DUPLICATED: 'workspace.duplicated',
 } as const

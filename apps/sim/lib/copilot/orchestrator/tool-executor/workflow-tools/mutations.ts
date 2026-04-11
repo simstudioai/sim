@@ -141,6 +141,7 @@ export async function executeCreateWorkflow(
       resourceId: result.workflowId,
       resourceName: name,
       description: `Created workflow "${name}"`,
+      metadata: { folderId, source: 'copilot' },
     })
 
     try {
@@ -216,6 +217,7 @@ export async function executeCreateFolder(
       resourceId: result.folderId,
       resourceName: name,
       description: `Created folder "${name}"`,
+      metadata: { parentId, source: 'copilot' },
     })
 
     return { success: true, output: result }
@@ -372,6 +374,7 @@ export async function executeSetGlobalWorkflowVariables(
       resourceType: AuditResourceType.WORKFLOW,
       resourceId: workflowId,
       description: `Updated workflow variables`,
+      metadata: { operationCount: operations.length, source: 'copilot' },
     })
 
     return { success: true, output: { updated: Object.values(byName).length } }
@@ -536,7 +539,10 @@ export async function executeGenerateApiKey(
       actorId: context.userId,
       action: AuditAction.API_KEY_CREATED,
       resourceType: AuditResourceType.API_KEY,
-      description: `Generated API key for workspace`,
+      resourceId: newKey.id,
+      resourceName: name,
+      description: `Generated API key "${name}" for workspace`,
+      metadata: { source: 'copilot' },
     })
 
     return {

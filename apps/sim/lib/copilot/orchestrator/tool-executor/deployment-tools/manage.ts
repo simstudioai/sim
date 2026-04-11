@@ -255,6 +255,11 @@ export async function executeCreateWorkspaceMcpServer(
       resourceId: serverId,
       resourceName: name,
       description: `Created MCP server "${name}"`,
+      metadata: {
+        isPublic: params.isPublic ?? false,
+        toolCount: addedTools.length,
+        source: 'copilot',
+      },
     })
 
     return { success: true, output: { server, addedTools } }
@@ -314,6 +319,10 @@ export async function executeUpdateWorkspaceMcpServer(
       resourceType: AuditResourceType.MCP_SERVER,
       resourceId: params.serverId,
       description: `Updated MCP server`,
+      metadata: {
+        updatedFields: Object.keys(updates).filter((k) => k !== 'updatedAt'),
+        source: 'copilot',
+      },
     })
 
     return { success: true, output: { serverId, ...updates, updatedAt: undefined } }
@@ -357,7 +366,9 @@ export async function executeDeleteWorkspaceMcpServer(
       action: AuditAction.MCP_SERVER_REMOVED,
       resourceType: AuditResourceType.MCP_SERVER,
       resourceId: params.serverId,
-      description: `Deleted MCP server`,
+      resourceName: existing.name,
+      description: `Deleted MCP server "${existing.name}"`,
+      metadata: { source: 'copilot' },
     })
 
     return { success: true, output: { serverId, name: existing.name, deleted: true } }

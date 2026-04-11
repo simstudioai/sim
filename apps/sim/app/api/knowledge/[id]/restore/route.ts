@@ -59,6 +59,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       resourceId: id,
       resourceName: kb.name,
       description: `Restored knowledge base "${kb.name}"`,
+      metadata: {
+        knowledgeBaseName: kb.name,
+      },
       request,
     })
 

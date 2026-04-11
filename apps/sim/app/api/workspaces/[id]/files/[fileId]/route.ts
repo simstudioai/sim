@@ -58,6 +58,7 @@ export async function PATCH(
       action: AuditAction.FILE_UPDATED,
       resourceType: AuditResourceType.FILE,
       resourceId: fileId,
+      resourceName: updatedFile.name,
       description: `Renamed file to "${updatedFile.name}"`,
       request,
     })

@@ -152,7 +152,12 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,
         description: `Updated tool "${updatedTool.toolName}" in MCP server`,
-        metadata: { toolId, toolName: updatedTool.toolName },
+        metadata: {
+          toolId,
+          toolName: updatedTool.toolName,
+          workflowId: updatedTool.workflowId,
+          updatedFields: Object.keys(updateData).filter((k) => k !== 'updatedAt'),
+        },
         request,
       })
 
@@ -220,7 +225,7 @@ export const DELETE = withMcpAuth<RouteParams>('write')(
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,
         description: `Removed tool "${deletedTool.toolName}" from MCP server`,
-        metadata: { toolId, toolName: deletedTool.toolName },
+        metadata: { toolId, toolName: deletedTool.toolName, workflowId: deletedTool.workflowId },
         request,
       })
 

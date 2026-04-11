@@ -206,7 +206,14 @@ export const POST = withMcpAuth('write')(
         resourceId: serverId,
         resourceName: body.name,
         description: `Added MCP server "${body.name}"`,
-        metadata: { serverName: body.name, transport: body.transport },
+        metadata: {
+          serverName: body.name,
+          transport: body.transport,
+          url: body.url,
+          timeout: body.timeout || 30000,
+          retries: body.retries || 3,
+          source: source,
+        },
         request,
       })
 
@@ -278,6 +285,12 @@ export const DELETE = withMcpAuth('admin')(
         resourceId: serverId!,
         resourceName: deletedServer.name,
         description: `Removed MCP server "${deletedServer.name}"`,
+        metadata: {
+          serverName: deletedServer.name,
+          transport: deletedServer.transport,
+          url: deletedServer.url,
+          source,
+        },
         request,
       })
 

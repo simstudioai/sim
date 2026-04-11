@@ -109,8 +109,10 @@ export async function performDeleteWorkflow(
     resourceName: workflowRecord.name,
     description: `Archived workflow "${workflowRecord.name}"`,
     metadata: {
+      workflowName: workflowRecord.name,
       archived: archiveResult.archived,
       templateAction,
+      workspaceId: workflowRecord.workspaceId || undefined,
     },
   })
 

@@ -179,6 +179,7 @@ export async function POST(req: Request) {
       actorEmail: session.user.email ?? undefined,
       resourceName: name,
       description: `Created credential set "${name}"`,
+      metadata: { organizationId, providerId, credentialSetName: name },
       request: req,
     })
 

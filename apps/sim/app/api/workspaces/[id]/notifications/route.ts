@@ -278,6 +278,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
       description: `Created ${data.notificationType} notification subscription`,
+      metadata: {
+        notificationType: data.notificationType,
+        allWorkflows: data.allWorkflows,
+        workflowCount: data.workflowIds.length,
+        levelFilter: data.levelFilter,
+        alertRule: data.alertConfig?.rule ?? null,
+        ...(data.notificationType === 'email' && {
+          recipientCount: data.emailRecipients?.length ?? 0,
+        }),
+        ...(data.notificationType === 'slack' && { channelName: data.slackConfig?.channelName }),
+      },
       request,
     })
 

@@ -208,7 +208,16 @@ export async function PUT(
           resourceType: AuditResourceType.DOCUMENT,
           resourceId: documentId,
           resourceName: validatedData.filename ?? accessCheck.document?.filename,
-          description: `Updated document "${documentId}" in knowledge base "${knowledgeBaseId}"`,
+          description: `Updated document "${validatedData.filename ?? accessCheck.document?.filename}" in knowledge base "${knowledgeBaseId}"`,
+          metadata: {
+            knowledgeBaseId,
+            knowledgeBaseName: accessCheck.knowledgeBase?.name,
+            fileName: validatedData.filename ?? accessCheck.document?.filename,
+            updatedFields: Object.keys(validatedData).filter(
+              (k) => validatedData[k as keyof typeof validatedData] !== undefined
+            ),
+            ...(validatedData.enabled !== undefined && { enabled: validatedData.enabled }),
+          },
           request: req,
         })
 
@@ -281,8 +290,14 @@ export async function DELETE(
       resourceType: AuditResourceType.DOCUMENT,
       resourceId: documentId,
       resourceName: accessCheck.document?.filename,
-      description: `Deleted document "${documentId}" from knowledge base "${knowledgeBaseId}"`,
-      metadata: { fileName: accessCheck.document?.filename },
+      description: `Deleted document "${accessCheck.document?.filename}" from knowledge base "${knowledgeBaseId}"`,
+      metadata: {
+        knowledgeBaseId,
+        knowledgeBaseName: accessCheck.knowledgeBase?.name,
+        fileName: accessCheck.document?.filename,
+        fileSize: accessCheck.document?.fileSize,
+        mimeType: accessCheck.document?.mimeType,
+      },
       request: req,
     })
 

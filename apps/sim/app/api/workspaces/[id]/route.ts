@@ -202,6 +202,37 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       .where(eq(workspace.id, workspaceId))
       .then((rows) => rows[0])
 
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.WORKSPACE_UPDATED,
+      resourceType: AuditResourceType.WORKSPACE,
+      resourceId: workspaceId,
+      resourceName: updatedWorkspace?.name ?? existingWorkspace.name,
+      description: `Updated workspace "${updatedWorkspace?.name ?? existingWorkspace.name}"`,
+      metadata: {
+        changes: {
+          ...(name !== undefined && { name: { from: existingWorkspace.name, to: name } }),
+          ...(color !== undefined && { color: { from: existingWorkspace.color, to: color } }),
+          ...(allowPersonalApiKeys !== undefined && {
+            allowPersonalApiKeys: {
+              from: existingWorkspace.allowPersonalApiKeys,
+              to: allowPersonalApiKeys,
+            },
+          }),
+          ...(billedAccountUserId !== undefined && {
+            billedAccountUserId: {
+              from: existingWorkspace.billedAccountUserId,
+              to: billedAccountUserId,
+            },
+          }),
+        },
+      },
+      request,
+    })
+
     return NextResponse.json({
       workspace: {
         ...updatedWorkspace,

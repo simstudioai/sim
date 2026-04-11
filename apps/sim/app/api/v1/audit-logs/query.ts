@@ -10,11 +10,11 @@ interface CursorData {
   id: string
 }
 
-export function encodeCursor(data: CursorData): string {
+function encodeCursor(data: CursorData): string {
   return Buffer.from(JSON.stringify(data)).toString('base64')
 }
 
-export function decodeCursor(cursor: string): CursorData | null {
+function decodeCursor(cursor: string): CursorData | null {
   try {
     return JSON.parse(Buffer.from(cursor, 'base64').toString())
   } catch {
@@ -92,7 +92,7 @@ export async function buildOrgScopeCondition(
   return inArray(auditLog.actorId, orgMemberIds)
 }
 
-export function buildCursorCondition(cursor: string): SQL<unknown> | null {
+function buildCursorCondition(cursor: string): SQL<unknown> | null {
   const cursorData = decodeCursor(cursor)
   if (!cursorData?.createdAt || !cursorData.id) return null
 

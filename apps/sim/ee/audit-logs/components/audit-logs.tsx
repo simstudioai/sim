@@ -7,32 +7,11 @@ import { Badge, Button, Combobox, type ComboboxOption, Skeleton } from '@/compon
 import { Input } from '@/components/ui'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDateTime } from '@/lib/core/utils/formatting'
-import { AuditResourceType } from '@/lib/audit/log'
 import type { EnterpriseAuditLogEntry } from '@/app/api/v1/audit-logs/format'
+import { RESOURCE_TYPE_OPTIONS } from '@/ee/audit-logs/constants'
 import { type AuditLogFilters, useAuditLogs } from '@/ee/audit-logs/hooks/audit-logs'
 
 const logger = createLogger('AuditLogs')
-
-const ACRONYMS = new Set(['API', 'BYOK', 'MCP', 'OAuth'])
-
-function formatResourceLabel(key: string): string {
-  const words = key.split('_')
-  return words
-    .map((w) => {
-      const upper = w.toUpperCase()
-      if (ACRONYMS.has(upper)) return upper
-      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
-    })
-    .join(' ')
-    .replace('OAUTH', 'OAuth')
-}
-
-const RESOURCE_TYPE_OPTIONS: ComboboxOption[] = [
-  { label: 'All Types', value: '' },
-  ...(Object.entries(AuditResourceType) as [string, string][])
-    .map(([key, value]) => ({ label: formatResourceLabel(key), value }))
-    .sort((a, b) => a.label.localeCompare(b.label)),
-]
 
 const DATE_RANGE_OPTIONS: ComboboxOption[] = [
   { label: 'Last 7 days', value: '7' },

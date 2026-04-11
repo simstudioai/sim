@@ -168,7 +168,13 @@ export async function POST(request: NextRequest) {
       resourceId: id,
       resourceName: name.trim(),
       description: `Created folder "${name.trim()}"`,
-      metadata: { name: name.trim() },
+      metadata: {
+        name: name.trim(),
+        workspaceId,
+        parentId: parentId || undefined,
+        color: color || '#6B7280',
+        sortOrder: newFolder.sortOrder,
+      },
       request,
     })
 

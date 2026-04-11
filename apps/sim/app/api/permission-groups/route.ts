@@ -211,6 +211,7 @@ export async function POST(req: Request) {
       actorEmail: session.user.email ?? undefined,
       resourceName: name,
       description: `Created permission group "${name}"`,
+      metadata: { organizationId, autoAddNewMembers: autoAddNewMembers || false },
       request: req,
     })
 
