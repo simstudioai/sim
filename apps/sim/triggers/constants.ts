@@ -11,6 +11,7 @@ export const SYSTEM_SUBBLOCK_IDS: string[] = [
   'samplePayload', // Example payload display
   'setupScript', // Setup script code (e.g., Apps Script)
   'scheduleInfo', // Schedule status display (next run, last run)
+  'triggerSave', // UI-only save button — stores no config data
 ]
 
 /**

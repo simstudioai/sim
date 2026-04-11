@@ -106,7 +106,7 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
       if (!config.lastCheckedTimestamp) {
         await updateWebhookProviderConfig(
           webhookId,
-          { lastCheckedTimestamp: new Date().toISOString() },
+          { lastCheckedTimestamp: new Date(Date.now() - 30_000).toISOString() },
           logger
         )
         await markWebhookSuccess(webhookId, logger)
@@ -135,11 +135,19 @@ export const googleCalendarPollingHandler: PollingProviderHandler = {
         logger
       )
 
+      // Advance cursor to latestUpdated - 5s for clock-skew overlap, but never regress
+      // below the previous cursor — this prevents an infinite re-fetch loop when all
+      // returned events are filtered client-side and latestUpdated is within 5s of the cursor.
       const newTimestamp =
         failedCount > 0
           ? config.lastCheckedTimestamp
           : latestUpdated
-            ? new Date(new Date(latestUpdated).getTime() + 1).toISOString()
+            ? new Date(
+                Math.max(
+                  new Date(latestUpdated).getTime() - 5000,
+                  new Date(config.lastCheckedTimestamp).getTime()
+                )
+              ).toISOString()
             : config.lastCheckedTimestamp
       await updateWebhookProviderConfig(webhookId, { lastCheckedTimestamp: newTimestamp }, logger)
 
@@ -182,7 +190,6 @@ async function fetchChangedEvents(
       updatedMin: config.lastCheckedTimestamp!,
       singleEvents: 'true',
       showDeleted: 'true',
-      orderBy: 'updated',
       maxResults: String(Math.min(maxEvents, 250)),
     })
 

@@ -70,16 +70,6 @@ export const googleSheetsPollingTrigger: TriggerConfig = {
       canonicalParamId: 'sheetName',
     },
     {
-      id: 'includeHeaders',
-      title: 'Map Row Values to Headers',
-      type: 'switch',
-      defaultValue: true,
-      description:
-        'When enabled, each row is returned as a key-value object mapped to column headers from row 1.',
-      required: false,
-      mode: 'trigger',
-    },
-    {
       id: 'valueRenderOption',
       title: 'Value Render',
       type: 'dropdown',
@@ -139,7 +129,7 @@ export const googleSheetsPollingTrigger: TriggerConfig = {
   outputs: {
     row: {
       type: 'json',
-      description: 'Row data mapped to column headers (when header mapping is enabled)',
+      description: 'Row data mapped to column headers from row 1',
     },
     rawRow: {
       type: 'json',

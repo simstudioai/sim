@@ -18,7 +18,6 @@ interface GoogleSheetsWebhookConfig {
   manualSpreadsheetId?: string
   sheetName?: string
   manualSheetName?: string
-  includeHeaders: boolean
   valueRenderOption?: ValueRenderOption
   dateTimeRenderOption?: DateTimeRenderOption
   lastKnownRowCount?: number
@@ -147,19 +146,15 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
       const valueRender = config.valueRenderOption || 'FORMATTED_VALUE'
       const dateTimeRender = config.dateTimeRenderOption || 'SERIAL_NUMBER'
 
-      // Fetch headers (row 1) if includeHeaders is enabled
-      let headers: string[] = []
-      if (config.includeHeaders !== false) {
-        headers = await fetchHeaderRow(
-          accessToken,
-          spreadsheetId,
-          sheetName,
-          valueRender,
-          dateTimeRender,
-          requestId,
-          logger
-        )
-      }
+      const headers = await fetchHeaderRow(
+        accessToken,
+        spreadsheetId,
+        sheetName,
+        valueRender,
+        dateTimeRender,
+        requestId,
+        logger
+      )
 
       // Fetch new rows — startRow/endRow are already 1-indexed sheet row numbers
       // because lastKnownRowCount includes the header row
@@ -269,7 +264,12 @@ async function getDataRowCount(
   logger: ReturnType<typeof import('@sim/logger').createLogger>
 ): Promise<number> {
   const encodedSheet = encodeURIComponent(sheetName)
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodedSheet}!A:A?majorDimension=COLUMNS&fields=values`
+  // Fetch all rows across columns A–Z with majorDimension=ROWS so the API
+  // returns one entry per row that has ANY non-empty cell. Rows where column A
+  // is empty but other columns have data are included, whereas the previous
+  // column-A-only approach silently missed them. The returned array length
+  // equals the 1-indexed row number of the last row with data.
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodedSheet}!A:Z?majorDimension=ROWS&fields=values`
 
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -291,9 +291,11 @@ async function getDataRowCount(
   }
 
   const data = await response.json()
-  // values is [[cell1, cell2, ...]] when majorDimension=COLUMNS
-  const columnValues = data.values?.[0] as string[] | undefined
-  return columnValues?.length ?? 0
+  // values is [[row1col1, row1col2, ...], [row2col1, ...], ...] when majorDimension=ROWS.
+  // The Sheets API omits trailing empty rows, so the array length is the last
+  // non-empty row index (1-indexed), which is exactly what we need.
+  const rows = data.values as string[][] | undefined
+  return rows?.length ?? 0
 }
 
 async function fetchHeaderRow(
@@ -399,15 +401,12 @@ async function processRows(
         'google-sheets',
         `${webhookData.id}:${spreadsheetId}:${sheetName}:row${rowNumber}`,
         async () => {
-          // Map row values to headers
           let mappedRow: Record<string, string> | null = null
-          if (headers.length > 0 && config.includeHeaders !== false) {
+          if (headers.length > 0) {
             mappedRow = {}
             for (let j = 0; j < headers.length; j++) {
-              const header = headers[j] || `Column ${j + 1}`
-              mappedRow[header] = row[j] ?? ''
+              mappedRow[headers[j] || `Column ${j + 1}`] = row[j] ?? ''
             }
-            // Include any extra columns beyond headers
             for (let j = headers.length; j < row.length; j++) {
               mappedRow[`Column ${j + 1}`] = row[j] ?? ''
             }
