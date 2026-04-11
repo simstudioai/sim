@@ -142,27 +142,40 @@ async function executeCode(request) {
     stdoutTruncated = true
   }
 
+  let context = null
+  let bootstrapScript = null
+  let userScript = null
+  let logCallback = null
+  let errorCallback = null
+  let fetchCallback = null
+  const externalCopies = []
+
   try {
     isolate = new ivm.Isolate({ memoryLimit: 128 })
-    const context = await isolate.createContext()
+    context = await isolate.createContext()
     const jail = context.global
 
     await jail.set('global', jail.derefInto())
 
-    const logCallback = new ivm.Callback((...args) => {
+    logCallback = new ivm.Callback((...args) => {
       const message = args.map((arg) => stringifyLogValue(arg)).join(' ')
       appendStdout(`${message}\n`)
     })
     await jail.set('__log', logCallback)
 
-    const errorCallback = new ivm.Callback((...args) => {
+    errorCallback = new ivm.Callback((...args) => {
       const message = args.map((arg) => stringifyLogValue(arg)).join(' ')
       appendStdout(`ERROR: ${message}\n`)
     })
     await jail.set('__error', errorCallback)
 
-    await jail.set('params', new ivm.ExternalCopy(params).copyInto())
-    await jail.set('environmentVariables', new ivm.ExternalCopy(envVars).copyInto())
+    const paramsCopy = new ivm.ExternalCopy(params)
+    externalCopies.push(paramsCopy)
+    await jail.set('params', paramsCopy.copyInto())
+
+    const envVarsCopy = new ivm.ExternalCopy(envVars)
+    externalCopies.push(envVarsCopy)
+    await jail.set('environmentVariables', envVarsCopy.copyInto())
 
     for (const [key, value] of Object.entries(contextVariables)) {
       if (value === undefined) {
@@ -170,11 +183,13 @@ async function executeCode(request) {
       } else if (value === null) {
         await jail.set(key, null)
       } else {
-        await jail.set(key, new ivm.ExternalCopy(value).copyInto())
+        const ctxCopy = new ivm.ExternalCopy(value)
+        externalCopies.push(ctxCopy)
+        await jail.set(key, ctxCopy.copyInto())
       }
     }
 
-    const fetchCallback = new ivm.Reference(async (url, optionsJson) => {
+    fetchCallback = new ivm.Reference(async (url, optionsJson) => {
       return new Promise((resolve) => {
         const fetchId = ++fetchIdCounter
         const timeout = setTimeout(() => {
@@ -267,7 +282,7 @@ async function executeCode(request) {
       }
     `
 
-    const bootstrapScript = await isolate.compileScript(bootstrap)
+    bootstrapScript = await isolate.compileScript(bootstrap)
     await bootstrapScript.run(context)
 
     const wrappedCode = `
@@ -290,7 +305,7 @@ async function executeCode(request) {
       })()
     `
 
-    const userScript = await isolate.compileScript(wrappedCode, { filename: 'user-function.js' })
+    userScript = await isolate.compileScript(wrappedCode, { filename: 'user-function.js' })
     const resultJson = await userScript.run(context, { timeout: timeoutMs, promise: true })
 
     let result = null
@@ -357,8 +372,26 @@ async function executeCode(request) {
       },
     }
   } finally {
+    const releaseables = [
+      userScript,
+      bootstrapScript,
+      ...externalCopies,
+      fetchCallback,
+      errorCallback,
+      logCallback,
+      context,
+    ]
+    for (const obj of releaseables) {
+      if (obj) {
+        try {
+          obj.release()
+        } catch {}
+      }
+    }
     if (isolate) {
-      isolate.dispose()
+      try {
+        isolate.dispose()
+      } catch {}
     }
   }
 }
