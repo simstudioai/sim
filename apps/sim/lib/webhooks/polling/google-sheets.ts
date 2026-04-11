@@ -10,6 +10,9 @@ import { processPolledWebhookEvent } from '@/lib/webhooks/processor'
 
 const MAX_ROWS_PER_POLL = 100
 
+/** Maximum number of leading rows to scan when auto-detecting the header row. */
+const HEADER_SCAN_ROWS = 10
+
 type ValueRenderOption = 'FORMATTED_VALUE' | 'UNFORMATTED_VALUE' | 'FORMULA'
 type DateTimeRenderOption = 'SERIAL_NUMBER' | 'FORMATTED_STRING'
 
@@ -20,7 +23,11 @@ interface GoogleSheetsWebhookConfig {
   manualSheetName?: string
   valueRenderOption?: ValueRenderOption
   dateTimeRenderOption?: DateTimeRenderOption
-  lastKnownRowCount?: number
+  /**
+   * The 1-indexed row number of the last row we have seeded or processed.
+   * New rows are emitted starting from lastIndexChecked + 1.
+   */
+  lastIndexChecked?: number
   lastModifiedTime?: string
   lastCheckedTimestamp?: string
   maxRowsPerPoll?: number
@@ -93,11 +100,11 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
       )
 
       // First poll: seed state, emit nothing
-      if (config.lastKnownRowCount === undefined) {
+      if (config.lastIndexChecked === undefined) {
         await updateWebhookProviderConfig(
           webhookId,
           {
-            lastKnownRowCount: currentRowCount,
+            lastIndexChecked: currentRowCount,
             lastModifiedTime: currentModifiedTime ?? config.lastModifiedTime,
             lastCheckedTimestamp: now.toISOString(),
           },
@@ -105,22 +112,23 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
         )
         await markWebhookSuccess(webhookId, logger)
         logger.info(
-          `[${requestId}] First poll for webhook ${webhookId}, seeded row count: ${currentRowCount}`
+          `[${requestId}] First poll for webhook ${webhookId}, seeded row index: ${currentRowCount}`
         )
         return 'success'
       }
 
-      // Rows deleted or unchanged
-      if (currentRowCount <= config.lastKnownRowCount) {
-        if (currentRowCount < config.lastKnownRowCount) {
+      // Rows deleted or unchanged — update pointer to current position to avoid
+      // re-processing if rows are later re-added at a lower index
+      if (currentRowCount <= config.lastIndexChecked) {
+        if (currentRowCount < config.lastIndexChecked) {
           logger.warn(
-            `[${requestId}] Row count decreased from ${config.lastKnownRowCount} to ${currentRowCount} for webhook ${webhookId}`
+            `[${requestId}] Row count decreased from ${config.lastIndexChecked} to ${currentRowCount} for webhook ${webhookId}`
           )
         }
         await updateWebhookProviderConfig(
           webhookId,
           {
-            lastKnownRowCount: currentRowCount,
+            lastIndexChecked: currentRowCount,
             lastModifiedTime: currentModifiedTime ?? config.lastModifiedTime,
             lastCheckedTimestamp: now.toISOString(),
           },
@@ -132,11 +140,11 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
       }
 
       // New rows detected
-      const newRowCount = currentRowCount - config.lastKnownRowCount
+      const newRowCount = currentRowCount - config.lastIndexChecked
       const maxRows = config.maxRowsPerPoll || MAX_ROWS_PER_POLL
       const rowsToFetch = Math.min(newRowCount, maxRows)
-      const startRow = config.lastKnownRowCount + 1
-      const endRow = config.lastKnownRowCount + rowsToFetch
+      const startRow = config.lastIndexChecked + 1
+      const endRow = config.lastIndexChecked + rowsToFetch
 
       logger.info(
         `[${requestId}] Found ${newRowCount} new rows for webhook ${webhookId}, processing rows ${startRow}-${endRow}`
@@ -146,7 +154,10 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
       const valueRender = config.valueRenderOption || 'FORMATTED_VALUE'
       const dateTimeRender = config.dateTimeRenderOption || 'SERIAL_NUMBER'
 
-      const headers = await fetchHeaderRow(
+      // Auto-detect the header row by scanning the first HEADER_SCAN_ROWS rows for
+      // the first non-empty row. This handles sheets where headers are not in row 1
+      // (e.g. when there are blank rows or a title row above the column headers).
+      const { headers } = await detectHeaderRow(
         accessToken,
         spreadsheetId,
         sheetName,
@@ -156,8 +167,6 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
         logger
       )
 
-      // Fetch new rows — startRow/endRow are already 1-indexed sheet row numbers
-      // because lastKnownRowCount includes the header row
       const newRows = await fetchRowRange(
         accessToken,
         spreadsheetId,
@@ -176,7 +185,6 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
         startRow,
         spreadsheetId,
         sheetName,
-        config,
         webhookData,
         workflowData,
         requestId,
@@ -184,12 +192,12 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
       )
 
       const rowsAdvanced = failedCount > 0 ? 0 : rowsToFetch
-      const newLastKnownRowCount = config.lastKnownRowCount + rowsAdvanced
+      const newLastIndexChecked = config.lastIndexChecked + rowsAdvanced
       const hasRemainingOrFailed = rowsAdvanced < newRowCount
       await updateWebhookProviderConfig(
         webhookId,
         {
-          lastKnownRowCount: newLastKnownRowCount,
+          lastIndexChecked: newLastIndexChecked,
           lastModifiedTime: hasRemainingOrFailed
             ? config.lastModifiedTime
             : (currentModifiedTime ?? config.lastModifiedTime),
@@ -298,7 +306,14 @@ async function getDataRowCount(
   return rows?.length ?? 0
 }
 
-async function fetchHeaderRow(
+/**
+ * Scans the first {@link HEADER_SCAN_ROWS} rows of the sheet and returns the
+ * first non-empty row as headers along with its 1-indexed row number.
+ *
+ * This avoids the hardcoded `!1:1` assumption and correctly handles sheets that
+ * have blank rows or a title row above the actual column headers.
+ */
+async function detectHeaderRow(
   accessToken: string,
   spreadsheetId: string,
   sheetName: string,
@@ -306,14 +321,14 @@ async function fetchHeaderRow(
   dateTimeRenderOption: DateTimeRenderOption,
   requestId: string,
   logger: ReturnType<typeof import('@sim/logger').createLogger>
-): Promise<string[]> {
+): Promise<{ headers: string[]; headerRowIndex: number }> {
   const encodedSheet = encodeURIComponent(sheetName)
   const params = new URLSearchParams({
     fields: 'values',
     valueRenderOption,
     dateTimeRenderOption,
   })
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodedSheet}!1:1?${params.toString()}`
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodedSheet}!1:${HEADER_SCAN_ROWS}?${params.toString()}`
 
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -324,15 +339,27 @@ async function fetchHeaderRow(
     if (status === 403 || status === 429) {
       const errorData = await response.json().catch(() => ({}))
       throw new Error(
-        `Sheets API rate limit (${status}) fetching header row — skipping to retry next poll cycle: ${JSON.stringify(errorData)}`
+        `Sheets API rate limit (${status}) fetching header rows — skipping to retry next poll cycle: ${JSON.stringify(errorData)}`
       )
     }
-    logger.warn(`[${requestId}] Failed to fetch header row, proceeding without headers`)
-    return []
+    logger.warn(`[${requestId}] Failed to fetch header rows, proceeding without headers`)
+    return { headers: [], headerRowIndex: 1 }
   }
 
   const data = await response.json()
-  return (data.values?.[0] as string[]) ?? []
+  // The Sheets API includes empty leading rows as [] when a fixed range is requested,
+  // and omits only trailing empty rows. values[i] therefore corresponds to sheet row i+1.
+  const rows = (data.values as string[][] | undefined) ?? []
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    if (row?.some((cell) => cell !== '')) {
+      return { headers: row, headerRowIndex: i + 1 }
+    }
+  }
+
+  // No non-empty row found within the scan window — proceed without headers
+  return { headers: [], headerRowIndex: 1 }
 }
 
 async function fetchRowRange(
@@ -383,7 +410,6 @@ async function processRows(
   startRowIndex: number,
   spreadsheetId: string,
   sheetName: string,
-  config: GoogleSheetsWebhookConfig,
   webhookData: PollWebhookContext['webhookData'],
   workflowData: PollWebhookContext['workflowData'],
   requestId: string,
