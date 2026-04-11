@@ -1,18 +1,19 @@
 import type { ComboboxOption } from '@/components/emcn'
 import { AuditResourceType } from '@/lib/audit/types'
 
-const ACRONYMS = new Set(['API', 'BYOK', 'MCP', 'OAuth'])
+const ACRONYMS = new Set(['API', 'BYOK', 'MCP', 'OAUTH'])
+
+const DISPLAY_OVERRIDES: Record<string, string> = { OAUTH: 'OAuth' }
 
 function formatResourceLabel(key: string): string {
-  const words = key.split('_')
-  return words
+  return key
+    .split('_')
     .map((w) => {
       const upper = w.toUpperCase()
-      if (ACRONYMS.has(upper)) return upper
+      if (ACRONYMS.has(upper)) return DISPLAY_OVERRIDES[upper] ?? upper
       return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
     })
     .join(' ')
-    .replace('OAUTH', 'OAuth')
 }
 
 export const RESOURCE_TYPE_OPTIONS: ComboboxOption[] = [
