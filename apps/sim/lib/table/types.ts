@@ -198,6 +198,7 @@ export interface UpsertRowData {
 export interface UpsertResult {
   row: TableRow
   operation: 'insert' | 'update'
+  previousData?: RowData
 }
 
 export interface UpdateRowData {

@@ -15,6 +15,7 @@ import { getPostgresErrorCode } from '@/lib/core/utils/pg-error'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { generateId } from '@/lib/core/utils/uuid'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
+import { fireTableTrigger } from './trigger'
 import { buildFilterClause, buildSortClause } from './sql'
 import type {
   BatchInsertData,
@@ -652,13 +653,17 @@ export async function insertRow(
 
   logger.info(`[${requestId}] Inserted row ${rowId} into table ${data.tableId}`)
 
-  return {
+  const insertedRow: TableRow = {
     id: row.id,
     data: row.data as RowData,
     position: row.position,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
+
+  void fireTableTrigger(data.tableId, table.name, 'insert', [insertedRow], null, table.schema, requestId)
+
+  return insertedRow
 }
 
 /**
@@ -767,13 +772,17 @@ export async function batchInsertRows(
 
   logger.info(`[${requestId}] Batch inserted ${data.rows.length} rows into table ${data.tableId}`)
 
-  return insertedRows.map((r) => ({
+  const result: TableRow[] = insertedRows.map((r) => ({
     id: r.id,
     data: r.data as RowData,
     position: r.position,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   }))
+
+  void fireTableTrigger(data.tableId, table.name, 'insert', result, null, table.schema, requestId)
+
+  return result
 }
 
 /**
@@ -883,6 +892,8 @@ export async function upsertRow(
     const now = new Date()
 
     if (existingRow) {
+      const previousData = existingRow.data as RowData
+
       const [updatedRow] = await trx
         .update(userTableRows)
         .set({
@@ -900,6 +911,7 @@ export async function upsertRow(
           createdAt: updatedRow.createdAt,
           updatedAt: updatedRow.updatedAt,
         },
+        previousData,
         operation: 'update' as const,
       }
     }
@@ -950,6 +962,13 @@ export async function upsertRow(
   logger.info(
     `[${requestId}] Upserted (${result.operation}) row ${result.row.id} in table ${data.tableId}`
   )
+
+  if (result.operation === 'insert') {
+    void fireTableTrigger(data.tableId, table.name, 'insert', [result.row], null, table.schema, requestId)
+  } else if (result.operation === 'update' && result.previousData) {
+    const oldRows = new Map([[result.row.id, result.previousData]])
+    void fireTableTrigger(data.tableId, table.name, 'update', [result.row], oldRows, table.schema, requestId)
+  }
 
   return result
 }
@@ -1126,13 +1145,18 @@ export async function updateRow(
 
   logger.info(`[${requestId}] Updated row ${data.rowId} in table ${data.tableId}`)
 
-  return {
+  const updatedRow: TableRow = {
     id: data.rowId,
     data: data.data,
     position: existingRow.position,
     createdAt: existingRow.createdAt,
     updatedAt: now,
   }
+
+  const oldRows = new Map([[data.rowId, existingRow.data as RowData]])
+  void fireTableTrigger(data.tableId, table.name, 'update', [updatedRow], oldRows, table.schema, requestId)
+
+  return updatedRow
 }
 
 /**
@@ -1277,6 +1301,17 @@ export async function updateRowsByFilter(
 
   logger.info(`[${requestId}] Updated ${matchingRows.length} rows in table ${data.tableId}`)
 
+  // Fire update triggers with old and new row data
+  const oldRows = new Map(matchingRows.map((r) => [r.id, r.data as RowData]))
+  const updatedRows: TableRow[] = matchingRows.map((r) => ({
+    id: r.id,
+    data: { ...(r.data as RowData), ...data.data },
+    position: 0,
+    createdAt: now,
+    updatedAt: now,
+  }))
+  void fireTableTrigger(data.tableId, table.name, 'update', updatedRows, oldRows, table.schema, requestId)
+
   return {
     affectedCount: matchingRows.length,
     affectedRowIds: matchingRows.map((r) => r.id),
@@ -1364,6 +1399,19 @@ export async function batchUpdateRows(
   })
 
   logger.info(`[${requestId}] Batch updated ${mergedUpdates.length} rows in table ${data.tableId}`)
+
+  // Fire update triggers with old and new row data
+  const oldRowsForTrigger = new Map(
+    data.updates.map((u) => [u.rowId, existingMap.get(u.rowId)!])
+  )
+  const updatedRowsForTrigger: TableRow[] = mergedUpdates.map(({ rowId, mergedData }) => ({
+    id: rowId,
+    data: mergedData,
+    position: 0,
+    createdAt: now,
+    updatedAt: now,
+  }))
+  void fireTableTrigger(data.tableId, table.name, 'update', updatedRowsForTrigger, oldRowsForTrigger, table.schema, requestId)
 
   return {
     affectedCount: mergedUpdates.length,

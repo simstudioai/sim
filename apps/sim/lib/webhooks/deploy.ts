@@ -182,20 +182,44 @@ function buildProviderConfig(
     Object.entries(block.subBlocks || {}).map(([key, value]) => [key, { value: value.value }])
   )
 
-  triggerDef.subBlocks
-    .filter(
-      (subBlock) =>
-        (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') &&
-        !SYSTEM_SUBBLOCK_IDS.includes(subBlock.id)
-    )
-    .forEach((subBlock) => {
-      const valueToUse = getConfigValue(block, subBlock)
-      if (valueToUse !== null && valueToUse !== undefined && valueToUse !== '') {
-        providerConfig[subBlock.id] = valueToUse
-      } else if (isFieldRequired(subBlock, subBlockValues)) {
-        missingFields.push(subBlock.title || subBlock.id)
+  // Track which canonical groups already have a value so we don't flag the
+  // other member of a basic/advanced pair as missing.
+  const canonicalHasValue = new Set<string>()
+  const canonicalReportedMissing = new Set<string>()
+
+  const triggerSubBlocks = triggerDef.subBlocks.filter(
+    (subBlock) =>
+      (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') &&
+      !SYSTEM_SUBBLOCK_IDS.includes(subBlock.id)
+  )
+
+  // First pass: collect values, resolving canonical pairs to a single key
+  for (const subBlock of triggerSubBlocks) {
+    const valueToUse = getConfigValue(block, subBlock)
+    if (valueToUse !== null && valueToUse !== undefined && valueToUse !== '') {
+      providerConfig[subBlock.id] = valueToUse
+      if (subBlock.canonicalParamId) {
+        // Also store under the canonical key so consumers can read one consistent name
+        if (!canonicalHasValue.has(subBlock.canonicalParamId)) {
+          providerConfig[subBlock.canonicalParamId] = valueToUse
+        }
+        canonicalHasValue.add(subBlock.canonicalParamId)
       }
-    })
+    }
+  }
+
+  // Second pass: check required fields, skipping canonical pairs that already have a value
+  for (const subBlock of triggerSubBlocks) {
+    const hasValue = providerConfig[subBlock.id] !== undefined
+    if (!hasValue && isFieldRequired(subBlock, subBlockValues)) {
+      if (subBlock.canonicalParamId) {
+        if (canonicalHasValue.has(subBlock.canonicalParamId)) continue
+        if (canonicalReportedMissing.has(subBlock.canonicalParamId)) continue
+        canonicalReportedMissing.add(subBlock.canonicalParamId)
+      }
+      missingFields.push(subBlock.title || subBlock.id)
+    }
+  }
 
   const credentialConfig = triggerDef.subBlocks.find(
     (subBlock) => subBlock.id === 'triggerCredentials'

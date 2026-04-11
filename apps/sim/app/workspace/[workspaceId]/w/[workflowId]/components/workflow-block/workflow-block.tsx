@@ -631,12 +631,12 @@ const SubBlockRow = memo(function SubBlockRow({
 
   const { data: tables = [] } = useTablesList(workspaceId || '')
   const tableDisplayName = useMemo(() => {
-    if (subBlock?.id !== 'tableId' || typeof rawValue !== 'string') {
+    if (subBlock?.type !== 'table-selector' || typeof rawValue !== 'string') {
       return null
     }
     const table = tables.find((t) => t.id === rawValue)
     return table?.name ?? null
-  }, [subBlock?.id, rawValue, tables])
+  }, [subBlock?.type, rawValue, tables])
 
   const webhookUrlDisplayValue = useMemo(() => {
     if (subBlock?.id !== 'webhookUrlDisplay' || !blockId) {

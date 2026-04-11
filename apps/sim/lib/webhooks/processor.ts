@@ -679,6 +679,7 @@ export interface PolledWebhookEventResult {
   success: boolean
   error?: string
   statusCode?: number
+  executionId?: string
 }
 
 interface PolledWebhookRecord {
@@ -882,7 +883,7 @@ export async function processPolledWebhookEvent(
       }
     }
 
-    return { success: true }
+    return { success: true, executionId }
   } catch (error: unknown) {
     if (error instanceof DispatchQueueFullError) {
       logger.warn(`[${requestId}] Dispatch queue full for polled webhook: ${error.message}`)
