@@ -119,10 +119,20 @@ export class SentenceChunker {
         overlapLen += prevGroup[j].length
       }
 
+      const currentText = groups[i].join(' ')
       if (overlapSentences.length > 0) {
-        result.push(`${overlapSentences.join(' ')} ${groups[i].join(' ')}`)
+        result.push(`${overlapSentences.join(' ')} ${currentText}`)
       } else {
-        result.push(groups[i].join(' '))
+        // No complete sentence fits — fall back to character-level overlap
+        const prevText = prevGroup.join(' ')
+        const tail = prevText.slice(-overlapChars)
+        const wordMatch = tail.match(/^\s*\S/)
+        const cleanTail = wordMatch ? tail.slice(tail.indexOf(wordMatch[0].trim())) : tail
+        if (cleanTail.trim()) {
+          result.push(`${cleanTail.trim()} ${currentText}`)
+        } else {
+          result.push(currentText)
+        }
       }
     }
 
