@@ -28,7 +28,7 @@ export class SentenceChunker {
   private splitSentences(text: string): string[] {
     return text
       .split(
-        /(?<!\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|Rev|Gen|Sgt|Capt|Lt|Col|Maj|No|Fig|Vol|Ch|vs|etc|Inc|Ltd|Corp|Co|approx|dept|est|govt|Ave|Blvd|Rd|Jan|Feb|Mar|Apr|Aug|Sep|Oct|Nov|Dec|i\.e|e\.g)\.)(?<![A-Z]\.)(?<!\.\.)(?<!\d\.)(?<=[.!?])\s+/
+        /(?<!\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|Rev|Gen|Sgt|Capt|Lt|Col|Maj|No|Fig|Vol|Ch|vs|etc|Inc|Ltd|Corp|Co|approx|dept|est|govt|Ave|Blvd|Rd|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec|i\.e|e\.g)\.)(?<![A-Z]\.)(?<!\.\.)(?<!\d\.)(?<=[.!?])\s+/
       )
       .filter((s) => s.trim().length > 0)
   }
