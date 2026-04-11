@@ -156,7 +156,7 @@ export interface BuildTriggerSubBlocksOptions {
 
 /**
  * Generic builder for trigger subBlocks.
- * Creates a consistent structure: [dropdown?] -> webhookUrl -> extraFields -> save -> instructions
+ * Creates a consistent structure: [dropdown?] -> webhookUrl -> extraFields -> instructions
  *
  * Usage:
  * - Primary trigger: `buildTriggerSubBlocks({ ...options, includeDropdown: true })`
