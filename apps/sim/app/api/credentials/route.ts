@@ -616,6 +616,8 @@ export async function POST(request: NextRequest) {
     recordAudit({
       workspaceId,
       actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
       action: AuditAction.CREDENTIAL_CREATED,
       resourceType: AuditResourceType.CREDENTIAL,
       resourceId: credentialId,

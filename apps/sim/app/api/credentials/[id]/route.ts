@@ -170,6 +170,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     recordAudit({
       workspaceId: access.credential.workspaceId,
       actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
       action: AuditAction.CREDENTIAL_UPDATED,
       resourceType: AuditResourceType.CREDENTIAL,
       resourceId: id,
@@ -268,6 +270,8 @@ export async function DELETE(
       recordAudit({
         workspaceId: access.credential.workspaceId,
         actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
         action: AuditAction.CREDENTIAL_DELETED,
         resourceType: AuditResourceType.CREDENTIAL,
         resourceId: id,
@@ -333,6 +337,8 @@ export async function DELETE(
       recordAudit({
         workspaceId: access.credential.workspaceId,
         actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
         action: AuditAction.CREDENTIAL_DELETED,
         resourceType: AuditResourceType.CREDENTIAL,
         resourceId: id,
@@ -361,6 +367,8 @@ export async function DELETE(
     recordAudit({
       workspaceId: access.credential.workspaceId,
       actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
       action: AuditAction.CREDENTIAL_DELETED,
       resourceType: AuditResourceType.CREDENTIAL,
       resourceId: id,

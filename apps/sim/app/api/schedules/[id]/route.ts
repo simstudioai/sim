@@ -146,6 +146,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       recordAudit({
         workspaceId,
         actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
         action: AuditAction.SCHEDULE_UPDATED,
         resourceType: AuditResourceType.SCHEDULE,
         resourceId: scheduleId,
@@ -209,6 +211,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       recordAudit({
         workspaceId,
         actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
         action: AuditAction.SCHEDULE_UPDATED,
         resourceType: AuditResourceType.SCHEDULE,
         resourceId: scheduleId,
@@ -253,6 +257,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     recordAudit({
       workspaceId,
       actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
       action: AuditAction.SCHEDULE_UPDATED,
       resourceType: AuditResourceType.SCHEDULE,
       resourceId: scheduleId,
@@ -300,6 +306,8 @@ export async function DELETE(
     recordAudit({
       workspaceId,
       actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
       action: AuditAction.SCHEDULE_DELETED,
       resourceType: AuditResourceType.SCHEDULE,
       resourceId: scheduleId,

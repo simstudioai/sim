@@ -283,6 +283,8 @@ export async function POST(req: NextRequest) {
     recordAudit({
       workspaceId,
       actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
       action: AuditAction.SCHEDULE_CREATED,
       resourceType: AuditResourceType.SCHEDULE,
       resourceId: id,

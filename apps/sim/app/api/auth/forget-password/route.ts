@@ -68,7 +68,9 @@ export async function POST(request: NextRequest) {
         actorEmail: existingUser.email,
         action: AuditAction.PASSWORD_RESET_REQUESTED,
         resourceType: AuditResourceType.PASSWORD,
-        description: 'Password reset requested',
+        resourceId: existingUser.id,
+        resourceName: existingUser.email ?? undefined,
+        description: `Password reset requested for ${existingUser.email}`,
         request,
       })
     }
