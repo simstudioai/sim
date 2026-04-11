@@ -90,8 +90,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       metadata: {
         sourceWorkflowId,
         newWorkflowId: result.id,
-        newWorkflowName: result.name,
-        workspaceId: workspaceId || undefined,
         folderId: folderId || undefined,
       },
       request: req,

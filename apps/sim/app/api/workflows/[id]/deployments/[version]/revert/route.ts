@@ -129,8 +129,6 @@ export async function POST(
       description: `Reverted workflow to deployment version ${version}`,
       metadata: {
         targetVersion: version,
-        workflowName: workflowRecord?.name ?? undefined,
-        workspaceId: workflowRecord?.workspaceId ?? undefined,
       },
       request,
     })

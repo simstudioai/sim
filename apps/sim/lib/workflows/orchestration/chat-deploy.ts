@@ -213,7 +213,6 @@ export async function performChatUndeploy(
     resourceName: chatRecord.title || chatId,
     description: `Deleted chat deployment "${chatRecord.title || chatId}"`,
     metadata: {
-      chatTitle: chatRecord.title || undefined,
       workflowId: chatRecord.workflowId || undefined,
       identifier: chatRecord.identifier || undefined,
       authType: chatRecord.authType || undefined,

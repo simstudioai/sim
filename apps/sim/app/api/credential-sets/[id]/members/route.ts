@@ -202,7 +202,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
         memberUserId: memberToRemove.userId,
         targetEmail: memberToRemove.email ?? undefined,
         providerId: result.set.providerId,
-        credentialSetName: result.set.name,
       },
       request: req,
     })

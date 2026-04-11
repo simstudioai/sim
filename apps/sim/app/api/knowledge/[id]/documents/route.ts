@@ -280,8 +280,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           metadata: {
             knowledgeBaseName: accessCheck.knowledgeBase?.name,
             fileCount: createdDocuments.length,
-            fileNames: createdDocuments.map((doc) => doc.filename),
-            uploadType: 'bulk',
           },
           request: req,
         })
@@ -364,7 +362,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             fileName: validatedData.filename,
             fileType: validatedData.mimeType,
             fileSize: validatedData.fileSize,
-            uploadType: 'single',
           },
           request: req,
         })

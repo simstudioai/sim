@@ -212,7 +212,6 @@ export async function performFullDeploy(
     metadata: {
       deploymentVersionId,
       version: deployResult.version,
-      workflowName: (workflowData.name as string) || undefined,
       previousVersionId: previousVersionId || undefined,
       triggerWarnings: triggerSaveResult.warnings?.length ? triggerSaveResult.warnings : undefined,
     },
@@ -291,9 +290,6 @@ export async function performFullUndeploy(
     resourceId: workflowId,
     resourceName: (workflowData.name as string) || undefined,
     description: `Undeployed workflow "${(workflowData.name as string) || workflowId}"`,
-    metadata: {
-      workflowName: (workflowData.name as string) || undefined,
-    },
   })
 
   return { success: true }
@@ -487,7 +483,6 @@ export async function performActivateVersion(
       version,
       deploymentVersionId: versionRow.id,
       previousVersionId: previousVersionId || undefined,
-      workflowName: (workflow.name as string) || undefined,
     },
   })
 
