@@ -172,11 +172,16 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
       // All rows in this batch are header or blank rows — advance the pointer
       // and skip data fetching entirely.
       if (adjustedStartRow > endRow) {
+        // Preserve the old modifiedTime if there are remaining rows beyond this
+        // batch so the Drive pre-check doesn't skip the next poll cycle.
+        const hasRemainingRows = rowsToFetch < newRowCount
         await updateWebhookProviderConfig(
           webhookId,
           {
             lastIndexChecked: config.lastIndexChecked + rowsToFetch,
-            lastModifiedTime: currentModifiedTime ?? config.lastModifiedTime,
+            lastModifiedTime: hasRemainingRows
+              ? config.lastModifiedTime
+              : (currentModifiedTime ?? config.lastModifiedTime),
             lastCheckedTimestamp: now.toISOString(),
           },
           logger
