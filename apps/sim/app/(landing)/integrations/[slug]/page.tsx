@@ -283,7 +283,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
   }
 
   return (
-    <>
+    <section className='bg-[var(--landing-bg)]'>
       <script
         type='application/ld+json'
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
@@ -301,440 +301,434 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
 
-      <div className='mx-auto max-w-[1200px] px-6 py-12 sm:px-8 md:px-12'>
-        {/* Breadcrumb */}
-        <nav
-          aria-label='Breadcrumb'
-          className='mb-10 flex items-center gap-2 text-[#555] text-[13px]'
-        >
-          <Link href='/' className='transition-colors hover:text-[var(--landing-text-muted)]'>
-            Home
-          </Link>
-          <span aria-hidden='true'>/</span>
+      {/* Hero */}
+      <div className='px-5 pt-[60px] lg:px-16 lg:pt-[100px]'>
+        <div className='mb-6'>
           <Link
             href='/integrations'
-            className='transition-colors hover:text-[var(--landing-text-muted)]'
+            className='group/link inline-flex items-center gap-1.5 font-season text-[var(--landing-text-muted)] text-sm tracking-[0.02em] hover:text-[var(--landing-text)]'
           >
-            Integrations
-          </Link>
-          <span aria-hidden='true'>/</span>
-          <span className='text-[var(--landing-text-muted)]'>{name}</span>
-        </nav>
-
-        {/* Hero */}
-        <section aria-labelledby='integration-heading' className='mb-16'>
-          <div className='mb-6 flex items-center gap-5'>
-            <IntegrationIcon
-              bgColor={bgColor}
-              name={name}
-              Icon={IconComponent}
-              className='h-16 w-16 rounded-xl'
-              iconClassName='h-8 w-8'
-              fallbackClassName='text-[26px]'
+            <svg
+              className='h-3 w-3 shrink-0'
+              viewBox='0 0 10 10'
+              fill='none'
+              xmlns='http://www.w3.org/2000/svg'
               aria-hidden='true'
-            />
-            <div>
-              <p className='mb-0.5 text-[#555] text-[12px]'>Integration</p>
-              <h1
-                id='integration-heading'
-                className='font-[500] text-[36px] text-[var(--landing-text)] leading-tight sm:text-[44px]'
-              >
-                {name}
-              </h1>
-            </div>
-          </div>
-
-          <p className='mb-8 max-w-[700px] text-[17px] text-[var(--landing-text-muted)] leading-[1.7]'>
-            {description}
-          </p>
-
-          {/* CTAs */}
-          <div className='flex flex-wrap gap-2'>
-            <a
-              href='https://sim.ai'
-              className='inline-flex h-[32px] items-center rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-2.5 font-[430] font-season text-[14px] text-[var(--landing-text-dark)] transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
             >
-              Start building free
-            </a>
-            <a
-              href={docsUrl}
-              target='_blank'
-              rel='noopener noreferrer'
-              className='inline-flex h-[32px] items-center gap-1.5 rounded-[5px] border border-[var(--landing-border-strong)] px-2.5 font-[430] font-season text-[14px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
-            >
-              View docs
-              <svg
-                aria-hidden='true'
-                className='h-3 w-3'
-                fill='none'
+              <line
+                x1='1'
+                y1='5'
+                x2='10'
+                y2='5'
                 stroke='currentColor'
-                strokeWidth={2}
-                viewBox='0 0 24 24'
-              >
-                <path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' />
-                <polyline points='15 3 21 3 21 9' />
-                <line x1='10' x2='21' y1='14' y2='3' />
-              </svg>
-            </a>
+                strokeWidth='1.33'
+                strokeLinecap='square'
+                className='origin-right scale-x-0 transition-transform duration-200 ease-out [transform-box:fill-box] group-hover/link:scale-x-100'
+              />
+              <path
+                d='M6.5 2L3.5 5L6.5 8'
+                stroke='currentColor'
+                strokeWidth='1.33'
+                strokeLinecap='square'
+                strokeLinejoin='miter'
+                fill='none'
+                className='group-hover/link:-translate-x-[30%] transition-transform duration-200 ease-out'
+              />
+            </svg>
+            Back to Integrations
+          </Link>
+        </div>
+
+        {/* Hero content */}
+        <div className='mb-6 flex items-center gap-5'>
+          <IntegrationIcon
+            bgColor={bgColor}
+            name={name}
+            Icon={IconComponent}
+            className='h-12 w-12 rounded-[5px]'
+            iconClassName='h-6 w-6'
+            fallbackClassName='text-[20px]'
+            aria-hidden='true'
+          />
+          <div>
+            <h1
+              id='integration-heading'
+              className='text-[28px] text-white leading-[100%] tracking-[-0.02em] sm:text-[36px] lg:text-[44px]'
+            >
+              {name}
+            </h1>
           </div>
+        </div>
+
+        <p className='mb-8 max-w-[700px] text-[var(--landing-text-body)] text-base leading-[150%] tracking-[0.02em]'>
+          {description}
+        </p>
+
+        {/* CTAs */}
+        <div className='flex flex-wrap gap-2'>
+          <Link
+            href='/signup'
+            className='inline-flex h-[32px] items-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+          >
+            Start building free
+          </Link>
+          <a
+            href={docsUrl}
+            target='_blank'
+            rel='noopener noreferrer'
+            className='group/link inline-flex h-[32px] items-center gap-1.5 rounded-[5px] border border-[var(--landing-border-strong)] px-2.5 font-season text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--landing-bg-elevated)]'
+          >
+            View docs
+            <svg
+              aria-hidden='true'
+              className='-rotate-45 h-3 w-3 shrink-0'
+              viewBox='0 0 10 10'
+              fill='none'
+            >
+              <line
+                x1='0'
+                y1='5'
+                x2='9'
+                y2='5'
+                stroke='currentColor'
+                strokeWidth='1.33'
+                strokeLinecap='square'
+                className='origin-left scale-x-0 transition-transform duration-200 ease-out [transform-box:fill-box] group-hover/link:scale-x-100'
+              />
+              <path
+                d='M3.5 2L6.5 5L3.5 8'
+                stroke='currentColor'
+                strokeWidth='1.33'
+                strokeLinecap='square'
+                strokeLinejoin='miter'
+                fill='none'
+                className='transition-transform duration-200 ease-out group-hover/link:translate-x-[30%]'
+              />
+            </svg>
+          </a>
+        </div>
+      </div>
+
+      {/* Full-width divider */}
+      <div className='mt-8 h-px w-full bg-[var(--landing-bg-elevated)]' />
+
+      {/* Border-railed content */}
+      <div className='mx-5 border-[var(--landing-bg-elevated)] border-x lg:mx-16'>
+        {/* Overview */}
+        {longDescription && (
+          <>
+            <section aria-labelledby='overview-heading' className='px-6 py-10'>
+              <h2
+                id='overview-heading'
+                className='mb-4 text-[20px] text-white leading-[100%] tracking-[-0.02em]'
+              >
+                Overview
+              </h2>
+              <p className='text-[15px] text-[var(--landing-text-body)] leading-[150%] tracking-[0.02em]'>
+                {longDescription}
+              </p>
+            </section>
+            <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+          </>
+        )}
+
+        {/* How to automate */}
+        <section aria-labelledby='how-it-works-heading' className='px-6 py-10'>
+          <h2
+            id='how-it-works-heading'
+            className='mb-6 text-[20px] text-white leading-[100%] tracking-[-0.02em]'
+          >
+            How to automate {name} with Sim
+          </h2>
+          <ol className='space-y-4' aria-label='Steps to set up automation'>
+            {[
+              {
+                step: '01',
+                title: 'Create a free account',
+                body: 'Sign up at sim.ai in seconds. No credit card required. Your workspace is ready immediately.',
+              },
+              {
+                step: '02',
+                title: `Add a ${name} block`,
+                body:
+                  authType === 'oauth'
+                    ? `Open a workflow, drag a ${name} block onto the canvas, and connect your account with one-click OAuth.`
+                    : authType === 'api-key'
+                      ? `Open a workflow, drag a ${name} block onto the canvas, and paste in your ${name} API key.`
+                      : `Open a workflow, drag a ${name} block onto the canvas, and authenticate your account.`,
+              },
+              {
+                step: '03',
+                title: 'Configure, connect, and run',
+                body: `Pick the tool you need, wire in an AI agent for reasoning or data transformation, and run. Your ${name} automation is live.`,
+              },
+            ].map(({ step, title, body }) => (
+              <li key={step} className='flex gap-4'>
+                <span
+                  className='mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--landing-border-strong)] font-martian-mono text-[11px] text-[var(--landing-text-subtle)]'
+                  aria-hidden='true'
+                >
+                  {step}
+                </span>
+                <div>
+                  <h3 className='mb-1 text-[15px] text-white tracking-[-0.02em]'>{title}</h3>
+                  <p className='text-[14px] text-[var(--landing-text-body)] leading-[150%] tracking-[0.02em]'>
+                    {body}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ol>
         </section>
 
-        {/* Two-column layout */}
-        <div className='grid grid-cols-1 gap-16 lg:grid-cols-[1fr_300px]'>
-          {/* Main column */}
-          <div className='min-w-0 space-y-16'>
-            {/* Overview */}
-            {longDescription && (
-              <section aria-labelledby='overview-heading'>
-                <h2
-                  id='overview-heading'
-                  className='mb-4 font-[500] text-[20px] text-[var(--landing-text)]'
-                >
-                  Overview
-                </h2>
-                <p className='text-[15px] text-[var(--landing-text-muted)] leading-[1.8]'>
-                  {longDescription}
-                </p>
-              </section>
-            )}
+        <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
 
-            {/* How to automate — targets "how to connect X" queries */}
-            <section aria-labelledby='how-it-works-heading'>
-              <h2
-                id='how-it-works-heading'
-                className='mb-6 font-[500] text-[20px] text-[var(--landing-text)]'
-              >
-                How to automate {name} with Sim
-              </h2>
-              <ol className='space-y-4' aria-label='Steps to set up automation'>
-                {[
-                  {
-                    step: '01',
-                    title: 'Create a free account',
-                    body: 'Sign up at sim.ai in seconds. No credit card required. Your workspace is ready immediately.',
-                  },
-                  {
-                    step: '02',
-                    title: `Add a ${name} block`,
-                    body:
-                      authType === 'oauth'
-                        ? `Open a workflow, drag a ${name} block onto the canvas, and connect your account with one-click OAuth.`
-                        : authType === 'api-key'
-                          ? `Open a workflow, drag a ${name} block onto the canvas, and paste in your ${name} API key.`
-                          : `Open a workflow, drag a ${name} block onto the canvas, and authenticate your account.`,
-                  },
-                  {
-                    step: '03',
-                    title: 'Configure, connect, and run',
-                    body: `Pick the tool you need, wire in an AI agent for reasoning or data transformation, and run. Your ${name} automation is live.`,
-                  },
-                ].map(({ step, title, body }) => (
-                  <li key={step} className='flex gap-4'>
-                    <span
-                      className='mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--landing-border-strong)] font-[500] text-[#555] text-[11px]'
-                      aria-hidden='true'
-                    >
-                      {step}
-                    </span>
-                    <div>
-                      <h3 className='mb-1 font-[500] text-[15px] text-[var(--landing-text)]'>
-                        {title}
-                      </h3>
-                      <p className='text-[14px] text-[var(--landing-text-muted)] leading-relaxed'>
-                        {body}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </section>
-
-            {/* Triggers */}
-            {triggers.length > 0 && (
-              <section aria-labelledby='triggers-heading'>
+        {/* Triggers — rows */}
+        {triggers.length > 0 && (
+          <section aria-labelledby='triggers-heading'>
+            <div className='px-6 pt-10 pb-4'>
+              <div className='mb-2 flex items-center gap-2.5'>
+                <span className='relative flex h-2 w-2' aria-hidden='true'>
+                  <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75' />
+                  <span className='relative inline-flex h-2 w-2 rounded-full bg-emerald-500' />
+                </span>
                 <h2
                   id='triggers-heading'
-                  className='mb-2 font-[500] text-[20px] text-[var(--landing-text)]'
+                  className='text-[20px] text-white leading-[100%] tracking-[-0.02em]'
                 >
                   Real-time triggers
                 </h2>
-                <p className='mb-4 text-[14px] text-[var(--landing-text-muted)] leading-relaxed'>
-                  Connect a {name} webhook to Sim and your workflow fires the instant an event
-                  happens — no polling, no delay. Sim receives the full event payload and makes
-                  every field available as a variable inside your workflow.
-                </p>
-
-                {/* Event cards */}
-                <ul
-                  className='grid grid-cols-1 gap-3 sm:grid-cols-2'
-                  aria-label={`${name} trigger events`}
-                >
-                  {triggers.map((trigger) => (
-                    <li
-                      key={trigger.id}
-                      className='rounded-lg border border-[var(--landing-border)] bg-[var(--landing-bg-card)] p-4'
-                    >
-                      <div className='mb-2 flex items-center gap-2'>
-                        <span className='inline-flex items-center gap-1 rounded-[4px] bg-[var(--landing-bg-elevated)] px-1.5 py-0.5 font-[500] text-[11px] text-[var(--landing-text)]'>
-                          <svg
-                            aria-hidden='true'
-                            className='h-2.5 w-2.5'
-                            fill='none'
-                            stroke='currentColor'
-                            strokeWidth={2.5}
-                            viewBox='0 0 24 24'
-                          >
-                            <polygon points='13 2 3 14 12 14 11 22 21 10 12 10 13 2' />
-                          </svg>
-                          Event
-                        </span>
-                      </div>
-                      <p className='font-[500] text-[13px] text-[var(--landing-text)]'>
-                        {trigger.name}
+              </div>
+              <p className='text-[14px] text-[var(--landing-text-body)] leading-[150%] tracking-[0.02em]'>
+                Connect a {name} webhook to Sim and your workflow fires the instant an event happens
+                — no polling, no delay.
+              </p>
+            </div>
+            <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+            {triggers.map((trigger) => (
+              <div key={trigger.id}>
+                <div className='flex items-start gap-4 px-6 py-4'>
+                  <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+                    <p className='text-[14px] text-white leading-snug tracking-[-0.02em]'>
+                      {trigger.name}
+                    </p>
+                    {trigger.description && (
+                      <p className='text-[12px] text-[var(--landing-text-muted)] leading-[150%]'>
+                        {trigger.description}
                       </p>
-                      {trigger.description && (
-                        <p className='mt-1 text-[12px] text-[var(--landing-text-muted)] leading-relaxed'>
-                          {trigger.description}
-                        </p>
+                    )}
+                  </div>
+                </div>
+                <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+              </div>
+            ))}
+          </section>
+        )}
+
+        {/* Workflow templates — horizontal cards */}
+        {matchingTemplates.length > 0 && (
+          <section aria-labelledby='templates-heading'>
+            <div className='px-6 pt-10 pb-4'>
+              <h2
+                id='templates-heading'
+                className='mb-2 text-[20px] text-white leading-[100%] tracking-[-0.02em]'
+              >
+                Workflow templates
+              </h2>
+              <p className='text-[14px] text-[var(--landing-text-body)] tracking-[0.02em]'>
+                Ready-to-use workflows featuring {name}. Click any to build it instantly.
+              </p>
+            </div>
+            <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+            {(() => {
+              const isOdd = matchingTemplates.length % 2 === 1
+              const pairedTemplates = isOdd ? matchingTemplates.slice(0, -1) : matchingTemplates
+              const lastTemplate = isOdd ? matchingTemplates[matchingTemplates.length - 1] : null
+
+              const resolveTypes = (template: (typeof matchingTemplates)[number]) => [
+                integration.type,
+                ...template.integrationBlockTypes.filter((bt) => bt !== integration.type),
+              ]
+
+              const renderIcons = (allTypes: string[]) =>
+                allTypes.map((bt, idx) => {
+                  const resolvedBt = byType.get(bt)
+                    ? bt
+                    : byType.get(`${bt}_v2`)
+                      ? `${bt}_v2`
+                      : byType.get(`${bt}_v3`)
+                        ? `${bt}_v3`
+                        : bt
+                  const int = byType.get(resolvedBt)
+                  const ToolIcon = blockTypeToIconMap[resolvedBt]
+                  return (
+                    <span key={bt} className='inline-flex items-center gap-1.5'>
+                      {idx > 0 && (
+                        <span className='text-[#555] text-[11px]' aria-hidden='true'>
+                          →
+                        </span>
                       )}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
+                      <IntegrationIcon
+                        bgColor={int?.bgColor ?? '#333'}
+                        name={int?.name ?? bt}
+                        Icon={ToolIcon}
+                        as='span'
+                        className='h-6 w-6 rounded-[4px]'
+                        iconClassName='h-3.5 w-3.5'
+                        fallbackClassName='text-[10px]'
+                        aria-hidden='true'
+                      />
+                    </span>
+                  )
+                })
 
-            {/* Workflow templates */}
-            {matchingTemplates.length > 0 && (
-              <section aria-labelledby='templates-heading'>
-                <h2
-                  id='templates-heading'
-                  className='mb-2 font-[500] text-[20px] text-[var(--landing-text)]'
-                >
-                  Workflow templates
-                </h2>
-                <p className='mb-6 text-[14px] text-[var(--landing-text-muted)]'>
-                  Ready-to-use workflows featuring {name}. Click any to build it instantly.
-                </p>
-                <ul
-                  className='grid grid-cols-1 gap-4 sm:grid-cols-2'
-                  aria-label='Workflow templates'
-                >
-                  {matchingTemplates.map((template) => {
-                    const allTypes = [
-                      integration.type,
-                      ...template.integrationBlockTypes.filter((bt) => bt !== integration.type),
-                    ]
-
+              return (
+                <>
+                  {/* Paired rows of 2 */}
+                  {Array.from({ length: Math.ceil(pairedTemplates.length / 2) }, (_, rowIdx) => {
+                    const row = pairedTemplates.slice(rowIdx * 2, rowIdx * 2 + 2)
                     return (
-                      <li key={template.title}>
-                        <TemplateCardButton prompt={template.prompt}>
-                          {/* Integration pills row */}
-                          <div className='mb-3 flex flex-wrap items-center gap-1.5 text-[12px]'>
-                            {allTypes.map((bt, idx) => {
-                              // Templates may use unversioned keys (e.g. "notion") while the
-                              // icon map has versioned keys ("notion_v2") — fall back to _v2.
-                              const resolvedBt = byType.get(bt)
-                                ? bt
-                                : byType.get(`${bt}_v2`)
-                                  ? `${bt}_v2`
-                                  : bt
-                              const int = byType.get(resolvedBt)
-                              const intName = int?.name ?? bt
-                              return (
-                                <span key={bt} className='inline-flex items-center gap-1.5'>
-                                  {idx > 0 && (
-                                    <span className='text-[#555]' aria-hidden='true'>
-                                      →
-                                    </span>
-                                  )}
-                                  <span className='inline-flex items-center gap-1 rounded-[3px] bg-[var(--landing-bg-elevated)] px-1.5 py-0.5 font-[500] text-[var(--landing-text)]'>
-                                    <IntegrationIcon
-                                      bgColor={int?.bgColor ?? '#6B7280'}
-                                      name={intName}
-                                      Icon={blockTypeToIconMap[resolvedBt]}
-                                      as='span'
-                                      className='h-3.5 w-3.5 rounded-[2px]'
-                                      iconClassName='h-2.5 w-2.5'
-                                      aria-hidden='true'
-                                    />
-                                    {intName}
-                                  </span>
-                                </span>
-                              )
-                            })}
-                          </div>
-
-                          <p className='mb-1 font-[500] text-[14px] text-[var(--landing-text)]'>
-                            {template.title}
-                          </p>
-
-                          <p className='mt-3 text-[#555] text-[13px] transition-colors group-hover:text-[var(--landing-text-muted)]'>
-                            Try this workflow →
-                          </p>
-                        </TemplateCardButton>
-                      </li>
+                      <div key={rowIdx}>
+                        <nav
+                          aria-label={`Template row ${rowIdx + 1}`}
+                          className='flex flex-col sm:flex-row'
+                        >
+                          {row.map((template) => (
+                            <TemplateCardButton
+                              key={template.title}
+                              prompt={template.prompt}
+                              className='group flex flex-1 flex-col gap-4 border-[var(--landing-bg-elevated)] border-t p-6 transition-colors first:border-t-0 hover:bg-[var(--landing-bg-elevated)] sm:border-t-0 sm:border-l sm:first:border-l-0'
+                            >
+                              <div className='flex items-center gap-1.5'>
+                                {renderIcons(resolveTypes(template))}
+                              </div>
+                              <div className='flex flex-col gap-2'>
+                                <h3 className='text-[14px] text-white leading-snug tracking-[-0.02em]'>
+                                  {template.title}
+                                </h3>
+                                <p className='line-clamp-2 text-[var(--landing-text-muted)] text-sm leading-[150%]'>
+                                  {template.prompt}
+                                </p>
+                              </div>
+                            </TemplateCardButton>
+                          ))}
+                        </nav>
+                        <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+                      </div>
                     )
                   })}
-                </ul>
-              </section>
-            )}
 
-            {/* Tools */}
-            {operations.length > 0 && (
-              <section aria-labelledby='tools-heading'>
-                <h2
-                  id='tools-heading'
-                  className='mb-2 font-[500] text-[20px] text-[var(--landing-text)]'
-                >
-                  Supported tools
-                </h2>
-                <p className='mb-6 text-[14px] text-[var(--landing-text-muted)]'>
-                  {operations.length} {name} tool{operations.length === 1 ? '' : 's'} available in
-                  Sim
-                </p>
-                <ul
-                  className='grid grid-cols-1 gap-2 sm:grid-cols-2'
-                  aria-label={`${name} supported tools`}
-                >
-                  {operations.map((op) => (
-                    <li
-                      key={op.name}
-                      className='rounded-[6px] border border-[var(--landing-border)] bg-[var(--landing-bg-card)] px-3.5 py-3'
-                    >
-                      <p className='font-[500] text-[13px] text-[var(--landing-text)]'>{op.name}</p>
-                      {op.description && (
-                        <p className='mt-0.5 text-[#555] text-[12px] leading-relaxed'>
-                          {op.description}
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            {/* FAQ */}
-            <section aria-labelledby='faq-heading'>
-              <h2
-                id='faq-heading'
-                className='mb-8 font-[500] text-[20px] text-[var(--landing-text)]'
-              >
-                Frequently asked questions
-              </h2>
-              <IntegrationFAQ faqs={faqs} />
-            </section>
-          </div>
-
-          {/* Sidebar */}
-          <aside className='space-y-5' aria-label='Integration details'>
-            {/* Quick details */}
-            <div className='rounded-lg border border-[var(--landing-border)] bg-[var(--landing-bg-card)] p-5'>
-              <h3 className='mb-4 font-[500] text-[14px] text-[var(--landing-text)]'>Details</h3>
-              <dl className='space-y-3 text-[13px]'>
-                {operations.length > 0 && (
-                  <div>
-                    <dt className='text-[#555]'>Tools</dt>
-                    <dd className='text-[var(--landing-text)]'>{operations.length} supported</dd>
-                  </div>
-                )}
-                {triggers.length > 0 && (
-                  <div>
-                    <dt className='text-[#555]'>Triggers</dt>
-                    <dd className='text-[var(--landing-text)]'>{triggers.length} available</dd>
-                  </div>
-                )}
-                <div>
-                  <dt className='text-[#555]'>Auth</dt>
-                  <dd className='text-[var(--landing-text)]'>
-                    {authType === 'oauth'
-                      ? 'One-click OAuth'
-                      : authType === 'api-key'
-                        ? 'API key'
-                        : 'None required'}
-                  </dd>
-                </div>
-                <div>
-                  <dt className='text-[#555]'>Pricing</dt>
-                  <dd className='text-[var(--landing-text)]'>Free to start</dd>
-                </div>
-              </dl>
-              <div className='mt-5 flex flex-col gap-2'>
-                <a
-                  href='https://sim.ai'
-                  className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--white)] bg-[var(--white)] font-[430] font-season text-[13px] text-[var(--landing-text-dark)] transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
-                >
-                  Get started free
-                </a>
-                <a
-                  href={docsUrl}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  className='flex h-[32px] w-full items-center justify-center gap-1.5 rounded-[5px] border border-[var(--landing-border-strong)] font-[430] font-season text-[13px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
-                >
-                  View docs
-                  <svg
-                    aria-hidden='true'
-                    className='h-3 w-3'
-                    fill='none'
-                    stroke='currentColor'
-                    strokeWidth={2}
-                    viewBox='0 0 24 24'
-                  >
-                    <path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' />
-                    <polyline points='15 3 21 3 21 9' />
-                    <line x1='10' x2='21' y1='14' y2='3' />
-                  </svg>
-                </a>
-              </div>
-            </div>
-
-            {/* Related integrations — internal linking for SEO */}
-            <div className='rounded-lg border border-[var(--landing-border)] bg-[var(--landing-bg-card)] p-5'>
-              {relatedIntegrations.length > 0 && (
-                <>
-                  <h3 className='mb-4 font-[500] text-[14px] text-[var(--landing-text)]'>
-                    Related integrations
-                  </h3>
-                  <ul className='space-y-2'>
-                    {relatedIntegrations.map((rel) => (
-                      <li key={rel.slug}>
-                        <Link
-                          href={`/integrations/${rel.slug}`}
-                          className='flex items-center gap-2.5 rounded-[6px] p-1.5 text-[13px] text-[var(--landing-text-muted)] transition-colors hover:bg-[var(--landing-bg-elevated)] hover:text-[var(--landing-text)]'
-                        >
-                          <IntegrationIcon
-                            bgColor={rel.bgColor}
-                            name={rel.name}
-                            Icon={blockTypeToIconMap[rel.type]}
-                            as='span'
-                            className='h-6 w-6 rounded-[4px]'
-                            iconClassName='h-3.5 w-3.5'
-                            fallbackClassName='text-[10px]'
-                            aria-hidden='true'
-                          />
-                          {rel.name}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
+                  {/* Last template as a full-width row when odd */}
+                  {lastTemplate && (
+                    <>
+                      <TemplateCardButton
+                        prompt={lastTemplate.prompt}
+                        className='group/link flex items-center gap-4 px-6 py-4 transition-colors hover:bg-[var(--landing-bg-elevated)]'
+                      >
+                        <div className='flex items-center gap-1.5'>
+                          {renderIcons(resolveTypes(lastTemplate))}
+                        </div>
+                        <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+                          <h3 className='text-[14px] text-white leading-snug tracking-[-0.02em]'>
+                            {lastTemplate.title}
+                          </h3>
+                          <p className='line-clamp-1 text-[12px] text-[var(--landing-text-muted)] leading-[150%]'>
+                            {lastTemplate.prompt}
+                          </p>
+                        </div>
+                      </TemplateCardButton>
+                      <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+                    </>
+                  )}
                 </>
-              )}
-              <Link
-                href='/integrations'
-                className={`block text-[#555] text-[12px] transition-colors hover:text-[var(--landing-text-muted)]${relatedIntegrations.length > 0 ? ' mt-4' : ''}`}
+              )
+            })()}
+          </section>
+        )}
+
+        {/* Supported tools — rows */}
+        {operations.length > 0 && (
+          <section aria-labelledby='tools-heading'>
+            <div className='px-6 pt-10 pb-4'>
+              <h2
+                id='tools-heading'
+                className='mb-2 text-[20px] text-white leading-[100%] tracking-[-0.02em]'
               >
-                All integrations →
-              </Link>
+                Supported tools
+              </h2>
+              <p className='text-[14px] text-[var(--landing-text-body)] tracking-[0.02em]'>
+                {operations.length} {name} tool{operations.length === 1 ? '' : 's'} available in Sim
+              </p>
             </div>
-          </aside>
-        </div>
+            <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+            {operations.map((op) => (
+              <div key={op.name}>
+                <div className='flex items-start gap-4 px-6 py-4'>
+                  <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+                    <p className='text-[14px] text-white leading-snug tracking-[-0.02em]'>
+                      {op.name}
+                    </p>
+                    {op.description && (
+                      <p className='text-[12px] text-[var(--landing-text-muted)] leading-[150%]'>
+                        {op.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+              </div>
+            ))}
+          </section>
+        )}
+
+        {/* FAQ — full width */}
+        <section aria-labelledby='faq-heading' className='px-6 py-10'>
+          <h2
+            id='faq-heading'
+            className='mb-8 text-[20px] text-white leading-[100%] tracking-[-0.02em]'
+          >
+            Frequently asked questions
+          </h2>
+          <IntegrationFAQ faqs={faqs} />
+        </section>
+
+        <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+
+        {/* Related integrations — horizontal cards with vertical dividers (blog featured pattern) */}
+        {relatedIntegrations.length > 0 && (
+          <>
+            <nav aria-label='Related integrations' className='flex flex-col sm:flex-row'>
+              {relatedIntegrations.slice(0, 4).map((rel) => (
+                <Link
+                  key={rel.slug}
+                  href={`/integrations/${rel.slug}`}
+                  className='group flex flex-1 flex-col gap-4 border-[var(--landing-bg-elevated)] border-t p-6 transition-colors first:border-t-0 hover:bg-[var(--landing-bg-elevated)] sm:border-t-0 sm:border-l sm:first:border-l-0'
+                >
+                  <IntegrationIcon
+                    bgColor={rel.bgColor}
+                    name={rel.name}
+                    Icon={blockTypeToIconMap[rel.type]}
+                    as='span'
+                    className='h-10 w-10 rounded-[5px]'
+                    aria-hidden='true'
+                  />
+                  <div className='flex flex-col gap-2'>
+                    <h3 className='text-lg text-white leading-tight tracking-[-0.01em]'>
+                      {rel.name}
+                    </h3>
+                    <p className='line-clamp-2 text-[var(--landing-text-muted)] text-sm leading-[150%]'>
+                      {rel.description}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </nav>
+            <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+          </>
+        )}
 
         {/* Bottom CTA */}
-        <section
-          aria-labelledby='cta-heading'
-          className='mt-20 rounded-xl border border-[var(--landing-border)] bg-[var(--landing-bg-card)] p-8 text-center sm:p-12'
-        >
-          {/* Logo pair: Sim × Integration */}
+        <section aria-labelledby='cta-heading' className='px-6 py-16 text-center'>
           <div className='mx-auto mb-6 flex items-center justify-center gap-3'>
             <Image
               src='/brandbook/logo/small.png'
@@ -776,22 +770,25 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
           </div>
           <h2
             id='cta-heading'
-            className='mb-3 font-[500] text-[28px] text-[var(--landing-text)] sm:text-[34px]'
+            className='mb-3 text-[28px] text-white leading-[100%] tracking-[-0.02em] sm:text-[34px]'
           >
             Start automating {name} today
           </h2>
-          <p className='mx-auto mb-8 max-w-[480px] text-[16px] text-[var(--landing-text-muted)] leading-relaxed'>
+          <p className='mx-auto mb-8 max-w-[480px] text-[var(--landing-text-body)] text-base leading-[150%] tracking-[0.02em]'>
             Build your first AI workflow with {name} in minutes. Connect to every tool your team
             uses. Free to start — no credit card required.
           </p>
-          <a
-            href='https://sim.ai'
-            className='inline-flex h-[32px] items-center rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-2.5 font-[430] font-season text-[14px] text-[var(--landing-text-dark)] transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+          <Link
+            href='/signup'
+            className='inline-flex h-[32px] items-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
           >
-            Build for free →
-          </a>
+            Build for free
+          </Link>
         </section>
       </div>
-    </>
+
+      {/* Closing full-width divider */}
+      <div className='-mt-px h-px w-full bg-[var(--landing-bg-elevated)]' />
+    </section>
   )
 }

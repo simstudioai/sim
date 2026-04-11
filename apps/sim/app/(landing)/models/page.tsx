@@ -1,10 +1,15 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
+import { Badge } from '@/components/emcn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
+import { ModelComparisonCharts } from '@/app/(landing)/models/components/model-comparison-charts'
 import { ModelDirectory } from '@/app/(landing)/models/components/model-directory'
-import { ModelCard, ProviderCard } from '@/app/(landing)/models/components/model-primitives'
 import {
+  FeaturedModelCard,
+  FeaturedProviderCard,
+} from '@/app/(landing)/models/components/model-primitives'
+import {
+  ALL_CATALOG_MODELS,
   getPricingBounds,
   MODEL_CATALOG_PROVIDERS,
   MODEL_PROVIDERS_WITH_CATALOGS,
@@ -17,24 +22,29 @@ const baseUrl = getBaseUrl()
 
 const faqItems = [
   {
-    question: 'What is the Sim AI models directory?',
+    question: 'Which AI models are best for building agents and automated workflows?',
     answer:
-      'The Sim AI models directory is a public catalog of the language models and providers tracked inside Sim. It shows provider coverage, model IDs, pricing per one million tokens, context windows, and supported capabilities such as reasoning controls, structured outputs, and deep research.',
+      'The most important factors for agent tasks are reliable tool use (function calling), a large enough context window to track conversation history and tool outputs, and consistent instruction following. In Sim, OpenAI GPT-4.1, Anthropic Claude Sonnet, and Google Gemini 2.5 Pro are popular choices — each supports tool use, structured outputs, and context windows of 128K tokens or more. For cost-sensitive or high-throughput agents, Groq and Cerebras offer significantly faster inference at lower cost.',
   },
   {
-    question: 'Can I compare models from multiple providers in one place?',
+    question: 'What does context window size mean when running an AI agent?',
     answer:
-      'Yes. This page organizes every tracked model by provider and lets you search across providers, model names, and capabilities. You can quickly compare OpenAI, Anthropic, Google, xAI, Mistral, Groq, Cerebras, Fireworks, Bedrock, and more from a single directory.',
+      'The context window is the total number of tokens a model can process in a single call, including your system prompt, conversation history, tool call results, and any documents you pass in. For agents running multi-step tasks, context fills up quickly — each tool result and each retrieved document adds tokens. A 128K-token context window fits roughly 300 pages of text; models like Gemini 2.5 Pro support up to 1M tokens, enough to hold an entire codebase in a single pass.',
   },
   {
-    question: 'Are these model prices shown per million tokens?',
+    question: 'Are model prices shown per million tokens?',
     answer:
-      'Yes. Input, cached input, and output prices on this page are shown per one million tokens based on the provider metadata tracked in Sim.',
+      'Yes. Input, cached input, and output prices are all listed per one million tokens, matching how providers bill through their APIs. For agents that chain multiple calls, costs compound quickly — an agent completing 100 turns at 10K tokens each consumes roughly 1M tokens per session. Cached input pricing applies when a provider supports prompt caching, where a repeated prefix like a system prompt is billed at a reduced rate.',
   },
   {
-    question: 'Does Sim support providers with dynamic model catalogs too?',
+    question: 'Which AI models support tool use and function calling?',
     answer:
-      'Yes. Some providers such as OpenRouter, Fireworks, Ollama, and vLLM load their model lists dynamically at runtime. Those providers are still shown here even when their full public model list is not hard-coded into the catalog.',
+      'Tool use — also called function calling — lets an agent invoke external APIs, query databases, run code, or take any action you define. In Sim, all first-party models from OpenAI, Anthropic, Google, Mistral, Groq, Cerebras, and xAI support tool use. Look for the Tool Use capability tag on any model card in this directory to confirm support.',
+  },
+  {
+    question: 'How do I add a model to a Sim agent workflow?',
+    answer:
+      'Open any workflow in Sim, add an Agent block, and select your provider and model from the model picker inside that block. Every model listed in this directory is available in the Agent block. Swapping models takes one click and does not affect the rest of your workflow, making it straightforward to test different models on the same task without rebuilding anything.',
   },
 ]
 
@@ -82,15 +92,15 @@ export default function ModelsPage() {
   const flatModels = MODEL_CATALOG_PROVIDERS.flatMap((provider) =>
     provider.models.map((model) => ({ provider, model }))
   )
-  const featuredProviders = MODEL_PROVIDERS_WITH_CATALOGS.slice(0, 6)
-  const featuredModels = MODEL_PROVIDERS_WITH_CATALOGS.flatMap((provider) =>
-    provider.featuredModels[0] ? [{ provider, model: provider.featuredModels[0] }] : []
-  ).slice(0, 6)
-  const heroProviders = ['openai', 'anthropic', 'azure-openai', 'google', 'bedrock']
-    .map((providerId) => MODEL_CATALOG_PROVIDERS.find((provider) => provider.id === providerId))
-    .filter(
-      (provider): provider is (typeof MODEL_CATALOG_PROVIDERS)[number] => provider !== undefined
+  const featuredProviderOrder = ['anthropic', 'openai', 'google']
+  const featuredProviders = featuredProviderOrder
+    .map((id) => MODEL_PROVIDERS_WITH_CATALOGS.find((p) => p.id === id))
+    .filter((p): p is (typeof MODEL_PROVIDERS_WITH_CATALOGS)[number] => p !== undefined)
+  const featuredModels = featuredProviders
+    .map((provider) =>
+      provider.featuredModels[0] ? { provider, model: provider.featuredModels[0] } : null
     )
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
 
   const breadcrumbJsonLd = {
     '@context': 'https://schema.org',
@@ -159,135 +169,89 @@ export default function ModelsPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
 
-      <div className='mx-auto max-w-[1280px] px-6 py-16 sm:px-8 md:px-12'>
-        <section aria-labelledby='models-heading' className='mb-14'>
-          <div className='max-w-[840px]'>
-            <p className='mb-3 text-[12px] text-[var(--landing-text-muted)] uppercase tracking-[0.16em]'>
-              Public model directory
-            </p>
+      <section className='bg-[var(--landing-bg)]'>
+        <div className='px-5 pt-[60px] lg:px-16 lg:pt-[100px]'>
+          <Badge
+            variant='blue'
+            size='md'
+            dot
+            className='mb-5 bg-white/10 font-season text-white uppercase tracking-[0.02em]'
+          >
+            Models
+          </Badge>
+
+          <div className='flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between'>
             <h1
               id='models-heading'
-              className='text-balance font-[500] text-[40px] text-[var(--landing-text)] leading-tight sm:text-[56px]'
+              className='text-balance text-[28px] text-white leading-[100%] tracking-[-0.02em] lg:text-[40px]'
             >
-              Browse AI models by provider, pricing, and capabilities
+              Models
             </h1>
-            <p className='mt-5 max-w-[760px] text-[18px] text-[var(--landing-text-muted)] leading-relaxed'>
-              Explore every model tracked in Sim across providers like{' '}
-              {heroProviders.map((provider, index, allProviders) => {
-                const Icon = provider.icon
-
-                return (
-                  <span key={provider.id}>
-                    <span className='inline-flex items-center gap-1 whitespace-nowrap align-[0.02em]'>
-                      {Icon ? (
-                        <span
-                          aria-hidden='true'
-                          className='relative top-[0.02em] inline-flex shrink-0 text-[var(--landing-text)]'
-                        >
-                          <Icon className='h-[0.82em] w-[0.82em]' />
-                        </span>
-                      ) : null}
-                      <span>{provider.name}</span>
-                    </span>
-                    {index < allProviders.length - 1 ? ', ' : ''}
-                  </span>
-                )
-              })}
-              {
-                ' and more. Compare model IDs, token pricing, context windows, and features such as reasoning, structured outputs, and deep research from one clean catalog.'
-              }
+            <p className='font-[430] font-season text-[var(--landing-text-muted)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
+              Browse {TOTAL_MODELS} AI models across {TOTAL_MODEL_PROVIDERS} providers. Compare
+              pricing, context windows, and capabilities.
             </p>
           </div>
+        </div>
 
-          <div className='mt-8 flex flex-wrap gap-3'>
-            <a
-              href='https://sim.ai'
-              className='inline-flex h-[34px] items-center rounded-[6px] border border-[var(--white)] bg-[var(--white)] px-3 font-[430] text-[14px] text-[var(--landing-text-dark)] transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
-            >
-              Start building free
-            </a>
-            <Link
-              href='/integrations'
-              className='inline-flex h-[34px] items-center rounded-[6px] border border-[var(--landing-border-strong)] px-3 font-[430] text-[14px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
-            >
-              Explore integrations
-            </Link>
-          </div>
-        </section>
+        <div className='mt-8 h-px w-full bg-[var(--landing-bg-elevated)]' />
 
-        <section aria-labelledby='providers-heading' className='mb-16'>
-          <div className='mb-6'>
+        <div className='mx-5 border-[var(--landing-bg-elevated)] border-x lg:mx-16'>
+          {featuredProviders.length > 0 && (
+            <>
+              <nav aria-label='Featured providers' className='flex flex-col sm:flex-row'>
+                {featuredProviders.map((provider) => (
+                  <FeaturedProviderCard key={provider.id} provider={provider} />
+                ))}
+              </nav>
+              <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+            </>
+          )}
+
+          {featuredModels.length > 0 && (
+            <>
+              <nav aria-label='Featured models' className='flex flex-col sm:flex-row'>
+                {featuredModels.map(({ provider, model }) => (
+                  <FeaturedModelCard key={model.id} provider={provider} model={model} />
+                ))}
+              </nav>
+              <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+            </>
+          )}
+
+          <ModelComparisonCharts models={ALL_CATALOG_MODELS} />
+
+          <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+
+          <section aria-labelledby='all-models-heading'>
+            <div className='px-6 pt-10 pb-4'>
+              <h2
+                id='all-models-heading'
+                className='mb-2 text-[20px] text-white leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+              >
+                All models
+              </h2>
+            </div>
+            <ModelDirectory />
+          </section>
+
+          <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+
+          <section aria-labelledby='faq-heading' className='px-6 py-10'>
             <h2
-              id='providers-heading'
-              className='font-[500] text-[28px] text-[var(--landing-text)]'
+              id='faq-heading'
+              className='mb-8 text-[20px] text-white leading-[100%] tracking-[-0.02em] lg:text-[24px]'
             >
-              Browse by provider
+              Frequently asked questions
             </h2>
-            <p className='mt-2 max-w-[760px] text-[15px] text-[var(--landing-text-muted)] leading-relaxed'>
-              Each provider has its own generated SEO page with model lineup details, featured
-              models, provider FAQs, and internal links to individual model pages.
-            </p>
-          </div>
+            <div>
+              <LandingFAQ faqs={faqItems} />
+            </div>
+          </section>
+        </div>
 
-          <div className='grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3'>
-            {featuredProviders.map((provider) => (
-              <ProviderCard key={provider.id} provider={provider} />
-            ))}
-          </div>
-        </section>
-
-        <section aria-labelledby='featured-models-heading' className='mb-16'>
-          <div className='mb-6'>
-            <h2
-              id='featured-models-heading'
-              className='font-[500] text-[28px] text-[var(--landing-text)]'
-            >
-              Featured model pages
-            </h2>
-            <p className='mt-2 max-w-[760px] text-[15px] text-[var(--landing-text-muted)] leading-relaxed'>
-              These pages are generated directly from the model registry and target high-intent
-              search queries around pricing, context windows, and model capabilities.
-            </p>
-          </div>
-
-          <div className='grid grid-cols-1 gap-4 xl:grid-cols-2'>
-            {featuredModels.map(({ provider, model }) => (
-              <ModelCard key={model.id} provider={provider} model={model} showProvider />
-            ))}
-          </div>
-        </section>
-
-        <section aria-labelledby='all-models-heading'>
-          <div className='mb-6'>
-            <h2
-              id='all-models-heading'
-              className='font-[500] text-[28px] text-[var(--landing-text)]'
-            >
-              All models
-            </h2>
-            <p className='mt-2 max-w-[760px] text-[15px] text-[var(--landing-text-muted)] leading-relaxed'>
-              Search the full catalog by provider, model ID, or capability. Use it to compare
-              providers, sanity-check pricing, and quickly understand which models fit the workflow
-              you&apos;re building. All pricing is shown per one million tokens using the metadata
-              currently tracked in Sim.
-            </p>
-          </div>
-
-          <ModelDirectory />
-        </section>
-
-        <section
-          aria-labelledby='faq-heading'
-          className='mt-16 rounded-3xl border border-[var(--landing-border)] bg-[var(--landing-bg-card)] p-6 sm:p-8'
-        >
-          <h2 id='faq-heading' className='font-[500] text-[28px] text-[var(--landing-text)]'>
-            Frequently asked questions
-          </h2>
-          <div className='mt-3'>
-            <LandingFAQ faqs={faqItems} />
-          </div>
-        </section>
-      </div>
+        <div className='-mt-px h-px w-full bg-[var(--landing-bg-elevated)]' />
+      </section>
     </>
   )
 }

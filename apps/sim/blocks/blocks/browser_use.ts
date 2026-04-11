@@ -11,7 +11,7 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
     'Integrate Browser Use into the workflow. Can navigate the web and perform actions as if a real user was interacting with the browser.',
   docsLink: 'https://docs.sim.ai/tools/browser_use',
   category: 'tools',
-  integrationType: IntegrationType.Automation,
+  integrationType: IntegrationType.AI,
   tags: ['web-scraping', 'automation', 'agentic'],
   bgColor: '#181C1E',
   icon: BrowserUseIcon,

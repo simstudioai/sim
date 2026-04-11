@@ -152,13 +152,23 @@ export function useCollaborativeWorkflow() {
 
   // Register emit functions with operation queue store
   useEffect(() => {
+    const registeredWorkflowId =
+      isConnected && currentWorkflowId === activeWorkflowId ? currentWorkflowId : null
+
     registerEmitFunctions(
       emitWorkflowOperation,
       emitSubblockUpdate,
       emitVariableUpdate,
-      currentWorkflowId
+      registeredWorkflowId
     )
-  }, [emitWorkflowOperation, emitSubblockUpdate, emitVariableUpdate, currentWorkflowId])
+  }, [
+    activeWorkflowId,
+    currentWorkflowId,
+    emitWorkflowOperation,
+    emitSubblockUpdate,
+    emitVariableUpdate,
+    isConnected,
+  ])
 
   useEffect(() => {
     const handleWorkflowOperation = (data: any) => {

@@ -1,19 +1,21 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { Badge } from '@/components/emcn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import {
-  Breadcrumbs,
-  CapabilityTags,
-  ModelCard,
-  ProviderCard,
+  ChevronArrow,
+  FeaturedModelCard,
+  FeaturedProviderCard,
   ProviderIcon,
-  StatCard,
 } from '@/app/(landing)/models/components/model-primitives'
+import { ModelTimelineChart } from '@/app/(landing)/models/components/model-timeline-chart'
 import {
   buildProviderFaqs,
+  formatPrice,
+  formatTokenCount,
   getProviderBySlug,
-  getProviderCapabilitySummary,
   MODEL_PROVIDERS_WITH_CATALOGS,
   TOP_MODEL_PROVIDERS,
 } from '@/app/(landing)/models/utils'
@@ -95,7 +97,6 @@ export default async function ProviderModelsPage({
   }
 
   const faqs = buildProviderFaqs(provider)
-  const capabilitySummary = getProviderCapabilitySummary(provider)
   const relatedProviders = MODEL_PROVIDERS_WITH_CATALOGS.filter(
     (entry) => entry.id !== provider.id && TOP_MODEL_PROVIDERS.includes(entry.name)
   ).slice(0, 4)
@@ -153,142 +154,149 @@ export default async function ProviderModelsPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
 
-      <div className='mx-auto max-w-[1280px] px-6 py-12 sm:px-8 md:px-12'>
-        <Breadcrumbs
-          items={[
-            { label: 'Home', href: '/' },
-            { label: 'Models', href: '/models' },
-            { label: provider.name },
-          ]}
-        />
+      <section className='bg-[var(--landing-bg)]'>
+        <div className='px-5 pt-[60px] lg:px-16 lg:pt-[100px]'>
+          <div className='mb-6'>
+            <Link
+              href='/models'
+              className='group/link inline-flex items-center gap-1.5 font-season text-[var(--landing-text-muted)] text-sm tracking-[0.02em] hover:text-[var(--landing-text)]'
+            >
+              <svg
+                className='h-3 w-3 shrink-0'
+                viewBox='0 0 10 10'
+                fill='none'
+                xmlns='http://www.w3.org/2000/svg'
+              >
+                <line
+                  x1='1'
+                  y1='5'
+                  x2='10'
+                  y2='5'
+                  stroke='currentColor'
+                  strokeWidth='1.33'
+                  strokeLinecap='square'
+                  className='origin-right scale-x-0 transition-transform duration-200 ease-out [transform-box:fill-box] group-hover/link:scale-x-100'
+                />
+                <path
+                  d='M6.5 2L3.5 5L6.5 8'
+                  stroke='currentColor'
+                  strokeWidth='1.33'
+                  strokeLinecap='square'
+                  strokeLinejoin='miter'
+                  fill='none'
+                  className='group-hover/link:-translate-x-[30%] transition-transform duration-200 ease-out'
+                />
+              </svg>
+              Back to Models
+            </Link>
+          </div>
 
-        <section aria-labelledby='provider-heading' className='mb-14'>
-          <div className='mb-6 flex items-center gap-4'>
-            <ProviderIcon
-              provider={provider}
-              className='h-16 w-16 rounded-3xl'
-              iconClassName='h-8 w-8'
-            />
-            <div>
-              <p className='text-[12px] text-[var(--landing-text-muted)] uppercase tracking-[0.12em]'>
-                Provider
-              </p>
+          <Badge
+            variant='blue'
+            size='md'
+            dot
+            className='mb-5 bg-white/10 font-season text-white uppercase tracking-[0.02em]'
+          >
+            Provider
+          </Badge>
+
+          <div className='flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
+            <div className='flex items-center gap-4'>
+              <ProviderIcon
+                provider={provider}
+                className='h-12 w-12 rounded-[5px]'
+                iconClassName='h-6 w-6'
+              />
               <h1
                 id='provider-heading'
-                className='font-[500] text-[38px] text-[var(--landing-text)] leading-tight sm:text-[48px]'
+                className='font-[430] font-season text-[28px] text-white leading-[100%] tracking-[-0.02em] lg:text-[40px]'
               >
                 {provider.name} models
               </h1>
             </div>
+            <span className='shrink-0 font-martian-mono text-[var(--landing-text-subtle)] text-xs uppercase tracking-[0.1em]'>
+              {provider.modelCount} models
+            </span>
           </div>
+        </div>
 
-          <p className='max-w-[820px] text-[17px] text-[var(--landing-text-muted)] leading-relaxed'>
-            {provider.summary} Browse every {provider.name} model page generated from Sim&apos;s
-            provider registry with human-readable names, pricing, context windows, and capability
-            metadata.
-          </p>
+        <div className='mt-8 h-px w-full bg-[var(--landing-bg-elevated)]' />
 
-          <div className='mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4'>
-            <StatCard label='Models tracked' value={provider.modelCount.toString()} />
-            <StatCard
-              label='Default model'
-              value={provider.defaultModelDisplayName || 'Dynamic'}
-              compact
-            />
-            <StatCard
-              label='Metadata coverage'
-              value={provider.contextInformationAvailable ? 'Tracked' : 'Partial'}
-              compact
-            />
-            <StatCard
-              label='Featured models'
-              value={provider.featuredModels.length.toString()}
-              compact
-            />
-          </div>
+        <div className='mx-5 border-[var(--landing-bg-elevated)] border-x lg:mx-16'>
+          {provider.featuredModels.length > 0 && (
+            <>
+              <nav aria-label='Featured models' className='flex flex-col sm:flex-row'>
+                {provider.featuredModels.slice(0, 3).map((model) => (
+                  <FeaturedModelCard key={model.id} provider={provider} model={model} />
+                ))}
+              </nav>
+              <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+            </>
+          )}
 
-          <div className='mt-6'>
-            <CapabilityTags tags={provider.providerCapabilityTags} />
-          </div>
-        </section>
+          <ModelTimelineChart models={provider.models} providerId={provider.id} />
 
-        <section aria-labelledby='provider-models-heading' className='mb-16'>
-          <h2
-            id='provider-models-heading'
-            className='mb-2 font-[500] text-[28px] text-[var(--landing-text)]'
-          >
-            All {provider.name} models
-          </h2>
-          <p className='mb-8 max-w-[760px] text-[15px] text-[var(--landing-text-muted)] leading-relaxed'>
-            Every model below links to a dedicated SEO page with exact pricing, context window,
-            capability support, and related model recommendations.
-          </p>
+          <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
 
-          <div className='grid grid-cols-1 gap-4 xl:grid-cols-2'>
-            {provider.models.map((model) => (
-              <ModelCard key={model.id} provider={provider} model={model} />
-            ))}
-          </div>
-        </section>
+          {provider.models.map((model) => (
+            <div key={model.id}>
+              <Link
+                href={model.href}
+                className='group/link flex items-center gap-4 px-6 py-4 transition-colors hover:bg-[var(--landing-bg-elevated)]'
+              >
+                <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+                  <h3 className='text-[14px] text-white leading-snug tracking-[-0.02em]'>
+                    {model.displayName}
+                  </h3>
+                  <p className='line-clamp-1 hidden text-[12px] text-[var(--landing-text-muted)] leading-[150%] sm:block'>
+                    {model.id}
+                  </p>
+                </div>
+                <span className='hidden shrink-0 font-martian-mono text-[11px] text-[var(--landing-text-muted)] uppercase tracking-[0.1em] md:block'>
+                  {formatPrice(model.pricing.input)}/1M in
+                </span>
+                <span className='hidden shrink-0 font-martian-mono text-[11px] text-[var(--landing-text-muted)] uppercase tracking-[0.1em] md:block'>
+                  {formatPrice(model.pricing.output)}/1M out
+                </span>
+                {model.contextWindow ? (
+                  <span className='hidden shrink-0 font-martian-mono text-[11px] text-[var(--landing-text-muted)] uppercase tracking-[0.1em] lg:block'>
+                    {formatTokenCount(model.contextWindow)} ctx
+                  </span>
+                ) : null}
+                <ChevronArrow />
+              </Link>
+              <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+            </div>
+          ))}
 
-        <section
-          aria-labelledby='lineup-snapshot-heading'
-          className='mb-16 rounded-3xl border border-[var(--landing-border)] bg-[var(--landing-bg-card)] p-6 sm:p-8'
-        >
-          <h2
-            id='lineup-snapshot-heading'
-            className='mb-2 font-[500] text-[28px] text-[var(--landing-text)]'
-          >
-            Lineup snapshot
-          </h2>
-          <p className='mb-8 max-w-[760px] text-[15px] text-[var(--landing-text-muted)] leading-relaxed'>
-            A quick view of the strongest differentiators in the {provider.name} model lineup based
-            on the metadata currently tracked in Sim.
-          </p>
+          {relatedProviders.length > 0 && (
+            <>
+              <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+              <nav aria-label='Related providers' className='flex flex-col sm:flex-row'>
+                {relatedProviders.map((entry) => (
+                  <FeaturedProviderCard key={entry.id} provider={entry} />
+                ))}
+              </nav>
+            </>
+          )}
 
-          <div className='grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3'>
-            {capabilitySummary.map((item) => (
-              <StatCard key={item.label} label={item.label} value={item.value} compact />
-            ))}
-          </div>
-        </section>
+          <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
 
-        {relatedProviders.length > 0 && (
-          <section aria-labelledby='related-providers-heading' className='mb-16'>
+          <section aria-labelledby='provider-faq-heading' className='px-6 py-10'>
             <h2
-              id='related-providers-heading'
-              className='mb-2 font-[500] text-[28px] text-[var(--landing-text)]'
+              id='provider-faq-heading'
+              className='mb-8 text-[20px] text-white leading-[100%] tracking-[-0.02em] lg:text-[24px]'
             >
-              Compare with other providers
+              Frequently asked questions
             </h2>
-            <p className='mb-8 max-w-[760px] text-[15px] text-[var(--landing-text-muted)] leading-relaxed'>
-              Explore similar provider hubs to compare model lineups, pricing surfaces, and
-              long-context coverage across the broader AI ecosystem.
-            </p>
-
-            <div className='grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4'>
-              {relatedProviders.map((entry) => (
-                <ProviderCard key={entry.id} provider={entry} />
-              ))}
+            <div>
+              <LandingFAQ faqs={faqs} />
             </div>
           </section>
-        )}
+        </div>
 
-        <section
-          aria-labelledby='provider-faq-heading'
-          className='rounded-3xl border border-[var(--landing-border)] bg-[var(--landing-bg-card)] p-6 sm:p-8'
-        >
-          <h2
-            id='provider-faq-heading'
-            className='font-[500] text-[28px] text-[var(--landing-text)]'
-          >
-            Frequently asked questions
-          </h2>
-          <div className='mt-3'>
-            <LandingFAQ faqs={faqs} />
-          </div>
-        </section>
-      </div>
+        <div className='-mt-px h-px w-full bg-[var(--landing-bg-elevated)]' />
+      </section>
     </>
   )
 }

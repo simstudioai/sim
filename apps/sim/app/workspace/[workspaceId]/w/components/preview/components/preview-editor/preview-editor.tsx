@@ -1153,8 +1153,10 @@ function PreviewEditorContent({
     if (subBlock.type === ('trigger-config' as SubBlockType)) {
       return effectiveTrigger || isPureTriggerBlock
     }
-    if (subBlock.mode === 'trigger' && !effectiveTrigger) return false
-    if (effectiveTrigger && subBlock.mode !== 'trigger') return false
+    if ((subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') && !effectiveTrigger)
+      return false
+    if (effectiveTrigger && subBlock.mode !== 'trigger' && subBlock.mode !== 'trigger-advanced')
+      return false
     if (!isSubBlockFeatureEnabled(subBlock)) return false
     if (
       !isSubBlockVisibleForMode(

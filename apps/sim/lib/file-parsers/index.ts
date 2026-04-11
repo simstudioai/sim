@@ -86,12 +86,21 @@ function getParserInstances(): Record<string, FileParser> {
       }
 
       try {
-        const { parseJSON, parseJSONBuffer } = require('@/lib/file-parsers/json-parser')
+        const {
+          parseJSON,
+          parseJSONBuffer,
+          parseJSONL,
+          parseJSONLBuffer,
+        } = require('@/lib/file-parsers/json-parser')
         parserInstances.json = {
           parseFile: parseJSON,
           parseBuffer: parseJSONBuffer,
         }
-        logger.info('Loaded JSON parser')
+        parserInstances.jsonl = {
+          parseFile: parseJSONL,
+          parseBuffer: parseJSONLBuffer,
+        }
+        logger.info('Loaded JSON/JSONL parser')
       } catch (error) {
         logger.error('Failed to load JSON parser:', error)
       }

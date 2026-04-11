@@ -10,7 +10,7 @@ import {
 import { Button, Tooltip } from '@/components/emcn'
 import { Columns3, Eye, PanelLeft, Pencil } from '@/components/emcn/icons'
 import { isEphemeralResource } from '@/lib/copilot/resource-extraction'
-import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/copilot/resource-types'
+import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
@@ -37,6 +37,62 @@ import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
 const EDGE_ZONE = 40
 const SCROLL_SPEED = 8
+
+const ADD_RESOURCE_EXCLUDED_TYPES: readonly MothershipResourceType[] = ['folder', 'task'] as const
+
+/**
+ * Returns the id of the nearest resource to `idx` that is in `filter`
+ * (or any resource if `filter` is null). Returns undefined if nothing qualifies.
+ */
+function findNearestId(
+  resources: MothershipResource[],
+  idx: number,
+  filter: Set<string> | null
+): string | undefined {
+  for (let offset = 1; offset < resources.length; offset++) {
+    for (const candidate of [idx + offset, idx - offset]) {
+      const r = resources[candidate]
+      if (r && (!filter || filter.has(r.id))) return r.id
+    }
+  }
+  return undefined
+}
+
+/**
+ * Builds an offscreen drag image showing all selected tabs side-by-side, so the
+ * cursor visibly carries every tab in the multi-selection. The element is
+ * appended to the document and removed on the next tick after the browser has
+ * snapshotted it.
+ */
+function buildMultiDragImage(
+  scrollNode: HTMLElement | null,
+  selected: MothershipResource[]
+): HTMLElement | null {
+  if (!scrollNode || selected.length === 0) return null
+  const container = document.createElement('div')
+  container.style.position = 'fixed'
+  container.style.top = '-10000px'
+  container.style.left = '-10000px'
+  container.style.display = 'flex'
+  container.style.alignItems = 'center'
+  container.style.gap = '6px'
+  container.style.padding = '4px'
+  container.style.pointerEvents = 'none'
+  let appendedAny = false
+  for (const r of selected) {
+    const original = scrollNode.querySelector<HTMLElement>(
+      `[data-resource-tab-id="${CSS.escape(r.id)}"]`
+    )
+    if (!original) continue
+    const clone = original.cloneNode(true) as HTMLElement
+    clone.style.opacity = '0.95'
+    container.appendChild(clone)
+    appendedAny = true
+  }
+  if (!appendedAny) return null
+  document.body.appendChild(container)
+  return container
+}
 
 const PREVIEW_MODE_ICONS = {
   editor: Columns3,
@@ -125,8 +181,19 @@ export function ResourceTabs({
   const [hoveredTabId, setHoveredTabId] = useState<string | null>(null)
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null)
   const [dropGapIdx, setDropGapIdx] = useState<number | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const dragStartIdx = useRef<number | null>(null)
   const autoScrollRaf = useRef<number | null>(null)
+  const anchorIdRef = useRef<string | null>(null)
+  const prevChatIdRef = useRef(chatId)
+
+  // Reset selection when switching chats — component instance persists across
+  // chat switches so stale IDs would otherwise carry over.
+  if (prevChatIdRef.current !== chatId) {
+    prevChatIdRef.current = chatId
+    setSelectedIds(new Set())
+    anchorIdRef.current = null
+  }
 
   const existingKeys = useMemo(
     () => new Set(resources.map((r) => `${r.type}:${r.id}`)),
@@ -143,34 +210,129 @@ export function ResourceTabs({
     [chatId, onAddResource]
   )
 
+  const handleTabClick = useCallback(
+    (e: React.MouseEvent, idx: number) => {
+      const resource = resources[idx]
+      if (!resource) return
+
+      // Shift+click: contiguous range from anchor
+      if (e.shiftKey) {
+        // Fall back to activeId when no explicit anchor exists (e.g. tab opened via sidebar)
+        const anchorId = anchorIdRef.current ?? activeId
+        const anchorIdx = anchorId ? resources.findIndex((r) => r.id === anchorId) : -1
+        if (anchorIdx !== -1) {
+          const start = Math.min(anchorIdx, idx)
+          const end = Math.max(anchorIdx, idx)
+          const next = new Set<string>()
+          for (let i = start; i <= end; i++) next.add(resources[i].id)
+          setSelectedIds(next)
+          onSelect(resource.id)
+          return
+        }
+      }
+
+      // Cmd/Ctrl+click: toggle individual tab in/out of selection
+      if (e.metaKey || e.ctrlKey) {
+        const wasSelected = selectedIds.has(resource.id)
+        if (wasSelected) {
+          const next = new Set(selectedIds)
+          next.delete(resource.id)
+          setSelectedIds(next)
+          // Only switch active if we just deselected the currently-active tab
+          if (activeId === resource.id) {
+            const fallback =
+              findNearestId(resources, idx, next) ?? findNearestId(resources, idx, null)
+            if (fallback) onSelect(fallback)
+          }
+        } else {
+          setSelectedIds((prev) => new Set(prev).add(resource.id))
+          onSelect(resource.id)
+        }
+        if (!anchorIdRef.current) anchorIdRef.current = resource.id
+        return
+      }
+
+      // Plain click: single-select
+      anchorIdRef.current = resource.id
+      setSelectedIds(new Set([resource.id]))
+      onSelect(resource.id)
+    },
+    [resources, onSelect, selectedIds, activeId]
+  )
+
   const handleRemove = useCallback(
     (e: React.MouseEvent, resource: MothershipResource) => {
       e.stopPropagation()
       if (!chatId) return
-      if (!isEphemeralResource(resource)) {
-        removeResource.mutate({ chatId, resourceType: resource.type, resourceId: resource.id })
+      const isMulti = selectedIds.has(resource.id) && selectedIds.size > 1
+      const targets = isMulti ? resources.filter((r) => selectedIds.has(r.id)) : [resource]
+      // Update parent state immediately for all targets
+      for (const r of targets) {
+        onRemoveResource(r.type, r.id)
       }
-      onRemoveResource(resource.type, resource.id)
+      // Clear stale selection and anchor for all removed targets
+      const removedIds = new Set(targets.map((r) => r.id))
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        for (const id of removedIds) next.delete(id)
+        return next
+      })
+      if (anchorIdRef.current && removedIds.has(anchorIdRef.current)) {
+        anchorIdRef.current = null
+      }
+      // Serialize mutations so each onMutate sees the cache updated by the prior
+      // one. Continue on individual failures so remaining removals still fire.
+      const persistable = targets.filter((r) => !isEphemeralResource(r))
+      if (persistable.length > 0) {
+        void (async () => {
+          for (const r of persistable) {
+            try {
+              await removeResource.mutateAsync({
+                chatId,
+                resourceType: r.type,
+                resourceId: r.id,
+              })
+            } catch {
+              // Individual failure — the mutation's onError already rolled back
+              // this resource in cache. Remaining removals continue.
+            }
+          }
+        })()
+      }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chatId, onRemoveResource]
+    [chatId, onRemoveResource, resources, selectedIds]
   )
 
   const handleDragStart = useCallback(
     (e: React.DragEvent, idx: number) => {
+      const resource = resources[idx]
+      if (!resource) return
+      const selected = resources.filter((r) => selectedIds.has(r.id))
+      const isMultiDrag = selected.length > 1 && selectedIds.has(resource.id)
+      if (isMultiDrag) {
+        e.dataTransfer.effectAllowed = 'copy'
+        e.dataTransfer.setData(SIM_RESOURCES_DRAG_TYPE, JSON.stringify(selected))
+        const dragImage = buildMultiDragImage(scrollNodeRef.current, selected)
+        if (dragImage) {
+          e.dataTransfer.setDragImage(dragImage, 16, 16)
+          setTimeout(() => dragImage.remove(), 0)
+        }
+        // Skip dragStartIdx so internal reorder is disabled for multi-select drags
+        dragStartIdx.current = null
+        setDraggedIdx(null)
+        return
+      }
       dragStartIdx.current = idx
       setDraggedIdx(idx)
       e.dataTransfer.effectAllowed = 'copyMove'
       e.dataTransfer.setData('text/plain', String(idx))
-      const resource = resources[idx]
-      if (resource) {
-        e.dataTransfer.setData(
-          SIM_RESOURCE_DRAG_TYPE,
-          JSON.stringify({ type: resource.type, id: resource.id, title: resource.title })
-        )
-      }
+      e.dataTransfer.setData(
+        SIM_RESOURCE_DRAG_TYPE,
+        JSON.stringify({ type: resource.type, id: resource.id, title: resource.title })
+      )
     },
-    [resources]
+    [resources, selectedIds]
   )
 
   const stopAutoScroll = useCallback(() => {
@@ -308,6 +470,7 @@ export function ResourceTabs({
             const isActive = activeId === resource.id
             const isHovered = hoveredTabId === resource.id
             const isDragging = draggedIdx === idx
+            const isSelected = selectedIds.has(resource.id) && selectedIds.size > 1
             const showGapBefore =
               dropGapIdx === idx &&
               draggedIdx !== null &&
@@ -329,22 +492,24 @@ export function ResourceTabs({
                     <Button
                       variant='subtle'
                       draggable
+                      data-resource-tab-id={resource.id}
                       onDragStart={(e) => handleDragStart(e, idx)}
                       onDragOver={(e) => handleDragOver(e, idx)}
                       onDragLeave={handleDragLeave}
                       onDragEnd={handleDragEnd}
                       onMouseDown={(e) => {
-                        if (e.button === 1 && chatId) {
+                        if (e.button === 1) {
                           e.preventDefault()
-                          handleRemove(e, resource)
+                          if (chatId) handleRemove(e, resource)
                         }
                       }}
-                      onClick={() => onSelect(resource.id)}
+                      onClick={(e) => handleTabClick(e, idx)}
                       onMouseEnter={() => setHoveredTabId(resource.id)}
                       onMouseLeave={() => setHoveredTabId(null)}
                       className={cn(
                         'group relative shrink-0 bg-transparent px-2 py-1 pr-[22px] text-caption transition-opacity duration-150',
                         isActive && 'bg-[var(--surface-4)]',
+                        isSelected && !isActive && 'bg-[var(--surface-3)]',
                         isDragging && 'opacity-30'
                       )}
                     >
@@ -394,6 +559,7 @@ export function ResourceTabs({
             existingKeys={existingKeys}
             onAdd={handleAdd}
             onSwitch={onSelect}
+            excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
           />
         )}
       </div>

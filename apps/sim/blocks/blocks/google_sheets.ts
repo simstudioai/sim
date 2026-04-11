@@ -4,6 +4,7 @@ import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleSheetsResponse, GoogleSheetsV2Response } from '@/tools/google_sheets/types'
+import { getTrigger } from '@/triggers'
 
 // Legacy block - hidden from toolbar
 export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
@@ -716,6 +717,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       condition: { field: 'operation', value: 'copy_sheet' },
       required: true,
     },
+    ...getTrigger('google_sheets_poller').subBlocks,
   ],
   tools: {
     access: [
@@ -1067,5 +1069,9 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         ],
       },
     },
+  },
+  triggers: {
+    enabled: true,
+    available: ['google_sheets_poller'],
   },
 }

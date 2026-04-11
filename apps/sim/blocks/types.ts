@@ -19,7 +19,6 @@ export type BlockCategory = 'blocks' | 'tools' | 'triggers'
 export enum IntegrationType {
   AI = 'ai',
   Analytics = 'analytics',
-  Automation = 'automation',
   Communication = 'communication',
   CRM = 'crm',
   CustomerSupport = 'customer-support',
@@ -31,13 +30,11 @@ export enum IntegrationType {
   Email = 'email',
   FileStorage = 'file-storage',
   HR = 'hr',
-  Media = 'media',
   Other = 'other',
   Productivity = 'productivity',
-  SalesIntelligence = 'sales-intelligence',
+  Sales = 'sales',
   Search = 'search',
   Security = 'security',
-  Social = 'social',
 }
 
 export type IntegrationTag =
@@ -275,7 +272,7 @@ export interface SubBlockConfig {
   id: string
   title?: string
   type: SubBlockType
-  mode?: 'basic' | 'advanced' | 'both' | 'trigger' // Default is 'both' if not specified. 'trigger' means only shown in trigger mode
+  mode?: 'basic' | 'advanced' | 'both' | 'trigger' | 'trigger-advanced' // Default is 'both' if not specified. 'trigger' means only shown in trigger mode. 'trigger-advanced' is for advanced canonical pair members shown in trigger mode
   canonicalParamId?: string
   /** Controls parameter visibility in agent/tool-input context */
   paramVisibility?: 'user-or-llm' | 'user-only' | 'llm-only' | 'hidden'

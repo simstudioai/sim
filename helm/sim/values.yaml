@@ -968,6 +968,33 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
+    googleSheetsWebhookPoll:
+      enabled: true
+      name: google-sheets-webhook-poll
+      schedule: "*/1 * * * *"
+      path: "/api/webhooks/poll/google-sheets"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+    googleDriveWebhookPoll:
+      enabled: true
+      name: google-drive-webhook-poll
+      schedule: "*/1 * * * *"
+      path: "/api/webhooks/poll/google-drive"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+    googleCalendarWebhookPoll:
+      enabled: true
+      name: google-calendar-webhook-poll
+      schedule: "*/1 * * * *"
+      path: "/api/webhooks/poll/google-calendar"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
     renewSubscriptions:
       enabled: true
       name: renew-subscriptions

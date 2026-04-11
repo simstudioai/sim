@@ -11,6 +11,7 @@ export const SYSTEM_SUBBLOCK_IDS: string[] = [
   'samplePayload', // Example payload display
   'setupScript', // Setup script code (e.g., Apps Script)
   'scheduleInfo', // Schedule status display (next run, last run)
+  'triggerSave', // UI-only save button — stores no config data
 ]
 
 /**
@@ -42,7 +43,15 @@ export const MAX_CONSECUTIVE_FAILURES = 100
  * Used to route execution: polling providers use the full job queue
  * (Trigger.dev), non-polling providers execute inline.
  */
-export const POLLING_PROVIDERS = new Set(['gmail', 'outlook', 'rss', 'imap'])
+export const POLLING_PROVIDERS = new Set([
+  'gmail',
+  'google-calendar',
+  'google-drive',
+  'google-sheets',
+  'imap',
+  'outlook',
+  'rss',
+])
 
 export function isPollingWebhookProvider(provider: string): boolean {
   return POLLING_PROVIDERS.has(provider)

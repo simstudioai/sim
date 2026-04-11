@@ -145,7 +145,9 @@ export function Editor() {
     if (!triggerMode) return subBlocks
     return subBlocks.filter(
       (subBlock) =>
-        subBlock.mode === 'trigger' || subBlock.type === ('trigger-config' as SubBlockType)
+        subBlock.mode === 'trigger' ||
+        subBlock.mode === 'trigger-advanced' ||
+        subBlock.type === ('trigger-config' as SubBlockType)
     )
   }, [blockConfig?.subBlocks, triggerMode])
 

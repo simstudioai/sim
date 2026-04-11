@@ -4,6 +4,7 @@ import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleDriveResponse } from '@/tools/google_drive/types'
+import { getTrigger } from '@/triggers'
 
 export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
   type: 'google_drive',
@@ -719,6 +720,7 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
       required: true,
     },
     // Get Drive Info has no additional fields (just needs credential)
+    ...getTrigger('google_drive_poller').subBlocks,
   ],
   tools: {
     access: [
@@ -938,5 +940,9 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
     maxUploadSize: { type: 'string', description: 'Maximum upload size in bytes' },
     deleted: { type: 'boolean', description: 'Whether file was deleted' },
     removed: { type: 'boolean', description: 'Whether permission was removed' },
+  },
+  triggers: {
+    enabled: true,
+    available: ['google_drive_poller'],
   },
 }

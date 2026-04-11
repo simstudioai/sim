@@ -4,6 +4,7 @@ import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
 import type { GoogleCalendarResponse } from '@/tools/google_calendar/types'
+import { getTrigger } from '@/triggers'
 
 export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
   type: 'google_calendar',
@@ -488,6 +489,7 @@ Return ONLY the natural language event text - no explanations.`,
         { label: 'None (no emails sent)', id: 'none' },
       ],
     },
+    ...getTrigger('google_calendar_poller').subBlocks,
   ],
   tools: {
     access: [
@@ -643,6 +645,10 @@ Return ONLY the natural language event text - no explanations.`,
   outputs: {
     content: { type: 'string', description: 'Operation response content' },
     metadata: { type: 'json', description: 'Event or calendar metadata' },
+  },
+  triggers: {
+    enabled: true,
+    available: ['google_calendar_poller'],
   },
 }
 

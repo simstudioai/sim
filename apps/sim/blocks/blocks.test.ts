@@ -423,7 +423,7 @@ describe.concurrent('Blocks Module', () => {
     })
 
     it('should have valid mode values for subBlocks', () => {
-      const validModes = ['basic', 'advanced', 'both', 'trigger', undefined]
+      const validModes = ['basic', 'advanced', 'both', 'trigger', 'trigger-advanced', undefined]
       const blocks = getAllBlocks()
       for (const block of blocks) {
         for (const subBlock of block.subBlocks) {
@@ -669,7 +669,9 @@ describe.concurrent('Blocks Module', () => {
       for (const block of blocks) {
         // Exclude trigger-mode subBlocks — they operate in a separate rendering context
         // and their IDs don't participate in canonical param resolution
-        const nonTriggerSubBlocks = block.subBlocks.filter((sb) => sb.mode !== 'trigger')
+        const nonTriggerSubBlocks = block.subBlocks.filter(
+          (sb) => sb.mode !== 'trigger' && sb.mode !== 'trigger-advanced'
+        )
         const allSubBlockIds = new Set(nonTriggerSubBlocks.map((sb) => sb.id))
         const canonicalParamIds = new Set(
           nonTriggerSubBlocks.filter((sb) => sb.canonicalParamId).map((sb) => sb.canonicalParamId)
@@ -795,6 +797,8 @@ describe.concurrent('Blocks Module', () => {
         >()
 
         for (const subBlock of block.subBlocks) {
+          // Skip trigger-mode subBlocks — they operate in a separate rendering context
+          if (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') continue
           if (subBlock.canonicalParamId) {
             if (!canonicalGroups.has(subBlock.canonicalParamId)) {
               canonicalGroups.set(subBlock.canonicalParamId, [])
@@ -861,7 +865,7 @@ describe.concurrent('Blocks Module', () => {
               continue
             }
             // Skip trigger-mode subBlocks — they operate in a separate rendering context
-            if (subBlock.mode === 'trigger') {
+            if (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') {
               continue
             }
             const conditionKey = serializeCondition(subBlock.condition)
@@ -895,8 +899,11 @@ describe.concurrent('Blocks Module', () => {
         if (!block.inputs) continue
 
         // Find all canonical groups (subBlocks with canonicalParamId)
+        // Skip trigger-mode subBlocks — they operate in a separate rendering context
+        // and are not wired to the block's inputs section
         const canonicalGroups = new Map<string, string[]>()
         for (const subBlock of block.subBlocks) {
+          if (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') continue
           if (subBlock.canonicalParamId) {
             if (!canonicalGroups.has(subBlock.canonicalParamId)) {
               canonicalGroups.set(subBlock.canonicalParamId, [])
@@ -948,8 +955,10 @@ describe.concurrent('Blocks Module', () => {
           .replace(/\/\*[\s\S]*?\*\//g, '') // Remove multi-line comments
 
         // Find all canonical groups (subBlocks with canonicalParamId)
+        // Skip trigger-mode subBlocks — they are not passed through params function
         const canonicalGroups = new Map<string, string[]>()
         for (const subBlock of block.subBlocks) {
+          if (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') continue
           if (subBlock.canonicalParamId) {
             if (!canonicalGroups.has(subBlock.canonicalParamId)) {
               canonicalGroups.set(subBlock.canonicalParamId, [])
@@ -995,8 +1004,11 @@ describe.concurrent('Blocks Module', () => {
 
       for (const block of blocks) {
         // Find all canonical groups (subBlocks with canonicalParamId)
+        // Skip trigger-mode subBlocks — they operate in a separate rendering context
+        // and may have different required semantics from their block counterparts
         const canonicalGroups = new Map<string, typeof block.subBlocks>()
         for (const subBlock of block.subBlocks) {
+          if (subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced') continue
           if (subBlock.canonicalParamId) {
             if (!canonicalGroups.has(subBlock.canonicalParamId)) {
               canonicalGroups.set(subBlock.canonicalParamId, [])

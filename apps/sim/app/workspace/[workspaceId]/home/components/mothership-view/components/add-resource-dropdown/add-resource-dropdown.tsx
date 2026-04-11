@@ -36,6 +36,8 @@ export interface AddResourceDropdownProps {
   existingKeys: Set<string>
   onAdd: (resource: MothershipResource) => void
   onSwitch?: (resourceId: string) => void
+  /** Resource types to hide from the dropdown (e.g. `['folder', 'task']`). */
+  excludeTypes?: readonly MothershipResourceType[]
 }
 
 export type AvailableItem = { id: string; name: string; isOpen?: boolean; [key: string]: unknown }
@@ -47,7 +49,8 @@ interface AvailableItemsByType {
 
 export function useAvailableResources(
   workspaceId: string,
-  existingKeys: Set<string>
+  existingKeys: Set<string>,
+  excludeTypes?: readonly MothershipResourceType[]
 ): AvailableItemsByType[] {
   const { data: workflows = [] } = useWorkflows(workspaceId)
   const { data: tables = [] } = useTablesList(workspaceId)
@@ -56,8 +59,9 @@ export function useAvailableResources(
   const { data: folders = [] } = useFolders(workspaceId)
   const { data: tasks = [] } = useTasks(workspaceId)
 
-  return useMemo(
-    () => [
+  return useMemo(() => {
+    const excluded = new Set<MothershipResourceType>(excludeTypes ?? [])
+    const groups: AvailableItemsByType[] = [
       {
         type: 'workflow' as const,
         items: workflows.map((w) => ({
@@ -107,9 +111,9 @@ export function useAvailableResources(
           isOpen: existingKeys.has(`task:${t.id}`),
         })),
       },
-    ],
-    [workflows, folders, tables, files, knowledgeBases, tasks, existingKeys]
-  )
+    ]
+    return groups.filter((g) => !excluded.has(g.type))
+  }, [workflows, folders, tables, files, knowledgeBases, tasks, existingKeys, excludeTypes])
 }
 
 export function AddResourceDropdown({
@@ -117,11 +121,12 @@ export function AddResourceDropdown({
   existingKeys,
   onAdd,
   onSwitch,
+  excludeTypes,
 }: AddResourceDropdownProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
-  const available = useAvailableResources(workspaceId, existingKeys)
+  const available = useAvailableResources(workspaceId, existingKeys, excludeTypes)
 
   const handleOpenChange = useCallback((next: boolean) => {
     setOpen(next)
@@ -162,9 +167,9 @@ export function AddResourceDropdown({
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
         setActiveIndex((prev) => Math.max(prev - 1, 0))
-      } else if (e.key === 'Enter') {
-        e.preventDefault()
+      } else if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
         if (filtered.length > 0 && filtered[activeIndex]) {
+          e.preventDefault()
           const { type, item } = filtered[activeIndex]
           select({ type, id: item.id, title: item.name }, item.isOpen)
         }

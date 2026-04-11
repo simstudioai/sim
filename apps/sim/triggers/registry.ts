@@ -90,6 +90,9 @@ import {
 } from '@/triggers/github'
 import { gmailPollingTrigger } from '@/triggers/gmail'
 import { gongCallCompletedTrigger, gongWebhookTrigger } from '@/triggers/gong'
+import { googleCalendarPollingTrigger } from '@/triggers/google-calendar'
+import { googleDrivePollingTrigger } from '@/triggers/google-drive'
+import { googleSheetsPollingTrigger } from '@/triggers/google-sheets'
 import { googleFormsWebhookTrigger } from '@/triggers/googleforms'
 import {
   grainHighlightCreatedTrigger,
@@ -359,6 +362,9 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   fathom_new_meeting: fathomNewMeetingTrigger,
   fathom_webhook: fathomWebhookTrigger,
   gmail_poller: gmailPollingTrigger,
+  google_calendar_poller: googleCalendarPollingTrigger,
+  google_drive_poller: googleDrivePollingTrigger,
+  google_sheets_poller: googleSheetsPollingTrigger,
   gong_call_completed: gongCallCompletedTrigger,
   gong_webhook: gongWebhookTrigger,
   grain_webhook: grainWebhookTrigger,
