@@ -21,7 +21,7 @@
 import { db } from '@sim/db'
 import { auditLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, desc, eq, gte, lte, type SQL } from 'drizzle-orm'
+import { and, count, desc } from 'drizzle-orm'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -34,6 +34,7 @@ import {
   parsePaginationParams,
   toAdminAuditLog,
 } from '@/app/api/v1/admin/types'
+import { buildFilterConditions } from '@/app/api/v1/audit-logs/query'
 
 const logger = createLogger('AdminAuditLogsAPI')
 
@@ -41,33 +42,27 @@ export const GET = withAdminAuth(async (request) => {
   const url = new URL(request.url)
   const { limit, offset } = parsePaginationParams(url)
 
-  const actionFilter = url.searchParams.get('action')
-  const resourceTypeFilter = url.searchParams.get('resourceType')
-  const resourceIdFilter = url.searchParams.get('resourceId')
-  const workspaceIdFilter = url.searchParams.get('workspaceId')
-  const actorIdFilter = url.searchParams.get('actorId')
-  const actorEmailFilter = url.searchParams.get('actorEmail')
-  const startDateFilter = url.searchParams.get('startDate')
-  const endDateFilter = url.searchParams.get('endDate')
+  const startDate = url.searchParams.get('startDate') || undefined
+  const endDate = url.searchParams.get('endDate') || undefined
 
-  if (startDateFilter && Number.isNaN(Date.parse(startDateFilter))) {
+  if (startDate && Number.isNaN(Date.parse(startDate))) {
     return badRequestResponse('Invalid startDate format. Use ISO 8601.')
   }
-  if (endDateFilter && Number.isNaN(Date.parse(endDateFilter))) {
+  if (endDate && Number.isNaN(Date.parse(endDate))) {
     return badRequestResponse('Invalid endDate format. Use ISO 8601.')
   }
 
   try {
-    const conditions: SQL<unknown>[] = []
-
-    if (actionFilter) conditions.push(eq(auditLog.action, actionFilter))
-    if (resourceTypeFilter) conditions.push(eq(auditLog.resourceType, resourceTypeFilter))
-    if (resourceIdFilter) conditions.push(eq(auditLog.resourceId, resourceIdFilter))
-    if (workspaceIdFilter) conditions.push(eq(auditLog.workspaceId, workspaceIdFilter))
-    if (actorIdFilter) conditions.push(eq(auditLog.actorId, actorIdFilter))
-    if (actorEmailFilter) conditions.push(eq(auditLog.actorEmail, actorEmailFilter))
-    if (startDateFilter) conditions.push(gte(auditLog.createdAt, new Date(startDateFilter)))
-    if (endDateFilter) conditions.push(lte(auditLog.createdAt, new Date(endDateFilter)))
+    const conditions = buildFilterConditions({
+      action: url.searchParams.get('action') || undefined,
+      resourceType: url.searchParams.get('resourceType') || undefined,
+      resourceId: url.searchParams.get('resourceId') || undefined,
+      workspaceId: url.searchParams.get('workspaceId') || undefined,
+      actorId: url.searchParams.get('actorId') || undefined,
+      actorEmail: url.searchParams.get('actorEmail') || undefined,
+      startDate,
+      endDate,
+    })
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 
