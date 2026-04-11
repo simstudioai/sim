@@ -201,8 +201,13 @@ export function Home({ chatId }: HomeProps = {}) {
 
   useEffect(() => {
     wasSendingRef.current = false
-    if (resolvedChatId) markRead(resolvedChatId)
-  }, [resolvedChatId, markRead])
+    if (resolvedChatId) {
+      markRead(resolvedChatId)
+    } else {
+      clearWidth()
+      setIsResourceCollapsed(true)
+    }
+  }, [resolvedChatId, markRead, clearWidth])
 
   useEffect(() => {
     if (wasSendingRef.current && !isSending && resolvedChatId) {
@@ -291,14 +296,6 @@ export function Home({ chatId }: HomeProps = {}) {
     [resolveResourceFromContext, addResource, handleResourceEvent]
   )
 
-  const handleContextRemove = useCallback(
-    (context: ChatContext) => {
-      const resolved = resolveResourceFromContext(context)
-      if (resolved) removeResource(resolved.type, resolved.id)
-    },
-    [resolveResourceFromContext, removeResource]
-  )
-
   const handleWorkspaceResourceSelect = useCallback(
     (resource: MothershipResource) => {
       const wasAdded = addResource(resource)
@@ -348,7 +345,6 @@ export function Home({ chatId }: HomeProps = {}) {
               onStopGeneration={handleStopGeneration}
               userId={session?.user?.id}
               onContextAdd={handleContextAdd}
-              onContextRemove={handleContextRemove}
             />
           </div>
         </div>
@@ -380,7 +376,6 @@ export function Home({ chatId }: HomeProps = {}) {
           userId={session?.user?.id}
           chatId={resolvedChatId}
           onContextAdd={handleContextAdd}
-          onContextRemove={handleContextRemove}
           onWorkspaceResourceSelect={handleWorkspaceResourceSelect}
           editValue={editingInputValue}
           onEditValueConsumed={clearEditingValue}
