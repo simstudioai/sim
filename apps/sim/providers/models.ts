@@ -69,6 +69,10 @@ export interface ProviderDefinition {
   defaultModel: string
   modelPatterns?: RegExp[]
   icon?: React.ComponentType<{ className?: string }>
+  /** Brand color used in charts and visualizations (hex string) */
+  color?: string
+  /** True when this provider re-hosts other providers' models (e.g. Azure, Bedrock, OpenRouter) */
+  isReseller?: boolean
   capabilities?: ModelCapabilities
   contextInformationAvailable?: boolean
 }
@@ -81,6 +85,8 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     defaultModel: '',
     modelPatterns: [/^fireworks\//],
     icon: FireworksIcon,
+    color: '#FF6D3A',
+    isReseller: true,
     capabilities: {
       temperature: { min: 0, max: 2 },
       toolUsageControl: true,
@@ -95,6 +101,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     defaultModel: '',
     modelPatterns: [/^openrouter\//],
     icon: OpenRouterIcon,
+    isReseller: true,
     capabilities: {
       temperature: { min: 0, max: 2 },
       toolUsageControl: true,
@@ -122,6 +129,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     defaultModel: 'gpt-4.1',
     modelPatterns: [/^gpt/, /^o\d/, /^text-embedding/],
     icon: OpenAIIcon,
+    color: '#E8E8E8',
     capabilities: {
       toolUsageControl: true,
     },
@@ -506,6 +514,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     defaultModel: 'claude-sonnet-4-6',
     modelPatterns: [/^claude/],
     icon: AnthropicIcon,
+    color: '#D97757',
     capabilities: {
       toolUsageControl: true,
     },
@@ -695,6 +704,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       toolUsageControl: true,
     },
     icon: AzureIcon,
+    isReseller: true,
     models: [
       {
         id: 'azure/gpt-4o',
@@ -1004,6 +1014,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     defaultModel: 'azure-anthropic/claude-sonnet-4-5',
     modelPatterns: [/^azure-anthropic\//],
     icon: AzureIcon,
+    isReseller: true,
     capabilities: {
       toolUsageControl: true,
     },
@@ -1120,6 +1131,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       toolUsageControl: true,
     },
     icon: GeminiIcon,
+    color: '#4285F4',
     models: [
       {
         id: 'gemini-3.1-pro-preview',
@@ -1250,7 +1262,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           maxOutputTokens: 8192,
         },
         contextWindow: 1048576,
-        releaseDate: '2025-02-05',
+        releaseDate: '2025-02-25',
       },
       {
         id: 'deep-research-pro-preview-12-2025',
@@ -1265,7 +1277,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           maxOutputTokens: 65536,
         },
         contextWindow: 1000000,
-        releaseDate: '2025-12-01',
+        releaseDate: '2025-12-11',
       },
     ],
   },
@@ -1276,6 +1288,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     defaultModel: 'vertex/gemini-2.5-pro',
     modelPatterns: [/^vertex\//],
     icon: VertexIcon,
+    isReseller: true,
     capabilities: {
       toolUsageControl: true,
     },
@@ -1332,7 +1345,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           },
         },
         contextWindow: 1000000,
-        releaseDate: '2025-12-10',
+        releaseDate: '2025-11-18',
       },
       {
         id: 'vertex/gemini-3-flash-preview',
@@ -1419,7 +1432,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 2 },
         },
         contextWindow: 1048576,
-        releaseDate: '2025-02-05',
+        releaseDate: '2025-02-25',
       },
       {
         id: 'vertex/deep-research-pro-preview-12-2025',
@@ -1433,17 +1446,18 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           memory: false,
         },
         contextWindow: 1000000,
-        releaseDate: '2025-12-01',
+        releaseDate: '2025-12-11',
       },
     ],
   },
   deepseek: {
     id: 'deepseek',
-    name: 'Deepseek',
-    description: "Deepseek's chat models",
+    name: 'DeepSeek',
+    description: "DeepSeek's chat models",
     defaultModel: 'deepseek-chat',
     modelPatterns: [],
     icon: DeepseekIcon,
+    color: '#4D6BFE',
     capabilities: {
       toolUsageControl: true,
     },
@@ -1458,7 +1472,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {},
         contextWindow: 128000,
-        releaseDate: '2025-01-20',
+        releaseDate: '2024-12-26',
       },
       {
         id: 'deepseek-v3',
@@ -1507,6 +1521,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     defaultModel: 'grok-4-latest',
     modelPatterns: [/^grok/],
     icon: xAIIcon,
+    color: '#555555',
     capabilities: {
       toolUsageControl: true,
     },
@@ -1551,7 +1566,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 2000000,
-        releaseDate: '2025-11-20',
+        releaseDate: '2025-11-19',
       },
       {
         id: 'grok-4-1-fast-non-reasoning',
@@ -1565,7 +1580,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 2000000,
-        releaseDate: '2025-11-20',
+        releaseDate: '2025-11-19',
       },
       {
         id: 'grok-4-fast-reasoning',
@@ -1579,7 +1594,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 2000000,
-        releaseDate: '2025-07-09',
+        releaseDate: '2025-09-19',
       },
       {
         id: 'grok-4-fast-non-reasoning',
@@ -1593,7 +1608,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 2000000,
-        releaseDate: '2025-07-09',
+        releaseDate: '2025-09-19',
       },
       {
         id: 'grok-code-fast-1',
@@ -1607,7 +1622,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 256000,
-        releaseDate: '2025-08-26',
+        releaseDate: '2025-08-28',
       },
       {
         id: 'grok-4.20-0309-reasoning',
@@ -1688,6 +1703,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     defaultModel: 'cerebras/gpt-oss-120b',
     modelPatterns: [/^cerebras/],
     icon: CerebrasIcon,
+    color: '#6D5BF7',
     capabilities: {
       toolUsageControl: true,
     },
@@ -1701,7 +1717,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {},
         contextWindow: 131072,
-        releaseDate: '2025-06-15',
+        releaseDate: '2025-08-05',
       },
       {
         id: 'cerebras/llama3.1-8b',
@@ -1712,7 +1728,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {},
         contextWindow: 32768,
-        releaseDate: '2024-09-01',
+        releaseDate: '2024-08-27',
       },
       {
         id: 'cerebras/qwen-3-235b-a22b-instruct-2507',
@@ -1723,7 +1739,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {},
         contextWindow: 131072,
-        releaseDate: '2025-07-15',
+        releaseDate: '2025-07-29',
       },
       {
         id: 'cerebras/zai-glm-4.7',
@@ -1734,7 +1750,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {},
         contextWindow: 131072,
-        releaseDate: '2025-08-20',
+        releaseDate: '2025-12-22',
       },
     ],
   },
@@ -1745,6 +1761,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     defaultModel: 'groq/llama-3.3-70b-versatile',
     modelPatterns: [/^groq/],
     icon: GroqIcon,
+    color: '#F55036',
     capabilities: {
       toolUsageControl: true,
     },
@@ -1758,7 +1775,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {},
         contextWindow: 131072,
-        releaseDate: '2025-06-15',
+        releaseDate: '2025-08-05',
       },
       {
         id: 'groq/openai/gpt-oss-20b',
@@ -1769,7 +1786,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {},
         contextWindow: 131072,
-        releaseDate: '2025-06-15',
+        releaseDate: '2025-08-05',
       },
       {
         id: 'groq/openai/gpt-oss-safeguard-20b',
@@ -1780,7 +1797,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         capabilities: {},
         contextWindow: 131072,
-        releaseDate: '2025-06-15',
+        releaseDate: '2025-10-29',
       },
       {
         id: 'groq/qwen/qwen3-32b',
@@ -1853,6 +1870,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       /^devstral/,
     ],
     icon: MistralIcon,
+    color: '#F7D046',
     capabilities: {
       toolUsageControl: true,
     },
@@ -1868,7 +1886,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 256000,
-        releaseDate: '2025-01-29',
+        releaseDate: '2025-12-02',
       },
       {
         id: 'mistral-large-2512',
@@ -1881,7 +1899,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 256000,
-        releaseDate: '2025-12-15',
+        releaseDate: '2025-12-02',
       },
       {
         id: 'mistral-small-2603',
@@ -1894,7 +1912,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 256000,
-        releaseDate: '2026-03-06',
+        releaseDate: '2026-03-16',
       },
       {
         id: 'devstral-2512',
@@ -1907,7 +1925,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 256000,
-        releaseDate: '2025-12-15',
+        releaseDate: '2025-12-09',
       },
       {
         id: 'mistral-large-2411',
@@ -1946,7 +1964,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 128000,
-        releaseDate: '2025-09-15',
+        releaseDate: '2025-09-17',
       },
       {
         id: 'magistral-small-latest',
@@ -1972,7 +1990,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 128000,
-        releaseDate: '2025-09-15',
+        releaseDate: '2025-09-17',
       },
       {
         id: 'mistral-medium-latest',
@@ -1985,7 +2003,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 128000,
-        releaseDate: '2025-08-01',
+        releaseDate: '2025-08-12',
       },
       {
         id: 'mistral-medium-2508',
@@ -1998,7 +2016,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 128000,
-        releaseDate: '2025-08-01',
+        releaseDate: '2025-08-12',
       },
       {
         id: 'mistral-medium-2505',
@@ -2011,7 +2029,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 128000,
-        releaseDate: '2025-05-15',
+        releaseDate: '2025-05-07',
       },
       {
         id: 'mistral-small-latest',
@@ -2024,7 +2042,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 256000,
-        releaseDate: '2025-03-06',
+        releaseDate: '2026-03-16',
       },
       {
         id: 'mistral-small-2506',
@@ -2037,7 +2055,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 128000,
-        releaseDate: '2025-06-15',
+        releaseDate: '2025-06-20',
       },
       {
         id: 'open-mistral-nemo',
@@ -2063,7 +2081,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 128000,
-        releaseDate: '2025-08-01',
+        releaseDate: '2025-07-30',
       },
       {
         id: 'codestral-2508',
@@ -2076,7 +2094,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 128000,
-        releaseDate: '2025-08-01',
+        releaseDate: '2025-07-30',
       },
       {
         id: 'devstral-latest',
@@ -2089,7 +2107,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 256000,
-        releaseDate: '2025-05-20',
+        releaseDate: '2025-05-21',
       },
       {
         id: 'devstral-small-latest',
@@ -2102,7 +2120,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 256000,
-        releaseDate: '2025-07-15',
+        releaseDate: '2025-07-10',
       },
       {
         id: 'devstral-small-2507',
@@ -2115,7 +2133,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 128000,
-        releaseDate: '2025-07-15',
+        releaseDate: '2025-07-10',
       },
       {
         id: 'devstral-medium-2507',
@@ -2128,7 +2146,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 128000,
-        releaseDate: '2025-07-15',
+        releaseDate: '2025-07-10',
       },
       {
         id: 'ministral-14b-latest',
@@ -2141,7 +2159,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 256000,
-        releaseDate: '2025-12-15',
+        releaseDate: '2025-12-02',
       },
       {
         id: 'ministral-14b-2512',
@@ -2154,7 +2172,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 256000,
-        releaseDate: '2025-12-15',
+        releaseDate: '2025-12-02',
       },
       {
         id: 'ministral-8b-latest',
@@ -2180,7 +2198,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 256000,
-        releaseDate: '2025-12-15',
+        releaseDate: '2025-12-02',
       },
       {
         id: 'ministral-3b-latest',
@@ -2206,7 +2224,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 256000,
-        releaseDate: '2025-12-15',
+        releaseDate: '2025-12-02',
       },
     ],
   },
@@ -2230,6 +2248,8 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     defaultModel: 'bedrock/anthropic.claude-sonnet-4-5-20250929-v1:0',
     modelPatterns: [/^bedrock\//],
     icon: BedrockIcon,
+    color: '#FF9900',
+    isReseller: true,
     capabilities: {
       temperature: { min: 0, max: 1 },
       toolUsageControl: true,
@@ -2306,7 +2326,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 1000000,
-        releaseDate: '2025-06-01',
+        releaseDate: '2025-12-02',
       },
       {
         id: 'bedrock/amazon.nova-2-lite-v1:0',
@@ -2319,7 +2339,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 1000000,
-        releaseDate: '2025-06-01',
+        releaseDate: '2025-12-02',
       },
       {
         id: 'bedrock/amazon.nova-premier-v1:0',
@@ -2332,7 +2352,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
           temperature: { min: 0, max: 1 },
         },
         contextWindow: 1000000,
-        releaseDate: '2025-02-04',
+        releaseDate: '2025-04-30',
       },
       {
         id: 'bedrock/amazon.nova-pro-v1:0',

@@ -1,18 +1,9 @@
-export const PROVIDER_COLORS: Record<string, string> = {
-  anthropic: '#D97757',
-  openai: '#E8E8E8',
-  google: '#4285F4',
-  xai: '#555555',
-  mistral: '#F7D046',
-  groq: '#F55036',
-  cerebras: '#6D5BF7',
-  deepseek: '#4D6BFE',
-  fireworks: '#FF6D3A',
-  bedrock: '#FF9900',
-}
+import { MODEL_CATALOG_PROVIDERS } from '@/app/(landing)/models/utils'
 
-const DEFAULT_COLOR = '#888888'
+const colorMap = new Map(
+  MODEL_CATALOG_PROVIDERS.filter((p) => p.color).map((p) => [p.id, p.color as string])
+)
 
 export function getProviderColor(providerId: string): string {
-  return PROVIDER_COLORS[providerId] ?? DEFAULT_COLOR
+  return colorMap.get(providerId) ?? '#888888'
 }

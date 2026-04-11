@@ -12,14 +12,9 @@ import {
 } from '@/app/(landing)/models/utils'
 
 /** Providers that host other providers' models — deprioritized to avoid duplicates. */
-const RESELLER_PROVIDERS = new Set([
-  'azure-openai',
-  'azure-anthropic',
-  'bedrock',
-  'vertex',
-  'openrouter',
-  'fireworks',
-])
+const RESELLER_PROVIDERS = new Set(
+  MODEL_CATALOG_PROVIDERS.filter((p) => p.isReseller).map((p) => p.id)
+)
 
 const PROVIDER_ICON_MAP: Record<string, ComponentType<{ className?: string }>> = (() => {
   const map: Record<string, ComponentType<{ className?: string }>> = {}

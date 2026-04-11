@@ -22,24 +22,29 @@ const baseUrl = getBaseUrl()
 
 const faqItems = [
   {
-    question: 'What is the Sim AI models directory?',
+    question: 'Which AI models are best for building agents and automated workflows?',
     answer:
-      'The Sim AI models directory is a public catalog of the language models and providers tracked inside Sim. It shows provider coverage, model IDs, pricing per one million tokens, context windows, and supported capabilities such as reasoning controls, structured outputs, and deep research.',
+      'The most important factors for agent tasks are reliable tool use (function calling), a large enough context window to track conversation history and tool outputs, and consistent instruction following. In Sim, OpenAI GPT-4.1, Anthropic Claude Sonnet, and Google Gemini 2.5 Pro are popular choices — each supports tool use, structured outputs, and context windows of 128K tokens or more. For cost-sensitive or high-throughput agents, Groq and Cerebras offer significantly faster inference at lower cost.',
   },
   {
-    question: 'Can I compare models from multiple providers in one place?',
+    question: 'What does context window size mean when running an AI agent?',
     answer:
-      'Yes. This page organizes every tracked model by provider and lets you search across providers, model names, and capabilities. You can quickly compare OpenAI, Anthropic, Google, xAI, Mistral, Groq, Cerebras, Fireworks, Bedrock, and more from a single directory.',
+      'The context window is the total number of tokens a model can process in a single call, including your system prompt, conversation history, tool call results, and any documents you pass in. For agents running multi-step tasks, context fills up quickly — each tool result and each retrieved document adds tokens. A 128K-token context window fits roughly 300 pages of text; models like Gemini 2.5 Pro support up to 1M tokens, enough to hold an entire codebase in a single pass.',
   },
   {
-    question: 'Are these model prices shown per million tokens?',
+    question: 'Are model prices shown per million tokens?',
     answer:
-      'Yes. Input, cached input, and output prices on this page are shown per one million tokens based on the provider metadata tracked in Sim.',
+      'Yes. Input, cached input, and output prices are all listed per one million tokens, matching how providers bill through their APIs. For agents that chain multiple calls, costs compound quickly — an agent completing 100 turns at 10K tokens each consumes roughly 1M tokens per session. Cached input pricing applies when a provider supports prompt caching, where a repeated prefix like a system prompt is billed at a reduced rate.',
   },
   {
-    question: 'Does Sim support providers with dynamic model catalogs too?',
+    question: 'Which AI models support tool use and function calling?',
     answer:
-      'Yes. Some providers such as OpenRouter, Fireworks, Ollama, and vLLM load their model lists dynamically at runtime. Those providers are still shown here even when their full public model list is not hard-coded into the catalog.',
+      'Tool use — also called function calling — lets an agent invoke external APIs, query databases, run code, or take any action you define. In Sim, all first-party models from OpenAI, Anthropic, Google, Mistral, Groq, Cerebras, and xAI support tool use. Look for the Tool Use capability tag on any model card in this directory to confirm support.',
+  },
+  {
+    question: 'How do I add a model to a Sim agent workflow?',
+    answer:
+      'Open any workflow in Sim, add an Agent block, and select your provider and model from the model picker inside that block. Every model listed in this directory is available in the Agent block. Swapping models takes one click and does not affect the rest of your workflow, making it straightforward to test different models on the same task without rebuilding anything.',
   },
 ]
 
