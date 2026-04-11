@@ -89,12 +89,12 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
 
       const config = webhookData.providerConfig as unknown as GoogleDriveWebhookConfig
 
-      // First poll: seed page token and known file set
+      // First poll (or re-seed after 410): seed page token, preserve any existing known file IDs.
       if (!config.pageToken) {
         const startPageToken = await getStartPageToken(accessToken, config, requestId, logger)
         await updateWebhookProviderConfig(
           webhookId,
-          { pageToken: startPageToken, knownFileIds: [] },
+          { pageToken: startPageToken, knownFileIds: config.knownFileIds ?? [] },
           logger
         )
         await markWebhookSuccess(webhookId, logger)
@@ -194,6 +194,16 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
   },
 }
 
+const DRIVE_RATE_LIMIT_REASONS = new Set(['rateLimitExceeded', 'userRateLimitExceeded'])
+
+/** Returns true only for quota/rate-limit 403s, not permission errors. */
+function isDriveRateLimitError(status: number, errorData: Record<string, unknown>): boolean {
+  if (status !== 403) return false
+  const reason = (errorData as { error?: { errors?: { reason?: string }[] } })?.error?.errors?.[0]
+    ?.reason
+  return reason !== undefined && DRIVE_RATE_LIMIT_REASONS.has(reason)
+}
+
 async function getStartPageToken(
   accessToken: string,
   config: GoogleDriveWebhookConfig,
@@ -213,7 +223,7 @@ async function getStartPageToken(
   if (!response.ok) {
     const status = response.status
     const errorData = await response.json().catch(() => ({}))
-    if (status === 403 || status === 429) {
+    if (status === 429 || isDriveRateLimitError(status, errorData)) {
       const err = new Error(`Drive API rate limit (${status}): ${JSON.stringify(errorData)}`)
       err.name = 'DriveRateLimitError'
       throw err
@@ -267,7 +277,7 @@ async function fetchChanges(
         err.name = 'DrivePageTokenInvalidError'
         throw err
       }
-      if (status === 403 || status === 429) {
+      if (status === 429 || isDriveRateLimitError(status, errorData)) {
         const err = new Error(`Drive API rate limit (${status}): ${JSON.stringify(errorData)}`)
         err.name = 'DriveRateLimitError'
         throw err
