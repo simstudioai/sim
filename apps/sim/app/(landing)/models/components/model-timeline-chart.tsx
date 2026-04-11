@@ -2,26 +2,8 @@
 
 import { useMemo } from 'react'
 import Link from 'next/link'
+import { getProviderColor } from '@/app/(landing)/models/components/model-colors'
 import type { CatalogModel } from '@/app/(landing)/models/utils'
-
-const PROVIDER_COLORS: Record<string, string> = {
-  anthropic: '#D97757',
-  openai: '#E8E8E8',
-  google: '#4285F4',
-  xai: '#555555',
-  mistral: '#F7D046',
-  groq: '#F55036',
-  cerebras: '#6D5BF7',
-  deepseek: '#4D6BFE',
-  fireworks: '#FF6D3A',
-  bedrock: '#FF9900',
-}
-
-const DEFAULT_COLOR = '#888888'
-
-function getColor(providerId: string): string {
-  return PROVIDER_COLORS[providerId] ?? DEFAULT_COLOR
-}
 
 function formatShortDate(date: string): string {
   try {
@@ -29,6 +11,7 @@ function formatShortDate(date: string): string {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
+      timeZone: 'UTC',
     }).format(new Date(date))
   } catch {
     return date
@@ -56,7 +39,7 @@ export function ModelTimelineChart({ models, providerId }: ModelTimelineChartPro
 
   if (entries.length === 0) return null
 
-  const color = getColor(providerId)
+  const color = getProviderColor(providerId)
 
   return (
     <section aria-labelledby='timeline-heading'>

@@ -1,6 +1,7 @@
 import type { ComponentType, SVGProps } from 'react'
 import Link from 'next/link'
 import type { Integration } from '@/app/(landing)/integrations/data/types'
+import { ChevronArrow } from '@/app/(landing)/models/components/model-primitives'
 import { IntegrationIcon } from './integration-icon'
 
 interface IntegrationCardProps {
@@ -79,41 +80,5 @@ export function IntegrationRow({ integration, IconComponent }: IntegrationRowPro
       </Link>
       <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
     </>
-  )
-}
-
-/**
- * Animated chevron arrow matching the footer/landing pattern.
- * Line scales in from left, chevron translates right on hover.
- */
-function ChevronArrow() {
-  return (
-    <svg
-      className='h-3 w-3 shrink-0 text-[var(--landing-text-subtle)]'
-      viewBox='0 0 10 10'
-      fill='none'
-      xmlns='http://www.w3.org/2000/svg'
-      aria-hidden='true'
-    >
-      <line
-        x1='0'
-        y1='5'
-        x2='9'
-        y2='5'
-        stroke='currentColor'
-        strokeWidth='1.33'
-        strokeLinecap='square'
-        className='origin-left scale-x-0 transition-transform duration-200 ease-out [transform-box:fill-box] group-hover/link:scale-x-100'
-      />
-      <path
-        d='M3.5 2L6.5 5L3.5 8'
-        stroke='currentColor'
-        strokeWidth='1.33'
-        strokeLinecap='square'
-        strokeLinejoin='miter'
-        fill='none'
-        className='transition-transform duration-200 ease-out group-hover/link:translate-x-[30%]'
-      />
-    </svg>
   )
 }

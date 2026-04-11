@@ -3,31 +3,13 @@
 import type { ComponentType } from 'react'
 import { useMemo } from 'react'
 import Link from 'next/link'
+import { getProviderColor } from '@/app/(landing)/models/components/model-colors'
 import type { CatalogModel } from '@/app/(landing)/models/utils'
 import {
   formatPrice,
   formatTokenCount,
   MODEL_CATALOG_PROVIDERS,
 } from '@/app/(landing)/models/utils'
-
-const PROVIDER_COLORS: Record<string, string> = {
-  anthropic: '#D97757',
-  openai: '#E8E8E8',
-  google: '#4285F4',
-  xai: '#555555',
-  mistral: '#F7D046',
-  groq: '#F55036',
-  cerebras: '#6D5BF7',
-  deepseek: '#4D6BFE',
-  fireworks: '#FF6D3A',
-  bedrock: '#FF9900',
-}
-
-const DEFAULT_COLOR = '#888888'
-
-function getColor(providerId: string): string {
-  return PROVIDER_COLORS[providerId] ?? DEFAULT_COLOR
-}
 
 /** Providers that host other providers' models — deprioritized to avoid duplicates. */
 const RESELLER_PROVIDERS = new Set([
@@ -128,7 +110,7 @@ function StackedCostChart({ models }: ChartProps) {
         {data.entries.map(({ model, input, output, total }) => {
           const totalPct = data.maxTotal > 0 ? (total / data.maxTotal) * 100 : 0
           const inputPct = total > 0 ? (input / total) * 100 : 0
-          const color = getColor(model.providerId)
+          const color = getProviderColor(model.providerId)
 
           return (
             <Link
@@ -201,7 +183,7 @@ function ContextWindowChart({ models }: ChartProps) {
       <div className='flex flex-col gap-1.5'>
         {data.entries.map(({ model, value }) => {
           const pct = data.maxValue > 0 ? (value / data.maxValue) * 100 : 0
-          const color = getColor(model.providerId)
+          const color = getProviderColor(model.providerId)
 
           return (
             <Link
