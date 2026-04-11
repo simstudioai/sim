@@ -13,6 +13,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl, getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import { parseMcpToolId } from '@/lib/mcp/utils'
+import { autoPaginate } from '@/lib/paginated-cache/paginate'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
 import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext } from '@/executor/types'
@@ -600,6 +601,37 @@ async function processFileOutputs(
 }
 
 /**
+ * If the tool has a pagination config and there are more pages, auto-paginate
+ * and replace the page field with a Redis cache reference.
+ */
+async function maybeAutoPaginate(
+  tool: ToolConfig,
+  finalResult: ToolResponse,
+  contextParams: Record<string, unknown>,
+  normalizedToolId: string,
+  skipAutoPaginate: boolean,
+  executionContext?: ExecutionContext
+): Promise<ToolResponse> {
+  if (
+    !tool.pagination ||
+    !finalResult.success ||
+    skipAutoPaginate ||
+    !executionContext?.executionId
+  ) {
+    return finalResult
+  }
+  return autoPaginate({
+    initialResult: finalResult,
+    params: contextParams,
+    paginationConfig: tool.pagination,
+    executeTool,
+    toolId: normalizedToolId,
+    executionId: executionContext.executionId,
+    executionContext,
+  })
+}
+
+/**
  * Execute a tool by making the appropriate HTTP request
  * All requests go directly - internal routes use regular fetch, external use SSRF-protected fetch
  */
@@ -607,7 +639,8 @@ export async function executeTool(
   toolId: string,
   params: Record<string, any>,
   skipPostProcess = false,
-  executionContext?: ExecutionContext
+  executionContext?: ExecutionContext,
+  skipAutoPaginate = false
 ): Promise<ToolResponse> {
   // Capture start time for precise timing
   const startTime = new Date()
@@ -819,6 +852,17 @@ export async function executeTool(
       // Process file outputs if execution context is available
       finalResult = await processFileOutputs(finalResult, tool, executionContext)
 
+      // Auto-paginate if configured (duplicated in both directExecution and HTTP branches
+      // because each returns independently with timing data)
+      finalResult = await maybeAutoPaginate(
+        tool,
+        finalResult,
+        contextParams,
+        normalizedToolId,
+        skipAutoPaginate,
+        executionContext
+      )
+
       // Add timing data to the result
       const endTime = new Date()
       const endTimeISO = endTime.toISOString()
@@ -873,6 +917,15 @@ export async function executeTool(
 
     // Process file outputs if execution context is available
     finalResult = await processFileOutputs(finalResult, tool, executionContext)
+
+    finalResult = await maybeAutoPaginate(
+      tool,
+      finalResult,
+      contextParams,
+      normalizedToolId,
+      skipAutoPaginate,
+      executionContext
+    )
 
     // Add timing data to the result
     const endTime = new Date()

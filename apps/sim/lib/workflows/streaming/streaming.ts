@@ -7,6 +7,7 @@ import {
 } from '@/lib/core/utils/response-format'
 import { encodeSSE } from '@/lib/core/utils/sse'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { cleanupPaginatedCache } from '@/lib/paginated-cache/paginate'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import {
   cleanupExecutionBase64Cache,
@@ -354,6 +355,9 @@ export async function createStreamingResponse(
 
         if (executionId) {
           await cleanupExecutionBase64Cache(executionId)
+          void cleanupPaginatedCache(executionId).catch((error) => {
+            logger.error('Failed to cleanup paginated cache', { executionId, error })
+          })
         }
 
         controller.close()
@@ -365,6 +369,9 @@ export async function createStreamingResponse(
 
         if (executionId) {
           await cleanupExecutionBase64Cache(executionId)
+          void cleanupPaginatedCache(executionId).catch((error) => {
+            logger.error('Failed to cleanup paginated cache', { executionId, error })
+          })
         }
 
         controller.close()
@@ -382,6 +389,9 @@ export async function createStreamingResponse(
         } catch (error) {
           logger.error(`[${requestId}] Failed to cleanup base64 cache`, { error })
         }
+        void cleanupPaginatedCache(executionId).catch((error) => {
+          logger.error('Failed to cleanup paginated cache', { executionId, error })
+        })
       }
     },
   })

@@ -1,6 +1,7 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { hydrateCacheReferences } from '@/lib/paginated-cache/paginate'
 import {
   containsUserFileWithMetadata,
   hydrateUserFilesWithBase64,
@@ -166,6 +167,10 @@ export class BlockExecutor {
           maxBytes: ctx.base64MaxBytes,
         })) as NormalizedBlockOutput
       }
+
+      normalizedOutput = (await hydrateCacheReferences(
+        normalizedOutput as Record<string, unknown>
+      )) as NormalizedBlockOutput
 
       const duration = performance.now() - startTime
 
