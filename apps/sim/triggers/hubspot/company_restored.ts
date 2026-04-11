@@ -94,17 +94,6 @@ export const hubspotCompanyRestoredTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_company_restored',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_company_restored',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',

@@ -94,17 +94,6 @@ export const hubspotContactDeletedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_contact_deleted',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_contact_deleted',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',

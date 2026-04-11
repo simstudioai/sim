@@ -110,18 +110,6 @@ export const webflowFormSubmissionTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'webflow_form_submission',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'webflow_form_submission',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

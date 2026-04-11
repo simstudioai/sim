@@ -168,18 +168,6 @@ export const webflowCollectionItemChangedTrigger: TriggerConfig = {
       dependsOn: ['triggerCredentials', 'triggerSiteId'],
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'webflow_collection_item_changed',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'webflow_collection_item_changed',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

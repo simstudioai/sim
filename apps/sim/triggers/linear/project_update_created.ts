@@ -44,18 +44,6 @@ export const linearProjectUpdateCreatedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'linear_project_update_created',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'linear_project_update_created',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,
