@@ -445,6 +445,7 @@ export function UserInput({
     sttPrefixRef.current = ''
     resetTranscript()
     currentFiles.clearAttachedFiles()
+    prevSelectedContextsRef.current = []
     currentContext.clearContexts()
 
     if (textareaRef.current) {

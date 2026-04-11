@@ -2391,6 +2391,16 @@ export function useChat(
           : undefined
 
       const requestChatId = selectedChatIdRef.current ?? chatIdRef.current
+      const messageContexts = contexts?.map((c) => ({
+        kind: c.kind,
+        label: c.label,
+        ...('workflowId' in c && c.workflowId ? { workflowId: c.workflowId } : {}),
+        ...('knowledgeId' in c && c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
+        ...('tableId' in c && c.tableId ? { tableId: c.tableId } : {}),
+        ...('fileId' in c && c.fileId ? { fileId: c.fileId } : {}),
+        ...('folderId' in c && c.folderId ? { folderId: c.folderId } : {}),
+      }))
+
       if (requestChatId) {
         const cachedUserMsg: PersistedMessage = {
           id: userMessageId,
@@ -2398,11 +2408,13 @@ export function useChat(
           content: message,
           timestamp: new Date().toISOString(),
           ...(storedAttachments && { fileAttachments: storedAttachments }),
+          ...(messageContexts && messageContexts.length > 0 ? { contexts: messageContexts } : {}),
         }
         queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(requestChatId), (old) => {
           return old
             ? {
                 ...old,
+                resources: resourcesRef.current.filter((r) => r.id !== 'streaming-file'),
                 messages: [...old.messages, cachedUserMsg],
                 activeStreamId: userMessageId,
               }
@@ -2418,16 +2430,6 @@ export function useChat(
         previewUrl: f.media_type.startsWith('image/')
           ? `/api/files/serve/${encodeURIComponent(f.key)}?context=mothership`
           : undefined,
-      }))
-
-      const messageContexts = contexts?.map((c) => ({
-        kind: c.kind,
-        label: c.label,
-        ...('workflowId' in c && c.workflowId ? { workflowId: c.workflowId } : {}),
-        ...('knowledgeId' in c && c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
-        ...('tableId' in c && c.tableId ? { tableId: c.tableId } : {}),
-        ...('fileId' in c && c.fileId ? { fileId: c.fileId } : {}),
-        ...('folderId' in c && c.folderId ? { folderId: c.folderId } : {}),
       }))
 
       setMessages((prev) => [
