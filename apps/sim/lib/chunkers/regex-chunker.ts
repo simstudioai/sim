@@ -86,10 +86,12 @@ export class RegexChunker {
     if (segments.length <= 1) {
       logger.warn('Regex pattern did not produce any splits, falling back to character splitting')
       const chunkSizeChars = tokensToChars(this.chunkSize)
-      const overlapChars = tokensToChars(this.chunkOverlap)
-      const stepChars = this.chunkOverlap > 0 ? chunkSizeChars - overlapChars : undefined
-      const chunks = splitAtWordBoundaries(cleaned, chunkSizeChars, stepChars)
-      return buildChunks(chunks, 0)
+      let chunks = splitAtWordBoundaries(cleaned, chunkSizeChars)
+      if (this.chunkOverlap > 0) {
+        const overlapChars = tokensToChars(this.chunkOverlap)
+        chunks = addOverlap(chunks, overlapChars)
+      }
+      return buildChunks(chunks, this.chunkOverlap)
     }
 
     const merged = this.mergeSegments(segments)
