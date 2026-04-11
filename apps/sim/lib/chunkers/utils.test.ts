@@ -94,18 +94,16 @@ describe('addOverlap', () => {
     expect(result[1].length).toBeGreaterThan('second chunk here'.length)
   })
 
-  it('joins overlap text with \\n', () => {
+  it('joins overlap text with space', () => {
     const chunks = ['first chunk here', 'second chunk here']
     const result = addOverlap(chunks, 10)
-    expect(result[1]).toContain('\n')
+    expect(result[1]).toContain('here second')
   })
 
   it('snaps overlap to word boundary', () => {
     const chunks = ['hello beautiful world', 'next chunk']
     const result = addOverlap(chunks, 15)
-    const overlapPart = result[1].split('\n')[0]
-    expect(overlapPart).toBe('beautiful world')
-    expect(result[1]).toBe('beautiful world\nnext chunk')
+    expect(result[1]).toBe('beautiful world next chunk')
   })
 })
 

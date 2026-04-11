@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import type { Chunk, StructuredDataOptions } from '@/lib/chunkers/types'
-import { estimateTokens } from '@/lib/chunkers/utils'
+/** Structured data is denser in tokens (~3 chars/token vs ~4 for prose) */
+function estimateStructuredTokens(text: string): number {
+  if (!text?.trim()) return 0
+  return Math.ceil(text.length / 3)
+}
 
 const logger = createLogger('StructuredDataChunker')
 
@@ -28,7 +32,7 @@ export class StructuredDataChunker {
     const headerLine = options.headers?.join('\t') || lines[0]
     const dataStartIndex = options.headers ? 0 : 1
 
-    const estimatedTokensPerRow = StructuredDataChunker.estimateTokensPerRow(
+    const estimatedTokensPerRow = StructuredDataChunker.estimateStructuredTokensPerRow(
       lines.slice(dataStartIndex, Math.min(10, lines.length))
     )
     const optimalRowsPerChunk = StructuredDataChunker.calculateOptimalRowsPerChunk(
@@ -42,12 +46,12 @@ export class StructuredDataChunker {
 
     let currentChunkRows: string[] = []
     let currentTokenEstimate = 0
-    const headerTokens = estimateTokens(headerLine)
+    const headerTokens = estimateStructuredTokens(headerLine)
     let chunkStartRow = dataStartIndex
 
     for (let i = dataStartIndex; i < lines.length; i++) {
       const row = lines[i]
-      const rowTokens = estimateTokens(row)
+      const rowTokens = estimateStructuredTokens(row)
 
       const projectedTokens =
         currentTokenEstimate +
@@ -111,7 +115,7 @@ export class StructuredDataChunker {
   private static createChunk(content: string, startRow: number, endRow: number): Chunk {
     return {
       text: content,
-      tokenCount: estimateTokens(content),
+      tokenCount: estimateStructuredTokens(content),
       metadata: {
         startIndex: startRow,
         endIndex: endRow,
@@ -119,10 +123,10 @@ export class StructuredDataChunker {
     }
   }
 
-  private static estimateTokensPerRow(sampleRows: string[]): number {
+  private static estimateStructuredTokensPerRow(sampleRows: string[]): number {
     if (sampleRows.length === 0) return 50
 
-    const totalTokens = sampleRows.reduce((sum, row) => sum + estimateTokens(row), 0)
+    const totalTokens = sampleRows.reduce((sum, row) => sum + estimateStructuredTokens(row), 0)
     return Math.ceil(totalTokens / sampleRows.length)
   }
 

@@ -41,7 +41,7 @@ export function addOverlap(chunks: string[], overlapChars: number): string[] {
         : overlapText
 
       if (cleanOverlap.trim()) {
-        chunk = `${cleanOverlap.trim()}\n${chunk}`
+        chunk = `${cleanOverlap.trim()} ${chunk}`
       }
     }
 
