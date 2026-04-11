@@ -11,7 +11,7 @@ export const BrandfetchBlock: BlockConfig<BrandfetchGetBrandResponse | Brandfetc
     'Integrate Brandfetch into your workflow. Retrieve brand logos, colors, fonts, and company data by domain, ticker, or name search.',
   docsLink: 'https://docs.sim.ai/tools/brandfetch',
   category: 'tools',
-  integrationType: IntegrationType.SalesIntelligence,
+  integrationType: IntegrationType.Sales,
   tags: ['enrichment', 'marketing'],
   bgColor: '#000000',
   icon: BrandfetchIcon,

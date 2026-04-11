@@ -161,7 +161,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                     <h3 className='font-[430] font-season text-lg text-white leading-tight tracking-[-0.01em]'>
                       {p.title}
                     </h3>
-                    <p className='line-clamp-2 text-[#F6F6F0]/50 text-sm leading-[150%]'>
+                    <p className='line-clamp-2 text-[var(--landing-text-muted)] text-sm leading-[150%]'>
                       {p.description}
                     </p>
                   </div>

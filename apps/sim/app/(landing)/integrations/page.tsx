@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
+import { Badge } from '@/components/emcn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { IntegrationCard } from './components/integration-card'
 import { IntegrationGrid } from './components/integration-grid'
 import { RequestIntegrationModal } from './components/request-integration-modal'
 import { blockTypeToIconMap } from './data/icon-mapping'
@@ -17,6 +19,14 @@ const INTEGRATION_COUNT = allIntegrations.length
 const TOP_NAMES = [...new Set(POPULAR_WORKFLOWS.flatMap((p) => [p.from, p.to]))].slice(0, 6)
 
 const baseUrl = getBaseUrl()
+
+/** Curated featured integrations — high-recognition services shown as cards. */
+const FEATURED_SLUGS = ['slack', 'notion', 'github', 'gmail'] as const
+
+const bySlug = new Map(allIntegrations.map((i) => [i.slug, i]))
+const featured = FEATURED_SLUGS.map((s) => bySlug.get(s)).filter(
+  (i): i is Integration => i !== undefined
+)
 
 export const metadata: Metadata = {
   title: 'Integrations',
@@ -90,7 +100,7 @@ export default function IntegrationsPage() {
   }
 
   return (
-    <>
+    <section className='bg-[var(--landing-bg)]'>
       <script
         type='application/ld+json'
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
@@ -100,64 +110,81 @@ export default function IntegrationsPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
       />
 
-      <div className='mx-auto max-w-[1200px] px-6 py-16 sm:px-8 md:px-12'>
-        {/* Hero */}
-        <section aria-labelledby='integrations-heading' className='mb-16'>
+      {/* Hero */}
+      <div className='px-5 pt-[60px] lg:px-16 lg:pt-[100px]'>
+        <Badge
+          variant='blue'
+          size='md'
+          dot
+          className='mb-5 bg-white/10 font-season text-white uppercase tracking-[0.02em]'
+        >
+          Integrations
+        </Badge>
+
+        <div className='flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between'>
           <h1
             id='integrations-heading'
-            className='mb-4 text-balance font-[500] text-[40px] text-[var(--landing-text)] leading-tight sm:text-[56px]'
+            className='text-balance text-[28px] text-white leading-[100%] tracking-[-0.02em] lg:text-[40px]'
           >
             Integrations
           </h1>
-          <p className='max-w-[640px] text-[18px] text-[var(--landing-text-muted)] leading-relaxed'>
+          <p className='font-[430] font-season text-[var(--landing-text-muted)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
             Connect every tool your team uses. Build AI-powered workflows that automate tasks across{' '}
-            {TOP_NAMES.slice(0, 4).map((name, i, arr) => {
-              const integration = allIntegrations.find((int) => int.name === name)
-              const Icon = integration ? blockTypeToIconMap[integration.type] : undefined
-              return (
-                <span key={name} className='inline-flex items-center gap-[5px]'>
-                  {Icon && (
-                    <span
-                      aria-hidden='true'
-                      className='inline-flex shrink-0'
-                      style={{ opacity: 0.65 }}
-                    >
-                      <Icon className='h-[0.85em] w-[0.85em]' />
-                    </span>
-                  )}
-                  {name}
-                  {i < arr.length - 1 ? ', ' : ''}
-                </span>
-              )
-            })}
-            {' and more.'}
+            {INTEGRATION_COUNT} apps and services.
           </p>
-        </section>
+        </div>
+      </div>
 
-        {/* Searchable grid — client component */}
+      {/* Full-width divider */}
+      <div className='mt-8 h-px w-full bg-[var(--landing-bg-elevated)]' />
+
+      {/* Border-railed content */}
+      <div className='mx-5 border-[var(--landing-bg-elevated)] border-x lg:mx-16'>
+        {/* Featured integrations — top */}
+        {featured.length > 0 && (
+          <>
+            <nav aria-label='Featured integrations' className='flex flex-col sm:flex-row'>
+              {featured.map((integration) => (
+                <IntegrationCard
+                  key={integration.type}
+                  integration={integration}
+                  IconComponent={blockTypeToIconMap[integration.type]}
+                />
+              ))}
+            </nav>
+            <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+          </>
+        )}
+
+        {/* All Integrations — search, filters, rows */}
         <section aria-labelledby='all-integrations-heading'>
-          <h2
-            id='all-integrations-heading'
-            className='mb-8 font-[500] text-[24px] text-[var(--landing-text)]'
-          >
-            All Integrations
-          </h2>
+          <div className='px-6 pt-10 pb-4'>
+            <h2
+              id='all-integrations-heading'
+              className='mb-2 text-[20px] text-white leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+            >
+              All Integrations
+            </h2>
+          </div>
           <IntegrationGrid integrations={allIntegrations} />
         </section>
 
         {/* Integration request */}
-        <div className='mt-16 flex flex-col items-start gap-3 border-[var(--landing-border)] border-t pt-10 sm:flex-row sm:items-center sm:justify-between'>
+        <div className='flex flex-col items-start gap-3 px-6 py-6 sm:flex-row sm:items-center sm:justify-between'>
           <div>
-            <p className='font-[500] text-[15px] text-[var(--landing-text)]'>
+            <p className='text-[15px] text-white tracking-[-0.02em]'>
               Don&apos;t see the integration you need?
             </p>
-            <p className='mt-0.5 text-[#555] text-[13px]'>
+            <p className='mt-0.5 font-martian-mono text-[var(--landing-text-subtle)] text-xs uppercase tracking-[0.1em]'>
               Let us know and we&apos;ll prioritize it.
             </p>
           </div>
           <RequestIntegrationModal />
         </div>
       </div>
-    </>
+
+      {/* Closing full-width divider */}
+      <div className='-mt-px h-px w-full bg-[var(--landing-bg-elevated)]' />
+    </section>
   )
 }

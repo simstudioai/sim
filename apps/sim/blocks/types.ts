@@ -19,7 +19,6 @@ export type BlockCategory = 'blocks' | 'tools' | 'triggers'
 export enum IntegrationType {
   AI = 'ai',
   Analytics = 'analytics',
-  Automation = 'automation',
   Communication = 'communication',
   CRM = 'crm',
   CustomerSupport = 'customer-support',
@@ -31,13 +30,11 @@ export enum IntegrationType {
   Email = 'email',
   FileStorage = 'file-storage',
   HR = 'hr',
-  Media = 'media',
   Other = 'other',
   Productivity = 'productivity',
-  SalesIntelligence = 'sales-intelligence',
+  Sales = 'sales',
   Search = 'search',
   Security = 'security',
-  Social = 'social',
 }
 
 export type IntegrationTag =

@@ -108,6 +108,7 @@ export interface CatalogModel {
   providerName: string
   providerSlug: string
   contextWindow: number | null
+  releaseDate: string | null
   pricing: PricingInfo
   capabilities: ModelCapabilities
   capabilityTags: string[]
@@ -464,6 +465,7 @@ const rawProviders = Object.values(PROVIDER_DEFINITIONS).map((provider) => {
       providerName: providerDisplayName,
       providerSlug,
       contextWindow: model.contextWindow ?? null,
+      releaseDate: model.releaseDate ?? null,
       pricing: model.pricing,
       capabilities: mergedCapabilities,
       capabilityTags,

@@ -110,7 +110,7 @@ export default async function BlogIndex({
           <h1 className='text-balance font-[430] font-season text-[28px] text-white leading-[100%] tracking-[-0.02em] lg:text-[40px]'>
             Latest from Sim
           </h1>
-          <p className='max-w-[360px] font-[430] font-season text-[#F6F6F0]/50 text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
+          <p className='max-w-[540px] font-[430] font-season text-[var(--landing-text-muted)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
             Announcements, insights, and guides for building AI agent workflows.
           </p>
         </div>
@@ -152,7 +152,7 @@ export default async function BlogIndex({
                     <h3 className='font-[430] font-season text-lg text-white leading-tight tracking-[-0.01em]'>
                       {p.title}
                     </h3>
-                    <p className='line-clamp-2 text-[#F6F6F0]/50 text-sm leading-[150%]'>
+                    <p className='line-clamp-2 text-[var(--landing-text-muted)] text-sm leading-[150%]'>
                       {p.description}
                     </p>
                   </div>
@@ -191,7 +191,7 @@ export default async function BlogIndex({
                 <h3 className='font-[430] font-season text-base text-white leading-tight tracking-[-0.01em] lg:text-lg'>
                   {p.title}
                 </h3>
-                <p className='line-clamp-2 text-[#F6F6F0]/40 text-sm leading-[150%]'>
+                <p className='line-clamp-2 text-[var(--landing-text-muted)] text-sm leading-[150%]'>
                   {p.description}
                 </p>
               </div>
