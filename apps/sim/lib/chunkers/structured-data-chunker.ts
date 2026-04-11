@@ -1,27 +1,15 @@
 import { createLogger } from '@sim/logger'
 import type { Chunk, StructuredDataOptions } from '@/lib/chunkers/types'
+import { estimateTokens } from '@/lib/chunkers/utils'
 
 const logger = createLogger('StructuredDataChunker')
 
-/**
- * Default configuration for structured data chunking (CSV, XLSX, etc.)
- * These are used when user doesn't provide preferences
- */
 const DEFAULT_CONFIG = {
-  // Target chunk size in tokens
   TARGET_CHUNK_SIZE: 1024,
-  MIN_CHUNK_SIZE: 100,
-  MAX_CHUNK_SIZE: 4000,
-
-  // For spreadsheets, group rows together
-  ROWS_PER_CHUNK: 100,
-  MIN_ROWS_PER_CHUNK: 20,
+  MIN_ROWS_PER_CHUNK: 5,
   MAX_ROWS_PER_CHUNK: 500,
-
-  // For better embeddings quality
   INCLUDE_HEADERS_IN_EACH_CHUNK: true,
-  MAX_HEADER_SIZE: 200, // tokens
-}
+} as const
 
 /**
  * Smart chunker for structured data (CSV, XLSX) that preserves semantic meaning
@@ -29,8 +17,7 @@ const DEFAULT_CONFIG = {
  */
 export class StructuredDataChunker {
   /**
-   * Chunk structured data intelligently based on rows and semantic boundaries
-   * Respects user's chunkSize preference when provided
+   * Chunk structured data intelligently based on rows and token budget
    */
   static async chunkStructuredData(
     content: string,
@@ -43,14 +30,11 @@ export class StructuredDataChunker {
       return chunks
     }
 
-    // Use user's chunk size or fall back to default
     const targetChunkSize = options.chunkSize ?? DEFAULT_CONFIG.TARGET_CHUNK_SIZE
 
-    // Detect headers (first line or provided)
     const headerLine = options.headers?.join('\t') || lines[0]
     const dataStartIndex = options.headers ? 0 : 1
 
-    // Calculate optimal rows per chunk based on content and user's target size
     const estimatedTokensPerRow = StructuredDataChunker.estimateTokensPerRow(
       lines.slice(dataStartIndex, Math.min(10, lines.length))
     )
@@ -65,14 +49,13 @@ export class StructuredDataChunker {
 
     let currentChunkRows: string[] = []
     let currentTokenEstimate = 0
-    const headerTokens = StructuredDataChunker.estimateTokens(headerLine)
+    const headerTokens = estimateTokens(headerLine)
     let chunkStartRow = dataStartIndex
 
     for (let i = dataStartIndex; i < lines.length; i++) {
       const row = lines[i]
-      const rowTokens = StructuredDataChunker.estimateTokens(row)
+      const rowTokens = estimateTokens(row)
 
-      // Check if adding this row would exceed our target
       const projectedTokens =
         currentTokenEstimate +
         rowTokens +
@@ -84,7 +67,6 @@ export class StructuredDataChunker {
         currentChunkRows.length >= optimalRowsPerChunk
 
       if (shouldCreateChunk && currentChunkRows.length > 0) {
-        // Create chunk with current rows
         const chunkContent = StructuredDataChunker.formatChunk(
           headerLine,
           currentChunkRows,
@@ -92,7 +74,6 @@ export class StructuredDataChunker {
         )
         chunks.push(StructuredDataChunker.createChunk(chunkContent, chunkStartRow, i - 1))
 
-        // Reset for next chunk
         currentChunkRows = []
         currentTokenEstimate = 0
         chunkStartRow = i
@@ -102,7 +83,6 @@ export class StructuredDataChunker {
       currentTokenEstimate += rowTokens
     }
 
-    // Add remaining rows as final chunk
     if (currentChunkRows.length > 0) {
       const chunkContent = StructuredDataChunker.formatChunk(
         headerLine,
@@ -123,21 +103,16 @@ export class StructuredDataChunker {
   private static formatChunk(headerLine: string, rows: string[], sheetName?: string): string {
     let content = ''
 
-    // Add sheet name context if available
     if (sheetName) {
       content += `=== ${sheetName} ===\n\n`
     }
 
-    // Add headers for context
     if (DEFAULT_CONFIG.INCLUDE_HEADERS_IN_EACH_CHUNK) {
       content += `Headers: ${headerLine}\n`
       content += `${'-'.repeat(Math.min(80, headerLine.length))}\n`
     }
 
-    // Add data rows
     content += rows.join('\n')
-
-    // Add row count for context
     content += `\n\n[Rows ${rows.length} of data]`
 
     return content
@@ -147,11 +122,9 @@ export class StructuredDataChunker {
    * Create a chunk object with actual row indices
    */
   private static createChunk(content: string, startRow: number, endRow: number): Chunk {
-    const tokenCount = StructuredDataChunker.estimateTokens(content)
-
     return {
       text: content,
-      tokenCount,
+      tokenCount: estimateTokens(content),
       metadata: {
         startIndex: startRow,
         endIndex: endRow,
@@ -160,23 +133,12 @@ export class StructuredDataChunker {
   }
 
   /**
-   * Estimate tokens in text (rough approximation)
-   * For structured data with numbers, uses 1 token per 3 characters
-   */
-  private static estimateTokens(text: string): number {
-    return Math.ceil(text.length / 3)
-  }
-
-  /**
    * Estimate average tokens per row from sample
    */
   private static estimateTokensPerRow(sampleRows: string[]): number {
-    if (sampleRows.length === 0) return 50 // default estimate
+    if (sampleRows.length === 0) return 50
 
-    const totalTokens = sampleRows.reduce(
-      (sum, row) => sum + StructuredDataChunker.estimateTokens(row),
-      0
-    )
+    const totalTokens = sampleRows.reduce((sum, row) => sum + estimateTokens(row), 0)
     return Math.ceil(totalTokens / sampleRows.length)
   }
 
@@ -199,7 +161,6 @@ export class StructuredDataChunker {
    * Check if content appears to be structured data
    */
   static isStructuredData(content: string, mimeType?: string): boolean {
-    // Check mime type first
     if (mimeType) {
       const structuredMimeTypes = [
         'text/csv',
@@ -212,19 +173,17 @@ export class StructuredDataChunker {
       }
     }
 
-    // Check content structure
-    const lines = content.split('\n').slice(0, 10) // Check first 10 lines
+    const lines = content.split('\n').slice(0, 10)
     if (lines.length < 2) return false
 
-    // Check for consistent delimiters (comma, tab, pipe)
     const delimiters = [',', '\t', '|']
     for (const delimiter of delimiters) {
+      const escaped = delimiter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
       const counts = lines.map(
-        (line) => (line.match(new RegExp(`\\${delimiter}`, 'g')) || []).length
+        (line) => (line.match(new RegExp(escaped, 'g')) || []).length
       )
       const avgCount = counts.reduce((a, b) => a + b, 0) / counts.length
 
-      // If most lines have similar delimiter counts, it's likely structured
       if (avgCount > 2 && counts.every((c) => Math.abs(c - avgCount) <= 2)) {
         return true
       }

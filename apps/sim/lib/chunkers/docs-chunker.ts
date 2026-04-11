@@ -3,12 +3,12 @@ import path from 'path'
 import { createLogger } from '@sim/logger'
 import { TextChunker } from '@/lib/chunkers/text-chunker'
 import type { DocChunk, DocsChunkerOptions } from '@/lib/chunkers/types'
+import { estimateTokens } from '@/lib/chunkers/utils'
 import { generateEmbeddings } from '@/lib/knowledge/embeddings'
 
 interface HeaderInfo {
   level: number
   text: string
-  slug?: string
   anchor?: string
   position?: number
 }
@@ -27,10 +27,12 @@ const logger = createLogger('DocsChunker')
 export class DocsChunker {
   private readonly textChunker: TextChunker
   private readonly baseUrl: string
+  private readonly chunkSize: number
 
   constructor(options: DocsChunkerOptions = {}) {
+    this.chunkSize = options.chunkSize ?? 300
     this.textChunker = new TextChunker({
-      chunkSize: options.chunkSize ?? 300, // Max 300 tokens per chunk
+      chunkSize: this.chunkSize,
       minCharactersPerChunk: options.minCharactersPerChunk ?? 1,
       chunkOverlap: options.chunkOverlap ?? 50,
     })
@@ -97,7 +99,7 @@ export class DocsChunker {
 
       const chunk: DocChunk = {
         text: chunkText,
-        tokenCount: Math.ceil(chunkText.length / 4), // Simple token estimation
+        tokenCount: estimateTokens(chunkText),
         sourceDocument: relativePath,
         headerLink: relevantHeader ? `${documentUrl}#${relevantHeader.anchor}` : documentUrl,
         headerText: relevantHeader?.text || frontmatter.title || 'Document Root',
@@ -170,10 +172,10 @@ export class DocsChunker {
   private generateAnchor(headerText: string): string {
     return headerText
       .toLowerCase()
-      .replace(/[^\w\s-]/g, '') // Remove special characters except hyphens
-      .replace(/\s+/g, '-') // Replace spaces with hyphens
-      .replace(/-+/g, '-') // Replace multiple hyphens with single
-      .replace(/^-|-$/g, '') // Remove leading/trailing hyphens
+      .replace(/[^\w\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
   }
 
   /**
@@ -181,17 +183,12 @@ export class DocsChunker {
    * Handles index.mdx files specially - they are served at the parent directory path
    */
   private generateDocumentUrl(relativePath: string): string {
-    // Convert file path to URL path
-    // e.g., "tools/knowledge.mdx" -> "/tools/knowledge"
-    // e.g., "triggers/index.mdx" -> "/triggers" (NOT "/triggers/index")
-    let urlPath = relativePath.replace(/\.mdx$/, '').replace(/\\/g, '/') // Handle Windows paths
+    let urlPath = relativePath.replace(/\.mdx$/, '').replace(/\\/g, '/')
 
-    // In fumadocs, index.mdx files are served at the parent directory path
-    // e.g., "triggers/index" -> "triggers"
     if (urlPath.endsWith('/index')) {
-      urlPath = urlPath.slice(0, -6) // Remove "/index"
+      urlPath = urlPath.slice(0, -6)
     } else if (urlPath === 'index') {
-      urlPath = '' // Root index.mdx
+      urlPath = ''
     }
 
     return `${this.baseUrl}/${urlPath}`
@@ -243,12 +240,11 @@ export class DocsChunker {
   private cleanContent(content: string): string {
     return (
       content
-        // Remove import statements
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
         .replace(/^import\s+.*$/gm, '')
-        // Remove JSX components and React-style comments
         .replace(/<[^>]+>/g, ' ')
         .replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ')
-        // Remove excessive whitespace
         .replace(/\n{3,}/g, '\n\n')
         .replace(/[ \t]{2,}/g, ' ')
         .trim()
@@ -286,13 +282,6 @@ export class DocsChunker {
   }
 
   /**
-   * Estimate token count (rough approximation)
-   */
-  private estimateTokens(text: string): number {
-    return Math.ceil(text.length / 4)
-  }
-
-  /**
    * Detect table boundaries in markdown content to avoid splitting them
    */
   private detectTableBoundaries(content: string): { start: number; end: number }[] {
@@ -314,7 +303,7 @@ export class DocsChunker {
       } else if (inTable && (!line.includes('|') || line === '' || line.startsWith('#'))) {
         tables.push({
           start: this.getCharacterPosition(lines, tableStart),
-          end: this.getCharacterPosition(lines, i - 1) + lines[i - 1]?.length || 0,
+          end: this.getCharacterPosition(lines, i - 1) + (lines[i - 1]?.length ?? 0),
         })
         inTable = false
       }
@@ -354,6 +343,10 @@ export class DocsChunker {
 
     for (const chunk of chunks) {
       const chunkStart = originalContent.indexOf(chunk, currentPosition)
+      if (chunkStart === -1) {
+        mergedChunks.push(chunk)
+        continue
+      }
       const chunkEnd = chunkStart + chunk.length
 
       const intersectsTable = tableBoundaries.some(
@@ -373,10 +366,10 @@ export class DocsChunker {
 
         const minStart = Math.min(chunkStart, ...affectedTables.map((t) => t.start))
         const maxEnd = Math.max(chunkEnd, ...affectedTables.map((t) => t.end))
-        const completeChunk = originalContent.slice(minStart, maxEnd)
+        const completeChunk = originalContent.slice(minStart, maxEnd).trim()
 
-        if (!mergedChunks.some((existing) => existing.includes(completeChunk.trim()))) {
-          mergedChunks.push(completeChunk.trim())
+        if (completeChunk && !mergedChunks.some((existing) => existing.includes(completeChunk))) {
+          mergedChunks.push(completeChunk)
         }
       } else {
         mergedChunks.push(chunk)
@@ -389,15 +382,15 @@ export class DocsChunker {
   }
 
   /**
-   * Enforce 300 token size limit on chunks
+   * Enforce token size limit on chunks, using the configured chunkSize
    */
   private enforceSizeLimit(chunks: string[]): string[] {
     const finalChunks: string[] = []
 
     for (const chunk of chunks) {
-      const tokens = this.estimateTokens(chunk)
+      const tokens = estimateTokens(chunk)
 
-      if (tokens <= 300) {
+      if (tokens <= this.chunkSize) {
         finalChunks.push(chunk)
       } else {
         const lines = chunk.split('\n')
@@ -406,7 +399,7 @@ export class DocsChunker {
         for (const line of lines) {
           const testChunk = currentChunk ? `${currentChunk}\n${line}` : line
 
-          if (this.estimateTokens(testChunk) <= 300) {
+          if (estimateTokens(testChunk) <= this.chunkSize) {
             currentChunk = testChunk
           } else {
             if (currentChunk.trim()) {

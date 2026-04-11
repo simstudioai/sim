@@ -9,6 +9,11 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import {
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
   Input,
   Label,
   Modal,
@@ -18,13 +23,6 @@ import {
   ModalHeader,
   Textarea,
 } from '@/components/emcn'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import type { StrategyOptions } from '@/lib/chunkers/types'
 import { cn } from '@/lib/core/utils/cn'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
@@ -461,24 +459,33 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                 </div>
 
                 <div className='flex flex-col gap-2'>
-                  <Label htmlFor='strategy'>Chunking Strategy</Label>
-                  <Select
-                    value={strategyValue}
-                    onValueChange={(value) =>
-                      setValue('strategy', value as FormValues['strategy'])
-                    }
-                  >
-                    <SelectTrigger id='strategy'>
-                      <SelectValue placeholder='Auto (detect from content)' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {STRATEGY_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Chunking Strategy</Label>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type='button'
+                        variant='default'
+                        className='w-full justify-between border border-[var(--border-1)] !bg-[var(--surface-1)] font-normal'
+                      >
+                        {STRATEGY_OPTIONS.find((o) => o.value === strategyValue)?.label ??
+                          'Auto (detect from content)'}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align='start' className='w-[var(--radix-dropdown-menu-trigger-width)]'>
+                      <DropdownMenuRadioGroup
+                        value={strategyValue}
+                        onValueChange={(value) =>
+                          setValue('strategy', value as FormValues['strategy'])
+                        }
+                      >
+                        {STRATEGY_OPTIONS.map((option) => (
+                          <DropdownMenuRadioItem key={option.value} value={option.value}>
+                            {option.label}
+                          </DropdownMenuRadioItem>
+                        ))}
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <p className='text-[var(--text-muted)] text-xs'>
                     Auto detects the best strategy based on file content type.
                   </p>
