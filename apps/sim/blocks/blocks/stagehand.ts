@@ -35,7 +35,7 @@ export const StagehandBlock: BlockConfig<StagehandResponse> = {
     'Integrate Stagehand into the workflow. Can extract structured data from webpages or run an autonomous agent to perform tasks.',
   docsLink: 'https://docs.sim.ai/tools/stagehand',
   category: 'tools',
-  integrationType: IntegrationType.Automation,
+  integrationType: IntegrationType.AI,
   tags: ['web-scraping', 'automation', 'agentic'],
   bgColor: '#FFC83C',
   icon: StagehandIcon,

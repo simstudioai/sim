@@ -12,7 +12,7 @@ export const ApolloBlock: BlockConfig<ApolloResponse> = {
     'Integrates Apollo.io into the workflow. Search for people and companies, enrich contact data, manage your CRM contacts and accounts, add contacts to sequences, and create tasks.',
   docsLink: 'https://docs.sim.ai/tools/apollo',
   category: 'tools',
-  integrationType: IntegrationType.SalesIntelligence,
+  integrationType: IntegrationType.Sales,
   tags: ['enrichment', 'sales-engagement'],
   bgColor: '#EBF212',
   icon: ApolloIcon,

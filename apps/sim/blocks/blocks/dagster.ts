@@ -11,7 +11,7 @@ export const DagsterBlock: BlockConfig<DagsterResponse> = {
     'Connect to a Dagster instance to launch job runs, monitor run status, list available jobs across repositories, terminate or delete runs, reexecute failed runs, fetch run logs, and manage schedules and sensors. API token only required for Dagster+.',
   docsLink: 'https://docs.sim.ai/tools/dagster',
   category: 'tools',
-  integrationType: IntegrationType.Automation,
+  integrationType: IntegrationType.Analytics,
   tags: ['data-analytics', 'automation'],
   bgColor: '#ffffff',
   icon: DagsterIcon,
