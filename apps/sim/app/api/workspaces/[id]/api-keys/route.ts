@@ -257,7 +257,7 @@ export async function DELETE(
       actorEmail: session?.user?.email,
       action: AuditAction.API_KEY_REVOKED,
       resourceType: AuditResourceType.API_KEY,
-      description: `Revoked ${keys.length} workspace API key(s)`,
+      description: `Revoked ${deletedCount} workspace API key(s)`,
       metadata: { keyIds: keys, deletedCount, keyType: 'workspace' },
       request,
     })
