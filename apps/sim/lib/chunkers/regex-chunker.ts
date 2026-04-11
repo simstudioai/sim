@@ -49,8 +49,11 @@ export class RegexChunker {
         ' '.repeat(10000),
         'a '.repeat(5000),
         'aB1 xY2\n'.repeat(1250),
+        `${'a'.repeat(30)}!`,
+        `${'a b '.repeat(25)}!`,
       ]
       for (const testStr of testStrings) {
+        regex.lastIndex = 0
         const start = Date.now()
         regex.test(testStr)
         const elapsed = Date.now() - start

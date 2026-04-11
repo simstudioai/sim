@@ -30,10 +30,9 @@ describe('JsonYamlChunker', () => {
       expect(JsonYamlChunker.isStructuredData('key: value\nother: data')).toBe(true)
     })
 
-    it('should return true for YAML-like plain text', () => {
-      // Note: js-yaml is permissive and parses plain text as valid YAML (scalar value)
-      // This is expected behavior of the YAML parser
-      expect(JsonYamlChunker.isStructuredData('Hello, this is plain text.')).toBe(true)
+    it('should return false for plain text parsed as YAML scalar', () => {
+      // js-yaml parses plain text as a scalar value, not an object/array
+      expect(JsonYamlChunker.isStructuredData('Hello, this is plain text.')).toBe(false)
     })
 
     it('should return false for invalid JSON/YAML with unbalanced braces', () => {

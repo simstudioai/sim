@@ -100,7 +100,7 @@ Bob,25`
       const chunks = await StructuredDataChunker.chunkStructuredData(csv)
 
       expect(chunks.length).toBeGreaterThan(0)
-      expect(chunks[0].text).toContain('Rows')
+      expect(chunks[0].text).toContain('rows of data')
     })
 
     it.concurrent('should include sheet name when provided', async () => {
@@ -273,7 +273,7 @@ Alice,30`
       expect(chunks.length).toBeGreaterThan(1)
       // Verify total rows are distributed across chunks
       const totalRowCount = chunks.reduce((sum, chunk) => {
-        const match = chunk.text.match(/\[Rows (\d+) of data\]/)
+        const match = chunk.text.match(/\[(\d+) rows of data\]/)
         return sum + (match ? Number.parseInt(match[1]) : 0)
       }, 0)
       expect(totalRowCount).toBeGreaterThan(0)

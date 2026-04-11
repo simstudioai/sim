@@ -293,10 +293,18 @@ export class DocsChunker {
     const lines = content.split('\n')
 
     let inTable = false
+    let inCodeBlock = false
     let tableStart = -1
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim()
+
+      if (line.startsWith('```')) {
+        inCodeBlock = !inCodeBlock
+        continue
+      }
+
+      if (inCodeBlock) continue
 
       if (line.includes('|') && line.split('|').length >= 3 && !inTable) {
         const nextLine = lines[i + 1]?.trim()

@@ -75,7 +75,7 @@ export function splitAtWordBoundaries(
   chunkSizeChars: number,
   stepChars?: number
 ): string[] {
-  const step = stepChars ?? chunkSizeChars
+  const step = Math.max(1, stepChars ?? chunkSizeChars)
   const parts: string[] = []
   let pos = 0
 

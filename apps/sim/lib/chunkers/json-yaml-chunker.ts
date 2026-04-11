@@ -78,15 +78,23 @@ export class JsonYamlChunker {
     }
 
     const content = JSON.stringify(data, null, 2)
+    const contextHeader = path.length > 0 ? `// ${path.join('.')}\n` : ''
+    const contentTokens = estimateTokens(content)
+
+    if (contentTokens > this.chunkSize) {
+      return this.chunkAsText(contextHeader + content)
+    }
+
     if (content.length < this.minCharactersPerChunk) {
       return []
     }
 
+    const text = contextHeader + content
     return [
       {
-        text: content,
-        tokenCount: estimateTokens(content),
-        metadata: { startIndex: 0, endIndex: content.length },
+        text,
+        tokenCount: estimateTokens(text),
+        metadata: { startIndex: 0, endIndex: text.length },
       },
     ]
   }
