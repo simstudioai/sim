@@ -3,17 +3,14 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
-import { ChevronDown, Loader2, RotateCcw, X } from 'lucide-react'
+import { Loader2, RotateCcw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import {
   Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
+  Combobox,
+  type ComboboxOption,
   Input,
   Label,
   Modal,
@@ -49,6 +46,11 @@ const STRATEGY_OPTIONS = [
   { value: 'token', label: 'Token (fixed-size)' },
   { value: 'regex', label: 'Regex (custom pattern)' },
 ] as const
+
+const STRATEGY_COMBOBOX_OPTIONS: ComboboxOption[] = STRATEGY_OPTIONS.map((o) => ({
+  label: o.label,
+  value: o.value,
+}))
 
 const FormSchema = z
   .object({
@@ -467,36 +469,13 @@ export const CreateBaseModal = memo(function CreateBaseModal({
 
                 <div className='flex flex-col gap-2'>
                   <Label>Chunking Strategy</Label>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        type='button'
-                        variant='default'
-                        className='!bg-[var(--surface-1)] w-full justify-between border border-[var(--border-1)] font-normal'
-                      >
-                        {STRATEGY_OPTIONS.find((o) => o.value === strategyValue)?.label ??
-                          'Auto (detect from content)'}
-                        <ChevronDown className='h-[12px] w-[12px] text-[var(--text-icon)]' />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align='start'
-                      className='w-[var(--radix-dropdown-menu-trigger-width)]'
-                    >
-                      <DropdownMenuRadioGroup
-                        value={strategyValue}
-                        onValueChange={(value) =>
-                          setValue('strategy', value as FormValues['strategy'])
-                        }
-                      >
-                        {STRATEGY_OPTIONS.map((option) => (
-                          <DropdownMenuRadioItem key={option.value} value={option.value}>
-                            {option.label}
-                          </DropdownMenuRadioItem>
-                        ))}
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <Combobox
+                    options={STRATEGY_COMBOBOX_OPTIONS}
+                    value={strategyValue}
+                    onChange={(value) => setValue('strategy', value as FormValues['strategy'])}
+                    dropdownWidth='trigger'
+                    align='start'
+                  />
                   <p className='text-[var(--text-muted)] text-xs'>
                     Auto detects the best strategy based on file content type.
                   </p>
