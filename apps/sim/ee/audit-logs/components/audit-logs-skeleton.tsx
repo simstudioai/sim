@@ -6,7 +6,7 @@ export function AuditLogsSkeleton() {
       <div className='flex items-center gap-2'>
         <Skeleton className='h-[38px] flex-1 rounded-lg' />
         <Skeleton className='h-[38px] w-[160px] rounded-lg' />
-        <Skeleton className='h-[38px] w-[160px] rounded-lg' />
+        <Skeleton className='h-[38px] w-[140px] rounded-lg' />
       </div>
       <div className='flex items-center gap-4 border-[var(--border)] border-b pb-2'>
         <Skeleton className='h-4 w-[140px]' />
