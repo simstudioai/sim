@@ -275,13 +275,12 @@ async function getDriveFileModifiedTime(
 }
 
 /**
- * Fetches the full sheet (A:Z) and returns the row count, auto-detected
- * headers, and the 1-indexed header row number in a single API call.
+ * Fetches the sheet (A:Z) and returns the row count, auto-detected headers,
+ * and the 1-indexed header row number in a single API call.
  *
  * The Sheets API omits trailing empty rows, so `rows.length` equals the last
- * non-empty row number. Leading empty rows within the range are returned as []
- * so `rows[i]` reliably maps to sheet row `i + 1`. Header detection scans the
- * first {@link HEADER_SCAN_ROWS} rows for the first non-empty row. Returns
+ * non-empty row in columns A–Z. Header detection scans the first
+ * {@link HEADER_SCAN_ROWS} rows for the first non-empty row. Returns
  * `headerRowIndex = 0` when no header is found within the scan window.
  */
 async function fetchSheetState(
