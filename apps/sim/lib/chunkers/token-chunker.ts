@@ -49,6 +49,6 @@ export class TokenChunker {
     const chunks = filtered.length > 0 ? filtered : rawChunks
 
     logger.info(`Chunked into ${chunks.length} token-based chunks`)
-    return buildChunks(chunks, 0)
+    return buildChunks(chunks, this.chunkOverlap)
   }
 }
