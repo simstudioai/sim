@@ -122,7 +122,6 @@ describe('SocketJoinController', () => {
 
     expect(errorResult.apply).toBe(false)
     expect(errorResult.retryScheduled).toBe(true)
-    expect(errorResult.retriesExhausted).toBe(false)
     expect(errorResult.commands).toEqual([
       {
         type: 'schedule-retry',

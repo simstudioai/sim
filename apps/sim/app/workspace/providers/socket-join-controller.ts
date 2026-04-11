@@ -12,23 +12,22 @@ export type SocketJoinCommand =
       delayMs: number
     }
 
-export interface SocketJoinSuccessResult {
+interface SocketJoinSuccessResult {
   apply: boolean
   commands: SocketJoinCommand[]
   ignored: boolean
   workflowId: string
 }
 
-export interface SocketJoinErrorResult {
+interface SocketJoinErrorResult {
   apply: boolean
   commands: SocketJoinCommand[]
   ignored: boolean
   retryScheduled: boolean
-  retriesExhausted: boolean
   workflowId: string | null
 }
 
-export interface SocketJoinDeleteResult {
+interface SocketJoinDeleteResult {
   commands: SocketJoinCommand[]
   shouldClearCurrent: boolean
 }
@@ -44,14 +43,6 @@ export class SocketJoinController {
   private retryWorkflowId: string | null = null
   private retryAttempt = 0
   private isConnected = false
-
-  getDesiredWorkflowId(): string | null {
-    return this.desiredWorkflowId
-  }
-
-  getPendingJoinWorkflowId(): string | null {
-    return this.pendingJoinWorkflowId
-  }
 
   getJoinedWorkflowId(): string | null {
     return this.joinedWorkflowId
@@ -171,20 +162,18 @@ export class SocketJoinController {
         commands: [...baseCommands, ...this.flush()],
         ignored: true,
         retryScheduled: false,
-        retriesExhausted: false,
         workflowId: resolvedWorkflowId,
       }
     }
 
     if (retryable && resolvedWorkflowId) {
-      const retryResult = this.scheduleRetry(resolvedWorkflowId)
+      const commands = this.scheduleRetry(resolvedWorkflowId)
 
       return {
         apply: false,
-        commands: [...baseCommands, ...retryResult.commands],
+        commands: [...baseCommands, ...commands],
         ignored: false,
-        retryScheduled: retryResult.retryScheduled,
-        retriesExhausted: false,
+        retryScheduled: true,
         workflowId: resolvedWorkflowId,
       }
     }
@@ -196,7 +185,6 @@ export class SocketJoinController {
       commands: [...this.clearRetryCommands(), ...leaveCommands, ...this.flush()],
       ignored: false,
       retryScheduled: false,
-      retriesExhausted: false,
       workflowId: resolvedWorkflowId,
     }
   }
@@ -240,10 +228,7 @@ export class SocketJoinController {
     return [{ type: 'join', workflowId: this.desiredWorkflowId }]
   }
 
-  private scheduleRetry(workflowId: string): {
-    commands: SocketJoinCommand[]
-    retryScheduled: boolean
-  } {
+  private scheduleRetry(workflowId: string): SocketJoinCommand[] {
     const nextAttempt = this.retryWorkflowId === workflowId ? this.retryAttempt + 1 : 1
     const delayMs = Math.min(
       SOCKET_JOIN_RETRY_BASE_DELAY_MS * 2 ** Math.max(0, nextAttempt - 1),
@@ -253,17 +238,14 @@ export class SocketJoinController {
     this.retryWorkflowId = workflowId
     this.retryAttempt = nextAttempt
 
-    return {
-      commands: [
-        {
-          type: 'schedule-retry',
-          workflowId,
-          attempt: nextAttempt,
-          delayMs,
-        },
-      ],
-      retryScheduled: true,
-    }
+    return [
+      {
+        type: 'schedule-retry',
+        workflowId,
+        attempt: nextAttempt,
+        delayMs,
+      },
+    ]
   }
 
   private takeRetryResetCommands(nextWorkflowId?: string | null): SocketJoinCommand[] {
