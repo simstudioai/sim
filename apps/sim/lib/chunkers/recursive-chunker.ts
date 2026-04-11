@@ -97,9 +97,8 @@ export class RecursiveChunker {
     const chunks: string[] = []
     let currentChunk = ''
 
-    for (let pi = 0; pi < parts.length; pi++) {
-      const part = pi > 0 ? `${separator}${parts[pi]}` : parts[pi]
-      const testChunk = currentChunk + part
+    for (const part of parts) {
+      const testChunk = currentChunk + (currentChunk ? separator : '') + part
 
       if (estimateTokens(testChunk) <= this.chunkSize) {
         currentChunk = testChunk
