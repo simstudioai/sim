@@ -170,8 +170,6 @@ export function buildLinearV2SubBlocks(options: {
     condition: { field: 'selectedTriggerId', value: triggerId },
   })
 
-  blocks.push()
-
   blocks.push({
     id: 'triggerInstructions',
     title: 'Setup Instructions',
