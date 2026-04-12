@@ -500,19 +500,13 @@ export function AccessControl() {
     return allBlocks.filter((b) => b.name.toLowerCase().includes(query))
   }, [allBlocks, integrationSearchTerm])
 
-  const filteredTriggerBlocks = useMemo(() => {
-    return filteredBlocks
-      .filter((block) => block.category === 'triggers')
-      .sort((a, b) => a.name.localeCompare(b.name))
-  }, [filteredBlocks])
-
   const filteredCoreBlocks = useMemo(() => {
     return filteredBlocks.filter((block) => block.category === 'blocks')
   }, [filteredBlocks])
 
   const filteredToolBlocks = useMemo(() => {
     return filteredBlocks
-      .filter((block) => block.category === 'tools')
+      .filter((block) => block.category === 'tools' || block.category === 'triggers')
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [filteredBlocks])
 
@@ -1009,43 +1003,8 @@ export function AccessControl() {
                     </Button>
                   </div>
                   <div className='flex flex-col gap-4'>
-                    {filteredTriggerBlocks.length > 0 && (
-                      <div className='flex flex-col gap-1.5'>
-                        <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
-                          Triggers
-                        </span>
-                        <div className='grid grid-cols-3 gap-x-2 gap-y-0.5'>
-                          {filteredTriggerBlocks.map((block) => {
-                            const BlockIcon = block.icon
-                            const checkboxId = `block-${block.type}`
-                            return (
-                              <label
-                                key={block.type}
-                                htmlFor={checkboxId}
-                                className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-2)]'
-                              >
-                                <Checkbox
-                                  id={checkboxId}
-                                  checked={isIntegrationAllowed(block.type)}
-                                  onCheckedChange={() => toggleIntegration(block.type)}
-                                />
-                                <div
-                                  className='relative flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
-                                  style={{ background: block.bgColor }}
-                                >
-                                  {BlockIcon && (
-                                    <BlockIcon className='!h-[10px] !w-[10px] text-white' />
-                                  )}
-                                </div>
-                                <span className='truncate font-medium text-sm'>{block.name}</span>
-                              </label>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )}
                     {filteredCoreBlocks.length > 0 && (
-                      <div className='flex flex-col gap-1.5 border-[var(--border)] border-t pt-4'>
+                      <div className='flex flex-col gap-1.5'>
                         <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
                           Core Blocks
                         </span>
