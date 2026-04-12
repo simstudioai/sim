@@ -928,14 +928,18 @@ export function AccessControl() {
                       onClick={() => {
                         const allAllowed =
                           editingConfig?.allowedModelProviders === null ||
-                          editingConfig?.allowedModelProviders?.length === allProviderIds.length
+                          allProviderIds.every((id) =>
+                            editingConfig?.allowedModelProviders?.includes(id)
+                          )
                         setEditingConfig((prev) =>
                           prev ? { ...prev, allowedModelProviders: allAllowed ? [] : null } : prev
                         )
                       }}
                     >
                       {editingConfig?.allowedModelProviders === null ||
-                      editingConfig?.allowedModelProviders?.length === allProviderIds.length
+                      allProviderIds.every((id) =>
+                        editingConfig?.allowedModelProviders?.includes(id)
+                      )
                         ? 'Deselect All'
                         : 'Select All'}
                     </Button>
