@@ -86,6 +86,9 @@ export const multimodalEmbeddingsTool: ToolConfig<
 
   transformResponse: async (response) => {
     const data = await response.json()
+    if (!response.ok || !data.output) {
+      throw new Error(data.error ?? data.detail ?? `VoyageAI API error: ${response.status}`)
+    }
     return {
       success: true,
       output: {
