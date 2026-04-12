@@ -4,6 +4,6 @@ import { getOAuthProviderStatus } from '@/app/(auth)/components/oauth-provider-c
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const status = await getOAuthProviderStatus()
-  return NextResponse.json(status)
+  const { githubAvailable, googleAvailable } = await getOAuthProviderStatus()
+  return NextResponse.json({ githubAvailable, googleAvailable })
 }

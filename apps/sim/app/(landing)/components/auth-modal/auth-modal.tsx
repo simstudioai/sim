@@ -69,6 +69,13 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
 
   const hasSocial = providerStatus?.githubAvailable || providerStatus?.googleAvailable
 
+  useEffect(() => {
+    if (open && providerStatus && !hasSocial) {
+      setOpen(false)
+      router.push(defaultView === 'login' ? '/login' : '/signup')
+    }
+  }, [open, providerStatus, hasSocial, defaultView, router])
+
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       if (nextOpen && providerStatus && !hasSocial) {
