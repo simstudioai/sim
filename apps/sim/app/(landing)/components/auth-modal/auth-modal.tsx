@@ -125,10 +125,10 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                   className='h-[22px] w-auto shrink-0 object-contain'
                 />
                 <div className='flex flex-col gap-1 text-left'>
-                  <p className='text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] text-[22px] leading-[125%] tracking-[0.02em]'>
+                  <p className='text-[22px] text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] leading-[125%] tracking-[0.02em]'>
                     Start building.
                   </p>
-                  <h2 className='text-white text-[22px] leading-[110%] tracking-[-0.02em]'>
+                  <h2 className='text-[22px] text-white leading-[110%] tracking-[-0.02em]'>
                     {view === 'login' ? 'Log in to continue' : 'Create free account'}
                   </h2>
                 </div>

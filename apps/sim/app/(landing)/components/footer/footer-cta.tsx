@@ -97,7 +97,10 @@ export function FooterCTA() {
           href='https://docs.sim.ai'
           target='_blank'
           rel='noopener noreferrer'
-          className={cn(CTA_BUTTON, 'border-[var(--landing-border-strong)] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]')}
+          className={cn(
+            CTA_BUTTON,
+            'border-[var(--landing-border-strong)] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
+          )}
           onClick={() =>
             trackLandingCta({
               label: 'Docs',
@@ -111,7 +114,10 @@ export function FooterCTA() {
         <AuthModal defaultView='signup' source='footer_cta'>
           <button
             type='button'
-            className={cn(CTA_BUTTON, 'gap-2 border-white bg-white text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]')}
+            className={cn(
+              CTA_BUTTON,
+              'gap-2 border-white bg-white text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+            )}
             onClick={() =>
               trackLandingCta({
                 label: 'Get started',

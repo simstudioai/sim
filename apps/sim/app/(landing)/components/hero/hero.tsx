@@ -56,7 +56,10 @@ export default function Hero() {
           <DemoRequestModal theme='light'>
             <button
               type='button'
-              className={cn(CTA_BASE, 'border-[var(--landing-border-strong)] bg-transparent text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]')}
+              className={cn(
+                CTA_BASE,
+                'border-[var(--landing-border-strong)] bg-transparent text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
+              )}
               aria-label='Get a demo'
               onClick={() =>
                 trackLandingCta({ label: 'Get a demo', section: 'hero', destination: 'demo_modal' })
@@ -68,7 +71,10 @@ export default function Hero() {
           <AuthModal defaultView='signup' source='hero'>
             <button
               type='button'
-              className={cn(CTA_BASE, 'gap-2 border-white bg-white text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]')}
+              className={cn(
+                CTA_BASE,
+                'gap-2 border-white bg-white text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+              )}
               aria-label='Get started with Sim'
               onClick={() =>
                 trackLandingCta({
