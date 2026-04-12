@@ -64,6 +64,11 @@ const IMAGE_PROPERTIES = {
   altText: { type: 'string', description: 'Alternative text for accessibility', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
+const FEATURED_IMAGE_OUTPUT_PROPERTIES = {
+  url: { type: 'string', description: 'Featured image URL' },
+  altText: { type: 'string', description: 'Alternative text for accessibility', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
 /** Tracking info properties from Shopify FulfillmentTrackingInfo object */
 const TRACKING_INFO_PROPERTIES = {
   company: { type: 'string', description: 'Shipping carrier name', optional: true },
@@ -156,6 +161,7 @@ export const CUSTOMER_OUTPUT_PROPERTIES = {
       type: 'object',
       properties: ADDRESS_PROPERTIES,
     },
+    optional: true,
   },
   defaultAddress: {
     type: 'object',
@@ -245,16 +251,19 @@ export const ORDER_OUTPUT_PROPERTIES = {
     type: 'object',
     description: 'Order subtotal (before shipping and taxes)',
     properties: MONEY_BAG_PROPERTIES,
+    optional: true,
   },
   totalTaxSet: {
     type: 'object',
     description: 'Total tax amount',
     properties: MONEY_BAG_PROPERTIES,
+    optional: true,
   },
   totalShippingPriceSet: {
     type: 'object',
     description: 'Total shipping price',
     properties: MONEY_BAG_PROPERTIES,
+    optional: true,
   },
   note: { type: 'string', description: 'Order note', optional: true },
   tags: {
@@ -287,6 +296,7 @@ export const ORDER_OUTPUT_PROPERTIES = {
         },
       },
     },
+    optional: true,
   },
   shippingAddress: {
     type: 'object',
@@ -307,6 +317,7 @@ export const ORDER_OUTPUT_PROPERTIES = {
       type: 'object',
       properties: FULFILLMENT_PROPERTIES,
     },
+    optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
 
@@ -401,7 +412,7 @@ export const COLLECTION_WITH_PRODUCTS_OUTPUT_PROPERTIES = {
         featuredImage: {
           type: 'object',
           description: 'Featured product image',
-          properties: IMAGE_PROPERTIES,
+          properties: FEATURED_IMAGE_OUTPUT_PROPERTIES,
           optional: true,
         },
       },
@@ -770,10 +781,12 @@ export interface ShopifyUpdateOrderParams extends ShopifyBaseParams {
 
 export interface ShopifyCancelOrderParams extends ShopifyBaseParams {
   orderId: string
-  reason: 'CUSTOMER' | 'FRAUD' | 'INVENTORY' | 'DECLINED' | 'OTHER'
+  reason: 'CUSTOMER' | 'DECLINED' | 'FRAUD' | 'INVENTORY' | 'OTHER' | 'STAFF'
+  restock: boolean
   notifyCustomer?: boolean
-  refund?: boolean
-  restock?: boolean
+  refundMethod?: {
+    originalPaymentMethodsRefund?: boolean
+  }
   staffNote?: string
 }
 
@@ -839,12 +852,31 @@ export interface ShopifySetInventoryParams extends ShopifyBaseParams {
 
 // Fulfillment Tool Params
 export interface ShopifyCreateFulfillmentParams extends ShopifyBaseParams {
-  orderId: string
-  lineItemIds?: string[]
+  fulfillmentOrderId: string
   trackingNumber?: string
   trackingCompany?: string
   trackingUrl?: string
   notifyCustomer?: boolean
+}
+
+export interface ShopifyListInventoryItemsParams extends ShopifyBaseParams {
+  first?: number
+  query?: string
+}
+
+export interface ShopifyListLocationsParams extends ShopifyBaseParams {
+  first?: number
+  includeInactive?: boolean
+}
+
+export interface ShopifyListCollectionsParams extends ShopifyBaseParams {
+  first?: number
+  query?: string
+}
+
+export interface ShopifyGetCollectionParams extends ShopifyBaseParams {
+  collectionId: string
+  productsFirst?: number
 }
 
 // Tool Response Types
@@ -867,6 +899,16 @@ export interface ShopifyProductsResponse extends ToolResponse {
 export interface ShopifyOrderResponse extends ToolResponse {
   output: {
     order?: ShopifyOrder | Record<string, unknown>
+  }
+}
+
+export interface ShopifyCancelOrderResponse extends ToolResponse {
+  output: {
+    order?: {
+      id: string
+      cancelled: boolean
+      message: string
+    }
   }
 }
 
@@ -902,9 +944,156 @@ export interface ShopifyInventoryResponse extends ToolResponse {
   }
 }
 
+export interface ShopifyInventoryAdjustmentResponse extends ToolResponse {
+  output: {
+    inventoryLevel?: {
+      adjustmentGroup: {
+        createdAt: string
+        reason: string
+      }
+      changes: Array<{
+        name: string
+        delta: number
+        quantityAfterChange: number
+        item: {
+          id: string
+          sku: string | null
+        }
+        location: {
+          id: string
+          name: string
+        }
+      }>
+    }
+  }
+}
+
 export interface ShopifyFulfillmentResponse extends ToolResponse {
   output: {
-    fulfillment?: ShopifyFulfillment
+    fulfillment?: ShopifyFulfillment & {
+      fulfillmentLineItems: Array<{
+        id: string
+        quantity: number
+        lineItem: {
+          title: string
+        }
+      }>
+    }
+  }
+}
+
+export interface ShopifyInventoryItemsResponse extends ToolResponse {
+  output: {
+    inventoryItems?: Array<{
+      id: string
+      sku: string | null
+      tracked: boolean
+      createdAt: string
+      updatedAt: string
+      variant?: {
+        id: string
+        title: string
+        product?: {
+          id: string
+          title: string
+        }
+      }
+      inventoryLevels: Array<{
+        id: string
+        available: number
+        location: {
+          id: string
+          name: string
+        }
+      }>
+    }>
+    pageInfo?: {
+      hasNextPage: boolean
+      hasPreviousPage: boolean
+    }
+  }
+}
+
+export interface ShopifyLocationsResponse extends ToolResponse {
+  output: {
+    locations?: Array<{
+      id: string
+      name: string
+      isActive: boolean
+      fulfillsOnlineOrders: boolean
+      address: {
+        address1: string | null
+        address2: string | null
+        city: string | null
+        province: string | null
+        provinceCode: string | null
+        country: string | null
+        countryCode: string | null
+        zip: string | null
+        phone: string | null
+      } | null
+    }>
+    pageInfo?: {
+      hasNextPage: boolean
+      hasPreviousPage: boolean
+    }
+  }
+}
+
+export interface ShopifyCollectionsResponse extends ToolResponse {
+  output: {
+    collections?: Array<{
+      id: string
+      title: string
+      handle: string
+      description: string | null
+      descriptionHtml: string | null
+      productsCount: number
+      sortOrder: string
+      updatedAt: string
+      image: {
+        id: string
+        url: string
+        altText: string | null
+      } | null
+    }>
+    pageInfo?: {
+      hasNextPage: boolean
+      hasPreviousPage: boolean
+    }
+  }
+}
+
+export interface ShopifyCollectionResponse extends ToolResponse {
+  output: {
+    collection?: {
+      id: string
+      title: string
+      handle: string
+      description: string | null
+      descriptionHtml: string | null
+      productsCount: number
+      sortOrder: string
+      updatedAt: string
+      image: {
+        id: string
+        url: string
+        altText: string | null
+      } | null
+      products: Array<{
+        id: string
+        title: string
+        handle: string
+        status: string
+        vendor: string
+        productType: string
+        totalInventory: number
+        featuredImage: {
+          url: string
+          altText: string | null
+        } | null
+      }>
+    }
   }
 }
 

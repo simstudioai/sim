@@ -84,13 +84,13 @@ export const shopifyGetInventoryLevelTool: ToolConfig<
           }
         `,
         variables: {
-          id: params.inventoryItemId,
+          id: params.inventoryItemId.trim(),
         },
       }
     },
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async (response, params) => {
     const data = await response.json()
 
     if (data.errors) {
@@ -110,31 +110,45 @@ export const shopifyGetInventoryLevelTool: ToolConfig<
       }
     }
 
-    const inventoryLevels = inventoryItem.inventoryLevels.edges.map(
-      (edge: {
-        node: {
-          id: string
-          quantities: Array<{ name: string; quantity: number }>
-          location: { id: string; name: string }
+    const requestedLocationId = params?.locationId?.trim()
+    const inventoryLevels = inventoryItem.inventoryLevels.edges
+      .map(
+        (edge: {
+          node: {
+            id: string
+            quantities: Array<{ name: string; quantity: number }>
+            location: { id: string; name: string }
+          }
+        }) => {
+          const node = edge.node
+          // Extract quantities into a more usable format
+          const quantitiesMap: Record<string, number> = {}
+          node.quantities.forEach((q) => {
+            quantitiesMap[q.name] = q.quantity
+          })
+          return {
+            id: node.id,
+            available: quantitiesMap.available ?? 0,
+            onHand: quantitiesMap.on_hand ?? 0,
+            committed: quantitiesMap.committed ?? 0,
+            incoming: quantitiesMap.incoming ?? 0,
+            reserved: quantitiesMap.reserved ?? 0,
+            location: node.location,
+          }
         }
-      }) => {
-        const node = edge.node
-        // Extract quantities into a more usable format
-        const quantitiesMap: Record<string, number> = {}
-        node.quantities.forEach((q) => {
-          quantitiesMap[q.name] = q.quantity
-        })
-        return {
-          id: node.id,
-          available: quantitiesMap.available ?? 0,
-          onHand: quantitiesMap.on_hand ?? 0,
-          committed: quantitiesMap.committed ?? 0,
-          incoming: quantitiesMap.incoming ?? 0,
-          reserved: quantitiesMap.reserved ?? 0,
-          location: node.location,
-        }
+      )
+      .filter(
+        (level: { location: { id: string } }) =>
+          !requestedLocationId || level.location.id === requestedLocationId
+      )
+
+    if (requestedLocationId && inventoryLevels.length === 0) {
+      return {
+        success: false,
+        error: 'No inventory level found for the provided location',
+        output: {},
       }
-    )
+    }
 
     return {
       success: true,

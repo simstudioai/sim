@@ -101,8 +101,8 @@ export const shopifyCreateProductTool: ToolConfig<
 
       return {
         query: `
-          mutation productCreate($input: ProductInput!) {
-            productCreate(input: $input) {
+          mutation productCreate($product: ProductCreateInput!) {
+            productCreate(product: $product) {
               product {
                 id
                 title
@@ -144,7 +144,7 @@ export const shopifyCreateProductTool: ToolConfig<
           }
         `,
         variables: {
-          input,
+          product: input,
         },
       }
     },

@@ -4,19 +4,13 @@ import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { generateId } from '@/lib/core/utils/uuid'
+import { getScopesForService } from '@/lib/oauth/utils'
 
 const logger = createLogger('ShopifyAuthorize')
 
 export const dynamic = 'force-dynamic'
 
-const SHOPIFY_SCOPES = [
-  'write_products',
-  'write_orders',
-  'write_customers',
-  'write_inventory',
-  'read_locations',
-  'write_merchant_managed_fulfillment_orders',
-].join(',')
+const SHOPIFY_SCOPES = getScopesForService('shopify').join(',')
 
 export async function GET(request: NextRequest) {
   try {

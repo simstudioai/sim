@@ -1,37 +1,6 @@
-import type { ShopifyBaseParams } from '@/tools/shopify/types'
+import type { ShopifyListLocationsParams, ShopifyLocationsResponse } from '@/tools/shopify/types'
 import { LOCATION_OUTPUT_PROPERTIES, PAGE_INFO_OUTPUT_PROPERTIES } from '@/tools/shopify/types'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-
-interface ShopifyListLocationsParams extends ShopifyBaseParams {
-  first?: number
-  includeInactive?: boolean
-}
-
-interface ShopifyLocationsResponse extends ToolResponse {
-  output: {
-    locations?: Array<{
-      id: string
-      name: string
-      isActive: boolean
-      fulfillsOnlineOrders: boolean
-      address: {
-        address1: string | null
-        address2: string | null
-        city: string | null
-        province: string | null
-        provinceCode: string | null
-        country: string | null
-        countryCode: string | null
-        zip: string | null
-        phone: string | null
-      } | null
-    }>
-    pageInfo?: {
-      hasNextPage: boolean
-      hasPreviousPage: boolean
-    }
-  }
-}
+import type { ToolConfig } from '@/tools/types'
 
 export const shopifyListLocationsTool: ToolConfig<
   ShopifyListLocationsParams,
