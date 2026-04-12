@@ -23,7 +23,7 @@ interface SidebarLink {
   external?: boolean
 }
 
-const PLATFORM: ProductLink[] = [
+const WORKSPACE: ProductLink[] = [
   {
     label: 'Workflows',
     description: 'Visual AI automation builder',
@@ -61,7 +61,7 @@ const PLATFORM: ProductLink[] = [
   },
   {
     label: 'API',
-    description: 'Deploy workflows as endpoints',
+    description: 'Deploy agents as endpoints',
     href: 'https://docs.sim.ai/api-reference/getting-started',
     external: true,
     icon: ApiIcon,
@@ -106,13 +106,13 @@ export function ProductDropdown() {
       <div className='flex-1 p-2'>
         <div className='mb-1 px-2.5 pt-1'>
           <span className='font-[430] font-season text-[11px] text-[var(--landing-text-subtle)] uppercase tracking-[0.08em]'>
-            Platform
+            Workspace
           </span>
           <div className='mt-1.5 h-px bg-[var(--landing-bg-elevated)]' />
         </div>
 
         <div className='grid grid-cols-2'>
-          {PLATFORM.map((link) => (
+          {WORKSPACE.map((link) => (
             <DropdownLink key={link.label} link={link} />
           ))}
         </div>

@@ -1,6 +1,6 @@
 # Sim
 
-Sim is an open-source platform for building, testing, and deploying AI agent workflows visually. Create powerful AI agents, automation pipelines, and data processing workflows by connecting blocks on a canvas.
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Create agents visually with the workflow builder, conversationally through Mothership, or programmatically with the API — connected to 1,000+ integrations and every major LLM.
 
 ## Key Facts
 
@@ -8,31 +8,52 @@ Sim is an open-source platform for building, testing, and deploying AI agent wor
 - GitHub: https://github.com/simstudioai/sim
 - Documentation: https://docs.sim.ai
 - License: Apache 2.0
-- Category: AI workflow automation, developer tools
+- Category: AI workspace, AI agent builder, developer tools
+- Trusted by: 100,000+ builders, from startups to Fortune 500
 
 ## What Sim Does
 
-- Visual workflow builder with drag-and-drop interface for AI agents
-- 80+ built-in integrations (OpenAI, Anthropic, Slack, Gmail, GitHub, and more)
-- Real-time team collaboration on workflows
-- Multiple deployment options: cloud-hosted or self-hosted
-- Custom integrations via MCP (Model Context Protocol)
-- API and SDK access (TypeScript, Python)
-- Workflow execution engine with logging and debugging
+Sim is a unified AI workspace with these core modules:
+
+- **Mothership** — AI command center. Build and manage everything in natural language.
+- **Workflows** — Visual builder. Connect blocks, models, and integrations into agent logic.
+- **Knowledge Base** — Upload docs, sync sources, build vector databases for agent memory.
+- **Tables** — Built-in database. Store, query, and wire structured data into agent runs.
+- **Files** — Upload, create, and share documents across your team and agents.
+- **Logs** — Full execution tracing. Inputs, outputs, cost, and duration for every run.
+
+## Capabilities
+
+- 1,000+ integrations (Slack, Gmail, GitHub, Notion, Jira, Salesforce, HubSpot, and more)
+- Every major LLM: OpenAI, Anthropic, Google Gemini, xAI Grok, Mistral, Groq, Cerebras
+- Real-time team collaboration with multiplayer editing
+- Enterprise governance: RBAC, staging/production environments, deployment versioning, audit logs
+- Self-hosting via Docker, bring-your-own-key (BYOK) for all model providers
+- API, CLI, and SDK access (TypeScript, Python)
+- MCP (Model Context Protocol) server creation and connection
+- SOC2 compliant
+
+## Key Pages
+
+- AI Models Directory: https://sim.ai/models
+- Integrations: https://sim.ai/integrations
+- Pricing: https://sim.ai/#pricing
+- Partners: https://sim.ai/partners
 
 ## Blog
 
-The Sim blog covers announcements, technical deep-dives, and guides for building AI agent workflows.
+The Sim blog covers announcements, technical deep-dives, and guides for building AI agents.
 
 - Blog: https://sim.ai/blog
 - RSS: https://sim.ai/blog/rss.xml
 
-## Documentation Sections
+## Documentation
 
 - Getting Started: https://docs.sim.ai/getting-started
 - Blocks: https://docs.sim.ai/blocks
 - Tools & Integrations: https://docs.sim.ai/tools
 - Webhooks: https://docs.sim.ai/webhooks
 - MCP Protocol: https://docs.sim.ai/mcp
-- Deployment: https://docs.sim.ai/deployment
+- Self-Hosting: https://docs.sim.ai/self-hosting
+- API Reference: https://docs.sim.ai/api-reference/getting-started
 - SDKs: https://docs.sim.ai/sdks

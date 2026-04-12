@@ -14,29 +14,27 @@ export const viewport: Viewport = {
 export const metadata = {
   metadataBase: new URL('https://docs.sim.ai'),
   title: {
-    default: 'Sim Documentation — Build AI Agents & Run Your Agentic Workforce',
+    default: 'Sim Documentation — The AI Workspace for Teams',
     template: '%s | Sim Docs',
   },
   description:
-    'Documentation for Sim — the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows.',
+    'Documentation for Sim — the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM.',
   applicationName: 'Sim Docs',
   generator: 'Next.js',
   referrer: 'origin-when-cross-origin' as const,
   keywords: [
+    'AI workspace',
+    'AI agent builder',
     'AI agents',
-    'agentic workforce',
-    'AI agent platform',
+    'build AI agents',
     'open-source AI agents',
-    'agentic workflows',
     'LLM orchestration',
     'AI integrations',
     'knowledge base',
     'AI automation',
-    'workflow builder',
-    'AI workflow orchestration',
+    'visual workflow builder',
     'enterprise AI',
     'AI agent deployment',
-    'intelligent automation',
     'AI tools',
   ],
   authors: [{ name: 'Sim Team', url: 'https://sim.ai' }],
@@ -65,9 +63,9 @@ export const metadata = {
     alternateLocale: ['es_ES', 'fr_FR', 'de_DE', 'ja_JP', 'zh_CN'],
     url: 'https://docs.sim.ai',
     siteName: 'Sim Documentation',
-    title: 'Sim Documentation — Build AI Agents & Run Your Agentic Workforce',
+    title: 'Sim Documentation — The AI Workspace for Teams',
     description:
-      'Documentation for Sim — the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows.',
+      'Documentation for Sim — the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM.',
     images: [
       {
         url: 'https://docs.sim.ai/api/og?title=Sim%20Documentation',
@@ -79,9 +77,9 @@ export const metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Sim Documentation — Build AI Agents & Run Your Agentic Workforce',
+    title: 'Sim Documentation — The AI Workspace for Teams',
     description:
-      'Documentation for Sim — the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows.',
+      'Documentation for Sim — the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM.',
     creator: '@simdotai',
     site: '@simdotai',
     images: ['https://docs.sim.ai/api/og?title=Sim%20Documentation'],

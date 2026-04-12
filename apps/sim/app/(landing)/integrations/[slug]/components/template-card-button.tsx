@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
 import { cn } from '@/lib/core/utils/cn'
+import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 
 interface TemplateCardButtonProps {
   prompt: string
@@ -15,6 +16,7 @@ export function TemplateCardButton({ prompt, className, children }: TemplateCard
 
   function handleClick() {
     LandingPromptStorage.store(prompt)
+    trackLandingCta({ label: 'Template card', section: 'integrations', destination: '/signup' })
     router.push('/signup')
   }
 

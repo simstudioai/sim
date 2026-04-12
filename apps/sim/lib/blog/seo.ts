@@ -151,7 +151,7 @@ export function buildCollectionPageJsonLd() {
     '@type': 'CollectionPage',
     name: 'Sim Blog',
     url: 'https://sim.ai/blog',
-    description: 'Announcements, insights, and guides for building AI agent workflows.',
+    description: 'Announcements, insights, and guides for building AI agents.',
     publisher: {
       '@type': 'Organization',
       name: 'Sim',

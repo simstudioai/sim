@@ -11,19 +11,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const integrationPages: MetadataRoute.Sitemap = integrations.map((integration) => ({
     url: `${baseUrl}/integrations/${integration.slug}`,
     lastModified: now,
+    changeFrequency: 'monthly',
+    priority: 0.6,
   }))
   const modelHubPages: MetadataRoute.Sitemap = [
     {
       url: `${baseUrl}/integrations`,
       lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.8,
     },
     {
       url: `${baseUrl}/models`,
       lastModified: now,
+      changeFrequency: 'weekly',
+      priority: 0.8,
     },
     {
       url: `${baseUrl}/partners`,
       lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.5,
     },
   ]
   const providerPages: MetadataRoute.Sitemap = MODEL_PROVIDERS_WITH_CATALOGS.map((provider) => ({
@@ -31,16 +39,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: new Date(
       Math.max(...provider.models.map((model) => new Date(model.pricing.updatedAt).getTime()))
     ),
+    changeFrequency: 'weekly',
+    priority: 0.7,
   }))
   const modelPages: MetadataRoute.Sitemap = ALL_CATALOG_MODELS.map((model) => ({
     url: `${baseUrl}${model.href}`,
     lastModified: new Date(model.pricing.updatedAt),
+    changeFrequency: 'monthly',
+    priority: 0.6,
   }))
 
   const staticPages: MetadataRoute.Sitemap = [
     {
       url: baseUrl,
       lastModified: now,
+      changeFrequency: 'daily',
+      priority: 1.0,
     },
     {
       url: `${baseUrl}/blog`,
@@ -52,10 +66,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${baseUrl}/blog/tags`,
       lastModified: now,
     },
-    // {
-    //   url: `${baseUrl}/templates`,
-    //   lastModified: now,
-    // },
     {
       url: `${baseUrl}/changelog`,
       lastModified: now,

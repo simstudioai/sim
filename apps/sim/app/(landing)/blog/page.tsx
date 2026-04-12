@@ -19,8 +19,8 @@ export async function generateMetadata({
   const title = titleParts.join(' — ')
 
   const description = tag
-    ? `Sim blog posts tagged "${tag}" — insights and guides for building AI agent workflows.`
-    : 'Announcements, insights, and guides for building AI agent workflows.'
+    ? `Sim blog posts tagged "${tag}" — insights and guides for building AI agents.`
+    : 'Announcements, insights, and guides for building AI agents.'
 
   const canonicalParams = new URLSearchParams()
   if (tag) canonicalParams.set('tag', tag)

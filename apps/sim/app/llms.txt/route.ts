@@ -5,9 +5,9 @@ export function GET() {
 
   const content = `# Sim
 
-> Sim is the open-source platform to build AI agents and run your agentic workforce. Connect integrations and LLMs to deploy and orchestrate agentic workflows.
+> Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work.
 
-Sim lets teams create agents, workflows, knowledge bases, tables, and docs. It supports both product discovery pages and deeper technical documentation.
+Sim lets teams create agents visually with the workflow builder, conversationally through Mothership, or programmatically with the API. The workspace includes knowledge bases, tables, files, and full observability.
 
 ## Preferred URLs
 
@@ -25,8 +25,8 @@ Sim lets teams create agents, workflows, knowledge bases, tables, and docs. It s
 
 ## Key Concepts
 
-- **Workspace**: Container for workflows, data sources, and executions
-- **Workflow**: Directed graph of blocks defining an agentic process
+- **Workspace**: The AI workspace — container for agents, workflows, data sources, and executions
+- **Workflow**: Visual builder — directed graph of blocks defining agent logic
 - **Block**: Individual step such as an LLM call, tool call, HTTP request, or code execution
 - **Trigger**: Event or schedule that initiates workflow execution
 - **Execution**: A single run of a workflow with logs and outputs
@@ -34,8 +34,8 @@ Sim lets teams create agents, workflows, knowledge bases, tables, and docs. It s
 
 ## Capabilities
 
+- AI workspace for teams
 - AI agent creation and deployment
-- Agentic workflow orchestration
 - Integrations across business tools, databases, and communication platforms
 - Multi-model LLM orchestration
 - Knowledge bases and retrieval-augmented generation

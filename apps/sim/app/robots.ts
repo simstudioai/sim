@@ -119,6 +119,16 @@ export default function robots(): MetadataRoute.Robots {
         allow: '/',
         disallow: disallowedPaths,
       },
+      {
+        userAgent: 'Grok-web-crawl',
+        allow: '/',
+        disallow: disallowedPaths,
+      },
+      {
+        userAgent: 'DeepSeek-AI',
+        allow: '/',
+        disallow: disallowedPaths,
+      },
     ],
     sitemap: `${baseUrl}/sitemap.xml`,
     host: baseUrl,
