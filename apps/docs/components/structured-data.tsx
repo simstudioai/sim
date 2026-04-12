@@ -70,10 +70,11 @@ export function StructuredData({
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
     name: 'Sim',
-    applicationCategory: 'DeveloperApplication',
+    applicationCategory: 'BusinessApplication',
+    applicationSubCategory: 'AI Workspace',
     operatingSystem: 'Any',
     description:
-      'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows. Create agents, workflows, knowledge bases, tables, and docs.',
+      'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work.',
     url: baseUrl,
     author: {
       '@type': 'Organization',
@@ -84,8 +85,9 @@ export function StructuredData({
       category: 'Developer Tools',
     },
     featureList: [
-      'AI agent creation',
-      'Agentic workflow orchestration',
+      'AI workspace for teams',
+      'Mothership — natural language agent creation',
+      'Visual workflow builder',
       '1,000+ integrations',
       'LLM orchestration (OpenAI, Anthropic, Google, xAI, Mistral, Perplexity)',
       'Knowledge base creation',

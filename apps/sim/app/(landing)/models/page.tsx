@@ -42,17 +42,18 @@ const faqItems = [
       'Tool use — also called function calling — lets an agent invoke external APIs, query databases, run code, or take any action you define. In Sim, all first-party models from OpenAI, Anthropic, Google, Mistral, Groq, Cerebras, and xAI support tool use. Look for the Tool Use capability tag on any model card in this directory to confirm support.',
   },
   {
-    question: 'How do I add a model to a Sim agent workflow?',
+    question: 'How do I add a model to a Sim agent?',
     answer:
-      'Open any workflow in Sim, add an Agent block, and select your provider and model from the model picker inside that block. Every model listed in this directory is available in the Agent block. Swapping models takes one click and does not affect the rest of your workflow, making it straightforward to test different models on the same task without rebuilding anything.',
+      'Open Sim, add an Agent block, and select your provider and model from the model picker inside that block. Every model listed in this directory is available in the Agent block. Swapping models takes one click and does not affect the rest of your agent, making it straightforward to test different models on the same task without rebuilding anything.',
   },
 ]
 
 export const metadata: Metadata = {
   title: 'AI Models Directory',
-  description: `Browse ${TOTAL_MODELS}+ AI models across ${TOTAL_MODEL_PROVIDERS} providers. Compare pricing, context windows, and capabilities for OpenAI, Anthropic, Google, xAI, Mistral, Bedrock, Groq, and more.`,
+  description: `Browse and compare ${TOTAL_MODELS}+ AI models across ${TOTAL_MODEL_PROVIDERS} providers in Sim's AI workspace. Compare pricing, context windows, and capabilities — then use any model directly in your agents.`,
   keywords: [
     'AI models directory',
+    'AI model comparison',
     'LLM model list',
     'model pricing',
     'context window comparison',
@@ -185,7 +186,7 @@ export default function ModelsPage() {
               id='models-heading'
               className='text-balance text-[28px] text-white leading-[100%] tracking-[-0.02em] lg:text-[40px]'
             >
-              Models
+              Compare AI Models
             </h1>
             <p className='font-[430] font-season text-[var(--landing-text-muted)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
               Browse {TOTAL_MODELS} AI models across {TOTAL_MODEL_PROVIDERS} providers. Compare

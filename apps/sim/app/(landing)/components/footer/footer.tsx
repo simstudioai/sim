@@ -14,11 +14,13 @@ interface FooterItem {
 }
 
 const PRODUCT_LINKS: FooterItem[] = [
-  { label: 'Self Hosting', href: 'https://docs.sim.ai/self-hosting', external: true },
-  { label: 'MCP', href: 'https://docs.sim.ai/mcp', external: true },
+  { label: 'Mothership', href: 'https://docs.sim.ai/mothership', external: true },
+  { label: 'Workflows', href: 'https://docs.sim.ai/workflows', external: true },
   { label: 'Knowledge Base', href: 'https://docs.sim.ai/knowledgebase', external: true },
   { label: 'Tables', href: 'https://docs.sim.ai/tables', external: true },
+  { label: 'MCP', href: 'https://docs.sim.ai/mcp', external: true },
   { label: 'API', href: 'https://docs.sim.ai/api-reference/getting-started', external: true },
+  { label: 'Self Hosting', href: 'https://docs.sim.ai/self-hosting', external: true },
   { label: 'Status', href: 'https://status.sim.ai', external: true, externalArrow: true },
 ]
 
@@ -47,7 +49,7 @@ const BLOCK_LINKS: FooterItem[] = [
 ]
 
 const INTEGRATION_LINKS: FooterItem[] = [
-  { label: 'All Integrations', href: '/integrations', arrow: true },
+  { label: 'All Integrations', href: '/integrations' },
   { label: 'Confluence', href: 'https://docs.sim.ai/tools/confluence', external: true },
   { label: 'Slack', href: 'https://docs.sim.ai/tools/slack', external: true },
   { label: 'GitHub', href: 'https://docs.sim.ai/tools/github', external: true },

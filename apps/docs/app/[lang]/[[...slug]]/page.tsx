@@ -280,12 +280,12 @@ export async function generateMetadata(props: {
     title: data.title,
     description:
       data.description ||
-      'Documentation for Sim — the open-source platform to build AI agents and run your agentic workforce.',
+      'Documentation for Sim — the open-source AI workspace where teams build, deploy, and manage AI agents.',
     keywords: [
       'AI agents',
-      'agentic workforce',
-      'AI agent platform',
-      'agentic workflows',
+      'AI workspace',
+      'AI agent builder',
+      'build AI agents',
       'LLM orchestration',
       'AI automation',
       'knowledge base',
@@ -300,7 +300,7 @@ export async function generateMetadata(props: {
       title: data.title,
       description:
         data.description ||
-        'Documentation for Sim — the open-source platform to build AI agents and run your agentic workforce.',
+        'Documentation for Sim — the open-source AI workspace where teams build, deploy, and manage AI agents.',
       url: fullUrl,
       siteName: 'Sim Documentation',
       type: 'article',
@@ -322,7 +322,7 @@ export async function generateMetadata(props: {
       title: data.title,
       description:
         data.description ||
-        'Documentation for Sim — the open-source platform to build AI agents and run your agentic workforce.',
+        'Documentation for Sim — the open-source AI workspace where teams build, deploy, and manage AI agents.',
       images: [ogImageUrl],
       creator: '@simdotai',
       site: '@simdotai',

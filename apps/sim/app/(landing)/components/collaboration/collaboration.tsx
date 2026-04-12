@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Badge } from '@/components/emcn'
+import { AuthModal } from '@/app/(landing)/components/auth-modal/auth-modal'
+import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 
 interface DotGridProps {
   className?: string
@@ -250,10 +252,10 @@ export default function Collaboration() {
             </h2>
 
             <p className='sr-only'>
-              Sim supports real-time multiplayer collaboration. Teams can build AI agents together
-              in a shared workspace with live cursors, presence indicators, and concurrent editing.
-              Features include role-based access control, shared workflows, and team workspace
-              management.
+              Sim supports real-time multiplayer collaboration. Teams build AI agents together in a
+              shared workspace with live cursors, presence indicators, and concurrent editing.
+              Features include role-based access control, shared agents and workflows, and team
+              workspace management.
             </p>
 
             <p className='font-[430] font-season text-[#F6F6F0]/50 text-base leading-[150%] tracking-[0.02em] md:text-lg'>
@@ -261,45 +263,54 @@ export default function Collaboration() {
               in real-time inside your workspace.
             </p>
 
-            <Link
-              href='/signup'
-              className='group/cta mt-3 inline-flex h-[32px] cursor-none items-center gap-1.5 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
-            >
-              Build together
-              <svg
-                className='h-[10px] w-[10px] shrink-0'
-                viewBox='0 0 10 10'
-                fill='none'
-                xmlns='http://www.w3.org/2000/svg'
+            <AuthModal defaultView='signup' source='collaboration'>
+              <button
+                type='button'
+                className='group/cta mt-3 inline-flex h-[32px] cursor-none items-center gap-1.5 rounded-[5px] border border-white bg-white px-2.5 font-[430] font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+                onClick={() =>
+                  trackLandingCta({
+                    label: 'Build together',
+                    section: 'collaboration',
+                    destination: 'auth_modal',
+                  })
+                }
               >
-                <line
-                  x1='0'
-                  y1='5'
-                  x2='9'
-                  y2='5'
-                  stroke='currentColor'
-                  strokeWidth='1.33'
-                  strokeLinecap='square'
-                  className='origin-left scale-x-0 transition-transform duration-200 ease-out [transform-box:fill-box] group-hover/cta:scale-x-100'
-                />
-                <path
-                  d='M3.5 2L6.5 5L3.5 8'
-                  stroke='currentColor'
-                  strokeWidth='1.33'
-                  strokeLinecap='square'
-                  strokeLinejoin='miter'
+                Build together
+                <svg
+                  className='h-[10px] w-[10px] shrink-0'
+                  viewBox='0 0 10 10'
                   fill='none'
-                  className='transition-transform duration-200 ease-out group-hover/cta:translate-x-[30%]'
-                />
-              </svg>
-            </Link>
+                  xmlns='http://www.w3.org/2000/svg'
+                >
+                  <line
+                    x1='0'
+                    y1='5'
+                    x2='9'
+                    y2='5'
+                    stroke='currentColor'
+                    strokeWidth='1.33'
+                    strokeLinecap='square'
+                    className='origin-left scale-x-0 transition-transform duration-200 ease-out [transform-box:fill-box] group-hover/cta:scale-x-100'
+                  />
+                  <path
+                    d='M3.5 2L6.5 5L3.5 8'
+                    stroke='currentColor'
+                    strokeWidth='1.33'
+                    strokeLinecap='square'
+                    strokeLinejoin='miter'
+                    fill='none'
+                    className='transition-transform duration-200 ease-out group-hover/cta:translate-x-[30%]'
+                  />
+                </svg>
+              </button>
+            </AuthModal>
           </div>
 
           <figure className='pointer-events-none relative h-[220px] w-full md:h-[600px]'>
             <div className='md:-left-[18%] -top-[10%] absolute inset-y-0 left-[7%] min-w-full md:top-0'>
               <Image
                 src='/landing/collaboration-visual.svg'
-                alt='Collaboration visual showing team workflows with real-time editing, shared cursors, and version control interface'
+                alt='Collaboration visual showing teams building AI agents together with real-time editing, shared cursors, and version control'
                 width={876}
                 height={480}
                 className='h-full w-auto object-left md:min-w-[100vw]'

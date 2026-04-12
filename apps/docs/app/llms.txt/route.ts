@@ -37,9 +37,9 @@ export async function GET() {
 
     const manifest = `# Sim Documentation
 
-> The open-source platform to build AI agents and run your agentic workforce.
+> The open-source AI workspace where teams build, deploy, and manage AI agents.
 
-Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows. Create agents, workflows, knowledge bases, tables, and docs. Trusted by over 100,000 builders.
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work — visually, conversationally, or with code. Trusted by over 100,000 builders.
 
 ## Documentation Overview
 

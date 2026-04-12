@@ -2,8 +2,8 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { ArrowUp } from 'lucide-react'
-import Link from 'next/link'
 import { captureClientEvent } from '@/lib/posthog/client'
+import { AuthModal } from '@/app/(landing)/components/auth-modal/auth-modal'
 import { useLandingSubmit } from '@/app/(landing)/components/landing-preview/components/landing-preview-panel/landing-preview-panel'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
@@ -107,15 +107,21 @@ export function FooterCTA() {
         >
           Docs
         </a>
-        <Link
-          href='/signup'
-          className={`${CTA_BUTTON} gap-2 border-white bg-white text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]`}
-          onClick={() =>
-            trackLandingCta({ label: 'Get started', section: 'footer_cta', destination: '/signup' })
-          }
-        >
-          Get started
-        </Link>
+        <AuthModal defaultView='signup' source='footer_cta'>
+          <button
+            type='button'
+            className={`${CTA_BUTTON} gap-2 border-white bg-white text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]`}
+            onClick={() =>
+              trackLandingCta({
+                label: 'Get started',
+                section: 'footer_cta',
+                destination: 'auth_modal',
+              })
+            }
+          >
+            Get started
+          </button>
+        </AuthModal>
       </div>
     </section>
   )
