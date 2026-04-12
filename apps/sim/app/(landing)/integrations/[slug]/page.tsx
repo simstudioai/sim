@@ -3,7 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { AuthModal } from '@/app/(landing)/components/auth-modal/auth-modal'
+import { IntegrationCtaButton } from '@/app/(landing)/integrations/[slug]/components/integration-cta-button'
 import { IntegrationFAQ } from '@/app/(landing)/integrations/[slug]/components/integration-faq'
 import { TemplateCardButton } from '@/app/(landing)/integrations/[slug]/components/template-card-button'
 import { IntegrationIcon } from '@/app/(landing)/integrations/components/integration-icon'
@@ -367,14 +367,12 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
 
         {/* CTAs */}
         <div className='flex flex-wrap gap-2'>
-          <AuthModal defaultView='signup' source='integrations'>
-            <button
-              type='button'
-              className='inline-flex h-[32px] items-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
-            >
-              Start building free
-            </button>
-          </AuthModal>
+          <IntegrationCtaButton
+            label='Start building free'
+            className='inline-flex h-[32px] items-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+          >
+            Start building free
+          </IntegrationCtaButton>
           <a
             href={docsUrl}
             target='_blank'
@@ -781,14 +779,12 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             Build your first AI agent with {name} in minutes. Connect to every tool your team uses.
             Free to start — no credit card required.
           </p>
-          <AuthModal defaultView='signup' source='integrations'>
-            <button
-              type='button'
-              className='inline-flex h-[32px] items-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
-            >
-              Build for free
-            </button>
-          </AuthModal>
+          <IntegrationCtaButton
+            label='Build for free'
+            className='inline-flex h-[32px] items-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+          >
+            Build for free
+          </IntegrationCtaButton>
         </section>
       </div>
 
