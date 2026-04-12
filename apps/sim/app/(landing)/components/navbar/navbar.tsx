@@ -350,14 +350,13 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                     <button
                       type='button'
                       className='flex h-[32px] items-center justify-center rounded-[5px] border border-[var(--landing-border-strong)] text-[14px] text-[var(--landing-text)] transition-colors active:bg-[var(--landing-bg-elevated)]'
-                      onClick={() => {
+                      onClick={() =>
                         trackLandingCta({
                           label: 'Log in',
                           section: 'navbar',
                           destination: 'auth_modal',
                         })
-                        setMobileMenuOpen(false)
-                      }}
+                      }
                       aria-label='Log in'
                     >
                       Log in
@@ -367,14 +366,13 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                     <button
                       type='button'
                       className='flex h-[32px] items-center justify-center rounded-[5px] border border-[var(--white)] bg-[var(--white)] text-[14px] text-black transition-colors active:bg-[#E0E0E0]'
-                      onClick={() => {
+                      onClick={() =>
                         trackLandingCta({
                           label: 'Get started',
                           section: 'navbar',
                           destination: 'auth_modal',
                         })
-                        setMobileMenuOpen(false)
-                      }}
+                      }
                       aria-label='Get started with Sim'
                     >
                       Get started
