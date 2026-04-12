@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { Loader2, X } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -10,6 +11,8 @@ import { client } from '@/lib/auth/auth-client'
 import { captureClientEvent } from '@/lib/posthog/client'
 import type { PostHogEventMap } from '@/lib/posthog/events'
 import { getBrandConfig } from '@/ee/whitelabeling'
+
+const logger = createLogger('AuthModal')
 
 type AuthView = 'login' | 'signup'
 
@@ -22,7 +25,6 @@ interface AuthModalProps {
 interface ProviderStatus {
   githubAvailable: boolean
   googleAvailable: boolean
-  isProduction: boolean
 }
 
 let fetchPromise: Promise<ProviderStatus> | null = null
@@ -30,8 +32,10 @@ let fetchPromise: Promise<ProviderStatus> | null = null
 const FALLBACK_STATUS: ProviderStatus = {
   githubAvailable: false,
   googleAvailable: false,
-  isProduction: false,
 }
+
+const SOCIAL_BTN =
+  'relative flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--landing-border-strong)] text-[13.5px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)] disabled:cursor-not-allowed disabled:opacity-50'
 
 function fetchProviderStatus(): Promise<ProviderStatus> {
   if (fetchPromise) return fetchPromise
@@ -40,7 +44,10 @@ function fetchProviderStatus(): Promise<ProviderStatus> {
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       return r.json()
     })
-    .then((data: ProviderStatus) => data)
+    .then(({ githubAvailable, googleAvailable }: ProviderStatus) => ({
+      githubAvailable,
+      googleAvailable,
+    }))
     .catch(() => {
       fetchPromise = null
       return FALLBACK_STATUS
@@ -54,7 +61,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
   const [view, setView] = useState<AuthView>(defaultView)
   const [providerStatus, setProviderStatus] = useState<ProviderStatus | null>(null)
   const [socialLoading, setSocialLoading] = useState<'github' | 'google' | null>(null)
-  const brand = getBrandConfig()
+  const brand = useMemo(() => getBrandConfig(), [])
 
   useEffect(() => {
     fetchProviderStatus().then(setProviderStatus)
@@ -81,7 +88,8 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
     setSocialLoading(provider)
     try {
       await client.signIn.social({ provider, callbackURL: '/workspace' })
-    } catch {
+    } catch (error) {
+      logger.warn('Social sign-in did not complete', { provider, error })
     } finally {
       setSocialLoading(null)
     }
@@ -140,7 +148,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                     type='button'
                     onClick={() => handleSocialLogin('google')}
                     disabled={!!socialLoading}
-                    className='relative flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--landing-border-strong)] text-[13.5px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)] disabled:cursor-not-allowed disabled:opacity-50'
+                    className={SOCIAL_BTN}
                   >
                     <GoogleIcon className='absolute left-4 h-[18px] w-[18px] shrink-0' />
                     <span>
@@ -153,7 +161,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                     type='button'
                     onClick={() => handleSocialLogin('github')}
                     disabled={!!socialLoading}
-                    className='relative flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--landing-border-strong)] text-[13.5px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)] disabled:cursor-not-allowed disabled:opacity-50'
+                    className={SOCIAL_BTN}
                   >
                     <GithubIcon className='absolute left-4 h-[18px] w-[18px] shrink-0' />
                     <span>

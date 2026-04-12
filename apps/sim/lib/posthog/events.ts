@@ -23,6 +23,7 @@ export interface PostHogEventMap {
       | 'pricing'
       | 'features'
       | 'collaboration'
+      | 'templates'
       | 'landing_preview'
       | 'integrations'
     destination: 'auth_modal' | 'demo_modal' | '/signup' | '/login' | '/workspace' | (string & {})

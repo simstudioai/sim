@@ -123,7 +123,7 @@ Built-in table creation and management:
 
 ### Frontend
 - Next.js 15 with App Router
-- React Flow for canvas visualization
+- React Flow for the visual builder
 - Tailwind CSS for styling
 - Zustand for state management
 
@@ -143,7 +143,7 @@ Built-in table creation and management:
 
 1. **Sign Up**: Create a free account at ${baseUrl}
 2. **Create Workspace**: Set up your first workspace
-3. **Build Workflow**: Drag blocks onto canvas and connect them
+3. **Build Workflow**: Drag blocks onto the workflow builder and connect them
 4. **Configure Blocks**: Set up LLM providers, tools, and integrations
 5. **Test**: Run the workflow manually to verify
 6. **Deploy**: Set up triggers for automated execution

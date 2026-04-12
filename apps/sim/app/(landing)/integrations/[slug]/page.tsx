@@ -97,7 +97,7 @@ function buildFAQs(integration: Integration): FAQItem[] {
     },
     {
       question: `How do I connect ${name} to Sim?`,
-      answer: `Getting started takes under five minutes: (1) Create a free account at sim.ai. (2) Open your workspace and create an agent. (3) Drag a ${name} block onto the canvas. (4) ${authStep} (5) Choose the tool you want to use, wire it to the inputs you need, and click Run. Your agent is live.`,
+      answer: `Getting started takes under five minutes: (1) Create a free account at sim.ai. (2) Open your workspace and create an agent. (3) Drag a ${name} block onto the workflow builder. (4) ${authStep} (5) Choose the tool you want to use, wire it to the inputs you need, and click Run. Your agent is live.`,
     },
     {
       question: `Can I use ${name} as a tool inside an AI agent in Sim?`,
@@ -262,7 +262,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
         '@type': 'HowToStep',
         position: 2,
         name: `Add a ${name} block`,
-        text: `Open your workspace, drag a ${name} block onto the canvas, and authenticate with your ${name} credentials.`,
+        text: `Open your workspace, drag a ${name} block onto the workflow builder, and authenticate with your ${name} credentials.`,
       },
       {
         '@type': 'HowToStep',
@@ -455,10 +455,10 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
                 title: `Add a ${name} block`,
                 body:
                   authType === 'oauth'
-                    ? `Open your workspace, drag a ${name} block onto the canvas, and connect your account with one-click OAuth.`
+                    ? `Open your workspace, drag a ${name} block onto the workflow builder, and connect your account with one-click OAuth.`
                     : authType === 'api-key'
-                      ? `Open your workspace, drag a ${name} block onto the canvas, and paste in your ${name} API key.`
-                      : `Open your workspace, drag a ${name} block onto the canvas, and authenticate your account.`,
+                      ? `Open your workspace, drag a ${name} block onto the workflow builder, and paste in your ${name} API key.`
+                      : `Open your workspace, drag a ${name} block onto the workflow builder, and authenticate your account.`,
               },
               {
                 step: '03',

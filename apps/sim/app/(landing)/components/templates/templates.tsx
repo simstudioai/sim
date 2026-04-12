@@ -300,7 +300,7 @@ export default function Templates() {
       setIsPreparingTemplate(false)
       trackLandingCta({
         label: activeWorkflow.name,
-        section: 'landing_preview',
+        section: 'templates',
         destination: '/signup',
       })
       router.push('/signup')
