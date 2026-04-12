@@ -142,21 +142,3 @@ export function useResetPassword() {
     },
   })
 }
-
-/**
- * Delete account mutation — permanently removes the user's account and all associated data.
- */
-export function useDeleteAccount() {
-  return useMutation({
-    mutationFn: async () => {
-      const response = await fetch('/api/users/me', { method: 'DELETE' })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to delete account')
-      }
-
-      return response.json()
-    },
-  })
-}
