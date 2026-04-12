@@ -103,11 +103,14 @@ export async function POST(req: NextRequest) {
         recordAudit({
           workspaceId,
           actorId: userId,
+          actorName: authResult.userName ?? undefined,
+          actorEmail: authResult.userEmail ?? undefined,
           action: AuditAction.SKILL_CREATED,
           resourceType: AuditResourceType.SKILL,
           resourceId: skill.id,
           resourceName: skill.name,
           description: `Created/updated skill "${skill.name}"`,
+          metadata: { source },
         })
         captureServerEvent(
           userId,
@@ -185,10 +188,13 @@ export async function DELETE(request: NextRequest) {
     recordAudit({
       workspaceId,
       actorId: authResult.userId,
+      actorName: authResult.userName ?? undefined,
+      actorEmail: authResult.userEmail ?? undefined,
       action: AuditAction.SKILL_DELETED,
       resourceType: AuditResourceType.SKILL,
       resourceId: skillId,
       description: `Deleted skill`,
+      metadata: { source },
     })
 
     captureServerEvent(

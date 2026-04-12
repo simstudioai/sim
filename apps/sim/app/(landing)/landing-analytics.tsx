@@ -1,16 +1,13 @@
 'use client'
 
 import { useEffect } from 'react'
-import { usePostHog } from 'posthog-js/react'
-import { captureClientEvent, captureEvent } from '@/lib/posthog/client'
+import { captureClientEvent } from '@/lib/posthog/client'
 import type { PostHogEventMap } from '@/lib/posthog/events'
 
 export function LandingAnalytics() {
-  const posthog = usePostHog()
-
   useEffect(() => {
-    captureEvent(posthog, 'landing_page_viewed', {})
-  }, [posthog])
+    captureClientEvent('landing_page_viewed', {})
+  }, [])
 
   return null
 }

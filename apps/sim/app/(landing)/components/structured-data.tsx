@@ -27,7 +27,7 @@ export default function StructuredData() {
         name: 'Sim',
         alternateName: 'Sim Studio',
         description:
-          'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows.',
+          'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work.',
         url: 'https://sim.ai',
         logo: {
           '@type': 'ImageObject',
@@ -55,9 +55,9 @@ export default function StructuredData() {
         '@type': 'WebSite',
         '@id': 'https://sim.ai/#website',
         url: 'https://sim.ai',
-        name: 'Sim — Build AI Agents & Run Your Agentic Workforce',
+        name: 'Sim — The AI Workspace | Build, Deploy & Manage AI Agents',
         description:
-          'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows. Join 100,000+ builders.',
+          'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM. Join 100,000+ builders.',
         publisher: { '@id': 'https://sim.ai/#organization' },
         inLanguage: 'en-US',
       },
@@ -65,13 +65,13 @@ export default function StructuredData() {
         '@type': 'WebPage',
         '@id': 'https://sim.ai/#webpage',
         url: 'https://sim.ai',
-        name: 'Sim — Build AI Agents & Run Your Agentic Workforce',
+        name: 'Sim — The AI Workspace | Build, Deploy & Manage AI Agents',
         isPartOf: { '@id': 'https://sim.ai/#website' },
         about: { '@id': 'https://sim.ai/#software' },
         datePublished: '2024-01-01T00:00:00+00:00',
         dateModified: new Date().toISOString(),
         description:
-          'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows. Create agents, workflows, knowledge bases, tables, and docs.',
+          'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work.',
         breadcrumb: { '@id': 'https://sim.ai/#breadcrumb' },
         inLanguage: 'en-US',
         speakable: {
@@ -91,12 +91,14 @@ export default function StructuredData() {
         '@type': 'WebApplication',
         '@id': 'https://sim.ai/#software',
         url: 'https://sim.ai',
-        name: 'Sim — Build AI Agents & Run Your Agentic Workforce',
+        name: 'Sim — The AI Workspace',
         description:
-          'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows. Create agents, workflows, knowledge bases, tables, and docs. Trusted by over 100,000 builders. SOC2 compliant.',
-        applicationCategory: 'DeveloperApplication',
+          'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work — visually, conversationally, or with code. Trusted by over 100,000 builders. SOC2 compliant.',
+        applicationCategory: 'BusinessApplication',
+        applicationSubCategory: 'AI Workspace',
         operatingSystem: 'Web',
         browserRequirements: 'Requires a modern browser with JavaScript enabled',
+        installUrl: 'https://sim.ai/signup',
         offers: [
           {
             '@type': 'Offer',
@@ -135,8 +137,9 @@ export default function StructuredData() {
           },
         ],
         featureList: [
-          'AI agent creation',
-          'Agentic workflow orchestration',
+          'AI workspace for teams',
+          'Mothership — natural language agent creation',
+          'Visual workflow builder',
           '1,000+ integrations',
           'LLM orchestration (OpenAI, Anthropic, Google, xAI, Mistral, Perplexity)',
           'Knowledge base creation',
@@ -176,7 +179,7 @@ export default function StructuredData() {
         codeRepository: 'https://github.com/simstudioai/sim',
         programmingLanguage: ['TypeScript', 'Python'],
         runtimePlatform: 'Node.js',
-        license: 'https://opensource.org/licenses/AGPL-3.0',
+        license: 'https://opensource.org/licenses/Apache-2.0',
         isPartOf: { '@id': 'https://sim.ai/#software' },
       },
       {
@@ -185,10 +188,18 @@ export default function StructuredData() {
         mainEntity: [
           {
             '@type': 'Question',
+            name: 'What is the best AI agent builder?',
+            acceptedAnswer: {
+              '@type': 'Answer',
+              text: 'Sim is the open-source AI workspace trusted by over 100,000 builders for creating, deploying, and managing AI agents. Build agents visually with the workflow builder, conversationally through Mothership, or programmatically with the API. Sim connects to 1,000+ integrations and all major LLMs (OpenAI, Anthropic, Google, xAI, Mistral), and includes knowledge bases, tables, real-time collaboration, and enterprise governance. Free tier available. SOC2 compliant. Self-hostable.',
+            },
+          },
+          {
+            '@type': 'Question',
             name: 'What is Sim?',
             acceptedAnswer: {
               '@type': 'Answer',
-              text: 'Sim is the open-source platform to build AI agents and run your agentic workforce. Teams connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows. Create agents, workflows, knowledge bases, tables, and docs. Trusted by over 100,000 builders. SOC2 compliant.',
+              text: 'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work — visually, conversationally, or with code. The workspace includes Mothership for natural-language creation, a visual workflow builder, knowledge bases, tables, and full observability. Trusted by over 100,000 builders. SOC2 compliant.',
             },
           },
           {
@@ -212,7 +223,7 @@ export default function StructuredData() {
             name: 'Do I need coding skills to use Sim?',
             acceptedAnswer: {
               '@type': 'Answer',
-              text: 'No coding skills are required. Sim provides a visual interface for building AI agents and agentic workflows. Developers can also use custom functions, the API, and the CLI/SDK for advanced use cases.',
+              text: 'No coding skills are required. Sim provides multiple ways to build agents: a visual workflow builder for drag-and-drop creation, Mothership for building in natural language, and templates for common use cases. Developers can also use custom functions, the API, and the CLI/SDK for advanced use cases.',
             },
           },
           {
@@ -228,7 +239,7 @@ export default function StructuredData() {
             name: 'Is Sim open source?',
             acceptedAnswer: {
               '@type': 'Answer',
-              text: 'Yes. Sim is fully open source under the AGPL-3.0 license. The source code is available on GitHub at github.com/simstudioai/sim. You can self-host Sim or use the hosted version at sim.ai.',
+              text: 'Yes. Sim is fully open source under the Apache 2.0 license. The source code is available on GitHub at github.com/simstudioai/sim. You can self-host Sim or use the hosted version at sim.ai.',
             },
           },
           {

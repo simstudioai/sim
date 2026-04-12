@@ -10,7 +10,7 @@ export default async function StudioLayout({ children }: { children: React.React
     name: 'Sim',
     url: 'https://sim.ai',
     description:
-      'Sim is an open-source platform for building, testing, and deploying AI agent workflows.',
+      'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents.',
     logo: 'https://sim.ai/logo/primary/small.png',
     sameAs: [
       'https://x.com/simdotai',

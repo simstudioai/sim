@@ -193,14 +193,6 @@ Return ONLY valid JSON, no explanations or markdown.`,
     },
     // Instructions
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'imap_poller',
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

@@ -9,8 +9,8 @@ export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metad
   const brand = getBrandConfig()
 
   const defaultTitle = brand.name
-  const summaryFull = `Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows. Create agents, workflows, knowledge bases, tables, and docs. Trusted by over 100,000 builders — from startups to Fortune 500 companies. SOC2 compliant.`
-  const summaryShort = `Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows.`
+  const summaryFull = `Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work — visually, conversationally, or with code. Trusted by over 100,000 builders — from startups to Fortune 500 companies. SOC2 compliant.`
+  const summaryShort = `Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work.`
 
   return {
     title: {
@@ -22,8 +22,12 @@ export function generateBrandedMetadata(override: Partial<Metadata> = {}): Metad
     authors: [{ name: brand.name }],
     generator: 'Next.js',
     keywords: [
+      'AI workspace',
+      'AI agent builder',
+      'AI agent workflow builder',
+      'build AI agents',
+      'visual workflow builder',
       'AI agents',
-      'agentic workforce',
       'AI agent platform',
       'open-source AI agents',
       'agentic workflows',
@@ -132,11 +136,11 @@ export function generateStructuredData() {
     '@type': 'SoftwareApplication',
     name: 'Sim',
     description:
-      'Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows. Create agents, workflows, knowledge bases, tables, and docs. Trusted by over 100,000 builders. SOC2 compliant.',
+      'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work. Trusted by over 100,000 builders. SOC2 compliant.',
     url: getBaseUrl(),
     applicationCategory: 'BusinessApplication',
     operatingSystem: 'Web',
-    applicationSubCategory: 'AIAgentPlatform',
+    applicationSubCategory: 'AIWorkspace',
     areaServed: 'Worldwide',
     availableLanguage: ['en'],
     offers: {
@@ -149,8 +153,9 @@ export function generateStructuredData() {
       url: 'https://sim.ai',
     },
     featureList: [
-      'AI Agent Creation',
-      'Agentic Workflow Orchestration',
+      'AI Workspace for Teams',
+      'Mothership — Natural Language Agent Creation',
+      'Visual Workflow Builder',
       '1,000+ Integrations',
       'LLM Orchestration',
       'Knowledge Base Creation',

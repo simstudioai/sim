@@ -399,7 +399,6 @@ describe.concurrent('Blocks Module', () => {
         'mcp-dynamic-args',
         'input-format',
         'response-format',
-        'trigger-save',
         'file-upload',
         'input-mapping',
         'variables-input',

@@ -34,7 +34,23 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
-const SKELETON_SECTIONS = [3, 2, 2] as const
+const SKELETON_SECTIONS = sectionConfig
+  .map(({ key }) =>
+    Math.min(
+      allNavigationItems.filter(
+        (item) =>
+          item.section === key &&
+          !(item.hideWhenBillingDisabled && !isBillingEnabled) &&
+          !item.requiresTeam &&
+          !item.requiresEnterprise &&
+          !item.requiresSuperUser &&
+          !item.requiresAdminRole &&
+          item.id !== 'template-profile'
+      ).length,
+      3
+    )
+  )
+  .filter((count) => count > 0)
 
 interface SettingsSidebarProps {
   isCollapsed?: boolean
@@ -61,14 +77,16 @@ export function SettingsSidebar({
   const { data: session, isPending: sessionLoading } = useSession()
   const { data: organizationsData, isLoading: orgsLoading } = useOrganizations()
   const { data: generalSettings } = useGeneralSettings()
-  const { data: subscriptionData } = useSubscriptionData({
+  const { data: subscriptionData, isLoading: subscriptionLoading } = useSubscriptionData({
     enabled: isBillingEnabled,
     staleTime: 5 * 60 * 1000,
   })
-  const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders()
+  const { data: ssoProvidersData, isLoading: isLoadingSSO } = useSSOProviders({
+    enabled: !isHosted,
+  })
 
   const activeOrganization = organizationsData?.activeOrganization
-  const { config: permissionConfig } = usePermissionConfig()
+  const { config: permissionConfig, isLoading: permissionLoading } = usePermissionConfig()
 
   const userEmail = session?.user?.email
   const userId = session?.user?.id
@@ -100,7 +118,16 @@ export function SettingsSidebar({
       if (item.id === 'template-profile') {
         return false
       }
+      if (item.id === 'integrations' && permissionConfig.hideIntegrationsTab) {
+        return false
+      }
+      if (item.id === 'secrets' && permissionConfig.hideSecretsTab) {
+        return false
+      }
       if (item.id === 'apikeys' && permissionConfig.hideApiKeysTab) {
+        return false
+      }
+      if (item.id === 'inbox' && permissionConfig.hideInboxTab) {
         return false
       }
       if (item.id === 'mcp' && permissionConfig.disableMcpTools) {
@@ -244,113 +271,102 @@ export function SettingsSidebar({
           !isCollapsed && 'overflow-y-auto overflow-x-hidden'
         )}
       >
-        {sessionLoading || orgsLoading ? (
-          isCollapsed ? (
-            <>
-              {SKELETON_SECTIONS.map((count, sectionIdx) => (
-                <div key={sectionIdx} className='flex flex-col gap-0.5 px-2'>
-                  {Array.from({ length: count }, (_, i) => (
-                    <div key={i} className='mx-0.5 flex h-[30px] items-center px-2'>
-                      <Skeleton className='h-[16px] w-[16px] rounded-sm' />
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </>
-          ) : (
-            Array.from({ length: 3 }, (_, i) => (
-              <div key={i} className='sidebar-collapse-hide flex flex-shrink-0 flex-col'>
-                <div className='px-4 pb-1.5'>
+        {sessionLoading ||
+        orgsLoading ||
+        (isBillingEnabled && subscriptionLoading) ||
+        permissionLoading ||
+        (!isHosted && isLoadingSSO)
+          ? SKELETON_SECTIONS.map((count, i) => (
+              <div key={i} className='flex flex-shrink-0 flex-col'>
+                <div className='sidebar-collapse-hide px-4 pb-1.5'>
                   <Skeleton className='h-[14px] w-[64px] rounded-sm' />
                 </div>
                 <div className='flex flex-col gap-0.5 px-2'>
-                  {Array.from({ length: i === 0 ? 3 : 2 }, (_, j) => (
-                    <div key={j} className='mx-0.5 flex h-[30px] items-center px-2'>
-                      <Skeleton className='h-[24px] w-full rounded-sm' />
+                  {Array.from({ length: count }, (_, j) => (
+                    <div key={j} className='mx-0.5 flex h-[30px] items-center gap-2 px-2'>
+                      <Skeleton className='h-[16px] w-[16px] flex-shrink-0 rounded-sm' />
+                      <Skeleton className='sidebar-collapse-hide h-[14px] w-full rounded-sm' />
                     </div>
                   ))}
                 </div>
               </div>
             ))
-          )
-        ) : (
-          sectionConfig.map(({ key, title }) => {
-            const sectionItems = navigationItems.filter((item) => item.section === key)
-            if (sectionItems.length === 0) return null
+          : sectionConfig.map(({ key, title }) => {
+              const sectionItems = navigationItems.filter((item) => item.section === key)
+              if (sectionItems.length === 0) return null
 
-            return (
-              <div key={key} className='flex flex-shrink-0 flex-col'>
-                <div className='px-4 pb-1.5'>
-                  <div className='font-base text-[var(--text-icon)] text-small'>{title}</div>
-                </div>
-                <div className='flex flex-col gap-0.5 px-2'>
-                  {sectionItems.map((item) => {
-                    const Icon = item.icon
-                    const active = activeSection === item.id
-                    const isLocked = item.requiresMax && !subscriptionAccess.hasUsableMaxAccess
-                    const itemClassName = cn(
-                      'group mx-0.5 flex h-[30px] items-center gap-2 rounded-[8px] px-2 text-[14px]',
-                      !active && 'hover-hover:bg-[var(--surface-hover)]',
-                      active && 'bg-[var(--surface-active)]'
-                    )
-                    const content = (
-                      <>
-                        <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                        <span className='min-w-0 truncate font-base text-[var(--text-body)]'>
-                          {item.label}
-                        </span>
-                        {isLocked && (
-                          <span className='ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] font-medium text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
-                            Max
+              return (
+                <div key={key} className='flex flex-shrink-0 flex-col'>
+                  <div className='px-4 pb-1.5'>
+                    <div className='font-base text-[var(--text-icon)] text-small'>{title}</div>
+                  </div>
+                  <div className='flex flex-col gap-0.5 px-2'>
+                    {sectionItems.map((item) => {
+                      const Icon = item.icon
+                      const active = activeSection === item.id
+                      const isLocked = item.requiresMax && !subscriptionAccess.hasUsableMaxAccess
+                      const itemClassName = cn(
+                        'group mx-0.5 flex h-[30px] items-center gap-2 rounded-[8px] px-2 text-[14px]',
+                        !active && 'hover-hover:bg-[var(--surface-hover)]',
+                        active && 'bg-[var(--surface-active)]'
+                      )
+                      const content = (
+                        <>
+                          <Icon className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+                          <span className='min-w-0 truncate font-base text-[var(--text-body)]'>
+                            {item.label}
                           </span>
-                        )}
-                      </>
-                    )
+                          {isLocked && (
+                            <span className='ml-auto shrink-0 rounded-[3px] bg-[var(--surface-5)] px-1 py-[1px] font-medium text-[9px] text-[var(--text-icon)] uppercase tracking-wide'>
+                              Max
+                            </span>
+                          )}
+                        </>
+                      )
 
-                    const element = item.externalUrl ? (
-                      <a
-                        href={item.externalUrl}
-                        target='_blank'
-                        rel='noopener noreferrer'
-                        className={itemClassName}
-                      >
-                        {content}
-                      </a>
-                    ) : (
-                      <button
-                        type='button'
-                        className={itemClassName}
-                        onMouseEnter={() => handlePrefetch(item.id)}
-                        onFocus={() => handlePrefetch(item.id)}
-                        onClick={() => {
-                          const section = item.id as SettingsSection
-                          if (section === activeSection) return
-                          if (!requestNavigation(section)) {
-                            setShowDiscardDialog(true)
-                            return
-                          }
-                          router.replace(getSettingsHref({ section }), { scroll: false })
-                        }}
-                      >
-                        {content}
-                      </button>
-                    )
+                      const element = item.externalUrl ? (
+                        <a
+                          href={item.externalUrl}
+                          target='_blank'
+                          rel='noopener noreferrer'
+                          className={itemClassName}
+                        >
+                          {content}
+                        </a>
+                      ) : (
+                        <button
+                          type='button'
+                          className={itemClassName}
+                          onMouseEnter={() => handlePrefetch(item.id)}
+                          onFocus={() => handlePrefetch(item.id)}
+                          onClick={() => {
+                            const section = item.id as SettingsSection
+                            if (section === activeSection) return
+                            if (!requestNavigation(section)) {
+                              setShowDiscardDialog(true)
+                              return
+                            }
+                            router.replace(getSettingsHref({ section }), { scroll: false })
+                          }}
+                        >
+                          {content}
+                        </button>
+                      )
 
-                    return (
-                      <SidebarTooltip
-                        key={`${item.id}-${isCollapsed}`}
-                        label={item.label}
-                        enabled={showCollapsedTooltips}
-                      >
-                        {element}
-                      </SidebarTooltip>
-                    )
-                  })}
+                      return (
+                        <SidebarTooltip
+                          key={`${item.id}-${isCollapsed}`}
+                          label={item.label}
+                          enabled={showCollapsedTooltips}
+                        >
+                          {element}
+                        </SidebarTooltip>
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
-            )
-          })
-        )}
+              )
+            })}
       </div>
 
       <Modal open={showDiscardDialog} onOpenChange={(open) => !open && handleCancelDiscard()}>

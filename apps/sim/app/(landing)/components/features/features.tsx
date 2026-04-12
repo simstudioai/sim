@@ -3,9 +3,10 @@
 import { useRef, useState } from 'react'
 import { type MotionValue, motion, useScroll, useTransform } from 'framer-motion'
 import Image from 'next/image'
-import Link from 'next/link'
 import { Badge } from '@/components/emcn'
+import { AuthModal } from '@/app/(landing)/components/auth-modal/auth-modal'
 import { FeaturesPreview } from '@/app/(landing)/components/features/components/features-preview'
+import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 
 function hexToRgba(hex: string, alpha: number): string {
   const r = Number.parseInt(hex.slice(1, 3), 16)
@@ -110,7 +111,7 @@ const FEATURE_TABS: FeatureTab[] = [
   },
 ]
 
-const HEADING_TEXT = 'Everything you need to build, deploy, and manage AI agents. '
+const HEADING_TEXT = 'One workspace to build, deploy, and manage AI agents. '
 const HEADING_LETTERS = HEADING_TEXT.split('')
 
 const LETTER_REVEAL_SPAN = 0.85
@@ -189,8 +190,7 @@ export default function Features() {
               </ScrollLetter>
             ))}
             <span className='text-[color-mix(in_srgb,var(--landing-text-dark)_40%,transparent)]'>
-              Design powerful workflows, connect your data, and monitor every run — all in one
-              platform.
+              Build agents, connect your data, and monitor every run — all in one workspace.
             </span>
           </h2>
         </div>
@@ -265,12 +265,21 @@ export default function Features() {
                   {FEATURE_TABS[activeTab].description}
                 </p>
               </div>
-              <Link
-                href='/signup'
-                className='inline-flex h-[32px] items-center rounded-[5px] border border-[#1D1D1D] bg-[#1D1D1D] px-2.5 font-[430] font-season text-sm text-white transition-colors hover:border-[var(--landing-bg-elevated)] hover:bg-[var(--landing-bg-elevated)]'
-              >
-                {FEATURE_TABS[activeTab].cta}
-              </Link>
+              <AuthModal defaultView='signup' source='features'>
+                <button
+                  type='button'
+                  className='inline-flex h-[32px] items-center rounded-[5px] border border-[#1D1D1D] bg-[#1D1D1D] px-2.5 font-[430] font-season text-sm text-white transition-colors hover:border-[var(--landing-bg-elevated)] hover:bg-[var(--landing-bg-elevated)]'
+                  onClick={() =>
+                    trackLandingCta({
+                      label: FEATURE_TABS[activeTab].cta,
+                      section: 'features',
+                      destination: 'auth_modal',
+                    })
+                  }
+                >
+                  {FEATURE_TABS[activeTab].cta}
+                </button>
+              </AuthModal>
             </div>
 
             <FeaturesPreview activeTab={activeTab} />

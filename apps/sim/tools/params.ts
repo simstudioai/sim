@@ -869,7 +869,6 @@ const EXCLUDED_SUBBLOCK_TYPES = new Set([
   'eval-input',
   'webhook-config',
   'schedule-info',
-  'trigger-save',
   'input-format',
   'response-format',
   'mcp-server-selector',

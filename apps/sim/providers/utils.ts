@@ -4,7 +4,7 @@ import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { env } from '@/lib/core/config/env'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { getBlacklistedProvidersFromEnv, isHosted } from '@/lib/core/config/feature-flags'
 import {
   buildCanonicalIndex,
   type CanonicalGroup,
@@ -281,14 +281,8 @@ export function getProviderModels(providerId: ProviderId): string[] {
   return getProviderModelsFromDefinitions(providerId)
 }
 
-function getBlacklistedProviders(): string[] {
-  if (!env.BLACKLISTED_PROVIDERS) return []
-  return env.BLACKLISTED_PROVIDERS.split(',').map((p) => p.trim().toLowerCase())
-}
-
 export function isProviderBlacklisted(providerId: string): boolean {
-  const blacklist = getBlacklistedProviders()
-  return blacklist.includes(providerId.toLowerCase())
+  return getBlacklistedProvidersFromEnv().includes(providerId.toLowerCase())
 }
 
 /**

@@ -241,6 +241,7 @@ async function executeManageCustomTool(
         resourceId: created?.id,
         resourceName: title,
         description: `Created custom tool "${title}"`,
+        metadata: { source: 'copilot' },
       })
 
       return {
@@ -299,6 +300,7 @@ async function executeManageCustomTool(
         resourceId: params.toolId,
         resourceName: title,
         description: `Updated custom tool "${title}"`,
+        metadata: { source: 'copilot' },
       })
 
       return {
@@ -334,6 +336,7 @@ async function executeManageCustomTool(
         resourceType: AuditResourceType.CUSTOM_TOOL,
         resourceId: params.toolId,
         description: 'Deleted custom tool',
+        metadata: { source: 'copilot' },
       })
 
       return {
@@ -502,6 +505,7 @@ async function executeManageMcpTool(
         description: existing
           ? `Updated existing MCP server "${config.name}"`
           : `Added MCP server "${config.name}"`,
+        metadata: { transport: config.transport, url: config.url, source: 'copilot' },
       })
 
       return {
@@ -563,7 +567,9 @@ async function executeManageMcpTool(
         action: AuditAction.MCP_SERVER_UPDATED,
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: params.serverId,
+        resourceName: updated.name,
         description: `Updated MCP server "${updated.name}"`,
+        metadata: { source: 'copilot' },
       })
 
       return {
@@ -607,7 +613,9 @@ async function executeManageMcpTool(
         action: AuditAction.MCP_SERVER_REMOVED,
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: params.serverId,
+        resourceName: deleted.name,
         description: `Deleted MCP server "${deleted.name}"`,
+        metadata: { source: 'copilot' },
       })
 
       return {
@@ -719,6 +727,7 @@ async function executeManageSkill(
         resourceId: created?.id,
         resourceName: params.name,
         description: `Created skill "${params.name}"`,
+        metadata: { source: 'copilot' },
       })
 
       return {
@@ -773,6 +782,7 @@ async function executeManageSkill(
         resourceId: params.skillId,
         resourceName: updatedName,
         description: `Updated skill "${updatedName}"`,
+        metadata: { source: 'copilot' },
       })
 
       return {
@@ -804,6 +814,7 @@ async function executeManageSkill(
         resourceType: AuditResourceType.SKILL,
         resourceId: params.skillId,
         description: 'Deleted skill',
+        metadata: { source: 'copilot' },
       })
 
       return {
@@ -1055,7 +1066,9 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
             action: AuditAction.CREDENTIAL_RENAMED,
             resourceType: AuditResourceType.OAUTH,
             resourceId: credentialId,
+            resourceName: displayName,
             description: `Renamed credential to "${displayName}"`,
+            metadata: { source: 'copilot' },
           })
           return { success: true, output: { credentialId, displayName } }
         }
@@ -1067,6 +1080,7 @@ const SIM_WORKFLOW_TOOL_HANDLERS: Record<
             resourceType: AuditResourceType.OAUTH,
             resourceId: credentialId,
             description: `Deleted credential`,
+            metadata: { source: 'copilot' },
           })
           return { success: true, output: { credentialId, deleted: true } }
         }

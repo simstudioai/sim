@@ -12,7 +12,7 @@ import { client, useSession } from '@/lib/auth/auth-client'
 import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { captureEvent } from '@/lib/posthog/client'
+import { captureClientEvent, captureEvent } from '@/lib/posthog/client'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { SSOLoginButton } from '@/app/(auth)/components/sso-login-button'
@@ -71,15 +71,13 @@ const validateEmailField = (emailValue: string): string[] => {
   return errors
 }
 
-function SignupFormContent({
-  githubAvailable,
-  googleAvailable,
-  isProduction,
-}: {
+interface SignupFormProps {
   githubAvailable: boolean
   googleAvailable: boolean
   isProduction: boolean
-}) {
+}
+
+function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: SignupFormProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { refetch: refetchSession } = useSession()
@@ -87,8 +85,8 @@ function SignupFormContent({
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
-    captureEvent(posthog, 'signup_page_viewed', {})
-  }, [posthog])
+    captureClientEvent('signup_page_viewed', {})
+  }, [])
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
@@ -243,8 +241,6 @@ function SignupFormContent({
         return
       }
 
-      const sanitizedName = trimmedName
-
       let token: string | undefined
       const widget = turnstileRef.current
       if (turnstileSiteKey && widget) {
@@ -267,7 +263,7 @@ function SignupFormContent({
         {
           email: emailValue,
           password: passwordValue,
-          name: sanitizedName,
+          name: trimmedName,
         },
         {
           headers: {
@@ -629,11 +625,7 @@ export default function SignupPage({
   githubAvailable,
   googleAvailable,
   isProduction,
-}: {
-  githubAvailable: boolean
-  googleAvailable: boolean
-  isProduction: boolean
-}) {
+}: SignupFormProps) {
   return (
     <Suspense
       fallback={<div className='flex h-screen items-center justify-center'>Loading...</div>}

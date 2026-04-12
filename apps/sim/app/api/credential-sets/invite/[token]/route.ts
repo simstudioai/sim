@@ -192,7 +192,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       resourceId: invitation.credentialSetId,
       resourceName: invitation.credentialSetName,
       description: `Accepted credential set invitation`,
-      metadata: { invitationId: invitation.id },
+      metadata: {
+        invitationId: invitation.id,
+        credentialSetId: invitation.credentialSetId,
+        providerId: invitation.providerId,
+        credentialSetName: invitation.credentialSetName,
+      },
       request: req,
     })
 

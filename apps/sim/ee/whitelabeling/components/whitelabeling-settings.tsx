@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Loader2, X } from 'lucide-react'
 import Image from 'next/image'
-import { Button, Input, Label, Switch } from '@/components/emcn'
+import { Button, Input, Label } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
@@ -79,6 +79,22 @@ interface ColorInputProps {
 function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorInputProps) {
   const isValidHex = !value || HEX_COLOR_REGEX.test(value)
 
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      let v = e.target.value.trim()
+      if (v && !v.startsWith('#')) {
+        v = `#${v}`
+      }
+      v = v.slice(0, 1) + v.slice(1).replace(/[^0-9a-fA-F]/g, '')
+      onChange(v.slice(0, 7))
+    },
+    [onChange]
+  )
+
+  const handleFocus = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.select()
+  }, [])
+
   return (
     <div className='flex flex-col gap-1.5'>
       <Label className='text-[13px] text-[var(--text-primary)]'>{label}</Label>
@@ -92,7 +108,8 @@ function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorIn
         </div>
         <Input
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={handleChange}
+          onFocus={handleFocus}
           placeholder={placeholder}
           className={cn(
             'h-[36px] font-mono text-[13px]',
@@ -154,7 +171,6 @@ export function WhitelabelingSettings() {
   const [documentationUrl, setDocumentationUrl] = useState('')
   const [termsUrl, setTermsUrl] = useState('')
   const [privacyUrl, setPrivacyUrl] = useState('')
-  const [hidePoweredBySim, setHidePoweredBySim] = useState(false)
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [wordmarkUrl, setWordmarkUrl] = useState<string | null>(null)
   const [formInitialized, setFormInitialized] = useState(false)
@@ -172,7 +188,6 @@ export function WhitelabelingSettings() {
     setDocumentationUrl(savedSettings.documentationUrl ?? '')
     setTermsUrl(savedSettings.termsUrl ?? '')
     setPrivacyUrl(savedSettings.privacyUrl ?? '')
-    setHidePoweredBySim(savedSettings.hidePoweredBySim ?? false)
     setLogoUrl(savedSettings.logoUrl ?? null)
     setWordmarkUrl(savedSettings.wordmarkUrl ?? null)
     setFormInitialized(true)
@@ -222,7 +237,6 @@ export function WhitelabelingSettings() {
       documentationUrl: documentationUrl || null,
       termsUrl: termsUrl || null,
       privacyUrl: privacyUrl || null,
-      hidePoweredBySim,
     }
 
     try {
@@ -246,7 +260,6 @@ export function WhitelabelingSettings() {
     documentationUrl,
     termsUrl,
     privacyUrl,
-    hidePoweredBySim,
   ])
 
   if (isBillingEnabled) {
@@ -493,21 +506,6 @@ export function WhitelabelingSettings() {
               className='h-[36px] text-[13px]'
             />
           </SettingRow>
-        </div>
-      </section>
-
-      <section>
-        <SectionTitle>Advanced</SectionTitle>
-        <div className='flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3'>
-          <div className='flex flex-col gap-0.5'>
-            <span className='text-[13px] text-[var(--text-primary)]'>
-              Hide "Powered by Sim" branding
-            </span>
-            <span className='text-[12px] text-[var(--text-muted)]'>
-              Removes the Sim logo from deployed chats and forms.
-            </span>
-          </div>
-          <Switch checked={hidePoweredBySim} onCheckedChange={setHidePoweredBySim} />
         </div>
       </section>
 

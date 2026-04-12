@@ -207,6 +207,7 @@ export async function POST(request: NextRequest, { params }: DocumentsRouteParam
       resourceId: newDocument.id,
       resourceName: file.name,
       description: `Uploaded document "${file.name}" to knowledge base via API`,
+      metadata: { knowledgeBaseId, fileSize: file.size, mimeType: contentType },
       request,
     })
 

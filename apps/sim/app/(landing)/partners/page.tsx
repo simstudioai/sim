@@ -8,7 +8,7 @@ import Navbar from '@/app/(landing)/components/navbar/navbar'
 export const metadata: Metadata = {
   title: 'Partner Program',
   description:
-    'Join the Sim partner program. Build, deploy, and sell AI workflow solutions. Earn your certification through Sim Academy.',
+    "Join the Sim partner program. Build, deploy, and sell AI agent solutions powered by Sim's AI workspace. Earn your certification through Sim Academy.",
   metadataBase: new URL('https://sim.ai'),
   openGraph: {
     title: 'Partner Program | Sim',
@@ -22,7 +22,7 @@ const PARTNER_TIERS = [
     name: 'Certified Partner',
     badge: 'Entry',
     color: '#3A3A3A',
-    requirements: ['Complete Sim Academy certification', 'Deploy at least 1 live workflow'],
+    requirements: ['Complete Sim Academy certification', 'Deploy at least 1 live agent'],
     perks: [
       'Official partner badge',
       'Listed in partner directory',
@@ -69,13 +69,13 @@ const HOW_IT_WORKS = [
     step: '01',
     title: 'Sign up & complete Sim Academy',
     description:
-      'Create an account and work through the Sim Academy certification program. Learn to build, integrate, and deploy AI workflows through hands-on canvas exercises.',
+      'Create an account and work through the Sim Academy certification program. Learn to build, integrate, and deploy AI agents through hands-on exercises.',
   },
   {
     step: '02',
     title: 'Build & deploy real solutions',
     description:
-      'Put your skills to work. Build workflow automations for clients, integrate Sim into existing products, or create your own Sim-powered applications.',
+      'Put your skills to work. Build AI agents for clients, integrate Sim into existing products, or create your own Sim-powered applications.',
   },
   {
     step: '03',
@@ -119,7 +119,7 @@ const BENEFITS = [
     icon: '📣',
     title: 'Community',
     description:
-      'Join a growing community of Sim builders. Share workflows, collaborate on solutions, and shape the product roadmap.',
+      'Join a growing community of Sim builders. Share agents, collaborate on solutions, and shape the product roadmap.',
   },
 ]
 
@@ -144,11 +144,11 @@ export default async function PartnersPage() {
             <h1 className='mb-5 text-[64px] text-white leading-[105%] tracking-[-0.03em]'>
               Build the future
               <br />
-              of AI automation
+              of AI agents
             </h1>
             <p className='mb-10 max-w-xl text-[#F6F6F0]/60 text-[18px] leading-[160%] tracking-[0.01em]'>
               Become a certified Sim partner. Complete Sim Academy, deploy real solutions, and earn
-              recognition in the growing ecosystem of AI workflow builders.
+              recognition in the growing ecosystem of AI agent builders.
             </p>
             <div className='flex items-center gap-4'>
               {/* TODO: Uncomment when academy is public */}

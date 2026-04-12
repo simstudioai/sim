@@ -94,17 +94,6 @@ export const hubspotTicketDeletedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_ticket_deleted',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_ticket_deleted',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',

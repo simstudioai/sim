@@ -56,6 +56,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       resourceId: workflowId,
       resourceName: workflowData.name,
       description: `Restored workflow "${workflowData.name}"`,
+      metadata: {
+        workflowName: workflowData.name,
+        workspaceId: workflowData.workspaceId || undefined,
+      },
       request,
     })
 

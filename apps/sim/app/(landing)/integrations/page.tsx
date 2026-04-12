@@ -30,17 +30,17 @@ const featured = FEATURED_SLUGS.map((s) => bySlug.get(s)).filter(
 
 export const metadata: Metadata = {
   title: 'Integrations',
-  description: `Connect ${INTEGRATION_COUNT}+ apps and services with Sim's AI workflow automation. Build intelligent pipelines with ${TOP_NAMES.join(', ')}, and more.`,
+  description: `Connect ${INTEGRATION_COUNT}+ apps and services in Sim's AI workspace. Build agents that automate real work with ${TOP_NAMES.join(', ')}, and more.`,
   keywords: [
-    'workflow automation integrations',
-    'AI workflow automation',
-    'no-code automation',
+    'AI workspace integrations',
+    'AI agent integrations',
+    'AI agent builder integrations',
     ...TOP_NAMES.flatMap((n) => [`${n} integration`, `${n} automation`]),
     ...allIntegrations.slice(0, 20).map((i) => `${i.name} automation`),
   ],
   openGraph: {
-    title: 'Integrations for AI Workflow Automation | Sim',
-    description: `Connect ${INTEGRATION_COUNT}+ apps with Sim. Build AI-powered pipelines that link ${TOP_NAMES.join(', ')}, and every tool your team uses.`,
+    title: 'Integrations | Sim AI Workspace',
+    description: `Connect ${INTEGRATION_COUNT}+ apps in Sim's AI workspace. Build agents that link ${TOP_NAMES.join(', ')}, and every tool your team uses.`,
     url: `${baseUrl}/integrations`,
     type: 'website',
     images: [
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Integrations | Sim',
-    description: `Connect ${INTEGRATION_COUNT}+ apps with Sim's AI workflow automation.`,
+    description: `Connect ${INTEGRATION_COUNT}+ apps in Sim's AI workspace.`,
     images: [
       { url: `${baseUrl}/opengraph-image.png`, alt: 'Sim Integrations for AI Workflow Automation' },
     ],
@@ -82,7 +82,7 @@ export default function IntegrationsPage() {
     '@context': 'https://schema.org',
     '@type': 'ItemList',
     name: 'Sim AI Workflow Integrations',
-    description: `Complete list of ${INTEGRATION_COUNT}+ integrations available in Sim for building AI-powered workflow automation.`,
+    description: `Complete list of ${INTEGRATION_COUNT}+ integrations available in Sim's AI workspace for building and deploying AI agents.`,
     url: `${baseUrl}/integrations`,
     numberOfItems: INTEGRATION_COUNT,
     itemListElement: allIntegrations.map((integration, index) => ({
@@ -129,7 +129,7 @@ export default function IntegrationsPage() {
             Integrations
           </h1>
           <p className='font-[430] font-season text-[var(--landing-text-muted)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
-            Connect every tool your team uses. Build AI-powered workflows that automate tasks across{' '}
+            Connect every tool your team uses. Build agents that automate real work across{' '}
             {INTEGRATION_COUNT} apps and services.
           </p>
         </div>

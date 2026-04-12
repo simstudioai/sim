@@ -135,6 +135,11 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
         resourceId: serverId,
         resourceName: updatedServer.name,
         description: `Updated workflow MCP server "${updatedServer.name}"`,
+        metadata: {
+          serverName: updatedServer.name,
+          isPublic: updatedServer.isPublic,
+          updatedFields: Object.keys(updateData).filter((k) => k !== 'updatedAt'),
+        },
         request,
       })
 
@@ -189,6 +194,7 @@ export const DELETE = withMcpAuth<RouteParams>('admin')(
         resourceId: serverId,
         resourceName: deletedServer.name,
         description: `Unpublished workflow MCP server "${deletedServer.name}"`,
+        metadata: { serverName: deletedServer.name },
         request,
       })
 

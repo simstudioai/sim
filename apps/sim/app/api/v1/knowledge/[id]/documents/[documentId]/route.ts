@@ -167,6 +167,7 @@ export async function DELETE(request: NextRequest, { params }: DocumentDetailRou
       resourceId: documentId,
       resourceName: docs[0].filename,
       description: `Deleted document "${docs[0].filename}" from knowledge base via API`,
+      metadata: { knowledgeBaseId },
       request,
     })
 

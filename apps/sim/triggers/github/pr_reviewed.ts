@@ -77,18 +77,6 @@ export const githubPRReviewedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'github_pr_reviewed',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'github_pr_reviewed',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

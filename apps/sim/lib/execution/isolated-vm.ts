@@ -70,6 +70,7 @@ const DISTRIBUTED_MAX_INFLIGHT_PER_OWNER =
   Number.parseInt(env.IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER) ||
   MAX_ACTIVE_PER_OWNER + MAX_QUEUED_PER_OWNER
 const DISTRIBUTED_LEASE_MIN_TTL_MS = Number.parseInt(env.IVM_DISTRIBUTED_LEASE_MIN_TTL_MS) || 120000
+const MAX_EXECUTIONS_PER_WORKER = Number.parseInt(env.IVM_MAX_EXECUTIONS_PER_WORKER) || 500
 const DISTRIBUTED_KEY_PREFIX = 'ivm:fair:v1:owner'
 const LEASE_REDIS_DEADLINE_MS = 200
 const QUEUE_RETRY_DELAY_MS = 1000
@@ -89,6 +90,8 @@ interface WorkerInfo {
   pendingExecutions: Map<number, PendingExecution>
   idleTimeout: ReturnType<typeof setTimeout> | null
   id: number
+  lifetimeExecutions: number
+  retiring: boolean
 }
 
 interface QueuedExecution {
@@ -538,8 +541,20 @@ function handleWorkerMessage(workerId: number, message: unknown) {
         owner.activeExecutions = Math.max(0, owner.activeExecutions - 1)
         maybeCleanupOwner(owner.ownerKey)
       }
+      workerInfo!.lifetimeExecutions++
+      if (workerInfo!.lifetimeExecutions >= MAX_EXECUTIONS_PER_WORKER && !workerInfo!.retiring) {
+        workerInfo!.retiring = true
+        logger.info('Worker marked for retirement', {
+          workerId,
+          lifetimeExecutions: workerInfo!.lifetimeExecutions,
+        })
+      }
+      if (workerInfo!.retiring && workerInfo!.activeExecutions === 0) {
+        cleanupWorker(workerId)
+      } else {
+        resetWorkerIdleTimeout(workerId)
+      }
       pending.resolve(msg.result as IsolatedVMExecutionResult)
-      resetWorkerIdleTimeout(workerId)
       drainQueue()
     }
     return
@@ -679,6 +694,8 @@ function spawnWorker(): Promise<WorkerInfo> {
     pendingExecutions: new Map(),
     idleTimeout: null,
     id: workerId,
+    lifetimeExecutions: 0,
+    retiring: false,
   }
 
   workerInfo.readyPromise = new Promise<void>((resolve, reject) => {
@@ -710,7 +727,8 @@ function spawnWorker(): Promise<WorkerInfo> {
 
     import('node:child_process')
       .then(({ spawn }) => {
-        const proc = spawn('node', [workerPath], {
+        // Required for isolated-vm on Node.js 20+ (issue #377)
+        const proc = spawn('node', ['--no-node-snapshot', workerPath], {
           stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
           serialization: 'json',
         })
@@ -801,6 +819,7 @@ function selectWorker(): WorkerInfo | null {
   let best: WorkerInfo | null = null
   for (const w of workers.values()) {
     if (!w.ready) continue
+    if (w.retiring) continue
     if (w.activeExecutions >= MAX_PER_WORKER) continue
     if (!best || w.activeExecutions < best.activeExecutions) {
       best = w
@@ -818,7 +837,8 @@ async function acquireWorker(): Promise<WorkerInfo | null> {
   const existing = selectWorker()
   if (existing) return existing
 
-  const currentPoolSize = workers.size + spawnInProgress
+  const activeWorkerCount = [...workers.values()].filter((w) => !w.retiring).length
+  const currentPoolSize = activeWorkerCount + spawnInProgress
   if (currentPoolSize < POOL_SIZE) {
     try {
       return await spawnWorker()
@@ -850,12 +870,24 @@ function dispatchToWorker(
     totalActiveExecutions--
     ownerState.activeExecutions = Math.max(0, ownerState.activeExecutions - 1)
     maybeCleanupOwner(ownerState.ownerKey)
+    workerInfo.lifetimeExecutions++
+    if (workerInfo.lifetimeExecutions >= MAX_EXECUTIONS_PER_WORKER && !workerInfo.retiring) {
+      workerInfo.retiring = true
+      logger.info('Worker marked for retirement', {
+        workerId: workerInfo.id,
+        lifetimeExecutions: workerInfo.lifetimeExecutions,
+      })
+    }
     resolve({
       result: null,
       stdout: '',
       error: { message: `Execution timed out after ${req.timeoutMs}ms`, name: 'TimeoutError' },
     })
-    resetWorkerIdleTimeout(workerInfo.id)
+    if (workerInfo.retiring && workerInfo.activeExecutions === 0) {
+      cleanupWorker(workerInfo.id)
+    } else {
+      resetWorkerIdleTimeout(workerInfo.id)
+    }
     drainQueue()
   }, req.timeoutMs + 1000)
 
@@ -878,7 +910,11 @@ function dispatchToWorker(
       stdout: '',
       error: { message: 'Code execution failed to start. Please try again.', name: 'Error' },
     })
-    resetWorkerIdleTimeout(workerInfo.id)
+    if (workerInfo.retiring && workerInfo.activeExecutions === 0) {
+      cleanupWorker(workerInfo.id)
+    } else {
+      resetWorkerIdleTimeout(workerInfo.id)
+    }
     // Defer to break synchronous recursion: drainQueue → dispatchToWorker → catch → drainQueue
     queueMicrotask(() => drainQueue())
   }
@@ -952,7 +988,8 @@ function drainQueue() {
   while (queueLength() > 0 && totalActiveExecutions < MAX_CONCURRENT) {
     const worker = selectWorker()
     if (!worker) {
-      const currentPoolSize = workers.size + spawnInProgress
+      const activeWorkerCount = [...workers.values()].filter((w) => !w.retiring).length
+      const currentPoolSize = activeWorkerCount + spawnInProgress
       if (currentPoolSize < POOL_SIZE) {
         spawnWorker()
           .then(() => drainQueue())

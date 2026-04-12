@@ -695,7 +695,7 @@ export function buildModelFaqs(provider: CatalogProvider, model: CatalogModel): 
     {
       question: `What is the context window for ${model.displayName}?`,
       answer: model.contextWindow
-        ? `${model.displayName} supports a context window of ${formatTokenCount(model.contextWindow)} tokens in Sim. In an agent workflow, this determines how much conversation history, tool outputs, and retrieved documents the model can hold in a single call.`
+        ? `${model.displayName} supports a context window of ${formatTokenCount(model.contextWindow)} tokens in Sim. In an agent, this determines how much conversation history, tool outputs, and retrieved documents the model can hold in a single call.`
         : `A public context window value is not currently tracked for ${model.displayName}.`,
     },
     {

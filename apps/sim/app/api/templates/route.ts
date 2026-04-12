@@ -346,6 +346,14 @@ export async function POST(request: NextRequest) {
       resourceId: templateId,
       resourceName: data.name,
       description: `Created template "${data.name}"`,
+      metadata: {
+        templateName: data.name,
+        workflowId: data.workflowId,
+        creatorId: data.creatorId,
+        tags: data.tags,
+        tagline: data.details?.tagline || undefined,
+        status: 'pending',
+      },
       request,
     })
 

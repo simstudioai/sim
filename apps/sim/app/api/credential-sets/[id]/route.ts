@@ -142,6 +142,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       actorEmail: session.user.email ?? undefined,
       resourceName: updated?.name ?? result.set.name,
       description: `Updated credential set "${updated?.name ?? result.set.name}"`,
+      metadata: {
+        organizationId: result.set.organizationId,
+        providerId: result.set.providerId,
+        updatedFields: Object.keys(updates).filter(
+          (k) => updates[k as keyof typeof updates] !== undefined
+        ),
+      },
       request: req,
     })
 
@@ -199,6 +206,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       actorEmail: session.user.email ?? undefined,
       resourceName: result.set.name,
       description: `Deleted credential set "${result.set.name}"`,
+      metadata: { organizationId: result.set.organizationId, providerId: result.set.providerId },
       request: req,
     })
 

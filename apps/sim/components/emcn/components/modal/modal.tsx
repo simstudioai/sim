@@ -102,7 +102,7 @@ ModalOverlay.displayName = 'ModalOverlay'
  * Each size uses viewport units with sensible min/max constraints.
  */
 const MODAL_SIZES = {
-  sm: 'w-[90vw] max-w-[400px]',
+  sm: 'w-[90vw] max-w-[440px]',
   md: 'w-[90vw] max-w-[500px]',
   lg: 'w-[90vw] max-w-[600px]',
   xl: 'w-[90vw] max-w-[800px]',
@@ -120,7 +120,7 @@ export interface ModalContentProps
   showClose?: boolean
   /**
    * Modal size variant with responsive viewport-based sizing.
-   * - sm: max 400px (dialogs, confirmations)
+   * - sm: max 440px (dialogs, confirmations)
    * - md: max 500px (default, forms)
    * - lg: max 600px (content-heavy modals)
    * - xl: max 800px (complex editors)
