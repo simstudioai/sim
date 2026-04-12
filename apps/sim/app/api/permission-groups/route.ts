@@ -23,7 +23,10 @@ const configSchema = z.object({
   hideKnowledgeBaseTab: z.boolean().optional(),
   hideTablesTab: z.boolean().optional(),
   hideCopilot: z.boolean().optional(),
+  hideIntegrationsTab: z.boolean().optional(),
+  hideSecretsTab: z.boolean().optional(),
   hideApiKeysTab: z.boolean().optional(),
+  hideInboxTab: z.boolean().optional(),
   hideEnvironmentTab: z.boolean().optional(),
   hideFilesTab: z.boolean().optional(),
   disableMcpTools: z.boolean().optional(),
@@ -31,6 +34,7 @@ const configSchema = z.object({
   disableSkills: z.boolean().optional(),
   hideTemplates: z.boolean().optional(),
   disableInvitations: z.boolean().optional(),
+  disablePublicApi: z.boolean().optional(),
   hideDeployApi: z.boolean().optional(),
   hideDeployMcp: z.boolean().optional(),
   hideDeployA2a: z.boolean().optional(),
@@ -167,19 +171,6 @@ export async function POST(req: Request) {
       ...config,
     }
 
-    // If autoAddNewMembers is true, unset it on any existing groups first
-    if (autoAddNewMembers) {
-      await db
-        .update(permissionGroup)
-        .set({ autoAddNewMembers: false, updatedAt: new Date() })
-        .where(
-          and(
-            eq(permissionGroup.organizationId, organizationId),
-            eq(permissionGroup.autoAddNewMembers, true)
-          )
-        )
-    }
-
     const now = new Date()
     const newGroup = {
       id: generateId(),
@@ -193,7 +184,20 @@ export async function POST(req: Request) {
       autoAddNewMembers: autoAddNewMembers || false,
     }
 
-    await db.insert(permissionGroup).values(newGroup)
+    await db.transaction(async (tx) => {
+      if (autoAddNewMembers) {
+        await tx
+          .update(permissionGroup)
+          .set({ autoAddNewMembers: false, updatedAt: now })
+          .where(
+            and(
+              eq(permissionGroup.organizationId, organizationId),
+              eq(permissionGroup.autoAddNewMembers, true)
+            )
+          )
+      }
+      await tx.insert(permissionGroup).values(newGroup)
+    })
 
     logger.info('Created permission group', {
       permissionGroupId: newGroup.id,

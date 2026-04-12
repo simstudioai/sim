@@ -237,6 +237,16 @@ app:
     SSO_ENABLED: ""                                       # Enable SSO authentication ("true" to enable)
     NEXT_PUBLIC_SSO_ENABLED: ""                           # Show SSO login button in UI ("true" to enable)
 
+    # Enterprise Feature Overrides (self-hosted)
+    CREDENTIAL_SETS_ENABLED: ""                           # Enable credential sets (email polling) on self-hosted ("true" to enable)
+    NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED: ""               # Show credential sets settings page ("true" to enable)
+    INBOX_ENABLED: ""                                     # Enable Sim Mailer on self-hosted ("true" to enable)
+    NEXT_PUBLIC_INBOX_ENABLED: ""                         # Show Sim Mailer settings page ("true" to enable)
+    WHITELABELING_ENABLED: ""                             # Enable whitelabeling on self-hosted ("true" to enable)
+    NEXT_PUBLIC_WHITELABELING_ENABLED: ""                 # Show whitelabeling settings page ("true" to enable)
+    AUDIT_LOGS_ENABLED: ""                                # Enable audit logs on self-hosted ("true" to enable)
+    NEXT_PUBLIC_AUDIT_LOGS_ENABLED: ""                    # Show audit logs settings page ("true" to enable)
+
     # AWS Bedrock Credential Mode
     # Set to "true" when the deployment uses AWS default credential chain (IAM roles, instance
     # profiles, ECS task roles, IRSA, etc.) instead of explicit access key/secret per workflow.

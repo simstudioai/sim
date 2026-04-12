@@ -14,8 +14,8 @@ export const ssoKeys = {
 /**
  * Fetch SSO providers
  */
-async function fetchSSOProviders() {
-  const response = await fetch('/api/auth/sso/providers')
+async function fetchSSOProviders(signal: AbortSignal) {
+  const response = await fetch('/api/auth/sso/providers', { signal })
   if (!response.ok) {
     throw new Error('Failed to fetch SSO providers')
   }
@@ -25,12 +25,17 @@ async function fetchSSOProviders() {
 /**
  * Hook to fetch SSO providers
  */
-export function useSSOProviders() {
+interface UseSSOProvidersOptions {
+  enabled?: boolean
+}
+
+export function useSSOProviders({ enabled = true }: UseSSOProvidersOptions = {}) {
   return useQuery({
     queryKey: ssoKeys.providers(),
-    queryFn: fetchSSOProviders,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryFn: ({ signal }) => fetchSSOProviders(signal),
+    staleTime: 5 * 60 * 1000,
     placeholderData: keepPreviousData,
+    enabled,
   })
 }
 
