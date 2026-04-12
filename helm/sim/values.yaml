@@ -238,6 +238,8 @@ app:
     NEXT_PUBLIC_SSO_ENABLED: ""                           # Show SSO login button in UI ("true" to enable)
 
     # Enterprise Feature Overrides (self-hosted)
+    CREDENTIAL_SETS_ENABLED: ""                           # Enable credential sets (email polling) on self-hosted ("true" to enable)
+    NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED: ""               # Show credential sets settings page ("true" to enable)
     INBOX_ENABLED: ""                                     # Enable Sim Mailer on self-hosted ("true" to enable)
     NEXT_PUBLIC_INBOX_ENABLED: ""                         # Show Sim Mailer settings page ("true" to enable)
     WHITELABELING_ENABLED: ""                             # Enable whitelabeling on self-hosted ("true" to enable)
