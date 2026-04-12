@@ -77,11 +77,16 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
   const hasModalContent = hasSocial || ssoEnabled
 
   useEffect(() => {
-    if (open && providerStatus && !hasModalContent) {
+    if (!open || !providerStatus) return
+    if (!hasModalContent) {
       setOpen(false)
       router.push(defaultView === 'login' ? '/login' : '/signup')
+      return
     }
-  }, [open, providerStatus, hasModalContent, defaultView, router])
+    if (providerStatus.registrationDisabled && view === 'signup') {
+      setView('login')
+    }
+  }, [open, providerStatus, hasModalContent, defaultView, router, view])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
