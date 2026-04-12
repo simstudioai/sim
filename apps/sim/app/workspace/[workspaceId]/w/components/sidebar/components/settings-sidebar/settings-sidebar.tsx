@@ -284,8 +284,8 @@ export function SettingsSidebar({
                 <div className='flex flex-col gap-0.5 px-2'>
                   {Array.from({ length: count }, (_, j) => (
                     <div key={j} className='mx-0.5 flex h-[30px] items-center gap-2 px-2'>
-                      <Skeleton className='h-[16px] w-[16px] flex-shrink-0 rounded-sm' />
-                      <Skeleton className='sidebar-collapse-hide h-[14px] w-full rounded-sm' />
+                      <Skeleton className='h-[24px] w-[24px] flex-shrink-0 rounded-sm' />
+                      <Skeleton className='sidebar-collapse-hide h-[24px] w-full rounded-sm' />
                     </div>
                   ))}
                 </div>

@@ -79,6 +79,22 @@ interface ColorInputProps {
 function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorInputProps) {
   const isValidHex = !value || HEX_COLOR_REGEX.test(value)
 
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      let v = e.target.value.trim()
+      if (v && !v.startsWith('#')) {
+        v = `#${v}`
+      }
+      v = v.slice(0, 1) + v.slice(1).replace(/[^0-9a-fA-F]/g, '')
+      onChange(v.slice(0, 7))
+    },
+    [onChange]
+  )
+
+  const handleFocus = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.select()
+  }, [])
+
   return (
     <div className='flex flex-col gap-1.5'>
       <Label className='text-[13px] text-[var(--text-primary)]'>{label}</Label>
@@ -92,7 +108,8 @@ function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorIn
         </div>
         <Input
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={handleChange}
+          onFocus={handleFocus}
           placeholder={placeholder}
           className={cn(
             'h-[36px] font-mono text-[13px]',
