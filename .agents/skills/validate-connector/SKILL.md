@@ -52,6 +52,20 @@ Fetch the official API docs for the service. This is the **source of truth** for
 
 Use Context7 (resolve-library-id → query-docs) or WebFetch to retrieve documentation. If both fail, note which claims are based on training knowledge vs verified docs.
 
+### Hard Rule: No Guessed Source Schemas
+
+If the service docs do not clearly show document list responses, document fetch responses, metadata fields, or pagination shapes, you MUST tell the user instead of guessing.
+
+- Do NOT infer document fields from unrelated endpoints
+- Do NOT guess pagination cursors or response wrappers
+- Do NOT assume metadata keys that are not documented
+- Do NOT treat probable shapes as validated
+
+If a schema is unknown, validation must explicitly recommend:
+1. sample API responses,
+2. live test credentials, or
+3. trimming the connector to only documented fields.
+
 ## Step 3: Validate API Endpoints
 
 For **every** API call in the connector (`listDocuments`, `getDocument`, `validateConfig`, and any helper functions), verify against the API docs:
@@ -93,6 +107,7 @@ For **every** API call in the connector (`listDocuments`, `getDocument`, `valida
 - [ ] Field names extracted match what the API actually returns
 - [ ] Nullable fields are handled with `?? null` or `|| undefined`
 - [ ] Error responses are checked before accessing data fields
+- [ ] Every extracted field and pagination value is backed by official docs or live-verified sample payloads
 
 ## Step 4: Validate OAuth Scopes (if OAuth connector)
 
@@ -304,6 +319,7 @@ After fixing, confirm:
 1. `bun run lint` passes
 2. TypeScript compiles clean
 3. Re-read all modified files to verify fixes are correct
+4. Any remaining unknown source schemas were explicitly reported to the user instead of guessed
 
 ## Checklist Summary
 
