@@ -12,6 +12,8 @@ export interface PostHogEventMap {
     provider?: string
   }
 
+  user_deleted: Record<string, never>
+
   landing_page_viewed: Record<string, never>
 
   landing_cta_clicked: {

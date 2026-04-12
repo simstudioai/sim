@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { Skeleton } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
+import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
 import { AdminSkeleton } from '@/app/workspace/[workspaceId]/settings/components/admin/admin-skeleton'
 import { ApiKeysSkeleton } from '@/app/workspace/[workspaceId]/settings/components/api-keys/api-key-skeleton'
@@ -198,7 +199,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
   }, [effectiveSection, sessionLoading, posthog])
 
   return (
-    <div>
+    <div className={cn(effectiveSection === 'access-control' && 'flex h-full flex-col')}>
       <h2 className='mb-7 font-medium text-[22px] text-[var(--text-primary)]'>{label}</h2>
       {effectiveSection === 'general' && <General />}
       {effectiveSection === 'integrations' && <Integrations />}

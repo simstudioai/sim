@@ -28,6 +28,7 @@ import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/
 import { useBrandConfig } from '@/ee/whitelabeling'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import {
+  useDeleteAccount,
   useResetPassword,
   useUpdateUserProfile,
   useUserProfile,
@@ -78,6 +79,10 @@ export function General() {
 
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false)
   const resetPassword = useResetPassword()
+
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const deleteAccount = useDeleteAccount()
 
   const [uploadError, setUploadError] = useState<string | null>(null)
 
@@ -164,6 +169,23 @@ export function General() {
       logger.error('Error signing out:', { error })
       router.push('/login?fromLogout=true')
     }
+  }
+
+  const handleDeleteAccountConfirm = async () => {
+    deleteAccount.mutate(undefined, {
+      onSuccess: async () => {
+        try {
+          await Promise.all([signOut(), clearUserData()])
+          router.push('/login')
+        } catch (error) {
+          logger.error('Error during account cleanup', { error })
+          router.push('/login')
+        }
+      },
+      onError: (error) => {
+        logger.error('Error deleting account:', error)
+      },
+    })
   }
 
   const handleResetPasswordConfirm = async () => {
@@ -467,6 +489,20 @@ export function General() {
         time.
       </p>
 
+      {isHosted && !isAuthDisabled && (
+        <div className='flex items-center justify-between border-t pt-4'>
+          <div>
+            <Label>Delete account</Label>
+            <p className='text-[var(--text-muted)] text-small'>
+              Permanently delete your account and all associated data.
+            </p>
+          </div>
+          <Button onClick={() => setShowDeleteAccountModal(true)} variant='active'>
+            Delete account
+          </Button>
+        </div>
+      )}
+
       {isTrainingEnabled && (
         <div className='flex items-center justify-between'>
           <Label htmlFor='training-controls'>Training controls</Label>
@@ -499,6 +535,68 @@ export function General() {
           </Button>
         )}
       </div>
+
+      {/* Delete Account Confirmation Modal */}
+      <Modal
+        open={showDeleteAccountModal}
+        onOpenChange={(open) => {
+          setShowDeleteAccountModal(open)
+          if (!open) {
+            setDeleteConfirmText('')
+            deleteAccount.reset()
+          }
+        }}
+      >
+        <ModalContent size='sm'>
+          <ModalHeader>Delete Account</ModalHeader>
+          <ModalBody>
+            <p className='text-[var(--text-secondary)]'>
+              This will permanently delete your account and all associated data, including
+              workspaces, workflows, API keys, and execution history.{' '}
+              <span className='text-[var(--text-error)]'>This action cannot be undone.</span>
+            </p>
+            <div className='mt-3'>
+              <label
+                htmlFor='delete-account-confirm'
+                className='mb-1.5 block text-[var(--text-secondary)] text-sm'
+              >
+                Type{' '}
+                <span className='font-medium text-[var(--text-primary)]'>delete my account</span> to
+                confirm
+              </label>
+              <input
+                id='delete-account-confirm'
+                type='text'
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                className='w-full rounded-md border border-[var(--border)] bg-transparent px-3 py-2 text-[var(--text-primary)] text-sm placeholder:text-[var(--text-tertiary)] focus:border-[var(--border-1)] focus:outline-none'
+                placeholder='delete my account'
+                disabled={deleteAccount.isPending}
+              />
+            </div>
+            {deleteAccount.error && (
+              <p className='mt-2 text-[var(--text-error)] text-small'>
+                {deleteAccount.error.message}
+              </p>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              onClick={() => setShowDeleteAccountModal(false)}
+              disabled={deleteAccount.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant='destructive'
+              onClick={handleDeleteAccountConfirm}
+              disabled={deleteAccount.isPending || deleteConfirmText !== 'delete my account'}
+            >
+              {deleteAccount.isPending ? 'Deleting...' : 'Delete Account'}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       {/* Password Reset Confirmation Modal */}
       <Modal open={showResetPasswordModal} onOpenChange={setShowResetPasswordModal}>

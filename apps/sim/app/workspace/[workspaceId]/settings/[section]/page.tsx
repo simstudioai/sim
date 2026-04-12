@@ -2,7 +2,7 @@ import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
-import { prefetchGeneralSettings, prefetchUserProfile } from './prefetch'
+import { prefetchGeneralSettings, prefetchSubscriptionData, prefetchUserProfile } from './prefetch'
 import { SettingsPage } from './settings'
 
 const SECTION_TITLES: Record<string, string> = {
@@ -46,6 +46,7 @@ export default async function SettingsSectionPage({
 
   void prefetchGeneralSettings(queryClient)
   void prefetchUserProfile(queryClient)
+  void prefetchSubscriptionData(queryClient)
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>

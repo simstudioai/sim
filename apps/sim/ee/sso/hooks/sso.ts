@@ -25,12 +25,17 @@ async function fetchSSOProviders() {
 /**
  * Hook to fetch SSO providers
  */
-export function useSSOProviders() {
+interface UseSSOProvidersOptions {
+  enabled?: boolean
+}
+
+export function useSSOProviders({ enabled = true }: UseSSOProvidersOptions = {}) {
   return useQuery({
     queryKey: ssoKeys.providers(),
     queryFn: fetchSSOProviders,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
     placeholderData: keepPreviousData,
+    enabled,
   })
 }
 
