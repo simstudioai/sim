@@ -24,7 +24,7 @@ import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
 const logger = createLogger('StripeInvoiceWebhooks')
 
-const OVERAGE_INVOICE_TYPES = new Set<string>([
+const METADATA_SUBSCRIPTION_INVOICE_TYPES = new Set<string>([
   'overage_billing',
   'overage_threshold_billing',
   'overage_threshold_billing_org',
@@ -33,6 +33,116 @@ const OVERAGE_INVOICE_TYPES = new Set<string>([
 function parseDecimal(value: string | number | null | undefined): number {
   if (value === null || value === undefined) return 0
   return Number.parseFloat(value.toString())
+}
+
+type InvoiceSubscriptionResolutionSource =
+  | 'parent.subscription_details.subscription'
+  | 'metadata.subscriptionId'
+  | 'none'
+
+interface InvoiceSubscriptionContext {
+  invoiceType: string | null
+  resolutionSource: InvoiceSubscriptionResolutionSource
+  stripeSubscriptionId: string | null
+}
+
+type BillingSubscription = typeof subscriptionTable.$inferSelect
+
+interface ResolvedInvoiceSubscription extends InvoiceSubscriptionContext {
+  sub: BillingSubscription
+  stripeSubscriptionId: string
+}
+
+function resolveInvoiceSubscriptionContext(invoice: Stripe.Invoice): InvoiceSubscriptionContext {
+  const invoiceType = invoice.metadata?.type ?? null
+  const canResolveFromMetadata = !!(
+    invoiceType && METADATA_SUBSCRIPTION_INVOICE_TYPES.has(invoiceType)
+  )
+  const metadataSubscriptionId =
+    canResolveFromMetadata &&
+    typeof invoice.metadata?.subscriptionId === 'string' &&
+    invoice.metadata.subscriptionId.length > 0
+      ? invoice.metadata.subscriptionId
+      : null
+
+  const parentSubscription = invoice.parent?.subscription_details?.subscription
+  const parentSubscriptionId =
+    typeof parentSubscription === 'string' ? parentSubscription : (parentSubscription?.id ?? null)
+
+  if (
+    parentSubscriptionId &&
+    metadataSubscriptionId &&
+    parentSubscriptionId !== metadataSubscriptionId
+  ) {
+    logger.warn('Invoice has conflicting subscription identifiers', {
+      invoiceId: invoice.id,
+      invoiceType,
+      metadataSubscriptionId,
+      parentSubscriptionId,
+    })
+  }
+
+  if (parentSubscriptionId) {
+    return {
+      invoiceType,
+      resolutionSource: 'parent.subscription_details.subscription',
+      stripeSubscriptionId: parentSubscriptionId,
+    }
+  }
+
+  if (metadataSubscriptionId) {
+    return {
+      invoiceType,
+      resolutionSource: 'metadata.subscriptionId',
+      stripeSubscriptionId: metadataSubscriptionId,
+    }
+  }
+
+  return {
+    invoiceType,
+    resolutionSource: 'none',
+    stripeSubscriptionId: null,
+  }
+}
+
+async function resolveInvoiceSubscription(
+  invoice: Stripe.Invoice,
+  handlerName: string
+): Promise<ResolvedInvoiceSubscription | null> {
+  const subscriptionContext = resolveInvoiceSubscriptionContext(invoice)
+
+  if (!subscriptionContext.stripeSubscriptionId) {
+    logger.info('No subscription found on invoice; skipping handler', {
+      handlerName,
+      invoiceId: invoice.id,
+      invoiceType: subscriptionContext.invoiceType,
+      resolutionSource: subscriptionContext.resolutionSource,
+    })
+    return null
+  }
+
+  const records = await db
+    .select()
+    .from(subscriptionTable)
+    .where(eq(subscriptionTable.stripeSubscriptionId, subscriptionContext.stripeSubscriptionId))
+    .limit(1)
+
+  if (records.length === 0) {
+    logger.warn('Subscription not found in database for invoice', {
+      handlerName,
+      invoiceId: invoice.id,
+      invoiceType: subscriptionContext.invoiceType,
+      resolutionSource: subscriptionContext.resolutionSource,
+      stripeSubscriptionId: subscriptionContext.stripeSubscriptionId,
+    })
+    return null
+  }
+
+  return {
+    ...subscriptionContext,
+    stripeSubscriptionId: subscriptionContext.stripeSubscriptionId,
+    sub: records[0],
+  }
 }
 
 /**
@@ -462,21 +572,12 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
       return
     }
 
-    // Handle subscription invoices
-    const subscription = invoice.parent?.subscription_details?.subscription
-    const stripeSubscriptionId = typeof subscription === 'string' ? subscription : subscription?.id
-    if (!stripeSubscriptionId) {
+    const resolvedInvoice = await resolveInvoiceSubscription(invoice, 'invoice.payment_succeeded')
+    if (!resolvedInvoice) {
       return
     }
 
-    const records = await db
-      .select()
-      .from(subscriptionTable)
-      .where(eq(subscriptionTable.stripeSubscriptionId, stripeSubscriptionId))
-      .limit(1)
-
-    if (records.length === 0) return
-    const sub = records[0]
+    const { sub } = resolvedInvoice
 
     // Only reset usage here if the tenant was previously blocked; otherwise invoice.created already reset it
     let wasBlocked = false
@@ -550,26 +651,12 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
   try {
     const invoice = event.data.object as Stripe.Invoice
 
-    const invoiceType = invoice.metadata?.type
-    const isOverageInvoice = !!(invoiceType && OVERAGE_INVOICE_TYPES.has(invoiceType))
-    let stripeSubscriptionId: string | undefined
-
-    if (isOverageInvoice) {
-      // Overage invoices store subscription ID in metadata
-      stripeSubscriptionId = invoice.metadata?.subscriptionId as string | undefined
-    } else {
-      // Regular subscription invoices have it in parent.subscription_details
-      const subscription = invoice.parent?.subscription_details?.subscription
-      stripeSubscriptionId = typeof subscription === 'string' ? subscription : subscription?.id
-    }
-
-    if (!stripeSubscriptionId) {
-      logger.info('No subscription found on invoice; skipping payment failed handler', {
-        invoiceId: invoice.id,
-        isOverageInvoice,
-      })
+    const resolvedInvoice = await resolveInvoiceSubscription(invoice, 'invoice.payment_failed')
+    if (!resolvedInvoice) {
       return
     }
+
+    const { invoiceType, resolutionSource, stripeSubscriptionId, sub } = resolvedInvoice
 
     // Extract and validate customer ID
     const customerId = invoice.customer
@@ -593,75 +680,57 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
       attemptCount,
       customerEmail: invoice.customer_email,
       hostedInvoiceUrl: invoice.hosted_invoice_url,
-      isOverageInvoice,
-      invoiceType: isOverageInvoice ? 'overage' : 'subscription',
+      invoiceType: invoiceType ?? 'subscription',
+      resolutionSource,
     })
 
     // Block users after first payment failure
     if (attemptCount >= 1) {
-      const records = await db
-        .select()
-        .from(subscriptionTable)
-        .where(eq(subscriptionTable.stripeSubscriptionId, stripeSubscriptionId))
-        .limit(1)
+      logger.error('Payment failure - blocking users', {
+        customerId,
+        attemptCount,
+        invoiceId: invoice.id,
+        invoiceType: invoiceType ?? 'subscription',
+        resolutionSource,
+        stripeSubscriptionId,
+      })
 
-      if (records.length > 0) {
-        const sub = records[0]
-
-        logger.error('Payment failure - blocking users', {
-          invoiceId: invoice.id,
-          customerId,
-          attemptCount,
-          isOverageInvoice,
-          stripeSubscriptionId,
+      if (isOrgPlan(sub.plan)) {
+        const memberCount = await blockOrgMembers(sub.referenceId, 'payment_failed')
+        logger.info('Blocked team/enterprise members due to payment failure', {
+          invoiceType: invoiceType ?? 'subscription',
+          memberCount,
+          organizationId: sub.referenceId,
         })
-
-        if (isOrgPlan(sub.plan)) {
-          const memberCount = await blockOrgMembers(sub.referenceId, 'payment_failed')
-          logger.info('Blocked team/enterprise members due to payment failure', {
-            organizationId: sub.referenceId,
-            memberCount,
-            isOverageInvoice,
-          })
-        } else {
-          // Don't overwrite dispute blocks (dispute > payment_failed priority)
-          await db
-            .update(userStats)
-            .set({ billingBlocked: true, billingBlockedReason: 'payment_failed' })
-            .where(
-              and(
-                eq(userStats.userId, sub.referenceId),
-                or(
-                  ne(userStats.billingBlockedReason, 'dispute'),
-                  isNull(userStats.billingBlockedReason)
-                )
+      } else {
+        await db
+          .update(userStats)
+          .set({ billingBlocked: true, billingBlockedReason: 'payment_failed' })
+          .where(
+            and(
+              eq(userStats.userId, sub.referenceId),
+              or(
+                ne(userStats.billingBlockedReason, 'dispute'),
+                isNull(userStats.billingBlockedReason)
               )
             )
-          logger.info('Blocked user due to payment failure', {
-            userId: sub.referenceId,
-            isOverageInvoice,
-          })
-        }
+          )
+        logger.info('Blocked user due to payment failure', {
+          invoiceType: invoiceType ?? 'subscription',
+          userId: sub.referenceId,
+        })
+      }
 
-        // Send payment failure notification emails
-        // Only send on FIRST failure (attempt_count === 1), not on Stripe's automatic retries
-        // This prevents spamming users with duplicate emails every 3-5-7 days
-        if (attemptCount === 1) {
-          await sendPaymentFailureEmails(sub, invoice, customerId)
-          logger.info('Payment failure email sent on first attempt', {
-            invoiceId: invoice.id,
-            customerId,
-          })
-        } else {
-          logger.info('Skipping payment failure email on retry attempt', {
-            invoiceId: invoice.id,
-            attemptCount,
-            customerId,
-          })
-        }
+      if (attemptCount === 1) {
+        await sendPaymentFailureEmails(sub, invoice, customerId)
+        logger.info('Payment failure email sent on first attempt', {
+          customerId,
+          invoiceId: invoice.id,
+        })
       } else {
-        logger.warn('Subscription not found in database for failed payment', {
-          stripeSubscriptionId,
+        logger.info('Skipping payment failure email on retry attempt', {
+          attemptCount,
+          customerId,
           invoiceId: invoice.id,
         })
       }
