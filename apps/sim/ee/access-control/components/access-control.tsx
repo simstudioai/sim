@@ -453,14 +453,16 @@ export function AccessControl() {
     const unassigned = Object.keys(platformCategories).filter((c) => !assignedCategories.has(c))
     const groups = unassigned.length > 0 ? [...categoryGroups, unassigned] : categoryGroups
 
-    return groups.map((column) =>
-      column
-        .map((category) => ({
-          category,
-          features: platformCategories[category] ?? [],
-        }))
-        .filter((section) => section.features.length > 0)
-    )
+    return groups
+      .map((column) =>
+        column
+          .map((category) => ({
+            category,
+            features: platformCategories[category] ?? [],
+          }))
+          .filter((section) => section.features.length > 0)
+      )
+      .filter((column) => column.length > 0)
   }, [platformCategories])
 
   const hasConfigChanges = useMemo(() => {
@@ -989,7 +991,9 @@ export function AccessControl() {
                       onClick={() => {
                         const allAllowed =
                           editingConfig?.allowedIntegrations === null ||
-                          editingConfig?.allowedIntegrations?.length === allBlocks.length
+                          allBlocks.every((b) =>
+                            editingConfig?.allowedIntegrations?.includes(b.type)
+                          )
                         setEditingConfig((prev) =>
                           prev
                             ? {
@@ -1001,7 +1005,7 @@ export function AccessControl() {
                       }}
                     >
                       {editingConfig?.allowedIntegrations === null ||
-                      editingConfig?.allowedIntegrations?.length === allBlocks.length
+                      allBlocks.every((b) => editingConfig?.allowedIntegrations?.includes(b.type))
                         ? 'Deselect All'
                         : 'Select All'}
                     </Button>
