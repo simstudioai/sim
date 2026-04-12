@@ -1,5 +1,4 @@
-export { crowdstrikeQueryBehaviorsTool } from './query_behaviors'
-export { crowdstrikeQueryCrowdScoreTool } from './query_crowdscore'
-export { crowdstrikeQueryIncidentsTool } from './query_incidents'
+export { crowdstrikeGetSensorAggregatesTool } from './get_sensor_aggregates'
+export { crowdstrikeGetSensorDetailsTool } from './get_sensor_details'
 export { crowdstrikeQuerySensorsTool } from './query_sensors'
 export * from './types'

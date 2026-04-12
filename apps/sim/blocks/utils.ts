@@ -361,6 +361,86 @@ export function createVersionedToolSelector<TParams extends Record<string, any>>
   }
 }
 
+interface ParseOptionalNumberInputOptions {
+  integer?: boolean
+  max?: number
+  min?: number
+}
+
+/**
+ * Parses an optional JSON-capable block input value.
+ * Returns `undefined` for empty values and throws a helpful error for invalid JSON strings.
+ */
+export function parseOptionalJsonInput<T = unknown>(value: unknown, label: string): T | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed.length === 0) {
+      return undefined
+    }
+
+    try {
+      return JSON.parse(trimmed) as T
+    } catch (error) {
+      throw new Error(
+        `Invalid JSON for ${label}: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
+  }
+
+  return value as T
+}
+
+/**
+ * Parses an optional numeric block input value.
+ * Returns `undefined` for empty values and throws when the provided value is not a valid number.
+ */
+export function parseOptionalNumberInput(
+  value: unknown,
+  label: string,
+  options: ParseOptionalNumberInputOptions = {}
+): number | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined
+  }
+
+  let parsed: number
+
+  if (typeof value === 'number') {
+    parsed = value
+  } else if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed.length === 0) {
+      return undefined
+    }
+
+    parsed = Number(trimmed)
+  } else {
+    throw new Error(`Invalid number for ${label}: expected a valid number.`)
+  }
+
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`Invalid number for ${label}: expected a valid number.`)
+  }
+
+  if (options.integer && !Number.isInteger(parsed)) {
+    throw new Error(`Invalid number for ${label}: expected an integer.`)
+  }
+
+  if (options.min != null && parsed < options.min) {
+    throw new Error(`${label} must be at least ${options.min}.`)
+  }
+
+  if (options.max != null && parsed > options.max) {
+    throw new Error(`${label} must be at most ${options.max}.`)
+  }
+
+  return parsed
+}
+
 const DEFAULT_MULTIPLE_FILES_ERROR =
   'File reference must be a single file, not an array. Use <block.files[0]> to select one file.'
 

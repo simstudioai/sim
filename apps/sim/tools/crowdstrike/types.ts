@@ -15,61 +15,77 @@ export interface CrowdStrikeQuerySensorsParams extends CrowdStrikeBaseParams {
   sort?: string
 }
 
-export interface CrowdStrikeQueryCrowdScoreParams extends CrowdStrikeBaseParams {
-  filter?: string
-  limit?: number
-  offset?: number
-  sort?: string
+export interface CrowdStrikeGetSensorDetailsParams extends CrowdStrikeBaseParams {
+  ids: string[]
 }
 
-export interface CrowdStrikeQueryIncidentsParams extends CrowdStrikeBaseParams {
-  filter?: string
-  limit?: number
-  offset?: number
-  sort?: string
+export interface CrowdStrikeAggregateDateRangeSpec {
+  from: string
+  to: string
 }
 
-export interface CrowdStrikeQueryBehaviorsParams extends CrowdStrikeBaseParams {
+export interface CrowdStrikeAggregateExtendedBoundsSpec {
+  max: string
+  min: string
+}
+
+export interface CrowdStrikeAggregateRangeSpec {
+  from: number
+  to: number
+}
+
+export interface CrowdStrikeAggregateQuery {
+  date_ranges?: CrowdStrikeAggregateDateRangeSpec[]
+  exclude?: string
+  extended_bounds?: CrowdStrikeAggregateExtendedBoundsSpec
+  field?: string
   filter?: string
-  limit?: number
-  offset?: number
+  from?: number
+  include?: string
+  interval?: string
+  max_doc_count?: number
+  min_doc_count?: number
+  missing?: string
+  name?: string
+  q?: string
+  ranges?: CrowdStrikeAggregateRangeSpec[]
+  size?: number
   sort?: string
+  sub_aggregates?: CrowdStrikeAggregateQuery[]
+  time_zone?: string
+  type?: string
+}
+
+export interface CrowdStrikeGetSensorAggregatesParams extends CrowdStrikeBaseParams {
+  aggregateQuery: CrowdStrikeAggregateQuery
 }
 
 export interface CrowdStrikePagination {
-  expiresAt: number | null
   limit: number | null
-  offset: number | string | null
+  offset: number | null
   total: number | null
 }
 
 export interface CrowdStrikeSensor {
-  agentId: string | null
+  agentVersion: string | null
+  cid: string | null
+  deviceId: string | null
+  heartbeatTime: number | null
   hostname: string | null
+  idpPolicyId: string | null
+  idpPolicyName: string | null
   ipAddress: string | null
-  macAddress: string | null
-}
-
-export interface CrowdStrikeCrowdScore {
-  entityId: string | null
-  entityType: string | null
-  lastUpdated: string | null
-  score: number | null
-}
-
-export interface CrowdStrikeIncident {
-  createdTimestamp: string | null
-  incidentId: string | null
-  name: string | null
-  severity: string | null
+  kerberosConfig: string | null
+  ldapConfig: string | null
+  ldapsConfig: string | null
+  machineDomain: string | null
+  ntlmConfig: string | null
+  osVersion: string | null
+  rdpToDcConfig: string | null
+  smbToDcConfig: string | null
   status: string | null
-}
-
-export interface CrowdStrikeBehavior {
-  behaviorId: string | null
-  createdTimestamp: string | null
-  incidentId: string | null
-  name: string | null
+  statusCauses: string[]
+  tiEnabled: string | null
 }
 
 export interface CrowdStrikeQuerySensorsResponse extends ToolResponse {
@@ -80,32 +96,42 @@ export interface CrowdStrikeQuerySensorsResponse extends ToolResponse {
   }
 }
 
-export interface CrowdStrikeQueryCrowdScoreResponse extends ToolResponse {
+export interface CrowdStrikeGetSensorDetailsResponse extends ToolResponse {
   output: {
     count: number
-    crowdScores: CrowdStrikeCrowdScore[]
     pagination: CrowdStrikePagination | null
+    sensors: CrowdStrikeSensor[]
   }
 }
 
-export interface CrowdStrikeQueryIncidentsResponse extends ToolResponse {
-  output: {
-    count: number
-    incidents: CrowdStrikeIncident[]
-    pagination: CrowdStrikePagination | null
-  }
+export interface CrowdStrikeSensorAggregateBucket {
+  count: number | null
+  from: number | null
+  keyAsString: string | null
+  label: Record<string, unknown> | null
+  stringFrom: string | null
+  stringTo: string | null
+  subAggregates: CrowdStrikeSensorAggregateResult[]
+  to: number | null
+  value: number | null
+  valueAsString: string | null
 }
 
-export interface CrowdStrikeQueryBehaviorsResponse extends ToolResponse {
+export interface CrowdStrikeSensorAggregateResult {
+  buckets: CrowdStrikeSensorAggregateBucket[]
+  docCountErrorUpperBound: number | null
+  name: string | null
+  sumOtherDocCount: number | null
+}
+
+export interface CrowdStrikeGetSensorAggregatesResponse extends ToolResponse {
   output: {
-    behaviors: CrowdStrikeBehavior[]
+    aggregates: CrowdStrikeSensorAggregateResult[]
     count: number
-    pagination: CrowdStrikePagination | null
   }
 }
 
 export type CrowdStrikeResponse =
   | CrowdStrikeQuerySensorsResponse
-  | CrowdStrikeQueryCrowdScoreResponse
-  | CrowdStrikeQueryIncidentsResponse
-  | CrowdStrikeQueryBehaviorsResponse
+  | CrowdStrikeGetSensorDetailsResponse
+  | CrowdStrikeGetSensorAggregatesResponse

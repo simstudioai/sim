@@ -1,16 +1,17 @@
 import type {
-  CrowdStrikeQuerySensorsParams,
-  CrowdStrikeQuerySensorsResponse,
+  CrowdStrikeGetSensorDetailsParams,
+  CrowdStrikeGetSensorDetailsResponse,
 } from '@/tools/crowdstrike/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const crowdstrikeQuerySensorsTool: ToolConfig<
-  CrowdStrikeQuerySensorsParams,
-  CrowdStrikeQuerySensorsResponse
+export const crowdstrikeGetSensorDetailsTool: ToolConfig<
+  CrowdStrikeGetSensorDetailsParams,
+  CrowdStrikeGetSensorDetailsResponse
 > = {
-  id: 'crowdstrike_query_sensors',
-  name: 'CrowdStrike Query Sensors',
-  description: 'Search CrowdStrike identity protection sensors by hostname, IP, or related fields',
+  id: 'crowdstrike_get_sensor_details',
+  name: 'CrowdStrike Get Sensor Details',
+  description:
+    'Get documented CrowdStrike Identity Protection sensor details for one or more device IDs',
   version: '1.0.0',
 
   params: {
@@ -32,29 +33,11 @@ export const crowdstrikeQuerySensorsTool: ToolConfig<
       visibility: 'user-only',
       description: 'CrowdStrike Falcon cloud region',
     },
-    filter: {
-      type: 'string',
-      required: false,
+    ids: {
+      type: 'json',
+      required: true,
       visibility: 'user-or-llm',
-      description: 'Falcon Query Language filter for identity sensor search',
-    },
-    limit: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Maximum number of sensor records to return',
-    },
-    offset: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Pagination offset for the identity sensor query',
-    },
-    sort: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Sort expression for identity sensor results',
+      description: 'JSON array of CrowdStrike sensor device IDs',
     },
   },
 
@@ -68,11 +51,8 @@ export const crowdstrikeQuerySensorsTool: ToolConfig<
       cloud: params.cloud,
       clientId: params.clientId,
       clientSecret: params.clientSecret,
-      filter: params.filter,
-      limit: params.limit,
-      offset: params.offset,
-      operation: 'crowdstrike_query_sensors',
-      sort: params.sort,
+      ids: params.ids,
+      operation: 'crowdstrike_get_sensor_details',
     }),
   },
 
@@ -80,7 +60,7 @@ export const crowdstrikeQuerySensorsTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok || data.success === false) {
-      throw new Error(data.error || 'Failed to query CrowdStrike sensors')
+      throw new Error(data.error || 'Failed to fetch CrowdStrike sensor details')
     }
 
     return {
@@ -92,7 +72,7 @@ export const crowdstrikeQuerySensorsTool: ToolConfig<
   outputs: {
     sensors: {
       type: 'array',
-      description: 'Matching CrowdStrike identity sensor records',
+      description: 'CrowdStrike identity sensor detail records',
       items: {
         type: 'object',
         properties: {
@@ -201,7 +181,7 @@ export const crowdstrikeQuerySensorsTool: ToolConfig<
     },
     pagination: {
       type: 'json',
-      description: 'Pagination metadata (limit, offset, total)',
+      description: 'Pagination metadata when returned by the underlying API',
       optional: true,
       properties: {
         limit: { type: 'number', description: 'Page size used for the query', optional: true },

@@ -2349,36 +2349,32 @@
     "type": "crowdstrike",
     "slug": "crowdstrike",
     "name": "CrowdStrike",
-    "description": "Search Falcon sensors, CrowdScore, incidents, and behaviors",
-    "longDescription": "Integrate CrowdStrike Falcon into workflows to search identity sensors, environment CrowdScore, incidents, and behaviors using documented Falcon query endpoints.",
+    "description": "Query CrowdStrike Identity Protection sensors and documented aggregates",
+    "longDescription": "Integrate CrowdStrike Identity Protection into workflows to search sensors, fetch documented sensor details by device ID, and run documented sensor aggregate queries.",
     "bgColor": "#E01F3D",
     "iconName": "CrowdStrikeIcon",
     "docsUrl": "https://docs.sim.ai/tools/crowdstrike",
     "operations": [
       {
-        "name": "Search Identity Sensors",
+        "name": "Query Sensors",
         "description": "Search CrowdStrike identity protection sensors by hostname, IP, or related fields"
       },
       {
-        "name": "Get CrowdScore",
-        "description": "Retrieve environment-wide CrowdScore entities from CrowdStrike Falcon"
+        "name": "Get Sensor Details",
+        "description": "Get documented CrowdStrike Identity Protection sensor details for one or more device IDs"
       },
       {
-        "name": "Search Incidents",
-        "description": "Search CrowdStrike incidents by filter, sort order, and pagination"
-      },
-      {
-        "name": "Search Behaviors",
-        "description": "Search CrowdStrike behaviors by filter, sort order, and pagination"
+        "name": "Get Sensor Aggregates",
+        "description": "Get documented CrowdStrike Identity Protection sensor aggregates from a JSON aggregate query body"
       }
     ],
-    "operationCount": 4,
+    "operationCount": 3,
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
     "integrationTypes": ["security", "analytics", "developer-tools"],
-    "tags": ["monitoring", "incident-management"]
+    "tags": ["monitoring", "security"]
   },
   {
     "type": "cursor_v2",
