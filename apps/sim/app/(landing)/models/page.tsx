@@ -11,7 +11,6 @@ import {
 import {
   ALL_CATALOG_MODELS,
   getPricingBounds,
-  MODEL_CATALOG_PROVIDERS,
   MODEL_PROVIDERS_WITH_CATALOGS,
   TOP_MODEL_PROVIDERS,
   TOTAL_MODEL_PROVIDERS,
@@ -90,7 +89,7 @@ export const metadata: Metadata = {
 }
 
 export default function ModelsPage() {
-  const flatModels = MODEL_CATALOG_PROVIDERS.flatMap((provider) =>
+  const flatModels = MODEL_PROVIDERS_WITH_CATALOGS.flatMap((provider) =>
     provider.models.map((model) => ({ provider, model }))
   )
   const featuredProviderOrder = ['anthropic', 'openai', 'google']
