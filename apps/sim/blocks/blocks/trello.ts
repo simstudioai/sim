@@ -2,7 +2,7 @@ import { TrelloIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { parseOptionalNumberInput } from '@/blocks/utils'
+import { parseOptionalBooleanInput, parseOptionalNumberInput } from '@/blocks/utils'
 import type { TrelloResponse } from '@/tools/trello'
 
 function getTrimmedString(value: unknown): string | undefined {
@@ -12,35 +12,6 @@ function getTrimmedString(value: unknown): string | undefined {
 
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : undefined
-}
-
-function parseOptionalBoolean(value: unknown): boolean | undefined {
-  if (typeof value === 'boolean') {
-    return value
-  }
-
-  if (typeof value === 'number') {
-    return value !== 0
-  }
-
-  if (typeof value !== 'string') {
-    return undefined
-  }
-
-  const normalized = value.trim().toLowerCase()
-  if (normalized.length === 0) {
-    return undefined
-  }
-
-  if (normalized === 'true' || normalized === '1') {
-    return true
-  }
-
-  if (normalized === 'false' || normalized === '0') {
-    return false
-  }
-
-  return undefined
 }
 
 function parseStringArray(value: unknown): string[] | undefined {
@@ -427,7 +398,7 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
               desc: getTrimmedString(params.desc),
               pos: getTrimmedString(params.pos),
               due: getTrimmedString(params.due),
-              dueComplete: parseOptionalBoolean(params.dueComplete),
+              dueComplete: parseOptionalBooleanInput(params.dueComplete),
               labelIds: parseStringArray(params.labelIds),
             }
           }
@@ -444,10 +415,10 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
               cardId,
               name: getTrimmedString(params.name),
               desc: getTrimmedString(params.desc),
-              closed: parseOptionalBoolean(params.closed),
+              closed: parseOptionalBooleanInput(params.closed),
               idList: getTrimmedString(params.idList),
               due: getTrimmedString(params.due),
-              dueComplete: parseOptionalBoolean(params.dueComplete),
+              dueComplete: parseOptionalBooleanInput(params.dueComplete),
             }
           }
 

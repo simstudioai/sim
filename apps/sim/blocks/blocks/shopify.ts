@@ -2,7 +2,7 @@ import { ShopifyIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { parseOptionalNumberInput } from '@/blocks/utils'
+import { parseOptionalBooleanInput, parseOptionalNumberInput } from '@/blocks/utils'
 
 interface ShopifyResponse {
   success: boolean
@@ -18,19 +18,6 @@ const LIST_OPERATIONS = [
   'shopify_list_locations',
   'shopify_list_collections',
 ] as const
-
-function parseBooleanInput(value: unknown): boolean | undefined {
-  if (typeof value === 'boolean') {
-    return value
-  }
-
-  if (typeof value === 'string') {
-    if (value === 'true') return true
-    if (value === 'false') return false
-  }
-
-  return undefined
-}
 
 export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
   type: 'shopify',
@@ -763,10 +750,10 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
               ...baseParams,
               orderId: params.orderId.trim(),
               reason: params.cancelReason,
-              restock: parseBooleanInput(params.restock) ?? false,
-              notifyCustomer: parseBooleanInput(params.cancelNotifyCustomer),
+              restock: parseOptionalBooleanInput(params.restock) ?? false,
+              notifyCustomer: parseOptionalBooleanInput(params.cancelNotifyCustomer),
               refundMethod:
-                parseBooleanInput(params.refundOriginalPayment) === true
+                parseOptionalBooleanInput(params.refundOriginalPayment) === true
                   ? { originalPaymentMethodsRefund: true }
                   : undefined,
               staffNote: params.staffNote?.trim(),
@@ -871,7 +858,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
             return {
               ...baseParams,
               first,
-              includeInactive: parseBooleanInput(params.includeInactive),
+              includeInactive: parseOptionalBooleanInput(params.includeInactive),
             }
 
           // Fulfillment Operations
@@ -885,7 +872,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
               trackingNumber: params.trackingNumber?.trim(),
               trackingCompany: params.trackingCompany?.trim(),
               trackingUrl: params.trackingUrl?.trim(),
-              notifyCustomer: parseBooleanInput(params.notifyCustomer),
+              notifyCustomer: parseOptionalBooleanInput(params.notifyCustomer),
             }
 
           // Collection Operations

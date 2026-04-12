@@ -441,6 +441,43 @@ export function parseOptionalNumberInput(
   return parsed
 }
 
+/**
+ * Parses an optional boolean block input value.
+ * Returns `undefined` for empty or unrecognized values.
+ */
+export function parseOptionalBooleanInput(value: unknown): boolean | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined
+  }
+
+  if (typeof value === 'boolean') {
+    return value
+  }
+
+  if (typeof value === 'number') {
+    return value !== 0
+  }
+
+  if (typeof value !== 'string') {
+    return undefined
+  }
+
+  const normalized = value.trim().toLowerCase()
+  if (normalized.length === 0) {
+    return undefined
+  }
+
+  if (normalized === 'true' || normalized === '1') {
+    return true
+  }
+
+  if (normalized === 'false' || normalized === '0') {
+    return false
+  }
+
+  return undefined
+}
+
 const DEFAULT_MULTIPLE_FILES_ERROR =
   'File reference must be a single file, not an array. Use <block.files[0]> to select one file.'
 

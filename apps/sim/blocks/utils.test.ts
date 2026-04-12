@@ -68,6 +68,7 @@ vi.mock('@/lib/oauth/utils', () => ({
 
 import {
   getApiKeyCondition,
+  parseOptionalBooleanInput,
   parseOptionalJsonInput,
   parseOptionalNumberInput,
 } from '@/blocks/utils'
@@ -323,5 +324,38 @@ describe('parseOptionalNumberInput', () => {
 
   it('throws a helpful error for invalid numbers', () => {
     expect(() => parseOptionalNumberInput('abc', 'limit')).toThrow(/Invalid number for limit/i)
+  })
+})
+
+describe('parseOptionalBooleanInput', () => {
+  it('returns undefined for empty values', () => {
+    expect(parseOptionalBooleanInput('')).toBeUndefined()
+    expect(parseOptionalBooleanInput('   ')).toBeUndefined()
+    expect(parseOptionalBooleanInput(undefined)).toBeUndefined()
+  })
+
+  it('passes through boolean values', () => {
+    expect(parseOptionalBooleanInput(true)).toBe(true)
+    expect(parseOptionalBooleanInput(false)).toBe(false)
+  })
+
+  it('supports numeric boolean values', () => {
+    expect(parseOptionalBooleanInput(1)).toBe(true)
+    expect(parseOptionalBooleanInput(0)).toBe(false)
+    expect(parseOptionalBooleanInput(5)).toBe(true)
+  })
+
+  it('supports trimmed and case-insensitive string values', () => {
+    expect(parseOptionalBooleanInput('true')).toBe(true)
+    expect(parseOptionalBooleanInput(' TRUE ')).toBe(true)
+    expect(parseOptionalBooleanInput('1')).toBe(true)
+    expect(parseOptionalBooleanInput('false')).toBe(false)
+    expect(parseOptionalBooleanInput(' False ')).toBe(false)
+    expect(parseOptionalBooleanInput('0')).toBe(false)
+  })
+
+  it('returns undefined for unrecognized string values', () => {
+    expect(parseOptionalBooleanInput('yes')).toBeUndefined()
+    expect(parseOptionalBooleanInput('no')).toBeUndefined()
   })
 })

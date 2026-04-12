@@ -13,7 +13,7 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
   docsLink: 'https://docs.sim.ai/tools/crowdstrike',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['monitoring', 'security'],
+  tags: ['identity', 'monitoring'],
   bgColor: '#E01F3D',
   icon: CrowdStrikeIcon,
   authMode: AuthMode.ApiKey,
