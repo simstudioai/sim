@@ -241,8 +241,6 @@ function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: S
         return
       }
 
-      const sanitizedName = trimmedName
-
       let token: string | undefined
       const widget = turnstileRef.current
       if (turnstileSiteKey && widget) {
@@ -265,7 +263,7 @@ function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: S
         {
           email: emailValue,
           password: passwordValue,
-          name: sanitizedName,
+          name: trimmedName,
         },
         {
           headers: {

@@ -5,12 +5,12 @@ import { notFound } from 'next/navigation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { AuthModal } from '@/app/(landing)/components/auth-modal/auth-modal'
 import { TEMPLATES } from '@/app/workspace/[workspaceId]/home/components/template-prompts/consts'
-import { IntegrationIcon } from '../components/integration-icon'
-import { blockTypeToIconMap } from '../data/icon-mapping'
-import integrations from '../data/integrations.json'
-import type { AuthType, FAQItem, Integration } from '../data/types'
-import { IntegrationFAQ } from './components/integration-faq'
-import { TemplateCardButton } from './components/template-card-button'
+import { IntegrationIcon } from '@/app/(landing)/integrations/components/integration-icon'
+import { blockTypeToIconMap } from '@/app/(landing)/integrations/data/icon-mapping'
+import integrations from '@/app/(landing)/integrations/data/integrations.json'
+import type { AuthType, FAQItem, Integration } from '@/app/(landing)/integrations/data/types'
+import { IntegrationFAQ } from '@/app/(landing)/integrations/[slug]/components/integration-faq'
+import { TemplateCardButton } from '@/app/(landing)/integrations/[slug]/components/template-card-button'
 
 const allIntegrations = integrations as Integration[]
 const INTEGRATION_COUNT = allIntegrations.length

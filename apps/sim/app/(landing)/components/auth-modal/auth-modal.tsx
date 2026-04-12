@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2, X } from 'lucide-react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Modal, ModalClose, ModalContent, ModalTitle, ModalTrigger } from '@/components/emcn'
 import { GithubIcon, GoogleIcon } from '@/components/icons'
@@ -26,14 +27,23 @@ interface ProviderStatus {
 
 let fetchPromise: Promise<ProviderStatus> | null = null
 
+const FALLBACK_STATUS: ProviderStatus = {
+  githubAvailable: false,
+  googleAvailable: false,
+  isProduction: false,
+}
+
 function fetchProviderStatus(): Promise<ProviderStatus> {
   if (fetchPromise) return fetchPromise
   fetchPromise = fetch('/api/auth/providers')
-    .then((r) => r.json())
+    .then((r) => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      return r.json()
+    })
     .then((data: ProviderStatus) => data)
     .catch(() => {
       fetchPromise = null
-      return { githubAvailable: false, googleAvailable: false, isProduction: false }
+      return FALLBACK_STATUS
     })
   return fetchPromise
 }
@@ -54,7 +64,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
-      if (nextOpen && !hasSocial) {
+      if (nextOpen && providerStatus && !hasSocial) {
         router.push(defaultView === 'login' ? '/login' : '/signup')
         return
       }
@@ -64,7 +74,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
         captureClientEvent('auth_modal_opened', { view: defaultView, source })
       }
     },
-    [defaultView, hasSocial, router, source]
+    [defaultView, hasSocial, providerStatus, router, source]
   )
 
   const handleSocialLogin = useCallback(async (provider: 'github' | 'google') => {
@@ -72,7 +82,6 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
     try {
       await client.signIn.social({ provider, callbackURL: '/workspace' })
     } catch {
-      // Redirect handles success; errors are typically cancelled flows
     } finally {
       setSocialLoading(null)
     }
@@ -107,11 +116,12 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
           ) : (
             <>
               <div className='flex flex-col items-start gap-6 pe-10'>
-                <img
+                <Image
                   src={brand.logoUrl || '/logo/sim-landing.svg'}
                   alt={brand.name}
                   width={71}
                   height={22}
+                  unoptimized
                   className='h-[22px] w-auto shrink-0 object-contain'
                 />
                 <div className='flex flex-col gap-1 text-left'>

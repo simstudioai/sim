@@ -1,6 +1,6 @@
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
-export async function GET() {
+export function GET() {
   const baseUrl = getBaseUrl()
 
   const llmsFullContent = `# Sim — The AI Workspace | Build, Deploy & Manage AI Agents

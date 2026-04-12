@@ -3,7 +3,6 @@ import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
 import { season } from '@/app/_styles/fonts/season/season'
 import {
   Collaboration,
-  // Enterprise,
   Features,
   Footer,
   Hero,
@@ -31,7 +30,7 @@ import { LandingAnalytics } from '@/app/(landing)/landing-analytics'
  * - Section `id` attributes serve as fragment anchors for precise AI citations.
  * - Content ordering prioritizes answer-first patterns: definition (Hero) ->
  *   examples (Templates) -> capabilities (Features) -> social proof (Collaboration) ->
- *   enterprise (Enterprise) -> pricing (Pricing) -> testimonials (Testimonials).
+ *   pricing (Pricing) -> testimonials (Testimonials).
  */
 export default async function Landing() {
   const blogPosts = await getNavBlogPosts()
@@ -65,7 +64,6 @@ export default async function Landing() {
           <Templates />
           <Features />
           <Collaboration />
-          {/* <Enterprise /> */}
           <Pricing />
           <Testimonials />
         </article>

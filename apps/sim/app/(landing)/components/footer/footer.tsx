@@ -9,7 +9,6 @@ interface FooterItem {
   label: string
   href: string
   external?: boolean
-  arrow?: boolean
   externalArrow?: boolean
 }
 
@@ -26,10 +25,8 @@ const PRODUCT_LINKS: FooterItem[] = [
 
 const RESOURCES_LINKS: FooterItem[] = [
   { label: 'Blog', href: '/blog' },
-  // { label: 'Templates', href: '/templates' },
   { label: 'Docs', href: 'https://docs.sim.ai', external: true },
   { label: 'Models', href: '/models' },
-  // { label: 'Academy', href: '/academy' },
   { label: 'Partners', href: '/partners' },
   { label: 'Careers', href: 'https://jobs.ashbyhq.com/sim', external: true, externalArrow: true },
   { label: 'Changelog', href: '/changelog' },
