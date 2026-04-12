@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
+import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { safeAccountInsert } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('TrelloStore')
@@ -20,8 +21,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { token } = body
+    const body = (await request.json().catch(() => null)) as { token?: string } | null
+    const token = typeof body?.token === 'string' ? body.token : ''
 
     if (!token) {
       return NextResponse.json({ success: false, error: 'Token required' }, { status: 400 })
@@ -33,7 +34,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Trello not configured' }, { status: 500 })
     }
 
-    const validationUrl = `https://api.trello.com/1/members/me?key=${apiKey}&token=${token}&fields=id,username,fullName,email`
+    const scope = getCanonicalScopesForProvider('trello').join(',')
+
+    const validationUrl = `https://api.trello.com/1/members/me?key=${apiKey}&token=${token}&fields=id,username,fullName`
     const userResponse = await fetch(validationUrl, {
       headers: { Accept: 'application/json' },
     })
@@ -50,7 +53,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const trelloUser = await userResponse.json()
+    const trelloUser = (await userResponse.json().catch(() => null)) as { id?: string } | null
+
+    if (typeof trelloUser?.id !== 'string' || trelloUser.id.trim().length === 0) {
+      logger.error('Trello validation response did not include a valid member id', {
+        response: trelloUser,
+      })
+      return NextResponse.json(
+        { success: false, error: 'Invalid Trello member response' },
+        { status: 502 }
+      )
+    }
 
     const existing = await db.query.account.findFirst({
       where: and(
@@ -68,7 +81,7 @@ export async function POST(request: NextRequest) {
         .set({
           accessToken: token,
           accountId: trelloUser.id,
-          scope: 'read,write',
+          scope,
           updatedAt: now,
         })
         .where(eq(account.id, existing.id))
@@ -80,7 +93,7 @@ export async function POST(request: NextRequest) {
           providerId: 'trello',
           accountId: trelloUser.id,
           accessToken: token,
-          scope: 'read,write',
+          scope,
           createdAt: now,
           updatedAt: now,
         },

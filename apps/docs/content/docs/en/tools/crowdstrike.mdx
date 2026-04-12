@@ -1,0 +1,150 @@
+---
+title: CrowdStrike
+description: Search Falcon sensors, CrowdScore, incidents, and behaviors
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="crowdstrike"
+  color="#E01F3D"
+/>
+
+## Usage Instructions
+
+Integrate CrowdStrike Falcon into workflows to search identity sensors, environment CrowdScore, incidents, and behaviors using documented Falcon query endpoints.
+
+
+
+## Tools
+
+### `crowdstrike_query_behaviors`
+
+Search CrowdStrike behaviors by filter, sort order, and pagination
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `filter` | string | No | Falcon Query Language filter for behavior search |
+| `limit` | number | No | Maximum number of behavior records to return |
+| `offset` | number | No | Pagination offset for the behavior query |
+| `sort` | string | No | Sort expression for behavior results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `behaviors` | array | Matching CrowdStrike behavior records |
+|   ↳ `behaviorId` | string | Behavior identifier |
+|   ↳ `incidentId` | string | Parent incident identifier |
+|   ↳ `name` | string | Behavior name |
+|   ↳ `createdTimestamp` | string | Behavior creation timestamp |
+| `count` | number | Number of behaviors returned |
+| `pagination` | json | Pagination metadata \(offset, limit, total, expiresAt\) |
+|   ↳ `expiresAt` | number | Pagination cursor expiry timestamp |
+|   ↳ `limit` | number | Page size used for the query |
+|   ↳ `offset` | number | Offset returned by CrowdStrike |
+|   ↳ `total` | number | Total records available |
+
+### `crowdstrike_query_crowdscore`
+
+Retrieve environment-wide CrowdScore entities from CrowdStrike Falcon
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `filter` | string | No | Falcon Query Language filter for CrowdScore search |
+| `limit` | number | No | Maximum number of CrowdScore records to return |
+| `offset` | number | No | Pagination offset for CrowdScore results |
+| `sort` | string | No | Sort expression for CrowdScore results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `crowdScores` | array | CrowdStrike CrowdScore entities |
+|   ↳ `entityId` | string | Entity identifier |
+|   ↳ `entityType` | string | Entity type |
+|   ↳ `lastUpdated` | string | Last update timestamp |
+|   ↳ `score` | number | CrowdScore value |
+| `count` | number | Number of CrowdScore records returned |
+| `pagination` | json | Pagination metadata \(offset, limit, total, expiresAt\) |
+|   ↳ `expiresAt` | number | Pagination cursor expiry timestamp |
+|   ↳ `limit` | number | Page size used for the query |
+|   ↳ `offset` | number | Offset returned by CrowdStrike |
+|   ↳ `total` | number | Total records available |
+
+### `crowdstrike_query_incidents`
+
+Search CrowdStrike incidents by filter, sort order, and pagination
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `filter` | string | No | Falcon Query Language filter for incident search |
+| `limit` | number | No | Maximum number of incident records to return |
+| `offset` | number | No | Pagination offset for the incident query |
+| `sort` | string | No | Sort expression for incident results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `incidents` | array | Matching CrowdStrike incident records |
+|   ↳ `incidentId` | string | Incident identifier |
+|   ↳ `name` | string | Incident name |
+|   ↳ `createdTimestamp` | string | Incident creation timestamp |
+|   ↳ `status` | string | Incident status |
+|   ↳ `severity` | string | Incident severity |
+| `count` | number | Number of incidents returned |
+| `pagination` | json | Pagination metadata \(offset, limit, total, expiresAt\) |
+|   ↳ `expiresAt` | number | Pagination cursor expiry timestamp |
+|   ↳ `limit` | number | Page size used for the query |
+|   ↳ `offset` | number | Offset returned by CrowdStrike |
+|   ↳ `total` | number | Total records available |
+
+### `crowdstrike_query_sensors`
+
+Search CrowdStrike identity protection sensors by hostname, IP, or related fields
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | CrowdStrike Falcon API client ID |
+| `clientSecret` | string | Yes | CrowdStrike Falcon API client secret |
+| `cloud` | string | Yes | CrowdStrike Falcon cloud region |
+| `filter` | string | No | Falcon Query Language filter for identity sensor search |
+| `limit` | number | No | Maximum number of sensor records to return |
+| `offset` | number | No | Pagination offset for the identity sensor query |
+| `sort` | string | No | Sort expression for identity sensor results |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sensors` | array | Matching CrowdStrike identity sensor records |
+|   ↳ `agentId` | string | Sensor agent identifier |
+|   ↳ `hostname` | string | Sensor hostname |
+|   ↳ `ipAddress` | string | Sensor IP address |
+|   ↳ `macAddress` | string | Sensor MAC address |
+| `count` | number | Number of sensors returned |
+| `pagination` | json | Pagination metadata \(offset, limit, total, expiresAt\) |
+|   ↳ `expiresAt` | number | Pagination cursor expiry timestamp |
+|   ↳ `limit` | number | Page size used for the query |
+|   ↳ `offset` | number | Offset returned by CrowdStrike |
+|   ↳ `total` | number | Total records available |
+
+

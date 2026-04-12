@@ -353,6 +353,12 @@ import {
   confluenceUploadAttachmentTool,
 } from '@/tools/confluence'
 import {
+  crowdstrikeQueryBehaviorsTool,
+  crowdstrikeQueryCrowdScoreTool,
+  crowdstrikeQueryIncidentsTool,
+  crowdstrikeQuerySensorsTool,
+} from '@/tools/crowdstrike'
+import {
   cursorAddFollowupTool,
   cursorAddFollowupV2Tool,
   cursorDeleteAgentTool,
@@ -3465,6 +3471,10 @@ export const tools: Record<string, ToolConfig> = {
   cloudwatch_list_metrics: cloudwatchListMetricsTool,
   cloudwatch_put_metric_data: cloudwatchPutMetricDataTool,
   cloudwatch_query_logs: cloudwatchQueryLogsTool,
+  crowdstrike_query_behaviors: crowdstrikeQueryBehaviorsTool,
+  crowdstrike_query_crowdscore: crowdstrikeQueryCrowdScoreTool,
+  crowdstrike_query_incidents: crowdstrikeQueryIncidentsTool,
+  crowdstrike_query_sensors: crowdstrikeQuerySensorsTool,
   dynamodb_get: dynamodbGetTool,
   dynamodb_put: dynamodbPutTool,
   dynamodb_query: dynamodbQueryTool,

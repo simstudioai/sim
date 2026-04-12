@@ -8,6 +8,18 @@ export interface TrelloBoard {
   closed: boolean
 }
 
+export interface TrelloLabel {
+  id: string
+  name: string
+  color: string | null
+}
+
+export interface TrelloMember {
+  id: string
+  fullName: string | null
+  username: string | null
+}
+
 export interface TrelloList {
   id: string
   name: string
@@ -24,37 +36,44 @@ export interface TrelloCard {
   idBoard: string
   idList: string
   closed: boolean
-  labels: Array<{
-    id: string
-    name: string
-    color: string
-  }>
-  due?: string
-  dueComplete?: boolean
+  labelIds: string[]
+  labels: TrelloLabel[]
+  due: string | null
+  dueComplete: boolean | null
+}
+
+export interface TrelloActionCardTarget {
+  id: string
+  name: string
+  shortLink: string | null
+  idShort: number | null
+  due: string | null
+}
+
+export interface TrelloActionBoardTarget {
+  id: string
+  name: string
+  shortLink: string | null
+}
+
+export interface TrelloActionListTarget {
+  id: string
+  name: string
 }
 
 export interface TrelloAction {
   id: string
   type: string
   date: string
-  memberCreator: {
-    id: string
-    fullName: string
-    username: string
-  }
-  data: Record<string, any>
+  idMemberCreator: string
+  text: string | null
+  memberCreator: TrelloMember | null
+  card: TrelloActionCardTarget | null
+  board: TrelloActionBoardTarget | null
+  list: TrelloActionListTarget | null
 }
 
-export interface TrelloComment {
-  id: string
-  text: string
-  date: string
-  memberCreator: {
-    id: string
-    fullName: string
-    username: string
-  }
-}
+export interface TrelloComment extends TrelloAction {}
 
 export interface TrelloListListsParams {
   accessToken: string
@@ -63,19 +82,19 @@ export interface TrelloListListsParams {
 
 export interface TrelloListCardsParams {
   accessToken: string
-  boardId: string
+  boardId?: string
   listId?: string
 }
 
 export interface TrelloCreateCardParams {
   accessToken: string
-  boardId: string
   listId: string
   name: string
   desc?: string
   pos?: string
   due?: string
-  labels?: string
+  dueComplete?: boolean
+  labelIds?: string[]
 }
 
 export interface TrelloUpdateCardParams {
@@ -95,6 +114,7 @@ export interface TrelloGetActionsParams {
   cardId?: string
   filter?: string
   limit?: number
+  page?: number
 }
 
 export interface TrelloAddCommentParams {

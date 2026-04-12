@@ -2346,6 +2346,41 @@
     "tags": ["knowledge-base", "content-management", "note-taking"]
   },
   {
+    "type": "crowdstrike",
+    "slug": "crowdstrike",
+    "name": "CrowdStrike",
+    "description": "Search Falcon sensors, CrowdScore, incidents, and behaviors",
+    "longDescription": "Integrate CrowdStrike Falcon into workflows to search identity sensors, environment CrowdScore, incidents, and behaviors using documented Falcon query endpoints.",
+    "bgColor": "#E01F3D",
+    "iconName": "CrowdStrikeIcon",
+    "docsUrl": "https://docs.sim.ai/tools/crowdstrike",
+    "operations": [
+      {
+        "name": "Search Identity Sensors",
+        "description": "Search CrowdStrike identity protection sensors by hostname, IP, or related fields"
+      },
+      {
+        "name": "Get CrowdScore",
+        "description": "Retrieve environment-wide CrowdScore entities from CrowdStrike Falcon"
+      },
+      {
+        "name": "Search Incidents",
+        "description": "Search CrowdStrike incidents by filter, sort order, and pagination"
+      },
+      {
+        "name": "Search Behaviors",
+        "description": "Search CrowdStrike behaviors by filter, sort order, and pagination"
+      }
+    ],
+    "operationCount": 4,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["security", "analytics", "developer-tools"],
+    "tags": ["monitoring", "incident-management"]
+  },
+  {
     "type": "cursor_v2",
     "slug": "cursor",
     "name": "Cursor",
@@ -11963,8 +11998,8 @@
     "type": "trello",
     "slug": "trello",
     "name": "Trello",
-    "description": "Manage Trello boards and cards",
-    "longDescription": "Integrate with Trello to manage boards and cards. List boards, list cards, create cards, update cards, get actions, and add comments.",
+    "description": "Manage Trello lists, cards, and activity",
+    "longDescription": "Integrate with Trello to list board lists, list cards, create cards, update cards, review activity, and add comments.",
     "bgColor": "#0052CC",
     "iconName": "TrelloIcon",
     "docsUrl": "https://docs.sim.ai/tools/trello",
@@ -11975,11 +12010,11 @@
       },
       {
         "name": "List Cards",
-        "description": "List all cards on a Trello board"
+        "description": "List cards from a Trello board or list"
       },
       {
         "name": "Create Card",
-        "description": "Create a new card on a Trello board"
+        "description": "Create a new card in a Trello list"
       },
       {
         "name": "Update Card",
@@ -12611,7 +12646,7 @@
       {
         "id": "whatsapp_webhook",
         "name": "WhatsApp Webhook",
-        "description": "Trigger workflow from WhatsApp messages and events via Business Platform webhooks"
+        "description": "Trigger workflow from WhatsApp incoming messages and message status webhooks"
       }
     ],
     "triggerCount": 1,
