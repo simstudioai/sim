@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { Modal, ModalClose, ModalContent, ModalTitle, ModalTrigger } from '@/components/emcn'
 import { GithubIcon, GoogleIcon } from '@/components/icons'
 import { client } from '@/lib/auth/auth-client'
+import { getEnv, isFalsy, isTruthy } from '@/lib/core/config/env'
 import { captureClientEvent } from '@/lib/posthog/client'
 import type { PostHogEventMap } from '@/lib/posthog/events'
 import { getBrandConfig } from '@/ee/whitelabeling'
@@ -25,6 +26,7 @@ interface AuthModalProps {
 interface ProviderStatus {
   githubAvailable: boolean
   googleAvailable: boolean
+  registrationDisabled: boolean
 }
 
 let fetchPromise: Promise<ProviderStatus> | null = null
@@ -32,6 +34,7 @@ let fetchPromise: Promise<ProviderStatus> | null = null
 const FALLBACK_STATUS: ProviderStatus = {
   githubAvailable: false,
   googleAvailable: false,
+  registrationDisabled: false,
 }
 
 const SOCIAL_BTN =
@@ -44,9 +47,10 @@ function fetchProviderStatus(): Promise<ProviderStatus> {
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       return r.json()
     })
-    .then(({ githubAvailable, googleAvailable }: ProviderStatus) => ({
+    .then(({ githubAvailable, googleAvailable, registrationDisabled }: ProviderStatus) => ({
       githubAvailable,
       googleAvailable,
+      registrationDisabled,
     }))
     .catch(() => {
       fetchPromise = null
@@ -68,17 +72,20 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
   }, [])
 
   const hasSocial = providerStatus?.githubAvailable || providerStatus?.googleAvailable
+  const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
+  const emailEnabled = !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))
+  const hasModalContent = hasSocial || ssoEnabled
 
   useEffect(() => {
-    if (open && providerStatus && !hasSocial) {
+    if (open && providerStatus && !hasModalContent) {
       setOpen(false)
       router.push(defaultView === 'login' ? '/login' : '/signup')
     }
-  }, [open, providerStatus, hasSocial, defaultView, router])
+  }, [open, providerStatus, hasModalContent, defaultView, router])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
-      if (nextOpen && providerStatus && !hasSocial) {
+      if (nextOpen && providerStatus && !hasModalContent) {
         router.push(defaultView === 'login' ? '/login' : '/signup')
         return
       }
@@ -88,7 +95,7 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
         captureClientEvent('auth_modal_opened', { view: defaultView, source })
       }
     },
-    [defaultView, hasSocial, providerStatus, router, source]
+    [defaultView, hasModalContent, providerStatus, router, source]
   )
 
   const handleSocialLogin = useCallback(async (provider: 'github' | 'google') => {
@@ -101,6 +108,11 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
       setSocialLoading(null)
     }
   }, [])
+
+  const handleSSOLogin = useCallback(() => {
+    setOpen(false)
+    router.push('/sso')
+  }, [router])
 
   const handleEmailContinue = useCallback(() => {
     setOpen(false)
@@ -176,38 +188,51 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
                     </span>
                   </button>
                 )}
+                {ssoEnabled && (
+                  <button type='button' onClick={handleSSOLogin} className={SOCIAL_BTN}>
+                    Sign in with SSO
+                  </button>
+                )}
               </div>
 
-              <div className='relative my-4'>
-                <div className='absolute inset-0 flex items-center'>
-                  <div className='w-full border-[var(--landing-bg-elevated)] border-t' />
-                </div>
-                <div className='relative flex justify-center text-[13.5px]'>
-                  <span className='bg-[var(--landing-bg)] px-4 text-[var(--landing-text-muted)]'>
-                    Or
-                  </span>
-                </div>
-              </div>
+              {emailEnabled && (
+                <>
+                  <div className='relative my-4'>
+                    <div className='absolute inset-0 flex items-center'>
+                      <div className='w-full border-[var(--landing-bg-elevated)] border-t' />
+                    </div>
+                    <div className='relative flex justify-center text-[13.5px]'>
+                      <span className='bg-[var(--landing-bg)] px-4 text-[var(--landing-text-muted)]'>
+                        Or
+                      </span>
+                    </div>
+                  </div>
 
-              <button
-                type='button'
-                onClick={handleEmailContinue}
-                className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--auth-primary-btn-border)] bg-[var(--auth-primary-btn-bg)] text-[13.5px] text-[var(--auth-primary-btn-text)] transition-colors hover:border-[var(--auth-primary-btn-hover-border)] hover:bg-[var(--auth-primary-btn-hover-bg)]'
-              >
-                Continue with email
-              </button>
+                  <button
+                    type='button'
+                    onClick={handleEmailContinue}
+                    className='flex h-[32px] w-full items-center justify-center rounded-[5px] border border-[var(--auth-primary-btn-border)] bg-[var(--auth-primary-btn-bg)] text-[13.5px] text-[var(--auth-primary-btn-text)] transition-colors hover:border-[var(--auth-primary-btn-hover-border)] hover:bg-[var(--auth-primary-btn-hover-bg)]'
+                  >
+                    Continue with email
+                  </button>
+                </>
+              )}
 
               <div className='mt-4 text-center text-[13.5px]'>
                 <span className='text-[var(--landing-text-muted)]'>
                   {view === 'login' ? "Don't have an account? " : 'Already have an account? '}
                 </span>
-                <button
-                  type='button'
-                  onClick={() => setView(view === 'login' ? 'signup' : 'login')}
-                  className='text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
-                >
-                  {view === 'login' ? 'Sign up' : 'Sign in'}
-                </button>
+                {view === 'login' && providerStatus.registrationDisabled ? (
+                  <span className='text-[var(--landing-text-muted)]'>Registration is disabled</span>
+                ) : (
+                  <button
+                    type='button'
+                    onClick={() => setView(view === 'login' ? 'signup' : 'login')}
+                    className='text-[var(--landing-text)] underline-offset-4 transition hover:text-white hover:underline'
+                  >
+                    {view === 'login' ? 'Sign up' : 'Sign in'}
+                  </button>
+                )}
               </div>
             </>
           )}
