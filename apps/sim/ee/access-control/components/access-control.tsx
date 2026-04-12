@@ -449,7 +449,11 @@ export function AccessControl() {
       ['Settings Tabs', 'Logs'],
     ]
 
-    return categoryGroups.map((column) =>
+    const assignedCategories = new Set(categoryGroups.flat())
+    const unassigned = Object.keys(platformCategories).filter((c) => !assignedCategories.has(c))
+    const groups = unassigned.length > 0 ? [...categoryGroups, unassigned] : categoryGroups
+
+    return groups.map((column) =>
       column
         .map((category) => ({
           category,

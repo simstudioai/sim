@@ -252,8 +252,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
     }
 
-    await db.delete(permissionGroupMember).where(eq(permissionGroupMember.permissionGroupId, id))
-    await db.delete(permissionGroup).where(eq(permissionGroup.id, id))
+    await db.transaction(async (tx) => {
+      await tx.delete(permissionGroupMember).where(eq(permissionGroupMember.permissionGroupId, id))
+      await tx.delete(permissionGroup).where(eq(permissionGroup.id, id))
+    })
 
     logger.info('Deleted permission group', { permissionGroupId: id, userId: session.user.id })
 
