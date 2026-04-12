@@ -552,7 +552,7 @@ assertUniqueGeneratedRoutes(rawProviders)
 
 export const MODEL_CATALOG_PROVIDERS: CatalogProvider[] = rawProviders
 export const MODEL_PROVIDERS_WITH_CATALOGS = MODEL_CATALOG_PROVIDERS.filter(
-  (provider) => provider.models.length > 0
+  (provider) => provider.models.length > 0 && !provider.isReseller
 )
 export const MODEL_PROVIDERS_WITH_DYNAMIC_CATALOGS = MODEL_CATALOG_PROVIDERS.filter(
   (provider) => provider.models.length === 0
