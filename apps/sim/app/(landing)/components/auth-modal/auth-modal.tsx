@@ -91,8 +91,12 @@ export function AuthModal({ children, defaultView = 'login', source }: AuthModal
       }
       setOpen(nextOpen)
       if (nextOpen) {
-        setView(defaultView)
-        captureClientEvent('auth_modal_opened', { view: defaultView, source })
+        const initialView =
+          defaultView === 'signup' && providerStatus?.registrationDisabled
+            ? 'login'
+            : defaultView
+        setView(initialView)
+        captureClientEvent('auth_modal_opened', { view: initialView, source })
       }
     },
     [defaultView, hasModalContent, providerStatus, router, source]
