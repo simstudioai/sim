@@ -171,19 +171,6 @@ export async function POST(req: Request) {
       ...config,
     }
 
-    // If autoAddNewMembers is true, unset it on any existing groups first
-    if (autoAddNewMembers) {
-      await db
-        .update(permissionGroup)
-        .set({ autoAddNewMembers: false, updatedAt: new Date() })
-        .where(
-          and(
-            eq(permissionGroup.organizationId, organizationId),
-            eq(permissionGroup.autoAddNewMembers, true)
-          )
-        )
-    }
-
     const now = new Date()
     const newGroup = {
       id: generateId(),
@@ -197,7 +184,20 @@ export async function POST(req: Request) {
       autoAddNewMembers: autoAddNewMembers || false,
     }
 
-    await db.insert(permissionGroup).values(newGroup)
+    await db.transaction(async (tx) => {
+      if (autoAddNewMembers) {
+        await tx
+          .update(permissionGroup)
+          .set({ autoAddNewMembers: false, updatedAt: now })
+          .where(
+            and(
+              eq(permissionGroup.organizationId, organizationId),
+              eq(permissionGroup.autoAddNewMembers, true)
+            )
+          )
+      }
+      await tx.insert(permissionGroup).values(newGroup)
+    })
 
     logger.info('Created permission group', {
       permissionGroupId: newGroup.id,

@@ -155,31 +155,34 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ? { ...currentConfig, ...updates.config }
       : currentConfig
 
-    // If setting autoAddNewMembers to true, unset it on other groups in the org first
-    if (updates.autoAddNewMembers === true) {
-      await db
-        .update(permissionGroup)
-        .set({ autoAddNewMembers: false, updatedAt: new Date() })
-        .where(
-          and(
-            eq(permissionGroup.organizationId, result.group.organizationId),
-            eq(permissionGroup.autoAddNewMembers, true)
-          )
-        )
-    }
+    const now = new Date()
 
-    await db
-      .update(permissionGroup)
-      .set({
-        ...(updates.name !== undefined && { name: updates.name }),
-        ...(updates.description !== undefined && { description: updates.description }),
-        ...(updates.autoAddNewMembers !== undefined && {
-          autoAddNewMembers: updates.autoAddNewMembers,
-        }),
-        config: newConfig,
-        updatedAt: new Date(),
-      })
-      .where(eq(permissionGroup.id, id))
+    await db.transaction(async (tx) => {
+      if (updates.autoAddNewMembers === true) {
+        await tx
+          .update(permissionGroup)
+          .set({ autoAddNewMembers: false, updatedAt: now })
+          .where(
+            and(
+              eq(permissionGroup.organizationId, result.group.organizationId),
+              eq(permissionGroup.autoAddNewMembers, true)
+            )
+          )
+      }
+
+      await tx
+        .update(permissionGroup)
+        .set({
+          ...(updates.name !== undefined && { name: updates.name }),
+          ...(updates.description !== undefined && { description: updates.description }),
+          ...(updates.autoAddNewMembers !== undefined && {
+            autoAddNewMembers: updates.autoAddNewMembers,
+          }),
+          config: newConfig,
+          updatedAt: now,
+        })
+        .where(eq(permissionGroup.id, id))
+    })
 
     const [updated] = await db
       .select()

@@ -2,7 +2,6 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useQuery } from '@tanstack/react-query'
 import { Plus, Search } from 'lucide-react'
 import {
   Avatar,
@@ -42,6 +41,7 @@ import {
   useRemovePermissionGroupMember,
   useUpdatePermissionGroup,
 } from '@/ee/access-control/hooks/permission-groups'
+import { useBlacklistedProviders } from '@/hooks/queries/allowed-providers'
 import { useOrganization, useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
@@ -49,10 +49,19 @@ import { getAllProviderIds } from '@/providers/utils'
 
 const logger = createLogger('AccessControl')
 
+interface OrgMember {
+  userId: string
+  user: {
+    name: string | null
+    email: string
+    image?: string | null
+  }
+}
+
 interface AddMembersModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  availableMembers: any[]
+  availableMembers: OrgMember[]
   selectedMemberIds: Set<string>
   setSelectedMemberIds: React.Dispatch<React.SetStateAction<Set<string>>>
   onAddMembers: () => void
@@ -73,7 +82,7 @@ function AddMembersModal({
   const filteredMembers = useMemo(() => {
     if (!searchTerm.trim()) return availableMembers
     const query = searchTerm.toLowerCase()
-    return availableMembers.filter((m: any) => {
+    return availableMembers.filter((m) => {
       const name = m.user?.name || ''
       const email = m.user?.email || ''
       return name.toLowerCase().includes(query) || email.toLowerCase().includes(query)
@@ -82,12 +91,12 @@ function AddMembersModal({
 
   const allFilteredSelected = useMemo(() => {
     if (filteredMembers.length === 0) return false
-    return filteredMembers.every((m: any) => selectedMemberIds.has(m.userId))
+    return filteredMembers.every((m) => selectedMemberIds.has(m.userId))
   }, [filteredMembers, selectedMemberIds])
 
   const handleToggleAll = () => {
     if (allFilteredSelected) {
-      const filteredIds = new Set(filteredMembers.map((m: any) => m.userId))
+      const filteredIds = new Set(filteredMembers.map((m) => m.userId))
       setSelectedMemberIds((prev) => {
         const next = new Set(prev)
         filteredIds.forEach((id) => next.delete(id))
@@ -96,7 +105,7 @@ function AddMembersModal({
     } else {
       setSelectedMemberIds((prev) => {
         const next = new Set(prev)
-        filteredMembers.forEach((m: any) => next.add(m.userId))
+        filteredMembers.forEach((m) => next.add(m.userId))
         return next
       })
     }
@@ -153,7 +162,7 @@ function AddMembersModal({
                   </p>
                 ) : (
                   <div className='flex flex-col'>
-                    {filteredMembers.map((member: any) => {
+                    {filteredMembers.map((member) => {
                       const name = member.user?.name || 'Unknown'
                       const email = member.user?.email || ''
                       const avatarInitial = name.charAt(0).toUpperCase()
@@ -466,16 +475,7 @@ export function AccessControl() {
       return a.name.localeCompare(b.name)
     })
   }, [])
-  const { data: blacklistedProvidersData } = useQuery({
-    queryKey: ['blacklistedProviders'],
-    queryFn: async ({ signal }) => {
-      const res = await fetch('/api/settings/allowed-providers', { signal })
-      if (!res.ok) return { blacklistedProviders: [] as string[] }
-      return res.json() as Promise<{ blacklistedProviders: string[] }>
-    },
-    staleTime: 5 * 60 * 1000,
-    enabled: showConfigModal,
-  })
+  const { data: blacklistedProvidersData } = useBlacklistedProviders({ enabled: showConfigModal })
 
   const allProviderIds = useMemo(() => {
     const allIds = getAllProviderIds()
@@ -733,7 +733,7 @@ export function AccessControl() {
 
   const availableMembersToAdd = useMemo(() => {
     const existingMemberUserIds = new Set(members.map((m) => m.userId))
-    return orgMembers.filter((m: any) => !existingMemberUserIds.has(m.userId))
+    return orgMembers.filter((m) => !existingMemberUserIds.has(m.userId))
   }, [orgMembers, members])
 
   if (isLoading) {
