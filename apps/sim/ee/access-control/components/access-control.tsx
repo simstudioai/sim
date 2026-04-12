@@ -1095,76 +1095,22 @@ export function AccessControl() {
                       variant='default'
                       className='h-8'
                       onClick={() => {
-                        const allVisible =
-                          !editingConfig?.hideKnowledgeBaseTab &&
-                          !editingConfig?.hideTablesTab &&
-                          !editingConfig?.hideTemplates &&
-                          !editingConfig?.hideCopilot &&
-                          !editingConfig?.hideIntegrationsTab &&
-                          !editingConfig?.hideSecretsTab &&
-                          !editingConfig?.hideApiKeysTab &&
-                          !editingConfig?.hideInboxTab &&
-                          !editingConfig?.hideFilesTab &&
-                          !editingConfig?.disableMcpTools &&
-                          !editingConfig?.disableCustomTools &&
-                          !editingConfig?.disableSkills &&
-                          !editingConfig?.hideTraceSpans &&
-                          !editingConfig?.disableInvitations &&
-                          !editingConfig?.disablePublicApi &&
-                          !editingConfig?.hideDeployApi &&
-                          !editingConfig?.hideDeployMcp &&
-                          !editingConfig?.hideDeployA2a &&
-                          !editingConfig?.hideDeployChatbot &&
-                          !editingConfig?.hideDeployTemplate
+                        const allVisible = platformFeatures.every(
+                          (f) => !editingConfig?.[f.configKey]
+                        )
                         setEditingConfig((prev) =>
                           prev
                             ? {
                                 ...prev,
-                                hideKnowledgeBaseTab: allVisible,
-                                hideTablesTab: allVisible,
-                                hideTemplates: allVisible,
-                                hideCopilot: allVisible,
-                                hideIntegrationsTab: allVisible,
-                                hideSecretsTab: allVisible,
-                                hideApiKeysTab: allVisible,
-                                hideInboxTab: allVisible,
-                                hideFilesTab: allVisible,
-                                disableMcpTools: allVisible,
-                                disableCustomTools: allVisible,
-                                disableSkills: allVisible,
-                                hideTraceSpans: allVisible,
-                                disableInvitations: allVisible,
-                                disablePublicApi: allVisible,
-                                hideDeployApi: allVisible,
-                                hideDeployMcp: allVisible,
-                                hideDeployA2a: allVisible,
-                                hideDeployChatbot: allVisible,
-                                hideDeployTemplate: allVisible,
+                                ...Object.fromEntries(
+                                  platformFeatures.map((f) => [f.configKey, allVisible])
+                                ),
                               }
                             : prev
                         )
                       }}
                     >
-                      {!editingConfig?.hideKnowledgeBaseTab &&
-                      !editingConfig?.hideTablesTab &&
-                      !editingConfig?.hideTemplates &&
-                      !editingConfig?.hideCopilot &&
-                      !editingConfig?.hideIntegrationsTab &&
-                      !editingConfig?.hideSecretsTab &&
-                      !editingConfig?.hideApiKeysTab &&
-                      !editingConfig?.hideInboxTab &&
-                      !editingConfig?.hideFilesTab &&
-                      !editingConfig?.disableMcpTools &&
-                      !editingConfig?.disableCustomTools &&
-                      !editingConfig?.disableSkills &&
-                      !editingConfig?.hideTraceSpans &&
-                      !editingConfig?.disableInvitations &&
-                      !editingConfig?.disablePublicApi &&
-                      !editingConfig?.hideDeployApi &&
-                      !editingConfig?.hideDeployMcp &&
-                      !editingConfig?.hideDeployA2a &&
-                      !editingConfig?.hideDeployChatbot &&
-                      !editingConfig?.hideDeployTemplate
+                      {platformFeatures.every((f) => !editingConfig?.[f.configKey])
                         ? 'Deselect All'
                         : 'Select All'}
                     </Button>
