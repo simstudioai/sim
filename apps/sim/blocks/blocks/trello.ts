@@ -2,6 +2,7 @@ import { TrelloIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { parseOptionalNumberInput } from '@/blocks/utils'
 import type { TrelloResponse } from '@/tools/trello'
 
 function getTrimmedString(value: unknown): string | undefined {
@@ -11,24 +12,6 @@ function getTrimmedString(value: unknown): string | undefined {
 
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : undefined
-}
-
-function parseOptionalNumber(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value
-  }
-
-  if (typeof value !== 'string') {
-    return undefined
-  }
-
-  const trimmed = value.trim()
-  if (trimmed.length === 0) {
-    return undefined
-  }
-
-  const parsed = Number(trimmed)
-  return Number.isFinite(parsed) ? parsed : undefined
 }
 
 function parseOptionalBoolean(value: unknown): boolean | undefined {
@@ -485,8 +468,8 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
               boardId,
               cardId,
               filter: getTrimmedString(params.filter),
-              limit: parseOptionalNumber(params.limit),
-              page: parseOptionalNumber(params.page),
+              limit: parseOptionalNumberInput(params.limit, 'limit'),
+              page: parseOptionalNumberInput(params.page, 'page'),
             }
           }
 

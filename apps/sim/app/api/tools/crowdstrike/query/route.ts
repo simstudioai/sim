@@ -3,7 +3,12 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateId } from '@/lib/core/utils/uuid'
-import type { CrowdStrikeAggregateQuery, CrowdStrikeCloud } from '@/tools/crowdstrike/types'
+import type {
+  CrowdStrikeAggregateQuery,
+  CrowdStrikeCloud,
+  CrowdStrikeSensorAggregateBucket,
+  CrowdStrikeSensorAggregateResult,
+} from '@/tools/crowdstrike/types'
 
 const logger = createLogger('CrowdStrikeIdentityProtectionAPI')
 
@@ -292,7 +297,7 @@ function normalizeSensorsOutput(data: unknown, paginationData?: unknown) {
   }
 }
 
-function normalizeAggregationResult(resource: JsonRecord) {
+function normalizeAggregationResult(resource: JsonRecord): CrowdStrikeSensorAggregateResult {
   return {
     buckets: getRecordArray(resource.buckets).map(normalizeAggregationBucket),
     docCountErrorUpperBound: getNumber(resource.doc_count_error_upper_bound),
@@ -301,7 +306,7 @@ function normalizeAggregationResult(resource: JsonRecord) {
   }
 }
 
-function normalizeAggregationBucket(resource: JsonRecord) {
+function normalizeAggregationBucket(resource: JsonRecord): CrowdStrikeSensorAggregateBucket {
   return {
     count: getNumber(resource.count),
     from: getNumber(resource.from),

@@ -2,6 +2,7 @@ import { ShopifyIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { parseOptionalNumberInput } from '@/blocks/utils'
 
 interface ShopifyResponse {
   success: boolean
@@ -17,19 +18,6 @@ const LIST_OPERATIONS = [
   'shopify_list_locations',
   'shopify_list_collections',
 ] as const
-
-function parseOptionalNumber(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value
-  }
-
-  if (typeof value === 'string' && value.trim()) {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : undefined
-  }
-
-  return undefined
-}
 
 function parseBooleanInput(value: unknown): boolean | undefined {
   if (typeof value === 'boolean') {
@@ -663,7 +651,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
         return params.operation || 'shopify_list_products'
       },
       params: (params) => {
-        const first = parseOptionalNumber(params.first)
+        const first = parseOptionalNumberInput(params.first, 'first')
         const baseParams: Record<string, unknown> = {
           oauthCredential: params.oauthCredential,
           shopDomain: params.shopDomain?.trim(),
@@ -915,7 +903,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
             return {
               ...baseParams,
               collectionId: params.collectionId.trim(),
-              productsFirst: parseOptionalNumber(params.productsFirst),
+              productsFirst: parseOptionalNumberInput(params.productsFirst, 'productsFirst'),
             }
 
           default:
