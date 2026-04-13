@@ -209,6 +209,73 @@
     "tags": ["messaging"]
   },
   {
+    "type": "agiloft",
+    "slug": "agiloft",
+    "name": "Agiloft",
+    "description": "Manage records in Agiloft CLM",
+    "longDescription": "Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, and record locking across any table in your knowledge base.",
+    "bgColor": "#263A5C",
+    "iconName": "AgiloftIcon",
+    "docsUrl": "https://docs.sim.ai/tools/agiloft",
+    "operations": [
+      {
+        "name": "Create Record",
+        "description": "Create a new record in an Agiloft table."
+      },
+      {
+        "name": "Read Record",
+        "description": "Read a record by ID from an Agiloft table."
+      },
+      {
+        "name": "Update Record",
+        "description": "Update an existing record in an Agiloft table."
+      },
+      {
+        "name": "Delete Record",
+        "description": "Delete a record from an Agiloft table."
+      },
+      {
+        "name": "Search Records",
+        "description": "Search for records in an Agiloft table using a query."
+      },
+      {
+        "name": "Select Records",
+        "description": "Select record IDs matching a SQL WHERE clause from an Agiloft table."
+      },
+      {
+        "name": "Saved Search",
+        "description": "List saved searches defined for an Agiloft table."
+      },
+      {
+        "name": "Attach File",
+        "description": "Attach a file to a field in an Agiloft record."
+      },
+      {
+        "name": "Retrieve Attachment",
+        "description": "Download an attached file from an Agiloft record field."
+      },
+      {
+        "name": "Remove Attachment",
+        "description": "Remove an attached file from a field in an Agiloft record."
+      },
+      {
+        "name": "Attachment Info",
+        "description": "Get information about file attachments on a record field."
+      },
+      {
+        "name": "Lock Record",
+        "description": "Lock, unlock, or check the lock status of an Agiloft record."
+      }
+    ],
+    "operationCount": 12,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["productivity", "developer-tools"],
+    "tags": ["automation"]
+  },
+  {
     "type": "ahrefs",
     "slug": "ahrefs",
     "name": "Ahrefs",
@@ -2374,7 +2441,7 @@
     "authType": "none",
     "category": "tools",
     "integrationTypes": ["security", "analytics", "developer-tools"],
-    "tags": ["monitoring", "security"]
+    "tags": ["identity", "monitoring"]
   },
   {
     "type": "cursor_v2",

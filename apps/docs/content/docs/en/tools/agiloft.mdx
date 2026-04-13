@@ -1,0 +1,332 @@
+---
+title: Agiloft
+description: Manage records in Agiloft CLM
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="agiloft"
+  color="#263A5C"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Agiloft](https://www.agiloft.com/) is an enterprise contract lifecycle management (CLM) platform that helps organizations automate and manage contracts, agreements, and related business processes across any knowledge base.
+
+With the Agiloft integration in Sim, you can:
+
+- **Create records**: Add new records to any Agiloft table with custom field values
+- **Read records**: Retrieve individual records by ID with optional field selection
+- **Update records**: Modify existing record fields in any table
+- **Delete records**: Remove records from your knowledge base
+- **Search records**: Find records using Agiloft's query syntax with pagination support
+- **Select records**: Query records using SQL WHERE clauses for advanced filtering
+- **Saved searches**: List saved search definitions available for a table
+- **Attach files**: Upload and attach files to record fields
+- **Retrieve attachments**: Download attached files from record fields
+- **Remove attachments**: Delete attached files from record fields by position
+- **Attachment info**: Get metadata about all files attached to a record field
+- **Lock records**: Check, acquire, or release locks on records for concurrent editing
+
+In Sim, the Agiloft integration enables your agents to manage contracts and records programmatically as part of automated workflows. Agents can create and update records, search across tables, handle file attachments, and manage record locks — enabling intelligent contract lifecycle automation.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, and record locking across any table in your knowledge base.
+
+
+
+## Tools
+
+### `agiloft_attach_file`
+
+Attach a file to a field in an Agiloft record.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `knowledgeBase` | string | Yes | Knowledge base name |
+| `login` | string | Yes | Agiloft username |
+| `password` | string | Yes | Agiloft password |
+| `table` | string | Yes | Table name \(e.g., "contracts"\) |
+| `recordId` | string | Yes | ID of the record to attach the file to |
+| `fieldName` | string | Yes | Name of the attachment field |
+| `file` | file | No | File to attach |
+| `fileName` | string | No | Name to assign to the file \(defaults to original file name\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the record the file was attached to |
+| `fieldName` | string | Name of the field the file was attached to |
+| `fileName` | string | Name of the attached file |
+| `totalAttachments` | number | Total number of files attached in the field after the operation |
+
+### `agiloft_attachment_info`
+
+Get information about file attachments on a record field.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `knowledgeBase` | string | Yes | Knowledge base name |
+| `login` | string | Yes | Agiloft username |
+| `password` | string | Yes | Agiloft password |
+| `table` | string | Yes | Table name \(e.g., "contracts"\) |
+| `recordId` | string | Yes | ID of the record to check attachments on |
+| `fieldName` | string | Yes | Name of the attachment field to inspect |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attachments` | array | List of attachments with position, name, and size |
+|   ↳ `position` | number | Position index of the attachment in the field |
+|   ↳ `name` | string | File name of the attachment |
+|   ↳ `size` | number | File size in bytes |
+| `totalCount` | number | Total number of attachments in the field |
+
+### `agiloft_create_record`
+
+Create a new record in an Agiloft table.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `knowledgeBase` | string | Yes | Knowledge base name |
+| `login` | string | Yes | Agiloft username |
+| `password` | string | Yes | Agiloft password |
+| `table` | string | Yes | Table name \(e.g., "contracts", "contacts.employees"\) |
+| `data` | string | Yes | Record field values as a JSON object \(e.g., \{"first_name": "John", "status": "Active"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the created record |
+| `fields` | json | Field values of the created record |
+
+### `agiloft_delete_record`
+
+Delete a record from an Agiloft table.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `knowledgeBase` | string | Yes | Knowledge base name |
+| `login` | string | Yes | Agiloft username |
+| `password` | string | Yes | Agiloft password |
+| `table` | string | Yes | Table name \(e.g., "contracts", "contacts.employees"\) |
+| `recordId` | string | Yes | ID of the record to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the deleted record |
+| `deleted` | boolean | Whether the record was successfully deleted |
+
+### `agiloft_lock_record`
+
+Lock, unlock, or check the lock status of an Agiloft record.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `knowledgeBase` | string | Yes | Knowledge base name |
+| `login` | string | Yes | Agiloft username |
+| `password` | string | Yes | Agiloft password |
+| `table` | string | Yes | Table name \(e.g., "contracts"\) |
+| `recordId` | string | Yes | ID of the record to lock, unlock, or check |
+| `lockAction` | string | Yes | Action to perform: "lock", "unlock", or "check" |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Record ID |
+| `lockStatus` | string | Lock status \(e.g., "LOCKED", "UNLOCKED"\) |
+| `lockedBy` | string | Username of the user who locked the record |
+| `lockExpiresInMinutes` | number | Minutes until the lock expires |
+
+### `agiloft_read_record`
+
+Read a record by ID from an Agiloft table.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `knowledgeBase` | string | Yes | Knowledge base name |
+| `login` | string | Yes | Agiloft username |
+| `password` | string | Yes | Agiloft password |
+| `table` | string | Yes | Table name \(e.g., "contracts", "contacts.employees"\) |
+| `recordId` | string | Yes | ID of the record to read |
+| `fields` | string | No | Comma-separated list of field names to include in the response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the record |
+| `fields` | json | Field values of the record |
+
+### `agiloft_remove_attachment`
+
+Remove an attached file from a field in an Agiloft record.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `knowledgeBase` | string | Yes | Knowledge base name |
+| `login` | string | Yes | Agiloft username |
+| `password` | string | Yes | Agiloft password |
+| `table` | string | Yes | Table name \(e.g., "contracts"\) |
+| `recordId` | string | Yes | ID of the record containing the attachment |
+| `fieldName` | string | Yes | Name of the attachment field |
+| `position` | string | Yes | Position index of the file to remove \(starting from 0\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordId` | string | ID of the record |
+| `fieldName` | string | Name of the attachment field |
+| `remainingAttachments` | number | Number of attachments remaining in the field after removal |
+
+### `agiloft_retrieve_attachment`
+
+Download an attached file from an Agiloft record field.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `knowledgeBase` | string | Yes | Knowledge base name |
+| `login` | string | Yes | Agiloft username |
+| `password` | string | Yes | Agiloft password |
+| `table` | string | Yes | Table name \(e.g., "contracts"\) |
+| `recordId` | string | Yes | ID of the record containing the attachment |
+| `fieldName` | string | Yes | Name of the attachment field |
+| `position` | string | Yes | Position index of the file in the field \(starting from 0\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded attachment file |
+
+### `agiloft_saved_search`
+
+List saved searches defined for an Agiloft table.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `knowledgeBase` | string | Yes | Knowledge base name |
+| `login` | string | Yes | Agiloft username |
+| `password` | string | Yes | Agiloft password |
+| `table` | string | Yes | Table name to list saved searches for \(e.g., "contracts"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `searches` | array | List of saved searches for the table |
+|   ↳ `name` | string | Saved search name |
+|   ↳ `label` | string | Saved search display label |
+|   ↳ `id` | string | Saved search database identifier |
+|   ↳ `description` | string | Saved search description |
+
+### `agiloft_search_records`
+
+Search for records in an Agiloft table using a query.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `knowledgeBase` | string | Yes | Knowledge base name |
+| `login` | string | Yes | Agiloft username |
+| `password` | string | Yes | Agiloft password |
+| `table` | string | Yes | Table name to search in \(e.g., "contracts", "contacts.employees"\) |
+| `query` | string | Yes | Search query using Agiloft query syntax \(e.g., "status=\'Active\'" or "company_name~=\'Acme\'"\) |
+| `fields` | string | No | Comma-separated list of field names to include in the results |
+| `page` | string | No | Page number for paginated results \(starting from 0\) |
+| `limit` | string | No | Maximum number of records to return per page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `records` | json | Array of matching records with their field values |
+| `totalCount` | number | Total number of matching records |
+| `page` | number | Current page number |
+| `limit` | number | Records per page |
+
+### `agiloft_select_records`
+
+Select record IDs matching a SQL WHERE clause from an Agiloft table.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `knowledgeBase` | string | Yes | Knowledge base name |
+| `login` | string | Yes | Agiloft username |
+| `password` | string | Yes | Agiloft password |
+| `table` | string | Yes | Table name \(e.g., "contracts", "contacts.employees"\) |
+| `where` | string | Yes | SQL WHERE clause using database column names \(e.g., "summary like \'%new%\'" or "assigned_person=\'John Doe\'"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `recordIds` | array | Array of record IDs matching the query |
+| `totalCount` | number | Total number of matching records |
+
+### `agiloft_update_record`
+
+Update an existing record in an Agiloft table.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | Yes | Agiloft instance URL \(e.g., https://mycompany.agiloft.com\) |
+| `knowledgeBase` | string | Yes | Knowledge base name |
+| `login` | string | Yes | Agiloft username |
+| `password` | string | Yes | Agiloft password |
+| `table` | string | Yes | Table name \(e.g., "contracts", "contacts.employees"\) |
+| `recordId` | string | Yes | ID of the record to update |
+| `data` | string | Yes | Updated field values as a JSON object \(e.g., \{"status": "Active", "priority": "High"\}\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | ID of the updated record |
+| `fields` | json | Updated field values of the record |
+
+
