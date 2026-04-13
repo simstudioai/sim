@@ -298,9 +298,7 @@ export async function POST(request: NextRequest) {
 
         if (context === 'workspace-logos') {
           if (!workspaceId) {
-            throw new InvalidRequestError(
-              'workspace-logos context requires workspaceId parameter'
-            )
+            throw new InvalidRequestError('workspace-logos context requires workspaceId parameter')
           }
           const permission = await getUserEntityPermissions(
             session.user.id,
