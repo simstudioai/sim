@@ -19,6 +19,8 @@ import { filterButtonClass } from '@/app/workspace/[workspaceId]/knowledge/compo
 import { useUpdateKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import type { Workspace } from '@/hooks/queries/workspace'
 
+type WorkspaceOption = Pick<Workspace, 'id' | 'name'> & { permissions: string }
+
 const logger = createLogger('KnowledgeHeader')
 
 interface BreadcrumbItem {
@@ -52,7 +54,7 @@ interface KnowledgeHeaderProps {
 export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) {
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false)
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false)
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+  const [workspaces, setWorkspaces] = useState<WorkspaceOption[]>([])
   const [isLoadingWorkspaces, setIsLoadingWorkspaces] = useState(false)
 
   const updateKnowledgeBase = useUpdateKnowledgeBase()
