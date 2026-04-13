@@ -103,10 +103,10 @@ export const agiloftAttachFileTool: ToolConfig<AgiloftAttachFileParams, AgiloftA
       return {
         success: true,
         output: {
-          recordId: data.output.recordId ?? '',
-          fieldName: data.output.fieldName ?? '',
-          fileName: data.output.fileName ?? '',
-          totalAttachments: data.output.totalAttachments ?? 0,
+          recordId: data.output?.recordId ?? '',
+          fieldName: data.output?.fieldName ?? '',
+          fileName: data.output?.fileName ?? '',
+          totalAttachments: data.output?.totalAttachments ?? 0,
         },
       }
     },

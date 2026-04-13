@@ -27,6 +27,11 @@ interface AgiloftRequestConfig {
  */
 async function agiloftLogin(params: AgiloftBaseParams): Promise<string> {
   const base = params.instanceUrl.replace(/\/$/, '')
+
+  if (!base.startsWith('https://')) {
+    throw new Error('Agiloft instanceUrl must use HTTPS to protect credentials')
+  }
+
   const kb = encodeURIComponent(params.knowledgeBase)
   const login = encodeURIComponent(params.login)
   const password = encodeURIComponent(params.password)

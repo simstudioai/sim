@@ -41,7 +41,7 @@ export interface AgiloftSelectRecordsParams extends AgiloftBaseParams {
   where: string
 }
 
-export interface AgiloftSavedSearchParams extends AgiloftBaseParams {}
+export type AgiloftSavedSearchParams = AgiloftBaseParams
 
 export interface AgiloftAttachmentInfoParams extends AgiloftBaseParams {
   recordId: string
