@@ -2,7 +2,9 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { sanitizeFileName } from '@/executor/constants'
 import '@/lib/uploads/core/setup.server'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
+import { captureServerEvent } from '@/lib/posthog/server'
 import type { StorageContext } from '@/lib/uploads/config'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
@@ -294,6 +296,25 @@ export async function POST(request: NextRequest) {
           )
         }
 
+        if (context === 'workspace-logos') {
+          if (!workspaceId) {
+            throw new InvalidRequestError(
+              'workspace-logos context requires workspaceId parameter'
+            )
+          }
+          const permission = await getUserEntityPermissions(
+            session.user.id,
+            'workspace',
+            workspaceId
+          )
+          if (permission !== 'admin') {
+            return NextResponse.json(
+              { error: 'Admin access required for workspace logo uploads' },
+              { status: 403 }
+            )
+          }
+        }
+
         if (context === 'chat' && workspaceId) {
           const permission = await getUserEntityPermissions(
             session.user.id,
@@ -351,6 +372,33 @@ export async function POST(request: NextRequest) {
         }
 
         logger.info(`Successfully uploaded ${context} file: ${fileInfo.key}`)
+
+        if (context === 'workspace-logos' && workspaceId) {
+          recordAudit({
+            workspaceId,
+            actorId: session.user.id,
+            actorName: session.user.name,
+            actorEmail: session.user.email,
+            action: AuditAction.FILE_UPLOADED,
+            resourceType: AuditResourceType.WORKSPACE,
+            resourceId: workspaceId,
+            description: `Uploaded workspace logo "${originalName}"`,
+            metadata: {
+              fileName: originalName,
+              fileKey: fileInfo.key,
+              fileSize: buffer.length,
+              fileType: file.type,
+            },
+            request,
+          })
+
+          captureServerEvent(session.user.id, 'workspace_logo_uploaded', {
+            workspace_id: workspaceId,
+            file_name: originalName,
+            file_size: buffer.length,
+          })
+        }
+
         uploadResults.push(uploadResult)
         continue
       }

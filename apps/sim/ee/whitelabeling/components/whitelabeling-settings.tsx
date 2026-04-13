@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Loader2, X } from 'lucide-react'
 import Image from 'next/image'
+import { useParams } from 'next/navigation'
 import { Button, Input, Label } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
@@ -146,6 +147,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 }
 
 export function WhitelabelingSettings() {
+  const params = useParams<{ workspaceId: string }>()
   const { data: session } = useSession()
   const { data: orgsData } = useOrganizations()
   const { data: subscriptionData } = useSubscriptionData()
@@ -198,6 +200,7 @@ export function WhitelabelingSettings() {
     onUpload: (url) => setLogoUrl(url),
     onError: (error) => setSaveError(error),
     context: 'workspace-logos',
+    workspaceId: params.workspaceId,
   })
 
   const wordmarkUpload = useProfilePictureUpload({
@@ -205,6 +208,7 @@ export function WhitelabelingSettings() {
     onUpload: (url) => setWordmarkUrl(url),
     onError: (error) => setSaveError(error),
     context: 'workspace-logos',
+    workspaceId: params.workspaceId,
   })
 
   const handleSave = useCallback(async () => {

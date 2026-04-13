@@ -11,6 +11,7 @@ interface UseProfilePictureUploadProps {
   onError?: (error: string) => void
   currentImage?: string | null
   context?: StorageContext
+  workspaceId?: string
 }
 
 /**
@@ -22,6 +23,7 @@ export function useProfilePictureUpload({
   onError,
   currentImage,
   context = 'profile-pictures',
+  workspaceId,
 }: UseProfilePictureUploadProps = {}) {
   const previewRef = useRef<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -57,6 +59,9 @@ export function useProfilePictureUpload({
         const formData = new FormData()
         formData.append('file', file)
         formData.append('context', context)
+        if (workspaceId) {
+          formData.append('workspaceId', workspaceId)
+        }
 
         const response = await fetch('/api/files/upload', {
           method: 'POST',
@@ -76,7 +81,7 @@ export function useProfilePictureUpload({
         throw new Error(error instanceof Error ? error.message : 'Failed to upload profile picture')
       }
     },
-    [context]
+    [context, workspaceId]
   )
 
   const processFile = useCallback(

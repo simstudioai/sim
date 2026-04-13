@@ -96,8 +96,8 @@ import {
   useRenameTask,
   useTasks,
 } from '@/hooks/queries/tasks'
-import type { Workspace } from '@/hooks/queries/workspace'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
+import type { Workspace } from '@/hooks/queries/workspace'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
@@ -465,16 +465,20 @@ export const Sidebar = memo(function Sidebar() {
   const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId)
   const logoTargetWorkspaceIdRef = useRef<string>(workspaceId)
 
-  const { fileInputRef: logoFileInputRef, handleFileChange: handleLogoFileChange } =
-    useWorkspaceLogoUpload({
-      currentLogoUrl: activeWorkspaceFull?.logoUrl,
-      onUpload: (url) => {
-        updateWorkspace(logoTargetWorkspaceIdRef.current, { logoUrl: url })
-      },
-      onError: (error) => {
-        logger.error('Workspace logo upload error:', error)
-      },
-    })
+  const {
+    fileInputRef: logoFileInputRef,
+    handleFileChange: handleLogoFileChange,
+    setTargetWorkspaceId: setLogoTargetWorkspaceId,
+  } = useWorkspaceLogoUpload({
+    workspaceId,
+    currentLogoUrl: activeWorkspaceFull?.logoUrl,
+    onUpload: (url) => {
+      updateWorkspace(logoTargetWorkspaceIdRef.current, { logoUrl: url })
+    },
+    onError: (error) => {
+      logger.error('Workspace logo upload error:', error)
+    },
+  })
 
   const { handleMouseDown, isResizing } = useSidebarResize()
 
@@ -1036,9 +1040,10 @@ export const Sidebar = memo(function Sidebar() {
   const handleUploadLogo = useCallback(
     (workspaceIdToUpdate: string) => {
       logoTargetWorkspaceIdRef.current = workspaceIdToUpdate
+      setLogoTargetWorkspaceId(workspaceIdToUpdate)
       logoFileInputRef.current?.click()
     },
-    [logoFileInputRef]
+    [logoFileInputRef, setLogoTargetWorkspaceId]
   )
 
   const handleRemoveLogo = useCallback(

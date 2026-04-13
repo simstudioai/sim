@@ -6,6 +6,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp']
 
 interface UseWorkspaceLogoUploadProps {
+  workspaceId?: string
   currentLogoUrl?: string | null
   onUpload?: (url: string | null) => void
   onError?: (error: string) => void
@@ -16,6 +17,7 @@ interface UseWorkspaceLogoUploadProps {
  * Manages file validation, preview generation, and server upload.
  */
 export function useWorkspaceLogoUpload({
+  workspaceId,
   currentLogoUrl,
   onUpload,
   onError,
@@ -25,6 +27,7 @@ export function useWorkspaceLogoUpload({
   const onUploadRef = useRef(onUpload)
   const onErrorRef = useRef(onError)
   const currentLogoUrlRef = useRef(currentLogoUrl)
+  const workspaceIdRef = useRef(workspaceId)
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentLogoUrl || null)
   const [isUploading, setIsUploading] = useState(false)
 
@@ -32,7 +35,8 @@ export function useWorkspaceLogoUpload({
     onUploadRef.current = onUpload
     onErrorRef.current = onError
     currentLogoUrlRef.current = currentLogoUrl
-  }, [onUpload, onError, currentLogoUrl])
+    workspaceIdRef.current = workspaceId
+  }, [onUpload, onError, currentLogoUrl, workspaceId])
 
   useEffect(() => {
     if (previewRef.current && previewRef.current !== currentLogoUrl) {
@@ -56,6 +60,9 @@ export function useWorkspaceLogoUpload({
     const formData = new FormData()
     formData.append('file', file)
     formData.append('context', 'workspace-logos')
+    if (workspaceIdRef.current) {
+      formData.append('workspaceId', workspaceIdRef.current)
+    }
 
     const response = await fetch('/api/files/upload', {
       method: 'POST',
@@ -116,6 +123,10 @@ export function useWorkspaceLogoUpload({
     [processFile]
   )
 
+  const setTargetWorkspaceId = useCallback((id: string) => {
+    workspaceIdRef.current = id
+  }, [])
+
   const handleRemove = useCallback(() => {
     if (previewRef.current) {
       URL.revokeObjectURL(previewRef.current)
@@ -141,6 +152,7 @@ export function useWorkspaceLogoUpload({
     fileInputRef,
     handleFileChange,
     handleRemove,
+    setTargetWorkspaceId,
     isUploading,
   }
 }
