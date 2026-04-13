@@ -2374,7 +2374,7 @@
     "authType": "none",
     "category": "tools",
     "integrationTypes": ["security", "analytics", "developer-tools"],
-    "tags": ["monitoring", "security"]
+    "tags": ["identity", "monitoring"]
   },
   {
     "type": "cursor_v2",
