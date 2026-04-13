@@ -410,10 +410,11 @@ export function UserInput({
   }, [isSending, textareaRef])
 
   useEffect(() => {
-    if (isInitialView) {
+    const raf = window.requestAnimationFrame(() => {
       textareaRef.current?.focus()
-    }
-  }, [isInitialView, textareaRef])
+    })
+    return () => window.cancelAnimationFrame(raf)
+  }, [textareaRef])
 
   const handleContainerClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
