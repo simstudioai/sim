@@ -108,10 +108,11 @@ export async function POST(request: NextRequest) {
         statusText: response.statusText,
         error: errorText,
       })
-      return NextResponse.json(
-        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
-        { status: response.status }
-      )
+      let errorMessage = parseAtlassianErrorMessage(response.status, response.statusText, errorText)
+      if (errorMessage.includes("'spaceId'") && errorMessage.includes('Long')) {
+        errorMessage = 'Invalid Space ID. Use the list spaces operation to find valid space IDs.'
+      }
+      return NextResponse.json({ error: errorMessage }, { status: response.status })
     }
 
     const data = await response.json()

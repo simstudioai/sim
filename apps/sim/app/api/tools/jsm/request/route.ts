@@ -76,12 +76,6 @@ export async function POST(request: NextRequest) {
       const url = `${baseUrl}/request`
 
       logger.info('Creating request at:', { url, serviceDeskId, requestTypeId })
-      logger.info('Raw formAnswers param:', {
-        formAnswers,
-        type: typeof formAnswers,
-        isObject: typeof formAnswers === 'object',
-        keys: formAnswers && typeof formAnswers === 'object' ? Object.keys(formAnswers) : null,
-      })
 
       const requestBody: Record<string, unknown> = {
         serviceDeskId,
