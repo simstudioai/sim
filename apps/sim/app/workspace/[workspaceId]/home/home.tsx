@@ -296,6 +296,14 @@ export function Home({ chatId }: HomeProps = {}) {
     [resolveResourceFromContext, addResource, handleResourceEvent]
   )
 
+  const handleInitialContextRemove = useCallback(
+    (context: ChatContext) => {
+      const resolved = resolveResourceFromContext(context)
+      if (resolved) removeResource(resolved.type, resolved.id)
+    },
+    [resolveResourceFromContext, removeResource]
+  )
+
   const handleWorkspaceResourceSelect = useCallback(
     (resource: MothershipResource) => {
       const wasAdded = addResource(resource)
@@ -345,6 +353,7 @@ export function Home({ chatId }: HomeProps = {}) {
               onStopGeneration={handleStopGeneration}
               userId={session?.user?.id}
               onContextAdd={handleContextAdd}
+              onContextRemove={handleInitialContextRemove}
             />
           </div>
         </div>

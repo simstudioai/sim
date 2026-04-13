@@ -951,7 +951,7 @@ export function useChat(
   selectedChatIdRef.current = initialChatId
   const appliedChatHistoryKeyRef = useRef<string | undefined>(undefined)
   const activeTurnRef = useRef<ActiveTurn | null>(null)
-  const pendingUserMsgRef = useRef<{ id: string; content: string } | null>(null)
+  const pendingUserMsgRef = useRef<PersistedMessage | null>(null)
   const streamIdRef = useRef<string | undefined>(undefined)
   const locallyTerminalStreamIdRef = useRef<string | undefined>(undefined)
   const lastCursorRef = useRef('0')
@@ -1079,6 +1079,7 @@ export function useChat(
 
   const removeResource = useCallback((resourceType: MothershipResourceType, resourceId: string) => {
     setResources((prev) => prev.filter((r) => !(r.type === resourceType && r.id === resourceId)))
+    setActiveResourceId((prev) => (prev === resourceId ? null : prev))
   }, [])
 
   const reorderResources = useCallback((newOrder: MothershipResource[]) => {
@@ -1594,16 +1595,9 @@ export function useChat(
                     queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(payloadChatId), {
                       id: payloadChatId,
                       title: null,
-                      messages: [
-                        {
-                          id: userMsg.id,
-                          role: 'user',
-                          content: userMsg.content,
-                          timestamp: new Date().toISOString(),
-                        },
-                      ],
+                      messages: [userMsg],
                       activeStreamId,
-                      resources: [],
+                      resources: resourcesRef.current,
                     })
                   }
                   if (!workflowIdRef.current) {
@@ -2652,7 +2646,6 @@ export function useChat(
       const userMessageId = generateId()
       const assistantId = generateId()
 
-      pendingUserMsgRef.current = { id: userMessageId, content: message }
       streamIdRef.current = userMessageId
       lastCursorRef.current = '0'
       resetStreamingBuffers()
@@ -2686,6 +2679,7 @@ export function useChat(
         ...(storedAttachments && { fileAttachments: storedAttachments }),
         ...(messageContexts && messageContexts.length > 0 ? { contexts: messageContexts } : {}),
       }
+      pendingUserMsgRef.current = cachedUserMsg
 
       const userAttachments = storedAttachments?.map((f) => ({
         id: f.id,

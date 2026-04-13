@@ -30,6 +30,7 @@ import {
   releasePendingChatStream,
 } from '@/lib/copilot/request/session'
 import type { ExecutionContext, OrchestratorResult } from '@/lib/copilot/request/types'
+import { persistChatResources } from '@/lib/copilot/resources/persistence'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
@@ -56,6 +57,14 @@ const ResourceAttachmentSchema = z.object({
   title: z.string().optional(),
   active: z.boolean().optional(),
 })
+
+const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['type'], string> = {
+  workflow: 'Workflow',
+  table: 'Table',
+  file: 'File',
+  knowledgebase: 'Knowledge Base',
+  folder: 'Folder',
+}
 
 const ChatContextSchema = z.object({
   kind: z.enum([
@@ -549,6 +558,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
 
     let currentChat: ChatLoadResult['chat'] = null
     let conversationHistory: unknown[] = []
+    let chatIsNew = false
     actualChatId = body.chatId
 
     if (body.chatId || body.createNewChat) {
@@ -562,6 +572,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       })
       currentChat = chatResult.chat
       actualChatId = chatResult.chatId || body.chatId
+      chatIsNew = chatResult.isNew
       conversationHistory = Array.isArray(chatResult.conversationHistory)
         ? chatResult.conversationHistory
         : []
@@ -569,6 +580,17 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       if (body.chatId && !currentChat) {
         return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
       }
+    }
+
+    if (chatIsNew && actualChatId && body.resourceAttachments?.length) {
+      await persistChatResources(
+        actualChatId,
+        body.resourceAttachments.map((r) => ({
+          type: r.type,
+          id: r.id,
+          title: r.title ?? GENERIC_RESOURCE_TITLE[r.type],
+        }))
+      )
     }
 
     if (actualChatId) {
