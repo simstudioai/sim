@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -38,6 +38,8 @@ const NAV_LINKS: NavLink[] = [
 const LOGO_CELL = 'flex items-center pl-5 lg:pl-16 pr-5'
 const LINK_CELL = 'flex items-center px-3.5'
 
+const emptySubscribe = () => () => {}
+
 interface NavbarProps {
   logoOnly?: boolean
   blogPosts?: NavBlogPost[]
@@ -51,6 +53,12 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
   const isBrowsingHome = searchParams.has('home')
   const useHomeLinks = isAuthenticated || isBrowsingHome
   const logoHref = useHomeLinks ? '/?home' : '/'
+  const mounted = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  )
+  const shouldShow = mounted && !isSessionPending
   const [activeDropdown, setActiveDropdown] = useState<DropdownId>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -206,9 +214,11 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
           <div className='hidden flex-1 lg:block' />
 
           <div
+            aria-hidden={!shouldShow || undefined}
+            inert={!shouldShow || undefined}
             className={cn(
-              'hidden items-center gap-2 pr-16 pl-5 lg:flex',
-              isSessionPending && 'invisible'
+              'hidden items-center gap-2 pr-16 pl-5 transition-opacity duration-200 lg:flex',
+              shouldShow ? 'opacity-100' : 'pointer-events-none opacity-0'
             )}
           >
             {isAuthenticated ? (
@@ -326,7 +336,12 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
             </ul>
 
             <div
-              className={cn('mt-auto flex flex-col gap-2.5 p-5', isSessionPending && 'invisible')}
+              aria-hidden={!shouldShow || undefined}
+              inert={!shouldShow || undefined}
+              className={cn(
+                'mt-auto flex flex-col gap-2.5 p-5 transition-opacity duration-200',
+                shouldShow ? 'opacity-100' : 'pointer-events-none opacity-0'
+              )}
             >
               {isAuthenticated ? (
                 <Link
@@ -392,11 +407,7 @@ interface NavChevronProps {
   open: boolean
 }
 
-/**
- * Animated chevron matching the exact geometry of the emcn ChevronDown SVG.
- * Each arm rotates around its midpoint so the center vertex travels up/down
- * while the outer endpoints adjust — producing a Stripe-style morph.
- */
+/** Matches the exact geometry of the emcn ChevronDown SVG — transform origins are intentional. */
 function NavChevron({ open }: NavChevronProps) {
   return (
     <svg width='9' height='6' viewBox='0 0 10 6' fill='none' className='mt-[1.5px] flex-shrink-0'>
