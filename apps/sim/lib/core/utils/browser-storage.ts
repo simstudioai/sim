@@ -99,14 +99,72 @@ export class BrowserStorage {
   }
 }
 
-/**
- * Constants for localStorage keys to avoid typos and provide centralized management
- */
 export const STORAGE_KEYS = {
   LANDING_PAGE_PROMPT: 'sim_landing_page_prompt',
   LANDING_PAGE_TEMPLATE: 'sim_landing_page_template',
   LANDING_PAGE_WORKFLOW_SEED: 'sim_landing_page_workflow_seed',
+  WORKSPACE_RECENCY: 'sim_workspace_recency',
 } as const
+
+export class WorkspaceRecencyStorage {
+  private static readonly KEY = STORAGE_KEYS.WORKSPACE_RECENCY
+
+  static touch(workspaceId: string): void {
+    const map = WorkspaceRecencyStorage.getAll()
+    map[workspaceId] = Date.now()
+    BrowserStorage.setItem(WorkspaceRecencyStorage.KEY, map)
+  }
+
+  static getAll(): Record<string, number> {
+    return BrowserStorage.getItem<Record<string, number>>(WorkspaceRecencyStorage.KEY, {})
+  }
+
+  static getMostRecent(): string | null {
+    const map = WorkspaceRecencyStorage.getAll()
+    const entries = Object.entries(map)
+    if (entries.length === 0) return null
+    entries.sort((a, b) => b[1] - a[1])
+    return entries[0][0]
+  }
+
+  static remove(workspaceId: string): void {
+    const map = WorkspaceRecencyStorage.getAll()
+    delete map[workspaceId]
+    BrowserStorage.setItem(WorkspaceRecencyStorage.KEY, map)
+  }
+
+  /**
+   * Removes localStorage entries for workspace IDs not in the provided list.
+   * Call from effects or event handlers, not during render.
+   */
+  static prune(validIds: Set<string>): void {
+    const map = WorkspaceRecencyStorage.getAll()
+    let pruned = false
+    for (const id of Object.keys(map)) {
+      if (!validIds.has(id)) {
+        delete map[id]
+        pruned = true
+      }
+    }
+    if (pruned) {
+      BrowserStorage.setItem(WorkspaceRecencyStorage.KEY, map)
+    }
+  }
+
+  /**
+   * Sorts workspaces by recency (most recent first).
+   * Workspaces without a recorded timestamp are placed after tracked ones.
+   * Pure function safe for use in render-phase computations.
+   */
+  static sortByRecency<T extends { id: string }>(workspaces: T[]): T[] {
+    const map = WorkspaceRecencyStorage.getAll()
+    return [...workspaces].sort((a, b) => {
+      const aTime = map[a.id] ?? 0
+      const bTime = map[b.id] ?? 0
+      return bTime - aTime
+    })
+  }
+}
 
 /**
  * Specialized utility for managing the landing page prompt

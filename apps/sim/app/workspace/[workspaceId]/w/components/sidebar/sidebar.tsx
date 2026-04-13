@@ -450,6 +450,8 @@ export const Sidebar = memo(function Sidebar() {
     switchWorkspace,
     handleCreateWorkspace,
     isCreatingWorkspace,
+    isDeletingWorkspace,
+    isLeavingWorkspace,
     updateWorkspace,
     confirmDeleteWorkspace,
     handleLeaveWorkspace,
@@ -1326,12 +1328,14 @@ export const Sidebar = memo(function Sidebar() {
                 onCreateWorkspace={handleCreateWorkspace}
                 onRenameWorkspace={handleRenameWorkspace}
                 onDeleteWorkspace={handleDeleteWorkspace}
+                isDeletingWorkspace={isDeletingWorkspace}
                 onDuplicateWorkspace={handleDuplicateWorkspace}
                 onExportWorkspace={exportWorkspace}
                 onImportWorkspace={handleImportWorkspace}
                 isImportingWorkspace={isImportingWorkspace}
                 onColorChange={handleColorChangeWorkspace}
                 onLeaveWorkspace={handleLeaveWorkspaceWrapper}
+                isLeavingWorkspace={isLeavingWorkspace}
                 sessionUserId={sessionData?.user?.id}
                 isCollapsed={isCollapsed}
               />

@@ -1317,6 +1317,13 @@
       "when": 1775666653692,
       "tag": "0188_short_luke_cage",
       "breakpoints": true
+    },
+    {
+      "idx": 189,
+      "version": "7",
+      "when": 1776102772705,
+      "tag": "0189_daily_rumiko_fujikawa",
+      "breakpoints": true
     }
   ]
 }

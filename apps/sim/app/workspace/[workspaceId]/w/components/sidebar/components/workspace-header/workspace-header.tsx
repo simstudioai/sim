@@ -28,19 +28,11 @@ import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/
 import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
+import type { Workspace } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 const logger = createLogger('WorkspaceHeader')
-
-interface Workspace {
-  id: string
-  name: string
-  color?: string
-  ownerId: string
-  role?: string
-  permissions?: 'admin' | 'write' | 'read' | null
-}
 
 interface WorkspaceHeaderProps {
   /** The active workspace object */
@@ -65,6 +57,8 @@ interface WorkspaceHeaderProps {
   onRenameWorkspace: (workspaceId: string, newName: string) => Promise<void>
   /** Callback to delete the workspace */
   onDeleteWorkspace: (workspaceId: string) => Promise<void>
+  /** Whether workspace deletion is in progress */
+  isDeletingWorkspace: boolean
   /** Callback to duplicate the workspace */
   onDuplicateWorkspace: (workspaceId: string, workspaceName: string) => Promise<void>
   /** Callback to export the workspace */
@@ -77,6 +71,8 @@ interface WorkspaceHeaderProps {
   onColorChange?: (workspaceId: string, color: string) => Promise<void>
   /** Callback to leave the workspace */
   onLeaveWorkspace?: (workspaceId: string) => Promise<void>
+  /** Whether workspace leave is in progress */
+  isLeavingWorkspace: boolean
   /** Current user's session ID for owner check */
   sessionUserId?: string
   /** Whether the sidebar is collapsed */
@@ -98,22 +94,22 @@ export function WorkspaceHeader({
   onCreateWorkspace,
   onRenameWorkspace,
   onDeleteWorkspace,
+  isDeletingWorkspace,
   onDuplicateWorkspace,
   onExportWorkspace,
   onImportWorkspace,
   isImportingWorkspace,
   onColorChange,
   onLeaveWorkspace,
+  isLeavingWorkspace,
   sessionUserId,
   isCollapsed = false,
 }: WorkspaceHeaderProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Workspace | null>(null)
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false)
-  const [isLeaving, setIsLeaving] = useState(false)
   const [leaveTarget, setLeaveTarget] = useState<Workspace | null>(null)
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
@@ -296,23 +292,19 @@ export function WorkspaceHeader({
   const handleLeaveWorkspace = async () => {
     if (!leaveTarget || !onLeaveWorkspace) return
 
-    setIsLeaving(true)
     try {
       await onLeaveWorkspace(leaveTarget.id)
       setIsLeaveModalOpen(false)
       setLeaveTarget(null)
     } catch (error) {
       logger.error('Error leaving workspace:', error)
-    } finally {
-      setIsLeaving(false)
     }
   }
 
   /**
-   * Handle delete workspace
+   * Handle delete workspace after confirmation
    */
   const handleDeleteWorkspace = async () => {
-    setIsDeleting(true)
     try {
       const targetId = deleteTarget?.id || workspaceId
       await onDeleteWorkspace(targetId)
@@ -320,8 +312,6 @@ export function WorkspaceHeader({
       setDeleteTarget(null)
     } catch (error) {
       logger.error('Error deleting workspace:', error)
-    } finally {
-      setIsDeleting(false)
     }
   }
 
@@ -638,7 +628,7 @@ export function WorkspaceHeader({
             disableRename={!contextCanAdmin}
             disableDuplicate={!contextCanEdit}
             disableExport={!contextCanAdmin}
-            disableDelete={!contextCanAdmin}
+            disableDelete={!contextCanAdmin || workspaces.length <= 1}
             disableColorChange={!contextCanAdmin}
           />
         )
@@ -666,7 +656,7 @@ export function WorkspaceHeader({
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         onConfirm={handleDeleteWorkspace}
-        isDeleting={isDeleting}
+        isDeleting={isDeletingWorkspace}
         itemType='workspace'
         itemName={deleteTarget?.name || activeWorkspaceFull?.name || activeWorkspace?.name}
       />
@@ -686,12 +676,16 @@ export function WorkspaceHeader({
             <Button
               variant='default'
               onClick={() => setIsLeaveModalOpen(false)}
-              disabled={isLeaving}
+              disabled={isLeavingWorkspace}
             >
               Cancel
             </Button>
-            <Button variant='destructive' onClick={handleLeaveWorkspace} disabled={isLeaving}>
-              {isLeaving ? 'Leaving...' : 'Leave Workspace'}
+            <Button
+              variant='destructive'
+              onClick={handleLeaveWorkspace}
+              disabled={isLeavingWorkspace}
+            >
+              {isLeavingWorkspace ? 'Leaving...' : 'Leave Workspace'}
             </Button>
           </ModalFooter>
         </ModalContent>
