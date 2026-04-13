@@ -40,7 +40,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
 import { isMacPlatform } from '@/lib/core/utils/platform'
-import { buildFolderTree } from '@/lib/folders/tree'
+import { buildFolderTree, getFolderPath } from '@/lib/folders/tree'
 import { captureEvent } from '@/lib/posthog/client'
 import {
   START_NAV_TOUR_EVENT,
@@ -635,14 +635,22 @@ export const Sidebar = memo(function Sidebar() {
 
   const searchModalWorkflows = useMemo(
     () =>
-      regularWorkflows.map((workflow) => ({
-        id: workflow.id,
-        name: workflow.name,
-        href: `/workspace/${workspaceId}/w/${workflow.id}`,
-        color: workflow.color,
-        isCurrent: workflow.id === workflowId,
-      })),
-    [regularWorkflows, workspaceId, workflowId]
+      regularWorkflows.map((workflow) => {
+        const folderPath = workflow.folderId
+          ? getFolderPath(folderMap, workflow.folderId)
+              .map((folder) => folder.name)
+              .join(' / ')
+          : ''
+        return {
+          id: workflow.id,
+          name: workflow.name,
+          href: `/workspace/${workspaceId}/w/${workflow.id}`,
+          color: workflow.color,
+          folderPath: folderPath || undefined,
+          isCurrent: workflow.id === workflowId,
+        }
+      }),
+    [regularWorkflows, folderMap, workspaceId, workflowId]
   )
 
   const searchModalWorkspaces = useMemo(
