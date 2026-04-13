@@ -4,7 +4,7 @@ import { z } from 'zod'
 import {
   authenticateCopilotRequestSessionOnly,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request-helpers'
+} from '@/lib/copilot/request/http'
 import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('CopilotTrainingExamplesAPI')

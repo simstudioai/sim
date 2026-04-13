@@ -1,24 +1,82 @@
 import { createLogger } from '@sim/logger'
+import { WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import type { WorkspaceFileArgs, WorkspaceFileResult } from '@/lib/copilot/tools/shared/schemas'
-import { generatePptxFromCode } from '@/lib/execution/pptx-vm'
+import {
+  generateDocxFromCode,
+  generatePdfFromCode,
+  generatePptxFromCode,
+} from '@/lib/execution/doc-vm'
 import {
   deleteWorkspaceFile,
   downloadWorkspaceFile as downloadWsFile,
   getWorkspaceFile,
+  getWorkspaceFileByName,
   renameWorkspaceFile,
-  updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { storeFileIntent } from './file-intent-store'
 
 const logger = createLogger('WorkspaceFileServerTool')
 
 const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+const PDF_MIME = 'application/pdf'
 const PPTX_SOURCE_MIME = 'text/x-pptxgenjs'
+const DOCX_SOURCE_MIME = 'text/x-docxjs'
+const PDF_SOURCE_MIME = 'text/x-pdflibjs'
+
+type WorkspaceFileOperation = 'create' | 'append' | 'update' | 'delete' | 'rename' | 'patch'
+
+type WorkspaceFileTarget =
+  | {
+      kind: 'new_file'
+      fileName: string
+      fileId?: string
+    }
+  | {
+      kind: 'file_id'
+      fileId: string
+      fileName?: string
+    }
+
+type WorkspaceFileEdit =
+  | {
+      strategy: 'search_replace'
+      search: string
+      replace: string
+      replaceAll?: boolean
+    }
+  | {
+      strategy: 'anchored'
+      mode: 'replace_between' | 'insert_after' | 'delete_between'
+      occurrence?: number
+      before_anchor?: string
+      after_anchor?: string
+      start_anchor?: string
+      end_anchor?: string
+      anchor?: string
+      content?: string
+    }
+
+type WorkspaceFileArgs = {
+  operation: WorkspaceFileOperation
+  target?: WorkspaceFileTarget
+  title?: string
+  content?: string
+  contentType?: string
+  newName?: string
+  edit?: WorkspaceFileEdit
+}
+
+type WorkspaceFileResult = {
+  success: boolean
+  message: string
+  data?: Record<string, unknown>
+}
 
 const EXT_TO_MIME: Record<string, string> = {
   '.txt': 'text/plain',
@@ -27,15 +85,17 @@ const EXT_TO_MIME: Record<string, string> = {
   '.json': 'application/json',
   '.csv': 'text/csv',
   '.pptx': PPTX_MIME,
+  '.docx': DOCX_MIME,
+  '.pdf': PDF_MIME,
 }
 
-function inferContentType(fileName: string, explicitType?: string): string {
+export function inferContentType(fileName: string, explicitType?: string): string {
   if (explicitType) return explicitType
   const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
   return EXT_TO_MIME[ext] || 'text/plain'
 }
 
-function validateFlatWorkspaceFileName(fileName: string): string | null {
+export function validateFlatWorkspaceFileName(fileName: string): string | null {
   const trimmed = fileName.trim()
   if (!trimmed) return 'File name cannot be empty'
   if (trimmed.includes('/')) {
@@ -44,22 +104,72 @@ function validateFlatWorkspaceFileName(fileName: string): string | null {
   return null
 }
 
+function getDocumentFormatInfo(fileName: string): {
+  isDoc: boolean
+  formatName?: 'PPTX' | 'DOCX' | 'PDF'
+  sourceMime?: string
+  generator?: (code: string, workspaceId: string, signal?: AbortSignal) => Promise<Buffer>
+} {
+  const lowerName = fileName.toLowerCase()
+  if (lowerName.endsWith('.pptx')) {
+    return {
+      isDoc: true,
+      formatName: 'PPTX',
+      sourceMime: PPTX_SOURCE_MIME,
+      generator: generatePptxFromCode,
+    }
+  }
+  if (lowerName.endsWith('.docx')) {
+    return {
+      isDoc: true,
+      formatName: 'DOCX',
+      sourceMime: DOCX_SOURCE_MIME,
+      generator: generateDocxFromCode,
+    }
+  }
+  if (lowerName.endsWith('.pdf')) {
+    return {
+      isDoc: true,
+      formatName: 'PDF',
+      sourceMime: PDF_SOURCE_MIME,
+      generator: generatePdfFromCode,
+    }
+  }
+  return { isDoc: false }
+}
+
 export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, WorkspaceFileResult> = {
-  name: 'workspace_file',
+  name: WorkspaceFile.id,
   async execute(
     params: WorkspaceFileArgs,
     context?: ServerToolContext
   ): Promise<WorkspaceFileResult> {
-    const reqLogger = logger.withMetadata({ messageId: context?.messageId })
+    const withMessageId = (message: string) =>
+      context?.messageId ? `${message} [messageId:${context.messageId}]` : message
 
     if (!context?.userId) {
-      reqLogger.error('Unauthorized attempt to access workspace files')
+      logger.error('Unauthorized attempt to access workspace files')
       throw new Error('Authentication required')
     }
 
-    const { operation, args = {} } = params
-    const workspaceId =
-      context.workspaceId || ((args as Record<string, unknown>).workspaceId as string | undefined)
+    const raw = params as Record<string, unknown>
+    const nested = raw.args as Record<string, unknown> | undefined
+    const normalized: WorkspaceFileArgs =
+      params.operation && params.target
+        ? params
+        : nested && typeof nested === 'object'
+          ? {
+              operation: (nested.operation ?? raw.operation) as WorkspaceFileOperation,
+              target: (nested.target ?? raw.target) as WorkspaceFileTarget | undefined,
+              title: (nested.title ?? raw.title) as string | undefined,
+              content: (nested.content ?? raw.content) as string | undefined,
+              contentType: (nested.contentType ?? raw.contentType) as string | undefined,
+              newName: (nested.newName ?? raw.newName) as string | undefined,
+              edit: (nested.edit ?? raw.edit) as WorkspaceFileEdit | undefined,
+            }
+          : params
+    const { operation } = normalized
+    const workspaceId = context.workspaceId
 
     if (!workspaceId) {
       return { success: false, message: 'Workspace ID is required' }
@@ -67,44 +177,42 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
 
     try {
       switch (operation) {
-        case 'write': {
-          const fileName = (args as Record<string, unknown>).fileName as string | undefined
-          const content = (args as Record<string, unknown>).content as string | undefined
-          const explicitType = (args as Record<string, unknown>).contentType as string | undefined
+        case 'create': {
+          const target = normalized.target
+          if (!target || target.kind !== 'new_file') {
+            return {
+              success: false,
+              message: 'create requires target.kind=new_file with target.fileName',
+            }
+          }
 
-          if (!fileName) {
-            return { success: false, message: 'fileName is required for write operation' }
-          }
-          if (content === undefined || content === null) {
-            return { success: false, message: 'content is required for write operation' }
-          }
+          const fileName = target.fileName
+          const content = normalized.content ?? ''
+          const explicitType = normalized.contentType
           const fileNameValidationError = validateFlatWorkspaceFileName(fileName)
-          if (fileNameValidationError) {
-            return { success: false, message: fileNameValidationError }
+          if (fileNameValidationError) return { success: false, message: fileNameValidationError }
+
+          const existingFile = await getWorkspaceFileByName(workspaceId, fileName)
+          if (existingFile) {
+            return { success: false, message: `File "${fileName}" already exists` }
           }
 
-          const isPptx = fileName.toLowerCase().endsWith('.pptx')
-          let contentType: string
-
-          if (isPptx) {
-            // Validate the code compiles before storing
+          const docInfo = getDocumentFormatInfo(fileName)
+          let contentType = inferContentType(fileName, explicitType)
+          if (docInfo.isDoc) {
             try {
-              await generatePptxFromCode(content, workspaceId)
+              await docInfo.generator!(content, workspaceId)
             } catch (err) {
               const msg = err instanceof Error ? err.message : String(err)
-              reqLogger.error('PPTX code validation failed', { error: msg, fileName })
               return {
                 success: false,
-                message: `PPTX generation failed: ${msg}. Fix the pptxgenjs code and retry.`,
+                message: `${docInfo.formatName} generation failed: ${msg}. Fix the code and retry.`,
               }
             }
-            contentType = PPTX_SOURCE_MIME
-          } else {
-            contentType = inferContentType(fileName, explicitType)
+            contentType = docInfo.sourceMime!
           }
 
           const fileBuffer = Buffer.from(content, 'utf-8')
-
           assertServerToolNotAborted(context)
           const result = await uploadWorkspaceFile(
             workspaceId,
@@ -114,7 +222,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             contentType
           )
 
-          reqLogger.info('Workspace file written via copilot', {
+          logger.info('Workspace file created via copilot', {
             fileId: result.id,
             name: fileName,
             size: fileBuffer.length,
@@ -135,118 +243,148 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           }
         }
 
-        case 'update': {
-          const fileId = (args as Record<string, unknown>).fileId as string | undefined
-          const content = (args as Record<string, unknown>).content as string | undefined
-
-          if (!fileId) {
-            return { success: false, message: 'fileId is required for update operation' }
-          }
-          if (content === undefined || content === null) {
-            return { success: false, message: 'content is required for update operation' }
-          }
-
-          const fileRecord = await getWorkspaceFile(workspaceId, fileId)
-          if (!fileRecord) {
-            return { success: false, message: `File with ID "${fileId}" not found` }
-          }
-
-          const isPptxUpdate = fileRecord.name?.toLowerCase().endsWith('.pptx')
-          if (isPptxUpdate) {
-            try {
-              await generatePptxFromCode(content, workspaceId)
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : String(err)
-              return {
-                success: false,
-                message: `PPTX generation failed: ${msg}. Fix the pptxgenjs code and retry.`,
-              }
+        case 'append': {
+          const target = normalized.target
+          if (!target || target.kind !== 'file_id') {
+            return {
+              success: false,
+              message: 'append requires target.kind=file_id with target.fileId',
             }
           }
 
-          const fileBuffer = Buffer.from(content, 'utf-8')
+          const existingFile = await getWorkspaceFile(workspaceId, target.fileId)
+          if (!existingFile) {
+            return { success: false, message: `File with ID "${target.fileId}" not found` }
+          }
+          if (target.fileName && target.fileName !== existingFile.name) {
+            return {
+              success: false,
+              message: `Target mismatch: fileId "${target.fileId}" is "${existingFile.name}", not "${target.fileName}"`,
+            }
+          }
 
-          assertServerToolNotAborted(context)
-          await updateWorkspaceFileContent(
+          const currentBuffer = await downloadWsFile(existingFile)
+          await storeFileIntent(workspaceId, target.fileId, {
+            operation: 'append',
+            fileId: target.fileId,
             workspaceId,
-            fileId,
-            context.userId,
-            fileBuffer,
-            isPptxUpdate ? PPTX_SOURCE_MIME : undefined
-          )
-
-          reqLogger.info('Workspace file updated via copilot', {
-            fileId,
-            name: fileRecord.name,
-            size: fileBuffer.length,
             userId: context.userId,
+            chatId: context.chatId,
+            messageId: context.messageId,
+            fileRecord: existingFile,
+            existingContent: currentBuffer.toString('utf-8'),
+            contentType: normalized.contentType,
+            title: normalized.title,
+            createdAt: Date.now(),
           })
 
           return {
             success: true,
-            message: `File "${fileRecord.name}" updated successfully (${fileBuffer.length} bytes)`,
-            data: {
-              id: fileId,
-              name: fileRecord.name,
-              size: fileBuffer.length,
-            },
+            message: withMessageId(
+              `Intent set: append to "${existingFile.name}". Wait for this success result, then call edit_content in the next step with the content to write. Do not call edit_content in parallel.`
+            ),
+            data: { id: existingFile.id, name: existingFile.name, operation: 'append' },
+          }
+        }
+
+        case 'update': {
+          const target = normalized.target
+          if (!target || target.kind !== 'file_id') {
+            return {
+              success: false,
+              message: 'update requires target.kind=file_id with target.fileId',
+            }
+          }
+
+          const fileRecord = await getWorkspaceFile(workspaceId, target.fileId)
+          if (!fileRecord) {
+            return { success: false, message: `File with ID "${target.fileId}" not found` }
+          }
+          if (target.fileName && target.fileName !== fileRecord.name) {
+            return {
+              success: false,
+              message: `Target mismatch: fileId "${target.fileId}" is "${fileRecord.name}", not "${target.fileName}"`,
+            }
+          }
+
+          await storeFileIntent(workspaceId, target.fileId, {
+            operation: 'update',
+            fileId: target.fileId,
+            workspaceId,
+            userId: context.userId,
+            chatId: context.chatId,
+            messageId: context.messageId,
+            fileRecord,
+            contentType: normalized.contentType,
+            title: normalized.title,
+            createdAt: Date.now(),
+          })
+
+          return {
+            success: true,
+            message: withMessageId(
+              `Intent set: update "${fileRecord.name}". Wait for this success result, then call edit_content in the next step with the replacement content. Do not call edit_content in parallel.`
+            ),
+            data: { id: target.fileId, name: fileRecord.name, operation: 'update' },
           }
         }
 
         case 'rename': {
-          const fileId = (args as Record<string, unknown>).fileId as string | undefined
-          const newName = (args as Record<string, unknown>).newName as string | undefined
-
-          if (!fileId) {
-            return { success: false, message: 'fileId is required for rename operation' }
+          const target = normalized.target
+          if (!target || target.kind !== 'file_id') {
+            return {
+              success: false,
+              message: 'rename requires target.kind=file_id with target.fileId',
+            }
           }
-          if (!newName) {
+          if (!normalized.newName) {
             return { success: false, message: 'newName is required for rename operation' }
           }
-          const fileNameValidationError = validateFlatWorkspaceFileName(newName)
-          if (fileNameValidationError) {
-            return { success: false, message: fileNameValidationError }
-          }
+          const fileNameValidationError = validateFlatWorkspaceFileName(normalized.newName)
+          if (fileNameValidationError) return { success: false, message: fileNameValidationError }
 
-          const fileRecord = await getWorkspaceFile(workspaceId, fileId)
+          const fileRecord = await getWorkspaceFile(workspaceId, target.fileId)
           if (!fileRecord) {
-            return { success: false, message: `File with ID "${fileId}" not found` }
+            return { success: false, message: `File with ID "${target.fileId}" not found` }
           }
 
           const oldName = fileRecord.name
           assertServerToolNotAborted(context)
-          await renameWorkspaceFile(workspaceId, fileId, newName)
+          await renameWorkspaceFile(workspaceId, target.fileId, normalized.newName)
 
-          reqLogger.info('Workspace file renamed via copilot', {
-            fileId,
+          logger.info('Workspace file renamed via copilot', {
+            fileId: target.fileId,
             oldName,
-            newName,
+            newName: normalized.newName,
             userId: context.userId,
           })
 
           return {
             success: true,
-            message: `File renamed from "${oldName}" to "${newName}"`,
-            data: { id: fileId, name: newName },
+            message: `File renamed from "${oldName}" to "${normalized.newName}"`,
+            data: { id: target.fileId, name: normalized.newName },
           }
         }
 
         case 'delete': {
-          const fileId = (args as Record<string, unknown>).fileId as string | undefined
-          if (!fileId) {
-            return { success: false, message: 'fileId is required for delete operation' }
+          const target = normalized.target
+          if (!target || target.kind !== 'file_id') {
+            return {
+              success: false,
+              message: 'delete requires target.kind=file_id with target.fileId',
+            }
           }
 
-          const fileRecord = await getWorkspaceFile(workspaceId, fileId)
+          const fileRecord = await getWorkspaceFile(workspaceId, target.fileId)
           if (!fileRecord) {
-            return { success: false, message: `File with ID "${fileId}" not found` }
+            return { success: false, message: `File with ID "${target.fileId}" not found` }
           }
 
           assertServerToolNotAborted(context)
-          await deleteWorkspaceFile(workspaceId, fileId)
+          await deleteWorkspaceFile(workspaceId, target.fileId)
 
-          reqLogger.info('Workspace file deleted via copilot', {
-            fileId,
+          logger.info('Workspace file deleted via copilot', {
+            fileId: target.fileId,
             name: fileRecord.name,
             userId: context.userId,
           })
@@ -254,101 +392,108 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           return {
             success: true,
             message: `File "${fileRecord.name}" deleted successfully`,
-            data: { id: fileId, name: fileRecord.name },
+            data: { id: target.fileId, name: fileRecord.name },
           }
         }
 
         case 'patch': {
-          const fileId = (args as Record<string, unknown>).fileId as string | undefined
-          const edits = (args as Record<string, unknown>).edits as
-            | { search: string; replace: string }[]
-            | undefined
-
-          if (!fileId) {
-            return { success: false, message: 'fileId is required for patch operation' }
+          const target = normalized.target
+          if (!target || target.kind !== 'file_id') {
+            return {
+              success: false,
+              message: 'patch requires target.kind=file_id with target.fileId',
+            }
           }
-          if (!edits || !Array.isArray(edits) || edits.length === 0) {
-            return { success: false, message: 'edits array is required for patch operation' }
+          if (!normalized.edit) {
+            return { success: false, message: 'edit is required for patch operation' }
           }
 
-          const fileRecord = await getWorkspaceFile(workspaceId, fileId)
+          const fileRecord = await getWorkspaceFile(workspaceId, target.fileId)
           if (!fileRecord) {
-            return { success: false, message: `File with ID "${fileId}" not found` }
+            return { success: false, message: `File with ID "${target.fileId}" not found` }
           }
 
           const currentBuffer = await downloadWsFile(fileRecord)
-          let content = currentBuffer.toString('utf-8')
+          const existingContent = currentBuffer.toString('utf-8')
 
-          for (const edit of edits) {
-            const firstIdx = content.indexOf(edit.search)
+          if (normalized.edit.strategy === 'search_replace') {
+            const search = normalized.edit.search
+            const firstIdx = existingContent.indexOf(search)
             if (firstIdx === -1) {
               return {
                 success: false,
-                message: `Patch failed: search string not found in file "${fileRecord.name}". Search: "${edit.search.slice(0, 100)}${edit.search.length > 100 ? '...' : ''}"`,
+                message: `Patch failed: search string not found in file "${fileRecord.name}". Search: "${search.slice(0, 100)}${search.length > 100 ? '...' : ''}"`,
               }
             }
-            if (content.indexOf(edit.search, firstIdx + 1) !== -1) {
+            if (
+              !normalized.edit.replaceAll &&
+              existingContent.indexOf(search, firstIdx + 1) !== -1
+            ) {
               return {
                 success: false,
-                message: `Patch failed: search string is ambiguous — found at multiple locations in "${fileRecord.name}". Use a longer, unique search string.`,
+                message: `Patch failed: search string is ambiguous — found at multiple locations in "${fileRecord.name}". Use a longer unique search string or replaceAll.`,
               }
             }
-            content =
-              content.slice(0, firstIdx) +
-              edit.replace +
-              content.slice(firstIdx + edit.search.length)
-          }
-
-          const isPptxPatch = fileRecord.name?.toLowerCase().endsWith('.pptx')
-          if (isPptxPatch) {
-            try {
-              await generatePptxFromCode(content, workspaceId)
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : String(err)
-              return {
-                success: false,
-                message: `Patched PPTX code failed to compile: ${msg}. Fix the edits and retry.`,
-              }
+          } else if (normalized.edit.strategy === 'anchored') {
+            if (!normalized.edit.mode) {
+              return { success: false, message: 'anchored strategy requires mode' }
+            }
+          } else {
+            return {
+              success: false,
+              message: `Unknown patch strategy: "${(normalized.edit as { strategy?: string }).strategy}"`,
             }
           }
 
-          const patchedBuffer = Buffer.from(content, 'utf-8')
-          assertServerToolNotAborted(context)
-          await updateWorkspaceFileContent(
+          await storeFileIntent(workspaceId, target.fileId, {
+            operation: 'patch',
+            fileId: target.fileId,
             workspaceId,
-            fileId,
-            context.userId,
-            patchedBuffer,
-            isPptxPatch ? PPTX_SOURCE_MIME : undefined
-          )
-
-          reqLogger.info('Workspace file patched via copilot', {
-            fileId,
-            name: fileRecord.name,
-            editCount: edits.length,
             userId: context.userId,
+            chatId: context.chatId,
+            messageId: context.messageId,
+            fileRecord,
+            existingContent,
+            edit: {
+              strategy: normalized.edit.strategy,
+              ...(normalized.edit.strategy === 'search_replace'
+                ? {
+                    search: normalized.edit.search,
+                    replaceAll: normalized.edit.replaceAll,
+                  }
+                : {
+                    mode: normalized.edit.mode,
+                    occurrence: normalized.edit.occurrence,
+                    before_anchor: normalized.edit.before_anchor,
+                    after_anchor: normalized.edit.after_anchor,
+                    anchor: normalized.edit.anchor,
+                    start_anchor: normalized.edit.start_anchor,
+                    end_anchor: normalized.edit.end_anchor,
+                  }),
+            },
+            contentType: normalized.contentType,
+            title: normalized.title,
+            createdAt: Date.now(),
           })
 
           return {
             success: true,
-            message: `File "${fileRecord.name}" patched successfully (${edits.length} edit${edits.length > 1 ? 's' : ''} applied)`,
-            data: {
-              id: fileId,
-              name: fileRecord.name,
-              size: patchedBuffer.length,
-            },
+            message: withMessageId(
+              `Intent set: patch "${fileRecord.name}" (${normalized.edit.strategy}). Wait for this success result, then call edit_content in the next step with the replacement/insert content. Do not call edit_content in parallel.`
+            ),
+            data: { id: target.fileId, name: fileRecord.name, operation: 'patch' },
           }
         }
 
         default:
           return {
             success: false,
-            message: `Unknown operation: ${operation}. Supported: write, update, patch, rename, delete.`,
+            message: `Unknown operation: ${operation}. Supported: create, append, update, patch, rename, delete.`,
           }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      reqLogger.error('Error in workspace_file tool', {
+      logger.error('Error in workspace_file tool', {
         operation,
         error: errorMessage,
         userId: context.userId,

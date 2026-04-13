@@ -1,7 +1,15 @@
 import { db } from '@sim/db'
-import { account, document, knowledgeBase, mcpServers, workflow } from '@sim/db/schema'
+import {
+  account,
+  credential,
+  credentialMember,
+  document,
+  knowledgeBase,
+  mcpServers,
+  workflow,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 
 const logger = createLogger('SelectorValidator')
 
@@ -33,7 +41,95 @@ export async function validateSelectorIds(
   try {
     switch (selectorType) {
       case 'oauth-input': {
-        // Credentials must belong to the user
+        if (context.workspaceId) {
+          // In workspace workflows, oauth-input values are workspace credential IDs.
+          // Accept both current credential IDs and legacy account IDs when the user
+          // has active membership to the workspace credential.
+          const results = await db
+            .select({ credentialId: credential.id, accountId: credential.accountId })
+            .from(credential)
+            .innerJoin(
+              credentialMember,
+              and(
+                eq(credentialMember.credentialId, credential.id),
+                eq(credentialMember.userId, context.userId),
+                eq(credentialMember.status, 'active')
+              )
+            )
+            .where(
+              and(
+                eq(credential.workspaceId, context.workspaceId),
+                inArray(credential.type, ['oauth', 'service_account']),
+                or(inArray(credential.id, idsArray), inArray(credential.accountId, idsArray))
+              )
+            )
+
+          existingIds = Array.from(
+            new Set(
+              results.flatMap((result) => {
+                const matches: string[] = []
+                if (idsArray.includes(result.credentialId)) {
+                  matches.push(result.credentialId)
+                }
+                if (result.accountId && idsArray.includes(result.accountId)) {
+                  matches.push(result.accountId)
+                }
+                return matches
+              })
+            )
+          )
+
+          const existingSet = new Set(existingIds)
+          const invalidIds = idsArray.filter((id) => !existingSet.has(id))
+          if (invalidIds.length > 0) {
+            const allAccessibleCredentials = await db
+              .select({
+                id: credential.id,
+                displayName: credential.displayName,
+                accountId: credential.accountId,
+                credentialProviderId: credential.providerId,
+                accountProviderId: account.providerId,
+              })
+              .from(credential)
+              .leftJoin(account, eq(credential.accountId, account.id))
+              .innerJoin(
+                credentialMember,
+                and(
+                  eq(credentialMember.credentialId, credential.id),
+                  eq(credentialMember.userId, context.userId),
+                  eq(credentialMember.status, 'active')
+                )
+              )
+              .where(
+                and(
+                  eq(credential.workspaceId, context.workspaceId),
+                  inArray(credential.type, ['oauth', 'service_account'])
+                )
+              )
+
+            const availableCredentials = allAccessibleCredentials
+              .map((cred) => {
+                const providerId =
+                  cred.accountProviderId || cred.credentialProviderId || 'unknown-provider'
+                const legacyId = cred.accountId ? `, legacy ${cred.accountId}` : ''
+                return `${cred.displayName} [${cred.id}] (${providerId}${legacyId})`
+              })
+              .join(', ')
+            const noCredentialsMessage = 'User has no accessible credentials in this workspace.'
+
+            return {
+              valid: existingIds,
+              invalid: invalidIds,
+              warning:
+                allAccessibleCredentials.length > 0
+                  ? `Accessible workspace credentials: ${availableCredentials}`
+                  : noCredentialsMessage,
+            }
+          }
+          break
+        }
+
+        // Fallback for older callers that still validate against legacy account IDs.
         const results = await db
           .select({ id: account.id })
           .from(account)

@@ -327,7 +327,35 @@ describe('Copilot Chat Update Messages API Route', () => {
       })
 
       expect(mockSet).toHaveBeenCalledWith({
-        messages,
+        messages: [
+          {
+            id: 'msg-1',
+            role: 'user',
+            content: 'Hello',
+            timestamp: '2024-01-01T10:00:00.000Z',
+          },
+          {
+            id: 'msg-2',
+            role: 'assistant',
+            content: 'Hi there!',
+            timestamp: '2024-01-01T10:01:00.000Z',
+            contentBlocks: [
+              {
+                type: 'text',
+                content: 'Here is the weather information',
+              },
+              {
+                type: 'tool',
+                phase: 'call',
+                toolCall: {
+                  id: 'tool-1',
+                  name: 'get_weather',
+                  state: 'pending',
+                },
+              },
+            ],
+          },
+        ],
         updatedAt: expect.any(Date),
       })
     })

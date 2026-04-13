@@ -1,11 +1,18 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import {
+  FORMAT_TO_CONTENT_TYPE,
+  normalizeOutputWorkspaceFileName,
+  resolveOutputFormat,
+} from '@/lib/copilot/request/tools/files'
 import { isE2bEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { executeInE2B } from '@/lib/execution/e2b'
+import { executeInE2B, executeShellInE2B } from '@/lib/execution/e2b'
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
+import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getWorkflowById } from '@/lib/workflows/utils'
 import { escapeRegExp, normalizeName, REFERENCE } from '@/executor/constants'
 import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
 import { formatLiteralForCode } from '@/executor/utils/code-formatting'
@@ -580,6 +587,107 @@ function cleanStdout(stdout: string): string {
   return stdout
 }
 
+async function maybeExportSandboxFileToWorkspace(args: {
+  authUserId: string
+  workflowId?: string
+  workspaceId?: string
+  outputPath?: string
+  outputFormat?: string
+  outputMimeType?: string
+  outputSandboxPath?: string
+  exportedFileContent?: string
+  stdout: string
+  executionTime: number
+}) {
+  const {
+    authUserId,
+    workflowId,
+    workspaceId,
+    outputPath,
+    outputFormat,
+    outputMimeType,
+    outputSandboxPath,
+    exportedFileContent,
+    stdout,
+    executionTime,
+  } = args
+
+  if (!outputSandboxPath) return null
+
+  if (!outputPath) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          'outputSandboxPath requires outputPath. Set outputPath to the destination workspace file, e.g. "files/result.csv".',
+        output: { result: null, stdout: cleanStdout(stdout), executionTime },
+      },
+      { status: 400 }
+    )
+  }
+
+  const resolvedWorkspaceId =
+    workspaceId || (workflowId ? (await getWorkflowById(workflowId))?.workspaceId : undefined)
+
+  if (!resolvedWorkspaceId) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Workspace context required to save sandbox file to workspace',
+        output: { result: null, stdout: cleanStdout(stdout), executionTime },
+      },
+      { status: 400 }
+    )
+  }
+
+  if (exportedFileContent === undefined) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: `Sandbox file "${outputSandboxPath}" was not found or could not be read`,
+        output: { result: null, stdout: cleanStdout(stdout), executionTime },
+      },
+      { status: 500 }
+    )
+  }
+
+  const fileName = normalizeOutputWorkspaceFileName(outputPath)
+
+  const TEXT_MIMES = new Set(Object.values(FORMAT_TO_CONTENT_TYPE))
+  const resolvedMimeType =
+    outputMimeType ||
+    FORMAT_TO_CONTENT_TYPE[resolveOutputFormat(fileName, outputFormat)] ||
+    'application/octet-stream'
+  const isBinary = !TEXT_MIMES.has(resolvedMimeType)
+  const fileBuffer = isBinary
+    ? Buffer.from(exportedFileContent, 'base64')
+    : Buffer.from(exportedFileContent, 'utf-8')
+
+  const uploaded = await uploadWorkspaceFile(
+    resolvedWorkspaceId,
+    authUserId,
+    fileBuffer,
+    fileName,
+    resolvedMimeType
+  )
+
+  return NextResponse.json({
+    success: true,
+    output: {
+      result: {
+        message: `Sandbox file exported to files/${fileName}`,
+        fileId: uploaded.id,
+        fileName,
+        downloadUrl: uploaded.url,
+        sandboxPath: outputSandboxPath,
+      },
+      stdout: cleanStdout(stdout),
+      executionTime,
+    },
+    resources: [{ type: 'file', id: uploaded.id, title: fileName }],
+  })
+}
+
 export async function POST(req: NextRequest) {
   const requestId = generateRequestId()
   const startTime = Date.now()
@@ -603,12 +711,17 @@ export async function POST(req: NextRequest) {
       params = {},
       timeout = DEFAULT_EXECUTION_TIMEOUT_MS,
       language = DEFAULT_CODE_LANGUAGE,
+      outputPath,
+      outputFormat,
+      outputMimeType,
+      outputSandboxPath,
       envVars = {},
       blockData = {},
       blockNameMapping = {},
       blockOutputSchemas = {},
       workflowVariables = {},
       workflowId,
+      workspaceId,
       isCustomTool = false,
       _sandboxFiles,
     } = body
@@ -626,18 +739,25 @@ export async function POST(req: NextRequest) {
 
     const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE
 
-    const codeResolution = resolveCodeVariables(
-      code,
-      executionParams,
-      envVars,
-      blockData,
-      blockNameMapping,
-      blockOutputSchemas,
-      workflowVariables,
-      lang
-    )
-    resolvedCode = codeResolution.resolvedCode
-    const contextVariables = codeResolution.contextVariables
+    let contextVariables: Record<string, unknown> = {}
+    if (lang === CodeLanguage.Shell) {
+      // For shell, env vars are injected as OS env vars via shellEnvs.
+      // Replace {{VAR}} placeholders with $VAR so the shell can access them natively.
+      resolvedCode = code.replace(/\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}/g, '$$$1')
+    } else {
+      const codeResolution = resolveCodeVariables(
+        code,
+        executionParams,
+        envVars,
+        blockData,
+        blockNameMapping,
+        blockOutputSchemas,
+        workflowVariables,
+        lang
+      )
+      resolvedCode = codeResolution.resolvedCode
+      contextVariables = codeResolution.contextVariables
+    }
 
     let jsImports = ''
     let jsRemainingCode = resolvedCode
@@ -650,6 +770,83 @@ export async function POST(req: NextRequest) {
 
       const hasRequireStatements = /require\s*\(\s*['"`]/.test(resolvedCode)
       hasImports = jsImports.trim().length > 0 || hasRequireStatements
+    }
+
+    if (lang === CodeLanguage.Shell) {
+      if (!isE2bEnabled) {
+        throw new Error(
+          'Shell execution requires E2B to be enabled. Please contact your administrator to enable E2B.'
+        )
+      }
+
+      const shellEnvs: Record<string, string> = {}
+      for (const [k, v] of Object.entries(envVars)) {
+        shellEnvs[k] = String(v)
+      }
+      for (const [k, v] of Object.entries(contextVariables)) {
+        shellEnvs[k] = String(v)
+      }
+
+      logger.info(`[${requestId}] E2B shell execution`, {
+        enabled: isE2bEnabled,
+        hasApiKey: Boolean(process.env.E2B_API_KEY),
+        envVarCount: Object.keys(shellEnvs).length,
+      })
+
+      const execStart = Date.now()
+      const {
+        result: shellResult,
+        stdout: shellStdout,
+        sandboxId,
+        error: shellError,
+        exportedFileContent,
+      } = await executeShellInE2B({
+        code: resolvedCode,
+        envs: shellEnvs,
+        timeoutMs: timeout,
+        sandboxFiles: _sandboxFiles,
+        outputSandboxPath,
+      })
+      const executionTime = Date.now() - execStart
+
+      logger.info(`[${requestId}] E2B shell sandbox`, {
+        sandboxId,
+        stdoutPreview: shellStdout?.slice(0, 200),
+        error: shellError,
+        executionTime,
+      })
+
+      if (shellError) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: shellError,
+            output: { result: null, stdout: cleanStdout(shellStdout), executionTime },
+          },
+          { status: 500 }
+        )
+      }
+
+      if (outputSandboxPath) {
+        const fileExportResponse = await maybeExportSandboxFileToWorkspace({
+          authUserId: auth.userId,
+          workflowId,
+          workspaceId,
+          outputPath,
+          outputFormat,
+          outputMimeType,
+          outputSandboxPath,
+          exportedFileContent,
+          stdout: shellStdout,
+          executionTime,
+        })
+        if (fileExportResponse) return fileExportResponse
+      }
+
+      return NextResponse.json({
+        success: true,
+        output: { result: shellResult ?? null, stdout: cleanStdout(shellStdout), executionTime },
+      })
     }
 
     if (lang === CodeLanguage.Python && !isE2bEnabled) {
@@ -719,11 +916,13 @@ export async function POST(req: NextRequest) {
           stdout: e2bStdout,
           sandboxId,
           error: e2bError,
+          exportedFileContent,
         } = await executeInE2B({
           code: codeForE2B,
           language: CodeLanguage.JavaScript,
           timeoutMs: timeout,
           sandboxFiles: _sandboxFiles,
+          outputSandboxPath,
         })
         const executionTime = Date.now() - execStart
         stdout += e2bStdout
@@ -750,6 +949,22 @@ export async function POST(req: NextRequest) {
             },
             { status: 500 }
           )
+        }
+
+        if (outputSandboxPath) {
+          const fileExportResponse = await maybeExportSandboxFileToWorkspace({
+            authUserId: auth.userId,
+            workflowId,
+            workspaceId,
+            outputPath,
+            outputFormat,
+            outputMimeType,
+            outputSandboxPath,
+            exportedFileContent,
+            stdout,
+            executionTime,
+          })
+          if (fileExportResponse) return fileExportResponse
         }
 
         return NextResponse.json({
@@ -783,11 +998,13 @@ export async function POST(req: NextRequest) {
         stdout: e2bStdout,
         sandboxId,
         error: e2bError,
+        exportedFileContent,
       } = await executeInE2B({
         code: codeForE2B,
         language: CodeLanguage.Python,
         timeoutMs: timeout,
         sandboxFiles: _sandboxFiles,
+        outputSandboxPath,
       })
       const executionTime = Date.now() - execStart
       stdout += e2bStdout
@@ -814,6 +1031,22 @@ export async function POST(req: NextRequest) {
           },
           { status: 500 }
         )
+      }
+
+      if (outputSandboxPath) {
+        const fileExportResponse = await maybeExportSandboxFileToWorkspace({
+          authUserId: auth.userId,
+          workflowId,
+          workspaceId,
+          outputPath,
+          outputFormat,
+          outputMimeType,
+          outputSandboxPath,
+          exportedFileContent,
+          stdout,
+          executionTime,
+        })
+        if (fileExportResponse) return fileExportResponse
       }
 
       return NextResponse.json({

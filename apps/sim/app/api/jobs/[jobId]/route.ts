@@ -3,8 +3,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { presentDispatchOrJobStatus } from '@/lib/core/workspace-dispatch/status'
-import { getDispatchJobRecord } from '@/lib/core/workspace-dispatch/store'
 import { createErrorResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('TaskStatusAPI')
@@ -25,15 +23,14 @@ export async function GET(
 
     const authenticatedUserId = authResult.userId
 
-    const dispatchJob = await getDispatchJobRecord(taskId)
     const jobQueue = await getJobQueue()
-    const job = dispatchJob ? null : await jobQueue.getJob(taskId)
+    const job = await jobQueue.getJob(taskId)
 
-    if (!job && !dispatchJob) {
+    if (!job) {
       return createErrorResponse('Task not found', 404)
     }
 
-    const metadataToCheck = dispatchJob?.metadata ?? job?.metadata
+    const metadataToCheck = job.metadata
 
     if (metadataToCheck?.workflowId) {
       const { verifyWorkflowAccess } = await import('@/socket/middleware/permissions')
@@ -61,25 +58,22 @@ export async function GET(
       return createErrorResponse('Access denied', 403)
     }
 
-    const presented = presentDispatchOrJobStatus(dispatchJob, job)
-    const response: any = {
+    const response: Record<string, unknown> = {
       success: true,
       taskId,
-      status: presented.status,
-      metadata: presented.metadata,
+      status: job.status,
+      metadata: job.metadata,
     }
 
-    if (presented.output !== undefined) response.output = presented.output
-    if (presented.error !== undefined) response.error = presented.error
-    if (presented.estimatedDuration !== undefined) {
-      response.estimatedDuration = presented.estimatedDuration
-    }
+    if (job.output !== undefined) response.output = job.output
+    if (job.error !== undefined) response.error = job.error
 
     return NextResponse.json(response)
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
     logger.error(`[${requestId}] Error fetching task status:`, error)
 
-    if (error.message?.includes('not found') || error.status === 404) {
+    if (errorMessage?.includes('not found')) {
       return createErrorResponse('Task not found', 404)
     }
 

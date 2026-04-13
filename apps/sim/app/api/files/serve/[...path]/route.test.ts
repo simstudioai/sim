@@ -75,6 +75,16 @@ vi.mock('@/lib/uploads/utils/file-utils', () => ({
 
 vi.mock('@/lib/uploads/setup.server', () => ({}))
 
+vi.mock('@/lib/execution/doc-vm', () => ({
+  generatePdfFromCode: vi.fn().mockResolvedValue(Buffer.from('%PDF-compiled')),
+  generateDocxFromCode: vi.fn().mockResolvedValue(Buffer.from('PK\x03\x04compiled')),
+  generatePptxFromCode: vi.fn().mockResolvedValue(Buffer.from('PK\x03\x04compiled')),
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  parseWorkspaceFileKey: vi.fn().mockReturnValue(undefined),
+}))
+
 vi.mock('@/app/api/files/utils', () => ({
   FileNotFoundError,
   createFileResponse: mockCreateFileResponse,

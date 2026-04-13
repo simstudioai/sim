@@ -4,14 +4,23 @@ import {
   CONTAINER_PADDING,
   CONTAINER_PADDING_X,
   CONTAINER_PADDING_Y,
-  ESTIMATED_BLOCK_BOTTOM_PADDING,
-  ESTIMATED_SUBBLOCK_HEIGHT,
-  MAX_ESTIMATED_BLOCK_HEIGHT,
   ROOT_PADDING_X,
   ROOT_PADDING_Y,
 } from '@/lib/workflows/autolayout/constants'
 import type { BlockMetrics, BoundingBox, Edge, GraphNode } from '@/lib/workflows/autolayout/types'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
+import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
+import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
+import {
+  buildCanonicalIndex,
+  buildSubBlockValues,
+  type CanonicalModeOverrides,
+  evaluateSubBlockCondition,
+  isSubBlockFeatureEnabled,
+  isSubBlockHidden,
+  isSubBlockVisibleForMode,
+} from '@/lib/workflows/subblocks/visibility'
+import { getBlock } from '@/blocks'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 /**
@@ -134,24 +143,98 @@ function getContainerMetrics(block: BlockState): BlockMetrics {
 }
 
 /**
- * Estimates block height from subblock count when no measurement is available.
- * Only counts subblocks with non-null values to avoid over-counting conditional
- * fields (e.g. agent blocks define ~20 subblocks but only ~5 are typically visible).
- * The result is capped at MAX_ESTIMATED_BLOCK_HEIGHT to prevent massive layout gaps.
+ * Counts visible preview subblocks using the same visibility rules as the
+ * workflow block preview when no DOM measurements are available.
  */
-function estimateBlockHeight(block: BlockState): number {
-  const subBlocks = block.subBlocks || {}
-  const visibleCount = Object.values(subBlocks).filter(
-    (sb) => sb && sb.value !== null && sb.value !== undefined
-  ).length
-  if (visibleCount === 0) return BLOCK_DIMENSIONS.MIN_HEIGHT
+function getVisiblePreviewSubBlockCount(block: BlockState): number {
+  const blockConfig = getBlock(block.type)
+  if (!blockConfig?.subBlocks?.length) {
+    return Object.values(block.subBlocks || {}).filter((subBlock) => subBlock != null).length
+  }
 
-  const estimated =
-    BLOCK_DIMENSIONS.HEADER_HEIGHT +
-    visibleCount * ESTIMATED_SUBBLOCK_HEIGHT +
-    ESTIMATED_BLOCK_BOTTOM_PADDING
+  const rawValues = buildSubBlockValues(block.subBlocks || {})
+  const canonicalModeOverrides =
+    typeof block.data?.canonicalModes === 'object' && block.data.canonicalModes !== null
+      ? (block.data.canonicalModes as CanonicalModeOverrides)
+      : undefined
 
-  return Math.min(Math.max(estimated, BLOCK_DIMENSIONS.MIN_HEIGHT), MAX_ESTIMATED_BLOCK_HEIGHT)
+  if (canonicalModeOverrides) {
+    rawValues.__canonicalModes = canonicalModeOverrides
+  }
+
+  const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
+  const effectiveAdvanced = Boolean(block.advancedMode)
+  const effectiveTrigger = Boolean(block.triggerMode)
+  const isPureTriggerBlock = blockConfig.triggers?.enabled && blockConfig.category === 'triggers'
+
+  return blockConfig.subBlocks.filter((subBlock) => {
+    if (subBlock.hidden || subBlock.hideFromPreview) return false
+    if (!isSubBlockFeatureEnabled(subBlock)) return false
+    if (isSubBlockHidden(subBlock)) return false
+
+    if (effectiveTrigger) {
+      const isValidTriggerSubblock = isPureTriggerBlock
+        ? subBlock.mode === 'trigger' || !subBlock.mode
+        : subBlock.mode === 'trigger'
+
+      if (!isValidTriggerSubblock) {
+        return false
+      }
+    } else if (subBlock.mode === 'trigger') {
+      return false
+    }
+
+    if (
+      !isSubBlockVisibleForMode(
+        subBlock,
+        effectiveAdvanced,
+        canonicalIndex,
+        rawValues,
+        canonicalModeOverrides
+      )
+    ) {
+      return false
+    }
+
+    if (!subBlock.condition) return true
+    return evaluateSubBlockCondition(subBlock.condition, rawValues)
+  }).length
+}
+
+/**
+ * Estimates workflow block dimensions using the same deterministic row-based
+ * formula used by the canvas block renderer.
+ */
+function estimateWorkflowBlockDimensions(block: BlockState): { width: number; height: number } {
+  const blockConfig = getBlock(block.type)
+  const visibleCount = getVisiblePreviewSubBlockCount(block)
+
+  if (!blockConfig) {
+    return {
+      width: BLOCK_DIMENSIONS.FIXED_WIDTH,
+      height: Math.max(
+        BLOCK_DIMENSIONS.HEADER_HEIGHT +
+          BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING +
+          visibleCount * BLOCK_DIMENSIONS.WORKFLOW_ROW_HEIGHT,
+        BLOCK_DIMENSIONS.MIN_HEIGHT
+      ),
+    }
+  }
+
+  return calculateWorkflowBlockDimensions({
+    blockType: block.type,
+    category: blockConfig.category,
+    displayTriggerMode: Boolean(block.triggerMode),
+    visibleSubBlockCount: visibleCount,
+    conditionRowCount:
+      block.type === 'condition'
+        ? getConditionRows(block.id, block.subBlocks?.conditions?.value).length
+        : 0,
+    routerRowCount:
+      block.type === 'router_v2'
+        ? getRouterRows(block.id, block.subBlocks?.routes?.value).length
+        : 0,
+  })
 }
 
 /**
@@ -164,10 +247,12 @@ function getRegularBlockMetrics(block: BlockState): BlockMetrics {
   const minHeight = BLOCK_DIMENSIONS.MIN_HEIGHT
   const measuredH = block.layout?.measuredHeight ?? block.height
   const measuredW = block.layout?.measuredWidth
+  const estimatedDimensions = estimateWorkflowBlockDimensions(block)
+  const estimatedHeight = estimatedDimensions.height
 
   const hasMeasurement = typeof measuredH === 'number' && measuredH > 0
-  const height = hasMeasurement ? Math.max(measuredH, minHeight) : estimateBlockHeight(block)
-  const width = Math.max(measuredW ?? minWidth, minWidth)
+  const height = hasMeasurement ? Math.max(measuredH, estimatedHeight, minHeight) : estimatedHeight
+  const width = Math.max(measuredW ?? estimatedDimensions.width, minWidth)
 
   return {
     width,

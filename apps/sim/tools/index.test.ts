@@ -28,6 +28,7 @@ const {
   mockGenerateInternalToken,
   mockSecureFetchWithPinnedIP,
   mockValidateUrlWithDNS,
+  mockResolveWorkspaceFileReference,
 } = vi.hoisted(() => ({
   mockIsHosted: { value: false },
   mockEnv: { NEXT_PUBLIC_APP_URL: 'http://localhost:3000' } as Record<string, string | undefined>,
@@ -44,6 +45,7 @@ const {
   mockGenerateInternalToken: vi.fn(),
   mockSecureFetchWithPinnedIP: vi.fn(),
   mockValidateUrlWithDNS: vi.fn(),
+  mockResolveWorkspaceFileReference: vi.fn(),
 }))
 
 // Mock feature flags
@@ -84,6 +86,10 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
 
 vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
   getHostedKeyRateLimiter: () => mockRateLimiterFns,
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  resolveWorkspaceFileReference: (...args: unknown[]) => mockResolveWorkspaceFileReference(...args),
 }))
 
 // Mock the tools registry to avoid loading the full 4500+ line registry file.
@@ -187,6 +193,44 @@ vi.mock('@/tools/registry', () => {
       version: '1.0.0',
       params: {},
       request: { url: '/api/tools/gmail/send', method: 'POST' },
+    },
+    test_single_file_tool: {
+      id: 'test_single_file_tool',
+      name: 'Test Single File Tool',
+      description: 'Accepts a single file parameter',
+      version: '1.0.0',
+      params: {
+        attachment: { type: 'file', required: true },
+      },
+      request: {
+        url: '/api/tools/test/single-file',
+        method: 'POST',
+        headers: () => ({ 'Content-Type': 'application/json' }),
+        body: (p: any) => ({ attachment: p.attachment }),
+      },
+      transformResponse: async (response: any) => {
+        const data = await response.json()
+        return { success: true, output: data }
+      },
+    },
+    test_file_array_tool: {
+      id: 'test_file_array_tool',
+      name: 'Test File Array Tool',
+      description: 'Accepts an array of file parameters',
+      version: '1.0.0',
+      params: {
+        attachments: { type: 'file[]', required: true },
+      },
+      request: {
+        url: '/api/tools/test/file-array',
+        method: 'POST',
+        headers: () => ({ 'Content-Type': 'application/json' }),
+        body: (p: any) => ({ attachments: p.attachments }),
+      },
+      transformResponse: async (response: any) => {
+        const data = await response.json()
+        return { success: true, output: data }
+      },
     },
     google_drive_list: {
       id: 'google_drive_list',
@@ -744,6 +788,197 @@ describe('Automatic Internal Route Detection', () => {
     }
 
     Object.assign(tools, originalTools)
+  })
+})
+
+describe('Copilot File Parameter Normalization', () => {
+  let cleanupEnvVars: () => void
+
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+    mockResolveWorkspaceFileReference.mockReset()
+  })
+
+  afterEach(() => {
+    vi.resetAllMocks()
+    cleanupEnvVars()
+  })
+
+  it('resolves canonical file IDs for single-file params during copilot execution', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValue({
+      id: 'wf_123',
+      name: 'brief.pdf',
+      path: '/api/files/wf_123',
+      size: 512,
+      type: 'application/pdf',
+      key: 'uploads/wf_123',
+    })
+
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async (_url, options) => {
+        const body = JSON.parse(options?.body as string)
+        expect(body.attachment).toEqual({
+          id: 'wf_123',
+          name: 'brief.pdf',
+          url: '/api/files/wf_123',
+          size: 512,
+          type: 'application/pdf',
+          key: 'uploads/wf_123',
+          context: 'workspace',
+        })
+
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers(),
+          json: () => Promise.resolve({ ok: true }),
+          text: () => Promise.resolve(JSON.stringify({ ok: true })),
+          clone: vi.fn().mockReturnThis(),
+        }
+      }),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const context = createToolExecutionContext({
+      workspaceId: 'workspace-456',
+      copilotToolExecution: true,
+    } as any)
+
+    const result = await executeTool(
+      'test_single_file_tool',
+      { attachment: 'wf_123' },
+      false,
+      context
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith('workspace-456', 'wf_123')
+  })
+
+  it('resolves file-array params from strings and partial file objects, while preserving full file objects', async () => {
+    mockResolveWorkspaceFileReference.mockImplementation(
+      async (_workspaceId: string, fileId: string) => ({
+        id: fileId,
+        name: `${fileId}.txt`,
+        path: `/api/files/${fileId}`,
+        size: 128,
+        type: 'text/plain',
+        key: `uploads/${fileId}`,
+      })
+    )
+
+    const existingFileObject = {
+      id: 'wf_existing',
+      name: 'existing.txt',
+      url: '/api/files/wf_existing',
+      size: 64,
+      type: 'text/plain',
+      key: 'uploads/wf_existing',
+      context: 'workspace',
+    }
+
+    const partialFileObject = {
+      id: 'wf_partial',
+      name: 'partial.txt',
+    }
+
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async (_url, options) => {
+        const body = JSON.parse(options?.body as string)
+        expect(body.attachments).toEqual([
+          {
+            id: 'wf_1',
+            name: 'wf_1.txt',
+            url: '/api/files/wf_1',
+            size: 128,
+            type: 'text/plain',
+            key: 'uploads/wf_1',
+            context: 'workspace',
+          },
+          {
+            id: 'wf_partial',
+            name: 'wf_partial.txt',
+            url: '/api/files/wf_partial',
+            size: 128,
+            type: 'text/plain',
+            key: 'uploads/wf_partial',
+            context: 'workspace',
+          },
+          existingFileObject,
+          {
+            id: 'wf_2',
+            name: 'wf_2.txt',
+            url: '/api/files/wf_2',
+            size: 128,
+            type: 'text/plain',
+            key: 'uploads/wf_2',
+            context: 'workspace',
+          },
+        ])
+
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers(),
+          json: () => Promise.resolve({ ok: true }),
+          text: () => Promise.resolve(JSON.stringify({ ok: true })),
+          clone: vi.fn().mockReturnThis(),
+        }
+      }),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const context = createToolExecutionContext({
+      workspaceId: 'workspace-456',
+      copilotToolExecution: true,
+    } as any)
+
+    const result = await executeTool(
+      'test_file_array_tool',
+      { attachments: ['wf_1', partialFileObject, existingFileObject, 'wf_2'] },
+      false,
+      context
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockResolveWorkspaceFileReference).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not resolve file params outside copilot execution', async () => {
+    global.fetch = Object.assign(
+      vi.fn().mockImplementation(async (_url, options) => {
+        const body = JSON.parse(options?.body as string)
+        expect(body.attachment).toBe('wf_123')
+
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers(),
+          json: () => Promise.resolve({ ok: true }),
+          text: () => Promise.resolve(JSON.stringify({ ok: true })),
+          clone: vi.fn().mockReturnThis(),
+        }
+      }),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const context = createToolExecutionContext({
+      workspaceId: 'workspace-456',
+    } as any)
+
+    const result = await executeTool(
+      'test_single_file_tool',
+      { attachment: 'wf_123' },
+      false,
+      context
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockResolveWorkspaceFileReference).not.toHaveBeenCalled()
   })
 })
 

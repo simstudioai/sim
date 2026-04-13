@@ -16,6 +16,7 @@ permissions:
 jobs:
   test-build:
     name: Test and Build
+    if: github.ref != 'refs/heads/dev' || github.event_name == 'pull_request'
     uses: ./.github/workflows/test-build.yml
     secrets: inherit
 
@@ -45,11 +46,66 @@ jobs:
             echo "ℹ️ Not a release commit"
           fi
 
-  # Build AMD64 images and push to ECR immediately (+ GHCR for main)
+  # Dev: build all 3 images for ECR only (no GHCR, no ARM64)
+  build-dev:
+    name: Build Dev ECR
+    needs: [detect-version]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dockerfile: ./docker/app.Dockerfile
+            ecr_repo_secret: ECR_APP
+          - dockerfile: ./docker/db.Dockerfile
+            ecr_repo_secret: ECR_MIGRATIONS
+          - dockerfile: ./docker/realtime.Dockerfile
+            ecr_repo_secret: ECR_REALTIME
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.DEV_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.DEV_AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: useblacksmith/setup-docker-builder@v1
+
+      - name: Build and push
+        uses: useblacksmith/build-push-action@v2
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ secrets[matrix.ecr_repo_secret] }}:dev
+          provenance: false
+          sbom: false
+
+  # Main/staging: build AMD64 images and push to ECR + GHCR
   build-amd64:
     name: Build AMD64
-    needs: [detect-version]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/dev')
+    needs: [test-build, detect-version]
+    if: >-
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     runs-on: blacksmith-8vcpu-ubuntu-2404
     permissions:
       contents: read
@@ -75,8 +131,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || github.ref == 'refs/heads/dev' && secrets.DEV_AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || github.ref == 'refs/heads/dev' && secrets.DEV_AWS_REGION || secrets.STAGING_AWS_REGION }}
+          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -106,26 +162,20 @@ jobs:
           ECR_REPO="${{ secrets[matrix.ecr_repo_secret] }}"
           GHCR_IMAGE="${{ matrix.ghcr_image }}"
 
-          # ECR tags (always build for ECR)
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
             ECR_TAG="latest"
-          elif [ "${{ github.ref }}" = "refs/heads/dev" ]; then
-            ECR_TAG="dev"
           else
             ECR_TAG="staging"
           fi
           ECR_IMAGE="${ECR_REGISTRY}/${ECR_REPO}:${ECR_TAG}"
 
-          # Build tags list
           TAGS="${ECR_IMAGE}"
 
-          # Add GHCR tags only for main branch
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
             GHCR_AMD64="${GHCR_IMAGE}:latest-amd64"
             GHCR_SHA="${GHCR_IMAGE}:${{ github.sha }}-amd64"
             TAGS="${TAGS},$GHCR_AMD64,$GHCR_SHA"
 
-            # Add version tag if this is a release commit
             if [ "${{ needs.detect-version.outputs.is_release }}" = "true" ]; then
               VERSION="${{ needs.detect-version.outputs.version }}"
               GHCR_VERSION="${GHCR_IMAGE}:${VERSION}-amd64"
@@ -255,6 +305,14 @@ jobs:
               "${IMAGE_BASE}:${VERSION}-arm64"
             docker manifest push "${IMAGE_BASE}:${VERSION}"
           fi
+
+  # Run database migrations for dev
+  migrate-dev:
+    name: Migrate Dev DB
+    needs: [build-dev]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    uses: ./.github/workflows/migrations.yml
+    secrets: inherit
 
   # Check if docs changed
   check-docs-changes:

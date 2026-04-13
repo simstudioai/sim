@@ -17,7 +17,7 @@ export function FileViewer() {
     return null
   }
 
-  const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`
+  const serveUrl = `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace&t=${file.size}`
 
   return (
     <div className='fixed inset-0 z-50 bg-[var(--bg)]'>

@@ -23,7 +23,7 @@ const {
   mockFetch: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/request-helpers', () => ({
+vi.mock('@/lib/copilot/request/http', () => ({
   authenticateCopilotRequestSessionOnly: mockAuthenticateCopilotRequestSessionOnly,
   createUnauthorizedResponse: mockCreateUnauthorizedResponse,
   createBadRequestResponse: mockCreateBadRequestResponse,

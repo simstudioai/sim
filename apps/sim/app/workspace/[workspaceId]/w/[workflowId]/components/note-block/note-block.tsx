@@ -1,8 +1,8 @@
 import { memo, useCallback, useMemo } from 'react'
-import ReactMarkdown from 'react-markdown'
 import type { NodeProps } from 'reactflow'
 import remarkBreaks from 'remark-breaks'
-import remarkGfm from 'remark-gfm'
+import { Streamdown } from 'streamdown'
+import 'streamdown/styles.css'
 import { cn } from '@/lib/core/utils/cn'
 import { BLOCK_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -303,174 +303,161 @@ function getEmbedInfo(url: string): EmbedInfo | null {
 /**
  * Compact markdown renderer for note blocks with tight spacing
  */
+const NOTE_REMARK_PLUGINS = [remarkBreaks]
+
+const NOTE_COMPONENTS = {
+  p: ({ children }: { children?: React.ReactNode }) => (
+    <p className='mb-1 break-words text-[var(--text-primary)] text-sm leading-[1.25rem] last:mb-0'>
+      {children}
+    </p>
+  ),
+  h1: ({ children }: { children?: React.ReactNode }) => (
+    <h1 className='mt-3 mb-3 break-words font-semibold text-[var(--text-primary)] text-lg first:mt-0'>
+      {children}
+    </h1>
+  ),
+  h2: ({ children }: { children?: React.ReactNode }) => (
+    <h2 className='mt-2.5 mb-2.5 break-words font-semibold text-[var(--text-primary)] text-base first:mt-0'>
+      {children}
+    </h2>
+  ),
+  h3: ({ children }: { children?: React.ReactNode }) => (
+    <h3 className='mt-2 mb-2 break-words font-semibold text-[var(--text-primary)] text-sm first:mt-0'>
+      {children}
+    </h3>
+  ),
+  h4: ({ children }: { children?: React.ReactNode }) => (
+    <h4 className='mt-2 mb-2 break-words font-semibold text-[var(--text-primary)] text-xs first:mt-0'>
+      {children}
+    </h4>
+  ),
+  ul: ({ children }: { children?: React.ReactNode }) => (
+    <ul className='mt-1 mb-1 list-disc space-y-1 break-words pl-6 text-[var(--text-primary)] text-sm'>
+      {children}
+    </ul>
+  ),
+  ol: ({ children }: { children?: React.ReactNode }) => (
+    <ol className='mt-1 mb-1 list-decimal space-y-1 break-words pl-6 text-[var(--text-primary)] text-sm'>
+      {children}
+    </ol>
+  ),
+  li: ({ children }: { children?: React.ReactNode }) => <li className='break-words'>{children}</li>,
+  inlineCode: ({ children }: { children?: React.ReactNode }) => (
+    <code className='whitespace-normal rounded bg-[var(--surface-5)] px-1 py-0.5 font-mono text-[var(--caution)] text-xs'>
+      {children}
+    </code>
+  ),
+  code: ({ children, className, ...props }: { children?: React.ReactNode; className?: string }) => (
+    <code
+      {...props}
+      className='block whitespace-pre-wrap break-words rounded bg-[var(--surface-5)] p-2 text-[var(--text-primary)] text-xs'
+    >
+      {children}
+    </code>
+  ),
+  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
+    const embedInfo = href ? getEmbedInfo(href) : null
+    if (embedInfo) {
+      return (
+        <span className='my-2 block w-full'>
+          <a
+            href={href}
+            target='_blank'
+            rel='noopener noreferrer'
+            className='mb-1 block break-all text-[var(--brand-secondary)] underline-offset-2 hover-hover:underline'
+          >
+            {children}
+          </a>
+          <span className='block w-full overflow-hidden rounded-md'>
+            {embedInfo.type === 'iframe' && (
+              <span
+                className='block overflow-hidden'
+                style={{
+                  width: '100%',
+                  aspectRatio: embedInfo.aspectRatio || '16/9',
+                }}
+              >
+                <iframe
+                  src={embedInfo.url}
+                  title='Media'
+                  allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
+                  allowFullScreen
+                  loading='lazy'
+                  className='origin-top-left'
+                  style={{
+                    width: EMBED_INVERSE_SCALE,
+                    height: EMBED_INVERSE_SCALE,
+                    transform: `scale(${EMBED_SCALE})`,
+                  }}
+                />
+              </span>
+            )}
+            {embedInfo.type === 'video' && (
+              <video
+                src={embedInfo.url}
+                controls
+                preload='metadata'
+                className='aspect-video w-full'
+              >
+                <track kind='captions' src='' default />
+              </video>
+            )}
+            {embedInfo.type === 'audio' && (
+              <audio src={embedInfo.url} controls preload='metadata' className='w-full'>
+                <track kind='captions' src='' default />
+              </audio>
+            )}
+          </span>
+        </span>
+      )
+    }
+    return (
+      <a
+        href={href}
+        target='_blank'
+        rel='noopener noreferrer'
+        className='break-all text-[var(--brand-secondary)] underline-offset-2 hover-hover:underline'
+      >
+        {children}
+      </a>
+    )
+  },
+  strong: ({ children }: { children?: React.ReactNode }) => (
+    <strong className='break-words font-semibold text-[var(--text-primary)]'>{children}</strong>
+  ),
+  em: ({ children }: { children?: React.ReactNode }) => (
+    <em className='break-words text-[var(--text-tertiary)]'>{children}</em>
+  ),
+  blockquote: ({ children }: { children?: React.ReactNode }) => (
+    <blockquote className='my-4 break-words border-[var(--border-1)] border-l-4 py-1 pl-4 text-[var(--text-tertiary)] italic'>
+      {children}
+    </blockquote>
+  ),
+  table: ({ children }: { children?: React.ReactNode }) => (
+    <div className='my-2 max-w-full overflow-x-auto'>
+      <table className='w-full border-collapse text-xs'>{children}</table>
+    </div>
+  ),
+  thead: ({ children }: { children?: React.ReactNode }) => (
+    <thead className='border-[var(--border)] border-b'>{children}</thead>
+  ),
+  tbody: ({ children }: { children?: React.ReactNode }) => <tbody>{children}</tbody>,
+  tr: ({ children }: { children?: React.ReactNode }) => (
+    <tr className='border-[var(--border)] border-b last:border-b-0'>{children}</tr>
+  ),
+  th: ({ children }: { children?: React.ReactNode }) => (
+    <th className='px-2 py-1 text-left font-semibold text-[var(--text-primary)]'>{children}</th>
+  ),
+  td: ({ children }: { children?: React.ReactNode }) => (
+    <td className='px-2 py-1 text-[var(--text-secondary)]'>{children}</td>
+  ),
+}
+
 const NoteMarkdown = memo(function NoteMarkdown({ content }: { content: string }) {
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkBreaks]}
-      components={{
-        p: ({ children }: any) => (
-          <p className='mb-1 break-words text-[var(--text-primary)] text-sm leading-[1.25rem] last:mb-0'>
-            {children}
-          </p>
-        ),
-        h1: ({ children }: any) => (
-          <h1 className='mt-3 mb-3 break-words font-semibold text-[var(--text-primary)] text-lg first:mt-0'>
-            {children}
-          </h1>
-        ),
-        h2: ({ children }: any) => (
-          <h2 className='mt-2.5 mb-2.5 break-words font-semibold text-[var(--text-primary)] text-base first:mt-0'>
-            {children}
-          </h2>
-        ),
-        h3: ({ children }: any) => (
-          <h3 className='mt-2 mb-2 break-words font-semibold text-[var(--text-primary)] text-sm first:mt-0'>
-            {children}
-          </h3>
-        ),
-        h4: ({ children }: any) => (
-          <h4 className='mt-2 mb-2 break-words font-semibold text-[var(--text-primary)] text-xs first:mt-0'>
-            {children}
-          </h4>
-        ),
-        ul: ({ children }: any) => (
-          <ul className='mt-1 mb-1 list-disc space-y-1 break-words pl-6 text-[var(--text-primary)] text-sm'>
-            {children}
-          </ul>
-        ),
-        ol: ({ children }: any) => (
-          <ol className='mt-1 mb-1 list-decimal space-y-1 break-words pl-6 text-[var(--text-primary)] text-sm'>
-            {children}
-          </ol>
-        ),
-        li: ({ children }: any) => <li className='break-words'>{children}</li>,
-        code: ({ inline, className, children, ...props }: any) => {
-          const isInline = inline || !className?.includes('language-')
-
-          if (isInline) {
-            return (
-              <code
-                {...props}
-                className='whitespace-normal rounded bg-[var(--surface-5)] px-1 py-0.5 font-mono text-[var(--caution)] text-xs'
-              >
-                {children}
-              </code>
-            )
-          }
-
-          return (
-            <code
-              {...props}
-              className='block whitespace-pre-wrap break-words rounded bg-[var(--surface-5)] p-2 text-[var(--text-primary)] text-xs'
-            >
-              {children}
-            </code>
-          )
-        },
-        a: ({ href, children }: any) => {
-          const embedInfo = href ? getEmbedInfo(href) : null
-          if (embedInfo) {
-            return (
-              <span className='my-2 block w-full'>
-                <a
-                  href={href}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  className='mb-1 block break-all text-[var(--brand-secondary)] underline-offset-2 hover-hover:underline'
-                >
-                  {children}
-                </a>
-                <span className='block w-full overflow-hidden rounded-md'>
-                  {embedInfo.type === 'iframe' && (
-                    <span
-                      className='block overflow-hidden'
-                      style={{
-                        width: '100%',
-                        aspectRatio: embedInfo.aspectRatio || '16/9',
-                      }}
-                    >
-                      <iframe
-                        src={embedInfo.url}
-                        title='Media'
-                        allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
-                        allowFullScreen
-                        loading='lazy'
-                        className='origin-top-left'
-                        style={{
-                          width: EMBED_INVERSE_SCALE,
-                          height: EMBED_INVERSE_SCALE,
-                          transform: `scale(${EMBED_SCALE})`,
-                        }}
-                      />
-                    </span>
-                  )}
-                  {embedInfo.type === 'video' && (
-                    <video
-                      src={embedInfo.url}
-                      controls
-                      preload='metadata'
-                      className='aspect-video w-full'
-                    >
-                      <track kind='captions' src='' default />
-                    </video>
-                  )}
-                  {embedInfo.type === 'audio' && (
-                    <audio src={embedInfo.url} controls preload='metadata' className='w-full'>
-                      <track kind='captions' src='' default />
-                    </audio>
-                  )}
-                </span>
-              </span>
-            )
-          }
-          return (
-            <a
-              href={href}
-              target='_blank'
-              rel='noopener noreferrer'
-              className='break-all text-[var(--brand-secondary)] underline-offset-2 hover-hover:underline'
-            >
-              {children}
-            </a>
-          )
-        },
-        strong: ({ children }: any) => (
-          <strong className='break-words font-semibold text-[var(--text-primary)]'>
-            {children}
-          </strong>
-        ),
-        em: ({ children }: any) => (
-          <em className='break-words text-[var(--text-tertiary)]'>{children}</em>
-        ),
-        blockquote: ({ children }: any) => (
-          <blockquote className='my-4 break-words border-[var(--border-1)] border-l-4 py-1 pl-4 text-[var(--text-tertiary)] italic'>
-            {children}
-          </blockquote>
-        ),
-        table: ({ children }: any) => (
-          <div className='my-2 max-w-full overflow-x-auto'>
-            <table className='w-full border-collapse text-xs'>{children}</table>
-          </div>
-        ),
-        thead: ({ children }: any) => (
-          <thead className='border-[var(--border)] border-b'>{children}</thead>
-        ),
-        tbody: ({ children }: any) => <tbody>{children}</tbody>,
-        tr: ({ children }: any) => (
-          <tr className='border-[var(--border)] border-b last:border-b-0'>{children}</tr>
-        ),
-        th: ({ children }: any) => (
-          <th className='px-2 py-1 text-left font-semibold text-[var(--text-primary)]'>
-            {children}
-          </th>
-        ),
-        td: ({ children }: any) => (
-          <td className='px-2 py-1 text-[var(--text-secondary)]'>{children}</td>
-        ),
-      }}
-    >
+    <Streamdown mode='static' remarkPlugins={NOTE_REMARK_PLUGINS} components={NOTE_COMPONENTS}>
       {content}
-    </ReactMarkdown>
+    </Streamdown>
   )
 })
 

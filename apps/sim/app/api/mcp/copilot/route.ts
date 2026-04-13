@@ -17,14 +17,11 @@ import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { validateOAuthAccessToken } from '@/lib/auth/oauth-token'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import { ORCHESTRATION_TIMEOUT_MS, SIM_AGENT_API_URL } from '@/lib/copilot/constants'
-import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
-import { orchestrateSubagentStream } from '@/lib/copilot/orchestrator/subagent'
-import {
-  executeToolServerSide,
-  prepareExecutionContext,
-} from '@/lib/copilot/orchestrator/tool-executor'
+import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
+import { orchestrateSubagentStream } from '@/lib/copilot/request/subagent'
+import { ensureHandlersRegistered, executeTool } from '@/lib/copilot/tool-executor'
+import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { DIRECT_TOOL_DEFS, SUBAGENT_TOOL_DEFS } from '@/lib/copilot/tools/mcp/definitions'
 import { env } from '@/lib/core/config/env'
 import { RateLimiter } from '@/lib/core/rate-limiter'
@@ -125,11 +122,9 @@ Sim is a workflow automation platform. Workflows are visual pipelines of connect
 
 1. \`list_workspaces\` → know where to work
 2. \`create_workflow(name, workspaceId)\` → get a workflowId
-3. \`sim_build(request, workflowId)\` → plan and build in one pass
+3. \`sim_workflow(request, workflowId)\` → plan and build in one pass
 4. \`sim_test(request, workflowId)\` → verify it works
 5. \`sim_deploy("deploy as api", workflowId)\` → make it accessible externally (optional)
-
-For fine-grained control, use \`sim_plan\` → \`sim_edit\` instead of \`sim_build\`. Pass the plan object from sim_plan EXACTLY as-is to sim_edit's context.plan field.
 
 ### Working with Existing Workflows
 
@@ -148,8 +143,8 @@ When the user refers to a workflow by name or description ("the email one", "my 
 ### Key Rules
 
 - You can test workflows immediately after building — deployment is only needed for external access (API, chat, MCP).
-- All copilot tools (build, plan, edit, deploy, test, debug) require workflowId.
-- If the user reports errors → use \`sim_debug\` first, don't guess.
+- All workflow-scoped copilot tools require \`workflowId\`.
+- If the user reports errors, route through \`sim_workflow\` and ask it to reproduce, inspect logs, and fix the issue end to end.
 - Variable syntax: \`<blockname.field>\` for block outputs, \`{{ENV_VAR}}\` for env vars.
 `
 
@@ -645,7 +640,8 @@ async function handleDirectToolCall(
       startTime: Date.now(),
     }
 
-    const result = await executeToolServerSide(toolCall, execContext)
+    ensureHandlersRegistered()
+    const result = await executeTool(toolCall.name, toolCall.params || {}, execContext)
 
     return {
       content: [
@@ -672,7 +668,7 @@ async function handleDirectToolCall(
 
 /**
  * Build mode uses the main chat orchestrator with the 'fast' command instead of
- * the subagent endpoint. In Go, 'build' is not a registered subagent — it's a mode
+ * the subagent endpoint. In Go, 'workflow' is not a registered subagent — it's a mode
  * (ModeFast) on the main chat processor that bypasses subagent orchestration and
  * executes all tools directly.
  */
@@ -728,25 +724,10 @@ async function handleBuildToolCall(
       chatId,
     }
 
-    const executionId = generateId()
-    const runId = generateId()
-    const messageId = requestPayload.messageId as string
-
-    await createRunSegment({
-      id: runId,
-      executionId,
-      chatId,
-      userId,
-      workflowId: resolved.workflowId,
-      streamId: messageId,
-    }).catch(() => {})
-
-    const result = await orchestrateCopilotStream(requestPayload, {
+    const result = await runHeadlessCopilotLifecycle(requestPayload, {
       userId,
       workflowId: resolved.workflowId,
       chatId,
-      executionId,
-      runId,
       goRoute: '/api/mcp',
       autoExecuteTools: true,
       timeout: ORCHESTRATION_TIMEOUT_MS,
@@ -785,7 +766,7 @@ async function handleSubagentToolCall(
   userId: string,
   abortSignal?: AbortSignal
 ): Promise<CallToolResult> {
-  if (toolDef.agentId === 'build') {
+  if (toolDef.agentId === 'workflow') {
     return handleBuildToolCall(args, userId, abortSignal)
   }
 

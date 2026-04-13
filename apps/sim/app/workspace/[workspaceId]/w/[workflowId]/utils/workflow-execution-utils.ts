@@ -568,7 +568,9 @@ export interface WorkflowExecutionOptions {
   onStream?: (se: StreamingExecution) => Promise<void>
   executionId?: string
   onBlockComplete?: (blockId: string, output: any) => Promise<void>
-  overrideTriggerType?: 'chat' | 'manual' | 'api' | 'copilot'
+  overrideTriggerType?: 'chat' | 'manual' | 'api' | 'copilot' | 'webhook' | 'schedule'
+  triggerBlockId?: string
+  useDraftState?: boolean
   stopAfterBlockId?: string
   abortSignal?: AbortSignal
   /** For run_from_block / run_block: start from a specific block using cached state */
@@ -625,8 +627,9 @@ export async function executeWorkflowWithFullLogging(
     input: options.workflowInput,
     stream: true,
     triggerType: options.overrideTriggerType || 'manual',
-    useDraftState: true,
+    useDraftState: options.useDraftState ?? true,
     isClientSession: true,
+    ...(options.triggerBlockId ? { triggerBlockId: options.triggerBlockId } : {}),
     ...(options.stopAfterBlockId ? { stopAfterBlockId: options.stopAfterBlockId } : {}),
     ...(options.runFromBlock
       ? {

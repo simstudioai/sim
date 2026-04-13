@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { generatePptxFromCode } from '@/lib/execution/pptx-vm'
+import { generatePptxFromCode } from '@/lib/execution/doc-vm'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
 export const dynamic = 'force-dynamic'

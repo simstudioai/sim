@@ -10,7 +10,7 @@ import {
   createInternalServerErrorResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request-helpers'
+} from '@/lib/copilot/request/http'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CopilotFeedbackAPI')

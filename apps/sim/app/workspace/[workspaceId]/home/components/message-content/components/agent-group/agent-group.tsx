@@ -111,6 +111,7 @@ export function AgentGroup({
                     toolName={item.data.toolName}
                     displayTitle={item.data.displayTitle}
                     status={item.data.status}
+                    streamingArgs={item.data.streamingArgs}
                   />
                 ) : (
                   <span

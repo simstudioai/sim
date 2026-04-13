@@ -1,4 +1,4 @@
-import { getCopilotToolDescription } from '@/lib/copilot/tool-descriptions'
+import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
@@ -12,6 +12,7 @@ export function serializeWorkflowMeta(wf: {
   id: string
   name: string
   description?: string | null
+  folderId?: string | null
   isDeployed: boolean
   deployedAt?: Date | null
   runCount: number
@@ -24,6 +25,7 @@ export function serializeWorkflowMeta(wf: {
       id: wf.id,
       name: wf.name,
       description: wf.description || undefined,
+      folderId: wf.folderId || undefined,
       isDeployed: wf.isDeployed,
       deployedAt: wf.deployedAt?.toISOString(),
       runCount: wf.runCount,
@@ -559,7 +561,7 @@ export function serializeDeployments(data: DeploymentData): string {
     result.api = {
       isDeployed: true,
       deployedAt: data.deployedAt?.toISOString(),
-      apiEndpoint: `/api/workflows/${data.workflowId}/run`,
+      apiEndpoint: `/api/workflows/${data.workflowId}/execute`,
       ...(data.api ? { version: data.api.version } : {}),
     }
   }

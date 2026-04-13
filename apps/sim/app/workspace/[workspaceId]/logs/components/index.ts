@@ -1,5 +1,5 @@
 export { Dashboard } from './dashboard'
-export { LogDetails } from './log-details'
+export { LogDetails, WorkflowOutputSection } from './log-details'
 export { ExecutionSnapshot } from './log-details/components/execution-snapshot'
 export { FileCards } from './log-details/components/file-download'
 export { TraceSpans } from './log-details/components/trace-spans'

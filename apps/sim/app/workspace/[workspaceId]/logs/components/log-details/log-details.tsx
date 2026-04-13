@@ -45,7 +45,7 @@ import { MAX_LOG_DETAILS_WIDTH_RATIO, MIN_LOG_DETAILS_WIDTH } from '@/stores/log
 /**
  * Workflow Output section with code viewer, copy, search, and context menu functionality
  */
-const WorkflowOutputSection = memo(
+export const WorkflowOutputSection = memo(
   function WorkflowOutputSection({ output }: { output: Record<string, unknown> }) {
     const contentRef = useRef<HTMLDivElement>(null)
     const [copied, setCopied] = useState(false)
