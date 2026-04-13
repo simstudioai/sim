@@ -290,10 +290,14 @@ export function useCancelExecution() {
         method: 'POST',
       })
       if (!res.ok) throw new Error('Failed to cancel execution')
-      return res.json()
+      const data = await res.json()
+      if (!data.success) throw new Error('Failed to cancel execution')
+      return data
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: logKeys.all })
+      queryClient.invalidateQueries({ queryKey: logKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: logKeys.details() })
+      queryClient.invalidateQueries({ queryKey: [...logKeys.all, 'stats'] })
     },
   })
 }
