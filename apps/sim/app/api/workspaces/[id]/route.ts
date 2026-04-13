@@ -267,16 +267,33 @@ export async function DELETE(
   }
 
   try {
+    const [[workspaceRecord], totalWorkspaces] = await Promise.all([
+      db
+        .select({ name: workspace.name })
+        .from(workspace)
+        .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
+        .limit(1),
+      db
+        .select({ id: permissions.entityId })
+        .from(permissions)
+        .innerJoin(workspace, eq(permissions.entityId, workspace.id))
+        .where(
+          and(
+            eq(permissions.userId, session.user.id),
+            eq(permissions.entityType, 'workspace'),
+            isNull(workspace.archivedAt)
+          )
+        ),
+    ])
+
+    /** Counts all workspace memberships (any role), not just admin — prevents the user from reaching a zero-workspace state. */
+    if (totalWorkspaces.length <= 1) {
+      return NextResponse.json({ error: 'Cannot delete the only workspace' }, { status: 400 })
+    }
+
     logger.info(
       `Deleting workspace ${workspaceId} for user ${session.user.id}, deleteTemplates: ${deleteTemplates}`
     )
-
-    // Fetch workspace name before deletion for audit logging
-    const [workspaceRecord] = await db
-      .select({ name: workspace.name })
-      .from(workspace)
-      .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
-      .limit(1)
 
     const workspaceWorkflows = await db
       .select({ id: workflow.id })

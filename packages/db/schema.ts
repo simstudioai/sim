@@ -491,6 +491,9 @@ export const settings = pgTable('settings', {
   // Copilot auto-allowed integration tools - array of tool IDs that can run without confirmation
   copilotAutoAllowedTools: jsonb('copilot_auto_allowed_tools').notNull().default('[]'),
 
+  // Workspace navigation
+  lastActiveWorkspaceId: text('last_active_workspace_id'),
+
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 

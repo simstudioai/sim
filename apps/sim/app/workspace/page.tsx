@@ -1,120 +1,62 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
 import { useSession } from '@/lib/auth/auth-client'
+import { WorkspaceRecencyStorage } from '@/lib/core/utils/browser-storage'
+import { useWorkspacesWithMetadata } from '@/hooks/queries/workspace'
 
 const logger = createLogger('WorkspacePage')
 
 export default function WorkspacePage() {
   const router = useRouter()
-  const { data: session, isPending } = useSession()
+  const { data: session, isPending: isSessionPending } = useSession()
+  const isAuthenticated = !isSessionPending && !!session?.user
+  const hasRedirectedRef = useRef(false)
+
+  const { data, isLoading: isWorkspacesLoading } = useWorkspacesWithMetadata(isAuthenticated)
 
   useEffect(() => {
-    const redirectToFirstWorkspace = async () => {
-      // Wait for session to load
-      if (isPending) {
-        return
-      }
+    if (isSessionPending || hasRedirectedRef.current) return
 
-      // If user is not authenticated, redirect to login
-      if (!session?.user) {
-        logger.info('User not authenticated, redirecting to login')
-        router.replace('/login')
-        return
-      }
-
-      try {
-        // Check if we need to redirect a specific workflow from old URL format
-        const urlParams = new URLSearchParams(window.location.search)
-        const redirectWorkflowId = urlParams.get('redirect_workflow')
-
-        if (redirectWorkflowId) {
-          // Try to get the workspace for this workflow
-          try {
-            const workflowResponse = await fetch(`/api/workflows/${redirectWorkflowId}`)
-            if (workflowResponse.ok) {
-              const workflowData = await workflowResponse.json()
-              const workspaceId = workflowData.data?.workspaceId
-
-              if (workspaceId) {
-                logger.info(
-                  `Redirecting workflow ${redirectWorkflowId} to workspace ${workspaceId}`
-                )
-                router.replace(`/workspace/${workspaceId}/w/${redirectWorkflowId}`)
-                return
-              }
-            }
-          } catch (error) {
-            logger.error('Error fetching workflow for redirect:', error)
-          }
-        }
-
-        // Fetch user's workspaces
-        const response = await fetch('/api/workspaces')
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch workspaces')
-        }
-
-        const data = await response.json()
-        const workspaces = data.workspaces || []
-
-        if (workspaces.length === 0) {
-          logger.warn('No workspaces found for user, creating default workspace')
-
-          try {
-            const createResponse = await fetch('/api/workspaces', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ name: 'My Workspace' }),
-            })
-
-            if (createResponse.ok) {
-              const createData = await createResponse.json()
-              const newWorkspace = createData.workspace
-
-              if (newWorkspace?.id) {
-                logger.info(`Created default workspace: ${newWorkspace.id}`)
-                router.replace(`/workspace/${newWorkspace.id}/home`)
-                return
-              }
-            }
-
-            logger.error('Failed to create default workspace')
-          } catch (createError) {
-            logger.error('Error creating default workspace:', createError)
-          }
-
-          // If we can't create a workspace, redirect to login to reset state
-          router.replace('/login')
-          return
-        }
-
-        // Get the first workspace (they should be ordered by most recent)
-        const firstWorkspace = workspaces[0]
-        logger.info(`Redirecting to first workspace: ${firstWorkspace.id}`)
-
-        // Redirect to the first workspace
-        router.replace(`/workspace/${firstWorkspace.id}/home`)
-      } catch (error) {
-        logger.error('Error fetching workspaces for redirect:', error)
-        // Don't redirect if there's an error - let the user stay on the page
-      }
+    if (!session?.user) {
+      logger.info('User not authenticated, redirecting to login')
+      router.replace('/login')
+      return
     }
 
-    // Only run this logic when we're at the root /workspace path
-    // If we're already in a specific workspace, the children components will handle it
-    if (typeof window !== 'undefined' && window.location.pathname === '/workspace') {
-      redirectToFirstWorkspace()
-    }
-  }, [session, isPending, router])
+    if (isWorkspacesLoading || !data) return
 
-  // Show loading state while we determine where to redirect
-  if (isPending) {
+    hasRedirectedRef.current = true
+
+    const urlParams = new URLSearchParams(window.location.search)
+    const redirectWorkflowId = urlParams.get('redirect_workflow')
+
+    const { workspaces, lastActiveWorkspaceId } = data
+
+    if (workspaces.length === 0) {
+      handleNoWorkspaces(router)
+      return
+    }
+
+    const localRecentId = WorkspaceRecencyStorage.getMostRecent()
+    const findWorkspace = (id: string | null) =>
+      id ? workspaces.find((w) => w.id === id) : undefined
+
+    const targetWorkspace =
+      findWorkspace(localRecentId) ?? findWorkspace(lastActiveWorkspaceId) ?? workspaces[0]
+
+    if (redirectWorkflowId) {
+      handleWorkflowRedirect(redirectWorkflowId, targetWorkspace.id, router)
+      return
+    }
+
+    logger.info(`Redirecting to workspace: ${targetWorkspace.id}`)
+    router.replace(`/workspace/${targetWorkspace.id}/home`)
+  }, [session, isSessionPending, isWorkspacesLoading, data, router])
+
+  if (isSessionPending || isWorkspacesLoading) {
     return (
       <div className='flex h-screen w-full items-center justify-center'>
         <div
@@ -131,10 +73,50 @@ export default function WorkspacePage() {
     )
   }
 
-  // If user is not authenticated, show nothing (redirect will happen)
-  if (!session?.user) {
-    return null
-  }
-
   return null
+}
+
+async function handleWorkflowRedirect(
+  workflowId: string,
+  fallbackWorkspaceId: string,
+  router: ReturnType<typeof useRouter>
+): Promise<void> {
+  try {
+    const response = await fetch(`/api/workflows/${workflowId}`)
+    if (response.ok) {
+      const workflowData = await response.json()
+      const workspaceId = workflowData.data?.workspaceId
+      if (workspaceId) {
+        logger.info(`Redirecting workflow ${workflowId} to workspace ${workspaceId}`)
+        router.replace(`/workspace/${workspaceId}/w/${workflowId}`)
+        return
+      }
+    }
+  } catch (error) {
+    logger.error('Error fetching workflow for redirect:', error)
+  }
+  router.replace(`/workspace/${fallbackWorkspaceId}/home`)
+}
+
+async function handleNoWorkspaces(router: ReturnType<typeof useRouter>): Promise<void> {
+  logger.warn('No workspaces found, creating default workspace')
+  try {
+    const response = await fetch('/api/workspaces', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'My Workspace' }),
+    })
+    if (response.ok) {
+      const data = await response.json()
+      if (data.workspace?.id) {
+        logger.info(`Created default workspace: ${data.workspace.id}`)
+        router.replace(`/workspace/${data.workspace.id}/home`)
+        return
+      }
+    }
+    logger.error('Failed to create default workspace')
+  } catch (error) {
+    logger.error('Error creating default workspace:', error)
+  }
+  router.replace('/login')
 }
