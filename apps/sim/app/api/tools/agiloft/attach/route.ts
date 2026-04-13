@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { FileInputSchema, type RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
@@ -58,6 +59,17 @@ export async function POST(request: NextRequest) {
 
     const fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
     const resolvedFileName = data.fileName || userFile.name || 'attachment'
+
+    const urlValidation = await validateUrlWithDNS(data.instanceUrl, 'instanceUrl')
+    if (!urlValidation.isValid) {
+      logger.warn(`[${requestId}] SSRF attempt blocked for Agiloft instance URL`, {
+        instanceUrl: data.instanceUrl,
+      })
+      return NextResponse.json(
+        { success: false, error: urlValidation.error || 'Invalid instance URL' },
+        { status: 400 }
+      )
+    }
 
     const token = await agiloftLogin(data)
     const base = data.instanceUrl.replace(/\/$/, '')
