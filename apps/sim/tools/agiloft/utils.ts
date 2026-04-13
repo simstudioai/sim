@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { validateExternalUrl } from '@/lib/core/security/input-validation'
 import type {
   AgiloftAttachmentInfoParams,
   AgiloftBaseParams,
@@ -23,6 +24,26 @@ interface AgiloftRequestConfig {
 }
 
 /**
+ * Validates an Agiloft instance URL against SSRF attacks.
+ * Performs synchronous URL format checks and async DNS resolution
+ * to block requests to private/reserved IP addresses.
+ */
+async function validateAgiloftUrl(instanceUrl: string): Promise<void> {
+  const basicValidation = validateExternalUrl(instanceUrl, 'instanceUrl')
+  if (!basicValidation.isValid) {
+    throw new Error(`Invalid Agiloft instance URL: ${basicValidation.error}`)
+  }
+
+  // Dynamic import to avoid bundling Node.js dns module in client code.
+  // This function is only called from directExecution (server-side).
+  const { validateUrlWithDNS } = await import('@/lib/core/security/input-validation.server')
+  const dnsValidation = await validateUrlWithDNS(instanceUrl, 'instanceUrl')
+  if (!dnsValidation.isValid) {
+    throw new Error(`Agiloft instance URL blocked: ${dnsValidation.error}`)
+  }
+}
+
+/**
  * Exchanges login/password for a short-lived Bearer token via EWLogin.
  */
 async function agiloftLogin(params: AgiloftBaseParams): Promise<string> {
@@ -31,6 +52,8 @@ async function agiloftLogin(params: AgiloftBaseParams): Promise<string> {
   if (!base.startsWith('https://')) {
     throw new Error('Agiloft instanceUrl must use HTTPS to protect credentials')
   }
+
+  await validateAgiloftUrl(params.instanceUrl)
 
   const kb = encodeURIComponent(params.knowledgeBase)
   const login = encodeURIComponent(params.login)
