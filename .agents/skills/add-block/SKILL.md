@@ -14,6 +14,20 @@ When the user asks you to create a block:
 2. Configure all subBlocks with proper types, conditions, and dependencies
 3. Wire up tools correctly
 
+## Hard Rule: No Guessed Tool Outputs
+
+Blocks depend on tool outputs. If the underlying tool response schema is not documented or live-verified, you MUST tell the user instead of guessing block outputs.
+
+- Do NOT invent block outputs for undocumented tool responses
+- Do NOT describe unknown JSON shapes as if they were confirmed
+- Do NOT wire fields into the block just because they seem likely to exist
+
+If the tool outputs are not known, do one of these instead:
+1. Ask the user for sample tool responses
+2. Ask the user for test credentials so the tool responses can be verified
+3. Limit the block to operations whose outputs are documented
+4. Leave uncertain outputs out and explicitly tell the user what remains unknown
+
 ## Block Configuration Structure
 
 ```typescript
@@ -575,6 +589,8 @@ Use `type: 'json'` with a descriptive string when:
 - It represents a list/array of items
 - The shape varies by operation
 
+If the output shape is unknown because the underlying tool response is undocumented, you MUST tell the user and stop. Unknown is not the same as variable. Never guess block outputs.
+
 ## V2 Block Pattern
 
 When creating V2 blocks (alongside legacy V1):
@@ -829,3 +845,4 @@ After creating the block, you MUST validate it against every tool it references:
    - Type coercions in `tools.config.params` for any params that need conversion (Number(), Boolean(), JSON.parse())
 3. **Verify block outputs** cover the key fields returned by all tools
 4. **Verify conditions** — each subBlock should only show for the operations that actually use it
+5. **If any tool outputs are still unknown**, explicitly tell the user instead of guessing block outputs

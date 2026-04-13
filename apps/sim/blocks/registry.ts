@@ -30,6 +30,7 @@ import { CloudWatchBlock } from '@/blocks/blocks/cloudwatch'
 import { ConditionBlock } from '@/blocks/blocks/condition'
 import { ConfluenceBlock, ConfluenceV2Block } from '@/blocks/blocks/confluence'
 import { CredentialBlock } from '@/blocks/blocks/credential'
+import { CrowdStrikeBlock } from '@/blocks/blocks/crowdstrike'
 import { CursorBlock, CursorV2Block } from '@/blocks/blocks/cursor'
 import { DagsterBlock } from '@/blocks/blocks/dagster'
 import { DatabricksBlock } from '@/blocks/blocks/databricks'
@@ -249,6 +250,7 @@ export const registry: Record<string, BlockConfig> = {
   cloudflare: CloudflareBlock,
   cloudformation: CloudFormationBlock,
   cloudwatch: CloudWatchBlock,
+  crowdstrike: CrowdStrikeBlock,
   clay: ClayBlock,
   clerk: ClerkBlock,
   condition: ConditionBlock,

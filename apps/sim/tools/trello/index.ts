@@ -13,3 +13,5 @@ export {
   trelloGetActionsTool,
   trelloAddCommentTool,
 }
+
+export * from '@/tools/trello/types'

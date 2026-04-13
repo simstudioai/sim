@@ -66,7 +66,12 @@ vi.mock('@/lib/oauth/utils', () => ({
   getScopesForService: vi.fn(() => []),
 }))
 
-import { getApiKeyCondition } from '@/blocks/utils'
+import {
+  getApiKeyCondition,
+  parseOptionalBooleanInput,
+  parseOptionalJsonInput,
+  parseOptionalNumberInput,
+} from '@/blocks/utils'
 
 const BASE_CLOUD_MODELS: Record<string, string> = {
   'gpt-4o': 'openai',
@@ -263,5 +268,94 @@ describe('getApiKeyCondition / shouldRequireApiKeyForModel', () => {
       expect(evaluateCondition('mistral:latest')).toBe(true)
       expect(evaluateCondition('gpt-4o')).toBe(true)
     })
+  })
+})
+
+describe('parseOptionalJsonInput', () => {
+  it('returns undefined for empty values', () => {
+    expect(parseOptionalJsonInput('', 'payload')).toBeUndefined()
+    expect(parseOptionalJsonInput('   ', 'payload')).toBeUndefined()
+    expect(parseOptionalJsonInput(undefined, 'payload')).toBeUndefined()
+  })
+
+  it('parses JSON strings', () => {
+    expect(parseOptionalJsonInput('{"a":1}', 'payload')).toEqual({ a: 1 })
+    expect(parseOptionalJsonInput('["a","b"]', 'payload')).toEqual(['a', 'b'])
+  })
+
+  it('returns non-string values as-is', () => {
+    const value = { a: 1 }
+    expect(parseOptionalJsonInput(value, 'payload')).toBe(value)
+  })
+
+  it('throws a helpful error for invalid JSON', () => {
+    expect(() => parseOptionalJsonInput('{', 'payload')).toThrow(/Invalid JSON for payload/)
+  })
+})
+
+describe('parseOptionalNumberInput', () => {
+  it('returns undefined for empty values', () => {
+    expect(parseOptionalNumberInput('', 'limit')).toBeUndefined()
+    expect(parseOptionalNumberInput('   ', 'limit')).toBeUndefined()
+    expect(parseOptionalNumberInput(undefined, 'limit')).toBeUndefined()
+  })
+
+  it('parses number strings and number values', () => {
+    expect(parseOptionalNumberInput('42', 'limit')).toBe(42)
+    expect(parseOptionalNumberInput(7, 'limit')).toBe(7)
+  })
+
+  it('validates integer-only values', () => {
+    expect(parseOptionalNumberInput('42', 'limit', { integer: true })).toBe(42)
+    expect(() => parseOptionalNumberInput('1.5', 'limit', { integer: true })).toThrow(
+      /expected an integer/i
+    )
+  })
+
+  it('validates min and max bounds', () => {
+    expect(parseOptionalNumberInput('10', 'limit', { min: 1, max: 20 })).toBe(10)
+    expect(() => parseOptionalNumberInput('0', 'limit', { min: 1 })).toThrow(
+      /limit must be at least 1/i
+    )
+    expect(() => parseOptionalNumberInput('21', 'limit', { max: 20 })).toThrow(
+      /limit must be at most 20/i
+    )
+  })
+
+  it('throws a helpful error for invalid numbers', () => {
+    expect(() => parseOptionalNumberInput('abc', 'limit')).toThrow(/Invalid number for limit/i)
+  })
+})
+
+describe('parseOptionalBooleanInput', () => {
+  it('returns undefined for empty values', () => {
+    expect(parseOptionalBooleanInput('')).toBeUndefined()
+    expect(parseOptionalBooleanInput('   ')).toBeUndefined()
+    expect(parseOptionalBooleanInput(undefined)).toBeUndefined()
+  })
+
+  it('passes through boolean values', () => {
+    expect(parseOptionalBooleanInput(true)).toBe(true)
+    expect(parseOptionalBooleanInput(false)).toBe(false)
+  })
+
+  it('supports numeric boolean values', () => {
+    expect(parseOptionalBooleanInput(1)).toBe(true)
+    expect(parseOptionalBooleanInput(0)).toBe(false)
+    expect(parseOptionalBooleanInput(5)).toBe(true)
+  })
+
+  it('supports trimmed and case-insensitive string values', () => {
+    expect(parseOptionalBooleanInput('true')).toBe(true)
+    expect(parseOptionalBooleanInput(' TRUE ')).toBe(true)
+    expect(parseOptionalBooleanInput('1')).toBe(true)
+    expect(parseOptionalBooleanInput('false')).toBe(false)
+    expect(parseOptionalBooleanInput(' False ')).toBe(false)
+    expect(parseOptionalBooleanInput('0')).toBe(false)
+  })
+
+  it('returns undefined for unrecognized string values', () => {
+    expect(parseOptionalBooleanInput('yes')).toBeUndefined()
+    expect(parseOptionalBooleanInput('no')).toBeUndefined()
   })
 })
