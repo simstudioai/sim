@@ -364,7 +364,7 @@ export function WhitelabelingSettings() {
                 <input
                   ref={logoUpload.fileInputRef}
                   type='file'
-                  accept='image/png,image/jpeg,image/jpg,image/svg+xml'
+                  accept='image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'
                   onChange={logoUpload.handleFileChange}
                   className='hidden'
                 />
@@ -420,7 +420,7 @@ export function WhitelabelingSettings() {
                 <input
                   ref={wordmarkUpload.fileInputRef}
                   type='file'
-                  accept='image/png,image/jpeg,image/jpg,image/svg+xml'
+                  accept='image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'
                   onChange={wordmarkUpload.handleFileChange}
                   className='hidden'
                 />

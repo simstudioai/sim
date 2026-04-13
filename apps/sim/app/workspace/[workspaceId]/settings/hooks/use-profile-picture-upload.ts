@@ -4,7 +4,7 @@ import type { StorageContext } from '@/lib/uploads/shared/types'
 
 const logger = createLogger('ProfilePictureUpload')
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
-const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml']
+const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp']
 
 interface UseProfilePictureUploadProps {
   onUpload?: (url: string | null) => void
@@ -27,9 +27,18 @@ export function useProfilePictureUpload({
 }: UseProfilePictureUploadProps = {}) {
   const previewRef = useRef<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const onUploadRef = useRef(onUpload)
+  const onErrorRef = useRef(onError)
+  const currentImageRef = useRef(currentImage)
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentImage || null)
   const [fileName, setFileName] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
+
+  useEffect(() => {
+    onUploadRef.current = onUpload
+    onErrorRef.current = onError
+    currentImageRef.current = currentImage
+  }, [onUpload, onError, currentImage])
 
   useEffect(() => {
     if (previewRef.current && previewRef.current !== currentImage) {
@@ -44,7 +53,7 @@ export function useProfilePictureUpload({
       return `File "${file.name}" is too large. Maximum size is 5MB.`
     }
     if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      return `File "${file.name}" is not a supported image format. Please use PNG, JPEG, or SVG.`
+      return `File "${file.name}" is not a supported image format. Please use PNG, JPEG, SVG, or WebP.`
     }
     return null
   }, [])
@@ -88,7 +97,7 @@ export function useProfilePictureUpload({
     async (file: File) => {
       const validationError = validateFile(file)
       if (validationError) {
-        onError?.(validationError)
+        onErrorRef.current?.(validationError)
         return
       }
 
@@ -105,19 +114,19 @@ export function useProfilePictureUpload({
         URL.revokeObjectURL(newPreviewUrl)
         previewRef.current = null
         setPreviewUrl(serverUrl)
-        onUpload?.(serverUrl)
+        onUploadRef.current?.(serverUrl)
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : 'Failed to upload profile picture'
-        onError?.(errorMessage)
+        onErrorRef.current?.(errorMessage)
         URL.revokeObjectURL(newPreviewUrl)
         previewRef.current = null
-        setPreviewUrl(currentImage || null)
+        setPreviewUrl(currentImageRef.current || null)
       } finally {
         setIsUploading(false)
       }
     },
-    [onUpload, onError, uploadFileToServer, validateFile, currentImage]
+    [uploadFileToServer, validateFile]
   )
 
   const handleFileChange = useCallback(
@@ -147,8 +156,8 @@ export function useProfilePictureUpload({
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
-    onUpload?.(null)
-  }, [onUpload])
+    onUploadRef.current?.(null)
+  }, [])
 
   useEffect(() => {
     return () => {
