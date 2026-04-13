@@ -22,6 +22,7 @@ interface LogRowContextMenuProps {
   onOpenPreview: () => void
   onToggleWorkflowFilter: () => void
   onClearAllFilters: () => void
+  onCancelExecution: () => void
   isFilteredByThisWorkflow: boolean
   hasActiveFilters: boolean
 }
@@ -41,11 +42,13 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   onOpenPreview,
   onToggleWorkflowFilter,
   onClearAllFilters,
+  onCancelExecution,
   isFilteredByThisWorkflow,
   hasActiveFilters,
 }: LogRowContextMenuProps) {
   const hasExecutionId = Boolean(log?.executionId)
   const hasWorkflow = Boolean(log?.workflow?.id || log?.workflowId)
+  const isRunning = log?.status === 'running' && hasExecutionId && hasWorkflow
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -69,6 +72,15 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
         sideOffset={4}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
+        {isRunning && (
+          <>
+            <DropdownMenuItem onSelect={onCancelExecution} className='text-destructive'>
+              <X />
+              Cancel Execution
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuItem disabled={!hasExecutionId} onSelect={onCopyExecutionId}>
           <Copy />
           Copy Execution ID

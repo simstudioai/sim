@@ -54,6 +54,7 @@ import { getBlock } from '@/blocks/registry'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import {
   prefetchLogDetail,
+  useCancelExecution,
   useDashboardStats,
   useLogDetail,
   useLogsList,
@@ -532,6 +533,17 @@ export default function Logs() {
       setPreviewLogId(contextMenuLog.id)
       setIsPreviewOpen(true)
     }
+  }, [contextMenuLog])
+
+  const cancelExecution = useCancelExecution()
+
+  const handleCancelExecution = useCallback(() => {
+    const workflowId = contextMenuLog?.workflow?.id || contextMenuLog?.workflowId
+    const executionId = contextMenuLog?.executionId
+    if (workflowId && executionId) {
+      cancelExecution.mutate({ workflowId, executionId })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contextMenuLog])
 
   const contextMenuWorkflowId = contextMenuLog?.workflow?.id || contextMenuLog?.workflowId
@@ -1178,6 +1190,7 @@ export default function Logs() {
         onCopyLink={handleCopyLink}
         onOpenWorkflow={handleOpenWorkflow}
         onOpenPreview={handleOpenPreview}
+        onCancelExecution={handleCancelExecution}
         onToggleWorkflowFilter={handleToggleWorkflowFilter}
         onClearAllFilters={handleClearAllFilters}
         isFilteredByThisWorkflow={isFilteredByThisWorkflow}
