@@ -44,8 +44,6 @@ export const confluenceUpdateTaskTool: ToolConfig<
     provider: 'confluence',
   },
 
-  errorExtractor: 'atlassian-errors',
-
   params: {
     accessToken: {
       type: 'string',

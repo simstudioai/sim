@@ -17,8 +17,6 @@ export const jiraCreateIssueLinkTool: ToolConfig<
     provider: 'jira',
   },
 
-  errorExtractor: 'atlassian-errors',
-
   params: {
     accessToken: {
       type: 'string',

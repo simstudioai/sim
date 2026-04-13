@@ -37,8 +37,6 @@ export const confluenceListLabelsTool: ToolConfig<
     provider: 'confluence',
   },
 
-  errorExtractor: 'atlassian-errors',
-
   params: {
     accessToken: {
       type: 'string',

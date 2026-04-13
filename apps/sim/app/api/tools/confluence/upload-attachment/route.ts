@@ -5,6 +5,7 @@ import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
+import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 const logger = createLogger('ConfluenceUploadAttachmentAPI')
 
@@ -105,21 +106,16 @@ export async function POST(request: NextRequest) {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
+      const errorText = await response.text()
       logger.error('Confluence API error response:', {
         status: response.status,
         statusText: response.statusText,
-        error: JSON.stringify(errorData, null, 2),
+        error: errorText,
       })
-
-      let errorMessage = `Failed to upload attachment to Confluence (${response.status})`
-      if (errorData?.message) {
-        errorMessage = errorData.message
-      } else if (errorData?.errorMessage) {
-        errorMessage = errorData.errorMessage
-      }
-
-      return NextResponse.json({ error: errorMessage }, { status: response.status })
+      return NextResponse.json(
+        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
+        { status: response.status }
+      )
     }
 
     const data = await response.json()

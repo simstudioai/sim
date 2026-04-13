@@ -290,7 +290,7 @@ Return ONLY the description text - no explanations.`,
       title: 'Form Answers',
       type: 'long-input',
       placeholder:
-        'JSON object for form-based request types (e.g., {"summary": {"text": "Title"}, "customfield_10010": {"choices": ["10320"]}})',
+        'JSON object using form question IDs as keys (e.g., {"1": {"text": "Title"}, "4": {"choices": ["5"]}, "14": {"text": "Details"}})',
       mode: 'advanced',
       condition: { field: 'operation', value: 'create_request' },
     },

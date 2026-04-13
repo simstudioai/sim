@@ -39,8 +39,6 @@ export const confluenceListCommentsTool: ToolConfig<
     provider: 'confluence',
   },
 
-  errorExtractor: 'atlassian-errors',
-
   params: {
     accessToken: {
       type: 'string',
