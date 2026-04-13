@@ -8,8 +8,6 @@ import { getTemplateTool } from '@/tools/cloudformation/get_template'
 import { listStackResourcesTool } from '@/tools/cloudformation/list_stack_resources'
 import { validateTemplateTool } from '@/tools/cloudformation/validate_template'
 
-export * from './types'
-
 export const cloudformationDescribeStacksTool = describeStacksTool
 export const cloudformationListStackResourcesTool = listStackResourcesTool
 export const cloudformationDetectStackDriftTool = detectStackDriftTool

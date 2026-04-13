@@ -17,5 +17,3 @@ export const cloudwatchGetMetricStatisticsTool = getMetricStatisticsTool
 export const cloudwatchListMetricsTool = listMetricsTool
 export const cloudwatchPutMetricDataTool = putMetricDataTool
 export const cloudwatchQueryLogsTool = queryLogsTool
-
-export * from './types'
