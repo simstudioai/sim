@@ -214,7 +214,8 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
           <div className='hidden flex-1 lg:block' />
 
           <div
-            aria-hidden={!shouldShow}
+            aria-hidden={!shouldShow || undefined}
+            inert={!shouldShow || undefined}
             className={cn(
               'hidden items-center gap-2 pr-16 pl-5 transition-opacity duration-200 lg:flex',
               shouldShow ? 'opacity-100' : 'pointer-events-none opacity-0'
@@ -335,7 +336,8 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
             </ul>
 
             <div
-              aria-hidden={!shouldShow}
+              aria-hidden={!shouldShow || undefined}
+              inert={!shouldShow || undefined}
               className={cn(
                 'mt-auto flex flex-col gap-2.5 p-5 transition-opacity duration-200',
                 shouldShow ? 'opacity-100' : 'pointer-events-none opacity-0'
