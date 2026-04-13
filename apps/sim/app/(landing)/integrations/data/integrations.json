@@ -1520,7 +1520,7 @@
     "description": "Connect to AWS Security Token Service",
     "longDescription": "Integrate AWS STS into the workflow. Assume roles, get temporary credentials, verify caller identity, and look up access key information.",
     "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
-    "iconName": "IAMIcon",
+    "iconName": "STSIcon",
     "docsUrl": "https://docs.sim.ai/tools/sts",
     "operations": [
       {
@@ -2567,7 +2567,7 @@
     "authType": "none",
     "category": "tools",
     "integrationTypes": ["security", "analytics", "developer-tools"],
-    "tags": ["identity", "monitoring", "security"]
+    "tags": ["identity", "monitoring"]
   },
   {
     "type": "cursor_v2",
