@@ -493,6 +493,12 @@ export interface PostHogEventMap {
   scheduled_task_deleted: {
     workspace_id: string
   }
+
+  workspace_logo_uploaded: {
+    workspace_id: string
+    file_name: string
+    file_size: number
+  }
 }
 
 export type PostHogEventName = keyof PostHogEventMap
