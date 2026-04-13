@@ -68,7 +68,10 @@ export function useWorkspaceManagement({
     if (lastTouchedRef.current === id) return
     lastTouchedRef.current = id
     WorkspaceRecencyStorage.touch(id)
-    WorkspaceRecencyStorage.prune(new Set(workspacesRef.current.map((w) => w.id)))
+    const validIds = workspacesRef.current.map((w) => w.id)
+    if (validIds.length > 0) {
+      WorkspaceRecencyStorage.prune(new Set(validIds))
+    }
     setRecencySortKey((k) => k + 1)
 
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current)
