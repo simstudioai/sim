@@ -354,7 +354,6 @@ export function BYOK() {
                   }}
                   placeholder={PROVIDERS.find((p) => p.id === editingProvider)?.placeholder}
                   className='h-9 pr-9'
-                  autoFocus
                   name='byok_api_key'
                   autoComplete='off'
                   autoCorrect='off'

@@ -43,6 +43,7 @@ import { X } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
 import { Button } from '../button/button'
+import { focusFirstTextInput, focusFirstTextInputIn } from './auto-focus'
 
 /**
  * Shared animation classes for modal transitions.
@@ -137,58 +138,64 @@ export interface ModalContentProps
 const ModalContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   ModalContentProps
->(({ className, children, showClose = true, size = 'md', style, ...props }, ref) => {
-  const [isInteractionReady, setIsInteractionReady] = React.useState(false)
-  const pathname = usePathname()
-  const isWorkflowPage = pathname?.includes('/w/') ?? false
+>(
+  (
+    { className, children, showClose = true, size = 'md', style, onOpenAutoFocus, ...props },
+    ref
+  ) => {
+    const [isInteractionReady, setIsInteractionReady] = React.useState(false)
+    const pathname = usePathname()
+    const isWorkflowPage = pathname?.includes('/w/') ?? false
 
-  React.useEffect(() => {
-    const timer = setTimeout(() => setIsInteractionReady(true), 100)
-    return () => clearTimeout(timer)
-  }, [])
+    React.useEffect(() => {
+      const timer = setTimeout(() => setIsInteractionReady(true), 100)
+      return () => clearTimeout(timer)
+    }, [])
 
-  return (
-    <ModalPortal>
-      <ModalOverlay />
-      <div
-        className='pointer-events-none fixed inset-0 z-[var(--z-modal)] flex items-center justify-center'
-        style={{
-          paddingLeft: isWorkflowPage
-            ? 'calc(var(--sidebar-width) - var(--panel-width))'
-            : 'var(--sidebar-width)',
-        }}
-      >
-        <DialogPrimitive.Content
-          ref={ref}
-          className={cn(
-            'pointer-events-auto flex max-h-[84vh] flex-col overflow-hidden rounded-xl bg-[var(--bg)] text-small ring-1 ring-foreground/10',
-            ANIMATION_CLASSES,
-            'data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-200',
-            MODAL_SIZES[size],
-            className
-          )}
-          style={style}
-          onEscapeKeyDown={(e) => {
-            if (!isInteractionReady) {
-              e.preventDefault()
-              return
-            }
-            e.stopPropagation()
+    return (
+      <ModalPortal>
+        <ModalOverlay />
+        <div
+          className='pointer-events-none fixed inset-0 z-[var(--z-modal)] flex items-center justify-center'
+          style={{
+            paddingLeft: isWorkflowPage
+              ? 'calc(var(--sidebar-width) - var(--panel-width))'
+              : 'var(--sidebar-width)',
           }}
-          onPointerDown={(e) => {
-            e.stopPropagation()
-          }}
-          onPointerUp={(e) => {
-            e.stopPropagation()
-          }}
-          {...props}
         >
-          {children}
-        </DialogPrimitive.Content>
-      </div>
-    </ModalPortal>
-  )
-})
+          <DialogPrimitive.Content
+            ref={ref}
+            className={cn(
+              'pointer-events-auto flex max-h-[84vh] flex-col overflow-hidden rounded-xl bg-[var(--bg)] text-small ring-1 ring-foreground/10',
+              ANIMATION_CLASSES,
+              'data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-200',
+              MODAL_SIZES[size],
+              className
+            )}
+            style={style}
+            onEscapeKeyDown={(e) => {
+              if (!isInteractionReady) {
+                e.preventDefault()
+                return
+              }
+              e.stopPropagation()
+            }}
+            onPointerDown={(e) => {
+              e.stopPropagation()
+            }}
+            onPointerUp={(e) => {
+              e.stopPropagation()
+            }}
+            onOpenAutoFocus={onOpenAutoFocus ?? focusFirstTextInput}
+            {...props}
+          >
+            {children}
+          </DialogPrimitive.Content>
+        </div>
+      </ModalPortal>
+    )
+  }
+)
 
 ModalContent.displayName = 'ModalContent'
 
@@ -247,7 +254,27 @@ ModalDescription.displayName = 'ModalDescription'
 /**
  * Modal tabs root component. Wraps tab list and content panels.
  */
-const ModalTabs = TabsPrimitive.Root
+const ModalTabs = React.forwardRef<
+  React.ElementRef<typeof TabsPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Root>
+>(({ onValueChange, ...props }, ref) => {
+  const rootRef = React.useRef<HTMLDivElement>(null)
+  React.useImperativeHandle(ref, () => rootRef.current as HTMLDivElement, [])
+
+  const handleValueChange = (value: string) => {
+    onValueChange?.(value)
+    window.requestAnimationFrame(() => {
+      const root = rootRef.current
+      if (!root) return
+      const panel = root.querySelector<HTMLElement>('[role="tabpanel"][data-state="active"]')
+      focusFirstTextInputIn(panel)
+    })
+  }
+
+  return <TabsPrimitive.Root ref={rootRef} onValueChange={handleValueChange} {...props} />
+})
+
+ModalTabs.displayName = 'ModalTabs'
 
 interface ModalTabsListProps extends React.ComponentPropsWithoutRef<typeof TabsPrimitive.List> {
   /** Currently active tab value for indicator positioning */
@@ -346,6 +373,10 @@ ModalTabsTrigger.displayName = 'ModalTabsTrigger'
 /**
  * Modal tab content component. Content panel for each tab.
  * Includes bottom padding for consistent spacing across all tabbed modals.
+ *
+ * When this panel mounts (i.e. its tab becomes active), focus moves to the first
+ * visible text-entry input inside it so typing works immediately. Tabs with no
+ * text input are untouched.
  */
 const ModalTabsContent = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Content>,

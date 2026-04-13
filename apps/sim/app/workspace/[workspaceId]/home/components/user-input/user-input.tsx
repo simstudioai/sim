@@ -361,6 +361,7 @@ export function UserInput({
         } catch {
           // Invalid JSON — ignore
         }
+        textareaRef.current?.focus()
         return
       }
       const resourceJson = e.dataTransfer.getData(SIM_RESOURCE_DRAG_TYPE)
@@ -374,11 +375,13 @@ export function UserInput({
         } catch {
           // Invalid JSON — ignore
         }
+        textareaRef.current?.focus()
         return
       }
       filesRef.current.handleDrop(e)
+      requestAnimationFrame(() => textareaRef.current?.focus())
     },
-    [handleResourceSelect]
+    [handleResourceSelect, textareaRef]
   )
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -407,10 +410,11 @@ export function UserInput({
   }, [isSending, textareaRef])
 
   useEffect(() => {
-    if (isInitialView) {
+    const raf = window.requestAnimationFrame(() => {
       textareaRef.current?.focus()
-    }
-  }, [isInitialView, textareaRef])
+    })
+    return () => window.cancelAnimationFrame(raf)
+  }, [textareaRef])
 
   const handleContainerClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {

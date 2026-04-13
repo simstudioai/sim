@@ -94,7 +94,6 @@ export function RenameDocumentModal({
                   placeholder='Enter document name'
                   className={cn(error && 'border-[var(--text-error)]')}
                   disabled={isSubmitting}
-                  autoFocus
                   maxLength={255}
                   autoComplete='off'
                   autoCorrect='off'

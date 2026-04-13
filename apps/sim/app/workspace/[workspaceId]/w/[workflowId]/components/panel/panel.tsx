@@ -439,6 +439,17 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     return () => window.removeEventListener('mothership-send-message', handler)
   }, [setActiveTab, copilotSendMessage])
 
+  useEffect(() => {
+    if (activeTab !== 'copilot') return
+    const id = window.setTimeout(() => {
+      const textarea = document.querySelector<HTMLTextAreaElement>(
+        "[data-tab-content='copilot'] textarea"
+      )
+      textarea?.focus()
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [activeTab])
+
   /**
    * Handles tab click events
    */
