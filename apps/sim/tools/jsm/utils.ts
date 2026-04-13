@@ -1,16 +1,6 @@
 /**
  * Shared utilities for Jira Service Management tools
- * Reuses the getJiraCloudId and parseAtlassianErrorMessage from the Jira integration
  */
-/**
- * Re-export parseAtlassianErrorMessage as parseJsmErrorMessage for backwards compatibility.
- * All JSM routes already import this name.
- */
-export {
-  getJiraCloudId,
-  parseAtlassianErrorMessage,
-  parseAtlassianErrorMessage as parseJsmErrorMessage,
-} from '@/tools/jira/utils'
 
 /**
  * Build the base URL for JSM Service Desk API

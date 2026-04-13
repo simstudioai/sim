@@ -6,12 +6,8 @@ import {
   validateEnum,
   validateJiraCloudId,
 } from '@/lib/core/security/input-validation'
-import {
-  getJiraCloudId,
-  getJsmApiBaseUrl,
-  getJsmHeaders,
-  parseJsmErrorMessage,
-} from '@/tools/jsm/utils'
+import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
+import { getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -124,7 +120,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json(
         {
-          error: parseJsmErrorMessage(response.status, response.statusText, errorText),
+          error: parseAtlassianErrorMessage(response.status, response.statusText, errorText),
           details: errorText,
         },
         { status: response.status }
