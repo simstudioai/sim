@@ -4835,6 +4835,17 @@ export function WordpressIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function AgiloftIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 47.3 47.2' xmlns='http://www.w3.org/2000/svg'>
+      <path d='M47.3,21.4H0v-4.3l4.3-4.2h43V21.4z' fill='#263A5C' />
+      <path d='M47.3,8.6H8.6L17.2,0h30.1V8.6z' fill='#001028' />
+      <path d='M0,25.7h47.3V30L43,34.4H0V25.7z' fill='#4A6587' />
+      <path d='M0,38.7h38.8l-8.6,8.5H0V38.7z' fill='#6D8DAF' />
+    </svg>
+  )
+}
+
 export function AhrefsIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1065 1300'>
