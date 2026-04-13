@@ -145,3 +145,44 @@ export async function getJiraCloudId(domain: string, accessToken: string): Promi
       `Available sites: ${resources.map((r: { url: string }) => r.url).join(', ')}`
   )
 }
+
+/**
+ * Parse error messages from Atlassian API responses (Jira, JSM, Confluence).
+ * Handles all known error formats: errorMessage, errorMessages[], errors[].title/detail,
+ * field-level errors object, and generic message fallback.
+ */
+export function parseAtlassianErrorMessage(
+  status: number,
+  statusText: string,
+  errorText: string
+): string {
+  try {
+    const errorData = JSON.parse(errorText)
+    if (errorData.errorMessage) {
+      return errorData.errorMessage
+    }
+    if (Array.isArray(errorData.errorMessages) && errorData.errorMessages.length > 0) {
+      return errorData.errorMessages.join(', ')
+    }
+    if (Array.isArray(errorData.errors) && errorData.errors.length > 0) {
+      const err = errorData.errors[0]
+      if (err?.title) {
+        return err.detail ? `${err.title}: ${err.detail}` : err.title
+      }
+    }
+    if (errorData.errors && !Array.isArray(errorData.errors)) {
+      const fieldErrors = Object.entries(errorData.errors)
+        .map(([field, msg]) => `${field}: ${msg}`)
+        .join(', ')
+      if (fieldErrors) return fieldErrors
+    }
+    if (errorData.message) {
+      return errorData.message
+    }
+  } catch {
+    if (errorText) {
+      return errorText
+    }
+  }
+  return `${status} ${statusText}`
+}

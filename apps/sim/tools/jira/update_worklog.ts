@@ -58,8 +58,6 @@ export const jiraUpdateWorklogTool: ToolConfig<JiraUpdateWorklogParams, JiraUpda
       provider: 'jira',
     },
 
-    errorExtractor: 'atlassian-errors',
-
     params: {
       accessToken: {
         type: 'string',

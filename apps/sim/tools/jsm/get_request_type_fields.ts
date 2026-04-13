@@ -20,8 +20,6 @@ export const jsmGetRequestTypeFieldsTool: ToolConfig<
     provider: 'jira',
   },
 
-  errorExtractor: 'atlassian-errors',
-
   params: {
     accessToken: {
       type: 'string',
