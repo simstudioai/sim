@@ -8,7 +8,7 @@ export const getAccessKeyInfoTool: ToolConfig<
   id: 'sts_get_access_key_info',
   name: 'STS Get Access Key Info',
   description: 'Get the AWS account ID associated with an access key',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     region: {

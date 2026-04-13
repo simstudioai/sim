@@ -8,7 +8,7 @@ export const getCallerIdentityTool: ToolConfig<
   id: 'sts_get_caller_identity',
   name: 'STS Get Caller Identity',
   description: 'Get details about the IAM user or role whose credentials are used to call the API',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     region: {

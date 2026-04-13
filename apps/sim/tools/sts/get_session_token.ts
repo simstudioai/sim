@@ -6,7 +6,7 @@ export const getSessionTokenTool: ToolConfig<STSGetSessionTokenParams, STSGetSes
     id: 'sts_get_session_token',
     name: 'STS Get Session Token',
     description: 'Get temporary security credentials for an IAM user, optionally with MFA',
-    version: '1.0',
+    version: '1.0.0',
 
     params: {
       region: {

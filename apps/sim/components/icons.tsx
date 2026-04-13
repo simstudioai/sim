@@ -4643,6 +4643,24 @@ export function IAMIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function STSIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'>
+      <defs>
+        <linearGradient x1='0%' y1='100%' x2='100%' y2='0%' id='stsGradient'>
+          <stop stopColor='#BD0816' offset='0%' />
+          <stop stopColor='#FF5252' offset='100%' />
+        </linearGradient>
+      </defs>
+      <rect fill='url(#stsGradient)' width='80' height='80' />
+      <path
+        d='M45,36 L47,36 L47,28 L45,28 L45,36 Z M41,36 L43,36 L43,28 L41,28 L41,36 Z M37,36 L39,36 L39,28 L37,28 L37,36 Z M33,36 L35,36 L35,28 L33,28 L33,36 Z M51,26 L51,38 C51,38.552 50.553,39 50,39 L30,39 C29.447,39 29,38.552 29,38 L29,26 C29,25.448 29.447,25 30,25 L50,25 C50.553,25 51,25.448 51,26 L51,26 Z M31,37 L49,37 L49,27 L31,27 L31,37 Z M36,55 C36,52.794 37.794,51 40,51 C42.206,51 44,52.794 44,55 C44,57.206 42.206,59 40,59 C37.794,59 36,57.206 36,55 L36,55 Z M40,49 C36.691,49 34,51.691 34,55 C34,58.309 36.691,61 40,61 C43.309,61 46,58.309 46,55 C46,51.691 43.309,49 40,49 L40,49 Z M39,56 L41,56 L41,54 L39,54 L39,56 Z M18,55 L32,55 L32,53 L18,53 L18,55 Z M48,55 L62,55 L62,53 L48,53 L48,55 Z M39,49 L41,49 L41,39 L39,39 L39,49 Z M14,17 L14,67 L66,67 L66,17 L14,17 Z M12,16 C12,15.448 12.447,15 13,15 L67,15 C67.553,15 68,15.448 68,16 L68,68 C68,68.552 67.553,69 67,69 L13,69 C12.447,69 12,68.552 12,68 L12,16 Z'
+        fill='#FFFFFF'
+      />
+    </svg>
+  )
+}
+
 export function SecretsManagerIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'>

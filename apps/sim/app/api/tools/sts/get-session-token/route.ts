@@ -11,7 +11,7 @@ const GetSessionTokenSchema = z.object({
   region: z.string().min(1, 'AWS region is required'),
   accessKeyId: z.string().min(1, 'AWS access key ID is required'),
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  durationSeconds: z.number().nullish(),
+  durationSeconds: z.number().int().min(900).max(129600).nullish(),
   serialNumber: z.string().nullish(),
   tokenCode: z.string().nullish(),
 })

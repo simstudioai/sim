@@ -5,7 +5,7 @@ export const assumeRoleTool: ToolConfig<STSAssumeRoleParams, STSAssumeRoleRespon
   id: 'sts_assume_role',
   name: 'STS Assume Role',
   description: 'Assume an IAM role and receive temporary security credentials',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     region: {

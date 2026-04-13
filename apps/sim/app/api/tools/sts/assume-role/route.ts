@@ -13,7 +13,7 @@ const AssumeRoleSchema = z.object({
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
   roleArn: z.string().min(1, 'Role ARN is required'),
   roleSessionName: z.string().min(1, 'Role session name is required'),
-  durationSeconds: z.number().nullish(),
+  durationSeconds: z.number().int().min(900).max(43200).nullish(),
   externalId: z.string().nullish(),
   serialNumber: z.string().nullish(),
   tokenCode: z.string().nullish(),

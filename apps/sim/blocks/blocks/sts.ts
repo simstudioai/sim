@@ -1,4 +1,4 @@
-import { IAMIcon } from '@/components/icons'
+import { STSIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { STSBaseResponse } from '@/tools/sts/types'
@@ -15,7 +15,7 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
   tags: ['cloud'],
   authMode: AuthMode.ApiKey,
   bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',
-  icon: IAMIcon,
+  icon: STSIcon,
   subBlocks: [
     {
       id: 'operation',
