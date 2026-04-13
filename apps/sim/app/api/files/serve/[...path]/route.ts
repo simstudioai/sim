@@ -95,7 +95,9 @@ export async function GET(
     const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
 
     const isPublicByKeyPrefix =
-      cloudKey.startsWith('profile-pictures/') || cloudKey.startsWith('og-images/')
+      cloudKey.startsWith('profile-pictures/') ||
+      cloudKey.startsWith('og-images/') ||
+      cloudKey.startsWith('workspace-logos/')
 
     if (isPublicByKeyPrefix) {
       const context = inferContextFromKey(cloudKey)

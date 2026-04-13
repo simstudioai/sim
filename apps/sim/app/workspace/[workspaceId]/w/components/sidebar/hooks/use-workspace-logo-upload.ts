@@ -1,90 +1,85 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import type { StorageContext } from '@/lib/uploads/shared/types'
 
-const logger = createLogger('ProfilePictureUpload')
+const logger = createLogger('WorkspaceLogoUpload')
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
-const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml']
+const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp']
 
-interface UseProfilePictureUploadProps {
+interface UseWorkspaceLogoUploadProps {
+  currentLogoUrl?: string | null
   onUpload?: (url: string | null) => void
   onError?: (error: string) => void
-  currentImage?: string | null
-  context?: StorageContext
 }
 
 /**
- * Hook for handling profile picture upload functionality.
+ * Hook for handling workspace logo upload functionality.
  * Manages file validation, preview generation, and server upload.
  */
-export function useProfilePictureUpload({
+export function useWorkspaceLogoUpload({
+  currentLogoUrl,
   onUpload,
   onError,
-  currentImage,
-  context = 'profile-pictures',
-}: UseProfilePictureUploadProps = {}) {
+}: UseWorkspaceLogoUploadProps = {}) {
   const previewRef = useRef<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(currentImage || null)
-  const [fileName, setFileName] = useState<string | null>(null)
+  const onUploadRef = useRef(onUpload)
+  const onErrorRef = useRef(onError)
+  const currentLogoUrlRef = useRef(currentLogoUrl)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(currentLogoUrl || null)
   const [isUploading, setIsUploading] = useState(false)
 
   useEffect(() => {
-    if (previewRef.current && previewRef.current !== currentImage) {
+    onUploadRef.current = onUpload
+    onErrorRef.current = onError
+    currentLogoUrlRef.current = currentLogoUrl
+  }, [onUpload, onError, currentLogoUrl])
+
+  useEffect(() => {
+    if (previewRef.current && previewRef.current !== currentLogoUrl) {
       URL.revokeObjectURL(previewRef.current)
       previewRef.current = null
     }
-    setPreviewUrl(currentImage || null)
-  }, [currentImage])
+    setPreviewUrl(currentLogoUrl || null)
+  }, [currentLogoUrl])
 
   const validateFile = useCallback((file: File): string | null => {
     if (file.size > MAX_FILE_SIZE) {
       return `File "${file.name}" is too large. Maximum size is 5MB.`
     }
     if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      return `File "${file.name}" is not a supported image format. Please use PNG, JPEG, or SVG.`
+      return `File "${file.name}" is not a supported image format. Please use PNG, JPEG, SVG, or WebP.`
     }
     return null
   }, [])
 
-  const handleThumbnailClick = useCallback(() => {
-    fileInputRef.current?.click()
-  }, [])
-
   const uploadFileToServer = useCallback(async (file: File): Promise<string> => {
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('context', context)
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('context', 'workspace-logos')
 
-      const response = await fetch('/api/files/upload', {
-        method: 'POST',
-        body: formData,
-      })
+    const response = await fetch('/api/files/upload', {
+      method: 'POST',
+      body: formData,
+    })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: response.statusText }))
-        throw new Error(errorData.error || `Failed to upload file: ${response.status}`)
-      }
-
-      const data = await response.json()
-      const publicUrl = data.fileInfo?.path || data.path || data.url
-      logger.info(`Profile picture uploaded successfully via server upload: ${publicUrl}`)
-      return publicUrl
-    } catch (error) {
-      throw new Error(error instanceof Error ? error.message : 'Failed to upload profile picture')
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: response.statusText }))
+      throw new Error(errorData.error || `Failed to upload file: ${response.status}`)
     }
-  }, [context])
+
+    const data = await response.json()
+    const publicUrl = data.fileInfo?.path || data.path || data.url
+    logger.info(`Workspace logo uploaded successfully: ${publicUrl}`)
+    return publicUrl
+  }, [])
 
   const processFile = useCallback(
     async (file: File) => {
       const validationError = validateFile(file)
       if (validationError) {
-        onError?.(validationError)
+        onErrorRef.current?.(validationError)
         return
       }
-
-      setFileName(file.name)
 
       const newPreviewUrl = URL.createObjectURL(file)
       if (previewRef.current) URL.revokeObjectURL(previewRef.current)
@@ -97,34 +92,26 @@ export function useProfilePictureUpload({
         URL.revokeObjectURL(newPreviewUrl)
         previewRef.current = null
         setPreviewUrl(serverUrl)
-        onUpload?.(serverUrl)
+        onUploadRef.current?.(serverUrl)
       } catch (error) {
         const errorMessage =
-          error instanceof Error ? error.message : 'Failed to upload profile picture'
-        onError?.(errorMessage)
+          error instanceof Error ? error.message : 'Failed to upload workspace logo'
+        onErrorRef.current?.(errorMessage)
         URL.revokeObjectURL(newPreviewUrl)
         previewRef.current = null
-        setPreviewUrl(currentImage || null)
+        setPreviewUrl(currentLogoUrlRef.current || null)
       } finally {
         setIsUploading(false)
       }
     },
-    [onUpload, onError, uploadFileToServer, validateFile, currentImage]
+    [uploadFileToServer, validateFile]
   )
 
   const handleFileChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0]
       if (file) processFile(file)
-    },
-    [processFile]
-  )
-
-  const handleFileDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault()
-      const file = e.dataTransfer.files[0]
-      if (file) processFile(file)
+      if (event.target) event.target.value = ''
     },
     [processFile]
   )
@@ -135,12 +122,11 @@ export function useProfilePictureUpload({
       previewRef.current = null
     }
     setPreviewUrl(null)
-    setFileName(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
-    onUpload?.(null)
-  }, [onUpload])
+    onUploadRef.current?.(null)
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -152,11 +138,8 @@ export function useProfilePictureUpload({
 
   return {
     previewUrl,
-    fileName,
     fileInputRef,
-    handleThumbnailClick,
     handleFileChange,
-    handleFileDrop,
     handleRemove,
     isUploading,
   }

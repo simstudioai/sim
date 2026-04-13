@@ -71,7 +71,9 @@ import {
   useSidebarResize,
   useTaskSelection,
   useWorkflowOperations,
+  useWorkspaceLogoUpload,
   useWorkspaceManagement,
+  type Workspace,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
   createSidebarDragGhost,
@@ -459,6 +461,20 @@ export const Sidebar = memo(function Sidebar() {
     workspaceId,
     sessionUserId: sessionData?.user?.id,
   })
+
+  const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId)
+  const logoTargetWorkspaceIdRef = useRef<string>(workspaceId)
+
+  const { fileInputRef: logoFileInputRef, handleFileChange: handleLogoFileChange } =
+    useWorkspaceLogoUpload({
+      currentLogoUrl: activeWorkspaceFull?.logoUrl,
+      onUpload: (url) => {
+        updateWorkspace(logoTargetWorkspaceIdRef.current, { logoUrl: url })
+      },
+      onError: (error) => {
+        logger.error('Workspace logo upload error:', error)
+      },
+    })
 
   const { handleMouseDown, isResizing } = useSidebarResize()
 
@@ -980,7 +996,7 @@ export const Sidebar = memo(function Sidebar() {
   }, [])
 
   const handleWorkspaceSwitch = useCallback(
-    async (workspace: { id: string; name: string; ownerId: string; role?: string }) => {
+    async (workspace: Workspace) => {
       if (workspace.id === workspaceId) {
         setIsWorkspaceMenuOpen(false)
         return
@@ -1013,6 +1029,21 @@ export const Sidebar = memo(function Sidebar() {
   const handleColorChangeWorkspace = useCallback(
     async (workspaceIdToUpdate: string, color: string) => {
       await updateWorkspace(workspaceIdToUpdate, { color })
+    },
+    [updateWorkspace]
+  )
+
+  const handleUploadLogo = useCallback(
+    (workspaceIdToUpdate: string) => {
+      logoTargetWorkspaceIdRef.current = workspaceIdToUpdate
+      logoFileInputRef.current?.click()
+    },
+    [logoFileInputRef]
+  )
+
+  const handleRemoveLogo = useCallback(
+    async (workspaceIdToUpdate: string) => {
+      await updateWorkspace(workspaceIdToUpdate, { logoUrl: null })
     },
     [updateWorkspace]
   )
@@ -1232,6 +1263,13 @@ export const Sidebar = memo(function Sidebar() {
 
   return (
     <>
+      <input
+        ref={logoFileInputRef}
+        type='file'
+        accept='image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'
+        className='hidden'
+        onChange={handleLogoFileChange}
+      />
       <div className='relative h-full'>
         <aside
           ref={sidebarRef}
@@ -1334,6 +1372,8 @@ export const Sidebar = memo(function Sidebar() {
                 onImportWorkspace={handleImportWorkspace}
                 isImportingWorkspace={isImportingWorkspace}
                 onColorChange={handleColorChangeWorkspace}
+                onUploadLogo={handleUploadLogo}
+                onRemoveLogo={handleRemoveLogo}
                 onLeaveWorkspace={handleLeaveWorkspaceWrapper}
                 isLeavingWorkspace={isLeavingWorkspace}
                 sessionUserId={sessionData?.user?.id}

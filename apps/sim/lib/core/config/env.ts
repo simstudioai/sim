@@ -170,6 +170,7 @@ export const env = createEnv({
     S3_COPILOT_BUCKET_NAME:                z.string().optional(),                  // S3 bucket for copilot files
     S3_PROFILE_PICTURES_BUCKET_NAME:       z.string().optional(),                  // S3 bucket for profile pictures
     S3_OG_IMAGES_BUCKET_NAME:              z.string().optional(),                  // S3 bucket for OpenGraph images
+    S3_WORKSPACE_LOGOS_BUCKET_NAME:        z.string().optional(),                  // S3 bucket for workspace logos
 
     // Cloud Storage - Azure Blob 
     AZURE_ACCOUNT_NAME:                    z.string().optional(),                  // Azure storage account name
@@ -182,6 +183,7 @@ export const env = createEnv({
     AZURE_STORAGE_COPILOT_CONTAINER_NAME:  z.string().optional(),                  // Azure container for copilot files
     AZURE_STORAGE_PROFILE_PICTURES_CONTAINER_NAME: z.string().optional(),          // Azure container for profile pictures
     AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME: z.string().optional(),                 // Azure container for OpenGraph images
+    AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME: z.string().optional(),            // Azure container for workspace logos
 
     // Data Retention
     FREE_PLAN_LOG_RETENTION_DAYS:          z.string().optional(),                  // Log retention days for free plan users

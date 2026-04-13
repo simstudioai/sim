@@ -127,7 +127,10 @@ export function useWorkspaceManagement({
   }, [workspaces, isWorkspacesLoading, isWorkspacesFetching])
 
   const updateWorkspace = useCallback(
-    async (workspaceId: string, updates: { name?: string; color?: string }): Promise<boolean> => {
+    async (
+      workspaceId: string,
+      updates: { name?: string; color?: string; logoUrl?: string | null }
+    ): Promise<boolean> => {
       try {
         await updateWorkspaceMutation.mutateAsync({ workspaceId, ...updates })
         logger.info('Successfully updated workspace:', updates)

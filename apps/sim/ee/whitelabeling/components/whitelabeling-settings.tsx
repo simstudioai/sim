@@ -197,12 +197,14 @@ export function WhitelabelingSettings() {
     currentImage: logoUrl,
     onUpload: (url) => setLogoUrl(url),
     onError: (error) => setSaveError(error),
+    context: 'workspace-logos',
   })
 
   const wordmarkUpload = useProfilePictureUpload({
     currentImage: wordmarkUrl,
     onUpload: (url) => setWordmarkUrl(url),
     onError: (error) => setSaveError(error),
+    context: 'workspace-logos',
   })
 
   const handleSave = useCallback(async () => {

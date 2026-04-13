@@ -17,6 +17,7 @@ import { ChevronDown } from '@/components/emcn/icons'
 import { Trash } from '@/components/emcn/icons/trash'
 import { filterButtonClass } from '@/app/workspace/[workspaceId]/knowledge/components/constants'
 import { useUpdateKnowledgeBase } from '@/hooks/queries/kb/knowledge'
+import type { Workspace } from '@/hooks/queries/workspace'
 
 const logger = createLogger('KnowledgeHeader')
 
@@ -46,12 +47,6 @@ interface KnowledgeHeaderOptions {
 interface KnowledgeHeaderProps {
   breadcrumbs: BreadcrumbItem[]
   options?: KnowledgeHeaderOptions
-}
-
-interface Workspace {
-  id: string
-  name: string
-  permissions: 'admin' | 'write' | 'read'
 }
 
 export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) {

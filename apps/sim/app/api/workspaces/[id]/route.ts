@@ -20,6 +20,7 @@ const patchWorkspaceSchema = z.object({
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/)
     .optional(),
+  logoUrl: z.string().min(1).nullable().optional(),
   billedAccountUserId: z.string().optional(),
   allowPersonalApiKeys: z.boolean().optional(),
 })
@@ -119,11 +120,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   try {
     const body = patchWorkspaceSchema.parse(await request.json())
-    const { name, color, billedAccountUserId, allowPersonalApiKeys } = body
+    const { name, color, logoUrl, billedAccountUserId, allowPersonalApiKeys } = body
 
     if (
       name === undefined &&
       color === undefined &&
+      logoUrl === undefined &&
       billedAccountUserId === undefined &&
       allowPersonalApiKeys === undefined
     ) {
@@ -148,6 +150,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     if (color !== undefined) {
       updateData.color = color
+    }
+
+    if (logoUrl !== undefined) {
+      updateData.logoUrl = logoUrl
     }
 
     if (allowPersonalApiKeys !== undefined) {
@@ -216,6 +222,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         changes: {
           ...(name !== undefined && { name: { from: existingWorkspace.name, to: name } }),
           ...(color !== undefined && { color: { from: existingWorkspace.color, to: color } }),
+          ...(logoUrl !== undefined && {
+            logoUrl: { from: existingWorkspace.logoUrl, to: logoUrl },
+          }),
           ...(allowPersonalApiKeys !== undefined && {
             allowPersonalApiKeys: {
               from: existingWorkspace.allowPersonalApiKeys,
