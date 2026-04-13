@@ -373,7 +373,9 @@ export function WorkspaceHeader({
                   ) : (
                     <div
                       className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-caption text-white leading-none'
-                      style={{ backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)' }}
+                      style={{
+                        backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)',
+                      }}
                     >
                       {workspaceInitial}
                     </div>

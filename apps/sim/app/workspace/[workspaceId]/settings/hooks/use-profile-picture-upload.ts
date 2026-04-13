@@ -51,30 +51,33 @@ export function useProfilePictureUpload({
     fileInputRef.current?.click()
   }, [])
 
-  const uploadFileToServer = useCallback(async (file: File): Promise<string> => {
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('context', context)
+  const uploadFileToServer = useCallback(
+    async (file: File): Promise<string> => {
+      try {
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('context', context)
 
-      const response = await fetch('/api/files/upload', {
-        method: 'POST',
-        body: formData,
-      })
+        const response = await fetch('/api/files/upload', {
+          method: 'POST',
+          body: formData,
+        })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: response.statusText }))
-        throw new Error(errorData.error || `Failed to upload file: ${response.status}`)
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: response.statusText }))
+          throw new Error(errorData.error || `Failed to upload file: ${response.status}`)
+        }
+
+        const data = await response.json()
+        const publicUrl = data.fileInfo?.path || data.path || data.url
+        logger.info(`Profile picture uploaded successfully via server upload: ${publicUrl}`)
+        return publicUrl
+      } catch (error) {
+        throw new Error(error instanceof Error ? error.message : 'Failed to upload profile picture')
       }
-
-      const data = await response.json()
-      const publicUrl = data.fileInfo?.path || data.path || data.url
-      logger.info(`Profile picture uploaded successfully via server upload: ${publicUrl}`)
-      return publicUrl
-    } catch (error) {
-      throw new Error(error instanceof Error ? error.message : 'Failed to upload profile picture')
-    }
-  }, [context])
+    },
+    [context]
+  )
 
   const processFile = useCallback(
     async (file: File) => {

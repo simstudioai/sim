@@ -11,20 +11,20 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[AWS CloudWatch](https://aws.amazon.com/cloudwatch/) is a monitoring and observability service that provides data and actionable insights for AWS resources, applications, and services. CloudWatch collects monitoring and operational data in the form of logs, metrics, and events, giving you a unified view of your AWS environment.
+[Amazon CloudWatch](https://aws.amazon.com/cloudwatch/) is a monitoring and observability service that collects and tracks metrics, collects and monitors log files, and sets alarms for your AWS resources. CloudWatch provides a unified view of operational health across your AWS infrastructure and applications.
 
 With the CloudWatch integration, you can:
 
-- **Query Logs (Insights)**: Run CloudWatch Log Insights queries against one or more log groups to analyze log data with a powerful query language
-- **Describe Log Groups**: List available CloudWatch log groups in your account, optionally filtered by name prefix
-- **Get Log Events**: Retrieve log events from a specific log stream within a log group
-- **Describe Log Streams**: List log streams within a log group, ordered by last event time or filtered by name prefix
-- **List Metrics**: Browse available CloudWatch metrics, optionally filtered by namespace, metric name, or recent activity
-- **Get Metric Statistics**: Retrieve statistical data for a metric over a specified time range with configurable granularity
-- **Publish Metric**: Publish custom metric data points to CloudWatch for your own application monitoring
-- **Describe Alarms**: List and filter CloudWatch alarms by name prefix, state, or alarm type
+- **Query Logs (Insights)**: Run powerful CloudWatch Log Insights queries across one or more log groups to search, analyze, and visualize your log data
+- **Describe Log Groups**: List available log groups in your account with metadata like stored bytes, retention settings, and creation time
+- **Get Log Events**: Retrieve individual log events from a specific log stream with optional time range filtering
+- **Describe Log Streams**: List log streams within a log group, sorted by last event time or filtered by name prefix
+- **List Metrics**: Browse available CloudWatch metrics, filtered by namespace or metric name, with support for recently active metrics
+- **Get Metric Statistics**: Retrieve statistical data (average, sum, min, max, sample count) for a metric over a specified time range and period
+- **Publish Metric**: Publish custom metric data points to CloudWatch with optional units and dimensions
+- **Describe Alarms**: List and filter CloudWatch alarms by name prefix, state (OK, ALARM, INSUFFICIENT_DATA), or type (Metric, Composite)
 
-In Sim, the CloudWatch integration enables your agents to monitor AWS infrastructure, analyze application logs, track custom metrics, and respond to alarm states as part of automated DevOps and SRE workflows. This is especially powerful when combined with other AWS integrations like CloudFormation and SNS for end-to-end infrastructure management.
+In Sim, the CloudWatch integration enables your agents to monitor application health, analyze logs for errors, track custom business metrics, and respond to alarm states as part of automated observability and incident response workflows. This pairs well with CloudFormation for infrastructure monitoring and SNS for alerting.
 {/* MANUAL-CONTENT-END */}
 
 

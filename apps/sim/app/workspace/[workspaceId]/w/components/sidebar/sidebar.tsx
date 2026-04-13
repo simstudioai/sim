@@ -73,7 +73,6 @@ import {
   useWorkflowOperations,
   useWorkspaceLogoUpload,
   useWorkspaceManagement,
-  type Workspace,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
   createSidebarDragGhost,
@@ -97,6 +96,7 @@ import {
   useRenameTask,
   useTasks,
 } from '@/hooks/queries/tasks'
+import type { Workspace } from '@/hooks/queries/workspace'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
