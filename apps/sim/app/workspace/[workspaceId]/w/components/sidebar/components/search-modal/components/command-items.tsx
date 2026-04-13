@@ -76,7 +76,7 @@ export const MemoizedWorkflowItem = memo(
           {isCurrent && ' (current)'}
         </span>
         {folderPath && (
-          <span className='ml-auto flex-shrink-0 truncate pl-2 font-base text-[var(--text-subtle)] text-small'>
+          <span className='ml-auto min-w-0 truncate pl-2 font-base text-[var(--text-subtle)] text-small'>
             {folderPath}
           </span>
         )}
