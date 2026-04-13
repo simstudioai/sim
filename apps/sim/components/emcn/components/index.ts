@@ -80,6 +80,7 @@ export {
   ModalTitle,
   ModalTrigger,
 } from './modal/modal'
+export { focusFirstTextInput, focusFirstTextInputIn } from './modal/auto-focus'
 export {
   Popover,
   PopoverAnchor,

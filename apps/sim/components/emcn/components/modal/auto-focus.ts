@@ -22,16 +22,17 @@ function isVisible(el: HTMLElement): boolean {
   return el.offsetParent !== null || el.getClientRects().length > 0
 }
 
-export function focusFirstTextInput(event: Event): void {
-  const content = event.currentTarget as HTMLElement | null
-  if (!content) return
-
-  const target = Array.from(content.querySelectorAll<HTMLElement>(TEXT_INPUT_SELECTOR)).find(
+/**
+ * Focus the first visible text-entry input within `root`, placing caret at end.
+ * Returns true if an element was focused.
+ */
+export function focusFirstTextInputIn(root: HTMLElement | null): boolean {
+  if (!root) return false
+  const target = Array.from(root.querySelectorAll<HTMLElement>(TEXT_INPUT_SELECTOR)).find(
     isVisible
   )
-  if (!target) return
+  if (!target) return false
 
-  event.preventDefault()
   target.focus({ preventScroll: false })
 
   if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
@@ -48,5 +49,12 @@ export function focusFirstTextInput(event: Event): void {
     const sel = window.getSelection()
     sel?.removeAllRanges()
     sel?.addRange(range)
+  }
+  return true
+}
+
+export function focusFirstTextInput(event: Event): void {
+  if (focusFirstTextInputIn(event.currentTarget as HTMLElement | null)) {
+    event.preventDefault()
   }
 }

@@ -10,6 +10,7 @@ import {
   Badge,
   Button,
   Combobox,
+  focusFirstTextInputIn,
   Input,
   Label,
   Modal,
@@ -84,6 +85,15 @@ export function IntegrationsManager() {
   const [selectedDescriptionDraft, setSelectedDescriptionDraft] = useState('')
   const [selectedDisplayNameDraft, setSelectedDisplayNameDraft] = useState('')
   const [createStep, setCreateStep] = useState<1 | 2>(1)
+  const createModalContentRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!showCreateModal || createStep !== 2) return
+    const id = window.setTimeout(() => {
+      focusFirstTextInputIn(createModalContentRef.current)
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [showCreateModal, createStep])
   const [serviceSearch, setServiceSearch] = useState('')
   const [copyIdSuccess, setCopyIdSuccess] = useState(false)
   const [credentialToDelete, setCredentialToDelete] = useState<WorkspaceCredential | null>(null)
@@ -769,7 +779,7 @@ export function IntegrationsManager() {
         if (!open) resetCreateForm()
       }}
     >
-      <ModalContent size='md'>
+      <ModalContent size='md' ref={createModalContentRef}>
         {createStep === 1 ? (
           <>
             <ModalHeader>Connect Integration</ModalHeader>
