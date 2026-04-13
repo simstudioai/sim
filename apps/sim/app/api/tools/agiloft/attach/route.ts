@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       logger.info(`[${requestId}] Uploading file to Agiloft: ${resolvedFileName}`)
 
       const agiloftResponse = await fetch(url, {
-        method: 'POST',
+        method: 'PUT',
         headers: {
           'Content-Type': userFile.type || 'application/octet-stream',
           Authorization: `Bearer ${token}`,

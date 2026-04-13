@@ -207,7 +207,7 @@ export function buildRetrieveAttachmentUrl(
   const id = encodeURIComponent(params.recordId.trim())
   const field = encodeURIComponent(params.fieldName.trim())
   const position = encodeURIComponent(params.position)
-  return `${base}/ewws/EWRetrieve?${buildEwBaseQuery(params)}&id=${id}&field=${field}&position=${position}`
+  return `${base}/ewws/EWRetrieve?${buildEwBaseQuery(params)}&id=${id}&field=${field}&filePosition=${position}`
 }
 
 export function buildRemoveAttachmentUrl(
