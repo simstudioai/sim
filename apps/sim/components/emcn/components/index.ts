@@ -61,6 +61,7 @@ export { FormField, type FormFieldProps } from './form-field/form-field'
 export { Input, type InputProps, inputVariants } from './input/input'
 export { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from './input-otp/input-otp'
 export { Label } from './label/label'
+export { focusFirstTextInput, focusFirstTextInputIn } from './modal/auto-focus'
 export {
   MODAL_SIZES,
   Modal,
@@ -80,7 +81,6 @@ export {
   ModalTitle,
   ModalTrigger,
 } from './modal/modal'
-export { focusFirstTextInput, focusFirstTextInputIn } from './modal/auto-focus'
 export {
   Popover,
   PopoverAnchor,

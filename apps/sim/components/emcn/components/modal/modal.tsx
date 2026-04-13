@@ -43,7 +43,7 @@ import { X } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
 import { Button } from '../button/button'
-import { focusFirstTextInput } from './auto-focus'
+import { focusFirstTextInput, focusFirstTextInputIn } from './auto-focus'
 
 /**
  * Shared animation classes for modal transitions.
@@ -254,7 +254,27 @@ ModalDescription.displayName = 'ModalDescription'
 /**
  * Modal tabs root component. Wraps tab list and content panels.
  */
-const ModalTabs = TabsPrimitive.Root
+const ModalTabs = React.forwardRef<
+  React.ElementRef<typeof TabsPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Root>
+>(({ onValueChange, ...props }, ref) => {
+  const rootRef = React.useRef<HTMLDivElement>(null)
+  React.useImperativeHandle(ref, () => rootRef.current as HTMLDivElement, [])
+
+  const handleValueChange = (value: string) => {
+    onValueChange?.(value)
+    window.requestAnimationFrame(() => {
+      const root = rootRef.current
+      if (!root) return
+      const panel = root.querySelector<HTMLElement>('[role="tabpanel"][data-state="active"]')
+      focusFirstTextInputIn(panel)
+    })
+  }
+
+  return <TabsPrimitive.Root ref={rootRef} onValueChange={handleValueChange} {...props} />
+})
+
+ModalTabs.displayName = 'ModalTabs'
 
 interface ModalTabsListProps extends React.ComponentPropsWithoutRef<typeof TabsPrimitive.List> {
   /** Currently active tab value for indicator positioning */
@@ -353,6 +373,10 @@ ModalTabsTrigger.displayName = 'ModalTabsTrigger'
 /**
  * Modal tab content component. Content panel for each tab.
  * Includes bottom padding for consistent spacing across all tabbed modals.
+ *
+ * When this panel mounts (i.e. its tab becomes active), focus moves to the first
+ * visible text-entry input inside it so typing works immediately. Tabs with no
+ * text input are untouched.
  */
 const ModalTabsContent = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Content>,

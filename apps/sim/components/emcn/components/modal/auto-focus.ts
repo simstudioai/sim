@@ -28,9 +28,7 @@ function isVisible(el: HTMLElement): boolean {
  */
 export function focusFirstTextInputIn(root: HTMLElement | null): boolean {
   if (!root) return false
-  const target = Array.from(root.querySelectorAll<HTMLElement>(TEXT_INPUT_SELECTOR)).find(
-    isVisible
-  )
+  const target = Array.from(root.querySelectorAll<HTMLElement>(TEXT_INPUT_SELECTOR)).find(isVisible)
   if (!target) return false
 
   target.focus({ preventScroll: false })

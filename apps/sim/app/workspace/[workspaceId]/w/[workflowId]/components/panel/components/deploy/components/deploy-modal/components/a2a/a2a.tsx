@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Check, Clipboard } from 'lucide-react'
 import { useParams } from 'next/navigation'
@@ -195,20 +195,8 @@ export function A2aDeploy({
     }
   }, [startBlockId, startBlockInputFormat, missingFields, collaborativeSetSubblockValue])
 
-  const nameInputRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-
-  useEffect(() => {
-    const id = window.setTimeout(() => {
-      const el = nameInputRef.current
-      if (!el) return
-      el.focus()
-      const end = el.value.length
-      el.setSelectionRange(end, end)
-    }, 0)
-    return () => window.clearTimeout(id)
-  }, [])
   const [authScheme, setAuthScheme] = useState<AuthScheme>('apiKey')
   const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState(false)
   const [skillTags, setSkillTags] = useState<string[]>([])
@@ -732,7 +720,6 @@ console.log(data);`
         </Label>
         <Input
           id='a2a-name'
-          ref={nameInputRef}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder='Enter agent name'
