@@ -20,7 +20,13 @@ const patchWorkspaceSchema = z.object({
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/)
     .optional(),
-  logoUrl: z.string().min(1).nullable().optional(),
+  logoUrl: z
+    .string()
+    .refine((val) => val.startsWith('/') || val.startsWith('https://'), {
+      message: 'Logo URL must be an absolute path or HTTPS URL',
+    })
+    .nullable()
+    .optional(),
   billedAccountUserId: z.string().optional(),
   allowPersonalApiKeys: z.boolean().optional(),
 })
