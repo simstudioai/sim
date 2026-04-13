@@ -43,6 +43,7 @@ import { X } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
 import { Button } from '../button/button'
+import { focusFirstTextInput } from './auto-focus'
 
 /**
  * Shared animation classes for modal transitions.
@@ -137,7 +138,7 @@ export interface ModalContentProps
 const ModalContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   ModalContentProps
->(({ className, children, showClose = true, size = 'md', style, ...props }, ref) => {
+>(({ className, children, showClose = true, size = 'md', style, onOpenAutoFocus, ...props }, ref) => {
   const [isInteractionReady, setIsInteractionReady] = React.useState(false)
   const pathname = usePathname()
   const isWorkflowPage = pathname?.includes('/w/') ?? false
@@ -181,6 +182,7 @@ const ModalContent = React.forwardRef<
           onPointerUp={(e) => {
             e.stopPropagation()
           }}
+          onOpenAutoFocus={onOpenAutoFocus ?? focusFirstTextInput}
           {...props}
         >
           {children}

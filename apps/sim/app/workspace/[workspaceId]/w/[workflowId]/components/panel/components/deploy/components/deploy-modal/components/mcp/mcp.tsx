@@ -523,6 +523,7 @@ export function McpDeploy({
           Description
         </Label>
         <Textarea
+          autoFocus
           placeholder='Describe what this tool does...'
           className='min-h-[100px] resize-none'
           value={toolDescription}
