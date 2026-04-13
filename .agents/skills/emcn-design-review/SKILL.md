@@ -42,7 +42,7 @@ import { Button } from '@/components/emcn/components/button/button'
 
 ## Design Tokens (CSS Variables)
 
-Never use raw color values. Always use CSS variable tokens via Tailwind arbitrary values.
+Never use raw color values. Always use CSS variable tokens via Tailwind arbitrary values: `text-[var(--text-primary)]`, not `text-gray-500` or `#333`. The CSS variable pattern is canonical (1,700+ uses) — do not use Tailwind semantic classes like `text-muted-foreground`.
 
 ### Text hierarchy
 | Token | Use |
@@ -99,16 +99,18 @@ Use z-index tokens for layering:
 ### Buttons
 Available variants: `default`, `primary`, `destructive`, `ghost`, `outline`, `active`, `secondary`, `tertiary`, `subtle`, `ghost-secondary`, `3d`
 
-| Action type | Variant |
-|-------------|---------|
-| Primary action (create, save, submit) | `primary` |
-| Cancel, close, secondary action | `default` |
-| Delete, remove, destructive action | `destructive` |
-| Toolbar/icon-only button | `ghost` |
-| Toggle, mode switch | `ghost` or `outline` |
-| Active/selected state | `active` |
+| Action type | Variant | Frequency |
+|-------------|---------|-----------|
+| Toolbar, icon-only, utility actions | `ghost` | Most common (28%) |
+| Primary action (create, save, submit) | `primary` | Very common (24%) |
+| Cancel, close, secondary action | `default` | Common |
+| Delete, remove, destructive action | `destructive` | Targeted use only |
+| Active/selected state | `active` | Targeted use only |
+| Toggle, mode switch | `outline` | Moderate |
 
-Sizes: `sm` (compact) or `md` (default). Never create custom button styles — use an existing variant.
+Sizes: `sm` (compact, 32% of buttons) or `md` (default, used when no size specified). Never create custom button styles — use an existing variant.
+
+Buttons without an explicit variant prop get `default` styling. This is acceptable for cancel/secondary actions.
 
 ### Modals (Dialogs)
 Use `Modal` + subcomponents. Never build custom dialog overlays.
@@ -126,12 +128,12 @@ Use `Modal` + subcomponents. Never build custom dialog overlays.
 </Modal>
 ```
 
-Modal sizes: `sm` (440px, confirmations), `md` (500px, forms), `lg` (600px, content-heavy), `xl` (800px, complex editors), `full` (1200px, dashboards).
+Modal sizes by frequency: `sm` (440px, most common — confirmations and simple dialogs), `md` (500px, forms), `lg` (600px, content-heavy), `xl` (800px, rare), `full` (1200px, rare).
 
-Footer buttons: Cancel on left, primary action on right.
+Footer buttons: Cancel on left (`variant="default"`), primary action on right. This pattern is followed 100% across the codebase.
 
-### Delete Confirmations
-Always use Modal with this pattern:
+### Delete/Remove Confirmations
+Always use Modal with `size="sm"`. The established pattern:
 
 ```tsx
 <Modal open={open} onOpenChange={setOpen}>
@@ -140,7 +142,6 @@ Always use Modal with this pattern:
     <ModalBody>
       <p>Description of consequences</p>
       <p className="text-[var(--text-error)]">Warning about irreversibility</p>
-      {/* Optional: confirmation text input for high-risk actions */}
     </ModalBody>
     <ModalFooter>
       <Button variant="default" onClick={() => setOpen(false)}>Cancel</Button>
@@ -153,15 +154,17 @@ Always use Modal with this pattern:
 ```
 
 Rules:
-- Title: "Delete {ItemType}"
+- Title: "Delete {ItemType}" or "Remove {ItemType}" (use "Remove" for membership/association changes)
 - Include consequence description
-- Use `text-[var(--text-error)]` for warning text
-- Destructive button on the right
+- Use `text-[var(--text-error)]` for warning text when the action is irreversible
+- `variant="destructive"` for the action button (100% compliance)
+- `variant="default"` for cancel (100% compliance)
+- Cancel left, destructive right (100% compliance)
 - For high-risk deletes (workspaces), require typing the name to confirm
 - Include recovery info if soft-delete: "You can restore it from Recently Deleted in Settings"
 
 ### Toast Notifications
-Use the imperative `toast` API. Never build custom notification UI.
+Use the imperative `toast` API from `@/components/emcn`. Never build custom notification UI.
 
 ```tsx
 import { toast } from '@/components/emcn'
@@ -171,21 +174,26 @@ toast.error('Something went wrong')
 toast.success('Deleted', { action: { label: 'Undo', onClick: handleUndo } })
 ```
 
-Variants: `default`, `success`, `error`. Auto-dismiss after 5s.
+Variants: `default`, `success`, `error`. Auto-dismiss after 5s. Supports optional action buttons with callbacks.
 
 ### Badges
 Use semantic color variants for status:
 
-| Status | Variant |
-|--------|---------|
-| Success, active, online | `green` |
-| Error, failed, offline | `red` |
-| Warning, processing | `amber` or `orange` |
-| Info, default | `blue` |
-| Neutral, draft, inactive | `gray` |
-| Type labels | `type` |
+| Status | Variant | Usage |
+|--------|---------|-------|
+| Error, failed, disconnected | `red` | Most common (15 uses) |
+| Metadata, roles, auth types, scopes | `gray-secondary` | Very common (12 uses) |
+| Type annotations (TS types, field types) | `type` | Very common (12 uses) |
+| Success, active, enabled, running | `green` | Common (7 uses) |
+| Neutral, default, unknown | `gray` | Common (6 uses) |
+| Outline, parameters, public | `outline` | Moderate (6 uses) |
+| Warning, processing | `amber` | Moderate (5 uses) |
+| Paused, warning | `orange` | Occasional |
+| Info, queued | `blue` | Occasional |
+| Data types (arrays) | `purple` | Occasional |
+| Generic with border | `default` | Occasional |
 
-Use `dot` prop for status indicators. Use `icon` prop for icon badges.
+Use `dot` prop for status indicators (19 instances in codebase). `icon` prop is available but rarely used.
 
 ### Tooltips
 Use `Tooltip` from emcn with namespace pattern:
@@ -226,7 +234,7 @@ Use for context menus and action menus:
 <DropdownMenu>
   <DropdownMenuTrigger asChild>
     <Button variant="ghost">
-      <MoreHorizontal className="h-4 w-4" />
+      <MoreHorizontal className="h-[14px] w-[14px]" />
     </Button>
   </DropdownMenuTrigger>
   <DropdownMenuContent align="end">
@@ -251,7 +259,7 @@ Use `FormField` wrapper for labeled inputs:
 ```
 
 Rules:
-- Use `Input` from emcn, never raw `<input>`
+- Use `Input` from emcn, never raw `<input>` (exception: hidden file inputs)
 - Use `Textarea` from emcn, never raw `<textarea>`
 - Use `FormField` for label + input + error layout
 - Mark optional fields with `optional` prop
@@ -273,43 +281,55 @@ Rules:
 - Stack multiple skeletons for lists
 
 ### Icons
-Standard sizing pattern:
+Standard sizing — `h-[14px] w-[14px]` is the dominant pattern (400+ uses):
 
 ```tsx
 <Icon className="h-[14px] w-[14px] text-[var(--text-icon)]" />
 ```
 
-Common sizes: `h-3 w-3` (12px), `h-[14px] w-[14px]`, `h-4 w-4` (16px).
+Size scale by frequency:
+1. `h-[14px] w-[14px]` — default for inline icons (most common)
+2. `h-[16px] w-[16px]` — slightly larger inline icons
+3. `h-3 w-3` (12px) — compact/tight spaces
+4. `h-4 w-4` (16px) — Tailwind equivalent, also common
+5. `h-3.5 w-3.5` (14px) — Tailwind equivalent of 14px
+6. `h-5 w-5` (20px) — larger icons, section headers
+
+Use `text-[var(--text-icon)]` for icon color (113+ uses in codebase).
 
 ---
 
 ## Styling Rules
 
-1. **Use `cn()` for conditional classes**: `cn('base', condition && 'conditional')`
-2. **Never use inline styles**: Use Tailwind classes exclusively
-3. **Never hardcode colors**: Use CSS variable tokens (`var(--text-primary)`, not `#333`)
-4. **Never use global styles**: Keep all styling local to components
-5. **Hover states**: Use `hover-hover:` pseudo-class for hover-capable devices
-6. **Transitions**: Use `transition-colors` for color changes, `transition-colors duration-100` for fast hover
-7. **Border radius**: `rounded-lg` (large cards), `rounded-md` (medium), `rounded-sm` (small), `rounded-xs` (tiny)
-8. **Typography**: Use semantic sizes — `text-small` (13px), `text-caption` (12px), `text-xs` (11px), `text-micro` (10px)
-9. **Font weight**: Use `font-medium` for emphasis, avoid `font-bold` unless for headings
-10. **Spacing**: Use Tailwind gap/padding utilities. Common patterns: `gap-2`, `gap-3`, `px-4 py-2.5`
+1. **Use `cn()` for conditional classes**: `cn('base', condition && 'conditional')` — never template literal concatenation like `` `base ${condition ? 'active' : ''}` ``
+2. **Inline styles**: Avoid. Exception: dynamic values that can't be expressed as Tailwind classes (e.g., `style={{ width: dynamicVar }}` or CSS variable references). Never use inline styles for colors or static values.
+3. **Never hardcode colors**: Use CSS variable tokens. Never `text-gray-500`, `bg-red-100`, `#fff`, or `rgb()`. Always `text-[var(--text-*)]`, `bg-[var(--surface-*)]`, etc.
+4. **Never use Tailwind semantic color classes**: Use `text-[var(--text-muted)]` not `text-muted-foreground`. The CSS variable pattern is canonical.
+5. **Never use global styles**: Keep all styling local to components
+6. **Hover states**: Use `hover-hover:` pseudo-class for hover-capable devices
+7. **Transitions**: Use `transition-colors` for color changes, `transition-colors duration-100` for fast hover
+8. **Border radius**: `rounded-lg` (large cards), `rounded-md` (medium), `rounded-sm` (small), `rounded-xs` (tiny)
+9. **Typography**: Use semantic sizes — `text-small` (13px), `text-caption` (12px), `text-xs` (11px), `text-micro` (10px)
+10. **Font weight**: Use `font-medium` for emphasis, avoid `font-bold` unless for headings
+11. **Spacing**: Use Tailwind gap/padding utilities. Common patterns: `gap-2`, `gap-3`, `px-4 py-2.5`
 
 ---
 
 ## Anti-patterns to flag
 
-- Raw HTML elements (`<button>`, `<input>`, `<dialog>`) instead of emcn components
-- Hardcoded color values (`#fff`, `rgb(0,0,0)`, `text-gray-500`)
+- Raw HTML `<button>` instead of Button component (exception: inside Radix primitives)
+- Raw HTML `<input>` instead of Input component (exception: hidden file inputs, read-only checkboxes in markdown)
+- Hardcoded Tailwind default colors (`text-gray-*`, `bg-red-*`, `text-blue-*`)
+- Hex values in className (`bg-[#fff]`, `text-[#333]`)
+- Tailwind semantic classes (`text-muted-foreground`) instead of CSS variables (`text-[var(--text-muted)]`)
 - Custom modal/dialog implementations instead of `Modal`
 - Custom toast/notification implementations instead of `toast`
-- Inline styles (`style={{ color: 'red' }}`)
-- Missing `cn()` for conditional classes (string concatenation instead)
+- Inline styles for colors or static values (dynamic values are acceptable)
+- Template literal className concatenation instead of `cn()`
 - Wrong button variant for the action type
 - Missing loading/skeleton states
 - Missing error states on forms
-- Using `@/components/ui/button` when `@/components/emcn` Button should be used
-- Importing from emcn subpaths instead of barrel
-- Using `z-50`, `z-[9999]` instead of z-index tokens
+- Importing from emcn subpaths instead of barrel export
+- Using arbitrary z-index (`z-50`, `z-[9999]`) instead of z-index tokens
 - Custom shadows instead of shadow tokens
+- Icon sizes that don't follow the established scale (default to `h-[14px] w-[14px]`)

@@ -8,12 +8,12 @@ User arguments: $ARGUMENTS
 
 ## Context
 
-This codebase uses **emcn**, a custom component library built on Radix UI primitives with CVA (class-variance-authority) variants and CSS variable design tokens. All UI must use emcn components and tokens — never raw HTML elements or hardcoded colors.
+This codebase uses **emcn**, a custom component library built on Radix UI primitives with CVA variants and CSS variable design tokens. All UI must use emcn components and tokens.
 
 ## Steps
 
 1. Read the emcn barrel export at `apps/sim/components/emcn/components/index.ts` to know what's available
-2. Read `apps/sim/app/_styles/globals.css` for the full set of CSS variable tokens
+2. Read `apps/sim/app/_styles/globals.css` for CSS variable tokens
 3. Analyze the specified scope against every rule below
 4. If fix=true, apply the fixes. If fix=false, propose the fixes without applying.
 
@@ -21,75 +21,54 @@ This codebase uses **emcn**, a custom component library built on Radix UI primit
 
 ## Imports
 
-- Import components from `@/components/emcn`, never from subpaths
-- Import icons from `@/components/emcn/icons` or `lucide-react`
-- Import `cn` from `@/lib/core/utils/cn` for conditional class merging
-- Import app-specific wrappers (Select, VerifiedBadge) from `@/components/ui`
+- Import from `@/components/emcn` barrel, never subpaths
+- Icons from `@/components/emcn/icons` or `lucide-react`
+- Use `cn` from `@/lib/core/utils/cn` for conditional classes
 
----
+## Design Tokens
 
-## Design Tokens (CSS Variables)
+Use CSS variable pattern (`text-[var(--text-primary)]`), never Tailwind semantics (`text-muted-foreground`) or hardcoded colors (`text-gray-500`, `#333`).
 
-Never use raw color values. Always use CSS variable tokens via Tailwind arbitrary values.
+**Text**: `--text-primary`, `--text-secondary`, `--text-tertiary`, `--text-muted`, `--text-icon`, `--text-inverse`, `--text-error`
+**Surfaces**: `--bg`, `--surface-2` through `--surface-7`, `--surface-hover`, `--surface-active`
+**Borders**: `--border`, `--border-1`, `--border-muted`
+**Z-Index**: `--z-dropdown` (100), `--z-modal` (200), `--z-popover` (300), `--z-tooltip` (400), `--z-toast` (500)
+**Shadows**: `shadow-subtle`, `shadow-medium`, `shadow-overlay`, `shadow-card`
 
-### Text hierarchy
-- `text-[var(--text-primary)]` — Main content text
-- `text-[var(--text-secondary)]` — Secondary/supporting text
-- `text-[var(--text-tertiary)]` — Tertiary text
-- `text-[var(--text-muted)]` — Disabled, placeholder text
-- `text-[var(--text-icon)]` — Icon tinting
-- `text-[var(--text-error)]` — Error/warning messages
+## Buttons
 
-### Surfaces
-- `bg-[var(--bg)]` — Page background
-- `bg-[var(--surface-2)]` through `bg-[var(--surface-7)]` — Increasing elevation
-- `bg-[var(--surface-hover)]` — Hover backgrounds
-- `bg-[var(--surface-active)]` — Active/selected backgrounds
-
-### Borders
-- `border-[var(--border)]` — Default borders
-- `border-[var(--border-1)]` — Stronger borders (inputs, cards)
-
-### Z-Index & Shadows
-- Use z-index tokens: `--z-dropdown` (100), `--z-modal` (200), `--z-popover` (300), `--z-tooltip` (400), `--z-toast` (500)
-- Use shadow tokens: `shadow-subtle`, `shadow-medium`, `shadow-overlay`, `shadow-card`
-
----
-
-## Component Usage Rules
-
-### Buttons
-| Action type | Variant |
-|-------------|---------|
-| Primary action (create, save) | `primary` |
+| Action | Variant |
+|--------|---------|
+| Toolbar, icon-only | `ghost` (most common, 28%) |
+| Create, save, submit | `primary` (24%) |
 | Cancel, close | `default` |
 | Delete, remove | `destructive` |
-| Toolbar/icon-only | `ghost` |
+| Selected state | `active` |
+| Toggle | `outline` |
 
-### Delete Confirmations
-Always Modal with: title "Delete {ItemType}", consequence text, `text-[var(--text-error)]` warning, Cancel (default) + Delete (destructive) buttons.
+## Delete/Remove Confirmations
 
-### Toast Notifications
-Use imperative API: `toast.success(msg)`, `toast.error(msg)`. Never build custom notification UI.
+Modal `size="sm"`, title "Delete/Remove {ItemType}", `variant="destructive"` action button, `variant="default"` cancel. Cancel left, action right (100% compliance). Use `text-[var(--text-error)]` for irreversible warnings.
 
-### Badges
-Green=success, red=error, amber=warning, blue=info, gray=neutral. Use `dot` prop for status indicators.
+## Toast
 
-### Forms
-Use `FormField` + `Input`/`Textarea` from emcn. Never raw HTML form elements.
+`toast.success()`, `toast.error()`, `toast()` from `@/components/emcn`. Never custom notification UI.
 
-### Loading States
-Use `Skeleton` matching the actual UI structure dimensions.
+## Badges
 
----
+`red`=error/failed, `gray-secondary`=metadata/roles, `type`=type annotations, `green`=success/active, `gray`=neutral, `amber`=processing, `orange`=paused, `blue`=info. Use `dot` prop for status indicators.
+
+## Icons
+
+Default: `h-[14px] w-[14px]` (400+ uses). Color: `text-[var(--text-icon)]`. Scale: 14px > 16px > 12px > 20px.
 
 ## Anti-patterns to flag
 
-- Raw HTML elements instead of emcn components
-- Hardcoded colors instead of CSS variable tokens
-- Custom modal/toast implementations
-- Inline styles
-- Missing `cn()` for conditional classes
-- Wrong button variant for action type
+- Raw `<button>`/`<input>` instead of emcn components
+- Hardcoded colors (`text-gray-*`, `#hex`, `rgb()`)
+- Tailwind semantics (`text-muted-foreground`) instead of CSS variables
+- Template literal className instead of `cn()`
+- Inline styles for colors/static values (dynamic values OK)
 - Importing from emcn subpaths instead of barrel
-- Using arbitrary z-index instead of tokens
+- Arbitrary z-index instead of tokens
+- Wrong button variant for action type
