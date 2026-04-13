@@ -279,7 +279,13 @@ export function useExecutionSnapshot(executionId: string | undefined) {
 export function useCancelExecution() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ workflowId, executionId }: { workflowId: string; executionId: string }) => {
+    mutationFn: async ({
+      workflowId,
+      executionId,
+    }: {
+      workflowId: string
+      executionId: string
+    }) => {
       const res = await fetch(`/api/workflows/${workflowId}/executions/${executionId}/cancel`, {
         method: 'POST',
       })
