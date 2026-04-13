@@ -35,8 +35,11 @@ export function useWorkspaceLogoUpload({
     onUploadRef.current = onUpload
     onErrorRef.current = onError
     currentLogoUrlRef.current = currentLogoUrl
+  }, [onUpload, onError, currentLogoUrl])
+
+  useEffect(() => {
     workspaceIdRef.current = workspaceId
-  }, [onUpload, onError, currentLogoUrl, workspaceId])
+  }, [workspaceId])
 
   useEffect(() => {
     if (previewRef.current && previewRef.current !== currentLogoUrl) {
