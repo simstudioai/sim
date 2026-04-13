@@ -138,59 +138,64 @@ export interface ModalContentProps
 const ModalContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   ModalContentProps
->(({ className, children, showClose = true, size = 'md', style, onOpenAutoFocus, ...props }, ref) => {
-  const [isInteractionReady, setIsInteractionReady] = React.useState(false)
-  const pathname = usePathname()
-  const isWorkflowPage = pathname?.includes('/w/') ?? false
+>(
+  (
+    { className, children, showClose = true, size = 'md', style, onOpenAutoFocus, ...props },
+    ref
+  ) => {
+    const [isInteractionReady, setIsInteractionReady] = React.useState(false)
+    const pathname = usePathname()
+    const isWorkflowPage = pathname?.includes('/w/') ?? false
 
-  React.useEffect(() => {
-    const timer = setTimeout(() => setIsInteractionReady(true), 100)
-    return () => clearTimeout(timer)
-  }, [])
+    React.useEffect(() => {
+      const timer = setTimeout(() => setIsInteractionReady(true), 100)
+      return () => clearTimeout(timer)
+    }, [])
 
-  return (
-    <ModalPortal>
-      <ModalOverlay />
-      <div
-        className='pointer-events-none fixed inset-0 z-[var(--z-modal)] flex items-center justify-center'
-        style={{
-          paddingLeft: isWorkflowPage
-            ? 'calc(var(--sidebar-width) - var(--panel-width))'
-            : 'var(--sidebar-width)',
-        }}
-      >
-        <DialogPrimitive.Content
-          ref={ref}
-          className={cn(
-            'pointer-events-auto flex max-h-[84vh] flex-col overflow-hidden rounded-xl bg-[var(--bg)] text-small ring-1 ring-foreground/10',
-            ANIMATION_CLASSES,
-            'data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-200',
-            MODAL_SIZES[size],
-            className
-          )}
-          style={style}
-          onEscapeKeyDown={(e) => {
-            if (!isInteractionReady) {
-              e.preventDefault()
-              return
-            }
-            e.stopPropagation()
+    return (
+      <ModalPortal>
+        <ModalOverlay />
+        <div
+          className='pointer-events-none fixed inset-0 z-[var(--z-modal)] flex items-center justify-center'
+          style={{
+            paddingLeft: isWorkflowPage
+              ? 'calc(var(--sidebar-width) - var(--panel-width))'
+              : 'var(--sidebar-width)',
           }}
-          onPointerDown={(e) => {
-            e.stopPropagation()
-          }}
-          onPointerUp={(e) => {
-            e.stopPropagation()
-          }}
-          onOpenAutoFocus={onOpenAutoFocus ?? focusFirstTextInput}
-          {...props}
         >
-          {children}
-        </DialogPrimitive.Content>
-      </div>
-    </ModalPortal>
-  )
-})
+          <DialogPrimitive.Content
+            ref={ref}
+            className={cn(
+              'pointer-events-auto flex max-h-[84vh] flex-col overflow-hidden rounded-xl bg-[var(--bg)] text-small ring-1 ring-foreground/10',
+              ANIMATION_CLASSES,
+              'data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-200',
+              MODAL_SIZES[size],
+              className
+            )}
+            style={style}
+            onEscapeKeyDown={(e) => {
+              if (!isInteractionReady) {
+                e.preventDefault()
+                return
+              }
+              e.stopPropagation()
+            }}
+            onPointerDown={(e) => {
+              e.stopPropagation()
+            }}
+            onPointerUp={(e) => {
+              e.stopPropagation()
+            }}
+            onOpenAutoFocus={onOpenAutoFocus ?? focusFirstTextInput}
+            {...props}
+          >
+            {children}
+          </DialogPrimitive.Content>
+        </div>
+      </ModalPortal>
+    )
+  }
+)
 
 ModalContent.displayName = 'ModalContent'
 

@@ -324,7 +324,6 @@ export function ScheduleModal({ open, onOpenChange, workspaceId, schedule }: Sch
                 }}
                 placeholder='e.g., Daily report generation'
                 className='h-9'
-                autoFocus
                 autoComplete='off'
               />
             </div>

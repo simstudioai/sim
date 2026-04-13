@@ -785,7 +785,6 @@ export function IntegrationsManager() {
                     value={serviceSearch}
                     onChange={(e) => setServiceSearch(e.target.value)}
                     className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
-                    autoFocus
                   />
                 </div>
                 <div className='flex max-h-[320px] flex-col overflow-y-auto'>
@@ -916,7 +915,6 @@ export function IntegrationsManager() {
                     autoComplete='off'
                     data-lpignore='true'
                     className='mt-1.5'
-                    autoFocus
                   />
                 </div>
                 <div>
@@ -1053,7 +1051,6 @@ export function IntegrationsManager() {
                         'min-h-[120px] resize-none border-0 font-mono text-[12px]',
                         saDragActive && 'opacity-30'
                       )}
-                      autoFocus
                     />
                   </div>
                   <div className='mt-1.5'>

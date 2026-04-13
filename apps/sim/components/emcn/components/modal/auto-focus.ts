@@ -26,9 +26,9 @@ export function focusFirstTextInput(event: Event): void {
   const content = event.currentTarget as HTMLElement | null
   if (!content) return
 
-  const target = Array.from(
-    content.querySelectorAll<HTMLElement>(TEXT_INPUT_SELECTOR)
-  ).find(isVisible)
+  const target = Array.from(content.querySelectorAll<HTMLElement>(TEXT_INPUT_SELECTOR)).find(
+    isVisible
+  )
   if (!target) return
 
   event.preventDefault()
