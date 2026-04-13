@@ -69,6 +69,10 @@ interface WorkspaceHeaderProps {
   isImportingWorkspace: boolean
   /** Callback to change the workspace color */
   onColorChange?: (workspaceId: string, color: string) => Promise<void>
+  /** Callback to upload a workspace logo */
+  onUploadLogo?: (workspaceId: string) => void
+  /** Callback to remove the workspace logo */
+  onRemoveLogo?: (workspaceId: string) => Promise<void>
   /** Callback to leave the workspace */
   onLeaveWorkspace?: (workspaceId: string) => Promise<void>
   /** Whether workspace leave is in progress */
@@ -100,6 +104,8 @@ export function WorkspaceHeader({
   onImportWorkspace,
   isImportingWorkspace,
   onColorChange,
+  onUploadLogo,
+  onRemoveLogo,
   onLeaveWorkspace,
   isLeavingWorkspace,
   sessionUserId,
@@ -286,6 +292,16 @@ export function WorkspaceHeader({
     await onColorChange(capturedWorkspaceRef.current.id, color)
   }
 
+  const handleUploadLogoAction = () => {
+    if (!capturedWorkspaceRef.current || !onUploadLogo) return
+    onUploadLogo(capturedWorkspaceRef.current.id)
+  }
+
+  const handleRemoveLogoAction = async () => {
+    if (!capturedWorkspaceRef.current || !onRemoveLogo) return
+    await onRemoveLogo(capturedWorkspaceRef.current.id)
+  }
+
   /**
    * Handle leave workspace after confirmation
    */
@@ -348,12 +364,22 @@ export function WorkspaceHeader({
                 }}
               >
                 {activeWorkspaceFull ? (
-                  <div
-                    className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-caption text-white leading-none'
-                    style={{ backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)' }}
-                  >
-                    {workspaceInitial}
-                  </div>
+                  activeWorkspaceFull.logoUrl ? (
+                    <img
+                      src={activeWorkspaceFull.logoUrl}
+                      alt={activeWorkspaceFull.name || 'Workspace logo'}
+                      className='h-[20px] w-[20px] flex-shrink-0 rounded-sm object-cover'
+                    />
+                  ) : (
+                    <div
+                      className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-caption text-white leading-none'
+                      style={{
+                        backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)',
+                      }}
+                    >
+                      {workspaceInitial}
+                    </div>
+                  )
                 ) : (
                   <Skeleton className='h-[20px] w-[20px] flex-shrink-0 rounded-sm' />
                 )}
@@ -394,14 +420,22 @@ export function WorkspaceHeader({
                 <>
                   <div className='flex items-center gap-2 px-0.5 py-0.5'>
                     {activeWorkspaceFull ? (
-                      <div
-                        className='flex h-[32px] w-[32px] flex-shrink-0 items-center justify-center rounded-md font-medium text-caption text-white'
-                        style={{
-                          backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)',
-                        }}
-                      >
-                        {workspaceInitial}
-                      </div>
+                      activeWorkspaceFull.logoUrl ? (
+                        <img
+                          src={activeWorkspaceFull.logoUrl}
+                          alt={activeWorkspaceFull.name || 'Workspace logo'}
+                          className='h-[32px] w-[32px] flex-shrink-0 rounded-md object-cover'
+                        />
+                      ) : (
+                        <div
+                          className='flex h-[32px] w-[32px] flex-shrink-0 items-center justify-center rounded-md font-medium text-caption text-white'
+                          style={{
+                            backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)',
+                          }}
+                        >
+                          {workspaceInitial}
+                        </div>
+                      )
                     ) : (
                       <Skeleton className='h-[32px] w-[32px] flex-shrink-0 rounded-md' />
                     )}
@@ -578,12 +612,20 @@ export function WorkspaceHeader({
             disabled
           >
             {activeWorkspaceFull ? (
-              <div
-                className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-caption text-white leading-none'
-                style={{ backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)' }}
-              >
-                {workspaceInitial}
-              </div>
+              activeWorkspaceFull.logoUrl ? (
+                <img
+                  src={activeWorkspaceFull.logoUrl}
+                  alt={activeWorkspaceFull.name || 'Workspace logo'}
+                  className='h-[20px] w-[20px] flex-shrink-0 rounded-sm object-cover'
+                />
+              ) : (
+                <div
+                  className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-sm font-medium text-caption text-white leading-none'
+                  style={{ backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)' }}
+                >
+                  {workspaceInitial}
+                </div>
+              )
             ) : (
               <Skeleton className='h-[20px] w-[20px] flex-shrink-0 rounded-sm' />
             )}
@@ -619,17 +661,23 @@ export function WorkspaceHeader({
             onDelete={handleDeleteAction}
             onLeave={handleLeaveAction}
             onColorChange={onColorChange ? handleColorChangeAction : undefined}
+            onUploadLogo={onUploadLogo ? handleUploadLogoAction : undefined}
+            onRemoveLogo={onRemoveLogo ? handleRemoveLogoAction : undefined}
             currentColor={capturedWorkspace?.color}
             showRename={true}
             showDuplicate={true}
             showExport={true}
             showColorChange={!!onColorChange}
+            showUploadLogo={!!onUploadLogo}
+            showRemoveLogo={!!onRemoveLogo && !!capturedWorkspace?.logoUrl}
             showLeave={!isOwner && !!onLeaveWorkspace}
             disableRename={!contextCanAdmin}
             disableDuplicate={!contextCanEdit}
             disableExport={!contextCanAdmin}
             disableDelete={!contextCanAdmin || workspaces.length <= 1}
             disableColorChange={!contextCanAdmin}
+            disableUploadLogo={!contextCanAdmin}
+            disableRemoveLogo={!contextCanAdmin}
           />
         )
       })()}

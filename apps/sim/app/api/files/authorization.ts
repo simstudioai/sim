@@ -114,8 +114,12 @@ export async function verifyFileAccess(
     // Infer context from key if not explicitly provided
     const inferredContext = context || inferContextFromKey(cloudKey)
 
-    // 0. Public contexts: profile pictures and OG images are publicly accessible
-    if (inferredContext === 'profile-pictures' || inferredContext === 'og-images') {
+    // 0. Public contexts: profile pictures, OG images, and workspace logos are publicly accessible
+    if (
+      inferredContext === 'profile-pictures' ||
+      inferredContext === 'og-images' ||
+      inferredContext === 'workspace-logos'
+    ) {
       logger.info('Public file access allowed', { cloudKey, context: inferredContext })
       return true
     }

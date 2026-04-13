@@ -1324,6 +1324,13 @@
       "when": 1776102772705,
       "tag": "0189_daily_rumiko_fujikawa",
       "breakpoints": true
+    },
+    {
+      "idx": 190,
+      "version": "7",
+      "when": 1776114737326,
+      "tag": "0190_shocking_karma",
+      "breakpoints": true
     }
   ]
 }

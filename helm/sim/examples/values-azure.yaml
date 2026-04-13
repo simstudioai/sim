@@ -71,6 +71,7 @@ app:
     AZURE_STORAGE_COPILOT_CONTAINER_NAME: "copilot-files" # Copilot attachments container
     AZURE_STORAGE_PROFILE_PICTURES_CONTAINER_NAME: "profile-pictures"  # User avatars container
     AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME: "og-images"   # OpenGraph preview images container
+    AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME: "workspace-logos"  # Workspace logos container
 
 # Realtime service
 realtime:

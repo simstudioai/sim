@@ -25,6 +25,7 @@ export interface Workspace {
   id: string
   name: string
   color?: string
+  logoUrl?: string | null
   ownerId: string
   role?: string
   membershipId?: string
@@ -165,6 +166,7 @@ interface UpdateWorkspaceParams {
   workspaceId: string
   name?: string
   color?: string
+  logoUrl?: string | null
 }
 
 /**
