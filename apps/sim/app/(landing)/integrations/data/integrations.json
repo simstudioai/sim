@@ -1384,6 +1384,97 @@
     "tags": ["sales-engagement", "enrichment"]
   },
   {
+    "type": "iam",
+    "slug": "aws-iam",
+    "name": "AWS IAM",
+    "description": "Manage AWS IAM users, roles, policies, and groups",
+    "longDescription": "Integrate AWS Identity and Access Management into your workflow. Create and manage users, roles, policies, groups, and access keys.",
+    "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
+    "iconName": "IAMIcon",
+    "docsUrl": "https://docs.sim.ai/tools/iam",
+    "operations": [
+      {
+        "name": "List Users",
+        "description": "List IAM users in your AWS account"
+      },
+      {
+        "name": "Get User",
+        "description": "Get detailed information about an IAM user"
+      },
+      {
+        "name": "Create User",
+        "description": "Create a new IAM user"
+      },
+      {
+        "name": "Delete User",
+        "description": "Delete an IAM user"
+      },
+      {
+        "name": "List Roles",
+        "description": "List IAM roles in your AWS account"
+      },
+      {
+        "name": "Get Role",
+        "description": "Get detailed information about an IAM role"
+      },
+      {
+        "name": "Create Role",
+        "description": "Create a new IAM role with a trust policy"
+      },
+      {
+        "name": "Delete Role",
+        "description": "Delete an IAM role"
+      },
+      {
+        "name": "Attach User Policy",
+        "description": "Attach a managed policy to an IAM user"
+      },
+      {
+        "name": "Detach User Policy",
+        "description": "Remove a managed policy from an IAM user"
+      },
+      {
+        "name": "Attach Role Policy",
+        "description": "Attach a managed policy to an IAM role"
+      },
+      {
+        "name": "Detach Role Policy",
+        "description": "Remove a managed policy from an IAM role"
+      },
+      {
+        "name": "List Policies",
+        "description": "List managed IAM policies"
+      },
+      {
+        "name": "Create Access Key",
+        "description": "Create a new access key pair for an IAM user"
+      },
+      {
+        "name": "Delete Access Key",
+        "description": "Delete an access key pair for an IAM user"
+      },
+      {
+        "name": "List Groups",
+        "description": "List IAM groups in your AWS account"
+      },
+      {
+        "name": "Add User to Group",
+        "description": "Add an IAM user to a group"
+      },
+      {
+        "name": "Remove User from Group",
+        "description": "Remove an IAM user from a group"
+      }
+    ],
+    "operationCount": 18,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["developer-tools", "security"],
+    "tags": ["cloud", "identity"]
+  },
+  {
     "type": "secrets_manager",
     "slug": "aws-secrets-manager",
     "name": "AWS Secrets Manager",
@@ -1421,6 +1512,41 @@
     "category": "tools",
     "integrationTypes": ["developer-tools", "security"],
     "tags": ["cloud", "secrets-management"]
+  },
+  {
+    "type": "sts",
+    "slug": "aws-sts",
+    "name": "AWS STS",
+    "description": "Connect to AWS Security Token Service",
+    "longDescription": "Integrate AWS STS into the workflow. Assume roles, get temporary credentials, verify caller identity, and look up access key information.",
+    "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
+    "iconName": "STSIcon",
+    "docsUrl": "https://docs.sim.ai/tools/sts",
+    "operations": [
+      {
+        "name": "Assume Role",
+        "description": "Assume an IAM role and receive temporary security credentials"
+      },
+      {
+        "name": "Get Caller Identity",
+        "description": "Get details about the IAM user or role whose credentials are used to call the API"
+      },
+      {
+        "name": "Get Session Token",
+        "description": "Get temporary security credentials for an IAM user, optionally with MFA"
+      },
+      {
+        "name": "Get Access Key Info",
+        "description": "Get the AWS account ID associated with an access key"
+      }
+    ],
+    "operationCount": 4,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["security", "developer-tools"],
+    "tags": ["cloud"]
   },
   {
     "type": "textract_v2",
