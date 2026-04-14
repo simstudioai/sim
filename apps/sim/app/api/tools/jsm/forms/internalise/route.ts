@@ -83,7 +83,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const data = await response.json()
+    const bodyText = await response.text()
+    const data = bodyText ? JSON.parse(bodyText) : {}
 
     return NextResponse.json({
       success: true,

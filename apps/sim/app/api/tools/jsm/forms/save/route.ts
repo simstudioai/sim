@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Form ID is required' }, { status: 400 })
     }
 
-    if (!answers || typeof answers !== 'object') {
+    if (!answers || typeof answers !== 'object' || Array.isArray(answers)) {
       logger.error('Missing or invalid answers in request')
       return NextResponse.json({ error: 'Answers object is required' }, { status: 400 })
     }
