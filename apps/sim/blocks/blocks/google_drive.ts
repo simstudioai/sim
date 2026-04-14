@@ -334,7 +334,7 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
         },
         { label: 'CSV (text/csv)', id: 'text/csv' },
       ],
-      value: 'auto',
+      value: () => 'auto',
       placeholder: 'Export format for Google Docs/Sheets/Slides',
       condition: { field: 'operation', value: 'download' },
     },
