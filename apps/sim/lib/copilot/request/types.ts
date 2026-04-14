@@ -22,7 +22,6 @@ export interface ToolCallState {
   name: string
   status: ToolCallStatus
   displayTitle?: string
-  phaseLabel?: string
   params?: Record<string, unknown>
   result?: ToolCallStateResult
   error?: string

@@ -47,8 +47,8 @@ function applyToolDisplay(
   ui: { title?: string; phaseLabel?: string }
 ): void {
   if (!toolCall) return
-  if (ui.title) toolCall.displayTitle = ui.title
-  if (ui.phaseLabel) toolCall.phaseLabel = ui.phaseLabel
+  const displayTitle = ui.title || ui.phaseLabel
+  if (displayTitle) toolCall.displayTitle = displayTitle
 }
 
 /**

@@ -54,27 +54,6 @@ export interface QueuedMessage {
   contexts?: ChatContext[]
 }
 
-/**
- * All tool names observed in the mothership SSE stream, grouped by phase.
- *
- * @example
- * ```json
- * { "type": "tool", "phase": "call", "toolName": "glob" }
- * { "type": "tool", "phase": "call", "toolName": "function_execute", "ui": { "title": "Running code", "icon": "code" } }
- * ```
- * Stream `type` is `MothershipStreamV1EventType.tool` (`mothership-stream-v1`) with `phase: 'call'`.
- */
-
-export const ToolPhase = {
-  workspace: 'workspace',
-  search: 'search',
-  management: 'management',
-  execution: 'execution',
-  resource: 'resource',
-  subagent: 'subagent',
-} as const
-export type ToolPhase = (typeof ToolPhase)[keyof typeof ToolPhase]
-
 export const ToolCallStatus = {
   executing: 'executing',
   success: 'success',
@@ -118,7 +97,6 @@ export interface ToolCallInfo {
   name: string
   status: ToolCallStatus
   displayTitle?: string
-  phaseLabel?: string
   params?: Record<string, unknown>
   calledBy?: string
   result?: ToolCallResult
@@ -194,134 +172,42 @@ export const SUBAGENT_LABELS: Record<string, string> = {
   file: 'File Agent',
 } as const
 
-export interface ToolUIMetadata {
+interface ToolTitleMetadata {
   title: string
-  phaseLabel: string
-  phase: ToolPhase
 }
 
 /**
- * Default UI metadata for tools observed in the SSE stream.
- * The backend may send `ui` on some `MothershipStreamV1EventType.tool` payloads (`phase: 'call'`);
- * this map provides fallback metadata when `ui` is absent.
+ * Fallback titles for tool calls when the stream did not provide one.
  */
-export const TOOL_UI_METADATA: Record<string, ToolUIMetadata> = {
-  [Glob.id]: {
-    title: 'Finding files',
-    phaseLabel: 'Workspace',
-    phase: 'workspace',
-  },
-  [Grep.id]: {
-    title: 'Searching',
-    phaseLabel: 'Workspace',
-    phase: 'workspace',
-  },
-  [ReadTool.id]: { title: 'Reading file', phaseLabel: 'Workspace', phase: 'workspace' },
-  [SearchOnline.id]: {
-    title: 'Searching online',
-    phaseLabel: 'Search',
-    phase: 'search',
-  },
-  [ScrapePage.id]: {
-    title: 'Scraping page',
-    phaseLabel: 'Search',
-    phase: 'search',
-  },
-  [GetPageContents.id]: {
-    title: 'Getting page contents',
-    phaseLabel: 'Search',
-    phase: 'search',
-  },
-  [SearchLibraryDocs.id]: {
-    title: 'Searching library docs',
-    phaseLabel: 'Search',
-    phase: 'search',
-  },
-  [ManageMcpTool.id]: {
-    title: 'MCP server action',
-    phaseLabel: 'Management',
-    phase: 'management',
-  },
-  [ManageSkill.id]: {
-    title: 'Skill action',
-    phaseLabel: 'Management',
-    phase: 'management',
-  },
-  [UserMemory.id]: {
-    title: 'Accessing memory',
-    phaseLabel: 'Management',
-    phase: 'management',
-  },
-  [FunctionExecute.id]: {
-    title: 'Running code',
-    phaseLabel: 'Code',
-    phase: 'execution',
-  },
-  [Superagent.id]: {
-    title: 'Executing action',
-    phaseLabel: 'Action',
-    phase: 'execution',
-  },
-  [UserTable.id]: {
-    title: 'Managing table',
-    phaseLabel: 'Resource',
-    phase: 'resource',
-  },
-  [WorkspaceFile.id]: {
-    title: 'Editing file',
-    phaseLabel: 'Resource',
-    phase: 'resource',
-  },
-  [EDIT_CONTENT_TOOL_ID]: {
-    title: 'Applying file content',
-    phaseLabel: 'Resource',
-    phase: 'resource',
-  },
-  [CreateWorkflow.id]: {
-    title: 'Creating workflow',
-    phaseLabel: 'Resource',
-    phase: 'resource',
-  },
-  [EditWorkflow.id]: {
-    title: 'Editing workflow',
-    phaseLabel: 'Resource',
-    phase: 'resource',
-  },
-  [Workflow.id]: { title: 'Workflow Agent', phaseLabel: 'Workflow', phase: 'subagent' },
-  [RUN_SUBAGENT_ID]: { title: 'Run Agent', phaseLabel: 'Run', phase: 'subagent' },
-  [Deploy.id]: { title: 'Deploy Agent', phaseLabel: 'Deploy', phase: 'subagent' },
-  [Auth.id]: {
-    title: 'Auth Agent',
-    phaseLabel: 'Auth',
-    phase: 'subagent',
-  },
-  [Knowledge.id]: {
-    title: 'Knowledge Agent',
-    phaseLabel: 'Knowledge',
-    phase: 'subagent',
-  },
-  [KnowledgeBase.id]: {
-    title: 'Managing knowledge base',
-    phaseLabel: 'Resource',
-    phase: 'resource',
-  },
-  [Table.id]: { title: 'Table Agent', phaseLabel: 'Table', phase: 'subagent' },
-  [Job.id]: { title: 'Job Agent', phaseLabel: 'Job', phase: 'subagent' },
-  [Agent.id]: { title: 'Tools Agent', phaseLabel: 'Agent', phase: 'subagent' },
-  custom_tool: {
-    title: 'Creating tool',
-    phaseLabel: 'Tool',
-    phase: 'subagent',
-  },
-  [Research.id]: { title: 'Research Agent', phaseLabel: 'Research', phase: 'subagent' },
-  [OpenResource.id]: {
-    title: 'Opening resource',
-    phaseLabel: 'Resource',
-    phase: 'resource',
-  },
-  context_compaction: {
-    title: 'Compacted context',
-    phaseLabel: 'Context',
-    phase: 'management',
-  },
+export const TOOL_UI_METADATA: Record<string, ToolTitleMetadata> = {
+  [Glob.id]: { title: 'Finding files' },
+  [Grep.id]: { title: 'Searching' },
+  [ReadTool.id]: { title: 'Reading file' },
+  [SearchOnline.id]: { title: 'Searching online' },
+  [ScrapePage.id]: { title: 'Scraping page' },
+  [GetPageContents.id]: { title: 'Getting page contents' },
+  [SearchLibraryDocs.id]: { title: 'Searching library docs' },
+  [ManageMcpTool.id]: { title: 'MCP server action' },
+  [ManageSkill.id]: { title: 'Skill action' },
+  [UserMemory.id]: { title: 'Accessing memory' },
+  [FunctionExecute.id]: { title: 'Running code' },
+  [Superagent.id]: { title: 'Executing action' },
+  [UserTable.id]: { title: 'Managing table' },
+  [WorkspaceFile.id]: { title: 'Editing file' },
+  [EDIT_CONTENT_TOOL_ID]: { title: 'Applying file content' },
+  [CreateWorkflow.id]: { title: 'Creating workflow' },
+  [EditWorkflow.id]: { title: 'Editing workflow' },
+  [Workflow.id]: { title: 'Workflow Agent' },
+  [RUN_SUBAGENT_ID]: { title: 'Run Agent' },
+  [Deploy.id]: { title: 'Deploy Agent' },
+  [Auth.id]: { title: 'Auth Agent' },
+  [Knowledge.id]: { title: 'Knowledge Agent' },
+  [KnowledgeBase.id]: { title: 'Managing knowledge base' },
+  [Table.id]: { title: 'Table Agent' },
+  [Job.id]: { title: 'Job Agent' },
+  [Agent.id]: { title: 'Tools Agent' },
+  custom_tool: { title: 'Creating tool' },
+  [Research.id]: { title: 'Research Agent' },
+  [OpenResource.id]: { title: 'Opening resource' },
+  context_compaction: { title: 'Compacted context' },
 }

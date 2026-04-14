@@ -132,7 +132,6 @@ describe('sse-handlers tool lifecycle', () => {
     const updated = context.toolCalls.get('tool-1')
     expect(updated?.status).toBe(MothershipStreamV1ToolOutcome.success)
     expect(updated?.displayTitle).toBe('Reading foo.txt')
-    expect(updated?.phaseLabel).toBe('Workspace')
     expect(updated?.result?.output).toEqual({ ok: true })
     expect(context.contentBlocks.at(0)).toEqual(
       expect.objectContaining({
@@ -140,7 +139,45 @@ describe('sse-handlers tool lifecycle', () => {
         toolCall: expect.objectContaining({
           id: 'tool-1',
           displayTitle: 'Reading foo.txt',
-          phaseLabel: 'Workspace',
+        }),
+      })
+    )
+  })
+
+  it('uses phaseLabel as a display title fallback when no title is provided', async () => {
+    executeTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
+    const onEvent = vi.fn()
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'tool-phase-label',
+          toolName: ReadTool.id,
+          arguments: { workflowId: 'workflow-1' },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+          ui: {
+            phaseLabel: 'Workspace',
+          },
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { onEvent, interactive: false, timeout: 1000 }
+    )
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const updated = context.toolCalls.get('tool-phase-label')
+    expect(updated?.displayTitle).toBe('Workspace')
+    expect(context.contentBlocks.at(0)).toEqual(
+      expect.objectContaining({
+        type: 'tool_call',
+        toolCall: expect.objectContaining({
+          id: 'tool-phase-label',
+          displayTitle: 'Workspace',
         }),
       })
     )

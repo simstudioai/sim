@@ -45,7 +45,6 @@ describe('display-message', () => {
           name: 'read',
           status: 'cancelled',
           displayTitle: 'Stopped by user',
-          phaseLabel: undefined,
           params: undefined,
           calledBy: undefined,
           result: undefined,

@@ -37,7 +37,6 @@ function toToolCallInfo(block: PersistedContentBlock): ToolCallInfo | undefined 
     name: tc.name,
     status,
     displayTitle: status === ToolCallStatus.cancelled ? 'Stopped by user' : tc.display?.title,
-    phaseLabel: tc.display?.phaseLabel,
     params: tc.params,
     calledBy: tc.calledBy,
     result: tc.result,

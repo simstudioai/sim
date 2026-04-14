@@ -6,7 +6,7 @@ import {
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
-import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
+import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-call-state'
 import type { ContentBlock, MothershipResource, OptionItem, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS, TOOL_UI_METADATA } from '../../types'
 import type { AgentGroupItem } from './components'
@@ -94,8 +94,7 @@ function mapToolStatusToClientState(
 
 function getOverrideDisplayTitle(tc: NonNullable<ContentBlock['toolCall']>): string | undefined {
   if (tc.name === ReadTool.id || tc.name === 'respond' || tc.name.endsWith('_respond')) {
-    return resolveToolDisplay(tc.name, mapToolStatusToClientState(tc.status), tc.id, tc.params)
-      ?.text
+    return resolveToolDisplay(tc.name, mapToolStatusToClientState(tc.status), tc.params)?.text
   }
   return undefined
 }

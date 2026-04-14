@@ -494,7 +494,6 @@ function resolveStreamingToolDisplayTitle(name: string, streamingArgs: string): 
 type StreamToolUI = {
   hidden?: boolean
   title?: string
-  phaseLabel?: string
   clientExecutable?: boolean
 }
 
@@ -597,10 +596,16 @@ function getToolUI(ui?: MothershipStreamV1ToolUI): StreamToolUI | undefined {
     return undefined
   }
 
+  const title =
+    typeof ui.title === 'string'
+      ? ui.title
+      : typeof ui.phaseLabel === 'string'
+        ? ui.phaseLabel
+        : undefined
+
   return {
     ...(typeof ui.hidden === 'boolean' ? { hidden: ui.hidden } : {}),
-    ...(typeof ui.title === 'string' ? { title: ui.title } : {}),
-    ...(typeof ui.phaseLabel === 'string' ? { phaseLabel: ui.phaseLabel } : {}),
+    ...(title ? { title } : {}),
     ...(typeof ui.clientExecutable === 'boolean' ? { clientExecutable: ui.clientExecutable } : {}),
   }
 }
@@ -1911,8 +1916,7 @@ export function useChat(
               }
               const ui = getToolUI(payload.ui)
               if (ui?.hidden) break
-              let displayTitle = ui?.title || ui?.phaseLabel
-              const phaseLabel = ui?.phaseLabel
+              let displayTitle = ui?.title
               const args = payload.arguments as Record<string, unknown> | undefined
 
               displayTitle = resolveToolDisplayTitle(name, args) ?? displayTitle
@@ -1943,7 +1947,6 @@ export function useChat(
                     name,
                     status: 'executing',
                     displayTitle,
-                    phaseLabel,
                     params: args,
                     calledBy: activeSubagent,
                   },
@@ -1957,7 +1960,6 @@ export function useChat(
                 if (tc) {
                   tc.name = name
                   if (displayTitle) tc.displayTitle = displayTitle
-                  if (phaseLabel) tc.phaseLabel = phaseLabel
                   if (args) tc.params = args
                 }
               }
@@ -2502,13 +2504,7 @@ export function useChat(
           const isCancelled =
             block.toolCall.status === 'executing' || block.toolCall.status === 'cancelled'
           const displayTitle = isCancelled ? 'Stopped by user' : block.toolCall.displayTitle
-          const display =
-            displayTitle || block.toolCall.phaseLabel
-              ? {
-                  ...(displayTitle ? { title: displayTitle } : {}),
-                  ...(block.toolCall.phaseLabel ? { phaseLabel: block.toolCall.phaseLabel } : {}),
-                }
-              : undefined
+          const display = displayTitle ? { title: displayTitle } : undefined
           return {
             type: block.type,
             content: block.content,
