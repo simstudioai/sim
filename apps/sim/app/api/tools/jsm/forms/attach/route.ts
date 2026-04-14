@@ -51,6 +51,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: issueIdOrKeyValidation.error }, { status: 400 })
     }
 
+    const formTemplateIdValidation = validateJiraCloudId(formTemplateId, 'formTemplateId')
+    if (!formTemplateIdValidation.isValid) {
+      return NextResponse.json({ error: formTemplateIdValidation.error }, { status: 400 })
+    }
+
     const baseUrl = getJsmFormsApiBaseUrl(cloudId)
     const url = `${baseUrl}/issue/${encodeURIComponent(issueIdOrKey)}/form`
 

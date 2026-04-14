@@ -356,7 +356,7 @@ Return ONLY the description text - no explanations.`,
       type: 'long-input',
       placeholder:
         'JSON object using form question IDs as keys (e.g., {"1": {"text": "Title"}, "4": {"choices": ["5"]}, "14": {"text": "Details"}})',
-      mode: 'advanced',
+      required: { field: 'operation', value: 'save_form_answers' },
       condition: { field: 'operation', value: ['create_request', 'save_form_answers'] },
     },
     {
