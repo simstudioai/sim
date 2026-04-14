@@ -13,7 +13,10 @@ function findSafeSplitPoint(content: string): number {
   let i = 0
 
   while (i < content.length) {
-    if (content[i] === '`' && content[i + 1] === '`' && content[i + 2] === '`') {
+    const isBacktickFence = content[i] === '`' && content[i + 1] === '`' && content[i + 2] === '`'
+    const isTildeFence = content[i] === '~' && content[i + 1] === '~' && content[i + 2] === '~'
+
+    if (isBacktickFence || isTildeFence) {
       inCodeBlock = !inCodeBlock
       i += 3
       continue

@@ -117,12 +117,7 @@ export function useAutoScroll(
       el.removeEventListener('scroll', onScroll)
       observer.disconnect()
       cancelAnimationFrame(rafIdRef.current)
-      if (stickyRef.current) {
-        scrollToBottom()
-        const settled = new MutationObserver(() => scrollToBottom())
-        settled.observe(el, { childList: true, subtree: true })
-        setTimeout(() => settled.disconnect(), 300)
-      }
+      if (stickyRef.current) scrollToBottom()
     }
   }, [isStreaming, scrollToBottom])
 

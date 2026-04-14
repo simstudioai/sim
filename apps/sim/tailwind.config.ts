@@ -223,6 +223,7 @@ export default {
         'placeholder-pulse': 'placeholder-pulse 1.5s ease-in-out infinite',
         'ring-pulse': 'ring-pulse 1.5s ease-in-out infinite',
         'stream-fade-in': 'stream-fade-in 300ms ease-out forwards',
+        'stream-fade-in-delayed': 'stream-fade-in 300ms ease-out 1.5s forwards',
         'thinking-block': 'thinking-block 1.6s ease-in-out infinite',
         'slide-in-right': 'slide-in-right 350ms ease-out forwards',
         'slide-in-bottom': 'slide-in-bottom 400ms cubic-bezier(0.16, 1, 0.3, 1)',
