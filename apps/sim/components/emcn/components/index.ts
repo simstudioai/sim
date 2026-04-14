@@ -32,6 +32,7 @@ export {
   highlight,
   languages,
 } from './code/code'
+export { CopyCodeButton } from './code/copy-code-button'
 export {
   Combobox,
   type ComboboxOption,

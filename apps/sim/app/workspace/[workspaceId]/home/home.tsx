@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import { Button } from '@/components/emcn'
 import { PanelLeft } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import {
@@ -33,6 +34,7 @@ export function Home({ chatId }: HomeProps = {}) {
   const { data: session } = useSession()
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
+  posthogRef.current = posthog
   const [initialPrompt, setInitialPrompt] = useState('')
   const hasCheckedLandingStorageRef = useRef(false)
   const initialViewInputRef = useRef<HTMLDivElement>(null)
@@ -99,19 +101,12 @@ export function Home({ chatId }: HomeProps = {}) {
       return
     }
 
-    // const templateId = LandingTemplateStorage.consume()
-    // if (templateId) {
-    //   logger.info('Retrieved landing page template, redirecting to template detail')
-    //   router.replace(`/workspace/${workspaceId}/templates/${templateId}?use=true`)
-    //   return
-    // }
-
     const prompt = LandingPromptStorage.consume()
     if (prompt) {
       logger.info('Retrieved landing page prompt, populating home input')
       setInitialPrompt(prompt)
     }
-  }, [createWorkflowFromLandingSeed, workspaceId, router])
+  }, [createWorkflowFromLandingSeed])
 
   const wasSendingRef = useRef(false)
 
@@ -129,10 +124,6 @@ export function Home({ chatId }: HomeProps = {}) {
     clearWidth()
     setIsResourceCollapsed(true)
   }, [clearWidth])
-
-  const expandResource = useCallback(() => {
-    setIsResourceCollapsed(false)
-  }, [])
 
   const handleResourceEvent = useCallback(() => {
     if (isResourceCollapsedRef.current) {
@@ -224,10 +215,6 @@ export function Home({ chatId }: HomeProps = {}) {
     return () => cancelAnimationFrame(id)
   }, [resources])
 
-  useEffect(() => {
-    posthogRef.current = posthog
-  }, [posthog])
-
   const handleStopGeneration = useCallback(() => {
     captureEvent(posthogRef.current, 'task_generation_aborted', {
       workspace_id: workspaceId,
@@ -299,9 +286,14 @@ export function Home({ chatId }: HomeProps = {}) {
   const handleInitialContextRemove = useCallback(
     (context: ChatContext) => {
       const resolved = resolveResourceFromContext(context)
-      if (resolved) removeResource(resolved.type, resolved.id)
+      if (!resolved) return
+      removeResource(resolved.type, resolved.id)
+      const remaining = resources.filter((r) => !(r.type === resolved.type && r.id === resolved.id))
+      if (remaining.length === 0) {
+        collapseResource()
+      }
     },
-    [resolveResourceFromContext, removeResource]
+    [resolveResourceFromContext, removeResource, resources, collapseResource]
   )
 
   const handleWorkspaceResourceSelect = useCallback(
@@ -426,14 +418,16 @@ export function Home({ chatId }: HomeProps = {}) {
 
       {isResourceCollapsed && (
         <div className='absolute top-[8.5px] right-[16px]'>
-          <button
+          <Button
+            variant='ghost'
+            size={null}
             type='button'
-            onClick={expandResource}
-            className='flex h-[30px] w-[30px] items-center justify-center rounded-[8px] hover-hover:bg-[var(--surface-active)]'
+            onClick={() => setIsResourceCollapsed(false)}
+            className='h-[30px] w-[30px] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
             aria-label='Expand resource view'
           >
             <PanelLeft className='h-[16px] w-[16px] text-[var(--text-icon)]' />
-          </button>
+          </Button>
         </div>
       )}
     </div>

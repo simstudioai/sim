@@ -8,8 +8,7 @@ import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'
 import 'prismjs/components/prism-markup'
 import '@/components/emcn/components/code/code.css'
-import { Checkbox, highlight, languages } from '@/components/emcn'
-import { CopyCodeButton } from '@/components/ui/copy-code-button'
+import { Checkbox, CopyCodeButton, highlight, languages } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import {
@@ -19,6 +18,7 @@ import {
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import { useStreamingReveal } from '@/hooks/use-streaming-reveal'
 import { useStreamingText } from '@/hooks/use-streaming-text'
 
 const LANG_ALIASES: Record<string, string> = {
@@ -148,7 +148,7 @@ const MARKDOWN_COMPONENTS = {
           <span className='text-[var(--text-tertiary)] text-xs'>{language || 'code'}</span>
           <CopyCodeButton
             code={codeString}
-            className='text-[var(--text-tertiary)] hover:bg-[var(--surface-5)] hover:text-[var(--text-secondary)]'
+            className='-mr-2 text-[var(--text-tertiary)] hover:bg-[var(--surface-5)] hover:text-[var(--text-secondary)]'
           />
         </div>
         <div className='code-editor-theme bg-[var(--surface-5)] dark:bg-[var(--code-bg)]'>
@@ -247,30 +247,13 @@ export function ChatContent({
   onWorkspaceResourceSelect,
   smoothStreaming = true,
 }: ChatContentProps) {
-  const hydratedStreamingRef = useRef(isStreaming && content.trim().length > 0)
-  const previousIsStreamingRef = useRef(isStreaming)
-
-  useEffect(() => {
-    if (!previousIsStreamingRef.current && isStreaming && content.trim().length > 0) {
-      hydratedStreamingRef.current = true
-    } else if (!isStreaming) {
-      hydratedStreamingRef.current = false
-    }
-    previousIsStreamingRef.current = isStreaming
-  }, [content, isStreaming])
-
   const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
   onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
 
   useEffect(() => {
     const handler = (e: Event) => {
       const { type, id, title } = (e as CustomEvent).detail
-      const RESOURCE_TYPE_MAP: Record<string, string> = {}
-      onWorkspaceResourceSelectRef.current?.({
-        type: RESOURCE_TYPE_MAP[type] || type,
-        id,
-        title: title || id,
-      })
+      onWorkspaceResourceSelectRef.current?.({ type, id, title: title || id })
     }
     window.addEventListener('wsres-click', handler)
     return () => window.removeEventListener('wsres-click', handler)
@@ -280,6 +263,11 @@ export function ChatContent({
 
   const parsed = useMemo(() => parseSpecialTags(rendered, isStreaming), [rendered, isStreaming])
   const hasSpecialContent = parsed.hasPendingTag || parsed.segments.some((s) => s.type !== 'text')
+
+  const { committed, incoming, generation } = useStreamingReveal(
+    rendered,
+    !hasSpecialContent && isStreaming
+  )
 
   if (hasSpecialContent) {
     type BlockSegment = Exclude<
@@ -348,15 +336,38 @@ export function ChatContent({
   }
 
   return (
-    <div className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}>
-      <Streamdown
-        mode={isStreaming ? undefined : 'static'}
-        isAnimating={isStreaming}
-        animated={isStreaming && !hydratedStreamingRef.current}
-        components={MARKDOWN_COMPONENTS}
-      >
-        {rendered}
-      </Streamdown>
+    <div>
+      {committed && (
+        <div
+          className={cn(
+            PROSE_CLASSES,
+            '[&>:first-child]:mt-0',
+            !incoming && '[&>:last-child]:mb-0'
+          )}
+        >
+          <Streamdown mode='static' components={MARKDOWN_COMPONENTS}>
+            {committed}
+          </Streamdown>
+        </div>
+      )}
+      {incoming && (
+        <div
+          key={generation}
+          className={cn(
+            PROSE_CLASSES,
+            '[&>:first-child]:mt-0 [&>:last-child]:mb-0',
+            isStreaming && 'animate-stream-fade-in'
+          )}
+        >
+          <Streamdown
+            mode={isStreaming ? undefined : 'static'}
+            isAnimating={isStreaming}
+            components={MARKDOWN_COMPONENTS}
+          >
+            {incoming}
+          </Streamdown>
+        </div>
+      )}
     </div>
   )
 }
