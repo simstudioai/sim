@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Badge } from '@/components/emcn'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { SITE_URL } from '@/lib/core/utils/urls'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import {
   ChevronArrow,
@@ -20,7 +20,7 @@ import {
   TOP_MODEL_PROVIDERS,
 } from '@/app/(landing)/models/utils'
 
-const baseUrl = getBaseUrl()
+const baseUrl = SITE_URL
 
 export async function generateStaticParams() {
   return MODEL_PROVIDERS_WITH_CATALOGS.map((provider) => ({

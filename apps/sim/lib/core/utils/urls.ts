@@ -1,6 +1,9 @@
 import { getEnv } from '@/lib/core/config/env'
 import { isProd } from '@/lib/core/config/feature-flags'
 
+/** Canonical base URL for the public-facing marketing site. No trailing slash. */
+export const SITE_URL = 'https://www.sim.ai'
+
 function hasHttpProtocol(url: string): boolean {
   return /^https?:\/\//i.test(url)
 }

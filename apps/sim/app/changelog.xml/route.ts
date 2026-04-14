@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { SITE_URL } from '@/lib/core/utils/urls'
 
 export const dynamic = 'force-static'
 export const revalidate = 3600
@@ -48,7 +49,7 @@ export async function GET() {
       <rss version="2.0">
         <channel>
           <title>Sim Changelog</title>
-          <link>https://sim.ai/changelog</link>
+          <link>${SITE_URL}/changelog</link>
           <description>Latest changes, fixes and updates in Sim.</description>
           <language>en-us</language>
           ${items}

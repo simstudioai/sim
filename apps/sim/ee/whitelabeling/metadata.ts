@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getBaseUrl, SITE_URL } from '@/lib/core/utils/urls'
 import { getBrandConfig } from '@/ee/whitelabeling/branding'
 
 /**
@@ -150,7 +150,7 @@ export function generateStructuredData() {
     creator: {
       '@type': 'Organization',
       name: 'Sim',
-      url: 'https://sim.ai',
+      url: SITE_URL,
     },
     featureList: [
       'AI Workspace for Teams',

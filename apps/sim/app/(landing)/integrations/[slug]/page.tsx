@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { SITE_URL } from '@/lib/core/utils/urls'
 import { IntegrationCtaButton } from '@/app/(landing)/integrations/[slug]/components/integration-cta-button'
 import { IntegrationFAQ } from '@/app/(landing)/integrations/[slug]/components/integration-faq'
 import { TemplateCardButton } from '@/app/(landing)/integrations/[slug]/components/template-card-button'
@@ -14,7 +14,7 @@ import { TEMPLATES } from '@/app/workspace/[workspaceId]/home/components/templat
 
 const allIntegrations = integrations as Integration[]
 const INTEGRATION_COUNT = allIntegrations.length
-const baseUrl = getBaseUrl()
+const baseUrl = SITE_URL
 
 /** Fast O(1) lookups — avoids repeated linear scans inside render loops. */
 const bySlug = new Map(allIntegrations.map((i) => [i.slug, i]))

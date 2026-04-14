@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { SITE_URL } from '@/lib/core/utils/urls'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import { FeaturedModelCard, ProviderIcon } from '@/app/(landing)/models/components/model-primitives'
 import {
@@ -18,7 +18,7 @@ import {
   getRelatedModels,
 } from '@/app/(landing)/models/utils'
 
-const baseUrl = getBaseUrl()
+const baseUrl = SITE_URL
 
 export async function generateStaticParams() {
   return ALL_CATALOG_MODELS.map((model) => ({
@@ -221,7 +221,7 @@ export default async function ModelPage({
 
           <div className='flex flex-wrap gap-2'>
             <a
-              href='https://sim.ai'
+              href='/'
               className='inline-flex h-[32px] items-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
             >
               Build with this model

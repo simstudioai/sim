@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server'
 import { getAllPostMeta } from '@/lib/blog/registry'
+import { SITE_URL } from '@/lib/core/utils/urls'
 
 export const revalidate = 3600
 
 export async function GET() {
   const posts = await getAllPostMeta()
   const items = posts.slice(0, 50)
-  const site = 'https://sim.ai'
+  const site = SITE_URL
   const lastBuildDate =
     items.length > 0 ? new Date(items[0].date).toUTCString() : new Date().toUTCString()
 
