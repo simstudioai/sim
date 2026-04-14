@@ -28,7 +28,7 @@ export const MAX_DURATION = 210
 const logger = createLogger('FunctionExecuteAPI')
 
 const TAG_PATTERN = new RegExp(
-  `${REFERENCE.START}([a-zA-Z_](?:\\${REFERENCE.PATH_DELIMITER}[a-zA-Z0-9_]+|[a-zA-Z0-9_])*)${REFERENCE.END}`,
+  `${REFERENCE.START}([^${REFERENCE.START}${REFERENCE.END}]+)${REFERENCE.END}`,
   'g'
 )
 
