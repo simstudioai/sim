@@ -374,7 +374,6 @@ export function MessageContent({
   const hasSubagentEnded = blocks.some((b) => b.type === 'subagent_end')
   const showTrailingThinking =
     isStreaming && !hasTrailingContent && (hasSubagentEnded || allLastGroupToolsDone)
-  const hasStructuredSegments = segments.some((segment) => segment.type !== 'text')
   const lastOpenSubagentGroupId = [...segments]
     .reverse()
     .find(
@@ -394,7 +393,6 @@ export function MessageContent({
                 isStreaming={isStreaming}
                 onOptionSelect={onOptionSelect}
                 onWorkspaceResourceSelect={onWorkspaceResourceSelect}
-                smoothStreaming={!hasStructuredSegments}
               />
             )
           case 'agent_group': {

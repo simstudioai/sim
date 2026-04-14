@@ -176,9 +176,11 @@ const DEFAULT_COMPONENTS = createCustomComponents(LinkWithPreview)
 const MarkdownRenderer = memo(function MarkdownRenderer({
   content,
   customLinkComponent,
+  isStreaming = false,
 }: {
   content: string
   customLinkComponent?: typeof LinkWithPreview
+  isStreaming?: boolean
 }) {
   const components = useMemo(() => {
     if (!customLinkComponent) {
@@ -191,7 +193,12 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
 
   return (
     <div className='space-y-4 break-words font-sans text-[var(--landing-text)] text-base leading-relaxed'>
-      <Streamdown mode='static' components={components}>
+      <Streamdown
+        mode={isStreaming ? undefined : 'static'}
+        isAnimating={isStreaming}
+        animated={isStreaming}
+        components={components}
+      >
         {processedContent}
       </Streamdown>
     </div>

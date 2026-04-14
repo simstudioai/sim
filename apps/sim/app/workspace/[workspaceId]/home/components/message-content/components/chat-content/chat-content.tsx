@@ -18,7 +18,6 @@ import {
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
-import { useStreamingText } from '@/hooks/use-streaming-text'
 
 const LANG_ALIASES: Record<string, string> = {
   js: 'javascript',
@@ -236,7 +235,6 @@ interface ChatContentProps {
   isStreaming?: boolean
   onOptionSelect?: (id: string) => void
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
-  smoothStreaming?: boolean
 }
 
 export function ChatContent({
@@ -244,7 +242,6 @@ export function ChatContent({
   isStreaming = false,
   onOptionSelect,
   onWorkspaceResourceSelect,
-  smoothStreaming = true,
 }: ChatContentProps) {
   const hydratedStreamingRef = useRef(isStreaming && content.trim().length > 0)
   const previousIsStreamingRef = useRef(isStreaming)
@@ -270,9 +267,7 @@ export function ChatContent({
     return () => window.removeEventListener('wsres-click', handler)
   }, [])
 
-  const rendered = useStreamingText(content, isStreaming && smoothStreaming)
-
-  const parsed = useMemo(() => parseSpecialTags(rendered, isStreaming), [rendered, isStreaming])
+  const parsed = useMemo(() => parseSpecialTags(content, isStreaming), [content, isStreaming])
   const hasSpecialContent = parsed.hasPendingTag || parsed.segments.some((s) => s.type !== 'text')
 
   if (hasSpecialContent) {
@@ -349,7 +344,7 @@ export function ChatContent({
         animated={isStreaming && !hydratedStreamingRef.current}
         components={MARKDOWN_COMPONENTS}
       >
-        {rendered}
+        {content}
       </Streamdown>
     </div>
   )
