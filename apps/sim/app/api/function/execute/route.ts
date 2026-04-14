@@ -494,7 +494,7 @@ function resolveTagVariables(
   const undefinedLiteral = language === 'python' ? 'None' : 'undefined'
 
   const tagPattern = new RegExp(
-    `${REFERENCE.START}([a-zA-Z_](?:[a-zA-Z0-9_${REFERENCE.PATH_DELIMITER}]*[a-zA-Z0-9_])?)${REFERENCE.END}`,
+    `${REFERENCE.START}([a-zA-Z_][a-zA-Z0-9_${REFERENCE.PATH_DELIMITER}]*)${REFERENCE.END}`,
     'g'
   )
   const tagMatches = resolvedCode.match(tagPattern) || []
