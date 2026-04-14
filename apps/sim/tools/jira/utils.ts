@@ -18,6 +18,19 @@ export function toAdf(value: string | Record<string, unknown>): Record<string, u
       return { type: 'doc', version: 1, content: [value] }
     }
   }
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      if (typeof parsed === 'object' && parsed !== null && parsed.type === 'doc') {
+        return parsed
+      }
+      if (typeof parsed === 'object' && parsed !== null && parsed.type && Array.isArray(parsed.content)) {
+        return { type: 'doc', version: 1, content: [parsed] }
+      }
+    } catch {
+      // Not JSON — treat as plain text below
+    }
+  }
   return {
     type: 'doc',
     version: 1,
