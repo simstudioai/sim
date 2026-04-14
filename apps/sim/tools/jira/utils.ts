@@ -24,7 +24,9 @@ export function toAdf(value: string | Record<string, unknown>): Record<string, u
     content: [
       {
         type: 'paragraph',
-        content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }],
+        content: [
+          { type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) },
+        ],
       },
     ],
   }
