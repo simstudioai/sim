@@ -247,6 +247,21 @@ export async function uploadWorkspaceFile(
         continue
       }
       logger.error(`Failed to upload workspace file ${fileName}:`, error)
+      if (
+        error instanceof Error &&
+        'code' in error &&
+        (error as { code?: string }).code === 'AuthorizationFailure'
+      ) {
+        const { getStorageProvider, BLOB_CONFIG } = await import('@/lib/uploads/config')
+        logger.error('Azure storage authorization diagnosis', {
+          provider: getStorageProvider(),
+          accountName: BLOB_CONFIG.accountName || '(empty)',
+          containerName: BLOB_CONFIG.containerName || '(empty)',
+          hasAccountKey: !!BLOB_CONFIG.accountKey,
+          keyLength: BLOB_CONFIG.accountKey?.length || 0,
+          hasConnectionString: !!BLOB_CONFIG.connectionString,
+        })
+      }
       throw new Error(
         `Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`
       )

@@ -65,10 +65,12 @@ export async function POST(request: NextRequest) {
     const {
       accessToken,
       fileId,
-      mimeType: exportMimeType,
+      mimeType: rawExportMimeType,
       fileName,
       includeRevisions,
     } = validatedData
+    const exportMimeType =
+      rawExportMimeType && rawExportMimeType !== 'auto' ? rawExportMimeType : null
     const authHeader = `Bearer ${accessToken}`
 
     logger.info(`[${requestId}] Getting file metadata from Google Drive`, { fileId })
@@ -129,7 +131,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const exportResponse = await secureFetchWithPinnedIP(
+      let exportResponse = await secureFetchWithPinnedIP(
         exportUrl,
         exportUrlValidation.resolvedIP!,
         { headers: { Authorization: authHeader } }
@@ -139,17 +141,67 @@ export async function POST(request: NextRequest) {
         const exportError = (await exportResponse
           .json()
           .catch(() => ({}))) as GoogleApiErrorResponse
-        logger.error(`[${requestId}] Failed to export file`, {
-          status: exportResponse.status,
-          error: exportError,
-        })
-        return NextResponse.json(
-          {
-            success: false,
-            error: exportError.error?.message || 'Failed to export Google Workspace file',
-          },
-          { status: 400 }
-        )
+        const errorMessage = exportError.error?.message || ''
+
+        const hasCustomFormat = !!exportMimeType
+        const defaultFormat = DEFAULT_EXPORT_FORMATS[fileMimeType]
+        if (
+          hasCustomFormat &&
+          defaultFormat &&
+          exportMimeType !== defaultFormat &&
+          errorMessage.toLowerCase().includes('conversion')
+        ) {
+          logger.warn(`[${requestId}] Export format not supported, falling back to default`, {
+            requestedFormat: exportFormat,
+            fallbackFormat: defaultFormat,
+            fileMimeType,
+          })
+
+          finalMimeType = defaultFormat
+          const fallbackUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(defaultFormat)}&supportsAllDrives=true`
+          const fallbackUrlValidation = await validateUrlWithDNS(fallbackUrl, 'fallbackExportUrl')
+          if (!fallbackUrlValidation.isValid) {
+            return NextResponse.json(
+              { success: false, error: fallbackUrlValidation.error },
+              { status: 400 }
+            )
+          }
+
+          exportResponse = await secureFetchWithPinnedIP(
+            fallbackUrl,
+            fallbackUrlValidation.resolvedIP!,
+            { headers: { Authorization: authHeader } }
+          )
+
+          if (!exportResponse.ok) {
+            const fallbackError = (await exportResponse
+              .json()
+              .catch(() => ({}))) as GoogleApiErrorResponse
+            logger.error(`[${requestId}] Fallback export also failed`, {
+              status: exportResponse.status,
+              error: fallbackError,
+            })
+            return NextResponse.json(
+              {
+                success: false,
+                error: fallbackError.error?.message || 'Failed to export Google Workspace file',
+              },
+              { status: 400 }
+            )
+          }
+        } else {
+          logger.error(`[${requestId}] Failed to export file`, {
+            status: exportResponse.status,
+            error: exportError,
+          })
+          return NextResponse.json(
+            {
+              success: false,
+              error: errorMessage || 'Failed to export Google Workspace file',
+            },
+            { status: 400 }
+          )
+        }
       }
 
       const arrayBuffer = await exportResponse.arrayBuffer()
