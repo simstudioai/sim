@@ -80,7 +80,7 @@ import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
-import { captureServerEvent } from '@/lib/posthog/server'
+import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
@@ -192,6 +192,21 @@ export const auth = betterAuth({
               userId: user.id,
               authMethod: 'email',
             })
+          } catch {
+            // Telemetry should not fail the operation
+          }
+
+          try {
+            const client = getPostHogClient()
+            if (client) {
+              client.identify({
+                distinctId: user.id,
+                properties: {
+                  ...(user.email ? { email: user.email } : {}),
+                  ...(user.name ? { name: user.name } : {}),
+                },
+              })
+            }
           } catch {
             // Telemetry should not fail the operation
           }
@@ -396,6 +411,7 @@ export const auth = betterAuth({
                   : SSO_TRUSTED_PROVIDERS.includes(providerId)
                     ? 'sso'
                     : 'oauth'
+
               captureServerEvent(
                 account.userId,
                 'user_created',
