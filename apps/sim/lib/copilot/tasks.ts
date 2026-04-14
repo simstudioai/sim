@@ -1,29 +1,29 @@
 /**
- * Task Status Pub/Sub Adapter
+ * Task List Change Pub/Sub Adapter
  *
- * Broadcasts task status events across processes using Redis Pub/Sub.
- * Gracefully falls back to process-local EventEmitter when Redis is unavailable.
+ * Broadcasts workspace-scoped task list change notifications across processes
+ * using Redis Pub/Sub. Gracefully falls back to a process-local EventEmitter
+ * when Redis is unavailable.
  *
  * Channel: `task:status_changed`
  */
 
 import { createPubSubChannel } from '@/lib/events/pubsub'
 
-interface TaskStatusEvent {
+interface TaskListChangedEvent {
   workspaceId: string
-  chatId: string
-  type: 'started' | 'completed' | 'created' | 'deleted' | 'renamed'
 }
 
 const channel =
   typeof window !== 'undefined'
     ? null
-    : createPubSubChannel<TaskStatusEvent>({ channel: 'task:status_changed', label: 'task' })
+    : createPubSubChannel<TaskListChangedEvent>({ channel: 'task:status_changed', label: 'task' })
 
 export const taskPubSub = channel
   ? {
-      publishStatusChanged: (event: TaskStatusEvent) => channel.publish(event),
-      onStatusChanged: (handler: (event: TaskStatusEvent) => void) => channel.subscribe(handler),
+      publishTaskListChanged: (event: TaskListChangedEvent) => channel.publish(event),
+      onTaskListChanged: (handler: (event: TaskListChangedEvent) => void) =>
+        channel.subscribe(handler),
       dispose: () => channel.dispose(),
     }
   : null

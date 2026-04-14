@@ -41,10 +41,8 @@ export async function DELETE(request: NextRequest) {
     logger.info('Chat deleted', { chatId: parsed.chatId })
 
     if (deleted.workspaceId) {
-      taskPubSub?.publishStatusChanged({
+      taskPubSub?.publishTaskListChanged({
         workspaceId: deleted.workspaceId,
-        chatId: parsed.chatId,
-        type: 'deleted',
       })
     }
 

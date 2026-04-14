@@ -113,10 +113,8 @@ export async function executeInboxTask(taskId: string): Promise<void> {
         .then(async (title) => {
           if (title && chatId) {
             await db.update(copilotChats).set({ title }).where(eq(copilotChats.id, chatId))
-            taskPubSub?.publishStatusChanged({
+            taskPubSub?.publishTaskListChanged({
               workspaceId: ws.id,
-              chatId,
-              type: 'renamed',
             })
           }
         })
@@ -124,18 +122,14 @@ export async function executeInboxTask(taskId: string): Promise<void> {
           logger.warn('Failed to generate chat title', { chatId, err })
         })
 
-      taskPubSub?.publishStatusChanged({
+      taskPubSub?.publishTaskListChanged({
         workspaceId: ws.id,
-        chatId,
-        type: 'created',
       })
     }
 
     if (chatId) {
-      taskPubSub?.publishStatusChanged({
+      taskPubSub?.publishTaskListChanged({
         workspaceId: ws.id,
-        chatId,
-        type: 'started',
       })
     }
 
@@ -240,10 +234,8 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       .where(eq(mothershipInboxTask.id, taskId))
 
     if (chatId) {
-      taskPubSub?.publishStatusChanged({
+      taskPubSub?.publishTaskListChanged({
         workspaceId: ws.id,
-        chatId,
-        type: 'completed',
       })
     }
 

@@ -165,10 +165,8 @@ export async function PATCH(
 
     if (updatedChat.workspaceId) {
       if (title !== undefined) {
-        taskPubSub?.publishStatusChanged({
+        taskPubSub?.publishTaskListChanged({
           workspaceId: updatedChat.workspaceId,
-          chatId,
-          type: 'renamed',
         })
         captureServerEvent(
           userId,
@@ -239,10 +237,8 @@ export async function DELETE(
     }
 
     if (deletedChat.workspaceId) {
-      taskPubSub?.publishStatusChanged({
+      taskPubSub?.publishTaskListChanged({
         workspaceId: deletedChat.workspaceId,
-        chatId,
-        type: 'deleted',
       })
       captureServerEvent(
         userId,

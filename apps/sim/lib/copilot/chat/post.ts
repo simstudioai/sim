@@ -284,7 +284,7 @@ async function persistUserMessage(params: {
     .returning({ messages: copilotChats.messages })
 
   if (notifyWorkspaceStatus && updated && workspaceId) {
-    taskPubSub?.publishStatusChanged({ workspaceId, chatId, type: 'started' })
+    taskPubSub?.publishTaskListChanged({ workspaceId })
   }
 
   return Array.isArray(updated?.messages) ? updated.messages : undefined
@@ -348,11 +348,7 @@ function buildOnComplete(params: {
       })
 
       if (notifyWorkspaceStatus && workspaceId) {
-        taskPubSub?.publishStatusChanged({
-          workspaceId,
-          chatId,
-          type: 'completed',
-        })
+        taskPubSub?.publishTaskListChanged({ workspaceId })
       }
     } catch (error) {
       logger.error(`[${requestId}] Failed to persist chat messages`, {
@@ -379,11 +375,7 @@ function buildOnError(params: {
       await finalizeAssistantTurn({ chatId, userMessageId })
 
       if (notifyWorkspaceStatus && workspaceId) {
-        taskPubSub?.publishStatusChanged({
-          workspaceId,
-          chatId,
-          type: 'completed',
-        })
+        taskPubSub?.publishTaskListChanged({ workspaceId })
       }
     } catch (error) {
       logger.error(`[${requestId}] Failed to finalize errored chat stream`, {

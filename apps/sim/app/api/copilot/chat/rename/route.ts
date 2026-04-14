@@ -44,10 +44,8 @@ export async function PATCH(request: NextRequest) {
     logger.info('Chat renamed', { chatId, title })
 
     if (updated.workspaceId) {
-      taskPubSub?.publishStatusChanged({
+      taskPubSub?.publishTaskListChanged({
         workspaceId: updated.workspaceId,
-        chatId,
-        type: 'renamed',
       })
     }
 

@@ -84,7 +84,7 @@ vi.mock('@/lib/copilot/chat/lifecycle', () => ({
 
 vi.mock('@/lib/copilot/tasks', () => ({
   taskPubSub: {
-    publishStatusChanged: vi.fn(),
+    publishTaskListChanged: vi.fn(),
   },
 }))
 

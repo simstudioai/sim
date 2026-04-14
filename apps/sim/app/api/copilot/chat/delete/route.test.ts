@@ -41,7 +41,7 @@ vi.mock('@/lib/copilot/chat/lifecycle', () => ({
 }))
 
 vi.mock('@/lib/copilot/tasks', () => ({
-  taskPubSub: { publishStatusChanged: vi.fn() },
+  taskPubSub: { publishTaskListChanged: vi.fn() },
 }))
 
 import { DELETE } from './route'

@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
       })
       .returning({ id: copilotChats.id })
 
-    taskPubSub?.publishStatusChanged({ workspaceId, chatId: chat.id, type: 'created' })
+    taskPubSub?.publishTaskListChanged({ workspaceId })
 
     captureServerEvent(
       userId,

@@ -269,7 +269,7 @@ function fireTitleGeneration(params: {
         payload: { kind: MothershipStreamV1SessionKind.title, title },
       })
       if (workspaceId) {
-        taskPubSub?.publishStatusChanged({ workspaceId, chatId, type: 'renamed' })
+        taskPubSub?.publishTaskListChanged({ workspaceId })
       }
     })
     .catch((error) => {

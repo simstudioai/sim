@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
       return createInternalServerErrorResponse('Failed to create chat')
     }
 
-    taskPubSub?.publishStatusChanged({ workspaceId, chatId: result.chatId, type: 'created' })
+    taskPubSub?.publishTaskListChanged({ workspaceId })
 
     return NextResponse.json({ success: true, id: result.chatId })
   } catch (error) {

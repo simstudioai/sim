@@ -1,8 +1,8 @@
 /**
  * SSE endpoint for task status events.
  *
- * Pushes `task_status` events to the browser when tasks are
- * started, completed, created, deleted, or renamed.
+ * Pushes `task_status` events to the browser when the workspace task list
+ * changes.
  *
  * Auth is handled via session cookies (EventSource sends cookies automatically).
  */
@@ -18,13 +18,9 @@ export const GET = createWorkspaceSSE({
     {
       subscribe: (workspaceId, send) => {
         if (!taskPubSub) return () => {}
-        return taskPubSub.onStatusChanged((event) => {
+        return taskPubSub.onTaskListChanged((event) => {
           if (event.workspaceId !== workspaceId) return
-          send('task_status', {
-            chatId: event.chatId,
-            type: event.type,
-            timestamp: Date.now(),
-          })
+          send('task_status', {})
         })
       },
     },

@@ -126,10 +126,8 @@ export async function POST(req: NextRequest) {
       .returning({ workspaceId: copilotChats.workspaceId })
 
     if (updated?.workspaceId) {
-      taskPubSub?.publishStatusChanged({
+      taskPubSub?.publishTaskListChanged({
         workspaceId: updated.workspaceId,
-        chatId,
-        type: 'completed',
       })
     }
 
