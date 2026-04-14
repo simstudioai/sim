@@ -13,6 +13,7 @@ import {
   ALL_REVISION_FIELDS,
   DEFAULT_EXPORT_FORMATS,
   GOOGLE_WORKSPACE_MIME_TYPES,
+  VALID_EXPORT_FORMATS,
 } from '@/tools/google_drive/utils'
 
 export const dynamic = 'force-dynamic'
@@ -114,6 +115,24 @@ export async function POST(request: NextRequest) {
 
     if (GOOGLE_WORKSPACE_MIME_TYPES.includes(fileMimeType)) {
       const exportFormat = exportMimeType || DEFAULT_EXPORT_FORMATS[fileMimeType] || 'text/plain'
+
+      const validFormats = VALID_EXPORT_FORMATS[fileMimeType]
+      if (validFormats && !validFormats.includes(exportFormat)) {
+        logger.warn(`[${requestId}] Unsupported export format requested`, {
+          fileId,
+          fileMimeType,
+          requestedFormat: exportFormat,
+          validFormats,
+        })
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Export format "${exportFormat}" is not supported for this file type. Supported formats: ${validFormats.join(', ')}`,
+          },
+          { status: 400 }
+        )
+      }
+
       finalMimeType = exportFormat
 
       logger.info(`[${requestId}] Exporting Google Workspace file`, {
@@ -131,7 +150,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      let exportResponse = await secureFetchWithPinnedIP(
+      const exportResponse = await secureFetchWithPinnedIP(
         exportUrl,
         exportUrlValidation.resolvedIP!,
         { headers: { Authorization: authHeader } }
@@ -141,64 +160,17 @@ export async function POST(request: NextRequest) {
         const exportError = (await exportResponse
           .json()
           .catch(() => ({}))) as GoogleApiErrorResponse
-        const errorMessage = exportError.error?.message || ''
-
-        const defaultFormat = DEFAULT_EXPORT_FORMATS[fileMimeType]
-        const canFallback = !!exportMimeType && !!defaultFormat && exportMimeType !== defaultFormat
-
-        if (canFallback) {
-          logger.warn(`[${requestId}] Export failed with custom format, falling back to default`, {
-            requestedFormat: exportFormat,
-            fallbackFormat: defaultFormat,
-            fileMimeType,
-            status: exportResponse.status,
-          })
-
-          finalMimeType = defaultFormat
-          const fallbackUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(defaultFormat)}&supportsAllDrives=true`
-          const fallbackUrlValidation = await validateUrlWithDNS(fallbackUrl, 'fallbackExportUrl')
-          if (!fallbackUrlValidation.isValid) {
-            return NextResponse.json(
-              { success: false, error: fallbackUrlValidation.error },
-              { status: 400 }
-            )
-          }
-
-          exportResponse = await secureFetchWithPinnedIP(
-            fallbackUrl,
-            fallbackUrlValidation.resolvedIP!,
-            { headers: { Authorization: authHeader } }
-          )
-
-          if (!exportResponse.ok) {
-            const fallbackError = (await exportResponse
-              .json()
-              .catch(() => ({}))) as GoogleApiErrorResponse
-            logger.error(`[${requestId}] Fallback export also failed`, {
-              status: exportResponse.status,
-              error: fallbackError,
-            })
-            return NextResponse.json(
-              {
-                success: false,
-                error: fallbackError.error?.message || 'Failed to export Google Workspace file',
-              },
-              { status: 400 }
-            )
-          }
-        } else {
-          logger.error(`[${requestId}] Failed to export file`, {
-            status: exportResponse.status,
-            error: exportError,
-          })
-          return NextResponse.json(
-            {
-              success: false,
-              error: errorMessage || 'Failed to export Google Workspace file',
-            },
-            { status: 400 }
-          )
-        }
+        logger.error(`[${requestId}] Failed to export file`, {
+          status: exportResponse.status,
+          error: exportError,
+        })
+        return NextResponse.json(
+          {
+            success: false,
+            error: exportError.error?.message || 'Failed to export Google Workspace file',
+          },
+          { status: 400 }
+        )
       }
 
       const arrayBuffer = await exportResponse.arrayBuffer()
