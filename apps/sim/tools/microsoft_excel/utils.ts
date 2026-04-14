@@ -10,6 +10,9 @@ const logger = createLogger('MicrosoftExcelUtils')
  */
 export function getItemBasePath(spreadsheetId: string, driveId?: string): string {
   if (driveId) {
+    if (!/^[\w-]+$/.test(driveId)) {
+      throw new Error('Invalid drive ID format')
+    }
     return `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${spreadsheetId}`
   }
   return `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}`
