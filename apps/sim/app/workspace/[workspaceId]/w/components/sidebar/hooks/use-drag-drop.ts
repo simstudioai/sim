@@ -252,11 +252,13 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       if (!isDragging) {
         isDraggingRef.current = true
         setIsDragging(true)
+      } else if (scrollAnimationRef.current === null) {
+        scrollAnimationRef.current = requestAnimationFrame(handleAutoScroll)
       }
 
       return true
     },
-    [isDragging]
+    [isDragging, handleAutoScroll]
   )
 
   const getSiblingItems = useCallback(
@@ -622,10 +624,23 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
     if (!container) return
     const onLeave = (e: DragEvent) => {
       const related = e.relatedTarget as Node | null
-      if (!related || !container.contains(related)) handleDragEnd()
+      if (related && container.contains(related)) return
+      if (scrollAnimationRef.current !== null) {
+        cancelAnimationFrame(scrollAnimationRef.current)
+        scrollAnimationRef.current = null
+      }
+      dropIndicatorRef.current = null
+      setDropIndicator(null)
+      setHoverFolderId(null)
     }
     container.addEventListener('dragleave', onLeave)
-    return () => container.removeEventListener('dragleave', onLeave)
+    window.addEventListener('drop', handleDragEnd, true)
+    window.addEventListener('dragend', handleDragEnd, true)
+    return () => {
+      container.removeEventListener('dragleave', onLeave)
+      window.removeEventListener('drop', handleDragEnd, true)
+      window.removeEventListener('dragend', handleDragEnd, true)
+    }
   }, [isDragging, handleDragEnd])
 
   const setScrollContainer = useCallback((element: HTMLDivElement | null) => {
