@@ -124,7 +124,7 @@ export function MemberInvitationCard({
       <div className='px-3.5 py-2.5'>
         <h4 className='font-medium text-[var(--text-primary)] text-base'>Invite Team Members</h4>
         <p className='text-[var(--text-muted)] text-small'>
-          Add new members to your team and optionally give them access to specific workspaces
+          Add new members to your team and choose which organization workspaces they can access
         </p>
       </div>
 
@@ -241,11 +241,23 @@ export function MemberInvitationCard({
           <Button
             variant='primary'
             onClick={() => onInviteMember()}
-            disabled={!hasValidEmails || isInviting || !hasAvailableSeats}
+            disabled={!hasValidEmails || isInviting || !hasAvailableSeats || selectedCount === 0}
           >
-            {isInviting ? 'Inviting...' : hasAvailableSeats ? 'Invite' : 'No Seats'}
+            {isInviting
+              ? 'Inviting...'
+              : !hasAvailableSeats
+                ? 'No Seats'
+                : selectedCount === 0
+                  ? 'Select Workspace'
+                  : 'Invite'}
           </Button>
         </div>
+
+        {selectedCount === 0 && (
+          <p className='text-[var(--text-muted)] text-small leading-tight'>
+            Select at least one organization workspace before sending an organization invite.
+          </p>
+        )}
 
         {invitationError && (
           <p className='text-[var(--text-error)] text-small leading-tight'>

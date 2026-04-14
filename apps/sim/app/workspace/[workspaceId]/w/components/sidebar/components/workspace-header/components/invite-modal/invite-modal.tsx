@@ -35,9 +35,15 @@ interface InviteModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   workspaceName?: string
+  inviteDisabledReason?: string | null
 }
 
-export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalProps) {
+export function InviteModal({
+  open,
+  onOpenChange,
+  workspaceName,
+  inviteDisabledReason = null,
+}: InviteModalProps) {
   const formRef = useRef<HTMLFormElement>(null)
   const [emailItems, setEmailItems] = useState<TagItem[]>([])
   const [userPermissions, setUserPermissions] = useState<UserPermissions[]>([])
@@ -79,6 +85,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
   const hasPendingChanges = Object.keys(existingUserPermissionChanges).length > 0
   const validEmails = emailItems.filter((item) => item.isValid).map((item) => item.value)
   const hasNewInvites = validEmails.length > 0
+  const canInviteMembers = userPerms.canAdmin && !inviteDisabledReason
 
   const isSubmitting = batchSendInvitations.isPending
   const isSaving = updatePermissionsMutation.isPending
@@ -157,7 +164,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
 
   const fileInputOptions: FileInputOptions = useMemo(
     () => ({
-      enabled: userPerms.canAdmin,
+      enabled: canInviteMembers,
       accept: '.csv,.txt,text/csv,text/plain',
       extractValues: (text: string) => {
         const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g
@@ -167,7 +174,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
       },
       tooltip: 'Upload emails',
     }),
-    [userPerms.canAdmin]
+    [canInviteMembers]
   )
 
   const handlePermissionChange = useCallback(
@@ -398,7 +405,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
 
       setErrorMessage(null)
 
-      if (validEmails.length === 0 || !workspaceId) {
+      if (!canInviteMembers || validEmails.length === 0 || !workspaceId) {
         return
       }
 
@@ -432,7 +439,7 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
         }
       )
     },
-    [validEmails, workspaceId, userPermissions, batchSendInvitations]
+    [canInviteMembers, validEmails, workspaceId, userPermissions, batchSendInvitations]
   )
 
   const resetState = useCallback(() => {
@@ -524,15 +531,18 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
                   onRemove={removeEmailItem}
                   onInputChange={() => setErrorMessage(null)}
                   placeholder={
-                    !userPerms.canAdmin
-                      ? 'Only administrators can invite new members'
+                    !canInviteMembers
+                      ? inviteDisabledReason || 'Only administrators can invite new members'
                       : 'Enter emails'
                   }
                   placeholderWithTags='Add email'
-                  disabled={isSubmitting || !userPerms.canAdmin}
+                  disabled={isSubmitting || !canInviteMembers}
                   fileInputOptions={fileInputOptions}
                 />
               </div>
+              {inviteDisabledReason && (
+                <p className='mt-1 text-[var(--text-muted)] text-caption'>{inviteDisabledReason}</p>
+              )}
               {errorMessage && (
                 <p className='mt-1 text-[var(--text-error)] text-caption'>{errorMessage}</p>
               )}
@@ -588,15 +598,17 @@ export function InviteModal({ open, onOpenChange, workspaceName }: InviteModalPr
               variant='primary'
               onClick={() => formRef.current?.requestSubmit()}
               disabled={
-                !userPerms.canAdmin || isSubmitting || isSaving || !workspaceId || !hasNewInvites
+                !canInviteMembers || isSubmitting || isSaving || !workspaceId || !hasNewInvites
               }
               className='ml-auto'
             >
-              {!userPerms.canAdmin
-                ? 'Admin Access Required'
-                : isSubmitting
-                  ? 'Inviting...'
-                  : 'Invite'}
+              {inviteDisabledReason
+                ? 'Invites Disabled'
+                : !userPerms.canAdmin
+                  ? 'Admin Access Required'
+                  : isSubmitting
+                    ? 'Inviting...'
+                    : 'Invite'}
             </Button>
           </ModalFooter>
         </form>

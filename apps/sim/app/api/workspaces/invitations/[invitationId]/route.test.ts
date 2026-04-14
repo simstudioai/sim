@@ -2,6 +2,11 @@ import { auditMock, createSession, createWorkspaceRecord, loggerMock } from '@si
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { mockEnsureUserInOrganization, mockSyncUsageLimitsFromSubscription } = vi.hoisted(() => ({
+  mockEnsureUserInOrganization: vi.fn(),
+  mockSyncUsageLimitsFromSubscription: vi.fn().mockResolvedValue(undefined),
+}))
+
 const mockGetSession = vi.fn()
 const mockHasWorkspaceAdminAccess = vi.fn()
 const mockGetWorkspaceById = vi.fn()
@@ -71,6 +76,14 @@ vi.mock('@/lib/credentials/environment', () => ({
   syncWorkspaceEnvCredentials: vi.fn().mockResolvedValue(undefined),
 }))
 
+vi.mock('@/lib/billing/organizations/membership', () => ({
+  ensureUserInOrganization: mockEnsureUserInOrganization,
+}))
+
+vi.mock('@/lib/billing/core/usage', () => ({
+  syncUsageLimitsFromSubscription: mockSyncUsageLimitsFromSubscription,
+}))
+
 vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/lib/audit/log', () => auditMock)
@@ -131,6 +144,10 @@ vi.mock('@sim/db/schema', () => ({
     userId: 'userId',
     permissionType: 'permissionType',
   },
+  session: {
+    userId: 'userId',
+    activeOrganizationId: 'activeOrganizationId',
+  },
   workspaceEnvironment: {
     workspaceId: 'workspaceId',
     variables: 'variables',
@@ -188,6 +205,16 @@ describe('Workspace Invitation [invitationId] API Route', () => {
     dbSelectResults = []
     dbSelectCallIndex = 0
     mockGetWorkspaceById.mockResolvedValue({ id: 'workspace-456', name: 'Test Workspace' })
+    mockEnsureUserInOrganization.mockResolvedValue({
+      success: true,
+      alreadyMember: false,
+      memberId: 'member-1',
+      billingActions: {
+        proUsageSnapshotted: false,
+        proCancelledAtPeriodEnd: false,
+      },
+    })
+    mockSyncUsageLimitsFromSubscription.mockResolvedValue(undefined)
   })
 
   describe('GET /api/workspaces/invitations/[invitationId]', () => {
@@ -501,6 +528,53 @@ describe('Workspace Invitation [invitationId] API Route', () => {
       const location = response.headers.get('location')
       expect(location).toContain('error=email-mismatch')
       expect(location).toContain(`token=${encodeURIComponent(specialToken)}`)
+    })
+
+    it('activates the organization session when accepting an org-owned workspace invite', async () => {
+      const session = createSession({
+        userId: mockUser.id,
+        email: 'invited@example.com',
+        name: mockUser.name,
+      })
+      mockGetSession.mockResolvedValue(session)
+
+      const orgWorkspace = {
+        ...mockWorkspace,
+        organizationId: 'org-1',
+        workspaceMode: 'organization',
+      }
+
+      dbSelectResults = [
+        [mockInvitation],
+        [orgWorkspace],
+        [{ ...mockUser, email: 'invited@example.com' }],
+        [],
+        [],
+      ]
+
+      const request = new NextRequest(
+        'http://localhost/api/workspaces/invitations/token-abc123?token=token-abc123'
+      )
+      const params = Promise.resolve({ invitationId: 'token-abc123' })
+
+      const response = await GET(request, { params })
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe(
+        'https://test.sim.ai/workspace/workspace-456/home'
+      )
+      expect(mockEnsureUserInOrganization).toHaveBeenCalledWith({
+        userId: mockUser.id,
+        organizationId: 'org-1',
+        role: 'member',
+      })
+      expect(mockSyncUsageLimitsFromSubscription).toHaveBeenCalledWith(mockUser.id)
+      expect(mockDbUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'userId',
+          activeOrganizationId: 'activeOrganizationId',
+        })
+      )
     })
   })
 

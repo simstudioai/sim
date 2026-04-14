@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, organization, subscription } from '@sim/db/schema'
+import { member, organization, session, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, ne } from 'drizzle-orm'
 import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
@@ -14,6 +14,7 @@ import {
   resetUsageForSubscription,
 } from '@/lib/billing/webhooks/invoices'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { detachOrganizationWorkspaces } from '@/lib/workspaces/organization-workspaces'
 
 const logger = createLogger('StripeSubscriptionWebhooks')
 
@@ -69,7 +70,7 @@ async function cleanupOrganizationSubscription(organizationId: string): Promise<
   // Check if other active subscriptions still point to this org
   // Note: The subscription being deleted is already marked as 'canceled' by better-auth
   // before this handler runs, so we only find truly active ones
-  if (await hasPaidSubscription(organizationId)) {
+  if (await hasPaidSubscription(organizationId, { onError: 'throw' })) {
     logger.info('Skipping organization deletion - other active subscriptions exist', {
       organizationId,
     })
@@ -93,7 +94,14 @@ async function cleanupOrganizationSubscription(organizationId: string): Promise<
     .from(member)
     .where(eq(member.organizationId, organizationId))
 
+  await detachOrganizationWorkspaces(organizationId)
+
   const restoredProCount = await restoreMemberProSubscriptions(organizationId)
+
+  await db
+    .update(session)
+    .set({ activeOrganizationId: null })
+    .where(eq(session.activeOrganizationId, organizationId))
 
   await db.delete(organization).where(eq(organization.id, organizationId))
 

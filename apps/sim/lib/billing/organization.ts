@@ -11,8 +11,9 @@ import { and, eq } from 'drizzle-orm'
 import { hasPaidSubscription } from '@/lib/billing'
 import { getPlanPricing } from '@/lib/billing/core/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
-import { isTeam } from '@/lib/billing/plan-helpers'
+import { isOrgPlan, isTeam } from '@/lib/billing/plan-helpers'
 import { generateId } from '@/lib/core/utils/uuid'
+import { attachOwnedWorkspacesToOrganization } from '@/lib/workspaces/organization-workspaces'
 
 const logger = createLogger('BillingOrganization')
 
@@ -134,7 +135,7 @@ export async function createOrganizationForTeamPlan(
 export async function ensureOrganizationForTeamSubscription(
   subscription: SubscriptionData
 ): Promise<SubscriptionData> {
-  if (!isTeam(subscription.plan)) {
+  if (!isOrgPlan(subscription.plan)) {
     return subscription
   }
 
@@ -189,6 +190,11 @@ export async function ensureOrganizationForTeamSubscription(
           .where(eq(session.userId, userId))
       })
 
+      await attachOwnedWorkspacesToOrganization({
+        ownerUserId: userId,
+        organizationId: membership.organizationId,
+      })
+
       return { ...subscription, referenceId: membership.organizationId }
     }
 
@@ -212,10 +218,19 @@ export async function ensureOrganizationForTeamSubscription(
     userData?.email || undefined
   )
 
-  await db
-    .update(subscriptionTable)
-    .set({ referenceId: orgId })
-    .where(eq(subscriptionTable.id, subscription.id))
+  await db.transaction(async (tx) => {
+    await tx
+      .update(subscriptionTable)
+      .set({ referenceId: orgId })
+      .where(eq(subscriptionTable.id, subscription.id))
+
+    await tx.update(session).set({ activeOrganizationId: orgId }).where(eq(session.userId, userId))
+  })
+
+  await attachOwnedWorkspacesToOrganization({
+    ownerUserId: userId,
+    organizationId: orgId,
+  })
 
   logger.info('Created organization and updated subscription referenceId', {
     subscriptionId: subscription.id,

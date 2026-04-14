@@ -1331,6 +1331,13 @@
       "when": 1776114737326,
       "tag": "0190_shocking_karma",
       "breakpoints": true
+    },
+    {
+      "idx": 191,
+      "version": "7",
+      "when": 1776191056747,
+      "tag": "0191_eager_electro",
+      "breakpoints": true
     }
   ]
 }

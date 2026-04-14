@@ -167,6 +167,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     if (billedAccountUserId !== undefined) {
+      if (existingWorkspace.organizationId && existingWorkspace.workspaceMode === 'organization') {
+        return NextResponse.json(
+          {
+            error:
+              'Organization workspaces use organization billing and cannot change billed account.',
+          },
+          { status: 400 }
+        )
+      }
+
       const candidateId = billedAccountUserId
 
       const isOwner = candidateId === existingWorkspace.ownerId

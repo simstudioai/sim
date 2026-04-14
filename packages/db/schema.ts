@@ -1012,25 +1012,45 @@ export const invitation = pgTable(
   })
 )
 
-export const workspace = pgTable('workspace', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  color: text('color').notNull().default('#33C482'),
-  logoUrl: text('logo_url'),
-  ownerId: text('owner_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  billedAccountUserId: text('billed_account_user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'no action' }),
-  allowPersonalApiKeys: boolean('allow_personal_api_keys').notNull().default(true),
-  inboxEnabled: boolean('inbox_enabled').notNull().default(false),
-  inboxAddress: text('inbox_address'),
-  inboxProviderId: text('inbox_provider_id'),
-  archivedAt: timestamp('archived_at'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-})
+export const workspaceModeEnum = pgEnum('workspace_mode', [
+  'personal',
+  'organization',
+  'grandfathered_shared',
+])
+
+export type WorkspaceMode = (typeof workspaceModeEnum.enumValues)[number]
+
+export const workspace = pgTable(
+  'workspace',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    color: text('color').notNull().default('#33C482'),
+    logoUrl: text('logo_url'),
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'set null',
+    }),
+    workspaceMode: workspaceModeEnum('workspace_mode').notNull().default('grandfathered_shared'),
+    billedAccountUserId: text('billed_account_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'no action' }),
+    allowPersonalApiKeys: boolean('allow_personal_api_keys').notNull().default(true),
+    inboxEnabled: boolean('inbox_enabled').notNull().default(false),
+    inboxAddress: text('inbox_address'),
+    inboxProviderId: text('inbox_provider_id'),
+    archivedAt: timestamp('archived_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    ownerIdIdx: index('workspace_owner_id_idx').on(table.ownerId),
+    organizationIdIdx: index('workspace_organization_id_idx').on(table.organizationId),
+    workspaceModeIdx: index('workspace_mode_idx').on(table.workspaceMode),
+  })
+)
 
 export const workspaceFile = pgTable(
   'workspace_file',

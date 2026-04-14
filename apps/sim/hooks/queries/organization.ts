@@ -3,6 +3,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { client } from '@/lib/auth/auth-client'
 import { isEnterprise, isTeam } from '@/lib/billing/plan-helpers'
 import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
+import { workspaceKeys } from '@/hooks/queries/workspace'
 
 const logger = createLogger('OrganizationQueries')
 
@@ -479,23 +480,31 @@ export function useCreateOrganization() {
 
   return useMutation({
     mutationFn: async ({ name, slug }: CreateOrganizationParams) => {
-      const response = await client.organization.create({
-        name,
-        slug: slug || name.toLowerCase().replace(/\s+/g, '-'),
+      const response = await fetch('/api/organizations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          slug: slug || name.toLowerCase().replace(/\s+/g, '-'),
+        }),
       })
 
-      if (!response.data) {
-        throw new Error('Failed to create organization')
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error.error || error.message || 'Failed to create organization')
       }
 
+      const data = await response.json()
+
       await client.organization.setActive({
-        organizationId: response.data.id,
+        organizationId: data.organizationId,
       })
 
-      return response.data
+      return data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
     },
   })
 }

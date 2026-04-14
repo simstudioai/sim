@@ -27,6 +27,7 @@ import { generateId } from '@/lib/core/utils/uuid'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
+import { isOrganizationWorkspace } from '@/lib/workspaces/policy'
 import {
   InvitationsNotAllowedError,
   validateInvitationsAllowed,
@@ -176,23 +177,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       })
     }
 
-    const seatValidation = await validateSeatAvailability(organizationId, invitationEmails.length)
-
-    if (!seatValidation.canInvite) {
-      return NextResponse.json(
-        {
-          error: seatValidation.reason,
-          seatInfo: {
-            currentSeats: seatValidation.currentSeats,
-            maxSeats: seatValidation.maxSeats,
-            availableSeats: seatValidation.availableSeats,
-            seatsRequested: invitationEmails.length,
-          },
-        },
-        { status: 400 }
-      )
-    }
-
     const organizationEntry = await db
       .select({ name: organization.name })
       .from(organization)
@@ -216,7 +200,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const validWorkspaceInvitations: WorkspaceInvitation[] = []
-    if (isBatch && workspaceInvitations && workspaceInvitations.length > 0) {
+    if (isBatch) {
+      if (!Array.isArray(workspaceInvitations) || workspaceInvitations.length === 0) {
+        return NextResponse.json(
+          { error: 'Select at least one organization workspace for this invitation.' },
+          { status: 400 }
+        )
+      }
+
       for (const wsInvitation of workspaceInvitations) {
         const canInvite = await hasWorkspaceAdminAccess(session.user.id, wsInvitation.workspaceId)
 
@@ -226,6 +217,34 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
               error: `You don't have permission to invite users to workspace ${wsInvitation.workspaceId}`,
             },
             { status: 403 }
+          )
+        }
+
+        const [workspaceEntry] = await db
+          .select({
+            id: workspace.id,
+            organizationId: workspace.organizationId,
+            workspaceMode: workspace.workspaceMode,
+          })
+          .from(workspace)
+          .where(eq(workspace.id, wsInvitation.workspaceId))
+          .limit(1)
+
+        if (!workspaceEntry || !isOrganizationWorkspace(workspaceEntry)) {
+          return NextResponse.json(
+            {
+              error: `Workspace ${wsInvitation.workspaceId} is not an organization-owned workspace.`,
+            },
+            { status: 400 }
+          )
+        }
+
+        if (workspaceEntry.organizationId !== organizationId) {
+          return NextResponse.json(
+            {
+              error: `Workspace ${wsInvitation.workspaceId} does not belong to this organization.`,
+            },
+            { status: 400 }
           )
         }
 
@@ -285,6 +304,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           details: {
             existingMembers: existingMembersEmails,
             pendingInvitations: pendingInvitationEmails,
+          },
+        },
+        { status: 400 }
+      )
+    }
+
+    const seatValidation = await validateSeatAvailability(organizationId, emailsToInvite.length)
+
+    if (!seatValidation.canInvite) {
+      return NextResponse.json(
+        {
+          error: seatValidation.reason,
+          seatInfo: {
+            currentSeats: seatValidation.currentSeats,
+            maxSeats: seatValidation.maxSeats,
+            availableSeats: seatValidation.availableSeats,
+            seatsRequested: emailsToInvite.length,
           },
         },
         { status: 400 }

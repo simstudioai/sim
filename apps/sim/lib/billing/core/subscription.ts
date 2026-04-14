@@ -36,6 +36,10 @@ export interface SubscriptionMetadata {
   [key: string]: unknown
 }
 
+export interface HasPaidSubscriptionOptions {
+  onError?: 'assume-active' | 'throw'
+}
+
 /**
  * Extract the billing interval from subscription metadata, defaulting to 'month'.
  */
@@ -65,9 +69,14 @@ export async function writeBillingInterval(
  * Check if a referenceId (user ID or org ID) has a paid subscription row.
  * Used for duplicate subscription prevention and transfer safety.
  *
- * Fails closed: returns true on error to prevent duplicate creation
+ * Fails closed by default: returns true on error to prevent duplicate creation.
  */
-export async function hasPaidSubscription(referenceId: string): Promise<boolean> {
+export async function hasPaidSubscription(
+  referenceId: string,
+  options: HasPaidSubscriptionOptions = {}
+): Promise<boolean> {
+  const { onError = 'assume-active' } = options
+
   try {
     const [activeSub] = await db
       .select({ id: subscription.id })
@@ -83,7 +92,11 @@ export async function hasPaidSubscription(referenceId: string): Promise<boolean>
     return !!activeSub
   } catch (error) {
     logger.error('Error checking active subscription', { error, referenceId })
-    // Fail closed: assume subscription exists to prevent duplicate creation
+
+    if (onError === 'throw') {
+      throw error
+    }
+
     return true
   }
 }

@@ -28,7 +28,7 @@ import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/
 import { CreateWorkspaceModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/create-workspace-modal/create-workspace-modal'
 import { InviteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/invite-modal'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
-import type { Workspace } from '@/hooks/queries/workspace'
+import type { Workspace, WorkspaceCreationPolicy } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
@@ -41,6 +41,8 @@ interface WorkspaceHeaderProps {
   workspaceId: string
   /** List of available workspaces */
   workspaces: Workspace[]
+  /** Server-derived workspace creation policy for the current user context */
+  workspaceCreationPolicy?: WorkspaceCreationPolicy | null
   /** Whether workspaces are loading */
   isWorkspacesLoading: boolean
   /** Whether workspace creation is in progress */
@@ -90,6 +92,7 @@ export function WorkspaceHeader({
   activeWorkspace,
   workspaceId,
   workspaces,
+  workspaceCreationPolicy,
   isWorkspacesLoading,
   isCreatingWorkspace,
   isWorkspaceMenuOpen,
@@ -148,17 +151,25 @@ export function WorkspaceHeader({
       : `${rawPlanName} Plan`
     : ''
   const isFreePlan = showPlanInfo && isFree(currentPlan)
+  const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId) || null
+  const canCreateWorkspace = workspaceCreationPolicy?.canCreate ?? true
+  const createWorkspaceDisabledReason =
+    workspaceCreationPolicy?.canCreate === false ? workspaceCreationPolicy.reason : null
+  const inviteDisabledReason =
+    activeWorkspaceFull?.workspaceMode === 'personal'
+      ? 'Member invites are only available for organization-owned or grandfathered shared workspaces.'
+      : null
 
   // Listen for open-invite-modal event from context menu
   useEffect(() => {
     const handleOpenInvite = () => {
-      if (!isInvitationsDisabled) {
+      if (!isInvitationsDisabled && !inviteDisabledReason) {
         setIsInviteModalOpen(true)
       }
     }
     window.addEventListener('open-invite-modal', handleOpenInvite)
     return () => window.removeEventListener('open-invite-modal', handleOpenInvite)
-  }, [isInvitationsDisabled])
+  }, [inviteDisabledReason, isInvitationsDisabled])
 
   /**
    * Save and exit edit mode when popover closes
@@ -172,8 +183,6 @@ export function WorkspaceHeader({
       setEditingWorkspaceId(null)
     }
   }, [isWorkspaceMenuOpen, editingWorkspaceId, editingName, workspaces, onRenameWorkspace])
-
-  const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId) || null
 
   const workspaceInitial = (() => {
     const name = activeWorkspace?.name || ''
@@ -573,7 +582,8 @@ export function WorkspaceHeader({
                         setIsWorkspaceMenuOpen(false)
                         setIsCreateModalOpen(true)
                       }}
-                      disabled={isCreatingWorkspace}
+                      disabled={isCreatingWorkspace || !canCreateWorkspace}
+                      title={createWorkspaceDisabledReason ?? undefined}
                     >
                       <Plus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
                       Create new workspace
@@ -585,11 +595,13 @@ export function WorkspaceHeader({
                       <DropdownMenuSeparator />
                       <button
                         type='button'
-                        className='flex w-full cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-body)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-hover)]'
+                        className='flex w-full cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-body)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-hover)] disabled:pointer-events-none disabled:opacity-50'
                         onClick={() => {
                           setIsInviteModalOpen(true)
                           setIsWorkspaceMenuOpen(false)
                         }}
+                        disabled={Boolean(inviteDisabledReason)}
+                        title={inviteDisabledReason ?? undefined}
                       >
                         <UserPlus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />
                         Invite members
@@ -698,6 +710,7 @@ export function WorkspaceHeader({
         open={isInviteModalOpen}
         onOpenChange={setIsInviteModalOpen}
         workspaceName={activeWorkspace?.name || 'Workspace'}
+        inviteDisabledReason={inviteDisabledReason}
       />
       {/* Delete Confirmation Modal */}
       <DeleteModal

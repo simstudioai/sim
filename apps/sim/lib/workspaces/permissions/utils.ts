@@ -1,5 +1,11 @@
 import { db } from '@sim/db'
-import { permissions, type permissionTypeEnum, user, workspace } from '@sim/db/schema'
+import {
+  permissions,
+  type permissionTypeEnum,
+  user,
+  type WorkspaceMode,
+  workspace,
+} from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
 
 export type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
@@ -11,6 +17,9 @@ export interface WorkspaceWithOwner {
   id: string
   name: string
   ownerId: string
+  organizationId: string | null
+  workspaceMode: WorkspaceMode
+  billedAccountUserId: string
   archivedAt?: Date | null
 }
 
@@ -75,6 +84,9 @@ export async function getWorkspaceWithOwner(
       id: workspace.id,
       name: workspace.name,
       ownerId: workspace.ownerId,
+      organizationId: workspace.organizationId,
+      workspaceMode: workspace.workspaceMode,
+      billedAccountUserId: workspace.billedAccountUserId,
       archivedAt: workspace.archivedAt,
     })
     .from(workspace)

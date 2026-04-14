@@ -19,6 +19,7 @@ type InviteErrorCode =
   | 'user-not-found'
   | 'already-member'
   | 'already-in-organization'
+  | 'no-seats-available'
   | 'invalid-invitation'
   | 'missing-invitation-id'
   | 'server-error'
@@ -78,6 +79,11 @@ function getInviteError(reason: string): InviteError {
       code: 'already-in-organization',
       message:
         'You are already a member of an organization. Leave your current organization before accepting a new invitation.',
+    },
+    'no-seats-available': {
+      code: 'no-seats-available',
+      message:
+        'This organization has no available seats right now. Ask an admin to add seats or retry after capacity changes.',
     },
     'invalid-invitation': {
       code: 'invalid-invitation',
@@ -139,6 +145,7 @@ function parseApiError(error: unknown, statusCode?: number): InviteErrorCode {
   // Check specific patterns before falling back to status codes
   // Order matters: more specific patterns must come first
   if (errorMessage.includes('already a member of an organization')) return 'already-in-organization'
+  if (errorMessage.includes('no available seats')) return 'no-seats-available'
   if (errorMessage.includes('already a member')) return 'already-member'
   if (errorMessage.includes('email mismatch') || errorMessage.includes('different email'))
     return 'email-mismatch'
@@ -257,7 +264,7 @@ export default function Invite() {
               .getFullOrganization()
               .catch(() => ({ data: null }))
 
-            if (activeOrgResponse?.data) {
+            if (activeOrgResponse?.data && activeOrgResponse.data.id !== data.organizationId) {
               setCurrentOrgName(activeOrgResponse.data.name)
               setError(getInviteError('already-in-organization'))
               setIsLoading(false)

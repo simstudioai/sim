@@ -94,7 +94,8 @@ export function TeamManagement() {
   const [isUpdatingSeats, setIsUpdatingSeats] = useState(false)
 
   const { data: adminWorkspaces = [], isLoading: isLoadingWorkspaces } = useAdminWorkspaces(
-    session?.user?.id
+    session?.user?.id,
+    activeOrganization?.id
   )
 
   const userRole = getUserRole(organization, session?.user?.email)
@@ -136,15 +137,16 @@ export function TeamManagement() {
   const handleInviteMember = useCallback(async () => {
     const validEmails = inviteEmails.filter((e) => e.isValid).map((e) => e.value)
     if (!session?.user || !activeOrganization?.id || validEmails.length === 0) return
+    if (selectedWorkspaces.length === 0) {
+      setShowWorkspaceInvite(true)
+      return
+    }
 
     try {
-      const workspaceInvitations =
-        selectedWorkspaces.length > 0
-          ? selectedWorkspaces.map((w) => ({
-              workspaceId: w.workspaceId,
-              permission: w.permission as 'admin' | 'write' | 'read',
-            }))
-          : undefined
+      const workspaceInvitations = selectedWorkspaces.map((w) => ({
+        workspaceId: w.workspaceId,
+        permission: w.permission as 'admin' | 'write' | 'read',
+      }))
 
       await inviteMutation.mutateAsync({
         emails: validEmails,

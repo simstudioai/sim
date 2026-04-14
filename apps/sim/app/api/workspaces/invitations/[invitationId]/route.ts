@@ -2,6 +2,7 @@ import { render } from '@react-email/render'
 import { db } from '@sim/db'
 import {
   permissions,
+  session as sessionTable,
   user,
   type WorkspaceInvitationStatus,
   workspace,
@@ -14,12 +15,15 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { WorkspaceInvitationEmail } from '@/components/emails'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
+import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
+import { ensureUserInOrganization } from '@/lib/billing/organizations/membership'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { generateId } from '@/lib/core/utils/uuid'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { getWorkspaceById, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
+import { isOrganizationWorkspace } from '@/lib/workspaces/policy'
 
 const logger = createLogger('WorkspaceInvitationAPI')
 
@@ -117,6 +121,43 @@ export async function GET(
         return NextResponse.redirect(
           new URL(`/invite/${invitation.id}?error=email-mismatch${tokenParam}`, getBaseUrl())
         )
+      }
+
+      if (isOrganizationWorkspace(workspaceDetails)) {
+        const membershipResult = await ensureUserInOrganization({
+          userId: session.user.id,
+          organizationId: workspaceDetails.organizationId!,
+          role: 'member',
+        })
+
+        if (!membershipResult.success) {
+          return NextResponse.redirect(
+            new URL(
+              `/invite/${invitation.id}?error=${membershipResult.existingOrgId ? 'already-in-organization' : membershipResult.error?.includes('No available seats') ? 'no-seats-available' : 'server-error'}${tokenParam}`,
+              getBaseUrl()
+            )
+          )
+        }
+
+        if (!membershipResult.alreadyMember) {
+          await syncUsageLimitsFromSubscription(session.user.id)
+        }
+
+        try {
+          await db
+            .update(sessionTable)
+            .set({ activeOrganizationId: workspaceDetails.organizationId })
+            .where(eq(sessionTable.userId, session.user.id))
+        } catch (error) {
+          logger.error('Failed to activate organization after workspace invitation acceptance', {
+            userId: session.user.id,
+            organizationId: workspaceDetails.organizationId,
+            error,
+          })
+          return NextResponse.redirect(
+            new URL(`/invite/${invitation.id}?error=server-error${tokenParam}`, getBaseUrl())
+          )
+        }
       }
 
       const existingPermission = await db

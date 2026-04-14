@@ -7,6 +7,7 @@ import {
   useCreateWorkspace,
   useDeleteWorkspace,
   useUpdateWorkspace,
+  useWorkspaceCreationPolicy,
   useWorkspacesQuery,
   type Workspace,
 } from '@/hooks/queries/workspace'
@@ -39,6 +40,9 @@ export function useWorkspaceManagement({
     isLoading: isWorkspacesLoading,
     isFetching: isWorkspacesFetching,
   } = useWorkspacesQuery(Boolean(sessionUserId))
+  const { data: workspaceCreationPolicy = null } = useWorkspaceCreationPolicy(
+    Boolean(sessionUserId)
+  )
 
   const leaveWorkspaceMutation = useLeaveWorkspace()
   const createWorkspaceMutation = useCreateWorkspace()
@@ -256,6 +260,7 @@ export function useWorkspaceManagement({
 
   return {
     workspaces: sortedWorkspaces,
+    workspaceCreationPolicy,
     activeWorkspace,
     isWorkspacesLoading,
     isCreatingWorkspace: createWorkspaceMutation.isPending,

@@ -14,13 +14,20 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { WorkspaceInvitationEmail } from '@/components/emails'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
+import { getUserOrganization } from '@/lib/billing/organizations/membership'
+import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { generateId } from '@/lib/core/utils/uuid'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
+import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
+import {
+  canWorkspaceInviteMembers,
+  getWorkspaceInviteDisabledReason,
+  isOrganizationWorkspace,
+} from '@/lib/workspaces/policy'
 import {
   InvitationsNotAllowedError,
   validateInvitationsAllowed,
@@ -117,19 +124,20 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const activeWorkspace = await getWorkspaceById(workspaceId)
-    if (!activeWorkspace) {
+    const workspaceDetails = await getWorkspaceWithOwner(workspaceId)
+    if (!workspaceDetails) {
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
     }
 
-    const workspaceDetails = await db
-      .select()
-      .from(workspace)
-      .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
-      .then((rows) => rows[0])
-
-    if (!workspaceDetails) {
-      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+    if (!canWorkspaceInviteMembers(workspaceDetails)) {
+      return NextResponse.json(
+        {
+          error:
+            getWorkspaceInviteDisabledReason(workspaceDetails) ||
+            'Invites are disabled for this workspace.',
+        },
+        { status: 400 }
+      )
     }
 
     const existingUser = await db
@@ -157,6 +165,47 @@ export async function POST(req: NextRequest) {
             error: `${email} already has access to this workspace`,
             email,
           },
+          { status: 400 }
+        )
+      }
+
+      if (isOrganizationWorkspace(workspaceDetails)) {
+        const existingMembership = await getUserOrganization(existingUser.id)
+
+        if (
+          existingMembership &&
+          existingMembership.organizationId !== workspaceDetails.organizationId
+        ) {
+          return NextResponse.json(
+            {
+              error:
+                'This user is already a member of another organization. They must leave it before joining this workspace.',
+              email,
+            },
+            { status: 409 }
+          )
+        }
+
+        if (!existingMembership) {
+          const seatValidation = await validateSeatAvailability(workspaceDetails.organizationId!, 1)
+
+          if (!seatValidation.canInvite) {
+            return NextResponse.json(
+              {
+                error: seatValidation.reason || 'No available seats for this organization.',
+                email,
+              },
+              { status: 400 }
+            )
+          }
+        }
+      }
+    } else if (isOrganizationWorkspace(workspaceDetails)) {
+      const seatValidation = await validateSeatAvailability(workspaceDetails.organizationId!, 1)
+
+      if (!seatValidation.canInvite) {
+        return NextResponse.json(
+          { error: seatValidation.reason || 'No available seats for this organization.', email },
           { status: 400 }
         )
       }

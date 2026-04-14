@@ -246,6 +246,11 @@ export interface AddMemberResult {
   }
 }
 
+export interface EnsureMemberResult extends AddMemberResult {
+  alreadyMember: boolean
+  existingOrgId?: string
+}
+
 export interface RemoveMemberParams {
   userId: string
   organizationId: string
@@ -272,6 +277,45 @@ export interface MembershipValidationResult {
     currentSeats: number
     maxSeats: number
     availableSeats: number
+  }
+}
+
+export async function ensureUserInOrganization(
+  params: AddMemberParams
+): Promise<EnsureMemberResult> {
+  const existingMembership = await getUserOrganization(params.userId)
+
+  if (existingMembership?.organizationId === params.organizationId) {
+    return {
+      success: true,
+      memberId: existingMembership.memberId,
+      alreadyMember: true,
+      billingActions: {
+        proUsageSnapshotted: false,
+        proCancelledAtPeriodEnd: false,
+      },
+    }
+  }
+
+  if (existingMembership) {
+    return {
+      success: false,
+      alreadyMember: false,
+      existingOrgId: existingMembership.organizationId,
+      error:
+        'User is already a member of another organization. Users can only belong to one organization at a time.',
+      billingActions: {
+        proUsageSnapshotted: false,
+        proCancelledAtPeriodEnd: false,
+      },
+    }
+  }
+
+  const result = await addUserToOrganization(params)
+
+  return {
+    ...result,
+    alreadyMember: false,
   }
 }
 

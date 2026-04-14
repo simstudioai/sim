@@ -1,11 +1,16 @@
 import { db } from '@sim/db'
-import { member, organization } from '@sim/db/schema'
+import { member, organization, subscription as subscriptionTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, or } from 'drizzle-orm'
+import { and, eq, inArray, or } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
-import { createOrganizationForTeamPlan } from '@/lib/billing/organization'
+import {
+  createOrganizationForTeamPlan,
+  ensureOrganizationForTeamSubscription,
+} from '@/lib/billing/organization'
+import { isOrgPlan } from '@/lib/billing/plan-helpers'
+import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 
 const logger = createLogger('OrganizationsAPI')
 
@@ -78,6 +83,33 @@ export async function POST(request: Request) {
       // If no body or invalid JSON, use defaults
     }
 
+    const activeOrgSubscriptions = await db
+      .select({
+        id: subscriptionTable.id,
+        plan: subscriptionTable.plan,
+        referenceId: subscriptionTable.referenceId,
+        status: subscriptionTable.status,
+        seats: subscriptionTable.seats,
+      })
+      .from(subscriptionTable)
+      .where(
+        and(
+          eq(subscriptionTable.referenceId, user.id),
+          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+        )
+      )
+
+    const activeOrgSubscription = activeOrgSubscriptions.find((subscription) =>
+      isOrgPlan(subscription.plan)
+    )
+
+    if (!activeOrgSubscription) {
+      return NextResponse.json(
+        { error: 'Organization creation requires an active Team or Enterprise subscription.' },
+        { status: 403 }
+      )
+    }
+
     logger.info('Creating organization for team plan', {
       userId: user.id,
       userName: user.name,
@@ -110,6 +142,8 @@ export async function POST(request: Request) {
       user.email,
       organizationSlug
     )
+
+    await ensureOrganizationForTeamSubscription(activeOrgSubscription)
 
     logger.info('Successfully created organization for team plan', {
       userId: user.id,
