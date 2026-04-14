@@ -135,7 +135,7 @@ export const VALID_EXPORT_FORMATS: Record<string, string[]> = {
     'text/tab-separated-values',
     'application/pdf',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/x-vnd.oasis.opendocument.spreadsheet',
+    'application/vnd.oasis.opendocument.spreadsheet',
     'application/zip',
   ],
   'application/vnd.google-apps.presentation': [
