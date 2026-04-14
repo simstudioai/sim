@@ -10,13 +10,15 @@ import {
   mcpServers as mcpServersTable,
   workflowDeploymentVersion,
   workflowExecutionLogs,
+  workflowFolder,
   workflowMcpServer,
   workflowMcpTool,
   workflowSchedule,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq, isNull, ne } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull, ne } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
+import { buildWorkspaceMd, type WorkspaceMdData } from '@/lib/copilot/chat/workspace-context'
 import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import type { DirEntry, GrepMatch, GrepOptions, ReadResult } from '@/lib/copilot/vfs/operations'
@@ -49,7 +51,6 @@ import {
   serializeVersions,
   serializeWorkflowMeta,
 } from '@/lib/copilot/vfs/serializers'
-import { buildWorkspaceMd, type WorkspaceMdData } from '@/lib/copilot/workspace-context'
 import {
   getAccessibleEnvCredentials,
   getAccessibleOAuthCredentials,
@@ -66,7 +67,7 @@ import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { listSkills } from '@/lib/workflows/skills/operations'
-import { listWorkflows } from '@/lib/workflows/utils'
+import { listFolders, listWorkflows } from '@/lib/workflows/utils'
 import {
   assertActiveWorkspaceAccess,
   getUsersWithPermissions,
@@ -118,6 +119,10 @@ function getStaticComponentFiles(): Map<string, string> {
 
   const latestTools = getLatestVersionTools(toolRegistry)
   let integrationCount = 0
+
+  const oauthServices = new Map<string, { provider: string; operations: string[] }>()
+  const apiKeyServices = new Map<string, { params: string[]; operations: string[] }>()
+
   for (const [toolId, tool] of Object.entries(latestTools)) {
     const baseName = stripVersionSuffix(toolId)
     const service = toolToService.get(toolId) ?? toolToService.get(baseName)
@@ -132,7 +137,38 @@ function getStaticComponentFiles(): Map<string, string> {
     const path = `components/integrations/${service}/${operation}.json`
     files.set(path, serializeIntegrationSchema(tool))
     integrationCount++
+
+    if (tool.oauth?.required) {
+      const existing = oauthServices.get(service)
+      if (existing) {
+        existing.operations.push(operation)
+      } else {
+        oauthServices.set(service, { provider: tool.oauth.provider, operations: [operation] })
+      }
+    } else if (tool.hosting?.apiKeyParam) {
+      const existing = apiKeyServices.get(service)
+      if (existing) {
+        if (!existing.params.includes(tool.hosting.apiKeyParam)) {
+          existing.params.push(tool.hosting.apiKeyParam)
+        }
+        existing.operations.push(operation)
+      } else {
+        apiKeyServices.set(service, {
+          params: [tool.hosting.apiKeyParam],
+          operations: [operation],
+        })
+      }
+    }
   }
+
+  files.set(
+    'environment/oauth-integrations.json',
+    JSON.stringify(Object.fromEntries(oauthServices), null, 2)
+  )
+  files.set(
+    'environment/api-key-integrations.json',
+    JSON.stringify(Object.fromEntries(apiKeyServices), null, 2)
+  )
 
   files.set(
     'components/blocks/loop.json',
@@ -262,10 +298,11 @@ function getStaticComponentFiles(): Map<string, string> {
  *
  * Structure:
  *   WORKSPACE.md                         — workspace identity, members, inventory (auto-generated)
- *   workflows/{name}/meta.json
+ *   workflows/{name}/meta.json            (root-level workflows)
  *   workflows/{name}/state.json          (sanitized blocks with embedded connections)
  *   workflows/{name}/executions.json
  *   workflows/{name}/deployment.json
+ *   workflows/{folder}/{name}/...        (workflows inside folders, nested folders supported)
  *   knowledgebases/{name}/meta.json
  *   knowledgebases/{name}/documents.json
  *   knowledgebases/{name}/connectors.json
@@ -344,7 +381,8 @@ export class WorkspaceVFS {
         knowledgeBases: kbSummary,
         tables: tblSummary,
         files: fileSummary,
-        credentials: envSummary,
+        oauthIntegrations: envSummary.oauthIntegrations,
+        envVariables: envSummary.envVariables,
         tasks: taskSummary,
         customTools: toolsSummary,
         mcpServers: mcpServersSummary,
@@ -352,6 +390,8 @@ export class WorkspaceVFS {
         jobs: jobsSummary,
       })
     )
+
+    await this.materializeRecentlyDeleted(workspaceId, userId)
 
     for (const [path, content] of getStaticComponentFiles()) {
       this.files.set(path, content)
@@ -364,16 +404,32 @@ export class WorkspaceVFS {
     })
   }
 
+  private activeFiles(): Map<string, string> {
+    const filtered = new Map<string, string>()
+    for (const [key, value] of this.files) {
+      if (!key.startsWith('recently-deleted/')) {
+        filtered.set(key, value)
+      }
+    }
+    return filtered
+  }
+
+  private filesForPath(path?: string): Map<string, string> {
+    if (path?.startsWith('recently-deleted')) return this.files
+    return this.activeFiles()
+  }
+
   grep(
     pattern: string,
     path?: string,
     options?: GrepOptions
   ): GrepMatch[] | string[] | ops.GrepCountEntry[] {
-    return ops.grep(this.files, pattern, path, options)
+    return ops.grep(this.filesForPath(path), pattern, path, options)
   }
 
   glob(pattern: string): string[] {
-    return ops.glob(this.files, pattern)
+    const target = pattern.startsWith('recently-deleted') ? this.files : this.activeFiles()
+    return ops.glob(target, pattern)
   }
 
   read(path: string, offset?: number, limit?: number): ReadResult | null {
@@ -381,7 +437,7 @@ export class WorkspaceVFS {
   }
 
   list(path: string): DirEntry[] {
-    return ops.list(this.files, path)
+    return ops.list(this.filesForPath(path), path)
   }
 
   suggestSimilar(missingPath: string, max?: number): string[] {
@@ -394,15 +450,22 @@ export class WorkspaceVFS {
    * Returns null if the path doesn't match `files/{name}` / `files/by-id/{id}` or the file isn't found.
    */
   async readFileContent(path: string): Promise<FileReadResult | null> {
-    const match = path.match(/^files\/(.+?)(?:\/content)?$/)
+    const deletedMatch = path.match(/^recently-deleted\/files\/(.+?)(?:\/content)?$/)
+    const activeMatch = path.match(/^files\/(.+?)(?:\/content)?$/)
+    const match = deletedMatch || activeMatch
     if (!match) return null
-    const fileName = match[1]
+    const fileReference = path
+      .replace(/^recently-deleted\//, '')
+      .replace(/\/content$/, '')
+      .replace(/^\/+/, '')
 
-    if (fileName.endsWith('/meta.json') || path.endsWith('/meta.json')) return null
+    if (fileReference.endsWith('/meta.json') || path.endsWith('/meta.json')) return null
+
+    const scope = deletedMatch ? 'archived' : 'active'
 
     try {
-      const files = await listWorkspaceFiles(this._workspaceId)
-      const record = findWorkspaceFileRecord(files, fileName)
+      const files = await listWorkspaceFiles(this._workspaceId, { scope })
+      const record = findWorkspaceFileRecord(files, fileReference)
       if (!record) return null
       return readFileRecord(record)
     } catch (err) {
@@ -416,19 +479,69 @@ export class WorkspaceVFS {
   }
 
   /**
+   * Build a map from folderId to its full VFS path segment (e.g. "My Folder/Sub Folder").
+   * Handles nested folders via parentId traversal.
+   */
+  private buildFolderPaths(
+    folders: Array<{ folderId: string; folderName: string; parentId: string | null }>
+  ): Map<string, string> {
+    const folderMap = new Map<string, { name: string; parentId: string | null }>()
+    for (const f of folders) {
+      folderMap.set(f.folderId, { name: f.folderName, parentId: f.parentId })
+    }
+
+    const cache = new Map<string, string>()
+    const resolve = (id: string): string => {
+      if (cache.has(id)) return cache.get(id)!
+      const folder = folderMap.get(id)
+      if (!folder) return ''
+      const parentPath = folder.parentId ? resolve(folder.parentId) : ''
+      const path = parentPath
+        ? `${parentPath}/${sanitizeName(folder.name)}`
+        : sanitizeName(folder.name)
+      cache.set(id, path)
+      return path
+    }
+
+    for (const id of folderMap.keys()) {
+      resolve(id)
+    }
+    return cache
+  }
+
+  /**
    * Materialize all workflows using the shared listWorkflows function.
+   * Workflows are nested under their folder paths in the VFS:
+   *   workflows/{folder}/{name}/  (if in a folder)
+   *   workflows/{name}/           (if at workspace root)
    * Returns a summary for WORKSPACE.md generation.
    */
   private async materializeWorkflows(
     workspaceId: string,
     _userId: string
   ): Promise<WorkspaceMdData['workflows']> {
-    const workflowRows = await listWorkflows(workspaceId)
+    const [workflowRows, folderRows] = await Promise.all([
+      listWorkflows(workspaceId),
+      listFolders(workspaceId),
+    ])
+
+    const folderPaths = this.buildFolderPaths(folderRows)
+
+    // Register all folders in the VFS so empty folders are discoverable.
+    for (const { folderId } of folderRows) {
+      const folderPath = folderPaths.get(folderId)
+      if (folderPath) {
+        this.files.set(`workflows/${folderPath}/.folder`, '')
+      }
+    }
 
     await Promise.all(
       workflowRows.map(async (wf) => {
         const safeName = sanitizeName(wf.name)
-        const prefix = `workflows/${safeName}/`
+        const folderPath = wf.folderId ? folderPaths.get(wf.folderId) : null
+        const prefix = folderPath
+          ? `workflows/${folderPath}/${safeName}/`
+          : `workflows/${safeName}/`
 
         this.files.set(`${prefix}meta.json`, serializeWorkflowMeta(wf))
 
@@ -506,6 +619,7 @@ export class WorkspaceVFS {
       description: wf.description,
       isDeployed: wf.isDeployed,
       lastRunAt: wf.lastRunAt,
+      folderPath: wf.folderId ? (folderPaths.get(wf.folderId) ?? null) : null,
     }))
   }
 
@@ -689,7 +803,7 @@ export class WorkspaceVFS {
         )
       }
 
-      return files.map((f) => ({ name: f.name, type: f.type, size: f.size }))
+      return files.map((f) => ({ id: f.id, name: f.name, type: f.type, size: f.size }))
     } catch (err) {
       logger.warn('Failed to materialize files', {
         workspaceId,
@@ -722,7 +836,7 @@ export class WorkspaceVFS {
           isActive: chatTable.isActive,
         })
         .from(chatTable)
-        .where(eq(chatTable.workflowId, workflowId)),
+        .where(and(eq(chatTable.workflowId, workflowId), isNull(chatTable.archivedAt))),
       db
         .select({
           id: form.id,
@@ -735,7 +849,7 @@ export class WorkspaceVFS {
           isActive: form.isActive,
         })
         .from(form)
-        .where(eq(form.workflowId, workflowId)),
+        .where(and(eq(form.workflowId, workflowId), isNull(form.archivedAt))),
       db
         .select({
           serverId: workflowMcpTool.serverId,
@@ -746,7 +860,13 @@ export class WorkspaceVFS {
         })
         .from(workflowMcpTool)
         .innerJoin(workflowMcpServer, eq(workflowMcpTool.serverId, workflowMcpServer.id))
-        .where(eq(workflowMcpTool.workflowId, workflowId)),
+        .where(
+          and(
+            eq(workflowMcpTool.workflowId, workflowId),
+            isNull(workflowMcpTool.archivedAt),
+            isNull(workflowMcpServer.deletedAt)
+          )
+        ),
       db
         .select({
           id: a2aAgent.id,
@@ -757,7 +877,13 @@ export class WorkspaceVFS {
           capabilities: a2aAgent.capabilities,
         })
         .from(a2aAgent)
-        .where(and(eq(a2aAgent.workflowId, workflowId), eq(a2aAgent.workspaceId, workspaceId))),
+        .where(
+          and(
+            eq(a2aAgent.workflowId, workflowId),
+            eq(a2aAgent.workspaceId, workspaceId),
+            isNull(a2aAgent.archivedAt)
+          )
+        ),
       isDeployed
         ? db
             .select({
@@ -1109,6 +1235,103 @@ export class WorkspaceVFS {
     }
   }
 
+  private async materializeRecentlyDeleted(workspaceId: string, userId: string): Promise<void> {
+    try {
+      const [archivedWorkflows, archivedFolders, archivedTables, archivedFiles, archivedKBs] =
+        await Promise.all([
+          listWorkflows(workspaceId, { scope: 'archived' }),
+          db
+            .select({
+              id: workflowFolder.id,
+              name: workflowFolder.name,
+              archivedAt: workflowFolder.archivedAt,
+            })
+            .from(workflowFolder)
+            .where(
+              and(eq(workflowFolder.workspaceId, workspaceId), isNotNull(workflowFolder.archivedAt))
+            ),
+          listTables(workspaceId, { scope: 'archived' }),
+          listWorkspaceFiles(workspaceId, { scope: 'archived' }),
+          getKnowledgeBases(userId, workspaceId, 'archived'),
+        ])
+
+      for (const wf of archivedWorkflows) {
+        const safeName = sanitizeName(wf.name)
+        this.files.set(
+          `recently-deleted/workflows/${safeName}/meta.json`,
+          serializeWorkflowMeta(wf)
+        )
+      }
+
+      for (const folder of archivedFolders) {
+        const safeName = sanitizeName(folder.name)
+        this.files.set(
+          `recently-deleted/folders/${safeName}/meta.json`,
+          JSON.stringify(
+            { id: folder.id, name: folder.name, archivedAt: folder.archivedAt },
+            null,
+            2
+          )
+        )
+      }
+
+      for (const table of archivedTables) {
+        const safeName = sanitizeName(table.name)
+        this.files.set(
+          `recently-deleted/tables/${safeName}/meta.json`,
+          serializeTableMeta({
+            id: table.id,
+            name: table.name,
+            description: table.description,
+            schema: table.schema,
+            rowCount: table.rowCount,
+            maxRows: table.maxRows,
+            createdAt: table.createdAt,
+            updatedAt: table.updatedAt,
+          })
+        )
+      }
+
+      for (const file of archivedFiles) {
+        const safeName = sanitizeName(file.name)
+        this.files.set(
+          `recently-deleted/files/${safeName}/meta.json`,
+          serializeFileMeta({
+            id: file.id,
+            name: file.name,
+            contentType: file.type,
+            size: file.size,
+            uploadedAt: file.uploadedAt,
+          })
+        )
+      }
+
+      for (const kb of archivedKBs) {
+        const safeName = sanitizeName(kb.name)
+        this.files.set(
+          `recently-deleted/knowledgebases/${safeName}/meta.json`,
+          serializeKBMeta({
+            id: kb.id,
+            name: kb.name,
+            description: kb.description,
+            embeddingModel: kb.embeddingModel,
+            embeddingDimension: kb.embeddingDimension,
+            tokenCount: kb.tokenCount,
+            createdAt: kb.createdAt,
+            updatedAt: kb.updatedAt,
+            documentCount: kb.docCount,
+            connectorTypes: kb.connectorTypes,
+          })
+        )
+      }
+    } catch (err) {
+      logger.warn('Failed to materialize recently deleted resources', {
+        workspaceId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
+
   /**
    * Materialize environment data using shared service functions:
    * - getAccessibleEnvCredentials for workspace-scoped credentials
@@ -1120,7 +1343,10 @@ export class WorkspaceVFS {
   private async materializeEnvironment(
     workspaceId: string,
     userId: string
-  ): Promise<WorkspaceMdData['credentials']> {
+  ): Promise<{
+    oauthIntegrations: WorkspaceMdData['oauthIntegrations']
+    envVariables: WorkspaceMdData['envVariables']
+  }> {
     try {
       const [envCredentials, oauthCredentials, apiKeyRows, envData] = await Promise.all([
         getAccessibleEnvCredentials(workspaceId, userId),
@@ -1156,16 +1382,18 @@ export class WorkspaceVFS {
         serializeEnvironmentVariables(personalVarNames, workspaceVarNames)
       )
 
-      const envKeys = envCredentials.map((c) => c.envKey)
-      const oauthProviders = oauthCredentials.map((c) => c.providerId)
-      const allProviders = [...new Set([...oauthProviders, ...envKeys])]
-      return allProviders.map((key) => ({ providerId: key }))
+      const oauthProviders = [...new Set(oauthCredentials.map((c) => c.providerId))]
+      const envKeys = [...new Set(envCredentials.map((c) => c.envKey))]
+      return {
+        oauthIntegrations: oauthProviders.map((key) => ({ providerId: key })),
+        envVariables: envKeys,
+      }
     } catch (err) {
       logger.warn('Failed to materialize environment data', {
         workspaceId,
         error: err instanceof Error ? err.message : String(err),
       })
-      return []
+      return { oauthIntegrations: [], envVariables: [] }
     }
   }
 }

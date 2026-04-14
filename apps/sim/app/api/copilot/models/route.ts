@@ -1,8 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
-import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request-helpers'
-import type { AvailableModel } from '@/lib/copilot/types'
+import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
+
+interface AvailableModel {
+  id: string
+  friendlyName: string
+  provider: string
+}
+
 import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('CopilotModelsAPI')

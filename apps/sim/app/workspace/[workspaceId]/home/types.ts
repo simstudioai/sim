@@ -1,10 +1,40 @@
-import type { MothershipResourceType } from '@/lib/copilot/resource-types'
+import {
+  Agent,
+  Auth,
+  CreateWorkflow,
+  Deploy,
+  EditWorkflow,
+  FunctionExecute,
+  GetPageContents,
+  Glob,
+  Grep,
+  Job,
+  Knowledge,
+  KnowledgeBase,
+  ManageMcpTool,
+  ManageSkill,
+  OpenResource,
+  Read as ReadTool,
+  Research,
+  ScrapePage,
+  SearchLibraryDocs,
+  SearchOnline,
+  Superagent,
+  Table,
+  UserMemory,
+  UserTable,
+  Workflow,
+  WorkspaceFile,
+} from '@/lib/copilot/generated/tool-catalog-v1'
 import type { ChatContext } from '@/stores/panel'
+
+const EDIT_CONTENT_TOOL_ID = 'edit_content'
+const RUN_SUBAGENT_ID = 'run'
 
 export type {
   MothershipResource,
   MothershipResourceType,
-} from '@/lib/copilot/resource-types'
+} from '@/lib/copilot/resources/types'
 
 /** Union of all valid context kind strings, derived from {@link ChatContext}. */
 export type ChatContextKind = ChatContext['kind']
@@ -25,168 +55,33 @@ export interface QueuedMessage {
 }
 
 /**
- * SSE event types emitted by the Go orchestrator backend.
- *
- * @example
- * ```json
- * { "type": "content", "data": "Hello world" }
- * { "type": "tool_call", "state": "executing", "toolCallId": "toolu_...", "toolName": "glob", "ui": { "title": "..." } }
- * { "type": "subagent_start", "subagent": "build" }
- * ```
- */
-export type SSEEventType =
-  | 'chat_id'
-  | 'request_id'
-  | 'title_updated'
-  | 'content'
-  | 'reasoning' // openai reasoning - render as thinking text
-  | 'tool_call' // tool call name
-  | 'tool_call_delta' // chunk of tool call
-  | 'tool_generating' // start a tool call
-  | 'tool_result' // tool call result
-  | 'tool_error' // tool call error
-  | 'resource_added' // add a resource to the chat
-  | 'resource_deleted' // delete a resource from the chat
-  | 'subagent_start' // start a subagent
-  | 'subagent_end' // end a subagent
-  | 'structured_result' // structured result from a tool call
-  | 'subagent_result' // result from a subagent
-  | 'done' // end of the chat
-  | 'context_compaction_start' // context compaction started
-  | 'context_compaction' // conversation context was compacted
-  | 'error' // error in the chat
-  | 'start' // start of the chat
-
-/**
  * All tool names observed in the mothership SSE stream, grouped by phase.
  *
  * @example
  * ```json
- * { "type": "tool_generating", "toolName": "glob" }
- * { "type": "tool_call", "toolName": "function_execute", "ui": { "title": "Running code", "icon": "code" } }
+ * { "type": "tool", "phase": "call", "toolName": "glob" }
+ * { "type": "tool", "phase": "call", "toolName": "function_execute", "ui": { "title": "Running code", "icon": "code" } }
  * ```
+ * Stream `type` is `MothershipStreamV1EventType.tool` (`mothership-stream-v1`) with `phase: 'call'`.
  */
-export type MothershipToolName =
-  | 'glob'
-  | 'grep'
-  | 'read'
-  | 'search_online'
-  | 'scrape_page'
-  | 'get_page_contents'
-  | 'search_library_docs'
-  | 'manage_mcp_tool'
-  | 'manage_skill'
-  | 'manage_credential'
-  | 'manage_custom_tool'
-  | 'manage_job'
-  | 'user_memory'
-  | 'function_execute'
-  | 'superagent'
-  | 'user_table'
-  | 'workspace_file'
-  | 'create_workflow'
-  | 'delete_workflow'
-  | 'edit_workflow'
-  | 'rename_workflow'
-  | 'move_workflow'
-  | 'run_workflow'
-  | 'run_block'
-  | 'run_from_block'
-  | 'run_workflow_until_block'
-  | 'create_folder'
-  | 'delete_folder'
-  | 'move_folder'
-  | 'list_folders'
-  | 'list_user_workspaces'
-  | 'create_job'
-  | 'complete_job'
-  | 'update_job_history'
-  | 'job_respond'
-  | 'download_to_workspace_file'
-  | 'materialize_file'
-  | 'context_write'
-  | 'generate_image'
-  | 'generate_visualization'
-  | 'crawl_website'
-  | 'get_execution_summary'
-  | 'get_job_logs'
-  | 'get_deployment_version'
-  | 'revert_to_version'
-  | 'check_deployment_status'
-  | 'get_deployed_workflow_state'
-  | 'get_workflow_data'
-  | 'get_workflow_logs'
-  | 'get_block_outputs'
-  | 'get_block_upstream_references'
-  | 'set_global_workflow_variables'
-  | 'set_environment_variables'
-  | 'get_platform_actions'
-  | 'search_documentation'
-  | 'search_patterns'
-  | 'update_workspace_mcp_server'
-  | 'delete_workspace_mcp_server'
-  | 'create_workspace_mcp_server'
-  | 'list_workspace_mcp_servers'
-  | 'deploy_api'
-  | 'deploy_chat'
-  | 'deploy_mcp'
-  | 'redeploy'
-  | 'generate_api_key'
-  | 'oauth_get_auth_link'
-  | 'oauth_request_access'
-  | 'build'
-  | 'run'
-  | 'deploy'
-  | 'auth'
-  | 'knowledge'
-  | 'knowledge_base'
-  | 'table'
-  | 'job'
-  | 'agent'
-  | 'custom_tool'
-  | 'research'
-  | 'plan'
-  | 'debug'
-  | 'edit'
-  | 'fast_edit'
-  | 'open_resource'
-  | 'context_compaction'
 
-/**
- * Subagent identifiers dispatched via `subagent_start` SSE events.
- *
- * @example
- * ```json
- * { "type": "subagent_start", "subagent": "build" }
- * ```
- */
-export type SubagentName =
-  | 'build'
-  | 'deploy'
-  | 'auth'
-  | 'research'
-  | 'knowledge'
-  | 'table'
-  | 'custom_tool'
-  | 'superagent'
-  | 'plan'
-  | 'debug'
-  | 'edit'
-  | 'fast_edit'
-  | 'run'
-  | 'agent'
-  | 'job'
-  | 'file_write'
+export const ToolPhase = {
+  workspace: 'workspace',
+  search: 'search',
+  management: 'management',
+  execution: 'execution',
+  resource: 'resource',
+  subagent: 'subagent',
+} as const
+export type ToolPhase = (typeof ToolPhase)[keyof typeof ToolPhase]
 
-export type ToolPhase =
-  | 'workspace'
-  | 'search'
-  | 'management'
-  | 'execution'
-  | 'resource'
-  | 'subagent'
-
-export type ToolCallStatus = 'executing' | 'success' | 'error' | 'cancelled'
+export const ToolCallStatus = {
+  executing: 'executing',
+  success: 'success',
+  error: 'error',
+  cancelled: 'cancelled',
+} as const
+export type ToolCallStatus = (typeof ToolCallStatus)[keyof typeof ToolCallStatus]
 
 export interface ToolCallResult {
   success: boolean
@@ -194,7 +89,6 @@ export interface ToolCallResult {
   error?: string
 }
 
-/** A single tool call result entry in the generic Results resource tab. */
 export interface GenericResourceEntry {
   toolCallId: string
   toolName: string
@@ -205,7 +99,6 @@ export interface GenericResourceEntry {
   result?: ToolCallResult
 }
 
-/** Accumulated feed of tool call results shown in the generic Results tab. */
 export interface GenericResourceData {
   entries: GenericResourceEntry[]
 }
@@ -228,7 +121,7 @@ export interface ToolCallInfo {
   phaseLabel?: string
   params?: Record<string, unknown>
   calledBy?: string
-  result?: { success: boolean; output?: unknown; error?: string }
+  result?: ToolCallResult
   streamingArgs?: string
 }
 
@@ -237,14 +130,17 @@ export interface OptionItem {
   label: string
 }
 
-export type ContentBlockType =
-  | 'text'
-  | 'tool_call'
-  | 'subagent'
-  | 'subagent_end'
-  | 'subagent_text'
-  | 'options'
-  | 'stopped'
+export const ContentBlockType = {
+  text: 'text',
+  tool_call: 'tool_call',
+  subagent: 'subagent',
+  subagent_end: 'subagent_end',
+  subagent_text: 'subagent_text',
+  subagent_thinking: 'subagent_thinking',
+  options: 'options',
+  stopped: 'stopped',
+} as const
+export type ContentBlockType = (typeof ContentBlockType)[keyof typeof ContentBlockType]
 
 export interface ContentBlock {
   type: ContentBlockType
@@ -283,23 +179,19 @@ export interface ChatMessage {
   requestId?: string
 }
 
-export const SUBAGENT_LABELS: Record<SubagentName, string> = {
-  build: 'Build agent',
-  deploy: 'Deploy agent',
-  auth: 'Integration agent',
-  research: 'Research agent',
-  knowledge: 'Knowledge agent',
-  table: 'Table agent',
-  custom_tool: 'Custom Tool agent',
+export const SUBAGENT_LABELS: Record<string, string> = {
+  workflow: 'Workflow Agent',
+  deploy: 'Deploy Agent',
+  auth: 'Auth Agent',
+  research: 'Research Agent',
+  knowledge: 'Knowledge Agent',
+  table: 'Table Agent',
+  custom_tool: 'Custom Tool Agent',
   superagent: 'Superagent',
-  plan: 'Plan agent',
-  debug: 'Debug agent',
-  edit: 'Edit agent',
-  fast_edit: 'Build agent',
-  run: 'Run agent',
-  agent: 'Agent manager',
-  job: 'Job agent',
-  file_write: 'File Write',
+  run: 'Run Agent',
+  agent: 'Tools Agent',
+  job: 'Job Agent',
+  file: 'File Agent',
 } as const
 
 export interface ToolUIMetadata {
@@ -309,206 +201,127 @@ export interface ToolUIMetadata {
 }
 
 /**
- * Primary UI metadata for tools observed in the SSE stream.
- * Maps tool IDs to human-readable display names shown in the chat.
- * This is the single source of truth — server-sent `ui.title` values are not used.
+ * Default UI metadata for tools observed in the SSE stream.
+ * The backend may send `ui` on some `MothershipStreamV1EventType.tool` payloads (`phase: 'call'`);
+ * this map provides fallback metadata when `ui` is absent.
  */
-export const TOOL_UI_METADATA: Record<MothershipToolName, ToolUIMetadata> = {
-  // Workspace
-  glob: { title: 'Searching workspace', phaseLabel: 'Workspace', phase: 'workspace' },
-  grep: { title: 'Searching workspace', phaseLabel: 'Workspace', phase: 'workspace' },
-  read: { title: 'Reading file', phaseLabel: 'Workspace', phase: 'workspace' },
-  // Search
-  search_online: { title: 'Searching online', phaseLabel: 'Search', phase: 'search' },
-  scrape_page: { title: 'Reading webpage', phaseLabel: 'Search', phase: 'search' },
-  get_page_contents: { title: 'Reading page', phaseLabel: 'Search', phase: 'search' },
-  search_library_docs: { title: 'Searching docs', phaseLabel: 'Search', phase: 'search' },
-  crawl_website: { title: 'Browsing website', phaseLabel: 'Search', phase: 'search' },
-  // Execution
-  function_execute: { title: 'Running code', phaseLabel: 'Code', phase: 'execution' },
-  superagent: { title: 'Taking action', phaseLabel: 'Action', phase: 'execution' },
-  run_workflow: { title: 'Running workflow', phaseLabel: 'Execution', phase: 'execution' },
-  run_block: { title: 'Running block', phaseLabel: 'Execution', phase: 'execution' },
-  run_from_block: { title: 'Running from block', phaseLabel: 'Execution', phase: 'execution' },
-  run_workflow_until_block: {
-    title: 'Running partial workflow',
-    phaseLabel: 'Execution',
+export const TOOL_UI_METADATA: Record<string, ToolUIMetadata> = {
+  [Glob.id]: {
+    title: 'Finding files',
+    phaseLabel: 'Workspace',
+    phase: 'workspace',
+  },
+  [Grep.id]: {
+    title: 'Searching',
+    phaseLabel: 'Workspace',
+    phase: 'workspace',
+  },
+  [ReadTool.id]: { title: 'Reading file', phaseLabel: 'Workspace', phase: 'workspace' },
+  [SearchOnline.id]: {
+    title: 'Searching online',
+    phaseLabel: 'Search',
+    phase: 'search',
+  },
+  [ScrapePage.id]: {
+    title: 'Scraping page',
+    phaseLabel: 'Search',
+    phase: 'search',
+  },
+  [GetPageContents.id]: {
+    title: 'Getting page contents',
+    phaseLabel: 'Search',
+    phase: 'search',
+  },
+  [SearchLibraryDocs.id]: {
+    title: 'Searching library docs',
+    phaseLabel: 'Search',
+    phase: 'search',
+  },
+  [ManageMcpTool.id]: {
+    title: 'MCP server action',
+    phaseLabel: 'Management',
+    phase: 'management',
+  },
+  [ManageSkill.id]: {
+    title: 'Skill action',
+    phaseLabel: 'Management',
+    phase: 'management',
+  },
+  [UserMemory.id]: {
+    title: 'Accessing memory',
+    phaseLabel: 'Management',
+    phase: 'management',
+  },
+  [FunctionExecute.id]: {
+    title: 'Running code',
+    phaseLabel: 'Code',
     phase: 'execution',
   },
-  complete_job: { title: 'Completing job', phaseLabel: 'Execution', phase: 'execution' },
-  get_execution_summary: { title: 'Checking results', phaseLabel: 'Execution', phase: 'execution' },
-  get_job_logs: { title: 'Checking logs', phaseLabel: 'Execution', phase: 'execution' },
-  get_workflow_logs: { title: 'Checking logs', phaseLabel: 'Execution', phase: 'execution' },
-  get_workflow_data: { title: 'Loading workflow', phaseLabel: 'Execution', phase: 'execution' },
-  get_block_outputs: {
-    title: 'Checking block outputs',
-    phaseLabel: 'Execution',
+  [Superagent.id]: {
+    title: 'Executing action',
+    phaseLabel: 'Action',
     phase: 'execution',
   },
-  get_block_upstream_references: {
-    title: 'Checking references',
-    phaseLabel: 'Execution',
-    phase: 'execution',
-  },
-  get_deployed_workflow_state: {
-    title: 'Checking deployment',
-    phaseLabel: 'Execution',
-    phase: 'execution',
-  },
-  check_deployment_status: {
-    title: 'Checking deployment',
-    phaseLabel: 'Execution',
-    phase: 'execution',
-  },
-  // Workflows & folders
-  create_workflow: { title: 'Creating workflow', phaseLabel: 'Resource', phase: 'resource' },
-  delete_workflow: { title: 'Deleting workflow', phaseLabel: 'Resource', phase: 'resource' },
-  edit_workflow: { title: 'Editing workflow', phaseLabel: 'Resource', phase: 'resource' },
-  rename_workflow: { title: 'Renaming workflow', phaseLabel: 'Resource', phase: 'resource' },
-  move_workflow: { title: 'Moving workflow', phaseLabel: 'Resource', phase: 'resource' },
-  create_folder: { title: 'Creating folder', phaseLabel: 'Resource', phase: 'resource' },
-  delete_folder: { title: 'Deleting folder', phaseLabel: 'Resource', phase: 'resource' },
-  move_folder: { title: 'Moving folder', phaseLabel: 'Resource', phase: 'resource' },
-  list_folders: { title: 'Browsing folders', phaseLabel: 'Resource', phase: 'resource' },
-  list_user_workspaces: { title: 'Browsing workspaces', phaseLabel: 'Resource', phase: 'resource' },
-  revert_to_version: { title: 'Restoring version', phaseLabel: 'Resource', phase: 'resource' },
-  get_deployment_version: {
-    title: 'Checking deployment',
+  [UserTable.id]: {
+    title: 'Managing table',
     phaseLabel: 'Resource',
     phase: 'resource',
   },
-  open_resource: { title: 'Opening resource', phaseLabel: 'Resource', phase: 'resource' },
-  // Files
-  workspace_file: { title: 'Working with files', phaseLabel: 'Resource', phase: 'resource' },
-  download_to_workspace_file: {
-    title: 'Downloading file',
+  [WorkspaceFile.id]: {
+    title: 'Editing file',
     phaseLabel: 'Resource',
     phase: 'resource',
   },
-  materialize_file: { title: 'Saving file', phaseLabel: 'Resource', phase: 'resource' },
-  generate_image: { title: 'Generating image', phaseLabel: 'Resource', phase: 'resource' },
-  generate_visualization: {
-    title: 'Generating visualization',
+  [EDIT_CONTENT_TOOL_ID]: {
+    title: 'Applying file content',
     phaseLabel: 'Resource',
     phase: 'resource',
   },
-  // Tables & knowledge
-  user_table: { title: 'Editing table', phaseLabel: 'Resource', phase: 'resource' },
-  knowledge_base: { title: 'Updating knowledge base', phaseLabel: 'Resource', phase: 'resource' },
-  // Jobs
-  create_job: { title: 'Creating job', phaseLabel: 'Resource', phase: 'resource' },
-  manage_job: { title: 'Updating job', phaseLabel: 'Management', phase: 'management' },
-  update_job_history: { title: 'Updating job', phaseLabel: 'Management', phase: 'management' },
-  job_respond: { title: 'Explaining job scheduled', phaseLabel: 'Execution', phase: 'execution' },
-  // Management
-  manage_mcp_tool: { title: 'Updating integration', phaseLabel: 'Management', phase: 'management' },
-  manage_skill: { title: 'Updating skill', phaseLabel: 'Management', phase: 'management' },
-  manage_credential: { title: 'Connecting account', phaseLabel: 'Management', phase: 'management' },
-  manage_custom_tool: { title: 'Updating tool', phaseLabel: 'Management', phase: 'management' },
-  update_workspace_mcp_server: {
-    title: 'Updating MCP server',
-    phaseLabel: 'Management',
-    phase: 'management',
+  [CreateWorkflow.id]: {
+    title: 'Creating workflow',
+    phaseLabel: 'Resource',
+    phase: 'resource',
   },
-  delete_workspace_mcp_server: {
-    title: 'Removing MCP server',
-    phaseLabel: 'Management',
-    phase: 'management',
+  [EditWorkflow.id]: {
+    title: 'Editing workflow',
+    phaseLabel: 'Resource',
+    phase: 'resource',
   },
-  create_workspace_mcp_server: {
-    title: 'Creating MCP server',
-    phaseLabel: 'Management',
-    phase: 'management',
+  [Workflow.id]: { title: 'Workflow Agent', phaseLabel: 'Workflow', phase: 'subagent' },
+  [RUN_SUBAGENT_ID]: { title: 'Run Agent', phaseLabel: 'Run', phase: 'subagent' },
+  [Deploy.id]: { title: 'Deploy Agent', phaseLabel: 'Deploy', phase: 'subagent' },
+  [Auth.id]: {
+    title: 'Auth Agent',
+    phaseLabel: 'Auth',
+    phase: 'subagent',
   },
-  list_workspace_mcp_servers: {
-    title: 'Browsing MCP servers',
-    phaseLabel: 'Management',
-    phase: 'management',
+  [Knowledge.id]: {
+    title: 'Knowledge Agent',
+    phaseLabel: 'Knowledge',
+    phase: 'subagent',
   },
-  oauth_get_auth_link: {
-    title: 'Connecting account',
-    phaseLabel: 'Management',
-    phase: 'management',
+  [KnowledgeBase.id]: {
+    title: 'Managing knowledge base',
+    phaseLabel: 'Resource',
+    phase: 'resource',
   },
-  oauth_request_access: {
-    title: 'Connecting account',
-    phaseLabel: 'Management',
-    phase: 'management',
+  [Table.id]: { title: 'Table Agent', phaseLabel: 'Table', phase: 'subagent' },
+  [Job.id]: { title: 'Job Agent', phaseLabel: 'Job', phase: 'subagent' },
+  [Agent.id]: { title: 'Tools Agent', phaseLabel: 'Agent', phase: 'subagent' },
+  custom_tool: {
+    title: 'Creating tool',
+    phaseLabel: 'Tool',
+    phase: 'subagent',
   },
-  set_environment_variables: {
-    title: 'Updating environment',
-    phaseLabel: 'Management',
-    phase: 'management',
+  [Research.id]: { title: 'Research Agent', phaseLabel: 'Research', phase: 'subagent' },
+  [OpenResource.id]: {
+    title: 'Opening resource',
+    phaseLabel: 'Resource',
+    phase: 'resource',
   },
-  set_global_workflow_variables: {
-    title: 'Updating variables',
-    phaseLabel: 'Management',
-    phase: 'management',
-  },
-  get_platform_actions: { title: 'Loading actions', phaseLabel: 'Management', phase: 'management' },
-  search_documentation: { title: 'Searching docs', phaseLabel: 'Search', phase: 'search' },
-  search_patterns: { title: 'Searching patterns', phaseLabel: 'Search', phase: 'search' },
-  deploy_api: { title: 'Deploying API', phaseLabel: 'Deploy', phase: 'management' },
-  deploy_chat: { title: 'Deploying chat', phaseLabel: 'Deploy', phase: 'management' },
-  deploy_mcp: { title: 'Deploying MCP', phaseLabel: 'Deploy', phase: 'management' },
-  redeploy: { title: 'Redeploying', phaseLabel: 'Deploy', phase: 'management' },
-  generate_api_key: { title: 'Generating API key', phaseLabel: 'Deploy', phase: 'management' },
-  user_memory: { title: 'Updating memory', phaseLabel: 'Management', phase: 'management' },
-  context_write: { title: 'Writing notes', phaseLabel: 'Management', phase: 'management' },
   context_compaction: {
-    title: 'Optimizing context',
-    phaseLabel: 'Management',
+    title: 'Compacted context',
+    phaseLabel: 'Context',
     phase: 'management',
   },
-  // Subagents
-  build: { title: 'Building', phaseLabel: 'Build', phase: 'subagent' },
-  run: { title: 'Running', phaseLabel: 'Run', phase: 'subagent' },
-  deploy: { title: 'Deploying', phaseLabel: 'Deploy', phase: 'subagent' },
-  auth: { title: 'Connecting integration', phaseLabel: 'Auth', phase: 'subagent' },
-  knowledge: { title: 'Working with knowledge', phaseLabel: 'Knowledge', phase: 'subagent' },
-  table: { title: 'Working with tables', phaseLabel: 'Table', phase: 'subagent' },
-  job: { title: 'Working with jobs', phaseLabel: 'Job', phase: 'subagent' },
-  agent: { title: 'Taking action', phaseLabel: 'Agent', phase: 'subagent' },
-  custom_tool: { title: 'Creating tool', phaseLabel: 'Tool', phase: 'subagent' },
-  research: { title: 'Researching', phaseLabel: 'Research', phase: 'subagent' },
-  plan: { title: 'Planning', phaseLabel: 'Plan', phase: 'subagent' },
-  debug: { title: 'Debugging', phaseLabel: 'Debug', phase: 'subagent' },
-  edit: { title: 'Editing workflow', phaseLabel: 'Edit', phase: 'subagent' },
-  fast_edit: { title: 'Editing workflow', phaseLabel: 'Edit', phase: 'subagent' },
-}
-
-export interface SSEPayloadUI {
-  hidden?: boolean
-  title?: string
-  phaseLabel?: string
-  icon?: string
-  internal?: boolean
-  clientExecutable?: boolean
-}
-
-export interface SSEPayloadData {
-  name?: string
-  ui?: SSEPayloadUI
-  id?: string
-  agent?: string
-  partial?: boolean
-  arguments?: Record<string, unknown>
-  input?: Record<string, unknown>
-  result?: unknown
-  error?: string
-}
-
-export interface SSEPayload {
-  type: SSEEventType | (string & {})
-  chatId?: string
-  data?: string | SSEPayloadData
-  content?: string
-  toolCallId?: string
-  toolName?: string
-  ui?: SSEPayloadUI
-  success?: boolean
-  result?: unknown
-  error?: string
-  subagent?: string
-  resource?: { type: MothershipResourceType; id: string; title: string }
 }

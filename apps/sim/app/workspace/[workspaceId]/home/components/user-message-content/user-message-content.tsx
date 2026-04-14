@@ -65,14 +65,16 @@ function MentionHighlight({ context }: { context: ChatMessageContext }) {
 }
 
 export function UserMessageContent({ content, contexts }: UserMessageContentProps) {
+  const trimmed = content.trim()
+
   if (!contexts || contexts.length === 0) {
-    return <p className={USER_MESSAGE_CLASSES}>{content}</p>
+    return <p className={USER_MESSAGE_CLASSES}>{trimmed}</p>
   }
 
   const ranges = computeMentionRanges(content, contexts)
 
   if (ranges.length === 0) {
-    return <p className={USER_MESSAGE_CLASSES}>{content}</p>
+    return <p className={USER_MESSAGE_CLASSES}>{trimmed}</p>
   }
 
   const elements: React.ReactNode[] = []

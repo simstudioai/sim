@@ -10,8 +10,8 @@ import {
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request-helpers'
-import type { ChatResource, ResourceType } from '@/lib/copilot/resources'
+} from '@/lib/copilot/request/http'
+import type { ChatResource, ResourceType } from '@/lib/copilot/resources/persistence'
 
 const logger = createLogger('CopilotChatResourcesAPI')
 
@@ -21,13 +21,14 @@ const VALID_RESOURCE_TYPES = new Set<ResourceType>([
   'workflow',
   'knowledgebase',
   'folder',
+  'log',
 ])
-const GENERIC_TITLES = new Set(['Table', 'File', 'Workflow', 'Knowledge Base', 'Folder'])
+const GENERIC_TITLES = new Set(['Table', 'File', 'Workflow', 'Knowledge Base', 'Folder', 'Log'])
 
 const AddResourceSchema = z.object({
   chatId: z.string(),
   resource: z.object({
-    type: z.enum(['table', 'file', 'workflow', 'knowledgebase', 'folder']),
+    type: z.enum(['table', 'file', 'workflow', 'knowledgebase', 'folder', 'log']),
     id: z.string(),
     title: z.string(),
   }),
@@ -35,7 +36,7 @@ const AddResourceSchema = z.object({
 
 const RemoveResourceSchema = z.object({
   chatId: z.string(),
-  resourceType: z.enum(['table', 'file', 'workflow', 'knowledgebase', 'folder']),
+  resourceType: z.enum(['table', 'file', 'workflow', 'knowledgebase', 'folder', 'log']),
   resourceId: z.string(),
 })
 
@@ -43,7 +44,7 @@ const ReorderResourcesSchema = z.object({
   chatId: z.string(),
   resources: z.array(
     z.object({
-      type: z.enum(['table', 'file', 'workflow', 'knowledgebase', 'folder']),
+      type: z.enum(['table', 'file', 'workflow', 'knowledgebase', 'folder', 'log']),
       id: z.string(),
       title: z.string(),
     })

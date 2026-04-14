@@ -1,9 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createRunSegment } from '@/lib/copilot/async-runs/repository'
-import { COPILOT_REQUEST_MODES } from '@/lib/copilot/models'
-import { orchestrateCopilotStream } from '@/lib/copilot/orchestrator'
+import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
+import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { generateId } from '@/lib/core/utils/uuid'
 import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
@@ -84,15 +83,19 @@ export async function POST(req: NextRequest) {
     const chatId = parsed.chatId || generateId()
 
     messageId = generateId()
-    const reqLogger = logger.withMetadata({ messageId })
-    reqLogger.info('Received headless copilot chat start request', {
-      workflowId: resolved.workflowId,
-      workflowName: parsed.workflowName,
-      chatId,
-      mode: transportMode,
-      autoExecuteTools: parsed.autoExecuteTools,
-      timeout: parsed.timeout,
-    })
+    logger.info(
+      messageId
+        ? `Received headless copilot chat start request [messageId:${messageId}]`
+        : 'Received headless copilot chat start request',
+      {
+        workflowId: resolved.workflowId,
+        workflowName: parsed.workflowName,
+        chatId,
+        mode: transportMode,
+        autoExecuteTools: parsed.autoExecuteTools,
+        timeout: parsed.timeout,
+      }
+    )
     const requestPayload = {
       message: parsed.message,
       workflowId: resolved.workflowId,
@@ -103,24 +106,10 @@ export async function POST(req: NextRequest) {
       chatId,
     }
 
-    const executionId = generateId()
-    const runId = generateId()
-
-    await createRunSegment({
-      id: runId,
-      executionId,
-      chatId,
-      userId: auth.userId,
-      workflowId: resolved.workflowId,
-      streamId: messageId,
-    }).catch(() => {})
-
-    const result = await orchestrateCopilotStream(requestPayload, {
+    const result = await runHeadlessCopilotLifecycle(requestPayload, {
       userId: auth.userId,
       workflowId: resolved.workflowId,
       chatId,
-      executionId,
-      runId,
       goRoute: '/api/mcp',
       autoExecuteTools: parsed.autoExecuteTools,
       timeout: parsed.timeout,
@@ -142,9 +131,14 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    logger.withMetadata({ messageId }).error('Headless copilot request failed', {
-      error: error instanceof Error ? error.message : String(error),
-    })
+    logger.error(
+      messageId
+        ? `Headless copilot request failed [messageId:${messageId}]`
+        : 'Headless copilot request failed',
+      {
+        error: error instanceof Error ? error.message : String(error),
+      }
+    )
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -1,6 +1,7 @@
 'use client'
 
-import { forwardRef, memo, useCallback, useState } from 'react'
+import { forwardRef, memo, useCallback, useEffect, useState } from 'react'
+import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
@@ -19,37 +20,19 @@ const PREVIEW_CYCLE: Record<PreviewMode, PreviewMode> = {
   preview: 'editor',
 } as const
 
-function streamFileBasename(name: string): string {
-  const n = name.replace(/\\/g, '/').trim()
-  const parts = n.split('/').filter(Boolean)
-  return parts.length ? parts[parts.length - 1]! : n
-}
-
-function fileTitlesEquivalent(streamFileName: string, resourceTitle: string): boolean {
-  return streamFileBasename(streamFileName) === streamFileBasename(resourceTitle)
-}
-
 /**
- * Whether the active resource should show the in-progress file_write stream.
- * The synthetic `streaming-file` tab always shows it; a real file tab shows it when
- * the streamed `fileName` matches that resource (so users who stay on the open file see live text).
+ * Whether the active resource should show the in-progress file stream.
+ * The synthetic `streaming-file` tab always shows it; a real file tab only shows it
+ * when the streamed fileId matches that exact resource.
  */
-function streamReferencesFileId(raw: string, fileId: string): boolean {
-  if (!fileId) return false
-  const escaped = fileId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return new RegExp(`"fileId"\\s*:\\s*"${escaped}"`).test(raw)
-}
-
 function shouldShowStreamingFilePanel(
-  streamingFile: { fileName: string; content: string } | null | undefined,
+  previewSession: FilePreviewSession | null | undefined,
   active: MothershipResource | null
 ): boolean {
-  if (!streamingFile || !active) return false
+  if (!previewSession || previewSession.status === 'complete' || !active) return false
   if (active.id === 'streaming-file') return true
   if (active.type !== 'file') return false
-  const fn = streamingFile.fileName.trim()
-  if (fn && fileTitlesEquivalent(fn, active.title)) return true
-  if (active.id && streamReferencesFileId(streamingFile.content, active.id)) return true
+  if (active.id && previewSession.fileId === active.id) return true
   return false
 }
 
@@ -65,7 +48,7 @@ interface MothershipViewProps {
   onCollapse: () => void
   isCollapsed: boolean
   className?: string
-  streamingFile?: { fileName: string; content: string } | null
+  previewSession?: FilePreviewSession | null
   genericResourceData?: GenericResourceData
 }
 
@@ -83,7 +66,7 @@ export const MothershipView = memo(
       onCollapse,
       isCollapsed,
       className,
-      streamingFile,
+      previewSession,
       genericResourceData,
     }: MothershipViewProps,
     ref
@@ -91,20 +74,21 @@ export const MothershipView = memo(
     const active = resources.find((r) => r.id === activeResourceId) ?? resources[0] ?? null
     const { canEdit } = useUserPermissionsContext()
 
-    const streamingForActive =
-      streamingFile && active && shouldShowStreamingFilePanel(streamingFile, active)
-        ? streamingFile
+    const previewForActive =
+      previewSession && active && shouldShowStreamingFilePanel(previewSession, active)
+        ? previewSession
         : undefined
 
     const [previewMode, setPreviewMode] = useState<PreviewMode>('preview')
     const [prevActiveId, setPrevActiveId] = useState<string | null | undefined>(active?.id)
     const handleCyclePreview = useCallback(() => setPreviewMode((m) => PREVIEW_CYCLE[m]), [])
 
-    // Reset preview mode to default when the active resource changes (guarded render-phase update)
-    if (active?.id !== prevActiveId) {
-      setPrevActiveId(active?.id)
-      setPreviewMode('preview')
-    }
+    useEffect(() => {
+      if (active?.id !== prevActiveId) {
+        setPrevActiveId(active?.id)
+        setPreviewMode('preview')
+      }
+    }, [active?.id, prevActiveId])
 
     const isActivePreviewable =
       canEdit &&
@@ -143,8 +127,9 @@ export const MothershipView = memo(
                 workspaceId={workspaceId}
                 resource={active}
                 previewMode={isActivePreviewable ? previewMode : undefined}
-                streamingFile={streamingForActive}
+                previewSession={previewForActive}
                 genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
+                previewContextKey={chatId}
               />
             ) : (
               <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { GenerateVisualization } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -65,7 +66,8 @@ async function collectSandboxFiles(
   inputTables?: string[],
   messageId?: string
 ): Promise<SandboxFile[]> {
-  const reqLogger = logger.withMetadata({ messageId })
+  const withMessageId = (message: string) =>
+    messageId ? `${message} [messageId:${messageId}]` : message
   const sandboxFiles: SandboxFile[] = []
   let totalSize = 0
 
@@ -74,12 +76,12 @@ async function collectSandboxFiles(
     for (const fileRef of inputFiles) {
       const record = findWorkspaceFileRecord(allFiles, fileRef)
       if (!record) {
-        reqLogger.warn('Sandbox input file not found', { fileRef })
+        logger.warn('Sandbox input file not found', { fileRef })
         continue
       }
       const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
       if (!TEXT_EXTENSIONS.has(ext)) {
-        reqLogger.warn('Skipping non-text sandbox input file', {
+        logger.warn('Skipping non-text sandbox input file', {
           fileId: record.id,
           fileName: record.name,
           ext,
@@ -87,7 +89,7 @@ async function collectSandboxFiles(
         continue
       }
       if (record.size > MAX_FILE_SIZE) {
-        reqLogger.warn('Sandbox input file exceeds size limit', {
+        logger.warn('Sandbox input file exceeds size limit', {
           fileId: record.id,
           fileName: record.name,
           size: record.size,
@@ -116,7 +118,7 @@ async function collectSandboxFiles(
     for (const tableId of inputTables) {
       const table = await getTableById(tableId)
       if (!table) {
-        reqLogger.warn('Sandbox input table not found', { tableId })
+        logger.warn('Sandbox input table not found', { tableId })
         continue
       }
       const { rows } = await queryRows(tableId, workspaceId, { limit: 10000 }, 'sandbox-input')
@@ -146,13 +148,14 @@ export const generateVisualizationServerTool: BaseServerTool<
   VisualizationArgs,
   VisualizationResult
 > = {
-  name: 'generate_visualization',
+  name: GenerateVisualization.id,
 
   async execute(
     params: VisualizationArgs,
     context?: ServerToolContext
   ): Promise<VisualizationResult> {
-    const reqLogger = logger.withMetadata({ messageId: context?.messageId })
+    const withMessageId = (message: string) =>
+      context?.messageId ? `${message} [messageId:${context.messageId}]` : message
 
     if (!context?.userId) {
       throw new Error('Authentication required')
@@ -237,7 +240,7 @@ export const generateVisualizationServerTool: BaseServerTool<
           imageBuffer,
           'image/png'
         )
-        reqLogger.info('Chart image overwritten', {
+        logger.info('Chart image overwritten', {
           fileId: updated.id,
           fileName: updated.name,
           size: imageBuffer.length,
@@ -261,7 +264,7 @@ export const generateVisualizationServerTool: BaseServerTool<
         'image/png'
       )
 
-      reqLogger.info('Chart image saved', {
+      logger.info('Chart image saved', {
         fileId: uploaded.id,
         fileName: uploaded.name,
         size: imageBuffer.length,
@@ -276,7 +279,7 @@ export const generateVisualizationServerTool: BaseServerTool<
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error'
-      reqLogger.error('Visualization generation failed', { error: msg })
+      logger.error('Visualization generation failed', { error: msg })
       return { success: false, message: `Failed to generate visualization: ${msg}` }
     }
   },

@@ -17,7 +17,7 @@ import { useChatHistory, useMarkTaskRead } from '@/hooks/queries/tasks'
 import type { ChatContext } from '@/stores/panel'
 import { MothershipChat, MothershipView, TemplatePrompts, UserInput } from './components'
 import { getMothershipUseChatOptions, useChat, useMothershipResize } from './hooks'
-import type { FileAttachmentForApi, MothershipResourceType } from './types'
+import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
 
 const logger = createLogger('Home')
 
@@ -115,7 +115,7 @@ export function Home({ chatId }: HomeProps = {}) {
 
   const wasSendingRef = useRef(false)
 
-  useChatHistory(chatId)
+  const { isPending: isChatHistoryPending } = useChatHistory(chatId)
   const { mutate: markRead } = useMarkTaskRead(workspaceId)
 
   const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize()
@@ -157,7 +157,7 @@ export function Home({ chatId }: HomeProps = {}) {
     removeFromQueue,
     sendNow,
     editQueuedMessage,
-    streamingFile,
+    previewSession,
     genericResourceData,
   } = useChat(
     workspaceId,
@@ -201,8 +201,13 @@ export function Home({ chatId }: HomeProps = {}) {
 
   useEffect(() => {
     wasSendingRef.current = false
-    if (resolvedChatId) markRead(resolvedChatId)
-  }, [resolvedChatId, markRead])
+    if (resolvedChatId) {
+      markRead(resolvedChatId)
+    } else {
+      clearWidth()
+      setIsResourceCollapsed(true)
+    }
+  }, [resolvedChatId, markRead, clearWidth])
 
   useEffect(() => {
     if (wasSendingRef.current && !isSending && resolvedChatId) {
@@ -228,7 +233,7 @@ export function Home({ chatId }: HomeProps = {}) {
       workspace_id: workspaceId,
       view: 'mothership',
     })
-    stopGeneration()
+    void stopGeneration().catch(() => {})
   }, [stopGeneration, workspaceId])
 
   const handleSubmit = useCallback(
@@ -291,7 +296,7 @@ export function Home({ chatId }: HomeProps = {}) {
     [resolveResourceFromContext, addResource, handleResourceEvent]
   )
 
-  const handleContextRemove = useCallback(
+  const handleInitialContextRemove = useCallback(
     (context: ChatContext) => {
       const resolved = resolveResourceFromContext(context)
       if (resolved) removeResource(resolved.type, resolved.id)
@@ -299,7 +304,19 @@ export function Home({ chatId }: HomeProps = {}) {
     [resolveResourceFromContext, removeResource]
   )
 
+  const handleWorkspaceResourceSelect = useCallback(
+    (resource: MothershipResource) => {
+      const wasAdded = addResource(resource)
+      if (!wasAdded) {
+        setActiveResourceId(resource.id)
+      }
+      handleResourceEvent()
+    },
+    [addResource, handleResourceEvent, setActiveResourceId]
+  )
+
   const hasMessages = messages.length > 0
+  const showChatSkeleton = Boolean(chatId) && !hasMessages && isChatHistoryPending
 
   useEffect(() => {
     if (hasMessages) return
@@ -336,7 +353,7 @@ export function Home({ chatId }: HomeProps = {}) {
               onStopGeneration={handleStopGeneration}
               userId={session?.user?.id}
               onContextAdd={handleContextAdd}
-              onContextRemove={handleContextRemove}
+              onContextRemove={handleInitialContextRemove}
             />
           </div>
         </div>
@@ -358,6 +375,7 @@ export function Home({ chatId }: HomeProps = {}) {
           messages={messages}
           isSending={isSending}
           isReconnecting={isReconnecting}
+          isLoading={showChatSkeleton}
           onSubmit={handleSubmit}
           onStopGeneration={handleStopGeneration}
           messageQueue={messageQueue}
@@ -367,7 +385,7 @@ export function Home({ chatId }: HomeProps = {}) {
           userId={session?.user?.id}
           chatId={resolvedChatId}
           onContextAdd={handleContextAdd}
-          onContextRemove={handleContextRemove}
+          onWorkspaceResourceSelect={handleWorkspaceResourceSelect}
           editValue={editingInputValue}
           onEditValueConsumed={clearEditingValue}
           animateInput={isInputEntering}
@@ -401,8 +419,8 @@ export function Home({ chatId }: HomeProps = {}) {
         onReorderResources={reorderResources}
         onCollapse={collapseResource}
         isCollapsed={isResourceCollapsed}
-        streamingFile={streamingFile}
-        genericResourceData={genericResourceData}
+        previewSession={previewSession}
+        genericResourceData={genericResourceData ?? undefined}
         className={skipResourceTransition ? '!transition-none' : undefined}
       />
 

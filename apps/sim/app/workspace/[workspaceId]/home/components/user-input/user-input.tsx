@@ -104,7 +104,7 @@ interface UserInputProps {
   userId?: string
   onContextAdd?: (context: ChatContext) => void
   onContextRemove?: (context: ChatContext) => void
-  onEnterWhileEmpty?: () => boolean
+  onSendQueuedHead?: () => void
 }
 
 export function UserInput({
@@ -118,7 +118,7 @@ export function UserInput({
   userId,
   onContextAdd,
   onContextRemove,
-  onEnterWhileEmpty,
+  onSendQueuedHead,
 }: UserInputProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { navigateToSettings } = useSettingsNavigation()
@@ -266,8 +266,8 @@ export function UserInput({
   filesRef.current = files
   const contextRef = useRef(contextManagement)
   contextRef.current = contextManagement
-  const onEnterWhileEmptyRef = useRef(onEnterWhileEmpty)
-  onEnterWhileEmptyRef.current = onEnterWhileEmpty
+  const onSendQueuedHeadRef = useRef(onSendQueuedHead)
+  onSendQueuedHeadRef.current = onSendQueuedHead
   const isSendingRef = useRef(isSending)
   isSendingRef.current = isSending
 
@@ -449,6 +449,7 @@ export function UserInput({
     sttPrefixRef.current = ''
     resetTranscript()
     currentFiles.clearAttachedFiles()
+    prevSelectedContextsRef.current = []
     currentContext.clearContexts()
 
     if (textareaRef.current) {
@@ -460,8 +461,13 @@ export function UserInput({
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
         e.preventDefault()
-        if (isSendingRef.current && !valueRef.current.trim()) {
-          onEnterWhileEmptyRef.current?.()
+        const hasSubmitPayload =
+          valueRef.current.trim().length > 0 ||
+          filesRef.current.attachedFiles.some((file) => !file.uploading && file.key)
+        if (!hasSubmitPayload) {
+          if (isSendingRef.current) {
+            onSendQueuedHeadRef.current?.()
+          }
           return
         }
         handleSubmit()

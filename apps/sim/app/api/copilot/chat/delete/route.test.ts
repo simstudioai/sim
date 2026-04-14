@@ -36,11 +36,11 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
 }))
 
-vi.mock('@/lib/copilot/chat-lifecycle', () => ({
+vi.mock('@/lib/copilot/chat/lifecycle', () => ({
   getAccessibleCopilotChat: mockGetAccessibleCopilotChat,
 }))
 
-vi.mock('@/lib/copilot/task-events', () => ({
+vi.mock('@/lib/copilot/tasks', () => ({
   taskPubSub: { publishStatusChanged: vi.fn() },
 }))
 

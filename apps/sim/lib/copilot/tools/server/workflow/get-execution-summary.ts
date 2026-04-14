@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, type SQL } from 'drizzle-orm'
+import { GetExecutionSummary } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -41,7 +42,7 @@ export const getExecutionSummaryServerTool: BaseServerTool<
   GetExecutionSummaryArgs,
   ExecutionSummary[]
 > = {
-  name: 'get_execution_summary',
+  name: GetExecutionSummary.id,
   async execute(
     rawArgs: GetExecutionSummaryArgs,
     context?: ServerToolContext

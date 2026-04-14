@@ -3,6 +3,7 @@ import { credential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
+import { SetEnvironmentVariables } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { upsertPersonalEnvVars, upsertWorkspaceEnvVars } from '@/lib/environment/utils'
 import { getWorkflowById } from '@/lib/workflows/utils'
@@ -35,7 +36,7 @@ function normalizeVariables(
 
 export const setEnvironmentVariablesServerTool: BaseServerTool<SetEnvironmentVariablesParams, any> =
   {
-    name: 'set_environment_variables',
+    name: SetEnvironmentVariables.id,
     async execute(
       params: SetEnvironmentVariablesParams,
       context?: { userId: string }

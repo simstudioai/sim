@@ -12,7 +12,6 @@ import {
 } from '@/lib/notifications/alert-rules'
 import { getActiveWorkflowContext } from '@/lib/workflows/active-context'
 import {
-  enqueueNotificationDeliveryDispatch,
   executeNotificationDelivery,
   workspaceNotificationDeliveryTask,
 } from '@/background/workspace-notification-delivery'
@@ -148,10 +147,6 @@ export async function emitWorkflowExecutionCompleted(log: WorkflowExecutionLog):
         })
         logger.info(
           `Enqueued ${subscription.notificationType} notification ${deliveryId} via Trigger.dev`
-        )
-      } else if (await enqueueNotificationDeliveryDispatch(payload)) {
-        logger.info(
-          `Enqueued ${subscription.notificationType} notification ${deliveryId} via BullMQ`
         )
       } else {
         void executeNotificationDelivery(payload).catch((error) => {

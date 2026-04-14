@@ -1,10 +1,8 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   BookOpen,
-  Bug,
   Check,
   CheckCircle,
-  ClipboardList,
   Database,
   Eye,
   FileSearch,
@@ -12,7 +10,6 @@ import {
   FolderPlus,
   GitBranch,
   Globe,
-  Globe2,
   Grid2x2,
   Grid2x2Check,
   Grid2x2X,
@@ -40,6 +37,11 @@ import {
   XCircle,
   Zap,
 } from 'lucide-react'
+import {
+  ManageCustomToolOperation,
+  ManageMcpToolOperation,
+  ManageSkillOperation,
+} from '@/lib/copilot/generated/tool-catalog-v1'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { CustomToolDefinition } from '@/hooks/queries/custom-tools'
 import type { WorkflowDeploymentInfo } from '@/hooks/queries/deployments'
@@ -229,6 +231,15 @@ const META_check_deployment_status: ToolMetadata = {
   interrupt: undefined,
 }
 
+const META_complete_job: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Completing job', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Completing job', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Completed job', icon: CheckCircle },
+    [ClientToolCallState.error]: { text: 'Failed to complete job', icon: XCircle },
+  },
+}
+
 const META_checkoff_todo: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Marking todo', icon: Loader2 },
@@ -267,6 +278,30 @@ const META_crawl_website: ToolMetadata = {
         case ClientToolCallState.rejected:
           return `Skipped crawling ${url}`
       }
+    }
+    return undefined
+  },
+}
+
+const META_create_file: ToolMetadata = {
+  displayNames: {
+    [ClientToolCallState.generating]: { text: 'Creating file', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Creating file', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Created file', icon: FileText },
+    [ClientToolCallState.error]: { text: 'Failed to create file', icon: XCircle },
+  },
+  getDynamicText: (params, state) => {
+    const fileName = params?.fileName
+    if (typeof fileName !== 'string' || !fileName.trim()) return undefined
+
+    switch (state) {
+      case ClientToolCallState.success:
+        return `Created ${fileName}`
+      case ClientToolCallState.executing:
+      case ClientToolCallState.generating:
+        return `Creating ${fileName}`
+      case ClientToolCallState.error:
+        return `Failed to create ${fileName}`
     }
     return undefined
   },
@@ -350,19 +385,19 @@ const META_agent: ToolMetadata = {
 const META_manage_skill: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: {
-      text: 'Managing skill',
+      text: 'Skill action',
       icon: Loader2,
     },
-    [ClientToolCallState.pending]: { text: 'Manage skill?', icon: BookOpen },
-    [ClientToolCallState.executing]: { text: 'Managing skill', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Managed skill', icon: Check },
-    [ClientToolCallState.error]: { text: 'Failed to manage skill', icon: X },
+    [ClientToolCallState.pending]: { text: 'Skill action?', icon: BookOpen },
+    [ClientToolCallState.executing]: { text: 'Skill action', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Updated skill', icon: Check },
+    [ClientToolCallState.error]: { text: 'Failed skill action', icon: X },
     [ClientToolCallState.aborted]: {
-      text: 'Aborted managing skill',
+      text: 'Aborted skill action',
       icon: XCircle,
     },
     [ClientToolCallState.rejected]: {
-      text: 'Skipped managing skill',
+      text: 'Skipped skill action',
       icon: XCircle,
     },
   },
@@ -370,22 +405,82 @@ const META_manage_skill: ToolMetadata = {
     accept: { text: 'Allow', icon: Check },
     reject: { text: 'Deny', icon: X },
   },
+  getDynamicText: (params, state) => {
+    const operation = params?.operation as ManageSkillOperation | undefined
+    if (!operation) return undefined
+
+    const skillName = typeof params?.name === 'string' ? params.name : 'skill'
+
+    switch (state) {
+      case ClientToolCallState.success:
+        switch (operation) {
+          case ManageSkillOperation.add:
+            return `Created ${skillName}`
+          case ManageSkillOperation.edit:
+            return `Updated ${skillName}`
+          case ManageSkillOperation.delete:
+            return `Deleted ${skillName}`
+          case ManageSkillOperation.list:
+            return 'Listed skills'
+        }
+        break
+      case ClientToolCallState.executing:
+      case ClientToolCallState.generating:
+        switch (operation) {
+          case ManageSkillOperation.add:
+            return `Creating ${skillName}`
+          case ManageSkillOperation.edit:
+            return `Updating ${skillName}`
+          case ManageSkillOperation.delete:
+            return `Deleting ${skillName}`
+          case ManageSkillOperation.list:
+            return 'Listing skills'
+        }
+        break
+      case ClientToolCallState.pending:
+        switch (operation) {
+          case ManageSkillOperation.add:
+            return `Create ${skillName}?`
+          case ManageSkillOperation.edit:
+            return `Update ${skillName}?`
+          case ManageSkillOperation.delete:
+            return `Delete ${skillName}?`
+          case ManageSkillOperation.list:
+            return 'List skills?'
+        }
+        break
+      case ClientToolCallState.error:
+        switch (operation) {
+          case ManageSkillOperation.add:
+            return `Failed to create ${skillName}`
+          case ManageSkillOperation.edit:
+            return `Failed to update ${skillName}`
+          case ManageSkillOperation.delete:
+            return `Failed to delete ${skillName}`
+          case ManageSkillOperation.list:
+            return 'Failed to list skills'
+        }
+        break
+    }
+
+    return undefined
+  },
 }
 
-const META_build: ToolMetadata = {
+const META_workflow: ToolMetadata = {
   displayNames: {
-    [ClientToolCallState.generating]: { text: 'Building', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Building', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Building', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Built', icon: Wrench },
-    [ClientToolCallState.error]: { text: 'Failed to build', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped build', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted build', icon: XCircle },
+    [ClientToolCallState.generating]: { text: 'Managing workflow', icon: Loader2 },
+    [ClientToolCallState.pending]: { text: 'Managing workflow', icon: Loader2 },
+    [ClientToolCallState.executing]: { text: 'Managing workflow', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Done', icon: Wrench },
+    [ClientToolCallState.error]: { text: 'Failed', icon: XCircle },
+    [ClientToolCallState.rejected]: { text: 'Skipped', icon: XCircle },
+    [ClientToolCallState.aborted]: { text: 'Aborted', icon: XCircle },
   },
   uiConfig: {
     subagent: {
-      streamingLabel: 'Building',
-      completedLabel: 'Built',
+      streamingLabel: 'Managing workflow',
+      completedLabel: 'Done',
       shouldCollapse: true,
       outputArtifacts: [],
     },
@@ -961,87 +1056,22 @@ const META_list_workspace_mcp_servers: ToolMetadata = {
   interrupt: undefined,
 }
 
-const META_make_api_request: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Preparing API request', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Review API request', icon: Globe2 },
-    [ClientToolCallState.executing]: { text: 'Executing API request', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Completed API request', icon: Globe2 },
-    [ClientToolCallState.error]: { text: 'Failed to execute API request', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped API request', icon: MinusCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted API request', icon: XCircle },
-  },
-  interrupt: {
-    accept: { text: 'Execute', icon: Globe2 },
-    reject: { text: 'Skip', icon: MinusCircle },
-  },
-  uiConfig: {
-    interrupt: {
-      accept: { text: 'Execute', icon: Globe2 },
-      reject: { text: 'Skip', icon: MinusCircle },
-      showAllowOnce: true,
-      showAllowAlways: true,
-    },
-    paramsTable: {
-      columns: [
-        { key: 'method', label: 'Method', width: '26%', editable: true, mono: true },
-        { key: 'url', label: 'Endpoint', width: '74%', editable: true, mono: true },
-      ],
-      extractRows: (params: Record<string, any>): Array<[string, ...any[]]> => {
-        return [['request', (params.method || 'GET').toUpperCase(), params.url || '']]
-      },
-    },
-  },
-  getDynamicText: (params, state) => {
-    if (params?.url && typeof params.url === 'string') {
-      const method = params.method || 'GET'
-      let url = params.url
-
-      // Extract domain from URL for cleaner display
-      try {
-        const urlObj = new URL(url)
-        url = urlObj.hostname + urlObj.pathname
-      } catch {
-        // Use URL as-is if parsing fails
-      }
-
-      switch (state) {
-        case ClientToolCallState.success:
-          return `${method} ${url} complete`
-        case ClientToolCallState.executing:
-          return `${method} ${url}`
-        case ClientToolCallState.generating:
-          return `Preparing ${method} ${url}`
-        case ClientToolCallState.pending:
-          return `Review ${method} ${url}`
-        case ClientToolCallState.error:
-          return `Failed ${method} ${url}`
-        case ClientToolCallState.rejected:
-          return `Skipped ${method} ${url}`
-        case ClientToolCallState.aborted:
-          return `Aborted ${method} ${url}`
-      }
-    }
-    return undefined
-  },
-}
-
 const META_manage_custom_tool: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: {
-      text: 'Managing custom tool',
+      text: 'Custom tool action',
       icon: Loader2,
     },
-    [ClientToolCallState.pending]: { text: 'Manage custom tool?', icon: Plus },
-    [ClientToolCallState.executing]: { text: 'Managing custom tool', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Managed custom tool', icon: Check },
-    [ClientToolCallState.error]: { text: 'Failed to manage custom tool', icon: X },
+    [ClientToolCallState.pending]: { text: 'Custom tool action?', icon: Plus },
+    [ClientToolCallState.executing]: { text: 'Custom tool action', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Updated custom tool', icon: Check },
+    [ClientToolCallState.error]: { text: 'Failed custom tool action', icon: X },
     [ClientToolCallState.aborted]: {
-      text: 'Aborted managing custom tool',
+      text: 'Aborted custom tool action',
       icon: XCircle,
     },
     [ClientToolCallState.rejected]: {
-      text: 'Skipped managing custom tool',
+      text: 'Skipped custom tool action',
       icon: XCircle,
     },
   },
@@ -1050,7 +1080,7 @@ const META_manage_custom_tool: ToolMetadata = {
     reject: { text: 'Skip', icon: XCircle },
   },
   getDynamicText: (params, state) => {
-    const operation = params?.operation as 'add' | 'edit' | 'delete' | 'list' | undefined
+    const operation = params?.operation as ManageCustomToolOperation | undefined
     const workspaceId = getScopedWorkspaceId(params)
 
     if (!operation) return undefined
@@ -1071,13 +1101,13 @@ const META_manage_custom_tool: ToolMetadata = {
 
     const getActionText = (verb: 'present' | 'past' | 'gerund') => {
       switch (operation) {
-        case 'add':
+        case ManageCustomToolOperation.add:
           return verb === 'present' ? 'Create' : verb === 'past' ? 'Created' : 'Creating'
-        case 'edit':
+        case ManageCustomToolOperation.edit:
           return verb === 'present' ? 'Edit' : verb === 'past' ? 'Edited' : 'Editing'
-        case 'delete':
+        case ManageCustomToolOperation.delete:
           return verb === 'present' ? 'Delete' : verb === 'past' ? 'Deleted' : 'Deleting'
-        case 'list':
+        case ManageCustomToolOperation.list:
           return verb === 'present' ? 'List' : verb === 'past' ? 'Listed' : 'Listing'
         default:
           return verb === 'present' ? 'Manage' : verb === 'past' ? 'Managed' : 'Managing'
@@ -1088,15 +1118,15 @@ const META_manage_custom_tool: ToolMetadata = {
     // For edit/delete: always show tool name
     // For list: never show individual tool name, use plural
     const shouldShowToolName = (currentState: ClientToolCallState) => {
-      if (operation === 'list') return false
-      if (operation === 'add') {
+      if (operation === ManageCustomToolOperation.list) return false
+      if (operation === ManageCustomToolOperation.add) {
         return currentState === ClientToolCallState.success
       }
       return true // edit and delete always show tool name
     }
 
     const nameText =
-      operation === 'list'
+      operation === ManageCustomToolOperation.list
         ? ' custom tools'
         : shouldShowToolName(state) && toolName
           ? ` ${toolName}`
@@ -1125,19 +1155,19 @@ const META_manage_custom_tool: ToolMetadata = {
 const META_manage_mcp_tool: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: {
-      text: 'Managing MCP tool',
+      text: 'MCP server action',
       icon: Loader2,
     },
-    [ClientToolCallState.pending]: { text: 'Manage MCP tool?', icon: Server },
-    [ClientToolCallState.executing]: { text: 'Managing MCP tool', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Managed MCP tool', icon: Check },
-    [ClientToolCallState.error]: { text: 'Failed to manage MCP tool', icon: X },
+    [ClientToolCallState.pending]: { text: 'MCP server action?', icon: Server },
+    [ClientToolCallState.executing]: { text: 'MCP server action', icon: Loader2 },
+    [ClientToolCallState.success]: { text: 'Updated MCP server', icon: Check },
+    [ClientToolCallState.error]: { text: 'Failed MCP server action', icon: X },
     [ClientToolCallState.aborted]: {
-      text: 'Aborted managing MCP tool',
+      text: 'Aborted MCP server action',
       icon: XCircle,
     },
     [ClientToolCallState.rejected]: {
-      text: 'Skipped managing MCP tool',
+      text: 'Skipped MCP server action',
       icon: XCircle,
     },
   },
@@ -1146,7 +1176,7 @@ const META_manage_mcp_tool: ToolMetadata = {
     reject: { text: 'Skip', icon: XCircle },
   },
   getDynamicText: (params, state) => {
-    const operation = params?.operation as 'add' | 'edit' | 'delete' | undefined
+    const operation = params?.operation as ManageMcpToolOperation | undefined
 
     if (!operation) return undefined
 
@@ -1154,23 +1184,31 @@ const META_manage_mcp_tool: ToolMetadata = {
 
     const getActionText = (verb: 'present' | 'past' | 'gerund') => {
       switch (operation) {
-        case 'add':
+        case ManageMcpToolOperation.add:
           return verb === 'present' ? 'Add' : verb === 'past' ? 'Added' : 'Adding'
-        case 'edit':
+        case ManageMcpToolOperation.edit:
           return verb === 'present' ? 'Edit' : verb === 'past' ? 'Edited' : 'Editing'
-        case 'delete':
+        case ManageMcpToolOperation.delete:
           return verb === 'present' ? 'Delete' : verb === 'past' ? 'Deleted' : 'Deleting'
+        case ManageMcpToolOperation.list:
+          return verb === 'present' ? 'List' : verb === 'past' ? 'Listed' : 'Listing'
       }
     }
 
     const shouldShowServerName = (currentState: ClientToolCallState) => {
-      if (operation === 'add') {
+      if (operation === ManageMcpToolOperation.list) return false
+      if (operation === ManageMcpToolOperation.add) {
         return currentState === ClientToolCallState.success
       }
       return true
     }
 
-    const nameText = shouldShowServerName(state) && serverName ? ` ${serverName}` : ' MCP tool'
+    const nameText =
+      operation === ManageMcpToolOperation.list
+        ? ' MCP servers'
+        : shouldShowServerName(state) && serverName
+          ? ` ${serverName}`
+          : ' MCP server'
 
     switch (state) {
       case ClientToolCallState.success:
@@ -2087,86 +2125,6 @@ const META_superagent: ToolMetadata = {
   },
 }
 
-const META_plan: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Planning', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Planning', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Planning', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Planned', icon: ClipboardList },
-    [ClientToolCallState.error]: { text: 'Failed to plan', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped planning', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted planning', icon: XCircle },
-  },
-  uiConfig: {
-    subagent: {
-      streamingLabel: 'Planning',
-      completedLabel: 'Planned',
-      shouldCollapse: true,
-      outputArtifacts: [],
-    },
-  },
-}
-
-const META_edit: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Editing', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Editing', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Editing', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Edited', icon: PencilLine },
-    [ClientToolCallState.error]: { text: 'Failed to edit', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped editing', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted editing', icon: XCircle },
-  },
-  uiConfig: {
-    subagent: {
-      streamingLabel: 'Editing',
-      completedLabel: 'Edited',
-      shouldCollapse: true,
-      outputArtifacts: [],
-    },
-  },
-}
-
-const META_fast_edit: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Building', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Building', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Building', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Built', icon: Wrench },
-    [ClientToolCallState.error]: { text: 'Failed to build', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped build', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted build', icon: XCircle },
-  },
-  uiConfig: {
-    subagent: {
-      streamingLabel: 'Building',
-      completedLabel: 'Built',
-      shouldCollapse: true,
-      outputArtifacts: [],
-    },
-  },
-}
-
-const META_debug: ToolMetadata = {
-  displayNames: {
-    [ClientToolCallState.generating]: { text: 'Debugging', icon: Loader2 },
-    [ClientToolCallState.pending]: { text: 'Debugging', icon: Loader2 },
-    [ClientToolCallState.executing]: { text: 'Debugging', icon: Loader2 },
-    [ClientToolCallState.success]: { text: 'Debugged', icon: Bug },
-    [ClientToolCallState.error]: { text: 'Failed to debug', icon: XCircle },
-    [ClientToolCallState.rejected]: { text: 'Skipped debugging', icon: XCircle },
-    [ClientToolCallState.aborted]: { text: 'Aborted debugging', icon: XCircle },
-  },
-  uiConfig: {
-    subagent: {
-      streamingLabel: 'Debugging',
-      completedLabel: 'Debugged',
-      shouldCollapse: true,
-      outputArtifacts: [],
-    },
-  },
-}
-
 const META_table: ToolMetadata = {
   displayNames: {
     [ClientToolCallState.generating]: { text: 'Managing tables', icon: Loader2 },
@@ -2356,21 +2314,20 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   auth: META_auth,
   context_compaction: META_context_compaction,
   check_deployment_status: META_check_deployment_status,
+  complete_job: META_complete_job,
   checkoff_todo: META_checkoff_todo,
   crawl_website: META_crawl_website,
+  create_file: META_create_file,
   create_workspace_mcp_server: META_create_workspace_mcp_server,
-  build: META_build,
+  workflow: META_workflow,
   create_folder: META_create_folder,
   create_workflow: META_create_workflow,
   agent: META_agent,
   custom_tool: META_custom_tool,
-  debug: META_debug,
   deploy: META_deploy,
   deploy_api: META_deploy_api,
   deploy_chat: META_deploy_chat,
   deploy_mcp: META_deploy_mcp,
-  edit: META_edit,
-  fast_edit: META_fast_edit,
   edit_workflow: META_edit_workflow,
   get_block_outputs: META_get_block_outputs,
   get_block_upstream_references: META_get_block_upstream_references,
@@ -2390,7 +2347,6 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   list_folders: META_list_folders,
   list_user_workspaces: META_list_user_workspaces,
   list_workspace_mcp_servers: META_list_workspace_mcp_servers,
-  make_api_request: META_make_api_request,
   manage_custom_tool: META_manage_custom_tool,
   manage_mcp_tool: META_manage_mcp_tool,
   manage_skill: META_manage_skill,
@@ -2401,7 +2357,6 @@ const TOOL_METADATA_BY_ID: Record<string, ToolMetadata> = {
   oauth_get_auth_link: META_oauth_get_auth_link,
   oauth_request_access: META_oauth_request_access,
   open_resource: META_open_resource,
-  plan: META_plan,
   read: META_read,
   redeploy: META_redeploy,
   rename_workflow: META_rename_workflow,

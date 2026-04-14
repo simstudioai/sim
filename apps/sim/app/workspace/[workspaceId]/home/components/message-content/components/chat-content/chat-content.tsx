@@ -1,8 +1,8 @@
 'use client'
 
-import { Children, type ComponentPropsWithoutRef, isValidElement, useMemo } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import { type ComponentPropsWithoutRef, useEffect, useMemo, useRef } from 'react'
+import { Streamdown } from 'streamdown'
+import 'streamdown/styles.css'
 import 'prismjs/components/prism-typescript'
 import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'
@@ -13,14 +13,13 @@ import { CopyCodeButton } from '@/components/ui/copy-code-button'
 import { cn } from '@/lib/core/utils/cn'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import {
+  type ContentSegment,
   PendingTagIndicator,
   parseSpecialTags,
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import { useStreamingReveal } from '@/hooks/use-streaming-reveal'
+import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { useStreamingText } from '@/hooks/use-streaming-text'
-
-const REMARK_PLUGINS = [remarkGfm]
 
 const LANG_ALIASES: Record<string, string> = {
   js: 'javascript',
@@ -46,17 +45,55 @@ const PROSE_CLASSES = cn(
   'prose-ul:my-4 prose-ol:my-4',
   'prose-strong:font-[600] prose-strong:text-[var(--text-primary)]',
   'prose-a:text-[var(--text-primary)] prose-a:underline prose-a:decoration-dashed prose-a:underline-offset-4',
-  'prose-code:rounded prose-code:bg-[var(--surface-5)] prose-code:px-1.5 prose-code:py-0.5 prose-code:text-small prose-code:font-mono prose-code:font-[400] prose-code:text-[var(--text-primary)]',
-  'prose-code:before:content-none prose-code:after:content-none',
   'prose-hr:border-[var(--divider)] prose-hr:my-6',
   'prose-table:my-0'
 )
 
+function startsInlineWord(value: string): boolean {
+  return /^[A-Za-z0-9_(]/.test(value)
+}
+
+function endsInlineWord(value: string): boolean {
+  return /[A-Za-z0-9_)]$/.test(value)
+}
+
+function nextInlineSegmentLabel(segment?: ContentSegment): string {
+  if (!segment) return ''
+  if (segment.type === 'text' || segment.type === 'thinking') return segment.content
+  if (segment.type === 'workspace_resource') return segment.data.title || segment.data.id
+  return ''
+}
+
+function appendInlineReferenceMarkdown(
+  currentMarkdown: string,
+  referenceMarkdown: string,
+  nextSegment?: ContentSegment
+): string {
+  let nextMarkdown = currentMarkdown
+  if (currentMarkdown && endsInlineWord(currentMarkdown) && !/\s$/.test(currentMarkdown)) {
+    nextMarkdown += ' '
+  }
+
+  nextMarkdown += referenceMarkdown
+
+  const followingText = nextInlineSegmentLabel(nextSegment)
+  if (
+    followingText &&
+    startsInlineWord(followingText) &&
+    !/^\s/.test(followingText) &&
+    !/\s$/.test(nextMarkdown)
+  ) {
+    nextMarkdown += ' '
+  }
+
+  return nextMarkdown
+}
+
 type TdProps = ComponentPropsWithoutRef<'td'>
 type ThProps = ComponentPropsWithoutRef<'th'>
 
-const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['components'] = {
-  table({ children }) {
+const MARKDOWN_COMPONENTS = {
+  table({ children }: { children?: React.ReactNode }) {
     return (
       <div className='not-prose my-4 w-full overflow-x-auto [&_strong]:font-[600]'>
         <table className='min-w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0'>
@@ -65,7 +102,7 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
       </div>
     )
   },
-  thead({ children }) {
+  thead({ children }: { children?: React.ReactNode }) {
     return <thead>{children}</thead>
   },
   th({ children, style }: ThProps) {
@@ -88,25 +125,15 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
       </td>
     )
   },
-  pre({ children }) {
-    let codeString = ''
-    let language = ''
-
-    for (const child of Children.toArray(children)) {
-      if (isValidElement(child) && child.type === 'code') {
-        const props = child.props as { className?: string; children?: React.ReactNode }
-        codeString = extractTextContent(props.children)
-        if (props.className?.startsWith('language-')) {
-          language = props.className.slice(9)
-        }
-        break
-      }
-    }
+  code({ children, className }: { children?: React.ReactNode; className?: string }) {
+    const langMatch = className?.match(/language-(\w+)/)
+    const language = langMatch ? langMatch[1] : ''
+    const codeString = extractTextContent(children)
 
     if (!codeString) {
       return (
         <pre className='not-prose my-6 overflow-x-auto rounded-lg bg-[var(--surface-5)] p-4 font-[430] font-mono text-[var(--text-primary)] text-small leading-[21px] dark:bg-[var(--code-bg)]'>
-          {children}
+          <code>{children}</code>
         </pre>
       )
     }
@@ -133,7 +160,29 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
       </div>
     )
   },
-  a({ children, href }) {
+  a({ children, href }: { children?: React.ReactNode; href?: string }) {
+    if (href?.startsWith('#wsres-')) {
+      return (
+        <a
+          href={href}
+          className='text-[var(--text-primary)] underline decoration-dashed underline-offset-4'
+          onClick={(e) => {
+            e.preventDefault()
+            const match = href.match(/^#wsres-(\w+)-(.+)$/)
+            if (match) {
+              const linkText = e.currentTarget.textContent || match[2]
+              window.dispatchEvent(
+                new CustomEvent('wsres-click', {
+                  detail: { type: match[1], id: match[2], title: linkText },
+                })
+              )
+            }
+          }}
+        >
+          {children}
+        </a>
+      )
+    }
     return (
       <a
         href={href}
@@ -145,16 +194,16 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
       </a>
     )
   },
-  ul({ children, className }) {
+  ul({ children, className }: { children?: React.ReactNode; className?: string }) {
     if (className?.includes('contains-task-list')) {
       return <ul className='my-4 list-none space-y-2 pl-0'>{children}</ul>
     }
     return <ul className='my-4 list-disc pl-5 marker:text-[var(--text-primary)]'>{children}</ul>
   },
-  ol({ children }) {
+  ol({ children }: { children?: React.ReactNode }) {
     return <ol className='my-4 list-decimal pl-5 marker:text-[var(--text-primary)]'>{children}</ol>
   },
-  li({ children, className }) {
+  li({ children, className }: { children?: React.ReactNode; className?: string }) {
     if (className?.includes('task-list-item')) {
       return (
         <li className='flex list-none items-start gap-2 text-[var(--text-primary)] text-base leading-[25px] [&>p:only-child]:inline [&>p]:my-0'>
@@ -168,7 +217,14 @@ const MARKDOWN_COMPONENTS: React.ComponentProps<typeof ReactMarkdown>['component
       </li>
     )
   },
-  input({ type, checked }) {
+  inlineCode({ children }: { children?: React.ReactNode }) {
+    return (
+      <code className='rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-[400] font-mono text-[var(--text-primary)] text-small before:content-none after:content-none'>
+        {children}
+      </code>
+    )
+  },
+  input({ type, checked }: { type?: string; checked?: boolean }) {
     if (type === 'checkbox') {
       return <Checkbox checked={checked || false} disabled size='sm' className='mt-1.5 shrink-0' />
     }
@@ -180,61 +236,110 @@ interface ChatContentProps {
   content: string
   isStreaming?: boolean
   onOptionSelect?: (id: string) => void
+  onWorkspaceResourceSelect?: (resource: MothershipResource) => void
+  smoothStreaming?: boolean
 }
 
-function MarkdownChunk({
+export function ChatContent({
   content,
-  animate = false,
-  trimTop = true,
-  trimBottom = true,
-}: {
-  content: string
-  animate?: boolean
-  trimTop?: boolean
-  trimBottom?: boolean
-}) {
-  return (
-    <div
-      className={cn(
-        PROSE_CLASSES,
-        trimTop && '[&>:first-child]:mt-0',
-        trimBottom && '[&>:last-child]:mb-0',
-        animate && 'animate-stream-fade-in'
-      )}
-    >
-      <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MARKDOWN_COMPONENTS}>
-        {content}
-      </ReactMarkdown>
-    </div>
-  )
-}
+  isStreaming = false,
+  onOptionSelect,
+  onWorkspaceResourceSelect,
+  smoothStreaming = true,
+}: ChatContentProps) {
+  const hydratedStreamingRef = useRef(isStreaming && content.trim().length > 0)
+  const previousIsStreamingRef = useRef(isStreaming)
 
-export function ChatContent({ content, isStreaming = false, onOptionSelect }: ChatContentProps) {
-  const rendered = useStreamingText(content, isStreaming)
+  useEffect(() => {
+    if (!previousIsStreamingRef.current && isStreaming && content.trim().length > 0) {
+      hydratedStreamingRef.current = true
+    } else if (!isStreaming) {
+      hydratedStreamingRef.current = false
+    }
+    previousIsStreamingRef.current = isStreaming
+  }, [content, isStreaming])
+
+  const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
+  onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { type, id, title } = (e as CustomEvent).detail
+      const RESOURCE_TYPE_MAP: Record<string, string> = {}
+      onWorkspaceResourceSelectRef.current?.({
+        type: RESOURCE_TYPE_MAP[type] || type,
+        id,
+        title: title || id,
+      })
+    }
+    window.addEventListener('wsres-click', handler)
+    return () => window.removeEventListener('wsres-click', handler)
+  }, [])
+
+  const rendered = useStreamingText(content, isStreaming && smoothStreaming)
 
   const parsed = useMemo(() => parseSpecialTags(rendered, isStreaming), [rendered, isStreaming])
   const hasSpecialContent = parsed.hasPendingTag || parsed.segments.some((s) => s.type !== 'text')
 
-  const plainText = hasSpecialContent ? '' : rendered
-  const { committed, incoming, generation } = useStreamingReveal(
-    plainText,
-    !hasSpecialContent && isStreaming
-  )
-
-  const committedMarkdown = useMemo(
-    () => (committed ? <MarkdownChunk content={committed} trimTop trimBottom={!incoming} /> : null),
-    [committed, incoming]
-  )
-
   if (hasSpecialContent) {
+    type BlockSegment = Exclude<
+      ContentSegment,
+      { type: 'text' } | { type: 'thinking' } | { type: 'workspace_resource' }
+    >
+    type RenderGroup =
+      | { kind: 'inline'; markdown: string }
+      | { kind: 'block'; segment: BlockSegment; index: number }
+
+    const groups: RenderGroup[] = []
+    let pendingMarkdown = ''
+
+    const flushMarkdown = () => {
+      if (pendingMarkdown.trim()) {
+        groups.push({ kind: 'inline', markdown: pendingMarkdown })
+      }
+      pendingMarkdown = ''
+    }
+
+    for (let i = 0; i < parsed.segments.length; i++) {
+      const s = parsed.segments[i]
+      const nextSegment = parsed.segments[i + 1]
+      if (s.type === 'workspace_resource') {
+        const label = s.data.title || s.data.id
+        pendingMarkdown = appendInlineReferenceMarkdown(
+          pendingMarkdown,
+          `[${label}](#wsres-${s.data.type}-${s.data.id})`,
+          nextSegment
+        )
+      } else if (s.type === 'text' || s.type === 'thinking') {
+        pendingMarkdown += s.content
+      } else {
+        flushMarkdown()
+        groups.push({ kind: 'block', segment: s, index: i })
+      }
+    }
+    flushMarkdown()
+
     return (
       <div className='space-y-3'>
-        {parsed.segments.map((segment, i) => {
-          if (segment.type === 'text' || segment.type === 'thinking') {
-            return <MarkdownChunk key={`${segment.type}-${i}`} content={segment.content} />
+        {groups.map((group, i) => {
+          if (group.kind === 'inline') {
+            return (
+              <div
+                key={`inline-${i}`}
+                className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
+              >
+                <Streamdown mode='static' components={MARKDOWN_COMPONENTS}>
+                  {group.markdown}
+                </Streamdown>
+              </div>
+            )
           }
           return (
-            <SpecialTags key={`special-${i}`} segment={segment} onOptionSelect={onOptionSelect} />
+            <SpecialTags
+              key={`special-${group.index}`}
+              segment={group.segment}
+              onOptionSelect={onOptionSelect}
+            />
           )
         })}
         {parsed.hasPendingTag && isStreaming && <PendingTagIndicator />}
@@ -243,17 +348,15 @@ export function ChatContent({ content, isStreaming = false, onOptionSelect }: Ch
   }
 
   return (
-    <div>
-      {committedMarkdown}
-      {incoming && (
-        <MarkdownChunk
-          key={generation}
-          content={incoming}
-          trimTop
-          trimBottom
-          animate={isStreaming}
-        />
-      )}
+    <div className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}>
+      <Streamdown
+        mode={isStreaming ? undefined : 'static'}
+        isAnimating={isStreaming}
+        animated={isStreaming && !hydratedStreamingRef.current}
+        components={MARKDOWN_COMPONENTS}
+      >
+        {rendered}
+      </Streamdown>
     </div>
   )
 }

@@ -54,6 +54,7 @@ export function useStreamingText(target: string, isStreaming: boolean): string {
 
   useEffect(() => {
     if (isStreaming) return
+    if (revealedRef.current === target) return
     revealedRef.current = target
     lastTargetChangeAtRef.current = Date.now()
     lastTargetLengthRef.current = target.length

@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
-import { checkInternalApiKey } from '@/lib/copilot/utils'
+import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 

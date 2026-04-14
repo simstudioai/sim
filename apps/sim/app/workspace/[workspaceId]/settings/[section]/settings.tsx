@@ -144,6 +144,13 @@ const Admin = dynamic(
     import('@/app/workspace/[workspaceId]/settings/components/admin/admin').then((m) => m.Admin),
   { loading: () => <AdminSkeleton /> }
 )
+const Mothership = dynamic(
+  () =>
+    import('@/app/workspace/[workspaceId]/settings/components/mothership/mothership').then(
+      (m) => m.Mothership
+    ),
+  { loading: () => <SettingsSectionSkeleton /> }
+)
 const RecentlyDeleted = dynamic(
   () =>
     import(
@@ -188,7 +195,9 @@ export function SettingsPage({ section }: SettingsPageProps) {
         ? 'general'
         : section === 'admin' && !sessionLoading && !isAdminRole
           ? 'general'
-          : section
+          : section === 'mothership' && !sessionLoading && !isAdminRole
+            ? 'general'
+            : section
 
   const label =
     allNavigationItems.find((item) => item.id === effectiveSection)?.label ?? effectiveSection
@@ -222,6 +231,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'inbox' && <Inbox />}
       {effectiveSection === 'recently-deleted' && <RecentlyDeleted />}
       {effectiveSection === 'admin' && <Admin />}
+      {effectiveSection === 'mothership' && <Mothership />}
     </div>
   )
 }

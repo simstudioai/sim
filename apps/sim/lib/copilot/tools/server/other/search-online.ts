@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { SearchOnline } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { env } from '@/lib/core/config/env'
 import { executeTool } from '@/tools'
@@ -28,7 +29,7 @@ interface SearchResponse {
 }
 
 export const searchOnlineServerTool: BaseServerTool<OnlineSearchParams, SearchResponse> = {
-  name: 'search_online',
+  name: SearchOnline.id,
   async execute(params: OnlineSearchParams): Promise<SearchResponse> {
     const logger = createLogger('SearchOnlineServerTool')
     const { query, num = 10, type = 'search', gl, hl } = params

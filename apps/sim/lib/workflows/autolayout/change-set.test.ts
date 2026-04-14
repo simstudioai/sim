@@ -1,12 +1,42 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getTargetedLayoutChangeSet,
   getTargetedLayoutImpact,
 } from '@/lib/workflows/autolayout/change-set'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
+
+const { mockGetBlock } = vi.hoisted(() => ({
+  mockGetBlock: vi.fn(),
+}))
+
+vi.mock('@/blocks', () => ({
+  getBlock: mockGetBlock,
+}))
+
+const JIRA_TEST_BLOCK_CONFIG = {
+  category: 'tools',
+  subBlocks: [
+    { id: 'operation', type: 'dropdown' },
+    { id: 'domain', type: 'short-input' },
+    { id: 'credential', type: 'oauth-input', mode: 'basic' },
+    { id: 'issueKey', type: 'short-input', condition: { field: 'operation', value: 'read' } },
+    { id: 'projectId', type: 'short-input', condition: { field: 'operation', value: 'write' } },
+    { id: 'summary', type: 'short-input', condition: { field: 'operation', value: 'write' } },
+    { id: 'description', type: 'long-input', condition: { field: 'operation', value: 'write' } },
+    { id: 'priority', type: 'short-input', condition: { field: 'operation', value: 'write' } },
+    { id: 'labels', type: 'short-input', condition: { field: 'operation', value: 'write' } },
+    { id: 'issueType', type: 'short-input', condition: { field: 'operation', value: 'write' } },
+    { id: 'parentIssue', type: 'short-input', condition: { field: 'operation', value: 'write' } },
+    { id: 'assignee', type: 'short-input', condition: { field: 'operation', value: 'write' } },
+    { id: 'reporter', type: 'short-input', condition: { field: 'operation', value: 'write' } },
+    { id: 'environment', type: 'long-input', condition: { field: 'operation', value: 'write' } },
+    { id: 'components', type: 'short-input', condition: { field: 'operation', value: 'write' } },
+    { id: 'fixVersions', type: 'short-input', condition: { field: 'operation', value: 'write' } },
+  ],
+} as const
 
 function createBlock(
   id: string,
@@ -39,7 +69,44 @@ function createWorkflowState({
   }
 }
 
+function createJiraBlock(
+  id: string,
+  operation: 'read' | 'write',
+  overrides: Partial<BlockState> = {}
+): BlockState {
+  return createBlock(id, {
+    type: 'jira',
+    position: { x: 100, y: 100 },
+    height: 100,
+    layout: { measuredWidth: 250, measuredHeight: 100 },
+    subBlocks: {
+      operation: {
+        id: 'operation',
+        type: 'dropdown',
+        value: operation,
+      },
+      domain: {
+        id: 'domain',
+        type: 'short-input',
+        value: 'company.atlassian.net',
+      },
+      credential: {
+        id: 'credential',
+        type: 'oauth-input',
+        value: 'credential-1',
+      },
+    },
+    ...overrides,
+  })
+}
+
 describe('getTargetedLayoutChangeSet', () => {
+  beforeEach(() => {
+    mockGetBlock.mockImplementation((type: string) =>
+      type === 'jira' ? JIRA_TEST_BLOCK_CONFIG : undefined
+    )
+  })
+
   it('does not relayout newly added blocks that already have valid positions', () => {
     const before = createWorkflowState({
       blocks: {
@@ -77,7 +144,15 @@ describe('getTargetedLayoutChangeSet', () => {
   it('keeps subblock-only edits anchored', () => {
     const before = createWorkflowState({
       blocks: {
-        start: createBlock('start'),
+        start: createBlock('start', {
+          subBlocks: {
+            prompt: {
+              id: 'prompt',
+              type: 'long-input',
+              value: 'old value',
+            },
+          },
+        }),
       },
     })
 
@@ -98,10 +173,40 @@ describe('getTargetedLayoutChangeSet', () => {
     expect(getTargetedLayoutChangeSet({ before, after })).toEqual([])
   })
 
+  it('reopens edited blocks when an operation change increases their visible height', () => {
+    const before = createWorkflowState({
+      blocks: {
+        jira: createJiraBlock('jira', 'read'),
+      },
+    })
+
+    const after = createWorkflowState({
+      blocks: {
+        jira: createJiraBlock('jira', 'write'),
+      },
+    })
+
+    expect(getTargetedLayoutChangeSet({ before, after })).toEqual([])
+    expect(getTargetedLayoutImpact({ before, after })).toEqual({
+      layoutBlockIds: [],
+      resizedBlockIds: ['jira'],
+      shiftSourceBlockIds: [],
+    })
+  })
+
   it('does not relayout a pre-existing block legitimately placed at the origin', () => {
     const before = createWorkflowState({
       blocks: {
-        start: createBlock('start', { position: { x: 0, y: 0 } }),
+        start: createBlock('start', {
+          position: { x: 0, y: 0 },
+          subBlocks: {
+            prompt: {
+              id: 'prompt',
+              type: 'long-input',
+              value: 'old value',
+            },
+          },
+        }),
       },
     })
 
@@ -167,6 +272,7 @@ describe('getTargetedLayoutChangeSet', () => {
 
     expect(getTargetedLayoutImpact({ before, after })).toEqual({
       layoutBlockIds: ['function1'],
+      resizedBlockIds: [],
       shiftSourceBlockIds: [],
     })
   })
@@ -231,6 +337,7 @@ describe('getTargetedLayoutChangeSet', () => {
 
     expect(getTargetedLayoutImpact({ before, after })).toEqual({
       layoutBlockIds: [],
+      resizedBlockIds: [],
       shiftSourceBlockIds: ['source'],
     })
   })
@@ -279,6 +386,7 @@ describe('getTargetedLayoutChangeSet', () => {
 
     expect(getTargetedLayoutImpact({ before, after })).toEqual({
       layoutBlockIds: [],
+      resizedBlockIds: [],
       shiftSourceBlockIds: ['a-b'],
     })
   })
@@ -327,6 +435,7 @@ describe('getTargetedLayoutChangeSet', () => {
 
     expect(getTargetedLayoutImpact({ before, after })).toEqual({
       layoutBlockIds: ['inserted'],
+      resizedBlockIds: [],
       shiftSourceBlockIds: ['inserted'],
     })
   })

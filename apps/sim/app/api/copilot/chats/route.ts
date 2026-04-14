@@ -4,14 +4,14 @@ import { createLogger } from '@sim/logger'
 import { and, desc, eq, isNull, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { resolveOrCreateChat } from '@/lib/copilot/chat-lifecycle'
+import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request-helpers'
-import { taskPubSub } from '@/lib/copilot/task-events'
+} from '@/lib/copilot/request/http'
+import { taskPubSub } from '@/lib/copilot/tasks'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -37,7 +37,7 @@ export async function GET(_request: NextRequest) {
         title: copilotChats.title,
         workflowId: copilotChats.workflowId,
         workspaceId: copilotChats.workspaceId,
-        conversationId: copilotChats.conversationId,
+        activeStreamId: copilotChats.conversationId,
         updatedAt: copilotChats.updatedAt,
       })
       .from(copilotChats)

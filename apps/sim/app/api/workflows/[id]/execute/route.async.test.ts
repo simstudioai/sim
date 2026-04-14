@@ -10,13 +10,11 @@ const {
   mockAuthorizeWorkflowByWorkspacePermission,
   mockPreprocessExecution,
   mockEnqueue,
-  mockEnqueueWorkspaceDispatch,
 } = vi.hoisted(() => ({
   mockCheckHybridAuth: vi.fn(),
   mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
   mockPreprocessExecution: vi.fn(),
   mockEnqueue: vi.fn().mockResolvedValue('job-123'),
-  mockEnqueueWorkspaceDispatch: vi.fn().mockResolvedValue('job-123'),
 }))
 
 vi.mock('@/lib/auth/hybrid', () => ({
@@ -47,16 +45,6 @@ vi.mock('@/lib/core/async-jobs', () => ({
     markJobFailed: vi.fn(),
   }),
   shouldExecuteInline: vi.fn().mockReturnValue(false),
-  shouldUseBullMQ: vi.fn().mockReturnValue(true),
-}))
-
-vi.mock('@/lib/core/bullmq', () => ({
-  createBullMQJobData: vi.fn((payload: unknown, metadata?: unknown) => ({ payload, metadata })),
-}))
-
-vi.mock('@/lib/core/workspace-dispatch', () => ({
-  enqueueWorkspaceDispatch: mockEnqueueWorkspaceDispatch,
-  waitForDispatchJob: vi.fn(),
 }))
 
 vi.mock('@/lib/core/utils/request', () => ({
@@ -150,24 +138,28 @@ describe('workflow execute async route', () => {
     expect(response.status).toBe(202)
     expect(body.executionId).toBe('execution-123')
     expect(body.jobId).toBe('job-123')
-    expect(mockEnqueueWorkspaceDispatch).toHaveBeenCalledWith(
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'workflow-execution',
       expect.objectContaining({
-        id: 'execution-123',
+        workflowId: 'workflow-1',
+        userId: 'actor-1',
         workspaceId: 'workspace-1',
-        lane: 'runtime',
-        queueName: 'workflow-execution',
-        bullmqJobName: 'workflow-execution',
-        metadata: {
+        executionId: 'execution-123',
+        executionMode: 'async',
+      }),
+      expect.objectContaining({
+        metadata: expect.objectContaining({
           workflowId: 'workflow-1',
           userId: 'actor-1',
-          correlation: {
+          workspaceId: 'workspace-1',
+          correlation: expect.objectContaining({
             executionId: 'execution-123',
             requestId: 'req-12345678',
             source: 'workflow',
             workflowId: 'workflow-1',
             triggerType: 'manual',
-          },
-        },
+          }),
+        }),
       })
     )
   })

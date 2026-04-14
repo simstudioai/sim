@@ -13,6 +13,7 @@ import {
   Textarea,
   ThumbsDown,
   ThumbsUp,
+  Tooltip,
 } from '@/components/emcn'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 
@@ -46,19 +47,25 @@ interface MessageActionsProps {
   content: string
   chatId?: string
   userQuery?: string
+  requestId?: string
 }
 
-export function MessageActions({ content, chatId, userQuery }: MessageActionsProps) {
+export function MessageActions({ content, chatId, userQuery, requestId }: MessageActionsProps) {
   const [copied, setCopied] = useState(false)
+  const [copiedRequestId, setCopiedRequestId] = useState(false)
   const [pendingFeedback, setPendingFeedback] = useState<'up' | 'down' | null>(null)
   const [feedbackText, setFeedbackText] = useState('')
   const resetTimeoutRef = useRef<number | null>(null)
+  const requestIdTimeoutRef = useRef<number | null>(null)
   const submitFeedback = useSubmitCopilotFeedback()
 
   useEffect(() => {
     return () => {
       if (resetTimeoutRef.current !== null) {
         window.clearTimeout(resetTimeoutRef.current)
+      }
+      if (requestIdTimeoutRef.current !== null) {
+        window.clearTimeout(requestIdTimeoutRef.current)
       }
     }
   }, [])
@@ -79,11 +86,26 @@ export function MessageActions({ content, chatId, userQuery }: MessageActionsPro
     }
   }, [content])
 
+  const copyRequestId = useCallback(async () => {
+    if (!requestId) return
+    try {
+      await navigator.clipboard.writeText(requestId)
+      setCopiedRequestId(true)
+      if (requestIdTimeoutRef.current !== null) {
+        window.clearTimeout(requestIdTimeoutRef.current)
+      }
+      requestIdTimeoutRef.current = window.setTimeout(() => setCopiedRequestId(false), 1500)
+    } catch {
+      /* clipboard unavailable */
+    }
+  }, [requestId])
+
   const handleFeedbackClick = useCallback(
     (type: 'up' | 'down') => {
       if (chatId && userQuery) {
         setPendingFeedback(type)
         setFeedbackText('')
+        setCopiedRequestId(false)
       }
     },
     [chatId, userQuery]
@@ -112,6 +134,7 @@ export function MessageActions({ content, chatId, userQuery }: MessageActionsPro
     if (!open) {
       setPendingFeedback(null)
       setFeedbackText('')
+      setCopiedRequestId(false)
     }
   }, [])
 
@@ -151,9 +174,32 @@ export function MessageActions({ content, chatId, userQuery }: MessageActionsPro
           <ModalHeader>Give feedback</ModalHeader>
           <ModalBody>
             <div className='flex flex-col gap-2'>
-              <p className='font-medium text-[var(--text-secondary)] text-sm'>
-                {pendingFeedback === 'up' ? 'What did you like?' : 'What could be improved?'}
-              </p>
+              <div className='flex items-start justify-between gap-2'>
+                <p className='font-medium text-[var(--text-secondary)] text-sm'>
+                  {pendingFeedback === 'up' ? 'What did you like?' : 'What could be improved?'}
+                </p>
+                {pendingFeedback === 'down' && requestId && (
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <button
+                        type='button'
+                        aria-label='Copy request ID'
+                        onClick={copyRequestId}
+                        className='flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-none'
+                      >
+                        {copiedRequestId ? (
+                          <Check className='h-[14px] w-[14px]' />
+                        ) : (
+                          <Copy className='h-[14px] w-[14px]' />
+                        )}
+                      </button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='top'>
+                      {copiedRequestId ? 'Copied request ID' : 'Copy request ID'}
+                    </Tooltip.Content>
+                  </Tooltip.Root>
+                )}
+              </div>
               <Textarea
                 placeholder={
                   pendingFeedback === 'up'

@@ -369,7 +369,11 @@ export async function executeWorkflowCore(
       })
     } else if (!triggerBlockId) {
       const executionKind =
-        triggerType === 'api' || triggerType === 'chat' ? (triggerType as 'api' | 'chat') : 'manual'
+        triggerType === 'api' || triggerType === 'chat'
+          ? (triggerType as 'api' | 'chat')
+          : triggerType === 'webhook' || triggerType === 'schedule'
+            ? 'external'
+            : 'manual'
 
       const startBlock = TriggerUtils.findStartBlock(mergedStates, executionKind, false)
 

@@ -24,6 +24,27 @@ vi.mock('@/lib/auth/hybrid', () => ({
 
 vi.mock('@/lib/execution/e2b', () => ({
   executeInE2B: mockExecuteInE2B,
+  executeShellInE2B: vi.fn(),
+}))
+
+vi.mock('@/lib/copilot/request/tools/files', () => ({
+  FORMAT_TO_CONTENT_TYPE: {
+    json: 'application/json',
+    csv: 'text/csv',
+    txt: 'text/plain',
+    md: 'text/markdown',
+    html: 'text/html',
+  },
+  normalizeOutputWorkspaceFileName: vi.fn((p: string) => p.replace(/^files\//, '')),
+  resolveOutputFormat: vi.fn(() => 'json'),
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  uploadWorkspaceFile: vi.fn(),
+}))
+
+vi.mock('@/lib/workflows/utils', () => ({
+  getWorkflowById: vi.fn(),
 }))
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
@@ -32,6 +53,7 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
   isProd: false,
   isDev: false,
   isTest: true,
+  isEmailVerificationEnabled: false,
 }))
 
 import { validateProxyUrl } from '@/lib/core/security/input-validation'

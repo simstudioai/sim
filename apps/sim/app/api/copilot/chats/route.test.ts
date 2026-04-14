@@ -66,7 +66,7 @@ vi.mock('drizzle-orm', () => ({
   sql: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/request-helpers', () => ({
+vi.mock('@/lib/copilot/request/http', () => ({
   authenticateCopilotRequestSessionOnly: mockAuthenticate,
   createUnauthorizedResponse: mockCreateUnauthorizedResponse,
   createInternalServerErrorResponse: mockCreateInternalServerErrorResponse,

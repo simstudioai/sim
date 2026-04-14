@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request-helpers'
+import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
 import { routeExecution } from '@/lib/copilot/tools/server/router'
 
 /**

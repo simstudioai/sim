@@ -10,7 +10,7 @@ import type { NormalizedBlockOutput, UserFile } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 import { safeAssign } from '@/tools/safe-assign'
 
-type ExecutionKind = 'chat' | 'manual' | 'api'
+type ExecutionKind = 'chat' | 'manual' | 'api' | 'external'
 
 export interface ExecutorStartResolution {
   blockId: string
