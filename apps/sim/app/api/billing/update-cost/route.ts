@@ -6,6 +6,7 @@ import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { type AtomicClaimResult, billingIdempotency } from '@/lib/core/idempotency/service'
 import { generateRequestId } from '@/lib/core/utils/request'
 
 const logger = createLogger('BillingUpdateCostAPI')
@@ -19,6 +20,7 @@ const UpdateCostSchema = z.object({
   source: z
     .enum(['copilot', 'workspace-chat', 'mcp_copilot', 'mothership_block'])
     .default('copilot'),
+  idempotencyKey: z.string().min(1).optional(),
 })
 
 /**
@@ -28,6 +30,8 @@ const UpdateCostSchema = z.object({
 export async function POST(req: NextRequest) {
   const requestId = generateRequestId()
   const startTime = Date.now()
+  let claim: AtomicClaimResult | null = null
+  let usageCommitted = false
 
   try {
     logger.info(`[${requestId}] Update cost request started`)
@@ -75,8 +79,29 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { userId, cost, model, inputTokens, outputTokens, source } = validation.data
+    const { userId, cost, model, inputTokens, outputTokens, source, idempotencyKey } =
+      validation.data
     const isMcp = source === 'mcp_copilot'
+
+    claim = idempotencyKey
+      ? await billingIdempotency.atomicallyClaim('update-cost', idempotencyKey)
+      : null
+
+    if (claim && !claim.claimed) {
+      logger.warn(`[${requestId}] Duplicate billing update rejected`, {
+        idempotencyKey,
+        userId,
+        source,
+      })
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Duplicate request: idempotency key already processed',
+          requestId,
+        },
+        { status: 409 }
+      )
+    }
 
     logger.info(`[${requestId}] Processing cost update`, {
       userId,
@@ -113,6 +138,7 @@ export async function POST(req: NextRequest) {
       ],
       additionalStats,
     })
+    usageCommitted = true
 
     logger.info(`[${requestId}] Recorded usage`, {
       userId,
@@ -148,6 +174,22 @@ export async function POST(req: NextRequest) {
       stack: error instanceof Error ? error.stack : undefined,
       duration,
     })
+
+    if (claim?.claimed && !usageCommitted) {
+      await billingIdempotency
+        .release(claim.normalizedKey, claim.storageMethod)
+        .catch((releaseErr) => {
+          logger.warn(`[${requestId}] Failed to release idempotency claim`, {
+            error: releaseErr instanceof Error ? releaseErr.message : String(releaseErr),
+            normalizedKey: claim?.normalizedKey,
+          })
+        })
+    } else if (claim?.claimed && usageCommitted) {
+      logger.warn(
+        `[${requestId}] Error occurred after usage committed; retaining idempotency claim to prevent double-billing`,
+        { normalizedKey: claim.normalizedKey }
+      )
+    }
 
     return NextResponse.json(
       {
