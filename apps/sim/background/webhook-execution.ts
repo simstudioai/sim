@@ -11,6 +11,7 @@ import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { WebhookAttachmentProcessor } from '@/lib/webhooks/attachment-processor'
+import { resolveWebhookRecordProviderConfig } from '@/lib/webhooks/env-resolver'
 import { getProviderHandler } from '@/lib/webhooks/providers'
 import {
   executeWorkflowCore,
@@ -300,9 +301,24 @@ async function executeWebhookJobInternal(
       throw new Error(`Webhook record not found: ${payload.webhookId}`)
     }
 
+    let resolvedWebhookRecord = webhookRecord
+    try {
+      resolvedWebhookRecord = await resolveWebhookRecordProviderConfig(
+        webhookRecord,
+        workflowRecord.userId,
+        workspaceId
+      )
+    } catch (error) {
+      logger.warn(`[${requestId}] Failed to resolve webhook provider config for execution`, {
+        webhookId: payload.webhookId,
+        provider: payload.provider,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+
     if (handler.formatInput) {
       const result = await handler.formatInput({
-        webhook: webhookRecord,
+        webhook: resolvedWebhookRecord,
         workflow: { id: payload.workflowId, userId: payload.userId },
         body: payload.body,
         headers: payload.headers,
