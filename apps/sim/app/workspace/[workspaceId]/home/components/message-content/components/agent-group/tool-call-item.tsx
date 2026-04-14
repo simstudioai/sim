@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { PillsRing } from '@/components/emcn'
-import { FunctionExecute, WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
+import { WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { ToolCallStatus } from '../../../../types'
 import { getToolIcon } from '../../utils'
 
@@ -56,42 +56,6 @@ function StatusIcon({ status, toolName }: { status: ToolCallStatus; toolName: st
   return <CircleCheck className='h-[15px] w-[15px] text-[var(--text-tertiary)]' />
 }
 
-const LANG_ALIASES: Record<string, string> = {
-  javascript: 'javascript',
-  python: 'python',
-  shell: 'bash',
-  bash: 'bash',
-}
-
-function extractFunctionExecutePreview(raw: string): { code: string; lang: string } | null {
-  if (!raw) return null
-  const langMatch = raw.match(/"language"\s*:\s*"(\w+)"/)
-  const lang = langMatch ? (LANG_ALIASES[langMatch[1]] ?? langMatch[1]) : 'javascript'
-
-  const codeStart = raw.indexOf('"code"')
-  if (codeStart === -1) return null
-  const colonIdx = raw.indexOf(':', codeStart + 6)
-  if (colonIdx === -1) return null
-  const quoteIdx = raw.indexOf('"', colonIdx + 1)
-  if (quoteIdx === -1) return null
-
-  let value = raw.slice(quoteIdx + 1)
-  if (value.endsWith('"}') || value.endsWith('"\n}')) {
-    value = value.replace(/"\s*\}?\s*$/, '')
-  }
-  if (value.endsWith('"')) {
-    value = value.slice(0, -1)
-  }
-
-  const code = value
-    .replace(/\\n/g, '\n')
-    .replace(/\\t/g, '\t')
-    .replace(/\\"/g, '"')
-    .replace(/\\\\/g, '\\')
-
-  return code.length > 0 ? { code, lang } : null
-}
-
 interface ToolCallItemProps {
   toolName: string
   displayTitle: string
@@ -128,14 +92,6 @@ export function ToolCallItem({ toolName, displayTitle, status, streamingArgs }: 
       .replace(/\\\\/g, '\\')
     return `${verb} ${unescaped}`
   }, [toolName, streamingArgs])
-  const extracted = useMemo(() => {
-    if (toolName !== FunctionExecute.id || !streamingArgs) return null
-    return extractFunctionExecutePreview(streamingArgs)
-  }, [toolName, streamingArgs])
-  const markdown = useMemo(
-    () => (extracted ? `\`\`\`${extracted.lang}\n${extracted.code}\n\`\`\`` : null),
-    [extracted]
-  )
 
   return (
     <div className='flex items-center gap-[8px] pl-[24px]'>

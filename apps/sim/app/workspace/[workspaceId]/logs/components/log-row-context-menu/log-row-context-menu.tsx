@@ -48,7 +48,8 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
 }: LogRowContextMenuProps) {
   const hasExecutionId = Boolean(log?.executionId)
   const hasWorkflow = Boolean(log?.workflow?.id || log?.workflowId)
-  const isRunning = log?.status === 'running' && hasExecutionId && hasWorkflow
+  const isCancellable =
+    (log?.status === 'running' || log?.status === 'pending') && hasExecutionId && hasWorkflow
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -72,9 +73,9 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
         sideOffset={4}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
-        {isRunning && (
+        {isCancellable && (
           <>
-            <DropdownMenuItem onSelect={onCancelExecution} className='text-destructive'>
+            <DropdownMenuItem onSelect={onCancelExecution}>
               <X />
               Cancel Execution
             </DropdownMenuItem>

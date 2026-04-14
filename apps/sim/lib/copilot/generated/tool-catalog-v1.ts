@@ -2529,6 +2529,13 @@ export const SetEnvironmentVariables: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
+      scope: {
+        type: 'string',
+        description:
+          'Whether to set workspace or personal environment variables. Defaults to workspace.',
+        enum: ['personal', 'workspace'],
+        default: 'workspace',
+      },
       variables: {
         type: 'array',
         description: 'List of env vars to set',

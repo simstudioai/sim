@@ -29,8 +29,8 @@ const RequestSchema = z.object({
  *
  * workflowId is optional - if not provided:
  * - If workflowName is provided, finds that workflow
- * - Otherwise uses the user's first workflow as context
- * - The copilot can still operate on any workflow using list_user_workflows
+ * - If exactly one workflow is available, uses that workflow as context
+ * - Otherwise requires workflowId or workflowName to disambiguate
  */
 export async function POST(req: NextRequest) {
   let messageId: string | undefined
@@ -54,11 +54,11 @@ export async function POST(req: NextRequest) {
       parsed.workflowName,
       auth.keyType === 'workspace' ? auth.workspaceId : undefined
     )
-    if (!resolved) {
+    if (resolved.status !== 'resolved') {
       return NextResponse.json(
         {
           success: false,
-          error: 'No workflows found. Create a workflow first or provide a valid workflowId.',
+          error: resolved.message,
         },
         { status: 400 }
       )

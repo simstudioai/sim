@@ -1,12 +1,7 @@
-import { db, workflow, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
-import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { captureServerEvent } from '@/lib/posthog/server'
-import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { performRevertToVersion } from '@/lib/workflows/orchestration'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -37,105 +32,26 @@ export async function POST(
       return createErrorResponse('Invalid version', 400)
     }
 
-    let stateRow: { state: any } | null = null
-    if (version === 'active') {
-      const [row] = await db
-        .select({ state: workflowDeploymentVersion.state })
-        .from(workflowDeploymentVersion)
-        .where(
-          and(
-            eq(workflowDeploymentVersion.workflowId, id),
-            eq(workflowDeploymentVersion.isActive, true)
-          )
-        )
-        .limit(1)
-      stateRow = row || null
-    } else {
-      const [row] = await db
-        .select({ state: workflowDeploymentVersion.state })
-        .from(workflowDeploymentVersion)
-        .where(
-          and(
-            eq(workflowDeploymentVersion.workflowId, id),
-            eq(workflowDeploymentVersion.version, versionSelector as number)
-          )
-        )
-        .limit(1)
-      stateRow = row || null
-    }
-
-    if (!stateRow?.state) {
-      return createErrorResponse('Deployment version not found', 404)
-    }
-
-    const deployedState = stateRow.state
-    if (!deployedState.blocks || !deployedState.edges) {
-      return createErrorResponse('Invalid deployed state structure', 500)
-    }
-
-    const saveResult = await saveWorkflowToNormalizedTables(id, {
-      blocks: deployedState.blocks,
-      edges: deployedState.edges,
-      loops: deployedState.loops || {},
-      parallels: deployedState.parallels || {},
-      lastSaved: Date.now(),
-    })
-
-    if (!saveResult.success) {
-      return createErrorResponse(saveResult.error || 'Failed to save deployed state', 500)
-    }
-
-    await db
-      .update(workflow)
-      .set({ lastSynced: new Date(), updatedAt: new Date() })
-      .where(eq(workflow.id, id))
-
-    try {
-      const socketServerUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
-      await fetch(`${socketServerUrl}/api/workflow-reverted`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': env.INTERNAL_API_SECRET,
-        },
-        body: JSON.stringify({ workflowId: id, timestamp: Date.now() }),
-      })
-    } catch (e) {
-      logger.error('Error sending workflow reverted event to socket server', e)
-    }
-
-    captureServerEvent(
-      session!.user.id,
-      'workflow_deployment_reverted',
-      {
-        workflow_id: id,
-        workspace_id: workflowRecord?.workspaceId ?? '',
-        version,
-      },
-      workflowRecord?.workspaceId
-        ? { groups: { workspace: workflowRecord.workspaceId } }
-        : undefined
-    )
-
-    recordAudit({
-      workspaceId: workflowRecord?.workspaceId ?? null,
-      actorId: session!.user.id,
-      action: AuditAction.WORKFLOW_DEPLOYMENT_REVERTED,
-      resourceType: AuditResourceType.WORKFLOW,
-      resourceId: id,
+    const result = await performRevertToVersion({
+      workflowId: id,
+      version: version === 'active' ? 'active' : (versionSelector as number),
+      userId: session!.user.id,
+      workflow: (workflowRecord ?? {}) as Record<string, unknown>,
+      request,
       actorName: session!.user.name ?? undefined,
       actorEmail: session!.user.email ?? undefined,
-      resourceName: workflowRecord?.name ?? undefined,
-      description: `Reverted workflow to deployment version ${version}`,
-      metadata: {
-        targetVersion: version,
-      },
-      request,
     })
+
+    if (!result.success) {
+      return createErrorResponse(
+        result.error || 'Failed to revert',
+        result.errorCode === 'not_found' ? 404 : 500
+      )
+    }
 
     return createSuccessResponse({
       message: 'Reverted to deployment version',
-      lastSaved: Date.now(),
+      lastSaved: result.lastSaved,
     })
   } catch (error: any) {
     logger.error('Error reverting to deployment version', error)

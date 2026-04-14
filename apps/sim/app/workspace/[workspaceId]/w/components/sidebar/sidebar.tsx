@@ -637,16 +637,14 @@ export const Sidebar = memo(function Sidebar() {
     () =>
       regularWorkflows.map((workflow) => {
         const folderPath = workflow.folderId
-          ? getFolderPath(folderMap, workflow.folderId)
-              .map((folder) => folder.name)
-              .join(' / ')
-          : ''
+          ? getFolderPath(folderMap, workflow.folderId).map((folder) => folder.name)
+          : []
         return {
           id: workflow.id,
           name: workflow.name,
           href: `/workspace/${workspaceId}/w/${workflow.id}`,
           color: workflow.color,
-          folderPath: folderPath || undefined,
+          folderPath: folderPath.length > 0 ? folderPath : undefined,
           isCurrent: workflow.id === workflowId,
         }
       }),

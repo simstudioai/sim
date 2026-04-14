@@ -232,6 +232,7 @@ export function UserInput({
   const canSubmit = (value.trim().length > 0 || hasFiles) && !isSending
 
   const valueRef = useRef(value)
+  valueRef.current = value
   const sttPrefixRef = useRef('')
 
   const handleTranscript = useCallback((text: string) => {
@@ -270,10 +271,6 @@ export function UserInput({
   onSendQueuedHeadRef.current = onSendQueuedHead
   const isSendingRef = useRef(isSending)
   isSendingRef.current = isSending
-
-  useEffect(() => {
-    valueRef.current = value
-  }, [value])
 
   const textareaRef = mentionMenu.textareaRef
   const wasSendingRef = useRef(false)
@@ -358,9 +355,7 @@ export function UserInput({
           }
           // Reset after batch so the next non-drop insert uses the cursor position
           atInsertPosRef.current = null
-        } catch {
-          // Invalid JSON — ignore
-        }
+        } catch {}
         textareaRef.current?.focus()
         return
       }
@@ -372,9 +367,7 @@ export function UserInput({
           const resource = JSON.parse(resourceJson) as MothershipResource
           handleResourceSelect(resource)
           atInsertPosRef.current = null
-        } catch {
-          // Invalid JSON — ignore
-        }
+        } catch {}
         textareaRef.current?.focus()
         return
       }

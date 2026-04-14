@@ -591,32 +591,30 @@ export async function queueWebhookExecution(
         `[${options.requestId}] Queued ${foundWebhook.provider} webhook execution ${jobId} via inline backend`
       )
 
-      if (shouldExecuteInline()) {
-        void (async () => {
+      void (async () => {
+        try {
+          await jobQueue.startJob(jobId)
+          const output = await executeWebhookJob(payload)
+          await jobQueue.completeJob(jobId, output)
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          logger.error(`[${options.requestId}] Webhook execution failed`, {
+            jobId,
+            error: errorMessage,
+          })
           try {
-            await jobQueue.startJob(jobId)
-            const output = await executeWebhookJob(payload)
-            await jobQueue.completeJob(jobId, output)
-          } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
-            logger.error(`[${options.requestId}] Webhook execution failed`, {
+            await jobQueue.markJobFailed(jobId, errorMessage)
+          } catch (markFailedError) {
+            logger.error(`[${options.requestId}] Failed to mark job as failed`, {
               jobId,
-              error: errorMessage,
+              error:
+                markFailedError instanceof Error
+                  ? markFailedError.message
+                  : String(markFailedError),
             })
-            try {
-              await jobQueue.markJobFailed(jobId, errorMessage)
-            } catch (markFailedError) {
-              logger.error(`[${options.requestId}] Failed to mark job as failed`, {
-                jobId,
-                error:
-                  markFailedError instanceof Error
-                    ? markFailedError.message
-                    : String(markFailedError),
-              })
-            }
           }
-        })()
-      }
+        }
+      })()
     }
 
     const successResponse = handler.formatSuccessResponse?.(providerConfig) ?? null
@@ -780,32 +778,30 @@ export async function processPolledWebhookEvent(
       })
       logger.info(`[${requestId}] Queued ${provider} webhook execution ${jobId} via inline backend`)
 
-      if (shouldExecuteInline()) {
-        void (async () => {
+      void (async () => {
+        try {
+          await jobQueue.startJob(jobId)
+          const output = await executeWebhookJob(payload)
+          await jobQueue.completeJob(jobId, output)
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          logger.error(`[${requestId}] Webhook execution failed`, {
+            jobId,
+            error: errorMessage,
+          })
           try {
-            await jobQueue.startJob(jobId)
-            const output = await executeWebhookJob(payload)
-            await jobQueue.completeJob(jobId, output)
-          } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
-            logger.error(`[${requestId}] Webhook execution failed`, {
+            await jobQueue.markJobFailed(jobId, errorMessage)
+          } catch (markFailedError) {
+            logger.error(`[${requestId}] Failed to mark job as failed`, {
               jobId,
-              error: errorMessage,
+              error:
+                markFailedError instanceof Error
+                  ? markFailedError.message
+                  : String(markFailedError),
             })
-            try {
-              await jobQueue.markJobFailed(jobId, errorMessage)
-            } catch (markFailedError) {
-              logger.error(`[${requestId}] Failed to mark job as failed`, {
-                jobId,
-                error:
-                  markFailedError instanceof Error
-                    ? markFailedError.message
-                    : String(markFailedError),
-              })
-            }
           }
-        })()
-      }
+        }
+      })()
     }
 
     return { success: true }

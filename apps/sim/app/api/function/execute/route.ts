@@ -18,6 +18,7 @@ import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block
 import { formatLiteralForCode } from '@/executor/utils/code-formatting'
 import {
   createEnvVarPattern,
+  createReferencePattern,
   createWorkflowVariablePattern,
 } from '@/executor/utils/reference-validation'
 export const dynamic = 'force-dynamic'
@@ -26,6 +27,8 @@ export const runtime = 'nodejs'
 export const MAX_DURATION = 210
 
 const logger = createLogger('FunctionExecuteAPI')
+
+const TAG_PATTERN = createReferencePattern()
 
 const E2B_JS_WRAPPER_LINES = 3
 const E2B_PYTHON_WRAPPER_LINES = 1
@@ -493,11 +496,7 @@ function resolveTagVariables(
   let resolvedCode = code
   const undefinedLiteral = language === 'python' ? 'None' : 'undefined'
 
-  const tagPattern = new RegExp(
-    `${REFERENCE.START}([a-zA-Z_](?:[a-zA-Z0-9_${REFERENCE.PATH_DELIMITER}]*[a-zA-Z0-9_])?)${REFERENCE.END}`,
-    'g'
-  )
-  const tagMatches = resolvedCode.match(tagPattern) || []
+  const tagMatches = resolvedCode.match(TAG_PATTERN) || []
 
   for (const match of tagMatches) {
     const tagName = match.slice(REFERENCE.START.length, -REFERENCE.END.length).trim()

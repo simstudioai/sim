@@ -13,6 +13,7 @@ import { generateId } from '@/lib/core/utils/uuid'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
+import { performRevertToVersion } from '@/lib/workflows/orchestration'
 import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils.server'
 import { ensureWorkflowAccess, ensureWorkspaceAccess } from '../access'
 import type {
@@ -428,27 +429,22 @@ export async function executeRevertToVersion(
       return { success: false, error: 'version is required' }
     }
 
-    await ensureWorkflowAccess(workflowId, context.userId, 'admin')
-
-    const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000'
-    const response = await fetch(
-      `${baseUrl}/api/workflows/${workflowId}/deployments/${version}/revert`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': process.env.INTERNAL_API_SECRET || '',
-        },
-      }
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(
+      workflowId,
+      context.userId,
+      'admin'
     )
+    const result = await performRevertToVersion({
+      workflowId,
+      version,
+      userId: context.userId,
+      workflow: workflowRecord as Record<string, unknown>,
+    })
 
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}))
-      return { success: false, error: body.error || `Failed to revert (HTTP ${response.status})` }
+    if (!result.success) {
+      return { success: false, error: result.error || 'Failed to revert' }
     }
 
-    const result = await response.json()
     return {
       success: true,
       output: {

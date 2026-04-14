@@ -41,6 +41,12 @@ export function GenericResourceContent({ data }: GenericResourceContentProps) {
             {entry.status === 'error' && (
               <span className='ml-auto text-[12px] text-[var(--text-error)]'>Error</span>
             )}
+            {entry.status === 'skipped' && (
+              <span className='ml-auto text-[12px] text-[var(--text-muted)]'>Skipped</span>
+            )}
+            {entry.status === 'rejected' && (
+              <span className='ml-auto text-[12px] text-[var(--text-muted)]'>Rejected</span>
+            )}
           </div>
           {entry.streamingArgs && (
             <pre className='overflow-x-auto whitespace-pre-wrap break-words font-mono text-[12px] text-[var(--text-body)]'>

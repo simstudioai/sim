@@ -45,7 +45,6 @@ describe('display-message', () => {
           name: 'read',
           status: 'cancelled',
           displayTitle: 'Stopped by user',
-          phaseLabel: undefined,
           params: undefined,
           calledBy: undefined,
           result: undefined,
@@ -87,5 +86,63 @@ describe('display-message', () => {
     })
 
     expect(display.contentBlocks).toEqual([{ type: 'text', content: 'visible text' }])
+  })
+
+  it('preserves skipped and rejected tool outcomes', () => {
+    const display = toDisplayMessage({
+      id: 'msg-3',
+      role: 'assistant',
+      content: '',
+      timestamp: '2024-01-01T00:00:00.000Z',
+      contentBlocks: [
+        {
+          type: 'tool',
+          phase: 'call',
+          toolCall: {
+            id: 'tool-skipped',
+            name: 'read',
+            state: 'skipped',
+            display: { title: 'Reading workflow' },
+          },
+        },
+        {
+          type: 'tool',
+          phase: 'call',
+          toolCall: {
+            id: 'tool-rejected',
+            name: 'run_workflow',
+            state: 'rejected',
+            display: { title: 'Running workflow' },
+          },
+        },
+      ],
+    })
+
+    expect(display.contentBlocks).toEqual([
+      {
+        type: 'tool_call',
+        toolCall: {
+          id: 'tool-skipped',
+          name: 'read',
+          status: 'skipped',
+          displayTitle: 'Reading workflow',
+          params: undefined,
+          calledBy: undefined,
+          result: undefined,
+        },
+      },
+      {
+        type: 'tool_call',
+        toolCall: {
+          id: 'tool-rejected',
+          name: 'run_workflow',
+          status: 'rejected',
+          displayTitle: 'Running workflow',
+          params: undefined,
+          calledBy: undefined,
+          result: undefined,
+        },
+      },
+    ])
   })
 })

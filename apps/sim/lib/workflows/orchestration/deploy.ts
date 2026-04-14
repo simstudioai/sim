@@ -3,9 +3,11 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { removeMcpToolsForWorkflow, syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
   cleanupWebhooksForWorkflow,
   restorePreviousVersionWebhooks,
@@ -17,6 +19,7 @@ import {
   activateWorkflowVersionById,
   deployWorkflow,
   loadWorkflowFromNormalizedTables,
+  saveWorkflowToNormalizedTables,
   undeployWorkflow,
 } from '@/lib/workflows/persistence/utils'
 import {
@@ -24,6 +27,7 @@ import {
   createSchedulesForDeploy,
   validateWorkflowSchedules,
 } from '@/lib/workflows/schedules'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DeployOrchestration')
 
@@ -314,6 +318,25 @@ export interface PerformActivateVersionResult {
   warnings?: string[]
 }
 
+export interface PerformRevertToVersionParams {
+  workflowId: string
+  version: number | 'active'
+  userId: string
+  workflow: Record<string, unknown>
+  request?: NextRequest
+  /** Override the actor ID used in audit logs. Defaults to `userId`. */
+  actorId?: string
+  actorName?: string
+  actorEmail?: string
+}
+
+export interface PerformRevertToVersionResult {
+  success: boolean
+  lastSaved?: number
+  error?: string
+  errorCode?: OrchestrationErrorCode
+}
+
 /**
  * Activates an existing deployment version: validates schedules, syncs trigger
  * webhooks (with forced subscription recreation), creates schedules, activates
@@ -490,5 +513,132 @@ export async function performActivateVersion(
     success: true,
     deployedAt: result.deployedAt,
     warnings: triggerSaveResult.warnings,
+  }
+}
+
+/**
+ * Reverts the current workflow draft to match a saved deployment version.
+ * This matches the deployment modal's "load deployment" behavior and is used
+ * by both the HTTP route and the mothership tool handler.
+ */
+export async function performRevertToVersion(
+  params: PerformRevertToVersionParams
+): Promise<PerformRevertToVersionResult> {
+  const { workflowId, version, userId, workflow } = params
+  const actorId = params.actorId ?? userId
+  const versionLabel = String(version)
+
+  let stateRow: { state: unknown } | null = null
+  if (version === 'active') {
+    const [row] = await db
+      .select({ state: workflowDeploymentVersion.state })
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, workflowId),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
+      .limit(1)
+    stateRow = row || null
+  } else {
+    const [row] = await db
+      .select({ state: workflowDeploymentVersion.state })
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, workflowId),
+          eq(workflowDeploymentVersion.version, version)
+        )
+      )
+      .limit(1)
+    stateRow = row || null
+  }
+
+  if (!stateRow?.state) {
+    return { success: false, error: 'Deployment version not found', errorCode: 'not_found' }
+  }
+
+  const deployedState = stateRow.state as {
+    blocks?: Record<string, unknown>
+    edges?: unknown[]
+    loops?: Record<string, unknown>
+    parallels?: Record<string, unknown>
+  }
+  if (!deployedState.blocks || !deployedState.edges) {
+    return {
+      success: false,
+      error: 'Invalid deployed state structure',
+      errorCode: 'internal',
+    }
+  }
+
+  const lastSaved = Date.now()
+  const saveResult = await saveWorkflowToNormalizedTables(workflowId, {
+    blocks: deployedState.blocks,
+    edges: deployedState.edges,
+    loops: deployedState.loops || {},
+    parallels: deployedState.parallels || {},
+    lastSaved,
+  } as WorkflowState)
+
+  if (!saveResult.success) {
+    return {
+      success: false,
+      error: saveResult.error || 'Failed to save deployed state',
+      errorCode: 'internal',
+    }
+  }
+
+  await db
+    .update(workflowTable)
+    .set({ lastSynced: new Date(), updatedAt: new Date() })
+    .where(eq(workflowTable.id, workflowId))
+
+  try {
+    const socketServerUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
+    await fetch(`${socketServerUrl}/api/workflow-reverted`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': env.INTERNAL_API_SECRET,
+      },
+      body: JSON.stringify({ workflowId, timestamp: lastSaved }),
+    })
+  } catch (error) {
+    logger.error('Error sending workflow reverted event to socket server', error)
+  }
+
+  const workspaceId = (workflow.workspaceId as string) || ''
+  captureServerEvent(
+    userId,
+    'workflow_deployment_reverted',
+    {
+      workflow_id: workflowId,
+      workspace_id: workspaceId,
+      version: versionLabel,
+    },
+    workspaceId ? { groups: { workspace: workspaceId } } : undefined
+  )
+
+  recordAudit({
+    workspaceId: workspaceId || null,
+    actorId,
+    actorName: params.actorName,
+    actorEmail: params.actorEmail,
+    action: AuditAction.WORKFLOW_DEPLOYMENT_REVERTED,
+    resourceType: AuditResourceType.WORKFLOW,
+    resourceId: workflowId,
+    resourceName: (workflow.name as string) || undefined,
+    description: `Reverted workflow to deployment version ${versionLabel}`,
+    metadata: {
+      targetVersion: versionLabel,
+    },
+    request: params.request,
+  })
+
+  return {
+    success: true,
+    lastSaved,
   }
 }

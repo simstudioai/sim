@@ -88,6 +88,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: useblacksmith/setup-docker-builder@v1
 
+      - name: Resolve ECR repo name
+        id: ecr-repo
+        run: echo "name=$ECR_REPO" >> $GITHUB_OUTPUT
+        env:
+          ECR_REPO: ${{ matrix.ecr_repo_secret == 'ECR_APP' && secrets.ECR_APP || matrix.ecr_repo_secret == 'ECR_MIGRATIONS' && secrets.ECR_MIGRATIONS || matrix.ecr_repo_secret == 'ECR_REALTIME' && secrets.ECR_REALTIME || '' }}
+
       - name: Build and push
         uses: useblacksmith/build-push-action@v2
         with:
@@ -95,7 +101,7 @@ jobs:
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
           push: true
-          tags: ${{ steps.login-ecr.outputs.registry }}/${{ secrets[matrix.ecr_repo_secret] }}:dev
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}:dev
           provenance: false
           sbom: false
 
@@ -155,11 +161,17 @@ jobs:
       - name: Set up Docker Buildx
         uses: useblacksmith/setup-docker-builder@v1
 
+      - name: Resolve ECR repo name
+        id: ecr-repo
+        run: echo "name=$ECR_REPO" >> $GITHUB_OUTPUT
+        env:
+          ECR_REPO: ${{ matrix.ecr_repo_secret == 'ECR_APP' && secrets.ECR_APP || matrix.ecr_repo_secret == 'ECR_MIGRATIONS' && secrets.ECR_MIGRATIONS || matrix.ecr_repo_secret == 'ECR_REALTIME' && secrets.ECR_REALTIME || '' }}
+
       - name: Generate tags
         id: meta
         run: |
           ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
-          ECR_REPO="${{ secrets[matrix.ecr_repo_secret] }}"
+          ECR_REPO="${{ steps.ecr-repo.outputs.name }}"
           GHCR_IMAGE="${{ matrix.ghcr_image }}"
 
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
