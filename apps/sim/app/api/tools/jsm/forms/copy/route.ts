@@ -66,6 +66,10 @@ export async function POST(request: NextRequest) {
     const baseUrl = getJsmFormsApiBaseUrl(cloudId)
     const url = `${baseUrl}/issue/${encodeURIComponent(sourceIssueIdOrKey)}/form/copy/${encodeURIComponent(targetIssueIdOrKey)}`
 
+    if (formIds !== undefined && !Array.isArray(formIds)) {
+      return NextResponse.json({ error: 'formIds must be an array of form UUIDs' }, { status: 400 })
+    }
+
     const requestBody = Array.isArray(formIds) && formIds.length > 0 ? { ids: formIds } : {}
 
     logger.info('Copying forms:', { url, sourceIssueIdOrKey, targetIssueIdOrKey, formIds })

@@ -1092,9 +1092,15 @@ Return ONLY the comment text - no explanations.`,
               formIds: params.formIds
                 ? (() => {
                     try {
-                      return JSON.parse(params.formIds)
-                    } catch {
-                      throw new Error('formIds must be valid JSON array')
+                      const parsed = JSON.parse(params.formIds)
+                      if (!Array.isArray(parsed)) {
+                        throw new Error('formIds must be a JSON array')
+                      }
+                      return parsed
+                    } catch (e) {
+                      throw e instanceof Error && e.message === 'formIds must be a JSON array'
+                        ? e
+                        : new Error('formIds must be valid JSON array')
                     }
                   })()
                 : undefined,
