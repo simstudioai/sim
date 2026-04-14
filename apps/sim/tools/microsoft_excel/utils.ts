@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
-import type { ExcelCellValue } from '@/tools/microsoft_excel/types'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
+import type { ExcelCellValue } from '@/tools/microsoft_excel/types'
 
 const logger = createLogger('MicrosoftExcelUtils')
 
