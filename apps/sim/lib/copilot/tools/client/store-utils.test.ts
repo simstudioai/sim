@@ -29,6 +29,12 @@ describe('resolveToolDisplay', () => {
         path: 'workflows/My Workflow/meta.json',
       })?.text
     ).toBe('Read My Workflow')
+
+    expect(
+      resolveToolDisplay(ReadTool.id, ClientToolCallState.success, {
+        path: 'workflows/Folder 1/RET XYZ/state.json',
+      })?.text
+    ).toBe('Read RET XYZ')
   })
 
   it('falls back to a humanized tool label for generic tools', () => {

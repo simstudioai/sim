@@ -673,7 +673,10 @@ function extractResourceFromReadResult(
 ): MothershipResource | null {
   if (!path) return null
 
-  const segments = path.split('/')
+  const segments = path
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter(Boolean)
   const resourceType = VFS_DIR_TO_RESOURCE[segments[0]]
   if (!resourceType || !segments[1]) return null
 
@@ -693,8 +696,22 @@ function extractResourceFromReadResult(
     }
   }
 
+  const fallbackTitle =
+    resourceType === 'workflow'
+      ? resolveLeafWorkflowPathSegment(segments)
+      : segments[1] || segments[segments.length - 1]
+
   if (!id) return null
-  return { type: resourceType, id, title: name || segments[1] }
+  return { type: resourceType, id, title: name || fallbackTitle || id }
+}
+
+function resolveLeafWorkflowPathSegment(segments: string[]): string | undefined {
+  const lastSegment = segments[segments.length - 1]
+  if (!lastSegment) return undefined
+  if (/\.[^/.]+$/.test(lastSegment) && segments.length > 1) {
+    return segments[segments.length - 2]
+  }
+  return lastSegment
 }
 
 export interface UseChatOptions {

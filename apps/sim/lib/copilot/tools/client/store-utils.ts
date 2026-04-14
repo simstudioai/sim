@@ -98,8 +98,24 @@ function describeReadTarget(path: string | undefined): string | undefined {
     return segments.slice(1).join('/') || segments[segments.length - 1]
   }
 
+  if (resourceType === 'workflow') {
+    return stripExtension(getLeafResourceSegment(segments))
+  }
+
   const resourceName = segments[1] || segments[segments.length - 1]
   return stripExtension(resourceName)
+}
+
+function getLeafResourceSegment(segments: string[]): string {
+  const lastSegment = segments[segments.length - 1] || ''
+  if (hasFileExtension(lastSegment) && segments.length > 1) {
+    return segments[segments.length - 2] || lastSegment
+  }
+  return lastSegment
+}
+
+function hasFileExtension(value: string): boolean {
+  return /\.[^/.]+$/.test(value)
 }
 
 function stripExtension(value: string): string {
