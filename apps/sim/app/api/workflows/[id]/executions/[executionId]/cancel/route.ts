@@ -64,7 +64,7 @@ export async function POST(
       logger.info('Execution cancelled via local in-process fallback', { executionId })
     } else if (pausedCancelled) {
       logger.info('Paused execution cancelled directly in database', { executionId })
-      void setExecutionMeta(executionId, { status: 'cancelled', workflowId })
+      void setExecutionMeta(executionId, { status: 'cancelled', workflowId }).catch(() => {})
       const writer = createExecutionEventWriter(executionId)
       void writer
         .write({
@@ -75,6 +75,7 @@ export async function POST(
           data: { duration: 0 },
         })
         .then(() => writer.close())
+        .catch(() => {})
     } else {
       logger.warn('Execution cancellation was not durably recorded', {
         executionId,
