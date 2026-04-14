@@ -688,11 +688,16 @@ async function handleBuildToolCall(
             userId,
             action: 'read',
           })
-          return authorization.allowed ? { workflowId } : null
+          return authorization.allowed
+            ? { status: 'resolved' as const, workflowId }
+            : {
+                status: 'not_found' as const,
+                message: 'workflowId is required for build. Call create_workflow first.',
+              }
         })()
       : await resolveWorkflowIdForUser(userId)
 
-    if (!resolved?.workflowId) {
+    if (!resolved || resolved.status !== 'resolved') {
       return {
         content: [
           {
@@ -700,7 +705,9 @@ async function handleBuildToolCall(
             text: JSON.stringify(
               {
                 success: false,
-                error: 'workflowId is required for build. Call create_workflow first.',
+                error:
+                  resolved?.message ??
+                  'workflowId is required for build. Call create_workflow first.',
               },
               null,
               2

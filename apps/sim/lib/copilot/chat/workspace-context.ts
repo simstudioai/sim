@@ -11,6 +11,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, inArray, isNull } from 'drizzle-orm'
+import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
@@ -73,6 +74,23 @@ export interface WorkspaceMdData {
   }>
 }
 
+function normalizeFolderPathForVfs(folderPath?: string | null): string | null {
+  if (!folderPath) return null
+  const segments = folderPath
+    .split('/')
+    .map((segment) => normalizeVfsSegment(segment))
+    .filter(Boolean)
+  return segments.length > 0 ? segments.join('/') : null
+}
+
+function buildWorkflowStatePath(workflowName: string, folderPath?: string | null): string {
+  const normalizedFolderPath = normalizeFolderPathForVfs(folderPath)
+  const normalizedWorkflowName = normalizeVfsSegment(workflowName)
+  return normalizedFolderPath
+    ? `workflows/${normalizedFolderPath}/${normalizedWorkflowName}/state.json`
+    : `workflows/${normalizedWorkflowName}/state.json`
+}
+
 /**
  * Pure formatting: build WORKSPACE.md content from pre-fetched data.
  * No DB access — callers are responsible for providing the data.
@@ -115,10 +133,20 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
       if (wf.isDeployed) flags.push('deployed')
       if (wf.lastRunAt) flags.push(`last run: ${wf.lastRunAt.toISOString().split('T')[0]}`)
       if (flags.length > 0) parts[0] += ` — ${flags.join(', ')}`
+      if (wf.folderPath) {
+        parts.push(
+          `${indent}  VFS state path: \`${buildWorkflowStatePath(wf.name, wf.folderPath)}\``
+        )
+      }
       return parts.join('\n')
     }
 
     const lines: string[] = []
+    if (data.workflows.some((workflow) => workflow.folderPath)) {
+      lines.push(
+        'Use the canonical VFS state path shown under nested workflows. Do not infer nested workflow paths from the leaf workflow name alone.'
+      )
+    }
     for (const wf of rootWorkflows) {
       lines.push(formatWf(wf, ''))
     }
@@ -379,7 +407,8 @@ export async function generateWorkspaceContext(
       const folder = folderById.get(id)
       if (!folder) return id
       const parentPath = folder.parentId ? resolveFolderPath(folder.parentId) : ''
-      const path = parentPath ? `${parentPath}/${folder.name}` : folder.name
+      const normalizedName = normalizeVfsSegment(folder.name)
+      const path = parentPath ? `${parentPath}/${normalizedName}` : normalizedName
       folderPathMap.set(id, path)
       return path
     }
