@@ -72,15 +72,8 @@ export async function getBlobServiceClient(): Promise<BlobServiceClientInstance>
   const { accountName, accountKey, connectionString } = BLOB_CONFIG
 
   if (connectionString) {
-    logger.info('Initializing Azure Blob client using connection string', {
-      accountName: accountName || '(from connection string)',
-    })
     _blobServiceClient = BlobServiceClient.fromConnectionString(connectionString)
   } else if (accountName && accountKey) {
-    logger.info('Initializing Azure Blob client using account name and key', {
-      accountName,
-      keyLength: accountKey.length,
-    })
     const sharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey)
     _blobServiceClient = new BlobServiceClient(
       `https://${accountName}.blob.core.windows.net`,
@@ -138,12 +131,6 @@ export async function uploadToBlob(
   const uniqueKey = shouldPreserveKey ? fileName : `${Date.now()}-${safeFileName}`
 
   const blobServiceClient = await getBlobServiceClient()
-  logger.info('Uploading to Azure Blob Storage', {
-    containerName: config.containerName,
-    key: uniqueKey,
-    contentType,
-    fileSize,
-  })
   const containerClient = blobServiceClient.getContainerClient(config.containerName)
   const blockBlobClient = containerClient.getBlockBlobClient(uniqueKey)
 
