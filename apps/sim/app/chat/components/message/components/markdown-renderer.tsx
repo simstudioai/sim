@@ -99,7 +99,7 @@ function createCustomComponents(LinkComponent: typeof LinkWithPreview) {
             </span>
             <CopyCodeButton
               code={extractTextContent(codeContent)}
-              className='text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+              className='text-gray-400 hover-hover:bg-gray-700 hover-hover:text-gray-200'
             />
           </div>
           <pre className='overflow-x-auto p-4 font-mono text-gray-200 dark:text-gray-100'>

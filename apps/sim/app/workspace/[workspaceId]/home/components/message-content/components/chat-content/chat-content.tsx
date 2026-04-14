@@ -147,7 +147,7 @@ const MARKDOWN_COMPONENTS = {
           <span className='text-[var(--text-tertiary)] text-xs'>{language || 'code'}</span>
           <CopyCodeButton
             code={codeString}
-            className='-mr-2 text-[var(--text-tertiary)] hover:bg-[var(--surface-5)] hover:text-[var(--text-secondary)]'
+            className='-mr-2 text-[var(--text-tertiary)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-secondary)]'
           />
         </div>
         <div className='code-editor-theme bg-[var(--surface-5)] dark:bg-[var(--code-bg)]'>
