@@ -247,6 +247,16 @@ export function ChatContent({
   smoothStreaming = true,
 }: ChatContentProps) {
   const hydratedStreamingRef = useRef(isStreaming && content.trim().length > 0)
+  const previousIsStreamingRef = useRef(isStreaming)
+
+  useEffect(() => {
+    if (!previousIsStreamingRef.current && isStreaming && content.trim().length > 0) {
+      hydratedStreamingRef.current = true
+    } else if (!isStreaming) {
+      hydratedStreamingRef.current = false
+    }
+    previousIsStreamingRef.current = isStreaming
+  }, [content, isStreaming])
 
   const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
   onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
