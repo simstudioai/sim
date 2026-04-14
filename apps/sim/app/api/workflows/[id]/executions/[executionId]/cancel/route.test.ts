@@ -11,12 +11,18 @@ const {
   mockMarkExecutionCancelled,
   mockAbortManualExecution,
   mockCancelPausedExecution,
+  mockSetExecutionMeta,
+  mockWriteEvent,
+  mockCloseWriter,
 } = vi.hoisted(() => ({
   mockCheckHybridAuth: vi.fn(),
   mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
   mockMarkExecutionCancelled: vi.fn(),
   mockAbortManualExecution: vi.fn(),
   mockCancelPausedExecution: vi.fn(),
+  mockSetExecutionMeta: vi.fn(),
+  mockWriteEvent: vi.fn(),
+  mockCloseWriter: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/hybrid', () => ({
@@ -46,6 +52,14 @@ vi.mock('@/lib/posthog/server', () => ({
   captureServerEvent: vi.fn(),
 }))
 
+vi.mock('@/lib/execution/event-buffer', () => ({
+  setExecutionMeta: (...args: unknown[]) => mockSetExecutionMeta(...args),
+  createExecutionEventWriter: () => ({
+    write: (...args: unknown[]) => mockWriteEvent(...args),
+    close: () => mockCloseWriter(),
+  }),
+}))
+
 import { POST } from './route'
 
 const makeRequest = () =>
@@ -62,6 +76,9 @@ describe('POST /api/workflows/[id]/executions/[executionId]/cancel', () => {
     mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({ allowed: true })
     mockAbortManualExecution.mockReturnValue(false)
     mockCancelPausedExecution.mockResolvedValue(false)
+    mockSetExecutionMeta.mockResolvedValue(undefined)
+    mockWriteEvent.mockResolvedValue({ eventId: 1 })
+    mockCloseWriter.mockResolvedValue(undefined)
   })
 
   it('returns success when cancellation was durably recorded', async () => {

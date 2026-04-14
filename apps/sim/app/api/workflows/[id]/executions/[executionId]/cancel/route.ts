@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
+import { createExecutionEventWriter, setExecutionMeta } from '@/lib/execution/event-buffer'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
@@ -58,6 +59,17 @@ export async function POST(
       logger.info('Execution cancelled via local in-process fallback', { executionId })
     } else if (pausedCancelled) {
       logger.info('Paused execution cancelled directly in database', { executionId })
+      void setExecutionMeta(executionId, { status: 'cancelled', workflowId })
+      const writer = createExecutionEventWriter(executionId)
+      void writer
+        .write({
+          type: 'execution:cancelled',
+          timestamp: new Date().toISOString(),
+          executionId,
+          workflowId,
+          data: { duration: 0 },
+        })
+        .then(() => writer.close())
     } else {
       logger.warn('Execution cancellation was not durably recorded', {
         executionId,
