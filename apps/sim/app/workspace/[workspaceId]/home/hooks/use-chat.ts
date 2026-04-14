@@ -1601,9 +1601,11 @@ export function useChat(
                     })
                   }
                   if (!workflowIdRef.current) {
-                    router.replace(`/workspace/${workspaceId}/task/${payloadChatId}`, {
-                      scroll: false,
-                    })
+                    window.history.replaceState(
+                      null,
+                      '',
+                      `/workspace/${workspaceId}/task/${payloadChatId}`
+                    )
                   }
                 }
               }
