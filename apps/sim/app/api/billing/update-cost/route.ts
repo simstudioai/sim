@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
   const requestId = generateRequestId()
   const startTime = Date.now()
   let claim: AtomicClaimResult | null = null
+  let usageCommitted = false
 
   try {
     logger.info(`[${requestId}] Update cost request started`)
@@ -137,6 +138,7 @@ export async function POST(req: NextRequest) {
       ],
       additionalStats,
     })
+    usageCommitted = true
 
     logger.info(`[${requestId}] Recorded usage`, {
       userId,
@@ -173,7 +175,7 @@ export async function POST(req: NextRequest) {
       duration,
     })
 
-    if (claim?.claimed) {
+    if (claim?.claimed && !usageCommitted) {
       await billingIdempotency
         .release(claim.normalizedKey, claim.storageMethod)
         .catch((releaseErr) => {
@@ -182,6 +184,11 @@ export async function POST(req: NextRequest) {
             normalizedKey: claim?.normalizedKey,
           })
         })
+    } else if (claim?.claimed && usageCommitted) {
+      logger.warn(
+        `[${requestId}] Error occurred after usage committed; retaining idempotency claim to prevent double-billing`,
+        { normalizedKey: claim.normalizedKey }
+      )
     }
 
     return NextResponse.json(
