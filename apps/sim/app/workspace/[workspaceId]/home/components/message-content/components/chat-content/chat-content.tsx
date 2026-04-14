@@ -18,7 +18,6 @@ import {
   SpecialTags,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
-import { useStreamingReveal } from '@/hooks/use-streaming-reveal'
 import { useStreamingText } from '@/hooks/use-streaming-text'
 
 const LANG_ALIASES: Record<string, string> = {
@@ -264,11 +263,6 @@ export function ChatContent({
   const parsed = useMemo(() => parseSpecialTags(rendered, isStreaming), [rendered, isStreaming])
   const hasSpecialContent = parsed.hasPendingTag || parsed.segments.some((s) => s.type !== 'text')
 
-  const { committed, incoming, generation } = useStreamingReveal(
-    rendered,
-    !hasSpecialContent && isStreaming
-  )
-
   if (hasSpecialContent) {
     type BlockSegment = Exclude<
       ContentSegment,
@@ -336,38 +330,14 @@ export function ChatContent({
   }
 
   return (
-    <div>
-      {committed && (
-        <div
-          className={cn(
-            PROSE_CLASSES,
-            '[&>:first-child]:mt-0',
-            !incoming && '[&>:last-child]:mb-0'
-          )}
-        >
-          <Streamdown mode='static' components={MARKDOWN_COMPONENTS}>
-            {committed}
-          </Streamdown>
-        </div>
-      )}
-      {incoming && (
-        <div
-          key={generation}
-          className={cn(
-            PROSE_CLASSES,
-            '[&>:first-child]:mt-0 [&>:last-child]:mb-0',
-            isStreaming && 'animate-stream-fade-in'
-          )}
-        >
-          <Streamdown
-            mode={isStreaming ? undefined : 'static'}
-            isAnimating={isStreaming}
-            components={MARKDOWN_COMPONENTS}
-          >
-            {incoming}
-          </Streamdown>
-        </div>
-      )}
+    <div className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}>
+      <Streamdown
+        mode={isStreaming ? undefined : 'static'}
+        isAnimating={isStreaming}
+        components={MARKDOWN_COMPONENTS}
+      >
+        {rendered}
+      </Streamdown>
     </div>
   )
 }
