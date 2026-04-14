@@ -22,7 +22,7 @@ const jiraUpdateSchema = z.object({
   components: z.array(z.string()).optional(),
   duedate: z.string().optional(),
   fixVersions: z.array(z.string()).optional(),
-  environment: z.string().optional(),
+  environment: z.union([z.string(), z.record(z.unknown())]).optional(),
   customFieldId: z.string().optional(),
   customFieldValue: z.string().optional(),
   notifyUsers: z.boolean().optional(),
