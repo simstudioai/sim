@@ -75,6 +75,9 @@ export async function GET(request: NextRequest) {
 
     // When driveId is provided (SharePoint), search within that specific drive.
     // Otherwise, search the user's personal OneDrive.
+    if (driveId && !/^[\w-]+$/.test(driveId)) {
+      return NextResponse.json({ error: 'Invalid drive ID format' }, { status: 400 })
+    }
     const drivePath = driveId ? `drives/${driveId}` : 'me/drive'
 
     const response = await fetch(
