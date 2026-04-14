@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
-import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
+import { getJiraCloudId, parseAtlassianErrorMessage, toAdf } from '@/tools/jira/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -85,21 +85,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (description !== undefined && description !== null && description !== '') {
-      fields.description = {
-        type: 'doc',
-        version: 1,
-        content: [
-          {
-            type: 'paragraph',
-            content: [
-              {
-                type: 'text',
-                text: description,
-              },
-            ],
-          },
-        ],
-      }
+      fields.description = toAdf(description)
     }
 
     if (parent !== undefined && parent !== null && parent !== '') {
@@ -144,21 +130,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (environment !== undefined && environment !== null && environment !== '') {
-      fields.environment = {
-        type: 'doc',
-        version: 1,
-        content: [
-          {
-            type: 'paragraph',
-            content: [
-              {
-                type: 'text',
-                text: environment,
-              },
-            ],
-          },
-        ],
-      }
+      fields.environment = toAdf(environment)
     }
 
     if (
