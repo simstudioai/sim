@@ -10,8 +10,13 @@ const MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024
  * it is returned as-is. If it is a plain string, it is wrapped in a single-paragraph ADF doc.
  */
 export function toAdf(value: string | Record<string, unknown>): Record<string, unknown> {
-  if (typeof value === 'object' && value.type === 'doc') {
-    return value
+  if (typeof value === 'object') {
+    if (value.type === 'doc') {
+      return value
+    }
+    if (value.type && Array.isArray(value.content)) {
+      return { type: 'doc', version: 1, content: [value] }
+    }
   }
   return {
     type: 'doc',
@@ -19,7 +24,7 @@ export function toAdf(value: string | Record<string, unknown>): Record<string, u
     content: [
       {
         type: 'paragraph',
-        content: [{ type: 'text', text: String(value) }],
+        content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }],
       },
     ],
   }
