@@ -51,7 +51,12 @@ export async function POST(
 
     const cancellation = await markExecutionCancelled(executionId)
     const locallyAborted = abortManualExecution(executionId)
-    const pausedCancelled = await PauseResumeManager.cancelPausedExecution(executionId)
+    let pausedCancelled = false
+    try {
+      pausedCancelled = await PauseResumeManager.cancelPausedExecution(executionId)
+    } catch (error) {
+      logger.warn('Failed to cancel paused execution in database', { executionId, error })
+    }
 
     if (cancellation.durablyRecorded) {
       logger.info('Execution marked as cancelled in Redis', { executionId })

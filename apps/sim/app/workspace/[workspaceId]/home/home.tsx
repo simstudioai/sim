@@ -215,6 +215,12 @@ export function Home({ chatId }: HomeProps = {}) {
     return () => cancelAnimationFrame(id)
   }, [resources])
 
+  useEffect(() => {
+    if (resources.length === 0 && !isResourceCollapsedRef.current) {
+      collapseResource()
+    }
+  }, [resources, collapseResource])
+
   const handleStopGeneration = useCallback(() => {
     captureEvent(posthogRef.current, 'task_generation_aborted', {
       workspace_id: workspaceId,
@@ -288,12 +294,8 @@ export function Home({ chatId }: HomeProps = {}) {
       const resolved = resolveResourceFromContext(context)
       if (!resolved) return
       removeResource(resolved.type, resolved.id)
-      const remaining = resources.filter((r) => !(r.type === resolved.type && r.id === resolved.id))
-      if (remaining.length === 0) {
-        collapseResource()
-      }
     },
-    [resolveResourceFromContext, removeResource, resources, collapseResource]
+    [resolveResourceFromContext, removeResource]
   )
 
   const handleWorkspaceResourceSelect = useCallback(
