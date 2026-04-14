@@ -305,7 +305,10 @@ export function ChatContent({
                 key={`inline-${i}`}
                 className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
               >
-                <Streamdown mode='static' components={MARKDOWN_COMPONENTS}>
+                <Streamdown
+                  mode={isStreaming ? undefined : 'static'}
+                  components={MARKDOWN_COMPONENTS}
+                >
                   {group.markdown}
                 </Streamdown>
               </div>
@@ -326,7 +329,7 @@ export function ChatContent({
 
   return (
     <div className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}>
-      <Streamdown mode='static' components={MARKDOWN_COMPONENTS}>
+      <Streamdown mode={isStreaming ? undefined : 'static'} components={MARKDOWN_COMPONENTS}>
         {content}
       </Streamdown>
     </div>
