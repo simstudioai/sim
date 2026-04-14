@@ -95,8 +95,10 @@ export const MemoizedWorkflowItem = memo(
     prev.value === next.value &&
     prev.color === next.color &&
     prev.name === next.name &&
-    prev.folderPath === next.folderPath &&
-    prev.isCurrent === next.isCurrent
+    prev.isCurrent === next.isCurrent &&
+    (prev.folderPath === next.folderPath ||
+      (prev.folderPath?.length === next.folderPath?.length &&
+        (prev.folderPath ?? []).every((segment, i) => segment === next.folderPath?.[i])))
 )
 
 export const MemoizedTaskItem = memo(
