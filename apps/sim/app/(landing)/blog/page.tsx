@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Badge } from '@/components/emcn'
 import { getAllPostMeta } from '@/lib/blog/registry'
 import { buildCollectionPageJsonLd } from '@/lib/blog/seo'
+import { SITE_URL } from '@/lib/core/utils/urls'
 
 export async function generateMetadata({
   searchParams,
@@ -26,7 +27,7 @@ export async function generateMetadata({
   if (tag) canonicalParams.set('tag', tag)
   if (pageNum > 1) canonicalParams.set('page', String(pageNum))
   const qs = canonicalParams.toString()
-  const canonical = `https://sim.ai/blog${qs ? `?${qs}` : ''}`
+  const canonical = `${SITE_URL}/blog${qs ? `?${qs}` : ''}`
 
   return {
     title,
@@ -41,7 +42,7 @@ export async function generateMetadata({
       type: 'website',
       images: [
         {
-          url: 'https://sim.ai/logo/primary/medium.png',
+          url: `${SITE_URL}/logo/primary/medium.png`,
           width: 1200,
           height: 630,
           alt: 'Sim Blog',

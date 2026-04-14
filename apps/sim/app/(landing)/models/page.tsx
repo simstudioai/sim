@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { Badge } from '@/components/emcn'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { SITE_URL } from '@/lib/core/utils/urls'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import { ModelComparisonCharts } from '@/app/(landing)/models/components/model-comparison-charts'
 import { ModelDirectory } from '@/app/(landing)/models/components/model-directory'
@@ -17,7 +17,7 @@ import {
   TOTAL_MODELS,
 } from '@/app/(landing)/models/utils'
 
-const baseUrl = getBaseUrl()
+const baseUrl = SITE_URL
 
 const faqItems = [
   {

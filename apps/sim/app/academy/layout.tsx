@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   },
   description:
     'Become a certified Sim partner — learn to build, integrate, and deploy AI workflows.',
-  metadataBase: new URL('https://sim.ai'),
+  metadataBase: new URL('https://www.sim.ai'),
   openGraph: {
     title: 'Sim Academy',
     description: 'Become a certified Sim partner.',

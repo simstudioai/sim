@@ -150,7 +150,7 @@ export function generateStructuredData() {
     creator: {
       '@type': 'Organization',
       name: 'Sim',
-      url: 'https://sim.ai',
+      url: 'https://www.sim.ai',
     },
     featureList: [
       'AI Workspace for Teams',

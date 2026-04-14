@@ -48,7 +48,7 @@ export async function GET() {
       <rss version="2.0">
         <channel>
           <title>Sim Changelog</title>
-          <link>https://sim.ai/changelog</link>
+          <link>https://www.sim.ai/changelog</link>
           <description>Latest changes, fixes and updates in Sim.</description>
           <language>en-us</language>
           ${items}

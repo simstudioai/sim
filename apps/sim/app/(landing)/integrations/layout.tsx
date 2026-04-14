@@ -1,11 +1,11 @@
 import { getNavBlogPosts } from '@/lib/blog/registry'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { SITE_URL } from '@/lib/core/utils/urls'
 import Footer from '@/app/(landing)/components/footer/footer'
 import Navbar from '@/app/(landing)/components/navbar/navbar'
 
 export default async function IntegrationsLayout({ children }: { children: React.ReactNode }) {
   const blogPosts = await getNavBlogPosts()
-  const url = getBaseUrl()
+  const url = SITE_URL
   const orgJsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Organization',
