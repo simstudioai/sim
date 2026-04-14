@@ -1561,18 +1561,20 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
     fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
       if (!detailId || !context.siteId) return null
       const credentialId = ensureCredential(context, 'microsoft.excel.drives')
-      const body = JSON.stringify({
-        credential: credentialId,
-        workflowId: context.workflowId,
-        siteId: context.siteId,
-      })
-      const data = await fetchJson<{ drives: { id: string; name: string }[] }>(
+      const data = await fetchJson<{ drive: { id: string; name: string } }>(
         '/api/tools/microsoft_excel/drives',
-        { method: 'POST', body }
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            credential: credentialId,
+            workflowId: context.workflowId,
+            siteId: context.siteId,
+            driveId: detailId,
+          }),
+        }
       )
-      const drive = (data.drives || []).find((d) => d.id === detailId) ?? null
-      if (!drive) return null
-      return { id: drive.id, label: drive.name }
+      if (!data.drive) return null
+      return { id: data.drive.id, label: data.drive.name }
     },
   },
   'microsoft.excel': {

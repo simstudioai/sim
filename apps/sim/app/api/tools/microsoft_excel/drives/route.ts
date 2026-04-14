@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
@@ -20,12 +20,12 @@ interface GraphDrive {
  * Used by the microsoft.excel.drives selector to let users pick
  * which drive contains their Excel file.
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
 
   try {
     const body = await request.json()
-    const { credential, workflowId, siteId } = body
+    const { credential, workflowId, siteId, driveId } = body
 
     if (!credential) {
       logger.warn(`[${requestId}] Missing credential in request`)
@@ -37,7 +37,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Site ID is required' }, { status: 400 })
     }
 
-    const authz = await authorizeCredentialUse(request as Request, {
+    if (!/^[\w.,;:-]+$/.test(siteId)) {
+      logger.warn(`[${requestId}] Invalid siteId format`)
+      return NextResponse.json({ error: 'Invalid site ID format' }, { status: 400 })
+    }
+
+    const authz = await authorizeCredentialUse(request, {
       credentialId: credential,
       workflowId,
     })
@@ -58,6 +63,35 @@ export async function POST(request: Request) {
       )
     }
 
+    // Single-drive lookup when driveId is provided (used by fetchById)
+    if (driveId) {
+      if (!/^[\w-]+$/.test(driveId)) {
+        return NextResponse.json({ error: 'Invalid drive ID format' }, { status: 400 })
+      }
+
+      const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}?$select=id,name,driveType,webUrl`
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: { message: 'Unknown error' } }))
+        return NextResponse.json(
+          { error: errorData.error?.message || 'Failed to fetch drive' },
+          { status: response.status }
+        )
+      }
+
+      const data: GraphDrive = await response.json()
+      return NextResponse.json(
+        { drive: { id: data.id, name: data.name, driveType: data.driveType } },
+        { status: 200 }
+      )
+    }
+
+    // List all drives for the site
     const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives?$select=id,name,driveType,webUrl`
 
     const response = await fetch(url, {
