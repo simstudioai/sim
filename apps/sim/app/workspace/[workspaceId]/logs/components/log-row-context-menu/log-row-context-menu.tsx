@@ -74,7 +74,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
       >
         {isRunning && (
           <>
-            <DropdownMenuItem onSelect={onCancelExecution} className='text-destructive'>
+            <DropdownMenuItem onSelect={onCancelExecution}>
               <X />
               Cancel Execution
             </DropdownMenuItem>
