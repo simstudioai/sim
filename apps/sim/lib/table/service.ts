@@ -16,6 +16,7 @@ import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { generateId } from '@/lib/core/utils/uuid'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { fireTableTrigger } from './trigger'
+import { scheduleWorkflowColumnRuns } from './workflow-columns'
 import { buildFilterClause, buildSortClause } from './sql'
 import type {
   BatchInsertData,
@@ -38,6 +39,7 @@ import type {
   TableSchema,
   UpdateColumnConstraintsData,
   UpdateColumnTypeData,
+  UpdateColumnWorkflowConfigData,
   UpdateRowData,
   UpsertResult,
   UpsertRowData,
@@ -662,6 +664,7 @@ export async function insertRow(
   }
 
   void fireTableTrigger(data.tableId, table.name, 'insert', [insertedRow], null, table.schema, requestId)
+  void scheduleWorkflowColumnRuns(table, [insertedRow])
 
   return insertedRow
 }
@@ -781,6 +784,7 @@ export async function batchInsertRows(
   }))
 
   void fireTableTrigger(data.tableId, table.name, 'insert', result, null, table.schema, requestId)
+  void scheduleWorkflowColumnRuns(table, result)
 
   return result
 }
@@ -969,6 +973,7 @@ export async function upsertRow(
     const oldRows = new Map([[result.row.id, result.previousData]])
     void fireTableTrigger(data.tableId, table.name, 'update', [result.row], oldRows, table.schema, requestId)
   }
+  void scheduleWorkflowColumnRuns(table, [result.row])
 
   return result
 }
@@ -1155,6 +1160,7 @@ export async function updateRow(
 
   const oldRows = new Map([[data.rowId, existingRow.data as RowData]])
   void fireTableTrigger(data.tableId, table.name, 'update', [updatedRow], oldRows, table.schema, requestId)
+  void scheduleWorkflowColumnRuns(table, [updatedRow])
 
   return updatedRow
 }
@@ -1311,6 +1317,7 @@ export async function updateRowsByFilter(
     updatedAt: now,
   }))
   void fireTableTrigger(data.tableId, table.name, 'update', updatedRows, oldRows, table.schema, requestId)
+  void scheduleWorkflowColumnRuns(table, updatedRows)
 
   return {
     affectedCount: matchingRows.length,
@@ -1412,6 +1419,7 @@ export async function batchUpdateRows(
     updatedAt: now,
   }))
   void fireTableTrigger(data.tableId, table.name, 'update', updatedRowsForTrigger, oldRowsForTrigger, table.schema, requestId)
+  void scheduleWorkflowColumnRuns(table, updatedRowsForTrigger)
 
   return {
     affectedCount: mergedUpdates.length,
@@ -1928,6 +1936,78 @@ export async function updateColumnConstraints(
 }
 
 /**
+ * Updates the workflow configuration on a workflow column.
+ */
+export async function updateColumnWorkflowConfig(
+  data: UpdateColumnWorkflowConfigData,
+  requestId: string
+): Promise<TableDefinition> {
+  const table = await getTableById(data.tableId)
+  if (!table) {
+    throw new Error('Table not found')
+  }
+
+  const schema = table.schema
+  const columnIndex = schema.columns.findIndex(
+    (c) => c.name.toLowerCase() === data.columnName.toLowerCase()
+  )
+  if (columnIndex === -1) {
+    throw new Error(`Column "${data.columnName}" not found`)
+  }
+
+  const column = schema.columns[columnIndex]
+  if (column.type !== 'workflow') {
+    throw new Error(`Column "${data.columnName}" is not a workflow column`)
+  }
+
+  const updatedColumns = schema.columns.map((c, i) =>
+    i === columnIndex ? { ...c, workflowConfig: data.workflowConfig } : c
+  )
+  const updatedSchema: TableSchema = { columns: updatedColumns }
+  const now = new Date()
+
+  await db
+    .update(userTableDefinitions)
+    .set({ schema: updatedSchema, updatedAt: now })
+    .where(eq(userTableDefinitions.id, data.tableId))
+
+  logger.info(
+    `[${requestId}] Updated workflow config for column "${column.name}" in table ${data.tableId}`
+  )
+
+  const updatedTable: TableDefinition = { ...table, schema: updatedSchema, updatedAt: now }
+
+  // Kick the scheduler across existing rows. This covers the common case of a user
+  // converting a previously-populated plain column into a workflow column — rows are
+  // already filled, so no row-write will fire the scheduler otherwise. Each row passes
+  // through the eligibility predicate, which short-circuits on rows whose cells are
+  // already running/completed/errored or whose dependencies aren't yet filled.
+  void (async () => {
+    try {
+      const rowRecords = await db
+        .select()
+        .from(userTableRows)
+        .where(eq(userTableRows.tableId, data.tableId))
+      const rows: TableRow[] = rowRecords.map((r) => ({
+        id: r.id,
+        data: r.data as RowData,
+        position: r.position,
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
+      }))
+      await scheduleWorkflowColumnRuns(updatedTable, rows)
+    } catch (err) {
+      logger.error(
+        `[${requestId}] Failed to schedule workflow column runs after config update:`,
+        err
+      )
+    }
+  })()
+
+  return updatedTable
+}
+
+/**
  * Checks if a value is compatible with a target column type.
  */
 function isValueCompatibleWithType(
@@ -1960,6 +2040,8 @@ function isValueCompatibleWithType(
       return false
     }
     case 'json':
+      return true
+    case 'workflow':
       return true
     default:
       return false

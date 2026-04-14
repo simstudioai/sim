@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { GripVertical } from 'lucide-react'
+import { Check, GripVertical } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
@@ -30,6 +30,7 @@ import {
   ChevronDown,
   Fingerprint,
   Pencil,
+  Play,
   Plus,
   Table as TableIcon,
   TableX,
@@ -39,9 +40,16 @@ import {
   TypeNumber,
   TypeText,
 } from '@/components/emcn/icons'
+import { Loader } from '@/components/emcn/icons/loader'
 import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
-import type { ColumnDefinition, Filter, SortDirection, TableRow as TableRowType } from '@/lib/table'
+import type {
+  ColumnDefinition,
+  Filter,
+  SortDirection,
+  TableRow as TableRowType,
+  WorkflowCellValue,
+} from '@/lib/table'
 import type { ColumnOption, SortConfig } from '@/app/workspace/[workspaceId]/components'
 import { ResourceHeader, ResourceOptionsBar } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -55,12 +63,14 @@ import {
   useRenameTable,
   useUpdateColumn,
   useUpdateTableMetadata,
+  useManualTriggers,
   useUpdateTableRow,
+  type ManualTriggerWorkflow,
 } from '@/hooks/queries/tables'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
-import { useContextMenu, useTableData } from '../../hooks'
+import { useContextMenu, useRowExecution, useTableData } from '../../hooks'
 import type { EditingCell, QueryOptions, SaveReason } from '../../types'
 import {
   cleanCellValue,
@@ -237,6 +247,11 @@ export function Table({
     handleRowContextMenu: baseHandleRowContextMenu,
     closeContextMenu,
   } = useContextMenu()
+
+  const { runWorkflowColumn } = useRowExecution()
+  const { data: manualTriggerWorkflows } = useManualTriggers(tableId)
+  const manualTriggerWorkflowsRef = useRef(manualTriggerWorkflows)
+  manualTriggerWorkflowsRef.current = manualTriggerWorkflows
 
   const updateRowMutation = useUpdateTableRow({ workspaceId, tableId })
   const createRowMutation = useCreateTableRow({ workspaceId, tableId })
@@ -572,6 +587,28 @@ export function Table({
     [baseHandleRowContextMenu]
   )
 
+  const handleRunWorkflow = useCallback(
+    (workflowId: string, columnName?: string) => {
+      const row = contextMenu.row
+      if (!row) return
+      const wf = manualTriggerWorkflows?.find((w) => w.workflowId === workflowId)
+      const targetColumn =
+        columnName ??
+        columns.find((c) => c.type === 'workflow' && c.workflowConfig?.workflowId === workflowId)
+          ?.name
+      if (!targetColumn) return
+      void runWorkflowColumn({
+        tableId,
+        rowId: row.id,
+        workspaceId,
+        columnName: targetColumn,
+        workflowName: wf?.workflowName,
+      })
+      closeContextMenu()
+    },
+    [contextMenu.row, manualTriggerWorkflows, columns, tableId, workspaceId, runWorkflowColumn, closeContextMenu]
+  )
+
   const handleCellMouseDown = useCallback(
     (rowIndex: number, colIndex: number, shiftKey: boolean) => {
       setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
@@ -760,7 +797,7 @@ export function Table({
   const handleCellDoubleClick = useCallback((rowId: string, columnName: string) => {
     if (!canEditRef.current) return
     const column = columnsRef.current.find((c) => c.name === columnName)
-    if (!column || column.type === 'boolean') return
+    if (!column || column.type === 'boolean' || column.type === 'workflow') return
 
     setSelectionFocus(null)
     setEditingCell({ rowId, columnName })
@@ -1007,7 +1044,7 @@ export function Table({
       if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
         if (!canEditRef.current) return
         const col = cols[anchor.colIndex]
-        if (!col || col.type === 'boolean') return
+        if (!col || col.type === 'boolean' || col.type === 'workflow') return
         if (col.type === 'number' && !/[\d.-]/.test(e.key)) return
         if (col.type === 'date' && !/[\d\-/]/.test(e.key)) return
         e.preventDefault()
@@ -1428,6 +1465,52 @@ export function Table({
     updateColumnMutation.mutate({ columnName, updates: { unique: !previousValue } })
   }, [])
 
+  const sanitizeWorkflowNameAsColumn = useCallback(
+    (workflowName: string, currentColumnName: string) => {
+      const base = workflowName
+        .toLowerCase()
+        .replace(/[^a-z0-9_]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .replace(/^([0-9])/, '_$1')
+      const candidate = base || 'workflow'
+      const taken = new Set(
+        schemaColumnsRef.current
+          .filter((c) => c.name.toLowerCase() !== currentColumnName.toLowerCase())
+          .map((c) => c.name.toLowerCase())
+      )
+      if (!taken.has(candidate.toLowerCase())) return candidate
+      let i = 2
+      while (taken.has(`${candidate}_${i}`.toLowerCase())) i++
+      return `${candidate}_${i}`
+    },
+    []
+  )
+
+  const handleChangeToWorkflow = useCallback(
+    (columnName: string, workflowId: string) => {
+      const column = columnsRef.current.find((c) => c.name === columnName)
+      if (column) {
+        pushUndoRef.current({
+          type: 'update-column-type',
+          columnName,
+          previousType: column.type,
+          newType: 'workflow',
+        })
+      }
+      const wf = manualTriggerWorkflowsRef.current?.find((w) => w.workflowId === workflowId)
+      const newName = wf ? sanitizeWorkflowNameAsColumn(wf.workflowName, columnName) : undefined
+      updateColumnMutation.mutate({
+        columnName,
+        updates: {
+          ...(newName && newName !== columnName ? { name: newName } : {}),
+          type: 'workflow',
+          workflowConfig: { workflowId },
+        },
+      })
+    },
+    [sanitizeWorkflowNameAsColumn]
+  )
+
   const handleRenameColumn = useCallback(
     (name: string) => columnRename.startRename(name, name),
     [columnRename.startRename]
@@ -1717,6 +1800,8 @@ export function Table({
                       onDragOver={handleColumnDragOver}
                       onDragEnd={handleColumnDragEnd}
                       onDragLeave={handleColumnDragLeave}
+                      manualTriggerWorkflows={manualTriggerWorkflows}
+                      onChangeToWorkflow={handleChangeToWorkflow}
                     />
                   ))}
                   {userPermissions.canEdit && (
@@ -1839,6 +1924,8 @@ export function Table({
         disableEdit={!userPermissions.canEdit}
         disableInsert={!userPermissions.canEdit}
         disableDelete={!userPermissions.canEdit}
+        manualTriggerWorkflows={manualTriggerWorkflows}
+        onRunWorkflow={handleRunWorkflow}
       />
 
       {!embedded && (
@@ -2294,7 +2381,33 @@ function CellContent({
   const isNull = value === null || value === undefined
 
   let displayContent: React.ReactNode = null
-  if (column.type === 'boolean') {
+  if (column.type === 'workflow') {
+    const cell = value as WorkflowCellValue | null
+    if (cell?.status === 'running') {
+      displayContent = (
+        <div className='flex min-h-[20px] items-center justify-center'>
+          <Loader animate className='h-3.5 w-3.5 text-[var(--text-tertiary)]' />
+        </div>
+      )
+    } else if (cell?.status === 'completed' && cell.output != null) {
+      displayContent = (
+        <span className='block overflow-clip text-ellipsis text-[var(--text-primary)]'>
+          {typeof cell.output === 'string' ? cell.output : JSON.stringify(cell.output)}
+        </span>
+      )
+    } else if (cell?.status === 'error') {
+      displayContent = (
+        <span className='block overflow-clip text-ellipsis text-red-500'>
+          {cell.error ?? 'Error'}
+        </span>
+      )
+    } else {
+      displayContent = (
+        <span className='text-[var(--text-tertiary)]'>—</span>
+      )
+    }
+    return <>{displayContent}</>
+  } else if (column.type === 'boolean') {
     displayContent = (
       <div
         className={cn('flex min-h-[20px] items-center justify-center', isEditing && 'invisible')}
@@ -2599,6 +2712,7 @@ const COLUMN_TYPE_OPTIONS: { type: string; label: string; icon: React.ElementTyp
   { type: 'boolean', label: 'Boolean', icon: TypeBoolean },
   { type: 'date', label: 'Date', icon: CalendarIcon },
   { type: 'json', label: 'JSON', icon: TypeJson },
+  { type: 'workflow', label: 'Workflow', icon: Play },
 ]
 
 const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
@@ -2623,6 +2737,8 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onDragOver,
   onDragEnd,
   onDragLeave,
+  manualTriggerWorkflows,
+  onChangeToWorkflow,
 }: {
   column: ColumnDefinition
   readOnly?: boolean
@@ -2645,8 +2761,15 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onDragOver?: (columnName: string, side: 'left' | 'right') => void
   onDragEnd?: () => void
   onDragLeave?: () => void
+  manualTriggerWorkflows?: ManualTriggerWorkflow[]
+  onChangeToWorkflow?: (columnName: string, workflowId: string) => void
 }) {
   const renameInputRef = useRef<HTMLInputElement>(null)
+  const configuredWorkflow =
+    column.type === 'workflow' && column.workflowConfig
+      ? manualTriggerWorkflows?.find((w) => w.workflowId === column.workflowConfig!.workflowId)
+      : undefined
+  const workflowColor = configuredWorkflow?.workflowColor
 
   useEffect(() => {
     if (isRenaming && renameInputRef.current) {
@@ -2741,7 +2864,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
     >
       {isRenaming ? (
         <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
-          <ColumnTypeIcon type={column.type} />
+          <ColumnTypeIcon type={column.type} workflowColor={workflowColor} />
           <input
             ref={renameInputRef}
             type='text'
@@ -2757,7 +2880,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         </div>
       ) : readOnly ? (
         <div className='flex h-full w-full min-w-0 items-center px-2 py-[7px]'>
-          <ColumnTypeIcon type={column.type} />
+          <ColumnTypeIcon type={column.type} workflowColor={workflowColor} />
           <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[13px] text-[var(--text-primary)]'>
             {column.name}
           </span>
@@ -2770,7 +2893,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
                 type='button'
                 className='flex min-w-0 flex-1 cursor-pointer items-center px-2 py-[7px] outline-none'
               >
-                <ColumnTypeIcon type={column.type} />
+                <ColumnTypeIcon type={column.type} workflowColor={workflowColor} />
                 <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
                   {column.name}
                 </span>
@@ -2784,20 +2907,52 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               </DropdownMenuItem>
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
-                  {React.createElement(COLUMN_TYPE_ICONS[column.type] ?? TypeText)}
+                  <ColumnTypeIcon type={column.type} workflowColor={workflowColor} />
                   Change type
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
-                  {COLUMN_TYPE_OPTIONS.map((option) => (
-                    <DropdownMenuItem
-                      key={option.type}
-                      disabled={column.type === option.type}
-                      onSelect={() => onChangeType(column.name, option.type)}
-                    >
-                      <option.icon />
-                      {option.label}
-                    </DropdownMenuItem>
-                  ))}
+                  {COLUMN_TYPE_OPTIONS.map((option) => {
+                    if (option.type === 'workflow') {
+                      return (
+                        <DropdownMenuSub key={option.type}>
+                          <DropdownMenuSubTrigger>
+                            <ColumnTypeIcon type='workflow' />
+                            {option.label}
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            {manualTriggerWorkflows && manualTriggerWorkflows.length > 0 ? (
+                              manualTriggerWorkflows.map((wf) => (
+                                <DropdownMenuItem
+                                  key={wf.workflowId}
+                                  disabled={column.workflowConfig?.workflowId === wf.workflowId}
+                                  onSelect={() =>
+                                    onChangeToWorkflow?.(column.name, wf.workflowId)
+                                  }
+                                >
+                                  <ColumnTypeIcon type='workflow' workflowColor={wf.workflowColor} />
+                                  {wf.workflowName}
+                                </DropdownMenuItem>
+                              ))
+                            ) : (
+                              <DropdownMenuItem disabled>
+                                No manual triggers configured
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      )
+                    }
+                    return (
+                      <DropdownMenuItem
+                        key={option.type}
+                        disabled={column.type === option.type}
+                        onSelect={() => onChangeType(column.name, option.type)}
+                      >
+                        <option.icon />
+                        {option.label}
+                      </DropdownMenuItem>
+                    )
+                  })}
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
               <DropdownMenuSeparator />
@@ -2894,7 +3049,20 @@ const AddRowButton = React.memo(function AddRowButton({ onClick }: { onClick: ()
   )
 })
 
-function ColumnTypeIcon({ type }: { type: string }) {
+function ColumnTypeIcon({ type, workflowColor }: { type: string; workflowColor?: string }) {
+  if (type === 'workflow') {
+    const color = workflowColor ?? 'var(--text-muted)'
+    return (
+      <span
+        className='h-3 w-3 shrink-0 rounded-sm border-[2px]'
+        style={{
+          backgroundColor: color,
+          borderColor: workflowColor ? `${workflowColor}60` : 'var(--border)',
+          backgroundClip: 'padding-box',
+        }}
+      />
+    )
+  }
   const Icon = COLUMN_TYPE_ICONS[type] ?? TypeText
   return <Icon className='h-3 w-3 shrink-0 text-[var(--text-icon)]' />
 }

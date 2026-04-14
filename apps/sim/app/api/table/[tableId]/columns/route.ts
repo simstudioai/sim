@@ -9,6 +9,7 @@ import {
   renameColumn,
   updateColumnConstraints,
   updateColumnType,
+  updateColumnWorkflowConfig,
 } from '@/lib/table'
 import {
   accessError,
@@ -114,6 +115,12 @@ export async function PATCH(request: NextRequest, { params }: ColumnsRouteParams
     }
 
     if (updates.type) {
+      if (updates.type === 'workflow' && !updates.workflowConfig) {
+        return NextResponse.json(
+          { error: 'workflowConfig is required when setting type to workflow' },
+          { status: 400 }
+        )
+      }
       updatedTable = await updateColumnType(
         { tableId, columnName: updates.name ?? validated.columnName, newType: updates.type },
         requestId
@@ -127,6 +134,17 @@ export async function PATCH(request: NextRequest, { params }: ColumnsRouteParams
           columnName: updates.name ?? validated.columnName,
           ...(updates.required !== undefined ? { required: updates.required } : {}),
           ...(updates.unique !== undefined ? { unique: updates.unique } : {}),
+        },
+        requestId
+      )
+    }
+
+    if (updates.workflowConfig) {
+      updatedTable = await updateColumnWorkflowConfig(
+        {
+          tableId,
+          columnName: updates.name ?? validated.columnName,
+          workflowConfig: updates.workflowConfig,
         },
         requestId
       )

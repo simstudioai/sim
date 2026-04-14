@@ -21,11 +21,24 @@ export interface ColumnOption {
   label: string
 }
 
+export interface WorkflowColumnConfig {
+  workflowId: string
+}
+
 export interface ColumnDefinition {
   name: string
   type: (typeof COLUMN_TYPES)[number]
   required?: boolean
   unique?: boolean
+  workflowConfig?: WorkflowColumnConfig
+}
+
+export interface WorkflowCellValue {
+  executionId: string | null
+  workflowId: string
+  status: 'pending' | 'running' | 'completed' | 'error'
+  output: unknown
+  error: string | null
 }
 
 export interface TableSchema {
@@ -259,6 +272,12 @@ export interface UpdateColumnConstraintsData {
   columnName: string
   required?: boolean
   unique?: boolean
+}
+
+export interface UpdateColumnWorkflowConfigData {
+  tableId: string
+  columnName: string
+  workflowConfig: WorkflowColumnConfig
 }
 
 export interface DeleteColumnData {

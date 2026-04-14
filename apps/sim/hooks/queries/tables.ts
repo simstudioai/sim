@@ -21,6 +21,7 @@ export const tableKeys = {
   rowsRoot: (tableId: string) => [...tableKeys.detail(tableId), 'rows'] as const,
   rows: (tableId: string, paramsKey: string) =>
     [...tableKeys.rowsRoot(tableId), paramsKey] as const,
+  manualTriggers: (tableId: string) => [...tableKeys.detail(tableId), 'manual-triggers'] as const,
 }
 
 interface TableRowsParams {
@@ -644,6 +645,7 @@ interface UpdateColumnParams {
     type?: string
     required?: boolean
     unique?: boolean
+    workflowConfig?: { workflowId: string }
   }
 }
 
@@ -801,5 +803,36 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
     onSettled: () => {
       invalidateTableSchema(queryClient, workspaceId, tableId)
     },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Manual table triggers
+// ---------------------------------------------------------------------------
+
+export interface ManualTriggerWorkflow {
+  workflowId: string
+  workflowName: string
+  workflowColor: string
+}
+
+async function fetchManualTriggers(
+  tableId: string,
+  signal?: AbortSignal
+): Promise<ManualTriggerWorkflow[]> {
+  const res = await fetch(`/api/table/${tableId}/triggers`, { signal })
+  if (!res.ok) {
+    throw new Error('Failed to fetch manual triggers')
+  }
+  const json = await res.json()
+  return json.data?.workflows ?? []
+}
+
+export function useManualTriggers(tableId?: string) {
+  return useQuery({
+    queryKey: tableKeys.manualTriggers(tableId ?? ''),
+    queryFn: ({ signal }) => fetchManualTriggers(tableId!, signal),
+    enabled: Boolean(tableId),
+    staleTime: 30 * 1000,
   })
 }

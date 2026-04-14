@@ -178,6 +178,11 @@ export const UpdateColumnSchema = z.object({
     type: columnTypeEnum.optional(),
     required: z.boolean().optional(),
     unique: z.boolean().optional(),
+    workflowConfig: z
+      .object({
+        workflowId: z.string().min(1),
+      })
+      .optional(),
   }),
 })
 

@@ -52,7 +52,7 @@ export interface TablePlanLimits {
   maxRowsPerTable: number
 }
 
-export const COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json'] as const
+export const COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json', 'workflow'] as const
 
 export const NAME_PATTERN = /^[a-z_][a-z0-9_]*$/i
 

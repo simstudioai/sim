@@ -14,7 +14,13 @@ export interface ExecuteWorkflowOptions {
   enabled: boolean
   selectedOutputs?: string[]
   isSecureMode?: boolean
-  workflowTriggerType?: 'api' | 'chat' | 'copilot'
+  workflowTriggerType?: 'api' | 'chat' | 'copilot' | 'table'
+  /**
+   * If set, the executor enters the workflow at this block instead of resolving a Start block.
+   * Use for trigger-originated runs (webhooks, table triggers, schedules) where the entry point
+   * is the trigger block itself.
+   */
+  triggerBlockId?: string
   onStream?: (streamingExec: StreamingExecution) => Promise<void>
   onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
   skipLoggingComplete?: boolean
@@ -68,6 +74,7 @@ export async function executeWorkflow(
       userId: actorUserId,
       workflowUserId: workflow.userId,
       triggerType,
+      triggerBlockId: streamConfig?.triggerBlockId,
       useDraftState: streamConfig?.useDraftState ?? false,
       startTime: new Date().toISOString(),
       isClientSession: false,

@@ -3,9 +3,13 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { ArrowDown, ArrowUp, Duplicate, Pencil, Trash } from '@/components/emcn/icons'
+import { ArrowDown, ArrowUp, Duplicate, Pencil, Play, Trash } from '@/components/emcn/icons'
+import type { ManualTriggerWorkflow } from '@/hooks/queries/tables'
 import type { ContextMenuState } from '../../types'
 
 interface ContextMenuProps {
@@ -20,6 +24,8 @@ interface ContextMenuProps {
   disableEdit?: boolean
   disableInsert?: boolean
   disableDelete?: boolean
+  manualTriggerWorkflows?: ManualTriggerWorkflow[]
+  onRunWorkflow?: (workflowId: string) => void
 }
 
 export function ContextMenu({
@@ -34,8 +40,12 @@ export function ContextMenu({
   disableEdit = false,
   disableInsert = false,
   disableDelete = false,
+  manualTriggerWorkflows,
+  onRunWorkflow,
 }: ContextMenuProps) {
   const deleteLabel = selectedRowCount > 1 ? `Delete ${selectedRowCount} rows` : 'Delete row'
+  const hasWorkflows = manualTriggerWorkflows && manualTriggerWorkflows.length > 0
+  const hasRow = contextMenu.row !== null
 
   return (
     <DropdownMenu
@@ -81,6 +91,31 @@ export function ContextMenu({
           <Duplicate />
           Duplicate row
         </DropdownMenuItem>
+        {onRunWorkflow && hasRow && hasWorkflows && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Play />
+                Run Workflow
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {manualTriggerWorkflows.map((wf) => (
+                  <DropdownMenuItem
+                    key={wf.workflowId}
+                    onSelect={() => onRunWorkflow(wf.workflowId)}
+                  >
+                    <span
+                      className='h-2 w-2 shrink-0 rounded-full'
+                      style={{ backgroundColor: wf.workflowColor }}
+                    />
+                    {wf.workflowName}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          </>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
           <Trash />

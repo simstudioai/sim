@@ -72,6 +72,7 @@ export const tableNewRowTrigger: TriggerConfig = {
       options: [
         { id: 'insert', label: 'Row Inserted' },
         { id: 'update', label: 'Row Updated' },
+        { id: 'manual', label: 'Manual' },
       ],
       defaultValue: 'insert',
       description: 'The type of event to trigger on.',
