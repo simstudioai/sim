@@ -1,6 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
+import {
+  validateAlphanumericId,
+  validateSharePointSiteId,
+} from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
@@ -37,9 +41,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Site ID is required' }, { status: 400 })
     }
 
-    if (!/^[\w.,;:-]+$/.test(siteId)) {
+    const siteIdValidation = validateSharePointSiteId(siteId, 'siteId')
+    if (!siteIdValidation.isValid) {
       logger.warn(`[${requestId}] Invalid siteId format`)
-      return NextResponse.json({ error: 'Invalid site ID format' }, { status: 400 })
+      return NextResponse.json({ error: siteIdValidation.error }, { status: 400 })
     }
 
     const authz = await authorizeCredentialUse(request, {
@@ -65,8 +70,9 @@ export async function POST(request: NextRequest) {
 
     // Single-drive lookup when driveId is provided (used by fetchById)
     if (driveId) {
-      if (!/^[\w-]+$/.test(driveId)) {
-        return NextResponse.json({ error: 'Invalid drive ID format' }, { status: 400 })
+      const driveIdValidation = validateAlphanumericId(driveId, 'driveId')
+      if (!driveIdValidation.isValid) {
+        return NextResponse.json({ error: driveIdValidation.error }, { status: 400 })
       }
 
       const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}?$select=id,name,driveType,webUrl`

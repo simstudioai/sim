@@ -407,7 +407,7 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       dependsOn: ['credential'],
       mode: 'basic',
     },
-    // SharePoint Drive Selector (basic mode, depends on site)
+    // SharePoint Drive Selector (basic mode, only visible when a site is selected)
     {
       id: 'driveSelector',
       title: 'Document Library',

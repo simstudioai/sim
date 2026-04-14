@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
+import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getCredential, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
@@ -75,8 +76,11 @@ export async function GET(request: NextRequest) {
 
     // When driveId is provided (SharePoint), search within that specific drive.
     // Otherwise, search the user's personal OneDrive.
-    if (driveId && !/^[\w-]+$/.test(driveId)) {
-      return NextResponse.json({ error: 'Invalid drive ID format' }, { status: 400 })
+    if (driveId) {
+      const driveIdValidation = validateAlphanumericId(driveId, 'driveId')
+      if (!driveIdValidation.isValid) {
+        return NextResponse.json({ error: driveIdValidation.error }, { status: 400 })
+      }
     }
     const drivePath = driveId ? `drives/${driveId}` : 'me/drive'
 

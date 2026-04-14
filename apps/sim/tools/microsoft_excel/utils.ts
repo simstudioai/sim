@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ExcelCellValue } from '@/tools/microsoft_excel/types'
+import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 
 const logger = createLogger('MicrosoftExcelUtils')
 
@@ -10,8 +11,9 @@ const logger = createLogger('MicrosoftExcelUtils')
  */
 export function getItemBasePath(spreadsheetId: string, driveId?: string): string {
   if (driveId) {
-    if (!/^[\w-]+$/.test(driveId)) {
-      throw new Error('Invalid drive ID format')
+    const validation = validateAlphanumericId(driveId, 'driveId')
+    if (!validation.isValid) {
+      throw new Error(validation.error)
     }
     return `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${spreadsheetId}`
   }
