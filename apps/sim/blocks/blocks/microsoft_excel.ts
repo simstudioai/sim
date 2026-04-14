@@ -394,20 +394,34 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       placeholder: 'Enter credential ID',
       required: true,
     },
-    // SharePoint Site Selector (basic mode, optional)
+    // File Source selector (basic mode)
+    {
+      id: 'fileSource',
+      title: 'File Source',
+      type: 'dropdown',
+      options: [
+        { label: 'OneDrive', id: 'onedrive' },
+        { label: 'SharePoint', id: 'sharepoint' },
+      ],
+      value: () => 'onedrive',
+      mode: 'basic',
+    },
+    // SharePoint Site Selector (basic mode, only when SharePoint is selected)
     {
       id: 'siteSelector',
-      title: 'SharePoint Site (Optional)',
+      title: 'SharePoint Site',
       type: 'file-selector',
       canonicalParamId: 'siteId',
       serviceId: 'sharepoint',
       selectorKey: 'sharepoint.sites',
       requiredScopes: [],
-      placeholder: 'Select a SharePoint site (leave empty for OneDrive)',
+      placeholder: 'Select a SharePoint site',
       dependsOn: ['credential'],
+      condition: { field: 'fileSource', value: 'sharepoint' },
+      required: { field: 'fileSource', value: 'sharepoint' },
       mode: 'basic',
     },
-    // SharePoint Drive Selector (basic mode, only visible when a site is selected)
+    // SharePoint Drive Selector (basic mode, only when SharePoint is selected)
     {
       id: 'driveSelector',
       title: 'Document Library',
@@ -418,6 +432,8 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       selectorAllowSearch: false,
       placeholder: 'Select a document library',
       dependsOn: ['credential', 'siteSelector'],
+      condition: { field: 'fileSource', value: 'sharepoint' },
+      required: { field: 'fileSource', value: 'sharepoint' },
       mode: 'basic',
     },
     // Spreadsheet Selector (basic mode)
@@ -580,6 +596,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           cellRange,
           driveId,
           siteId: _siteId,
+          fileSource: _fileSource,
           ...rest
         } = params
 
@@ -610,6 +627,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
   },
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
+    fileSource: { type: 'string', description: 'File source (onedrive or sharepoint)' },
     oauthCredential: { type: 'string', description: 'Microsoft Excel access token' },
     siteId: { type: 'string', description: 'SharePoint site ID (used for drive/file browsing)' },
     driveId: { type: 'string', description: 'Drive ID for SharePoint document libraries' },
