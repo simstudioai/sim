@@ -193,6 +193,10 @@ export class PauseResumeManager {
         throw new Error('Paused execution not found or already resumed')
       }
 
+      if (pausedExecution.status === 'cancelled') {
+        throw new Error('Execution has been cancelled')
+      }
+
       const pausePoints = pausedExecution.pausePoints as Record<string, any>
       const pausePoint = pausePoints?.[contextId]
       if (!pausePoint) {
@@ -1250,6 +1254,43 @@ export class PauseResumeManager {
     logger.info('Updated snapshot after resume', {
       pausedExecutionId,
       contextId,
+    })
+  }
+
+  /**
+   * Cancels a paused execution by updating both the paused execution record and the
+   * workflow execution log status to 'cancelled'. Returns true if a paused execution
+   * was found and cancelled, false if no paused execution exists for this executionId.
+   */
+  static async cancelPausedExecution(executionId: string): Promise<boolean> {
+    const now = new Date()
+
+    return await db.transaction(async (tx) => {
+      const pausedExecution = await tx
+        .select({ id: pausedExecutions.id })
+        .from(pausedExecutions)
+        .where(
+          and(eq(pausedExecutions.executionId, executionId), eq(pausedExecutions.status, 'paused'))
+        )
+        .for('update')
+        .limit(1)
+        .then((rows) => rows[0])
+
+      if (!pausedExecution) {
+        return false
+      }
+
+      await tx
+        .update(pausedExecutions)
+        .set({ status: 'cancelled', updatedAt: now })
+        .where(eq(pausedExecutions.id, pausedExecution.id))
+
+      await tx
+        .update(workflowExecutionLogs)
+        .set({ status: 'cancelled', endedAt: now })
+        .where(eq(workflowExecutionLogs.executionId, executionId))
+
+      return true
     })
   }
 

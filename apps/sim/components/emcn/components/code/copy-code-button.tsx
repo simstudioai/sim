@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, Copy } from '@/components/emcn'
+import { Button, Check, Copy } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 
 interface CopyCodeButtonProps {
@@ -19,9 +19,7 @@ export function CopyCodeButton({ code, className }: CopyCodeButtonProps) {
       setCopied(true)
       if (timerRef.current) clearTimeout(timerRef.current)
       timerRef.current = setTimeout(() => setCopied(false), 2000)
-    } catch {
-      // Clipboard write can fail when document lacks focus or permission is denied
-    }
+    } catch {}
   }, [code])
 
   useEffect(
@@ -32,15 +30,13 @@ export function CopyCodeButton({ code, className }: CopyCodeButtonProps) {
   )
 
   return (
-    <button
+    <Button
       type='button'
+      variant='ghost'
       onClick={handleCopy}
-      className={cn(
-        'flex items-center gap-1 rounded px-1.5 py-0.5 text-xs transition-colors',
-        className
-      )}
+      className={cn('flex items-center gap-1 rounded px-1.5 py-0.5 text-xs', className)}
     >
       {copied ? <Check className='size-3.5' /> : <Copy className='size-3.5' />}
-    </button>
+    </Button>
   )
 }

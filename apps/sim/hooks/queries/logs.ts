@@ -1,4 +1,5 @@
 import {
+  type InfiniteData,
   keepPreviousData,
   type QueryClient,
   useInfiniteQuery,
@@ -276,6 +277,8 @@ export function useExecutionSnapshot(executionId: string | undefined) {
   })
 }
 
+type LogsPage = { logs: WorkflowLog[]; hasMore: boolean; nextPage: number | undefined }
+
 export function useCancelExecution() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -293,6 +296,33 @@ export function useCancelExecution() {
       const data = await res.json()
       if (!data.success) throw new Error('Failed to cancel execution')
       return data
+    },
+    onMutate: async ({ executionId }) => {
+      await queryClient.cancelQueries({ queryKey: logKeys.lists() })
+
+      const previousQueries = queryClient.getQueriesData<InfiniteData<LogsPage>>({
+        queryKey: logKeys.lists(),
+      })
+
+      queryClient.setQueriesData<InfiniteData<LogsPage>>({ queryKey: logKeys.lists() }, (old) => {
+        if (!old) return old
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            logs: page.logs.map((log) =>
+              log.executionId === executionId ? { ...log, status: 'cancelling' } : log
+            ),
+          })),
+        }
+      })
+
+      return { previousQueries }
+    },
+    onError: (_err, _variables, context) => {
+      for (const [queryKey, data] of context?.previousQueries ?? []) {
+        queryClient.setQueryData(queryKey, data)
+      }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: logKeys.lists() })
