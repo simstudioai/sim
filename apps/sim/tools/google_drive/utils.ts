@@ -128,6 +128,7 @@ export const VALID_EXPORT_FORMATS: Record<string, string[]> = {
     'application/vnd.oasis.opendocument.text',
     'application/rtf',
     'application/epub+zip',
+    'text/markdown',
   ],
   'application/vnd.google-apps.spreadsheet': [
     'text/csv',
