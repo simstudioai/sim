@@ -495,7 +495,6 @@ export const URL_OUTPUT: OutputProperty = {
   description: 'URL to view in Confluence',
 }
 
-// Page operations
 export interface ConfluenceRetrieveParams {
   accessToken: string
   pageId: string
@@ -573,7 +572,6 @@ export interface ConfluenceDeletePageResponse extends ToolResponse {
   }
 }
 
-// Search operations
 export interface ConfluenceSearchParams {
   accessToken: string
   domain: string
@@ -595,7 +593,6 @@ export interface ConfluenceSearchResponse extends ToolResponse {
   }
 }
 
-// Comment operations
 export interface ConfluenceCommentParams {
   accessToken: string
   domain: string
@@ -612,7 +609,6 @@ export interface ConfluenceCommentResponse extends ToolResponse {
   }
 }
 
-// Attachment operations
 export interface ConfluenceAttachmentParams {
   accessToken: string
   domain: string
@@ -659,7 +655,6 @@ export interface ConfluenceUploadAttachmentResponse extends ToolResponse {
   }
 }
 
-// Label operations
 export interface ConfluenceLabelParams {
   accessToken: string
   domain: string
@@ -683,7 +678,6 @@ export interface ConfluenceLabelResponse extends ToolResponse {
   }
 }
 
-// Space operations
 export interface ConfluenceSpaceParams {
   accessToken: string
   domain: string
