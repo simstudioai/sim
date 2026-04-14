@@ -169,24 +169,24 @@ export async function DELETE(req: NextRequest) {
     const body = await req.json()
     const { chatId, resourceType, resourceId } = RemoveResourceSchema.parse(body)
 
-    const [chat] = await db
-      .select({ resources: copilotChats.resources })
-      .from(copilotChats)
+    const [updated] = await db
+      .update(copilotChats)
+      .set({
+        resources: sql`COALESCE((
+          SELECT jsonb_agg(elem)
+          FROM jsonb_array_elements(${copilotChats.resources}) elem
+          WHERE NOT (elem->>'type' = ${resourceType} AND elem->>'id' = ${resourceId})
+        ), '[]'::jsonb)`,
+        updatedAt: new Date(),
+      })
       .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
-      .limit(1)
+      .returning({ resources: copilotChats.resources })
 
-    if (!chat) {
+    if (!updated) {
       return createNotFoundResponse('Chat not found or unauthorized')
     }
 
-    const existing = Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
-    const key = `${resourceType}:${resourceId}`
-    const merged = existing.filter((r) => `${r.type}:${r.id}` !== key)
-
-    await db
-      .update(copilotChats)
-      .set({ resources: sql`${JSON.stringify(merged)}::jsonb`, updatedAt: new Date() })
-      .where(eq(copilotChats.id, chatId))
+    const merged = Array.isArray(updated.resources) ? (updated.resources as ChatResource[]) : []
 
     logger.info('Removed resource from chat', { chatId, resourceType, resourceId })
 

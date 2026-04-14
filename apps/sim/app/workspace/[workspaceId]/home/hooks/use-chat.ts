@@ -1317,7 +1317,11 @@ export function useChat(
     const persistedResources = chatHistory.resources.filter((r) => r.id !== 'streaming-file')
     if (persistedResources.length > 0) {
       setResources(persistedResources)
-      setActiveResourceId(persistedResources[persistedResources.length - 1].id)
+      setActiveResourceId((prev) =>
+        prev && persistedResources.some((r) => r.id === prev)
+          ? prev
+          : persistedResources[persistedResources.length - 1].id
+      )
 
       for (const resource of persistedResources) {
         if (resource.type !== 'workflow') continue
