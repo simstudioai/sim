@@ -59,6 +59,8 @@ export const ToolCallStatus = {
   success: 'success',
   error: 'error',
   cancelled: 'cancelled',
+  skipped: 'skipped',
+  rejected: 'rejected',
 } as const
 export type ToolCallStatus = (typeof ToolCallStatus)[keyof typeof ToolCallStatus]
 

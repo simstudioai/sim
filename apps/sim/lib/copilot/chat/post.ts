@@ -420,10 +420,8 @@ async function resolveBranch(params: {
       workflowName,
       requestedWorkspaceId
     )
-    if (!resolved) {
-      return createBadRequestResponse(
-        'No workflows found. Create a workflow first or provide a valid workflowId.'
-      )
+    if (resolved.status !== 'resolved') {
+      return createBadRequestResponse(resolved.message)
     }
 
     const resolvedWorkflowId = resolved.workflowId

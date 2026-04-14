@@ -58,7 +58,7 @@ export const MemoizedWorkflowItem = memo(
     onSelect: () => void
     color: string
     name: string
-    folderPath?: string
+    folderPath?: string[]
     isCurrent?: boolean
   }) {
     return (
@@ -71,13 +71,21 @@ export const MemoizedWorkflowItem = memo(
             backgroundClip: 'padding-box',
           }}
         />
-        <span className='truncate font-base text-[var(--text-body)]'>
-          {name}
-          {isCurrent && ' (current)'}
+        <span className='flex min-w-0 max-w-[75%] flex-shrink-0 font-base text-[var(--text-body)]'>
+          <span className='truncate'>{name}</span>
+          {isCurrent && <span className='flex-shrink-0 whitespace-pre'> (current)</span>}
         </span>
-        {folderPath && (
-          <span className='ml-auto min-w-0 truncate pl-2 font-base text-[var(--text-subtle)] text-small'>
-            {folderPath}
+        {folderPath && folderPath.length > 0 && (
+          <span className='ml-auto flex min-w-0 pl-2 font-base text-[var(--text-subtle)] text-small'>
+            {folderPath.length > 1 && (
+              <>
+                <span className='min-w-0 truncate [flex-shrink:9999]'>
+                  {folderPath.slice(0, -1).join(' / ')}
+                </span>
+                <span className='flex-shrink-0 whitespace-pre'> / </span>
+              </>
+            )}
+            <span className='min-w-0 truncate'>{folderPath[folderPath.length - 1]}</span>
           </span>
         )}
       </Command.Item>
@@ -87,8 +95,10 @@ export const MemoizedWorkflowItem = memo(
     prev.value === next.value &&
     prev.color === next.color &&
     prev.name === next.name &&
-    prev.folderPath === next.folderPath &&
-    prev.isCurrent === next.isCurrent
+    prev.isCurrent === next.isCurrent &&
+    (prev.folderPath === next.folderPath ||
+      (prev.folderPath?.length === next.folderPath?.length &&
+        (prev.folderPath ?? []).every((segment, i) => segment === next.folderPath?.[i])))
 )
 
 export const MemoizedTaskItem = memo(
@@ -127,9 +137,9 @@ export const MemoizedWorkspaceItem = memo(
   }) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        <span className='truncate font-base text-[var(--text-body)]'>
-          {name}
-          {isCurrent && ' (current)'}
+        <span className='flex min-w-0 font-base text-[var(--text-body)]'>
+          <span className='truncate'>{name}</span>
+          {isCurrent && <span className='flex-shrink-0 whitespace-pre'> (current)</span>}
         </span>
       </Command.Item>
     )

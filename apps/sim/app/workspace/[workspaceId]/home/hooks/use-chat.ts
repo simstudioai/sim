@@ -119,6 +119,7 @@ import type {
   MothershipResourceType,
   QueuedMessage,
 } from '../types'
+import { ToolCallStatus } from '../types'
 
 const FILE_SUBAGENT_ID = 'file'
 
@@ -610,6 +611,28 @@ function getToolUI(ui?: MothershipStreamV1ToolUI): StreamToolUI | undefined {
   }
 }
 
+function resolveLiveToolStatus(
+  payload: Partial<{
+    status: string
+    success: boolean
+  }>
+): ToolCallStatus {
+  switch (payload.status) {
+    case MothershipStreamV1ToolOutcome.success:
+      return ToolCallStatus.success
+    case MothershipStreamV1ToolOutcome.error:
+      return ToolCallStatus.error
+    case MothershipStreamV1ToolOutcome.cancelled:
+      return ToolCallStatus.cancelled
+    case MothershipStreamV1ToolOutcome.skipped:
+      return ToolCallStatus.skipped
+    case MothershipStreamV1ToolOutcome.rejected:
+      return ToolCallStatus.rejected
+    default:
+      return payload.success === true ? ToolCallStatus.success : ToolCallStatus.error
+  }
+}
+
 /** Adds a workflow to the React Query cache with a top-insertion sort order if it doesn't already exist. */
 function ensureWorkflowInRegistry(resourceId: string, title: string, workspaceId: string): boolean {
   const workflows = getWorkflows(workspaceId)
@@ -650,7 +673,10 @@ function extractResourceFromReadResult(
 ): MothershipResource | null {
   if (!path) return null
 
-  const segments = path.split('/')
+  const segments = path
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter(Boolean)
   const resourceType = VFS_DIR_TO_RESOURCE[segments[0]]
   if (!resourceType || !segments[1]) return null
 
@@ -670,8 +696,22 @@ function extractResourceFromReadResult(
     }
   }
 
+  const fallbackTitle =
+    resourceType === 'workflow'
+      ? resolveLeafWorkflowPathSegment(segments)
+      : segments[1] || segments[segments.length - 1]
+
   if (!id) return null
-  return { type: resourceType, id, title: name || segments[1] }
+  return { type: resourceType, id, title: name || fallbackTitle || id }
+}
+
+function resolveLeafWorkflowPathSegment(segments: string[]): string | undefined {
+  const lastSegment = segments[segments.length - 1]
+  if (!lastSegment) return undefined
+  if (/\.[^/.]+$/.test(lastSegment) && segments.length > 1) {
+    return segments[segments.length - 2]
+  }
+  return lastSegment
 }
 
 export interface UseChatOptions {
@@ -1396,6 +1436,7 @@ export function useChat(
       let activeSubagent: string | undefined
       let activeSubagentParentToolCallId: string | undefined
       let activeCompactionId: string | undefined
+      const subagentByParentToolCallId = new Map<string, string>()
 
       if (preserveState) {
         for (let i = blocks.length - 1; i >= 0; i--) {
@@ -1418,20 +1459,32 @@ export function useChat(
         streamingBlocksRef.current = []
       }
 
-      const ensureTextBlock = (): ContentBlock => {
+      const ensureTextBlock = (subagentName?: string): ContentBlock => {
         const last = blocks[blocks.length - 1]
-        if (last?.type === 'text' && last.subagent === activeSubagent) return last
+        if (last?.type === 'text' && last.subagent === subagentName) return last
         const b: ContentBlock = { type: 'text', content: '' }
+        if (subagentName) b.subagent = subagentName
         blocks.push(b)
         return b
       }
 
-      const appendInlineErrorTag = (tag: string) => {
+      const resolveScopedSubagent = (
+        agentId: string | undefined,
+        parentToolCallId: string | undefined
+      ): string | undefined => {
+        if (agentId) return agentId
+        if (parentToolCallId) {
+          const scoped = subagentByParentToolCallId.get(parentToolCallId)
+          if (scoped) return scoped
+        }
+        return activeSubagent
+      }
+
+      const appendInlineErrorTag = (tag: string, subagentName?: string) => {
         if (runningText.includes(tag)) return
-        const tb = ensureTextBlock()
+        const tb = ensureTextBlock(subagentName)
         const prefix = runningText.length > 0 && !runningText.endsWith('\n') ? '\n' : ''
         tb.content = `${tb.content ?? ''}${prefix}${tag}`
-        if (activeSubagent) tb.subagent = activeSubagent
         runningText += `${prefix}${tag}`
         streamingContentRef.current = runningText
         flush()
@@ -1545,6 +1598,13 @@ export function useChat(
           }
 
           logger.debug('SSE event received', parsed)
+          const scopedParentToolCallId =
+            typeof parsed.scope?.parentToolCallId === 'string'
+              ? parsed.scope.parentToolCallId
+              : undefined
+          const scopedAgentId =
+            typeof parsed.scope?.agentId === 'string' ? parsed.scope.agentId : undefined
+          const scopedSubagent = resolveScopedSubagent(scopedAgentId, scopedParentToolCallId)
           switch (parsed.type) {
             case MothershipStreamV1EventType.session: {
               const payload = parsed.payload
@@ -1600,16 +1660,15 @@ export function useChat(
             case MothershipStreamV1EventType.text: {
               const chunk = parsed.payload.text
               if (chunk) {
-                const contentSource: 'main' | 'subagent' = activeSubagent ? 'subagent' : 'main'
+                const contentSource: 'main' | 'subagent' = scopedSubagent ? 'subagent' : 'main'
                 const needsBoundaryNewline =
                   lastContentSource !== null &&
                   lastContentSource !== contentSource &&
                   runningText.length > 0 &&
                   !runningText.endsWith('\n')
-                const tb = ensureTextBlock()
+                const tb = ensureTextBlock(scopedSubagent)
                 const normalizedChunk = needsBoundaryNewline ? `\n${chunk}` : chunk
                 tb.content = (tb.content ?? '') + normalizedChunk
-                if (activeSubagent) tb.subagent = activeSubagent
                 runningText += normalizedChunk
                 lastContentSource = contentSource
                 streamingContentRef.current = runningText
@@ -1800,22 +1859,24 @@ export function useChat(
                 }
                 const tc = blocks[idx].toolCall!
                 const outputObj = asPayloadRecord(payload.output)
-                const success =
-                  payload.success ?? payload.status === MothershipStreamV1ToolOutcome.success
                 const isCancelled =
                   outputObj?.reason === 'user_cancelled' ||
                   outputObj?.cancelledByUser === true ||
                   payload.status === MothershipStreamV1ToolOutcome.cancelled
+                const status = isCancelled
+                  ? ToolCallStatus.cancelled
+                  : resolveLiveToolStatus(payload)
+                const isSuccess = status === ToolCallStatus.success
 
-                if (isCancelled) {
-                  tc.status = 'cancelled'
+                if (status === ToolCallStatus.cancelled) {
+                  tc.status = ToolCallStatus.cancelled
                   tc.displayTitle = 'Stopped by user'
                 } else {
-                  tc.status = success ? 'success' : 'error'
+                  tc.status = status
                 }
                 tc.streamingArgs = undefined
                 tc.result = {
-                  success: !!success,
+                  success: isSuccess,
                   output: payload.output,
                   error: typeof payload.error === 'string' ? payload.error : undefined,
                 }
@@ -1902,7 +1963,7 @@ export function useChat(
                     })
                     setActiveResourceId(fileResource.id)
                     invalidateResourceQueries(queryClient, workspaceId, 'file', fileResource.id)
-                  } else if (!activeSubagent || activeSubagent !== FILE_SUBAGENT_ID) {
+                  } else if (tc.calledBy !== FILE_SUBAGENT_ID) {
                     setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))
                   }
                 }
@@ -1948,7 +2009,7 @@ export function useChat(
                     status: 'executing',
                     displayTitle,
                     params: args,
-                    calledBy: activeSubagent,
+                    calledBy: scopedSubagent,
                   },
                 })
                 if (name === ReadTool.id || isResourceToolName(name)) {
@@ -2064,23 +2125,18 @@ export function useChat(
               }
               const spanData = asPayloadRecord(payload.data)
               const parentToolCallId =
-                typeof parsed.scope?.parentToolCallId === 'string'
-                  ? parsed.scope.parentToolCallId
-                  : typeof spanData?.tool_call_id === 'string'
-                    ? spanData.tool_call_id
-                    : undefined
+                scopedParentToolCallId ??
+                (typeof spanData?.tool_call_id === 'string' ? spanData.tool_call_id : undefined)
               const isPendingPause = spanData?.pending === true
-              const name =
-                typeof payload.agent === 'string'
-                  ? payload.agent
-                  : typeof parsed.scope?.agentId === 'string'
-                    ? parsed.scope.agentId
-                    : undefined
+              const name = typeof payload.agent === 'string' ? payload.agent : scopedAgentId
               if (payload.event === MothershipStreamV1SpanLifecycleEvent.start && name) {
                 const isSameActiveSubagent =
                   activeSubagent === name &&
                   activeSubagentParentToolCallId &&
                   parentToolCallId === activeSubagentParentToolCallId
+                if (parentToolCallId) {
+                  subagentByParentToolCallId.set(parentToolCallId, name)
+                }
                 activeSubagent = name
                 activeSubagentParentToolCallId = parentToolCallId
                 if (!isSameActiveSubagent) {
@@ -2104,6 +2160,9 @@ export function useChat(
                 if (isPendingPause) {
                   break
                 }
+                if (parentToolCallId) {
+                  subagentByParentToolCallId.delete(parentToolCallId)
+                }
                 if (previewSessionRef.current && !activePreviewSessionIdRef.current) {
                   const lastFileResource = resourcesRef.current.find(
                     (r) => r.type === 'file' && r.id !== 'streaming-file'
@@ -2113,8 +2172,14 @@ export function useChat(
                     setActiveResourceId(lastFileResource.id)
                   }
                 }
-                activeSubagent = undefined
-                activeSubagentParentToolCallId = undefined
+                if (
+                  !parentToolCallId ||
+                  parentToolCallId === activeSubagentParentToolCallId ||
+                  name === activeSubagent
+                ) {
+                  activeSubagent = undefined
+                  activeSubagentParentToolCallId = undefined
+                }
                 blocks.push({ type: 'subagent_end' })
                 flush()
               }
@@ -2123,7 +2188,7 @@ export function useChat(
             case MothershipStreamV1EventType.error: {
               sawStreamError = true
               setError(parsed.payload.message || parsed.payload.error || 'An error occurred')
-              appendInlineErrorTag(buildInlineErrorTag(parsed.payload))
+              appendInlineErrorTag(buildInlineErrorTag(parsed.payload), scopedSubagent)
               break
             }
             case MothershipStreamV1EventType.complete: {

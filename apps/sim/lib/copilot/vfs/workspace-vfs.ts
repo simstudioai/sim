@@ -1367,6 +1367,7 @@ export class WorkspaceVFS {
             id: c.id,
             providerId: c.providerId,
             displayName: c.displayName,
+            role: c.role,
             scope: null,
             createdAt: c.updatedAt,
           })),

@@ -121,6 +121,7 @@ describe('handleUnifiedChatPost', () => {
     vi.clearAllMocks()
     getSession.mockResolvedValue({ user: { id: 'user-1' } })
     resolveWorkflowIdForUser.mockResolvedValue({
+      status: 'resolved',
       workflowId: 'wf-1',
       workflowName: 'Workflow One',
     })
