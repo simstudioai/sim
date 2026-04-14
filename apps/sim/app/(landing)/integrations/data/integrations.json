@@ -6868,9 +6868,49 @@
       {
         "name": "Get Issue Forms",
         "description": "List forms (ProForma/JSM Forms) attached to a Jira issue with metadata (name, submitted status, lock)"
+      },
+      {
+        "name": "Attach Form",
+        "description": "Attach a form template to an existing Jira issue or JSM request"
+      },
+      {
+        "name": "Save Form Answers",
+        "description": "Save answers to a form attached to a Jira issue or JSM request"
+      },
+      {
+        "name": "Submit Form",
+        "description": "Submit a form on a Jira issue or JSM request, locking it from further edits"
+      },
+      {
+        "name": "Get Form",
+        "description": "Get a single form with full design, state, and answers from a Jira issue"
+      },
+      {
+        "name": "Get Form Answers",
+        "description": "Get simplified answers from a form attached to a Jira issue or JSM request"
+      },
+      {
+        "name": "Reopen Form",
+        "description": "Reopen a submitted form on a Jira issue or JSM request, allowing further edits"
+      },
+      {
+        "name": "Delete Form",
+        "description": "Remove a form from a Jira issue or JSM request"
+      },
+      {
+        "name": "Externalise Form",
+        "description": "Make a form visible to customers on a Jira issue or JSM request"
+      },
+      {
+        "name": "Internalise Form",
+        "description": "Make a form internal only (not visible to customers) on a Jira issue or JSM request"
+      },
+      {
+        "name": "Copy Forms",
+        "description": "Copy forms from one Jira issue to another"
       }
     ],
-    "operationCount": 24,
+    "operationCount": 34,
     "triggers": [],
     "triggerCount": 0,
     "authType": "oauth",

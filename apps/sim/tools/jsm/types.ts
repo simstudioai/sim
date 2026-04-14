@@ -900,6 +900,201 @@ export interface JsmGetIssueFormsResponse extends ToolResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Attach Form
+// ---------------------------------------------------------------------------
+
+export interface JsmAttachFormParams extends JsmBaseParams {
+  issueIdOrKey: string
+  formTemplateId: string
+}
+
+export interface JsmAttachFormResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    id: string
+    name: string
+    updated: string | null
+    submitted: boolean
+    lock: boolean
+    internal: boolean | null
+    formTemplateId: string | null
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Save Form Answers
+// ---------------------------------------------------------------------------
+
+export interface JsmSaveFormAnswersParams extends JsmBaseParams {
+  issueIdOrKey: string
+  formId: string
+  answers: Record<string, unknown>
+}
+
+export interface JsmSaveFormAnswersResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    formId: string
+    state: { status: string } | null
+    updated: string | null
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Submit Form
+// ---------------------------------------------------------------------------
+
+export interface JsmSubmitFormParams extends JsmBaseParams {
+  issueIdOrKey: string
+  formId: string
+}
+
+export interface JsmSubmitFormResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    formId: string
+    status: string
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Get Form (single full form)
+// ---------------------------------------------------------------------------
+
+export interface JsmGetFormParams extends JsmBaseParams {
+  issueIdOrKey: string
+  formId: string
+}
+
+export interface JsmGetFormResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    formId: string
+    design: Record<string, unknown> | null
+    state: {
+      answers: Record<string, unknown>
+      status: string
+      visibility: string
+    } | null
+    updated: string | null
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Delete Form
+// ---------------------------------------------------------------------------
+
+export interface JsmDeleteFormParams extends JsmBaseParams {
+  issueIdOrKey: string
+  formId: string
+}
+
+export interface JsmDeleteFormResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    formId: string
+    deleted: boolean
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Externalise Form
+// ---------------------------------------------------------------------------
+
+export interface JsmExternaliseFormParams extends JsmBaseParams {
+  issueIdOrKey: string
+  formId: string
+}
+
+export interface JsmExternaliseFormResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    formId: string
+    visibility: string
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Internalise Form
+// ---------------------------------------------------------------------------
+
+export interface JsmInternaliseFormParams extends JsmBaseParams {
+  issueIdOrKey: string
+  formId: string
+}
+
+export interface JsmInternaliseFormResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    formId: string
+    visibility: string
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Copy Forms
+// ---------------------------------------------------------------------------
+
+export interface JsmCopyFormsParams extends JsmBaseParams {
+  sourceIssueIdOrKey: string
+  targetIssueIdOrKey: string
+  formIds?: string[]
+}
+
+export interface JsmCopyFormsResponse extends ToolResponse {
+  output: {
+    ts: string
+    sourceIssueIdOrKey: string
+    targetIssueIdOrKey: string
+    copiedForms: Array<Record<string, unknown>>
+    errors: Array<Record<string, unknown>>
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Get Form Answers
+// ---------------------------------------------------------------------------
+
+export interface JsmGetFormAnswersParams extends JsmBaseParams {
+  issueIdOrKey: string
+  formId: string
+}
+
+export interface JsmGetFormAnswersResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    formId: string
+    answers: Record<string, unknown> | null
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Reopen Form
+// ---------------------------------------------------------------------------
+
+export interface JsmReopenFormParams extends JsmBaseParams {
+  issueIdOrKey: string
+  formId: string
+}
+
+export interface JsmReopenFormResponse extends ToolResponse {
+  output: {
+    ts: string
+    issueIdOrKey: string
+    formId: string
+    status: string
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Union type for all JSM responses
 // ---------------------------------------------------------------------------
 
@@ -929,3 +1124,13 @@ export type JsmResponse =
   | JsmGetFormTemplatesResponse
   | JsmGetFormStructureResponse
   | JsmGetIssueFormsResponse
+  | JsmAttachFormResponse
+  | JsmSaveFormAnswersResponse
+  | JsmSubmitFormResponse
+  | JsmGetFormResponse
+  | JsmDeleteFormResponse
+  | JsmExternaliseFormResponse
+  | JsmInternaliseFormResponse
+  | JsmCopyFormsResponse
+  | JsmGetFormAnswersResponse
+  | JsmReopenFormResponse
