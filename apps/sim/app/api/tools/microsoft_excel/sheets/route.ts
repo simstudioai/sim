@@ -62,6 +62,10 @@ export async function GET(request: NextRequest) {
       `[${requestId}] Fetching worksheets from Microsoft Graph API for workbook ${spreadsheetId}`
     )
 
+    if (driveId && !/^[\w-]+$/.test(driveId)) {
+      return NextResponse.json({ error: 'Invalid drive ID format' }, { status: 400 })
+    }
+
     const basePath = driveId
       ? `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${spreadsheetId}`
       : `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}`

@@ -431,7 +431,7 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       requiredScopes: [],
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       placeholder: 'Select a spreadsheet',
-      dependsOn: { all: ['credential'], any: ['driveSelector'] },
+      dependsOn: { all: ['credential'], any: ['credential', 'driveSelector'] },
       mode: 'basic',
     },
     // Manual Spreadsheet ID (advanced mode)
@@ -441,7 +441,7 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       type: 'short-input',
       canonicalParamId: 'spreadsheetId',
       placeholder: 'Enter spreadsheet ID',
-      dependsOn: { all: ['credential'], any: ['manualDriveId'] },
+      dependsOn: { all: ['credential'], any: ['credential', 'manualDriveId'] },
       mode: 'advanced',
     },
     // Drive ID for SharePoint (advanced mode)
@@ -480,7 +480,7 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       required: true,
       dependsOn: {
         all: ['credential'],
-        any: ['manualDriveId'],
+        any: ['credential', 'manualDriveId'],
       },
       mode: 'advanced',
     },
