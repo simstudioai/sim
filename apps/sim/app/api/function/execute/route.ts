@@ -18,6 +18,7 @@ import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block
 import { formatLiteralForCode } from '@/executor/utils/code-formatting'
 import {
   createEnvVarPattern,
+  createReferencePattern,
   createWorkflowVariablePattern,
 } from '@/executor/utils/reference-validation'
 export const dynamic = 'force-dynamic'
@@ -27,10 +28,7 @@ export const MAX_DURATION = 210
 
 const logger = createLogger('FunctionExecuteAPI')
 
-const TAG_PATTERN = new RegExp(
-  `${REFERENCE.START}([^${REFERENCE.START}${REFERENCE.END}]+)${REFERENCE.END}`,
-  'g'
-)
+const TAG_PATTERN = createReferencePattern()
 
 const E2B_JS_WRAPPER_LINES = 3
 const E2B_PYTHON_WRAPPER_LINES = 1
