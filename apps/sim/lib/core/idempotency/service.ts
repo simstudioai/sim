@@ -343,6 +343,10 @@ export class IdempotencyService {
     logger.debug(`Stored idempotency result in database: ${normalizedKey}`)
   }
 
+  async release(normalizedKey: string, storageMethod: 'redis' | 'database'): Promise<void> {
+    return this.deleteKey(normalizedKey, storageMethod)
+  }
+
   private async deleteKey(
     normalizedKey: string,
     storageMethod: 'redis' | 'database'
@@ -481,4 +485,9 @@ export const pollingIdempotency = new IdempotencyService({
   namespace: 'polling',
   ttlSeconds: 60 * 60 * 24 * 3, // 3 days
   retryFailures: true,
+})
+
+export const billingIdempotency = new IdempotencyService({
+  namespace: 'billing',
+  ttlSeconds: 60 * 60, // 1 hour
 })
