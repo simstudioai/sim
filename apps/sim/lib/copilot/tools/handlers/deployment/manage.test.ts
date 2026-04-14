@@ -3,6 +3,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ExecutionContext } from '@/lib/copilot/request/types'
 
 const { ensureWorkflowAccessMock, performRevertToVersionMock } = vi.hoisted(() => ({
   ensureWorkflowAccessMock: vi.fn(),
@@ -22,17 +23,6 @@ vi.mock('@sim/db', () => ({
   workflowMcpServer: {},
   workflowMcpTool: {},
 }))
-
-vi.mock('drizzle-orm', async () => {
-  const actual = await vi.importActual<typeof import('drizzle-orm')>('drizzle-orm')
-  return {
-    ...actual,
-    and: vi.fn(),
-    eq: vi.fn(),
-    inArray: vi.fn(),
-    isNull: vi.fn(),
-  }
-})
 
 vi.mock('@/lib/audit/log', () => ({
   AuditAction: {},
@@ -86,7 +76,8 @@ describe('executeRevertToVersion', () => {
 
     const result = await executeRevertToVersion({ workflowId: 'wf-1', version: 7 }, {
       userId: 'user-1',
-    } as any)
+      workflowId: 'wf-1',
+    } as ExecutionContext)
 
     expect(ensureWorkflowAccessMock).toHaveBeenCalledWith('wf-1', 'user-1', 'admin')
     expect(performRevertToVersionMock).toHaveBeenCalledWith({
@@ -113,7 +104,8 @@ describe('executeRevertToVersion', () => {
 
     const result = await executeRevertToVersion({ workflowId: 'wf-1', version: 7 }, {
       userId: 'user-1',
-    } as any)
+      workflowId: 'wf-1',
+    } as ExecutionContext)
 
     expect(result).toEqual({
       success: false,
