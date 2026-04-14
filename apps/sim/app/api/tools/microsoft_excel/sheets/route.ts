@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const credentialId = searchParams.get('credentialId')
     const spreadsheetId = searchParams.get('spreadsheetId')
+    const driveId = searchParams.get('driveId') || undefined
     const workflowId = searchParams.get('workflowId') || undefined
 
     if (!credentialId) {
@@ -61,17 +62,17 @@ export async function GET(request: NextRequest) {
       `[${requestId}] Fetching worksheets from Microsoft Graph API for workbook ${spreadsheetId}`
     )
 
-    // Fetch worksheets from Microsoft Graph API
-    const worksheetsResponse = await fetch(
-      `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}/workbook/worksheets`,
-      {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    )
+    const basePath = driveId
+      ? `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${spreadsheetId}`
+      : `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}`
+
+    const worksheetsResponse = await fetch(`${basePath}/workbook/worksheets`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    })
 
     if (!worksheetsResponse.ok) {
       const errorData = await worksheetsResponse

@@ -3,6 +3,18 @@ import type { ExcelCellValue } from '@/tools/microsoft_excel/types'
 
 const logger = createLogger('MicrosoftExcelUtils')
 
+/**
+ * Returns the Graph API base path for an Excel item.
+ * When driveId is provided, uses /drives/{driveId}/items/{itemId} (SharePoint/shared drives).
+ * When driveId is omitted, uses /me/drive/items/{itemId} (personal OneDrive).
+ */
+export function getItemBasePath(spreadsheetId: string, driveId?: string): string {
+  if (driveId) {
+    return `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${spreadsheetId}`
+  }
+  return `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}`
+}
+
 export function trimTrailingEmptyRowsAndColumns(matrix: ExcelCellValue[][]): ExcelCellValue[][] {
   if (!Array.isArray(matrix) || matrix.length === 0) return []
 
@@ -43,33 +55,32 @@ export function trimTrailingEmptyRowsAndColumns(matrix: ExcelCellValue[][]): Exc
  */
 export async function getSpreadsheetWebUrl(
   spreadsheetId: string,
-  accessToken: string
+  accessToken: string,
+  driveId?: string
 ): Promise<string> {
+  const basePath = getItemBasePath(spreadsheetId, driveId)
   try {
-    const response = await fetch(
-      `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}?$select=id,webUrl`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    )
+    const response = await fetch(`${basePath}?$select=id,webUrl`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
 
     if (!response.ok) {
       logger.warn('Failed to fetch spreadsheet webUrl, using Graph API URL as fallback', {
         spreadsheetId,
         status: response.status,
       })
-      return `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}`
+      return basePath
     }
 
     const data = await response.json()
-    return data.webUrl || `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}`
+    return data.webUrl || basePath
   } catch (error) {
     logger.warn('Error fetching spreadsheet webUrl, using Graph API URL as fallback', {
       spreadsheetId,
       error,
     })
-    return `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}`
+    return basePath
   }
 }

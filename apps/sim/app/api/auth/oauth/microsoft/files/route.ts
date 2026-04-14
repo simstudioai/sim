@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const credentialId = searchParams.get('credentialId')
     const query = searchParams.get('query') || ''
+    const driveId = searchParams.get('driveId') || undefined
     const workflowId = searchParams.get('workflowId') || undefined
 
     if (!credentialId) {
@@ -72,8 +73,12 @@ export async function GET(request: NextRequest) {
     )
     searchParams_new.append('$top', '50')
 
+    // When driveId is provided (SharePoint), search within that specific drive.
+    // Otherwise, search the user's personal OneDrive.
+    const drivePath = driveId ? `drives/${driveId}` : 'me/drive'
+
     const response = await fetch(
-      `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(searchQuery)}')?${searchParams_new.toString()}`,
+      `https://graph.microsoft.com/v1.0/${drivePath}/root/search(q='${encodeURIComponent(searchQuery)}')?${searchParams_new.toString()}`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
