@@ -48,7 +48,7 @@
     "husky": "9.1.7",
     "json-schema-to-typescript": "15.0.4",
     "lint-staged": "16.0.0",
-    "turbo": "2.9.5"
+    "turbo": "2.9.6"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,css,scss}": [
