@@ -1287,7 +1287,7 @@ export class PauseResumeManager {
 
       await tx
         .update(workflowExecutionLogs)
-        .set({ status: 'cancelled' })
+        .set({ status: 'cancelled', endedAt: now })
         .where(eq(workflowExecutionLogs.executionId, executionId))
 
       return true
