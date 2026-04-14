@@ -305,7 +305,7 @@ export async function upsertWorkspaceEnvVars(
       set: { variables: merged, updatedAt: new Date() },
     })
 
-  await syncWorkspaceEnvCredentials({ workspaceId, envKeys: Object.keys(newVars), actingUserId })
+  await syncWorkspaceEnvCredentials({ workspaceId, envKeys: Object.keys(merged), actingUserId })
 
   return updatedKeys
 }

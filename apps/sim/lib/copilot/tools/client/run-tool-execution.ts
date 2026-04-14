@@ -7,7 +7,6 @@ import {
   RunFromBlock,
   RunWorkflowUntilBlock,
 } from '@/lib/copilot/generated/tool-catalog-v1'
-import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-display-registry'
 import { generateId } from '@/lib/core/utils/uuid'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { useExecutionStore } from '@/stores/execution/store'
@@ -156,7 +155,6 @@ export function markRunToolManuallyStopped(workflowId: string): string | null {
   const toolCallId = activeRunToolByWorkflowId.get(workflowId)
   if (!toolCallId) return null
   manuallyStoppedToolCallIds.add(toolCallId)
-  setToolState(toolCallId, ClientToolCallState.cancelled)
   return toolCallId
 }
 
@@ -188,7 +186,6 @@ export async function reportManualRunToolStop(
 
   if (!manuallyStoppedToolCallIds.has(toolCallId)) {
     manuallyStoppedToolCallIds.add(toolCallId)
-    setToolState(toolCallId, ClientToolCallState.cancelled)
   }
 
   await reportCompletion(
@@ -216,7 +213,6 @@ async function doExecuteRunTool(
 
   if (!targetWorkflowId) {
     logger.warn('[RunTool] Execution prevented: no active workflow', { toolCallId, toolName })
-    setToolState(toolCallId, ClientToolCallState.error)
     await reportCompletion(
       toolCallId,
       MothershipStreamV1ToolOutcome.error,
@@ -249,7 +245,6 @@ async function doExecuteRunTool(
   if (isExecuting) {
     logger.warn('[RunTool] Execution prevented: already executing', { toolCallId, toolName })
     activeRunToolByWorkflowId.delete(targetWorkflowId)
-    setToolState(toolCallId, ClientToolCallState.error)
     await reportCompletion(
       toolCallId,
       MothershipStreamV1ToolOutcome.error,
@@ -371,7 +366,6 @@ async function doExecuteRunTool(
       })
     } else if (succeeded) {
       logger.info('[RunTool] Workflow execution succeeded', { toolCallId, toolName })
-      setToolState(toolCallId, ClientToolCallState.success)
       await reportCompletion(
         toolCallId,
         MothershipStreamV1ToolOutcome.success,
@@ -381,7 +375,6 @@ async function doExecuteRunTool(
     } else {
       const msg = errorMessage || 'Workflow execution failed'
       logger.error('[RunTool] Workflow execution failed', { toolCallId, toolName, error: msg })
-      setToolState(toolCallId, ClientToolCallState.error)
       await reportCompletion(
         toolCallId,
         MothershipStreamV1ToolOutcome.error,
@@ -398,7 +391,6 @@ async function doExecuteRunTool(
     } else {
       const msg = err instanceof Error ? err.message : String(err)
       logger.error('[RunTool] Workflow execution threw', { toolCallId, toolName, error: msg })
-      setToolState(toolCallId, ClientToolCallState.error)
       await reportCompletion(toolCallId, MothershipStreamV1ToolOutcome.error, msg)
     }
   } finally {
@@ -420,10 +412,6 @@ async function doExecuteRunTool(
     consolePersistence.executionEnded()
     setIsExecuting(targetWorkflowId, false)
   }
-}
-
-function setToolState(_toolCallId: string, _state: ClientToolCallState): void {
-  // no-op: tool state is tracked by the mothership SSE stream
 }
 
 /**

@@ -1,16 +1,19 @@
-import { db } from '@sim/db'
-import { credential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { SetEnvironmentVariables } from '@/lib/copilot/generated/tool-catalog-v1'
-import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
+import {
+  ensureWorkflowAccess,
+  ensureWorkspaceAccess,
+  getDefaultWorkspaceId,
+} from '@/lib/copilot/tools/handlers/access'
+import type { BaseServerTool, ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import { upsertPersonalEnvVars, upsertWorkspaceEnvVars } from '@/lib/environment/utils'
-import { getWorkflowById } from '@/lib/workflows/utils'
 
 interface SetEnvironmentVariablesParams {
   variables: Record<string, any> | Array<{ name: string; value: string }>
+  scope?: 'personal' | 'workspace'
   workflowId?: string
+  workspaceId?: string
 }
 
 const EnvVarSchema = z.object({ variables: z.record(z.string()) })
@@ -34,12 +37,34 @@ function normalizeVariables(
   ) as Record<string, string>
 }
 
+async function resolveWorkspaceId(
+  params: SetEnvironmentVariablesParams,
+  context: ServerToolContext | undefined,
+  userId: string
+): Promise<string> {
+  if (params.workflowId) {
+    const { workflow } = await ensureWorkflowAccess(params.workflowId, userId, 'write')
+    if (!workflow.workspaceId) {
+      throw new Error(`Workflow ${params.workflowId} is not associated with a workspace`)
+    }
+    return workflow.workspaceId
+  }
+
+  const workspaceId = params.workspaceId ?? context?.workspaceId
+  if (workspaceId) {
+    await ensureWorkspaceAccess(workspaceId, userId, 'write')
+    return workspaceId
+  }
+
+  return getDefaultWorkspaceId(userId)
+}
+
 export const setEnvironmentVariablesServerTool: BaseServerTool<SetEnvironmentVariablesParams, any> =
   {
     name: SetEnvironmentVariables.id,
     async execute(
       params: SetEnvironmentVariablesParams,
-      context?: { userId: string }
+      context?: ServerToolContext
     ): Promise<any> {
       const logger = createLogger('SetEnvironmentVariablesServerTool')
 
@@ -52,67 +77,38 @@ export const setEnvironmentVariablesServerTool: BaseServerTool<SetEnvironmentVar
 
       const authenticatedUserId = context.userId
       const { variables } = params || ({} as SetEnvironmentVariablesParams)
+      const scope = params.scope === 'personal' ? 'personal' : 'workspace'
 
       const normalized = normalizeVariables(variables || {})
       const { variables: validatedVariables } = EnvVarSchema.parse({ variables: normalized })
-
-      const requestedKeys = Object.keys(validatedVariables)
-      const workflowId = params.workflowId
-
-      const workspaceKeySet = new Set<string>()
-      let resolvedWorkspaceId: string | null = null
-
-      if (requestedKeys.length > 0 && workflowId) {
-        const wf = await getWorkflowById(workflowId)
-
-        if (wf?.workspaceId) {
-          resolvedWorkspaceId = wf.workspaceId
-          const existingWorkspaceCredentials = await db
-            .select({ envKey: credential.envKey })
-            .from(credential)
-            .where(
-              and(
-                eq(credential.workspaceId, wf.workspaceId),
-                eq(credential.type, 'env_workspace'),
-                inArray(credential.envKey, requestedKeys)
-              )
-            )
-
-          for (const row of existingWorkspaceCredentials) {
-            if (row.envKey) workspaceKeySet.add(row.envKey)
-          }
-        }
-      }
-
-      const personalVars: Record<string, string> = {}
-      const workspaceVars: Record<string, string> = {}
-
-      for (const [key, value] of Object.entries(validatedVariables)) {
-        if (workspaceKeySet.has(key)) {
-          workspaceVars[key] = value
-        } else {
-          personalVars[key] = value
-        }
-      }
-
-      const { added, updated } = await upsertPersonalEnvVars(authenticatedUserId, personalVars)
-
+      const variableNames = Object.keys(validatedVariables)
+      const added: string[] = []
+      const updated: string[] = []
       let workspaceUpdated: string[] = []
-      if (Object.keys(workspaceVars).length > 0 && resolvedWorkspaceId) {
+
+      let resolvedWorkspaceId: string | undefined
+      if (scope === 'workspace') {
+        resolvedWorkspaceId = await resolveWorkspaceId(params, context, authenticatedUserId)
         workspaceUpdated = await upsertWorkspaceEnvVars(
           resolvedWorkspaceId,
-          workspaceVars,
+          validatedVariables,
           authenticatedUserId
         )
+      } else {
+        const result = await upsertPersonalEnvVars(authenticatedUserId, validatedVariables)
+        added.push(...result.added)
+        updated.push(...result.updated)
       }
 
       const totalProcessed = added.length + updated.length + workspaceUpdated.length
 
       logger.info('Saved environment variables', {
         userId: authenticatedUserId,
+        scope,
         addedCount: added.length,
         updatedCount: updated.length,
         workspaceUpdatedCount: workspaceUpdated.length,
+        workspaceId: resolvedWorkspaceId,
       })
 
       const parts: string[] = []
@@ -123,8 +119,10 @@ export const setEnvironmentVariablesServerTool: BaseServerTool<SetEnvironmentVar
 
       return {
         message: `Successfully processed ${totalProcessed} secret(s): ${parts.join(', ')}`,
-        variableCount: Object.keys(validatedVariables).length,
-        variableNames: Object.keys(validatedVariables),
+        scope,
+        workspaceId: resolvedWorkspaceId,
+        variableCount: variableNames.length,
+        variableNames,
         addedVariables: added,
         updatedVariables: updated,
         workspaceUpdatedVariables: workspaceUpdated,

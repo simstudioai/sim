@@ -25,7 +25,7 @@ export interface PersistedToolCall {
   error?: string
   calledBy?: string
   durationMs?: number
-  display?: { title?: string; phaseLabel?: string }
+  display?: { title?: string }
 }
 
 export interface PersistedContentBlock {
@@ -146,11 +146,10 @@ function mapContentBlock(block: ContentBlock): PersistedContentBlock {
             ? { params: block.toolCall.params }
             : {}),
         ...(block.calledBy ? { calledBy: block.calledBy } : {}),
-        ...(block.toolCall.displayTitle || block.toolCall.phaseLabel
+        ...(block.toolCall.displayTitle
           ? {
               display: {
-                ...(block.toolCall.displayTitle ? { title: block.toolCall.displayTitle } : {}),
-                ...(block.toolCall.phaseLabel ? { phaseLabel: block.toolCall.phaseLabel } : {}),
+                title: block.toolCall.displayTitle,
               },
             }
           : {}),
@@ -312,8 +311,10 @@ function normalizeCanonicalBlock(block: RawBlock): PersistedContentBlock {
       ...(block.toolCall.display
         ? {
             display: {
-              title: block.toolCall.display.title ?? block.toolCall.display.text,
-              phaseLabel: block.toolCall.display.phaseLabel,
+              title:
+                block.toolCall.display.title ??
+                block.toolCall.display.text ??
+                block.toolCall.display.phaseLabel,
             },
           }
         : {}),
@@ -337,8 +338,10 @@ function normalizeLegacyBlock(block: RawBlock): PersistedContentBlock {
         ...(block.toolCall.display
           ? {
               display: {
-                title: block.toolCall.display.title ?? block.toolCall.display.text,
-                phaseLabel: block.toolCall.display.phaseLabel,
+                title:
+                  block.toolCall.display.title ??
+                  block.toolCall.display.text ??
+                  block.toolCall.display.phaseLabel,
               },
             }
           : {}),
