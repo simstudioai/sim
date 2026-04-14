@@ -182,10 +182,7 @@ export const ClientChatMessage = memo(
                       {JSON.stringify(cleanTextContent, null, 2)}
                     </pre>
                   ) : (
-                    <MarkdownRenderer
-                      content={cleanTextContent as string}
-                      isStreaming={message.isStreaming}
-                    />
+                    <MarkdownRenderer content={cleanTextContent as string} />
                   )}
                 </div>
               </div>

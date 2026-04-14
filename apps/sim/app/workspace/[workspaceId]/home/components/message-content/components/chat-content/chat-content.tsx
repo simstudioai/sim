@@ -243,18 +243,6 @@ export function ChatContent({
   onOptionSelect,
   onWorkspaceResourceSelect,
 }: ChatContentProps) {
-  const hydratedStreamingRef = useRef(isStreaming && content.trim().length > 0)
-  const previousIsStreamingRef = useRef(isStreaming)
-
-  useEffect(() => {
-    if (!previousIsStreamingRef.current && isStreaming && content.trim().length > 0) {
-      hydratedStreamingRef.current = true
-    } else if (!isStreaming) {
-      hydratedStreamingRef.current = false
-    }
-    previousIsStreamingRef.current = isStreaming
-  }, [content, isStreaming])
-
   const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
   onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
 
@@ -338,12 +326,7 @@ export function ChatContent({
 
   return (
     <div className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}>
-      <Streamdown
-        mode={isStreaming ? undefined : 'static'}
-        isAnimating={isStreaming}
-        animated={isStreaming && !hydratedStreamingRef.current}
-        components={MARKDOWN_COMPONENTS}
-      >
+      <Streamdown mode='static' components={MARKDOWN_COMPONENTS}>
         {content}
       </Streamdown>
     </div>
