@@ -963,8 +963,6 @@ export function useChat(
   const recoveringClientWorkflowToolIdsRef = useRef<Set<string>>(new Set())
   const executionStream = useExecutionStream()
   const isHomePage = pathname.endsWith('/home')
-  const wasHomePageRef = useRef(isHomePage)
-  const pendingHomeResetRef = useRef(false)
 
   const setTransportIdle = useCallback(() => {
     sendingRef.current = false
@@ -1219,33 +1217,10 @@ export function useChat(
   ])
 
   useEffect(() => {
-    const wasHomePage = wasHomePageRef.current
-    wasHomePageRef.current = isHomePage
-
-    if (!isHomePage) {
-      pendingHomeResetRef.current = false
-      return
-    }
-    if (workflowIdRef.current || !chatIdRef.current) return
-
-    const shouldHandleHomeReset = pendingHomeResetRef.current || !wasHomePage
-    if (!shouldHandleHomeReset) return
-
-    const hasActiveTransport =
-      isSending ||
-      sendingRef.current ||
-      isReconnecting ||
-      abortControllerRef.current !== null ||
-      streamReaderRef.current !== null
-
-    if (hasActiveTransport) {
-      pendingHomeResetRef.current = true
-      return
-    }
-
-    pendingHomeResetRef.current = false
+    if (workflowIdRef.current) return
+    if (!isHomePage || !chatIdRef.current) return
     resetHomeChatState()
-  }, [isHomePage, isReconnecting, isSending, resetHomeChatState])
+  }, [isHomePage, resetHomeChatState])
 
   useEffect(() => {
     if (!chatHistory) return
