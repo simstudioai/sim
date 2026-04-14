@@ -6,55 +6,12 @@ import { taskKeys } from '@/hooks/queries/tasks'
 
 const logger = createLogger('TaskEvents')
 
-interface TaskStatusEventPayload {
-  chatId?: string
-  type?: 'started' | 'completed' | 'created' | 'deleted' | 'renamed'
-}
-
-function parseTaskStatusEventPayload(data: unknown): TaskStatusEventPayload | null {
-  let parsed = data
-
-  if (typeof parsed === 'string') {
-    try {
-      parsed = JSON.parse(parsed)
-    } catch {
-      return null
-    }
-  }
-
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return null
-  }
-
-  const record = parsed as Record<string, unknown>
-
-  return {
-    ...(typeof record.chatId === 'string' ? { chatId: record.chatId } : {}),
-    ...(typeof record.type === 'string'
-      ? { type: record.type as TaskStatusEventPayload['type'] }
-      : {}),
-  }
-}
-
-export function handleTaskStatusEvent(
-  queryClient: Pick<QueryClient, 'invalidateQueries'>,
-  data: unknown
-): void {
+export function handleTaskStatusEvent(queryClient: Pick<QueryClient, 'invalidateQueries'>): void {
   queryClient.invalidateQueries({ queryKey: taskKeys.lists() })
-
-  const payload = parseTaskStatusEventPayload(data)
-  if (!payload) {
-    logger.warn('Received invalid task_status payload')
-    return
-  }
-
-  if (payload.type === 'completed' && payload.chatId) {
-    queryClient.invalidateQueries({ queryKey: taskKeys.detail(payload.chatId) })
-  }
 }
 
 /**
- * Subscribes to task status SSE events and invalidates task caches on changes.
+ * Subscribes to task status SSE events and refreshes the task list on changes.
  */
 export function useTaskEvents(workspaceId: string | undefined) {
   const queryClient = useQueryClient()
@@ -66,8 +23,8 @@ export function useTaskEvents(workspaceId: string | undefined) {
       `/api/mothership/events?workspaceId=${encodeURIComponent(workspaceId)}`
     )
 
-    eventSource.addEventListener('task_status', (event) => {
-      handleTaskStatusEvent(queryClient, event instanceof MessageEvent ? event.data : undefined)
+    eventSource.addEventListener('task_status', () => {
+      handleTaskStatusEvent(queryClient)
     })
 
     eventSource.onerror = () => {

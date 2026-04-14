@@ -2622,15 +2622,29 @@ export function useChat(
     []
   )
 
-  const invalidateChatQueries = useCallback(() => {
-    const activeChatId = chatIdRef.current
-    if (activeChatId) {
+  const invalidateTaskHistory = useCallback(
+    (refetchType: 'active' | 'none' = 'active') => {
+      const activeChatId = chatIdRef.current
+      if (!activeChatId) {
+        return
+      }
+
       queryClient.invalidateQueries({
         queryKey: taskKeys.detail(activeChatId),
+        refetchType,
       })
-    }
+    },
+    [queryClient]
+  )
+
+  const invalidateTaskList = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
   }, [workspaceId, queryClient])
+
+  const invalidateChatQueries = useCallback(() => {
+    invalidateTaskHistory()
+    invalidateTaskList()
+  }, [invalidateTaskHistory, invalidateTaskList])
 
   const messagesRef = useRef(messages)
   messagesRef.current = messages
@@ -2643,7 +2657,8 @@ export function useChat(
       clearActiveTurn()
       setTransportIdle()
       abortControllerRef.current = null
-      invalidateChatQueries()
+      invalidateTaskHistory('none')
+      invalidateTaskList()
 
       if (!options?.error) {
         const cid = chatIdRef.current
@@ -2660,7 +2675,13 @@ export function useChat(
         void enqueueQueueDispatchRef.current({ type: 'send_head' })
       }
     },
-    [clearActiveTurn, invalidateChatQueries, reconcileTerminalPreviewSessions, setTransportIdle]
+    [
+      clearActiveTurn,
+      invalidateTaskHistory,
+      invalidateTaskList,
+      reconcileTerminalPreviewSessions,
+      setTransportIdle,
+    ]
   )
   finalizeRef.current = finalize
 
