@@ -1,6 +1,3 @@
-# Protect the CODEOWNERS policy itself.
-/.github/CODEOWNERS @simstudioai/mothership
-
 # Copilot/Mothership chat streaming entrypoints and replay surfaces.
 /apps/sim/app/api/copilot/chat/ @simstudioai/mothership
 /apps/sim/app/api/copilot/confirm/ @simstudioai/mothership
@@ -25,5 +22,7 @@
 /apps/sim/lib/copilot/resources/ @simstudioai/mothership
 
 # Client-side stream consumption, hydration, and reconnect.
-/apps/sim/app/workspace/*/home/hooks/ @simstudioai/mothership
+/apps/sim/app/workspace/*/home/hooks/index.ts @simstudioai/mothership
+/apps/sim/app/workspace/*/home/hooks/use-chat.ts @simstudioai/mothership
+/apps/sim/app/workspace/*/home/hooks/use-file-preview-sessions.ts @simstudioai/mothership
 /apps/sim/hooks/queries/tasks.ts @simstudioai/mothership
