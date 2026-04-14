@@ -185,8 +185,12 @@ export function ResourceTabs({
     if (!node || !activeId) return
     const tab = node.querySelector<HTMLElement>(`[data-resource-tab-id="${CSS.escape(activeId)}"]`)
     if (!tab) return
-    const tabLeft = tab.offsetLeft
-    const tabRight = tabLeft + tab.offsetWidth
+    // Use bounding rects because the tab's offsetParent is a `position: relative`
+    // wrapper, so `offsetLeft` is relative to that wrapper rather than `node`.
+    const tabRect = tab.getBoundingClientRect()
+    const nodeRect = node.getBoundingClientRect()
+    const tabLeft = tabRect.left - nodeRect.left + node.scrollLeft
+    const tabRight = tabLeft + tabRect.width
     const viewLeft = node.scrollLeft
     const viewRight = viewLeft + node.clientWidth
     if (tabLeft < viewLeft) {
