@@ -169,6 +169,24 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
   )
 }
 
+export async function resolveWebhookExecutionProviderConfig<
+  T extends { id: string; providerConfig?: unknown },
+>(
+  webhookRecord: T,
+  provider: string,
+  userId: string,
+  workspaceId?: string
+): Promise<T & { providerConfig: Record<string, unknown> }> {
+  try {
+    return await resolveWebhookRecordProviderConfig(webhookRecord, userId, workspaceId)
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      `Failed to resolve webhook provider config for ${provider} webhook ${webhookRecord.id}: ${errorMessage}`
+    )
+  }
+}
+
 async function resolveCredentialAccountUserId(credentialId: string): Promise<string | undefined> {
   const resolved = await resolveOAuthAccountId(credentialId)
   if (!resolved) {
@@ -301,20 +319,12 @@ async function executeWebhookJobInternal(
       throw new Error(`Webhook record not found: ${payload.webhookId}`)
     }
 
-    let resolvedWebhookRecord = webhookRecord
-    try {
-      resolvedWebhookRecord = await resolveWebhookRecordProviderConfig(
-        webhookRecord,
-        workflowRecord.userId,
-        workspaceId
-      )
-    } catch (error) {
-      logger.warn(`[${requestId}] Failed to resolve webhook provider config for execution`, {
-        webhookId: payload.webhookId,
-        provider: payload.provider,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    }
+    const resolvedWebhookRecord = await resolveWebhookExecutionProviderConfig(
+      webhookRecord,
+      payload.provider,
+      workflowRecord.userId,
+      workspaceId
+    )
 
     if (handler.formatInput) {
       const result = await handler.formatInput({
