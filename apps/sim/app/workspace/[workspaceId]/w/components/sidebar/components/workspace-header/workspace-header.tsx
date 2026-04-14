@@ -534,7 +534,19 @@ export function WorkspaceHeader({
                                   menuOpenWorkspaceId === workspace.id) &&
                                   'bg-[var(--surface-active)]'
                               )}
-                              onClick={() => onWorkspaceSwitch(workspace)}
+                              onClick={(e) => {
+                                if (e.metaKey || e.ctrlKey) {
+                                  window.open(`/workspace/${workspace.id}/home`, '_blank')
+                                  return
+                                }
+                                onWorkspaceSwitch(workspace)
+                              }}
+                              onAuxClick={(e) => {
+                                if (e.button === 1) {
+                                  e.preventDefault()
+                                  window.open(`/workspace/${workspace.id}/home`, '_blank')
+                                }
+                              }}
                               onContextMenu={(e) => handleContextMenu(e, workspace)}
                             >
                               <span className='min-w-0 flex-1 truncate'>{workspace.name}</span>
