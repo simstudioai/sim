@@ -143,18 +143,15 @@ export async function POST(request: NextRequest) {
           .catch(() => ({}))) as GoogleApiErrorResponse
         const errorMessage = exportError.error?.message || ''
 
-        const hasCustomFormat = !!exportMimeType
         const defaultFormat = DEFAULT_EXPORT_FORMATS[fileMimeType]
-        if (
-          hasCustomFormat &&
-          defaultFormat &&
-          exportMimeType !== defaultFormat &&
-          errorMessage.toLowerCase().includes('conversion')
-        ) {
-          logger.warn(`[${requestId}] Export format not supported, falling back to default`, {
+        const canFallback = !!exportMimeType && !!defaultFormat && exportMimeType !== defaultFormat
+
+        if (canFallback) {
+          logger.warn(`[${requestId}] Export failed with custom format, falling back to default`, {
             requestedFormat: exportFormat,
             fallbackFormat: defaultFormat,
             fileMimeType,
+            status: exportResponse.status,
           })
 
           finalMimeType = defaultFormat
