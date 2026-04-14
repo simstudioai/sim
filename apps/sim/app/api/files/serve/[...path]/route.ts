@@ -4,7 +4,11 @@ import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { generatePptxFromCode } from '@/lib/execution/pptx-vm'
+import {
+  generateDocxFromCode,
+  generatePdfFromCode,
+  generatePptxFromCode,
+} from '@/lib/execution/doc-vm'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -22,47 +26,73 @@ import {
 const logger = createLogger('FilesServeAPI')
 
 const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04])
+const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]) // %PDF-
 
-const MAX_COMPILED_PPTX_CACHE = 10
-const compiledPptxCache = new Map<string, Buffer>()
-
-function compiledCacheSet(key: string, buffer: Buffer): void {
-  if (compiledPptxCache.size >= MAX_COMPILED_PPTX_CACHE) {
-    compiledPptxCache.delete(compiledPptxCache.keys().next().value as string)
-  }
-  compiledPptxCache.set(key, buffer)
+interface CompilableFormat {
+  magic: Buffer
+  compile: (code: string, workspaceId: string) => Promise<Buffer>
+  contentType: string
 }
 
-async function compilePptxIfNeeded(
+const COMPILABLE_FORMATS: Record<string, CompilableFormat> = {
+  '.pptx': {
+    magic: ZIP_MAGIC,
+    compile: generatePptxFromCode,
+    contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  },
+  '.docx': {
+    magic: ZIP_MAGIC,
+    compile: generateDocxFromCode,
+    contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  },
+  '.pdf': {
+    magic: PDF_MAGIC,
+    compile: generatePdfFromCode,
+    contentType: 'application/pdf',
+  },
+}
+
+const MAX_COMPILED_DOC_CACHE = 10
+const compiledDocCache = new Map<string, Buffer>()
+
+function compiledCacheSet(key: string, buffer: Buffer): void {
+  if (compiledDocCache.size >= MAX_COMPILED_DOC_CACHE) {
+    compiledDocCache.delete(compiledDocCache.keys().next().value as string)
+  }
+  compiledDocCache.set(key, buffer)
+}
+
+async function compileDocumentIfNeeded(
   buffer: Buffer,
   filename: string,
   workspaceId?: string,
   raw?: boolean
 ): Promise<{ buffer: Buffer; contentType: string }> {
-  const isPptx = filename.toLowerCase().endsWith('.pptx')
-  if (raw || !isPptx || buffer.subarray(0, 4).equals(ZIP_MAGIC)) {
+  if (raw) return { buffer, contentType: getContentType(filename) }
+
+  const ext = filename.slice(filename.lastIndexOf('.')).toLowerCase()
+  const format = COMPILABLE_FORMATS[ext]
+  if (!format) return { buffer, contentType: getContentType(filename) }
+
+  const magicLen = format.magic.length
+  if (buffer.length >= magicLen && buffer.subarray(0, magicLen).equals(format.magic)) {
     return { buffer, contentType: getContentType(filename) }
   }
 
   const code = buffer.toString('utf-8')
   const cacheKey = createHash('sha256')
+    .update(ext)
     .update(code)
     .update(workspaceId ?? '')
     .digest('hex')
-  const cached = compiledPptxCache.get(cacheKey)
+  const cached = compiledDocCache.get(cacheKey)
   if (cached) {
-    return {
-      buffer: cached,
-      contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    }
+    return { buffer: cached, contentType: format.contentType }
   }
 
-  const compiled = await generatePptxFromCode(code, workspaceId || '')
+  const compiled = await format.compile(code, workspaceId || '')
   compiledCacheSet(cacheKey, compiled)
-  return {
-    buffer: compiled,
-    contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  }
+  return { buffer: compiled, contentType: format.contentType }
 }
 
 const STORAGE_KEY_PREFIX_RE = /^\d{13}-[a-z0-9]{7}-/
@@ -95,7 +125,9 @@ export async function GET(
     const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
 
     const isPublicByKeyPrefix =
-      cloudKey.startsWith('profile-pictures/') || cloudKey.startsWith('og-images/')
+      cloudKey.startsWith('profile-pictures/') ||
+      cloudKey.startsWith('og-images/') ||
+      cloudKey.startsWith('workspace-logos/')
 
     if (isPublicByKeyPrefix) {
       const context = inferContextFromKey(cloudKey)
@@ -169,7 +201,7 @@ async function handleLocalFile(
     const segment = filename.split('/').pop() || filename
     const displayName = stripStorageKeyPrefix(segment)
     const workspaceId = getWorkspaceIdForCompile(filename)
-    const { buffer: fileBuffer, contentType } = await compilePptxIfNeeded(
+    const { buffer: fileBuffer, contentType } = await compileDocumentIfNeeded(
       rawBuffer,
       displayName,
       workspaceId,
@@ -226,7 +258,7 @@ async function handleCloudProxy(
     const segment = cloudKey.split('/').pop() || 'download'
     const displayName = stripStorageKeyPrefix(segment)
     const workspaceId = getWorkspaceIdForCompile(cloudKey)
-    const { buffer: fileBuffer, contentType } = await compilePptxIfNeeded(
+    const { buffer: fileBuffer, contentType } = await compileDocumentIfNeeded(
       rawBuffer,
       displayName,
       workspaceId,

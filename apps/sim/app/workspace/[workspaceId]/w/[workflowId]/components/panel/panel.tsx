@@ -224,7 +224,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
   const [copilotChatId, setCopilotChatId] = useState<string | undefined>(undefined)
   const [copilotChatTitle, setCopilotChatTitle] = useState<string | null>(null)
   const [copilotChatList, setCopilotChatList] = useState<
-    { id: string; title: string | null; updatedAt: string; conversationId: string | null }[]
+    { id: string; title: string | null; updatedAt: string; activeStreamId: string | null }[]
   >([])
   const [isCopilotHistoryOpen, setIsCopilotHistoryOpen] = useState(false)
 
@@ -244,7 +244,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
           id: string
           title: string | null
           updatedAt: string
-          conversationId: string | null
+          activeStreamId: string | null
         }>
         setCopilotChatList(filtered)
 
@@ -438,6 +438,17 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     window.addEventListener('mothership-send-message', handler)
     return () => window.removeEventListener('mothership-send-message', handler)
   }, [setActiveTab, copilotSendMessage])
+
+  useEffect(() => {
+    if (activeTab !== 'copilot') return
+    const id = window.setTimeout(() => {
+      const textarea = document.querySelector<HTMLTextAreaElement>(
+        "[data-tab-content='copilot'] textarea"
+      )
+      textarea?.focus()
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [activeTab])
 
   /**
    * Handles tab click events
@@ -813,7 +824,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                                   >
                                     <ConversationListItem
                                       title={chat.title || 'New Chat'}
-                                      isActive={Boolean(chat.conversationId)}
+                                      isActive={Boolean(chat.activeStreamId)}
                                       titleClassName='text-[13px]'
                                       actions={
                                         <div

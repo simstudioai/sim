@@ -81,8 +81,6 @@ export const jiraSearchIssuesTool: ToolConfig<JiraSearchIssuesParams, JiraSearch
     provider: 'jira',
   },
 
-  errorExtractor: 'atlassian-errors',
-
   params: {
     accessToken: {
       type: 'string',

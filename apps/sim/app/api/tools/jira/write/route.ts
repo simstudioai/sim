@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
-import { getJiraCloudId } from '@/tools/jira/utils'
+import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -197,7 +197,10 @@ export async function POST(request: NextRequest) {
       })
 
       return NextResponse.json(
-        { error: `Jira API error: ${response.status} ${response.statusText}`, details: errorText },
+        {
+          error: parseAtlassianErrorMessage(response.status, response.statusText, errorText),
+          details: errorText,
+        },
         { status: response.status }
       )
     }

@@ -16,7 +16,10 @@ export function assertServerToolNotAborted(
   message = 'Request aborted before tool mutation could be applied.'
 ): void {
   if (context?.userStopSignal?.aborted) {
-    throw new Error(message)
+    const reason = context.userStopSignal.reason
+      ? ` (reason: ${String(context.userStopSignal.reason)})`
+      : ''
+    throw new Error(`${message}${reason}`)
   }
 }
 

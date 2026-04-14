@@ -122,7 +122,7 @@ describe('Workflow Chat Status Route', () => {
         customizations: { theme: 'dark' },
         authType: 'public',
         allowedEmails: [],
-        outputConfigs: {},
+        outputConfigs: [{ blockId: 'agent-1', path: 'content' }],
         password: 'secret',
         isActive: true,
       },
@@ -136,5 +136,6 @@ describe('Workflow Chat Status Route', () => {
     expect(data.isDeployed).toBe(true)
     expect(data.deployment.id).toBe('chat-1')
     expect(data.deployment.hasPassword).toBe(true)
+    expect(data.deployment.outputConfigs).toEqual([{ blockId: 'agent-1', path: 'content' }])
   })
 })

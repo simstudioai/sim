@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
-import { getJiraCloudId } from '@/tools/jira/utils'
+import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -188,7 +188,10 @@ export async function PUT(request: NextRequest) {
       })
 
       return NextResponse.json(
-        { error: `Jira API error: ${response.status} ${response.statusText}`, details: errorText },
+        {
+          error: parseAtlassianErrorMessage(response.status, response.statusText, errorText),
+          details: errorText,
+        },
         { status: response.status }
       )
     }

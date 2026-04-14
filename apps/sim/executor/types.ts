@@ -177,6 +177,7 @@ export interface ExecutionContext {
   userId?: string
   isDeployedContext?: boolean
   enforceCredentialAccess?: boolean
+  copilotToolExecution?: boolean
 
   permissionConfig?: PermissionGroupConfig | null
   permissionConfigLoaded?: boolean

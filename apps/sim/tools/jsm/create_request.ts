@@ -12,8 +12,6 @@ export const jsmCreateRequestTool: ToolConfig<JsmCreateRequestParams, JsmCreateR
     provider: 'jira',
   },
 
-  errorExtractor: 'atlassian-errors',
-
   params: {
     accessToken: {
       type: 'string',
@@ -75,7 +73,7 @@ export const jsmCreateRequestTool: ToolConfig<JsmCreateRequestParams, JsmCreateR
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Form answers for form-based request types (e.g., {"summary": {"text": "Title"}, "customfield_10010": {"choices": ["10320"]}})',
+        'Form answers using numeric form question IDs as keys (e.g., {"1": {"text": "Title"}, "4": {"choices": ["5"]}}). Keys are question IDs from the Jira Form, not Jira field names.',
     },
     requestParticipants: {
       type: 'string',

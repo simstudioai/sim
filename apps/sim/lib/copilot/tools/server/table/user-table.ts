@@ -1,10 +1,10 @@
 import { createLogger } from '@sim/logger'
+import { UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import type { UserTableArgs, UserTableResult } from '@/lib/copilot/tools/shared/schemas'
 import { generateId } from '@/lib/core/utils/uuid'
 import { COLUMN_TYPES } from '@/lib/table/constants'
 import {
@@ -36,6 +36,17 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('UserTableServerTool')
+
+type UserTableArgs = {
+  operation: string
+  args?: Record<string, any>
+}
+
+type UserTableResult = {
+  success: boolean
+  message: string
+  data?: any
+}
 
 const MAX_BATCH_SIZE = 1000
 const SCHEMA_SAMPLE_SIZE = 100
@@ -240,9 +251,10 @@ async function batchInsertAll(
 }
 
 export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult> = {
-  name: 'user_table',
+  name: UserTable.id,
   async execute(params: UserTableArgs, context?: ServerToolContext): Promise<UserTableResult> {
-    const reqLogger = logger.withMetadata({ messageId: context?.messageId })
+    const withMessageId = (message: string) =>
+      context?.messageId ? `${message} [messageId:${context.messageId}]` : message
 
     if (!context?.userId) {
       logger.error('Unauthorized attempt to access user table - no authenticated user context')
@@ -323,28 +335,33 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
         }
 
         case 'delete': {
-          if (!args.tableId) {
-            return { success: false, message: 'Table ID is required' }
+          const tableIds: string[] = args.tableIds ?? (args.tableId ? [args.tableId] : [])
+          if (tableIds.length === 0) {
+            return { success: false, message: 'tableId or tableIds is required' }
           }
           if (!workspaceId) {
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const table = await getTableById(args.tableId)
-          if (!table) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
-          if (table.workspaceId !== workspaceId) {
-            return { success: false, message: 'Table not found' }
-          }
+          const deleted: string[] = []
+          const failed: string[] = []
 
-          const requestId = generateId().slice(0, 8)
-          assertNotAborted()
-          await deleteTable(args.tableId, requestId)
+          for (const tableId of tableIds) {
+            const table = await getTableById(tableId)
+            if (!table || table.workspaceId !== workspaceId) {
+              failed.push(tableId)
+              continue
+            }
+
+            const requestId = generateId().slice(0, 8)
+            assertNotAborted()
+            await deleteTable(tableId, requestId)
+            deleted.push(tableId)
+          }
 
           return {
-            success: true,
-            message: `Deleted table ${args.tableId}`,
+            success: deleted.length > 0,
+            message: `Deleted ${deleted.length} table(s)${failed.length > 0 ? `, ${failed.length} not found` : ''}`,
           }
         }
 
@@ -726,7 +743,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const coerced = coerceRows(rows, columns, columnMap)
           const inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)
 
-          reqLogger.info('Table created from file', {
+          logger.info('Table created from file', {
             tableId: table.id,
             fileName: file.name,
             columns: columns.length,
@@ -802,7 +819,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const coerced = coerceRows(rows, matchedColumns, columnMap)
           const inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)
 
-          reqLogger.info('Rows imported from file', {
+          logger.info('Rows imported from file', {
             tableId: table.id,
             fileName: file.name,
             matchedColumns: mappedHeaders.length,
@@ -1000,7 +1017,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             ? error.cause.message
             : String(error.cause)
           : undefined
-      reqLogger.error('Table operation failed', {
+      logger.error('Table operation failed', {
         operation,
         error: errorMessage,
         cause,

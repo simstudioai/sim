@@ -6,16 +6,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCheckHybridAuth,
-  mockGetDispatchJobRecord,
   mockGetJobQueue,
   mockVerifyWorkflowAccess,
   mockGetWorkflowById,
+  mockGetJob,
 } = vi.hoisted(() => ({
   mockCheckHybridAuth: vi.fn(),
-  mockGetDispatchJobRecord: vi.fn(),
   mockGetJobQueue: vi.fn(),
   mockVerifyWorkflowAccess: vi.fn(),
   mockGetWorkflowById: vi.fn(),
+  mockGetJob: vi.fn(),
 }))
 
 vi.mock('@sim/logger', () => ({
@@ -32,17 +32,7 @@ vi.mock('@/lib/auth/hybrid', () => ({
 }))
 
 vi.mock('@/lib/core/async-jobs', () => ({
-  JOB_STATUS: {
-    PENDING: 'pending',
-    PROCESSING: 'processing',
-    COMPLETED: 'completed',
-    FAILED: 'failed',
-  },
   getJobQueue: mockGetJobQueue,
-}))
-
-vi.mock('@/lib/core/workspace-dispatch/store', () => ({
-  getDispatchJobRecord: mockGetDispatchJobRecord,
 }))
 
 vi.mock('@/lib/core/utils/request', () => ({
@@ -85,71 +75,51 @@ describe('GET /api/jobs/[jobId]', () => {
     })
 
     mockGetJobQueue.mockResolvedValue({
-      getJob: vi.fn().mockResolvedValue(null),
+      getJob: mockGetJob,
     })
   })
 
-  it('returns dispatcher-aware waiting status with metadata', async () => {
-    mockGetDispatchJobRecord.mockResolvedValue({
-      id: 'dispatch-1',
-      workspaceId: 'workspace-1',
-      lane: 'runtime',
-      queueName: 'workflow-execution',
-      bullmqJobName: 'workflow-execution',
-      bullmqPayload: {},
+  it('returns job status with metadata', async () => {
+    mockGetJob.mockResolvedValue({
+      id: 'job-1',
+      status: 'pending',
       metadata: {
         workflowId: 'workflow-1',
       },
-      priority: 10,
-      status: 'waiting',
-      createdAt: 1000,
-      admittedAt: 2000,
     })
 
     const response = await GET(createMockRequest(), {
-      params: Promise.resolve({ jobId: 'dispatch-1' }),
+      params: Promise.resolve({ jobId: 'job-1' }),
     })
     const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(body.status).toBe('waiting')
-    expect(body.metadata.queueName).toBe('workflow-execution')
-    expect(body.metadata.lane).toBe('runtime')
-    expect(body.metadata.workspaceId).toBe('workspace-1')
+    expect(body.status).toBe('pending')
+    expect(body.metadata.workflowId).toBe('workflow-1')
   })
 
-  it('returns completed output from dispatch state', async () => {
-    mockGetDispatchJobRecord.mockResolvedValue({
-      id: 'dispatch-2',
-      workspaceId: 'workspace-1',
-      lane: 'interactive',
-      queueName: 'workflow-execution',
-      bullmqJobName: 'direct-workflow-execution',
-      bullmqPayload: {},
+  it('returns completed output from job', async () => {
+    mockGetJob.mockResolvedValue({
+      id: 'job-2',
+      status: 'completed',
       metadata: {
         workflowId: 'workflow-1',
       },
-      priority: 1,
-      status: 'completed',
-      createdAt: 1000,
-      startedAt: 2000,
-      completedAt: 7000,
       output: { success: true },
     })
 
     const response = await GET(createMockRequest(), {
-      params: Promise.resolve({ jobId: 'dispatch-2' }),
+      params: Promise.resolve({ jobId: 'job-2' }),
     })
     const body = await response.json()
 
     expect(response.status).toBe(200)
     expect(body.status).toBe('completed')
     expect(body.output).toEqual({ success: true })
-    expect(body.metadata.duration).toBe(5000)
   })
 
-  it('returns 404 when neither dispatch nor BullMQ job exists', async () => {
-    mockGetDispatchJobRecord.mockResolvedValue(null)
+  it('returns 404 when job does not exist', async () => {
+    mockGetJob.mockResolvedValue(null)
 
     const response = await GET(createMockRequest(), {
       params: Promise.resolve({ jobId: 'missing-job' }),

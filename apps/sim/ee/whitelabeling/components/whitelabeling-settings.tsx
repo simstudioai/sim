@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Loader2, X } from 'lucide-react'
 import Image from 'next/image'
+import { useParams } from 'next/navigation'
 import { Button, Input, Label } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
@@ -146,6 +147,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 }
 
 export function WhitelabelingSettings() {
+  const params = useParams<{ workspaceId: string }>()
   const { data: session } = useSession()
   const { data: orgsData } = useOrganizations()
   const { data: subscriptionData } = useSubscriptionData()
@@ -197,12 +199,16 @@ export function WhitelabelingSettings() {
     currentImage: logoUrl,
     onUpload: (url) => setLogoUrl(url),
     onError: (error) => setSaveError(error),
+    context: 'workspace-logos',
+    workspaceId: params.workspaceId,
   })
 
   const wordmarkUpload = useProfilePictureUpload({
     currentImage: wordmarkUrl,
     onUpload: (url) => setWordmarkUrl(url),
     onError: (error) => setSaveError(error),
+    context: 'workspace-logos',
+    workspaceId: params.workspaceId,
   })
 
   const handleSave = useCallback(async () => {
@@ -358,7 +364,7 @@ export function WhitelabelingSettings() {
                 <input
                   ref={logoUpload.fileInputRef}
                   type='file'
-                  accept='image/png,image/jpeg,image/jpg,image/svg+xml'
+                  accept='image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'
                   onChange={logoUpload.handleFileChange}
                   className='hidden'
                 />
@@ -414,7 +420,7 @@ export function WhitelabelingSettings() {
                 <input
                   ref={wordmarkUpload.fileInputRef}
                   type='file'
-                  accept='image/png,image/jpeg,image/jpg,image/svg+xml'
+                  accept='image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'
                   onChange={wordmarkUpload.handleFileChange}
                   className='hidden'
                 />

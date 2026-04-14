@@ -29,7 +29,7 @@ export const LOG_COLUMN_ORDER: readonly LogColumnKey[] = [
 export const DELETED_WORKFLOW_LABEL = 'Deleted Workflow'
 export const DELETED_WORKFLOW_COLOR = 'var(--text-tertiary)'
 
-export type LogStatus = 'error' | 'pending' | 'running' | 'info' | 'cancelled'
+export type LogStatus = 'error' | 'pending' | 'running' | 'info' | 'cancelled' | 'cancelling'
 
 /**
  * Maps raw status string to LogStatus for display.
@@ -42,6 +42,8 @@ export function getDisplayStatus(status: string | null | undefined): LogStatus {
       return 'running'
     case 'pending':
       return 'pending'
+    case 'cancelling':
+      return 'cancelling'
     case 'cancelled':
       return 'cancelled'
     case 'failed':
@@ -58,6 +60,7 @@ export const STATUS_CONFIG: Record<
   error: { variant: 'red', label: 'Error', color: 'var(--text-error)' },
   pending: { variant: 'amber', label: 'Pending', color: '#f59e0b' },
   running: { variant: 'amber', label: 'Running', color: '#f59e0b' },
+  cancelling: { variant: 'amber', label: 'Cancelling...', color: '#f59e0b' },
   cancelled: { variant: 'orange', label: 'Cancelled', color: '#f97316' },
   info: { variant: 'gray', label: 'Info', color: 'var(--terminal-status-info-color)' },
 }

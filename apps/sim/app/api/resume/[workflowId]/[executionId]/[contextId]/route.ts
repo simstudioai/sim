@@ -1,13 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { AuthType } from '@/lib/auth/hybrid'
-import { getJobQueue, shouldUseBullMQ } from '@/lib/core/async-jobs'
-import { createBullMQJobData } from '@/lib/core/bullmq'
+import { getJobQueue } from '@/lib/core/async-jobs'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { generateId } from '@/lib/core/utils/uuid'
-import { enqueueWorkspaceDispatch } from '@/lib/core/workspace-dispatch'
 import { setExecutionMeta } from '@/lib/execution/event-buffer'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
@@ -227,26 +225,10 @@ export async function POST(
 
       let jobId: string
       try {
-        const useBullMQ = shouldUseBullMQ()
-        if (useBullMQ) {
-          jobId = await enqueueWorkspaceDispatch({
-            id: enqueueResult.resumeExecutionId,
-            workspaceId: workflow.workspaceId,
-            lane: 'runtime',
-            queueName: 'resume-execution',
-            bullmqJobName: 'resume-execution',
-            bullmqPayload: createBullMQJobData(resumePayload, {
-              workflowId,
-              userId,
-            }),
-            metadata: { workflowId, userId },
-          })
-        } else {
-          const jobQueue = await getJobQueue()
-          jobId = await jobQueue.enqueue('resume-execution', resumePayload, {
-            metadata: { workflowId, workspaceId: workflow.workspaceId, userId },
-          })
-        }
+        const jobQueue = await getJobQueue()
+        jobId = await jobQueue.enqueue('resume-execution', resumePayload, {
+          metadata: { workflowId, workspaceId: workflow.workspaceId, userId },
+        })
         logger.info('Enqueued async resume execution', {
           jobId,
           resumeExecutionId: enqueueResult.resumeExecutionId,

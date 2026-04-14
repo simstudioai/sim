@@ -21,6 +21,14 @@
     "lint:helm": "helm lint ./helm/sim --strict --values ./helm/sim/test/values-lint.yaml",
     "lint:all": "turbo run lint && bun run lint:helm",
     "check": "turbo run format:check",
+    "mship-contracts:generate": "bun run scripts/sync-mothership-stream-contract.ts",
+    "mship-contracts:check": "bun run scripts/sync-mothership-stream-contract.ts --check",
+    "mship-tools:generate": "bun run scripts/sync-tool-catalog.ts",
+    "mship-tools:check": "bun run scripts/sync-tool-catalog.ts --check",
+    "trace-contracts:generate": "bun run scripts/sync-request-trace-contract.ts",
+    "trace-contracts:check": "bun run scripts/sync-request-trace-contract.ts --check",
+    "mship:generate": "bun run mship-contracts:generate && bun run mship-tools:generate && bun run trace-contracts:generate",
+    "mship:check": "bun run mship-contracts:check && bun run mship-tools:check && bun run trace-contracts:check",
     "prepare": "bun husky",
     "type-check": "turbo run type-check",
     "release": "bun run scripts/create-single-release.ts"
@@ -38,8 +46,9 @@
     "@octokit/rest": "^21.0.0",
     "glob": "13.0.0",
     "husky": "9.1.7",
+    "json-schema-to-typescript": "15.0.4",
     "lint-staged": "16.0.0",
-    "turbo": "2.9.5"
+    "turbo": "2.9.6"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,css,scss}": [

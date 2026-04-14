@@ -195,8 +195,6 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
     provider: 'jira',
   },
 
-  errorExtractor: 'atlassian-errors',
-
   params: {
     accessToken: {
       type: 'string',

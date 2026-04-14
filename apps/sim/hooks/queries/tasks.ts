@@ -1,5 +1,12 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { ChatContextKind, MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
+import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
+import {
+  type FilePreviewSession,
+  isFilePreviewSession,
+} from '@/lib/copilot/request/session/file-preview-session-contract'
+import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/copilot/request/session/types'
+import { type MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
 
 export interface TaskMetadata {
   id: string
@@ -9,71 +16,16 @@ export interface TaskMetadata {
   isUnread: boolean
 }
 
-export interface StreamSnapshot {
-  events: Array<{ eventId: number; streamId: string; event: Record<string, unknown> }>
-  status: string
-}
-
 export interface TaskChatHistory {
   id: string
   title: string | null
-  messages: TaskStoredMessage[]
+  messages: PersistedMessage[]
   activeStreamId: string | null
   resources: MothershipResource[]
-  streamSnapshot?: StreamSnapshot | null
-}
-
-export interface TaskStoredToolCall {
-  id: string
-  name: string
-  status: string
-  params?: Record<string, unknown>
-  result?: unknown
-  error?: string
-  durationMs?: number
-}
-
-export interface TaskStoredFileAttachment {
-  id: string
-  key: string
-  filename: string
-  media_type: string
-  size: number
-}
-
-export interface TaskStoredMessageContext {
-  kind: ChatContextKind
-  label: string
-  workflowId?: string
-  knowledgeId?: string
-  tableId?: string
-  fileId?: string
-  folderId?: string
-  chatId?: string
-}
-
-export interface TaskStoredMessage {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  requestId?: string
-  toolCalls?: TaskStoredToolCall[]
-  contentBlocks?: TaskStoredContentBlock[]
-  fileAttachments?: TaskStoredFileAttachment[]
-  contexts?: TaskStoredMessageContext[]
-}
-
-export interface TaskStoredContentBlock {
-  type: string
-  content?: string
-  toolCall?: {
-    id?: string
-    name?: string
-    state?: string
-    params?: Record<string, unknown>
-    result?: { success: boolean; output?: unknown; error?: string }
-    display?: { text?: string }
-    calledBy?: string
+  streamSnapshot?: {
+    events: StreamBatchEvent[]
+    previewSessions: FilePreviewSession[]
+    status: string
   } | null
 }
 
@@ -89,8 +41,182 @@ interface TaskResponse {
   id: string
   title: string | null
   updatedAt: string
-  conversationId: string | null
+  activeStreamId: string | null
   lastSeenAt: string | null
+}
+
+type ChatHistorySource = 'copilot' | 'mothership'
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function assertValid(condition: unknown, message: string): asserts condition {
+  if (!condition) {
+    throw new Error(message)
+  }
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string'
+}
+
+function isValidDateString(value: unknown): value is string {
+  return typeof value === 'string' && !Number.isNaN(Date.parse(value))
+}
+
+function isResourceType(value: unknown): value is MothershipResource['type'] {
+  return (
+    typeof value === 'string' &&
+    Object.values(MothershipResourceType).some((type) => type === value)
+  )
+}
+
+function parseStreamSnapshot(value: unknown): TaskChatHistory['streamSnapshot'] {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const rawEvents = Array.isArray(value.events) ? value.events : []
+  const events: StreamBatchEvent[] = []
+  for (const entry of rawEvents) {
+    if (!isStreamBatchEvent(entry)) {
+      return null
+    }
+    events.push(entry)
+  }
+
+  const rawPreviewSessions = Array.isArray(value.previewSessions) ? value.previewSessions : []
+  const previewSessions: FilePreviewSession[] = []
+  for (const session of rawPreviewSessions) {
+    if (!isFilePreviewSession(session)) {
+      return null
+    }
+    previewSessions.push(session)
+  }
+
+  return {
+    events,
+    previewSessions,
+    status: typeof value.status === 'string' ? value.status : 'unknown',
+  }
+}
+
+function normalizeMessages(value: unknown): PersistedMessage[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value.filter(isRecord).map((message) => normalizeMessage(message))
+}
+
+function parseTaskResponse(value: unknown, index: number): TaskResponse {
+  assertValid(isRecord(value), `Invalid tasks response: data[${index}] must be an object`)
+  assertValid(
+    typeof value.id === 'string',
+    `Invalid tasks response: data[${index}].id must be a string`
+  )
+  assertValid(
+    isNullableString(value.title),
+    `Invalid tasks response: data[${index}].title must be a string or null`
+  )
+  assertValid(
+    isValidDateString(value.updatedAt),
+    `Invalid tasks response: data[${index}].updatedAt must be a valid date string`
+  )
+  assertValid(
+    isNullableString(value.activeStreamId),
+    `Invalid tasks response: data[${index}].activeStreamId must be a string or null`
+  )
+  assertValid(
+    isNullableString(value.lastSeenAt) &&
+      (value.lastSeenAt === null || isValidDateString(value.lastSeenAt)),
+    `Invalid tasks response: data[${index}].lastSeenAt must be a valid date string or null`
+  )
+
+  return {
+    id: value.id,
+    title: value.title,
+    updatedAt: value.updatedAt,
+    activeStreamId: value.activeStreamId,
+    lastSeenAt: value.lastSeenAt,
+  }
+}
+
+function parseTaskListResponse(value: unknown): TaskResponse[] {
+  assertValid(isRecord(value), 'Invalid tasks response: body must be an object')
+  assertValid(Array.isArray(value.data), 'Invalid tasks response: data must be an array')
+
+  return value.data.map((task, index) => parseTaskResponse(task, index))
+}
+
+function parseResource(value: unknown, context: string): MothershipResource {
+  assertValid(isRecord(value), `${context} must be an object`)
+  assertValid(isResourceType(value.type), `${context}.type is invalid`)
+  assertValid(typeof value.id === 'string', `${context}.id must be a string`)
+  assertValid(typeof value.title === 'string', `${context}.title must be a string`)
+
+  return {
+    type: value.type,
+    id: value.id,
+    title: value.title,
+  }
+}
+
+function parseResources(value: unknown, context: string): MothershipResource[] {
+  assertValid(Array.isArray(value), `${context} must be an array`)
+
+  return value.map((resource, index) => parseResource(resource, `${context}[${index}]`))
+}
+
+function parseStrictStreamSnapshot(
+  value: unknown,
+  context: string
+): TaskChatHistory['streamSnapshot'] {
+  if (value === undefined || value === null) {
+    return null
+  }
+
+  const snapshot = parseStreamSnapshot(value)
+  assertValid(snapshot !== null, `${context} is invalid`)
+  return snapshot
+}
+
+function parseChatHistory(value: unknown, source: ChatHistorySource): TaskChatHistory {
+  const responseContext = `Invalid ${source} chat response`
+  const chatContext = `${responseContext}: chat`
+
+  assertValid(isRecord(value), `${responseContext}: body must be an object`)
+  assertValid(isRecord(value.chat), `${chatContext} must be an object`)
+
+  const chat = value.chat
+  const activeStreamField = source === 'mothership' ? 'conversationId' : 'activeStreamId'
+  const activeStreamId = chat[activeStreamField]
+
+  assertValid(typeof chat.id === 'string', `${chatContext}.id must be a string`)
+  assertValid(isNullableString(chat.title), `${chatContext}.title must be a string or null`)
+  assertValid(Array.isArray(chat.messages), `${chatContext}.messages must be an array`)
+  assertValid(
+    isNullableString(activeStreamId),
+    `${chatContext}.${activeStreamField} must be a string or null`
+  )
+
+  return {
+    id: chat.id,
+    title: chat.title,
+    messages: normalizeMessages(chat.messages),
+    activeStreamId,
+    resources: parseResources(chat.resources, `${chatContext}.resources`),
+    streamSnapshot: parseStrictStreamSnapshot(chat.streamSnapshot, `${chatContext}.streamSnapshot`),
+  }
+}
+
+function parseChatResourcesResponse(value: unknown): { resources: MothershipResource[] } {
+  assertValid(isRecord(value), 'Invalid chat resources response: body must be an object')
+
+  return {
+    resources: parseResources(value.resources, 'Invalid chat resources response: resources'),
+  }
 }
 
 function mapTask(chat: TaskResponse): TaskMetadata {
@@ -99,22 +225,24 @@ function mapTask(chat: TaskResponse): TaskMetadata {
     id: chat.id,
     name: chat.title ?? 'New task',
     updatedAt,
-    isActive: chat.conversationId !== null,
+    isActive: chat.activeStreamId !== null,
     isUnread:
-      chat.conversationId === null &&
+      chat.activeStreamId === null &&
       (chat.lastSeenAt === null || updatedAt > new Date(chat.lastSeenAt)),
   }
 }
 
-async function fetchTasks(workspaceId: string, signal?: AbortSignal): Promise<TaskMetadata[]> {
+export async function fetchTasks(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<TaskMetadata[]> {
   const response = await fetch(`/api/mothership/chats?workspaceId=${workspaceId}`, { signal })
 
   if (!response.ok) {
     throw new Error('Failed to fetch tasks')
   }
 
-  const { data }: { data: TaskResponse[] } = await response.json()
-  return data.map(mapTask)
+  return parseTaskListResponse(await response.json()).map(mapTask)
 }
 
 /**
@@ -138,18 +266,10 @@ export async function fetchChatHistory(
   const mothershipRes = await fetch(`/api/mothership/chats/${chatId}`, { signal })
 
   if (mothershipRes.ok) {
-    const { chat } = await mothershipRes.json()
-    return {
-      id: chat.id,
-      title: chat.title,
-      messages: Array.isArray(chat.messages) ? chat.messages : [],
-      activeStreamId: chat.conversationId || null,
-      resources: Array.isArray(chat.resources) ? chat.resources : [],
-      streamSnapshot: chat.streamSnapshot || null,
-    }
+    return parseChatHistory(await mothershipRes.json(), 'mothership')
   }
 
-  const copilotRes = await fetch(`/api/copilot/chat?chatId=${encodeURIComponent(chatId)}`, {
+  const copilotRes = await fetch(`/api/mothership/chat?chatId=${encodeURIComponent(chatId)}`, {
     signal,
   })
 
@@ -157,15 +277,7 @@ export async function fetchChatHistory(
     throw new Error('Failed to load chat')
   }
 
-  const { chat } = await copilotRes.json()
-  return {
-    id: chat.id,
-    title: chat.title,
-    messages: Array.isArray(chat.messages) ? chat.messages : [],
-    activeStreamId: chat.conversationId || null,
-    resources: Array.isArray(chat.resources) ? chat.resources : [],
-    streamSnapshot: chat.streamSnapshot || null,
-  }
+  return parseChatHistory(await copilotRes.json(), 'copilot')
 }
 
 /**
@@ -267,13 +379,13 @@ async function addChatResource(params: {
   chatId: string
   resource: MothershipResource
 }): Promise<{ resources: MothershipResource[] }> {
-  const response = await fetch('/api/copilot/chat/resources', {
+  const response = await fetch('/api/mothership/chat/resources', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chatId: params.chatId, resource: params.resource }),
   })
   if (!response.ok) throw new Error('Failed to add resource')
-  return response.json()
+  return parseChatResourcesResponse(await response.json())
 }
 
 export function useAddChatResource(chatId?: string) {
@@ -314,13 +426,13 @@ async function reorderChatResources(params: {
   chatId: string
   resources: MothershipResource[]
 }): Promise<{ resources: MothershipResource[] }> {
-  const response = await fetch('/api/copilot/chat/resources', {
+  const response = await fetch('/api/mothership/chat/resources', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chatId: params.chatId, resources: params.resources }),
   })
   if (!response.ok) throw new Error('Failed to reorder resources')
-  return response.json()
+  return parseChatResourcesResponse(await response.json())
 }
 
 export function useReorderChatResources(chatId?: string) {
@@ -357,13 +469,13 @@ async function removeChatResource(params: {
   resourceType: string
   resourceId: string
 }): Promise<{ resources: MothershipResource[] }> {
-  const response = await fetch('/api/copilot/chat/resources', {
+  const response = await fetch('/api/mothership/chat/resources', {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
   })
   if (!response.ok) throw new Error('Failed to remove resource')
-  return response.json()
+  return parseChatResourcesResponse(await response.json())
 }
 
 export function useRemoveChatResource(chatId?: string) {

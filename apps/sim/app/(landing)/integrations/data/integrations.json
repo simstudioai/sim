@@ -209,6 +209,73 @@
     "tags": ["messaging"]
   },
   {
+    "type": "agiloft",
+    "slug": "agiloft",
+    "name": "Agiloft",
+    "description": "Manage records in Agiloft CLM",
+    "longDescription": "Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, and record locking across any table in your knowledge base.",
+    "bgColor": "#263A5C",
+    "iconName": "AgiloftIcon",
+    "docsUrl": "https://docs.sim.ai/tools/agiloft",
+    "operations": [
+      {
+        "name": "Create Record",
+        "description": "Create a new record in an Agiloft table."
+      },
+      {
+        "name": "Read Record",
+        "description": "Read a record by ID from an Agiloft table."
+      },
+      {
+        "name": "Update Record",
+        "description": "Update an existing record in an Agiloft table."
+      },
+      {
+        "name": "Delete Record",
+        "description": "Delete a record from an Agiloft table."
+      },
+      {
+        "name": "Search Records",
+        "description": "Search for records in an Agiloft table using a query."
+      },
+      {
+        "name": "Select Records",
+        "description": "Select record IDs matching a SQL WHERE clause from an Agiloft table."
+      },
+      {
+        "name": "Saved Search",
+        "description": "List saved searches defined for an Agiloft table."
+      },
+      {
+        "name": "Attach File",
+        "description": "Attach a file to a field in an Agiloft record."
+      },
+      {
+        "name": "Retrieve Attachment",
+        "description": "Download an attached file from an Agiloft record field."
+      },
+      {
+        "name": "Remove Attachment",
+        "description": "Remove an attached file from a field in an Agiloft record."
+      },
+      {
+        "name": "Attachment Info",
+        "description": "Get information about file attachments on a record field."
+      },
+      {
+        "name": "Lock Record",
+        "description": "Lock, unlock, or check the lock status of an Agiloft record."
+      }
+    ],
+    "operationCount": 12,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["productivity", "developer-tools"],
+    "tags": ["automation"]
+  },
+  {
     "type": "ahrefs",
     "slug": "ahrefs",
     "name": "Ahrefs",
@@ -1317,6 +1384,97 @@
     "tags": ["sales-engagement", "enrichment"]
   },
   {
+    "type": "iam",
+    "slug": "aws-iam",
+    "name": "AWS IAM",
+    "description": "Manage AWS IAM users, roles, policies, and groups",
+    "longDescription": "Integrate AWS Identity and Access Management into your workflow. Create and manage users, roles, policies, groups, and access keys.",
+    "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
+    "iconName": "IAMIcon",
+    "docsUrl": "https://docs.sim.ai/tools/iam",
+    "operations": [
+      {
+        "name": "List Users",
+        "description": "List IAM users in your AWS account"
+      },
+      {
+        "name": "Get User",
+        "description": "Get detailed information about an IAM user"
+      },
+      {
+        "name": "Create User",
+        "description": "Create a new IAM user"
+      },
+      {
+        "name": "Delete User",
+        "description": "Delete an IAM user"
+      },
+      {
+        "name": "List Roles",
+        "description": "List IAM roles in your AWS account"
+      },
+      {
+        "name": "Get Role",
+        "description": "Get detailed information about an IAM role"
+      },
+      {
+        "name": "Create Role",
+        "description": "Create a new IAM role with a trust policy"
+      },
+      {
+        "name": "Delete Role",
+        "description": "Delete an IAM role"
+      },
+      {
+        "name": "Attach User Policy",
+        "description": "Attach a managed policy to an IAM user"
+      },
+      {
+        "name": "Detach User Policy",
+        "description": "Remove a managed policy from an IAM user"
+      },
+      {
+        "name": "Attach Role Policy",
+        "description": "Attach a managed policy to an IAM role"
+      },
+      {
+        "name": "Detach Role Policy",
+        "description": "Remove a managed policy from an IAM role"
+      },
+      {
+        "name": "List Policies",
+        "description": "List managed IAM policies"
+      },
+      {
+        "name": "Create Access Key",
+        "description": "Create a new access key pair for an IAM user"
+      },
+      {
+        "name": "Delete Access Key",
+        "description": "Delete an access key pair for an IAM user"
+      },
+      {
+        "name": "List Groups",
+        "description": "List IAM groups in your AWS account"
+      },
+      {
+        "name": "Add User to Group",
+        "description": "Add an IAM user to a group"
+      },
+      {
+        "name": "Remove User from Group",
+        "description": "Remove an IAM user from a group"
+      }
+    ],
+    "operationCount": 18,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["developer-tools", "security"],
+    "tags": ["cloud", "identity"]
+  },
+  {
     "type": "secrets_manager",
     "slug": "aws-secrets-manager",
     "name": "AWS Secrets Manager",
@@ -1354,6 +1512,41 @@
     "category": "tools",
     "integrationTypes": ["developer-tools", "security"],
     "tags": ["cloud", "secrets-management"]
+  },
+  {
+    "type": "sts",
+    "slug": "aws-sts",
+    "name": "AWS STS",
+    "description": "Connect to AWS Security Token Service",
+    "longDescription": "Integrate AWS STS into the workflow. Assume roles, get temporary credentials, verify caller identity, and look up access key information.",
+    "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
+    "iconName": "STSIcon",
+    "docsUrl": "https://docs.sim.ai/tools/sts",
+    "operations": [
+      {
+        "name": "Assume Role",
+        "description": "Assume an IAM role and receive temporary security credentials"
+      },
+      {
+        "name": "Get Caller Identity",
+        "description": "Get details about the IAM user or role whose credentials are used to call the API"
+      },
+      {
+        "name": "Get Session Token",
+        "description": "Get temporary security credentials for an IAM user, optionally with MFA"
+      },
+      {
+        "name": "Get Access Key Info",
+        "description": "Get the AWS account ID associated with an access key"
+      }
+    ],
+    "operationCount": 4,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["security", "developer-tools"],
+    "tags": ["cloud"]
   },
   {
     "type": "textract_v2",
@@ -2374,7 +2567,7 @@
     "authType": "none",
     "category": "tools",
     "integrationTypes": ["security", "analytics", "developer-tools"],
-    "tags": ["monitoring", "security"]
+    "tags": ["identity", "monitoring"]
   },
   {
     "type": "cursor_v2",
@@ -6675,9 +6868,49 @@
       {
         "name": "Get Issue Forms",
         "description": "List forms (ProForma/JSM Forms) attached to a Jira issue with metadata (name, submitted status, lock)"
+      },
+      {
+        "name": "Attach Form",
+        "description": "Attach a form template to an existing Jira issue or JSM request"
+      },
+      {
+        "name": "Save Form Answers",
+        "description": "Save answers to a form attached to a Jira issue or JSM request"
+      },
+      {
+        "name": "Submit Form",
+        "description": "Submit a form on a Jira issue or JSM request, locking it from further edits"
+      },
+      {
+        "name": "Get Form",
+        "description": "Get a single form with full design, state, and answers from a Jira issue"
+      },
+      {
+        "name": "Get Form Answers",
+        "description": "Get simplified answers from a form attached to a Jira issue or JSM request"
+      },
+      {
+        "name": "Reopen Form",
+        "description": "Reopen a submitted form on a Jira issue or JSM request, allowing further edits"
+      },
+      {
+        "name": "Delete Form",
+        "description": "Remove a form from a Jira issue or JSM request"
+      },
+      {
+        "name": "Externalise Form",
+        "description": "Make a form visible to customers on a Jira issue or JSM request"
+      },
+      {
+        "name": "Internalise Form",
+        "description": "Make a form internal only (not visible to customers) on a Jira issue or JSM request"
+      },
+      {
+        "name": "Copy Forms",
+        "description": "Copy forms from one Jira issue to another"
       }
     ],
-    "operationCount": 24,
+    "operationCount": 34,
     "triggers": [],
     "triggerCount": 0,
     "authType": "oauth",

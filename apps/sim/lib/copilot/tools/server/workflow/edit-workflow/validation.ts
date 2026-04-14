@@ -792,14 +792,14 @@ export async function validateWorkflowSelectorIds(
 
 /**
  * Pre-validates credential and apiKey inputs in operations before they are applied.
- * - Validates oauth-input (credential) IDs belong to the user
+ * - Validates oauth-input (credential) IDs are accessible to the user in the workflow workspace
  * - Filters out apiKey inputs for hosted models when isHosted is true
  * - Also validates credentials and apiKeys in nestedNodes (blocks inside loop/parallel)
  * Returns validation errors for any removed inputs.
  */
 export async function preValidateCredentialInputs(
   operations: EditWorkflowOperation[],
-  context: { userId: string },
+  context: { userId: string; workspaceId?: string },
   workflowState?: Record<string, unknown>
 ): Promise<{ filteredOperations: EditWorkflowOperation[]; errors: ValidationError[] }> {
   const { isHosted } = await import('@/lib/core/config/feature-flags')

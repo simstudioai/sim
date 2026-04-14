@@ -20,6 +20,13 @@ const patchWorkspaceSchema = z.object({
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/)
     .optional(),
+  logoUrl: z
+    .string()
+    .refine((val) => val.startsWith('/') || val.startsWith('https://'), {
+      message: 'Logo URL must be an absolute path or HTTPS URL',
+    })
+    .nullable()
+    .optional(),
   billedAccountUserId: z.string().optional(),
   allowPersonalApiKeys: z.boolean().optional(),
 })
@@ -119,11 +126,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   try {
     const body = patchWorkspaceSchema.parse(await request.json())
-    const { name, color, billedAccountUserId, allowPersonalApiKeys } = body
+    const { name, color, logoUrl, billedAccountUserId, allowPersonalApiKeys } = body
 
     if (
       name === undefined &&
       color === undefined &&
+      logoUrl === undefined &&
       billedAccountUserId === undefined &&
       allowPersonalApiKeys === undefined
     ) {
@@ -148,6 +156,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     if (color !== undefined) {
       updateData.color = color
+    }
+
+    if (logoUrl !== undefined) {
+      updateData.logoUrl = logoUrl
     }
 
     if (allowPersonalApiKeys !== undefined) {
@@ -216,6 +228,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         changes: {
           ...(name !== undefined && { name: { from: existingWorkspace.name, to: name } }),
           ...(color !== undefined && { color: { from: existingWorkspace.color, to: color } }),
+          ...(logoUrl !== undefined && {
+            logoUrl: { from: existingWorkspace.logoUrl, to: logoUrl },
+          }),
           ...(allowPersonalApiKeys !== undefined && {
             allowPersonalApiKeys: {
               from: existingWorkspace.allowPersonalApiKeys,
@@ -267,16 +282,33 @@ export async function DELETE(
   }
 
   try {
+    const [[workspaceRecord], totalWorkspaces] = await Promise.all([
+      db
+        .select({ name: workspace.name })
+        .from(workspace)
+        .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
+        .limit(1),
+      db
+        .select({ id: permissions.entityId })
+        .from(permissions)
+        .innerJoin(workspace, eq(permissions.entityId, workspace.id))
+        .where(
+          and(
+            eq(permissions.userId, session.user.id),
+            eq(permissions.entityType, 'workspace'),
+            isNull(workspace.archivedAt)
+          )
+        ),
+    ])
+
+    /** Counts all workspace memberships (any role), not just admin — prevents the user from reaching a zero-workspace state. */
+    if (totalWorkspaces.length <= 1) {
+      return NextResponse.json({ error: 'Cannot delete the only workspace' }, { status: 400 })
+    }
+
     logger.info(
       `Deleting workspace ${workspaceId} for user ${session.user.id}, deleteTemplates: ${deleteTemplates}`
     )
-
-    // Fetch workspace name before deletion for audit logging
-    const [workspaceRecord] = await db
-      .select({ name: workspace.name })
-      .from(workspace)
-      .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
-      .limit(1)
 
     const workspaceWorkflows = await db
       .select({ id: workflow.id })

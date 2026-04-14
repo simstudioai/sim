@@ -13,9 +13,12 @@ export {
   type PerformFullDeployResult,
   type PerformFullUndeployParams,
   type PerformFullUndeployResult,
+  type PerformRevertToVersionParams,
+  type PerformRevertToVersionResult,
   performActivateVersion,
   performFullDeploy,
   performFullUndeploy,
+  performRevertToVersion,
 } from './deploy'
 export {
   type PerformDeleteFolderParams,

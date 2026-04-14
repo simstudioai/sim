@@ -1,6 +1,7 @@
 import { A2ABlock } from '@/blocks/blocks/a2a'
 import { AgentBlock } from '@/blocks/blocks/agent'
 import { AgentMailBlock } from '@/blocks/blocks/agentmail'
+import { AgiloftBlock } from '@/blocks/blocks/agiloft'
 import { AhrefsBlock } from '@/blocks/blocks/ahrefs'
 import { AirtableBlock } from '@/blocks/blocks/airtable'
 import { AirweaveBlock } from '@/blocks/blocks/airweave'
@@ -90,6 +91,7 @@ import { HubSpotBlock } from '@/blocks/blocks/hubspot'
 import { HuggingFaceBlock } from '@/blocks/blocks/huggingface'
 import { HumanInTheLoopBlock } from '@/blocks/blocks/human_in_the_loop'
 import { HunterBlock } from '@/blocks/blocks/hunter'
+import { IAMBlock } from '@/blocks/blocks/iam'
 import { ImageGeneratorBlock } from '@/blocks/blocks/image_generator'
 import { ImapBlock } from '@/blocks/blocks/imap'
 import { IncidentioBlock } from '@/blocks/blocks/incidentio'
@@ -184,6 +186,7 @@ import { StagehandBlock } from '@/blocks/blocks/stagehand'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
 import { StarterBlock } from '@/blocks/blocks/starter'
 import { StripeBlock } from '@/blocks/blocks/stripe'
+import { STSBlock } from '@/blocks/blocks/sts'
 import { SttBlock, SttV2Block } from '@/blocks/blocks/stt'
 import { SupabaseBlock } from '@/blocks/blocks/supabase'
 import { TableBlock } from '@/blocks/blocks/table'
@@ -226,6 +229,7 @@ export const registry: Record<string, BlockConfig> = {
   a2a: A2ABlock,
   agent: AgentBlock,
   agentmail: AgentMailBlock,
+  agiloft: AgiloftBlock,
   ahrefs: AhrefsBlock,
   airtable: AirtableBlock,
   airweave: AirweaveBlock,
@@ -326,6 +330,7 @@ export const registry: Record<string, BlockConfig> = {
   huggingface: HuggingFaceBlock,
   human_in_the_loop: HumanInTheLoopBlock,
   hunter: HunterBlock,
+  iam: IAMBlock,
   image_generator: ImageGeneratorBlock,
   imap: ImapBlock,
   incidentio: IncidentioBlock,
@@ -422,6 +427,7 @@ export const registry: Record<string, BlockConfig> = {
   secrets_manager: SecretsManagerBlock,
   sqs: SQSBlock,
   ssh: SSHBlock,
+  sts: STSBlock,
   stagehand: StagehandBlock,
   start_trigger: StartTriggerBlock,
   starter: StarterBlock,

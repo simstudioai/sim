@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
+import { WorkspaceRecencyStorage } from '@/lib/core/utils/browser-storage'
 import { useLeaveWorkspace } from '@/hooks/queries/invitations'
 import {
   useCreateWorkspace,
@@ -9,7 +9,6 @@ import {
   useUpdateWorkspace,
   useWorkspacesQuery,
   type Workspace,
-  workspaceKeys,
 } from '@/hooks/queries/workspace'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -22,7 +21,7 @@ interface UseWorkspaceManagementProps {
 
 /**
  * Manages workspace operations including fetching, switching, creating, deleting, and leaving workspaces.
- * Handles workspace validation and URL synchronization.
+ * Handles workspace validation, URL synchronization, and recency-based ordering.
  *
  * @param props.workspaceId - The current workspace ID from the URL
  * @param props.sessionUserId - The current user's session ID
@@ -33,14 +32,12 @@ export function useWorkspaceManagement({
   sessionUserId,
 }: UseWorkspaceManagementProps) {
   const router = useRouter()
-  const queryClient = useQueryClient()
   const switchToWorkspace = useWorkflowRegistry((state) => state.switchToWorkspace)
 
   const {
     data: workspaces = [],
     isLoading: isWorkspacesLoading,
     isFetching: isWorkspacesFetching,
-    refetch: refetchWorkspaces,
   } = useWorkspacesQuery(Boolean(sessionUserId))
 
   const leaveWorkspaceMutation = useLeaveWorkspace()
@@ -49,16 +46,60 @@ export function useWorkspaceManagement({
   const updateWorkspaceMutation = useUpdateWorkspace()
 
   const workspaceIdRef = useRef<string>(workspaceId)
+  const workspacesRef = useRef<Workspace[]>(workspaces)
   const routerRef = useRef<ReturnType<typeof useRouter>>(router)
   const hasValidatedRef = useRef<boolean>(false)
+  const lastTouchedRef = useRef<string | null>(null)
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   workspaceIdRef.current = workspaceId
+  workspacesRef.current = workspaces
   routerRef.current = router
+
+  const [recencySortKey, setRecencySortKey] = useState(0)
+
+  useEffect(() => {
+    return () => {
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current)
+    }
+  }, [])
+
+  const touchRecency = useCallback((id: string) => {
+    if (lastTouchedRef.current === id) return
+    lastTouchedRef.current = id
+    WorkspaceRecencyStorage.touch(id)
+    const validIds = workspacesRef.current.map((w) => w.id)
+    if (validIds.length > 0) {
+      WorkspaceRecencyStorage.prune(new Set(validIds))
+    }
+    setRecencySortKey((k) => k + 1)
+
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current)
+    syncTimerRef.current = setTimeout(() => {
+      fetch('/api/users/me/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lastActiveWorkspaceId: id }),
+      }).catch(() => {})
+    }, 1000)
+  }, [])
+
+  const sortedWorkspaces = useMemo(
+    () => WorkspaceRecencyStorage.sortByRecency(workspaces),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [workspaces, recencySortKey]
+  )
 
   const activeWorkspace = useMemo(() => {
     if (!workspaces.length) return null
     return workspaces.find((w) => w.id === workspaceId) ?? null
   }, [workspaces, workspaceId])
+
+  useEffect(() => {
+    if (workspaceId) {
+      touchRecency(workspaceId)
+    }
+  }, [workspaceId, touchRecency])
 
   const activeWorkspaceRef = useRef<Workspace | null>(activeWorkspace)
   activeWorkspaceRef.current = activeWorkspace
@@ -76,7 +117,8 @@ export function useWorkspaceManagement({
         return
       }
       logger.warn(`Workspace ${currentWorkspaceId} not found in user's workspaces`)
-      const fallbackWorkspace = workspaces[0]
+      const sorted = WorkspaceRecencyStorage.sortByRecency(workspaces)
+      const fallbackWorkspace = sorted[0]
       logger.info(`Redirecting to fallback workspace: ${fallbackWorkspace.id}`)
       routerRef.current?.push(`/workspace/${fallbackWorkspace.id}/home`)
     }
@@ -84,17 +126,11 @@ export function useWorkspaceManagement({
     hasValidatedRef.current = true
   }, [workspaces, isWorkspacesLoading, isWorkspacesFetching])
 
-  const refreshWorkspaceList = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
-  }, [queryClient])
-
-  const fetchWorkspaces = useCallback(async () => {
-    hasValidatedRef.current = false
-    await refetchWorkspaces()
-  }, [refetchWorkspaces])
-
   const updateWorkspace = useCallback(
-    async (workspaceId: string, updates: { name?: string; color?: string }): Promise<boolean> => {
+    async (
+      workspaceId: string,
+      updates: { name?: string; color?: string; logoUrl?: string | null }
+    ): Promise<boolean> => {
       try {
         await updateWorkspaceMutation.mutateAsync({ workspaceId, ...updates })
         logger.info('Successfully updated workspace:', updates)
@@ -104,7 +140,8 @@ export function useWorkspaceManagement({
         return false
       }
     },
-    [updateWorkspaceMutation]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   )
 
   const switchWorkspace = useCallback(
@@ -126,11 +163,6 @@ export function useWorkspaceManagement({
 
   const handleCreateWorkspace = useCallback(
     async (name: string) => {
-      if (createWorkspaceMutation.isPending) {
-        logger.info('Workspace creation already in progress, ignoring request')
-        return
-      }
-
       try {
         logger.info(`Creating new workspace: ${name}`)
 
@@ -142,7 +174,8 @@ export function useWorkspaceManagement({
         logger.error('Error creating workspace:', error)
       }
     },
-    [createWorkspaceMutation, switchWorkspace]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [switchWorkspace]
   )
 
   const confirmDeleteWorkspace = useCallback(
@@ -157,6 +190,7 @@ export function useWorkspaceManagement({
           deleteTemplates,
         })
 
+        WorkspaceRecencyStorage.remove(workspaceToDelete.id)
         logger.info('Workspace deleted successfully:', workspaceToDelete.id)
 
         const isDeletingCurrentWorkspace =
@@ -164,14 +198,9 @@ export function useWorkspaceManagement({
           activeWorkspaceRef.current?.id === workspaceToDelete.id
 
         if (isDeletingCurrentWorkspace) {
-          logger.info(
-            'Deleting current workspace - using full workspace refresh with URL validation'
-          )
           hasValidatedRef.current = false
-          const { data: updatedWorkspaces } = await refetchWorkspaces()
-
-          const remainingWorkspaces = (updatedWorkspaces || []).filter(
-            (w) => w.id !== workspaceToDelete.id
+          const remainingWorkspaces = WorkspaceRecencyStorage.sortByRecency(
+            workspacesRef.current.filter((w) => w.id !== workspaceToDelete.id)
           )
           if (remainingWorkspaces.length > 0) {
             await switchWorkspace(remainingWorkspaces[0])
@@ -181,7 +210,8 @@ export function useWorkspaceManagement({
         logger.error('Error deleting workspace:', error)
       }
     },
-    [deleteWorkspaceMutation, refetchWorkspaces, switchWorkspace]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [switchWorkspace]
   )
 
   const handleLeaveWorkspace = useCallback(
@@ -199,6 +229,7 @@ export function useWorkspaceManagement({
           workspaceId: workspaceToLeave.id,
         })
 
+        WorkspaceRecencyStorage.remove(workspaceToLeave.id)
         logger.info('Left workspace successfully:', workspaceToLeave.id)
 
         const isLeavingCurrentWorkspace =
@@ -206,14 +237,9 @@ export function useWorkspaceManagement({
           activeWorkspaceRef.current?.id === workspaceToLeave.id
 
         if (isLeavingCurrentWorkspace) {
-          logger.info(
-            'Leaving current workspace - using full workspace refresh with URL validation'
-          )
           hasValidatedRef.current = false
-          const { data: updatedWorkspaces } = await refetchWorkspaces()
-
-          const remainingWorkspaces = (updatedWorkspaces || []).filter(
-            (w) => w.id !== workspaceToLeave.id
+          const remainingWorkspaces = WorkspaceRecencyStorage.sortByRecency(
+            workspacesRef.current.filter((w) => w.id !== workspaceToLeave.id)
           )
           if (remainingWorkspaces.length > 0) {
             await switchWorkspace(remainingWorkspaces[0])
@@ -224,32 +250,21 @@ export function useWorkspaceManagement({
         throw error
       }
     },
-    [refetchWorkspaces, switchWorkspace, sessionUserId, leaveWorkspaceMutation]
-  )
-
-  const isWorkspaceValid = useCallback(
-    (targetWorkspaceId: string) => {
-      return workspaces.some((w) => w.id === targetWorkspaceId)
-    },
-    [workspaces]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [switchWorkspace, sessionUserId]
   )
 
   return {
-    workspaces,
+    workspaces: sortedWorkspaces,
     activeWorkspace,
     isWorkspacesLoading,
     isCreatingWorkspace: createWorkspaceMutation.isPending,
-    isDeleting: deleteWorkspaceMutation.isPending,
-    isLeaving: leaveWorkspaceMutation.isPending,
-    fetchWorkspaces,
-    refreshWorkspaceList,
+    isDeletingWorkspace: deleteWorkspaceMutation.isPending,
+    isLeavingWorkspace: leaveWorkspaceMutation.isPending,
     updateWorkspace,
     switchWorkspace,
     handleCreateWorkspace,
     confirmDeleteWorkspace,
     handleLeaveWorkspace,
-    isWorkspaceValid,
   }
 }
-
-export type { Workspace }

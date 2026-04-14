@@ -13,8 +13,6 @@ export const jsmGetQueuesTool: ToolConfig<JsmGetQueuesParams, JsmGetQueuesRespon
     provider: 'jira',
   },
 
-  errorExtractor: 'atlassian-errors',
-
   params: {
     accessToken: {
       type: 'string',

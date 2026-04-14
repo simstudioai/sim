@@ -8,6 +8,7 @@ import {
   Database,
   File as FileIcon,
   Folder as FolderIcon,
+  Library,
   Table as TableIcon,
   TerminalWindow,
 } from '@/components/emcn/icons'
@@ -20,6 +21,7 @@ import type {
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
+import { logKeys } from '@/hooks/queries/logs'
 import { tableKeys } from '@/hooks/queries/tables'
 import { taskKeys } from '@/hooks/queries/tasks'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
@@ -163,6 +165,15 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Blimp} />,
   },
+  log: {
+    type: 'log',
+    label: 'Logs',
+    icon: Library,
+    renderTabIcon: (_resource, className) => (
+      <Library className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Library} />,
+  },
 } as const
 
 export const RESOURCE_TYPES = Object.values(RESOURCE_REGISTRY)
@@ -199,6 +210,10 @@ const RESOURCE_INVALIDATORS: Record<
   },
   task: (qc, wId) => {
     qc.invalidateQueries({ queryKey: taskKeys.list(wId) })
+  },
+  log: (qc, _wId, id) => {
+    qc.invalidateQueries({ queryKey: logKeys.details() })
+    qc.invalidateQueries({ queryKey: logKeys.detail(id) })
   },
 }
 

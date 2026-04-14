@@ -95,7 +95,6 @@ export function InboxEnableToggle() {
                 onChange={(e) => setEnableUsername(e.target.value)}
                 placeholder='e.g., acme'
                 className='h-9'
-                autoFocus
               />
               <p className='text-[var(--text-muted)] text-caption'>
                 Leave blank for an auto-generated address.

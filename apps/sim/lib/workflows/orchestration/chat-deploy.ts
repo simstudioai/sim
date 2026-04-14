@@ -28,6 +28,8 @@ export interface PerformChatDeployResult {
   success: boolean
   chatId?: string
   chatUrl?: string
+  deployedAt?: Date | null
+  version?: number
   error?: string
 }
 
@@ -170,7 +172,13 @@ export async function performChatDeploy(
     },
   })
 
-  return { success: true, chatId, chatUrl }
+  return {
+    success: true,
+    chatId,
+    chatUrl,
+    deployedAt: deployResult.deployedAt,
+    version: deployResult.version,
+  }
 }
 
 export interface PerformChatUndeployParams {

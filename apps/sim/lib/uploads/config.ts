@@ -97,6 +97,18 @@ export const BLOB_OG_IMAGES_CONFIG = {
   containerName: env.AZURE_STORAGE_OG_IMAGES_CONTAINER_NAME || '',
 }
 
+export const S3_WORKSPACE_LOGOS_CONFIG = {
+  bucket: env.S3_WORKSPACE_LOGOS_BUCKET_NAME || '',
+  region: env.AWS_REGION || '',
+}
+
+export const BLOB_WORKSPACE_LOGOS_CONFIG = {
+  accountName: env.AZURE_ACCOUNT_NAME || '',
+  accountKey: env.AZURE_ACCOUNT_KEY || '',
+  connectionString: env.AZURE_CONNECTION_STRING || '',
+  containerName: env.AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME || '',
+}
+
 /**
  * Get the current storage provider as a human-readable string
  */
@@ -169,6 +181,11 @@ function getS3Config(context: StorageContext): StorageConfig {
         bucket: S3_OG_IMAGES_CONFIG.bucket || S3_CONFIG.bucket,
         region: S3_OG_IMAGES_CONFIG.region || S3_CONFIG.region,
       }
+    case 'workspace-logos':
+      return {
+        bucket: S3_WORKSPACE_LOGOS_CONFIG.bucket || S3_CONFIG.bucket,
+        region: S3_WORKSPACE_LOGOS_CONFIG.region || S3_CONFIG.region,
+      }
     default:
       return {
         bucket: S3_CONFIG.bucket,
@@ -231,6 +248,14 @@ function getBlobConfig(context: StorageContext): StorageConfig {
         accountKey: BLOB_OG_IMAGES_CONFIG.accountKey || BLOB_CONFIG.accountKey,
         connectionString: BLOB_OG_IMAGES_CONFIG.connectionString || BLOB_CONFIG.connectionString,
         containerName: BLOB_OG_IMAGES_CONFIG.containerName || BLOB_CONFIG.containerName,
+      }
+    case 'workspace-logos':
+      return {
+        accountName: BLOB_WORKSPACE_LOGOS_CONFIG.accountName || BLOB_CONFIG.accountName,
+        accountKey: BLOB_WORKSPACE_LOGOS_CONFIG.accountKey || BLOB_CONFIG.accountKey,
+        connectionString:
+          BLOB_WORKSPACE_LOGOS_CONFIG.connectionString || BLOB_CONFIG.connectionString,
+        containerName: BLOB_WORKSPACE_LOGOS_CONFIG.containerName || BLOB_CONFIG.containerName,
       }
     default:
       return {

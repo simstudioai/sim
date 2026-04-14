@@ -655,6 +655,6 @@ export async function listFolders(workspaceId: string) {
       sortOrder: workflowFolder.sortOrder,
     })
     .from(workflowFolder)
-    .where(eq(workflowFolder.workspaceId, workspaceId))
+    .where(and(eq(workflowFolder.workspaceId, workspaceId), isNull(workflowFolder.archivedAt)))
     .orderBy(asc(workflowFolder.sortOrder), asc(workflowFolder.createdAt))
 }

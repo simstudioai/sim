@@ -1,0 +1,443 @@
+---
+title: AWS IAM
+description: Manage AWS IAM users, roles, policies, and groups
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="iam"
+  color="linear-gradient(45deg, #BD0816 0%, #FF5252 100%)"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[AWS Identity and Access Management (IAM)](https://aws.amazon.com/iam/) is a web service that helps you securely control access to AWS resources. IAM lets you manage permissions that control which AWS resources users, groups, and roles can access.
+
+With AWS IAM, you can:
+
+- **Manage users**: Create and manage IAM users, assign them individual security credentials, and grant them permissions to access AWS services and resources
+- **Create roles**: Define IAM roles with specific permissions that can be assumed by users, services, or applications for temporary access
+- **Attach policies**: Assign managed policies to users and roles to define what actions they can perform on which resources
+- **Organize with groups**: Create IAM groups to manage permissions for collections of users, simplifying access management at scale
+- **Control access keys**: Generate and manage programmatic access key pairs for API and CLI access to AWS services
+
+In Sim, the AWS IAM integration allows your workflows to automate identity management tasks such as provisioning new users, assigning roles and permissions, managing group memberships, and rotating access keys. This is particularly useful for onboarding automation, security compliance workflows, access reviews, and incident response — enabling your agents to manage AWS access control programmatically.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate AWS Identity and Access Management into your workflow. Create and manage users, roles, policies, groups, and access keys.
+
+
+
+## Tools
+
+### `iam_list_users`
+
+List IAM users in your AWS account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `pathPrefix` | string | No | Path prefix to filter users \(e.g., /division_abc/\) |
+| `maxItems` | number | No | Maximum number of users to return \(1-1000, default 100\) |
+| `marker` | string | No | Pagination marker from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | json | List of IAM users with userName, userId, arn, path, and dates |
+| `isTruncated` | boolean | Whether there are more results available |
+| `marker` | string | Pagination marker for the next page of results |
+| `count` | number | Number of users returned |
+
+### `iam_get_user`
+
+Get detailed information about an IAM user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `userName` | string | Yes | The name of the IAM user to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `userName` | string | The name of the user |
+| `userId` | string | The unique ID of the user |
+| `arn` | string | The ARN of the user |
+| `path` | string | The path to the user |
+| `createDate` | string | Date the user was created |
+| `passwordLastUsed` | string | Date the password was last used |
+| `permissionsBoundaryArn` | string | ARN of the permissions boundary policy |
+| `tags` | json | Tags attached to the user \(key, value pairs\) |
+
+### `iam_create_user`
+
+Create a new IAM user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `userName` | string | Yes | Name for the new IAM user \(1-64 characters\) |
+| `path` | string | No | Path for the user \(e.g., /division_abc/\), defaults to / |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `userName` | string | The name of the created user |
+| `userId` | string | The unique ID of the created user |
+| `arn` | string | The ARN of the created user |
+| `path` | string | The path of the created user |
+| `createDate` | string | Date the user was created |
+
+### `iam_delete_user`
+
+Delete an IAM user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `userName` | string | Yes | The name of the IAM user to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### `iam_list_roles`
+
+List IAM roles in your AWS account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `pathPrefix` | string | No | Path prefix to filter roles \(e.g., /application/\) |
+| `maxItems` | number | No | Maximum number of roles to return \(1-1000, default 100\) |
+| `marker` | string | No | Pagination marker from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `roles` | json | List of IAM roles with roleName, roleId, arn, path, and dates |
+| `isTruncated` | boolean | Whether there are more results available |
+| `marker` | string | Pagination marker for the next page of results |
+| `count` | number | Number of roles returned |
+
+### `iam_get_role`
+
+Get detailed information about an IAM role
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `roleName` | string | Yes | The name of the IAM role to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `roleName` | string | The name of the role |
+| `roleId` | string | The unique ID of the role |
+| `arn` | string | The ARN of the role |
+| `path` | string | The path to the role |
+| `createDate` | string | Date the role was created |
+| `description` | string | Description of the role |
+| `maxSessionDuration` | number | Maximum session duration in seconds |
+| `assumeRolePolicyDocument` | string | The trust policy document \(JSON\) |
+| `roleLastUsedDate` | string | Date the role was last used |
+| `roleLastUsedRegion` | string | AWS region where the role was last used |
+
+### `iam_create_role`
+
+Create a new IAM role with a trust policy
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `roleName` | string | Yes | Name for the new IAM role \(1-64 characters\) |
+| `assumeRolePolicyDocument` | string | Yes | Trust policy JSON specifying who can assume this role |
+| `description` | string | No | Description of the role |
+| `path` | string | No | Path for the role \(e.g., /application/\), defaults to / |
+| `maxSessionDuration` | number | No | Maximum session duration in seconds \(3600-43200, default 3600\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `roleName` | string | The name of the created role |
+| `roleId` | string | The unique ID of the created role |
+| `arn` | string | The ARN of the created role |
+| `path` | string | The path of the created role |
+| `createDate` | string | Date the role was created |
+
+### `iam_delete_role`
+
+Delete an IAM role
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `roleName` | string | Yes | The name of the IAM role to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### `iam_attach_user_policy`
+
+Attach a managed policy to an IAM user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `userName` | string | Yes | The name of the IAM user |
+| `policyArn` | string | Yes | The ARN of the managed policy to attach |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### `iam_detach_user_policy`
+
+Remove a managed policy from an IAM user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `userName` | string | Yes | The name of the IAM user |
+| `policyArn` | string | Yes | The ARN of the managed policy to detach |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### `iam_attach_role_policy`
+
+Attach a managed policy to an IAM role
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `roleName` | string | Yes | The name of the IAM role |
+| `policyArn` | string | Yes | The ARN of the managed policy to attach |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### `iam_detach_role_policy`
+
+Remove a managed policy from an IAM role
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `roleName` | string | Yes | The name of the IAM role |
+| `policyArn` | string | Yes | The ARN of the managed policy to detach |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### `iam_list_policies`
+
+List managed IAM policies
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `scope` | string | No | Filter by scope: All, AWS \(AWS-managed\), or Local \(customer-managed\) |
+| `onlyAttached` | boolean | No | If true, only return policies attached to an entity |
+| `pathPrefix` | string | No | Path prefix to filter policies |
+| `maxItems` | number | No | Maximum number of policies to return \(1-1000, default 100\) |
+| `marker` | string | No | Pagination marker from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `policies` | json | List of policies with policyName, arn, attachmentCount, and dates |
+| `isTruncated` | boolean | Whether there are more results available |
+| `marker` | string | Pagination marker for the next page of results |
+| `count` | number | Number of policies returned |
+
+### `iam_create_access_key`
+
+Create a new access key pair for an IAM user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `userName` | string | No | The IAM user to create the key for \(defaults to current user\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `accessKeyId` | string | The new access key ID |
+| `secretAccessKey` | string | The new secret access key \(only shown once\) |
+| `userName` | string | The user the key was created for |
+| `status` | string | Status of the access key \(Active\) |
+| `createDate` | string | Date the key was created |
+
+### `iam_delete_access_key`
+
+Delete an access key pair for an IAM user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `accessKeyIdToDelete` | string | Yes | The access key ID to delete |
+| `userName` | string | No | The IAM user whose key to delete \(defaults to current user\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### `iam_list_groups`
+
+List IAM groups in your AWS account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `pathPrefix` | string | No | Path prefix to filter groups |
+| `maxItems` | number | No | Maximum number of groups to return \(1-1000, default 100\) |
+| `marker` | string | No | Pagination marker from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groups` | json | List of IAM groups with groupName, groupId, arn, and path |
+| `isTruncated` | boolean | Whether there are more results available |
+| `marker` | string | Pagination marker for the next page of results |
+| `count` | number | Number of groups returned |
+
+### `iam_add_user_to_group`
+
+Add an IAM user to a group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `userName` | string | Yes | The name of the IAM user |
+| `groupName` | string | Yes | The name of the IAM group |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+### `iam_remove_user_from_group`
+
+Remove an IAM user from a group
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `userName` | string | Yes | The name of the IAM user |
+| `groupName` | string | Yes | The name of the IAM group |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+
+

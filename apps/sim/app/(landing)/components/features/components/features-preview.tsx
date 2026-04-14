@@ -2,8 +2,8 @@
 
 import { type SVGProps, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useInView } from 'framer-motion'
-import ReactMarkdown, { type Components } from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import { Streamdown } from 'streamdown'
+import 'streamdown/styles.css'
 import { ChevronDown } from '@/components/emcn'
 import { Database, File, Library, Table } from '@/components/emcn/icons'
 import {
@@ -557,8 +557,8 @@ The team agreed to prioritize the new onboarding flow. Key decisions:
 
 Follow up with engineering on the timeline for the API v2 migration. Draft the proposal for the board meeting next week.`
 
-const MD_COMPONENTS: Components = {
-  h1: ({ children }) => (
+const MD_COMPONENTS = {
+  h1: ({ children }: { children?: React.ReactNode }) => (
     <p
       role='presentation'
       className='mb-4 border-[#E5E5E5] border-b pb-2 font-semibold text-[#1C1C1C] text-[20px]'
@@ -566,17 +566,23 @@ const MD_COMPONENTS: Components = {
       {children}
     </p>
   ),
-  h2: ({ children }) => (
+  h2: ({ children }: { children?: React.ReactNode }) => (
     <h2 className='mt-5 mb-3 border-[#E5E5E5] border-b pb-1.5 font-semibold text-[#1C1C1C] text-[16px]'>
       {children}
     </h2>
   ),
-  ul: ({ children }) => <ul className='mb-3 list-disc pl-6'>{children}</ul>,
-  ol: ({ children }) => <ol className='mb-3 list-decimal pl-6'>{children}</ol>,
-  li: ({ children }) => (
+  ul: ({ children }: { children?: React.ReactNode }) => (
+    <ul className='mb-3 list-disc pl-6'>{children}</ul>
+  ),
+  ol: ({ children }: { children?: React.ReactNode }) => (
+    <ol className='mb-3 list-decimal pl-6'>{children}</ol>
+  ),
+  li: ({ children }: { children?: React.ReactNode }) => (
     <li className='mb-1 text-[#1C1C1C] text-[14px] leading-[1.6]'>{children}</li>
   ),
-  p: ({ children }) => <p className='mb-3 text-[#1C1C1C] text-[14px] leading-[1.6]'>{children}</p>,
+  p: ({ children }: { children?: React.ReactNode }) => (
+    <p className='mb-3 text-[#1C1C1C] text-[14px] leading-[1.6]'>{children}</p>
+  ),
 }
 
 function MockFullFiles() {
@@ -618,9 +624,9 @@ function MockFullFiles() {
           transition={{ duration: 0.4, delay: 0.5 }}
         >
           <div className='h-full overflow-auto p-6'>
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>
+            <Streamdown mode='static' components={MD_COMPONENTS}>
               {source}
-            </ReactMarkdown>
+            </Streamdown>
           </div>
         </motion.div>
       </div>

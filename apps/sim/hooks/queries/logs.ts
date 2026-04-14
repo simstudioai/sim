@@ -1,8 +1,11 @@
 import {
+  type InfiniteData,
   keepPreviousData,
   type QueryClient,
   useInfiniteQuery,
+  useMutation,
   useQuery,
+  useQueryClient,
 } from '@tanstack/react-query'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
@@ -271,5 +274,60 @@ export function useExecutionSnapshot(executionId: string | undefined) {
     queryFn: ({ signal }) => fetchExecutionSnapshot(executionId as string, signal),
     enabled: Boolean(executionId),
     staleTime: 5 * 60 * 1000, // 5 minutes - execution snapshots don't change
+  })
+}
+
+type LogsPage = { logs: WorkflowLog[]; hasMore: boolean; nextPage: number | undefined }
+
+export function useCancelExecution() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      workflowId,
+      executionId,
+    }: {
+      workflowId: string
+      executionId: string
+    }) => {
+      const res = await fetch(`/api/workflows/${workflowId}/executions/${executionId}/cancel`, {
+        method: 'POST',
+      })
+      if (!res.ok) throw new Error('Failed to cancel execution')
+      const data = await res.json()
+      if (!data.success) throw new Error('Failed to cancel execution')
+      return data
+    },
+    onMutate: async ({ executionId }) => {
+      await queryClient.cancelQueries({ queryKey: logKeys.lists() })
+
+      const previousQueries = queryClient.getQueriesData<InfiniteData<LogsPage>>({
+        queryKey: logKeys.lists(),
+      })
+
+      queryClient.setQueriesData<InfiniteData<LogsPage>>({ queryKey: logKeys.lists() }, (old) => {
+        if (!old) return old
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            logs: page.logs.map((log) =>
+              log.executionId === executionId ? { ...log, status: 'cancelling' } : log
+            ),
+          })),
+        }
+      })
+
+      return { previousQueries }
+    },
+    onError: (_err, _variables, context) => {
+      for (const [queryKey, data] of context?.previousQueries ?? []) {
+        queryClient.setQueryData(queryKey, data)
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: logKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: logKeys.details() })
+      queryClient.invalidateQueries({ queryKey: [...logKeys.all, 'stats'] })
+    },
   })
 }

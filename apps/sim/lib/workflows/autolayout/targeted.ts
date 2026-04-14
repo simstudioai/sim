@@ -18,8 +18,16 @@ import {
 import { CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
+type TargetedBlockInfo = {
+  id: string
+  block: BlockState
+  metrics: ReturnType<typeof getBlockMetrics>
+}
+
 export interface TargetedLayoutOptions extends LayoutOptions {
   changedBlockIds: string[]
+  /** Existing blocks whose size changed but whose position should remain anchored. */
+  resizedBlockIds?: string[]
   shiftSourceBlockIds?: string[]
   verticalSpacing?: number
   horizontalSpacing?: number
@@ -36,17 +44,23 @@ export function applyTargetedLayout(
 ): Record<string, BlockState> {
   const {
     changedBlockIds,
+    resizedBlockIds = [],
     shiftSourceBlockIds = [],
     verticalSpacing = DEFAULT_VERTICAL_SPACING,
     horizontalSpacing = DEFAULT_HORIZONTAL_SPACING,
     gridSize,
   } = options
 
-  if ((!changedBlockIds || changedBlockIds.length === 0) && shiftSourceBlockIds.length === 0) {
+  if (
+    (!changedBlockIds || changedBlockIds.length === 0) &&
+    resizedBlockIds.length === 0 &&
+    shiftSourceBlockIds.length === 0
+  ) {
     return blocks
   }
 
   const changedSet = new Set(changedBlockIds)
+  const resizedSet = new Set(resizedBlockIds)
   const shiftSourceSet = new Set(shiftSourceBlockIds)
   const blocksCopy: Record<string, BlockState> = JSON.parse(JSON.stringify(blocks))
 
@@ -69,6 +83,7 @@ export function applyTargetedLayout(
     blocksCopy,
     edges,
     changedSet,
+    resizedSet,
     shiftSourceSet,
     verticalSpacing,
     horizontalSpacing,
@@ -83,6 +98,7 @@ export function applyTargetedLayout(
       blocksCopy,
       edges,
       changedSet,
+      resizedSet,
       shiftSourceSet,
       verticalSpacing,
       horizontalSpacing,
@@ -130,8 +146,9 @@ function selectBestAnchor(
 
 /**
  * Layouts a group of blocks (either root level or within a container).
- * Only repositions blocks in `changedSet` or those with invalid positions;
- * all other blocks act as anchors.
+ * Only repositions blocks in `changedSet` or those with invalid positions.
+ * Resized existing blocks remain anchored and instead drive shifts in nearby
+ * frozen blocks when their new dimensions create overlap.
  */
 function layoutGroup(
   parentId: string | null,
@@ -139,6 +156,7 @@ function layoutGroup(
   blocks: Record<string, BlockState>,
   edges: Edge[],
   changedSet: Set<string>,
+  resizedSet: Set<string>,
   shiftSourceSet: Set<string>,
   verticalSpacing: number,
   horizontalSpacing: number,
@@ -170,8 +188,13 @@ function layoutGroup(
   })
   const needsLayoutSet = new Set([...requestedLayout, ...invalidPositions])
   const needsLayout = Array.from(needsLayoutSet)
+  const resizedAnchorIds = layoutEligibleChildIds.filter((id) => resizedSet.has(id))
   const groupShiftSourceIds = layoutEligibleChildIds.filter((id) => shiftSourceSet.has(id))
-  const activeShiftSourceSet = new Set([...needsLayoutSet, ...groupShiftSourceIds])
+  const activeShiftSourceSet = new Set([
+    ...needsLayoutSet,
+    ...resizedAnchorIds,
+    ...groupShiftSourceIds,
+  ])
 
   if (needsLayout.length === 0 && activeShiftSourceSet.size === 0) {
     if (parentBlock) {
@@ -236,7 +259,7 @@ function layoutGroup(
     }
   }
 
-  shiftDownstreamFrozenBlocks(
+  const shiftedFrozenIds = shiftDownstreamFrozenBlocks(
     activeShiftSourceSet,
     needsLayoutSet,
     layoutEligibleChildIds,
@@ -246,9 +269,10 @@ function layoutGroup(
     gridSize
   )
 
-  if (needsLayout.length > 0) {
+  const affectedBlockIds = new Set([...needsLayoutSet, ...resizedAnchorIds, ...shiftedFrozenIds])
+  if (affectedBlockIds.size > 0) {
     resolveVerticalOverlapsWithFrozen(
-      needsLayoutSet,
+      affectedBlockIds,
       layoutEligibleChildIds,
       blocks,
       verticalSpacing,
@@ -277,7 +301,7 @@ function shiftDownstreamFrozenBlocks(
   edges: Edge[],
   horizontalSpacing: number,
   gridSize?: number
-): void {
+): Set<string> {
   const eligibleSet = new Set(eligibleIds)
 
   const downstreamMap = new Map<string, string[]>()
@@ -317,6 +341,8 @@ function shiftDownstreamFrozenBlocks(
       }
     }
   }
+
+  return shifted
 }
 
 /**
@@ -327,7 +353,7 @@ function shiftDownstreamFrozenBlocks(
  * through any further blocks below.
  */
 function resolveVerticalOverlapsWithFrozen(
-  needsLayoutSet: Set<string>,
+  affectedBlockIds: Set<string>,
   eligibleIds: string[],
   blocks: Record<string, BlockState>,
   verticalSpacing: number,
@@ -339,11 +365,11 @@ function resolveVerticalOverlapsWithFrozen(
       if (!block) return null
       return { id, block, metrics: getBlockMetrics(block) }
     })
-    .filter((info): info is NonNullable<typeof info> => info !== null)
+    .filter((info): info is TargetedBlockInfo => info !== null)
 
-  if (blockInfos.length < 2) return
+  if (blockInfos.length < 2 || affectedBlockIds.size === 0) return
 
-  const movedSet = new Set(needsLayoutSet)
+  const movedSet = new Set(affectedBlockIds)
   let hasOverlap = true
   let iteration = 0
 
@@ -355,25 +381,46 @@ function resolveVerticalOverlapsWithFrozen(
 
     for (let i = 0; i < blockInfos.length - 1; i++) {
       const upper = blockInfos[i]
-      const lower = blockInfos[i + 1]
 
-      if (!movedSet.has(upper.id) && !movedSet.has(lower.id)) continue
+      for (let lowerIndex = i + 1; lowerIndex < blockInfos.length; lowerIndex++) {
+        const lower = blockInfos[lowerIndex]
 
-      const upperRight = upper.block.position.x + upper.metrics.width
-      const lowerRight = lower.block.position.x + lower.metrics.width
-      if (upper.block.position.x >= lowerRight || lower.block.position.x >= upperRight) continue
+        if (!movedSet.has(upper.id) && !movedSet.has(lower.id)) continue
+        if (!blocksOverlapOnX(upper, lower)) continue
 
-      const requiredY = upper.block.position.y + upper.metrics.height + verticalSpacing
-      if (lower.block.position.y < requiredY) {
+        const requiredY = upper.block.position.y + upper.metrics.height + verticalSpacing
+        if (lower.block.position.y >= requiredY) continue
+
         lower.block.position = snapPositionToGrid(
           { x: lower.block.position.x, y: requiredY },
           gridSize
         )
         movedSet.add(lower.id)
+        reorderBlockInfoByY(blockInfos, lowerIndex)
         hasOverlap = true
       }
     }
   }
+}
+
+function blocksOverlapOnX(left: TargetedBlockInfo, right: TargetedBlockInfo): boolean {
+  const leftRight = left.block.position.x + left.metrics.width
+  const rightRight = right.block.position.x + right.metrics.width
+  return left.block.position.x < rightRight && right.block.position.x < leftRight
+}
+
+function reorderBlockInfoByY(blockInfos: TargetedBlockInfo[], fromIndex: number): void {
+  const [movedInfo] = blockInfos.splice(fromIndex, 1)
+  let insertIndex = fromIndex
+
+  while (
+    insertIndex < blockInfos.length &&
+    blockInfos[insertIndex].block.position.y < movedInfo.block.position.y
+  ) {
+    insertIndex++
+  }
+
+  blockInfos.splice(insertIndex, 0, movedInfo)
 }
 
 /**

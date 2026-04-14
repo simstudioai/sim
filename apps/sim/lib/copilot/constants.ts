@@ -11,13 +11,6 @@ export const SIM_AGENT_API_URL =
     : SIM_AGENT_API_URL_DEFAULT
 
 // ---------------------------------------------------------------------------
-// Redis key prefixes
-// ---------------------------------------------------------------------------
-
-/** Redis key prefix for copilot SSE stream buffers. */
-export const REDIS_COPILOT_STREAM_PREFIX = 'copilot_stream:'
-
-// ---------------------------------------------------------------------------
 // Timeouts
 // ---------------------------------------------------------------------------
 
@@ -31,47 +24,18 @@ export const STREAM_TIMEOUT_MS = 3_600_000
 // Stream resume
 // ---------------------------------------------------------------------------
 
-/** Maximum number of resume attempts before giving up. */
-export const MAX_RESUME_ATTEMPTS = 3
-
 /** SessionStorage key for persisting active stream metadata across page reloads. */
 export const STREAM_STORAGE_KEY = 'copilot_active_stream'
-
-// ---------------------------------------------------------------------------
-// Client-side streaming batching
-// ---------------------------------------------------------------------------
-
-/** Delay (ms) before processing the next queued message after stream completion. */
-export const QUEUE_PROCESS_DELAY_MS = 100
-
-/** Delay (ms) before invalidating subscription queries after stream completion. */
-export const SUBSCRIPTION_INVALIDATE_DELAY_MS = 1_000
-
-// ---------------------------------------------------------------------------
-// UI helpers
-// ---------------------------------------------------------------------------
-
-/** Maximum character length for an optimistic chat title derived from a user message. */
-export const OPTIMISTIC_TITLE_MAX_LENGTH = 50
 
 // ---------------------------------------------------------------------------
 // Copilot API paths (client-side fetch targets)
 // ---------------------------------------------------------------------------
 
-/** POST — send a chat message to the copilot. */
-export const COPILOT_CHAT_API_PATH = '/api/copilot/chat'
-
-/** POST — send a workspace-scoped chat message (mothership). */
+/** POST — send a chat message through the unified mothership chat surface. */
 export const MOTHERSHIP_CHAT_API_PATH = '/api/mothership/chat'
 
-/** GET — resume/replay a copilot SSE stream. */
-export const COPILOT_CHAT_STREAM_API_PATH = '/api/copilot/chat/stream'
-
-/** POST — persist chat messages / plan artifact / config. */
-export const COPILOT_UPDATE_MESSAGES_API_PATH = '/api/copilot/chat/update-messages'
-
-/** DELETE — delete a copilot chat. */
-export const COPILOT_DELETE_CHAT_API_PATH = '/api/copilot/chat/delete'
+/** Backwards-compatible alias while remaining callers migrate. */
+export const COPILOT_CHAT_API_PATH = MOTHERSHIP_CHAT_API_PATH
 
 /** POST — confirm or reject a tool call. */
 export const COPILOT_CONFIRM_API_PATH = '/api/copilot/confirm'
@@ -79,24 +43,31 @@ export const COPILOT_CONFIRM_API_PATH = '/api/copilot/confirm'
 /** POST — forward diff-accepted/rejected stats to the copilot backend. */
 export const COPILOT_STATS_API_PATH = '/api/copilot/stats'
 
-/** GET — load checkpoints for a chat. */
-export const COPILOT_CHECKPOINTS_API_PATH = '/api/copilot/checkpoints'
-
-/** POST — revert to a checkpoint. */
-export const COPILOT_CHECKPOINTS_REVERT_API_PATH = '/api/copilot/checkpoints/revert'
-
-/** GET/POST/DELETE — manage auto-allowed tools. */
-export const COPILOT_AUTO_ALLOWED_TOOLS_API_PATH = '/api/copilot/auto-allowed-tools'
-
-/** GET — fetch dynamically available copilot models. */
-export const COPILOT_MODELS_API_PATH = '/api/copilot/models'
-
-/** GET — fetch user credentials for masking. */
-export const COPILOT_CREDENTIALS_API_PATH = '/api/copilot/credentials'
-
 // ---------------------------------------------------------------------------
 // Dedup limits
 // ---------------------------------------------------------------------------
 
 /** Maximum entries in the in-memory SSE tool-event dedup cache. */
 export const STREAM_BUFFER_MAX_DEDUP_ENTRIES = 1_000
+
+// ---------------------------------------------------------------------------
+// Tool result size limits
+// ---------------------------------------------------------------------------
+
+/** Approximate max inline tool-result budget before artifact/error handling takes over. */
+export const TOOL_RESULT_MAX_INLINE_TOKENS = 50_000
+
+/** Rough chars-per-token estimate used when only serialized text length is available. */
+export const TOOL_RESULT_ESTIMATED_CHARS_PER_TOKEN = 4
+
+/** Approximate max inline tool-result size in characters. */
+export const TOOL_RESULT_MAX_INLINE_CHARS =
+  TOOL_RESULT_MAX_INLINE_TOKENS * TOOL_RESULT_ESTIMATED_CHARS_PER_TOKEN
+
+// ---------------------------------------------------------------------------
+// Copilot modes
+// ---------------------------------------------------------------------------
+
+export const COPILOT_MODES = ['ask', 'build', 'plan'] as const
+
+export const COPILOT_REQUEST_MODES = ['ask', 'build', 'plan', 'agent'] as const

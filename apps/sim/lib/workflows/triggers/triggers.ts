@@ -28,7 +28,7 @@ export enum StartBlockPath {
   EXTERNAL_TRIGGER = 'external_trigger',
 }
 
-type StartExecutionKind = 'chat' | 'manual' | 'api'
+type StartExecutionKind = 'chat' | 'manual' | 'api' | 'external'
 
 const EXECUTION_PRIORITIES: Record<StartExecutionKind, StartBlockPath[]> = {
   chat: [StartBlockPath.UNIFIED, StartBlockPath.SPLIT_CHAT, StartBlockPath.LEGACY_STARTER],
@@ -46,6 +46,7 @@ const EXECUTION_PRIORITIES: Record<StartExecutionKind, StartBlockPath[]> = {
     StartBlockPath.SPLIT_INPUT,
     StartBlockPath.LEGACY_STARTER,
   ],
+  external: [StartBlockPath.EXTERNAL_TRIGGER],
 }
 
 const CHILD_PRIORITIES: StartBlockPath[] = [
@@ -143,6 +144,10 @@ type ResolveStartOptions = {
 }
 
 function supportsExecution(path: StartBlockPath, execution: StartExecutionKind): boolean {
+  if (execution === 'external') {
+    return path === StartBlockPath.EXTERNAL_TRIGGER
+  }
+
   if (path === StartBlockPath.UNIFIED || path === StartBlockPath.LEGACY_STARTER) {
     return true
   }
@@ -403,7 +408,7 @@ export class TriggerUtils {
    */
   static findStartBlock<T extends { type: string; subBlocks?: any }>(
     blocks: Record<string, T>,
-    executionType: 'chat' | 'manual' | 'api',
+    executionType: 'chat' | 'manual' | 'api' | 'external',
     isChildWorkflow = false
   ): (StartBlockCandidate<T> & { block: T }) | null {
     const candidates = resolveStartCandidates(blocks, {

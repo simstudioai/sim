@@ -1,6 +1,6 @@
 /**
  * Factory functions for creating DAG (Directed Acyclic Graph) test fixtures.
- * These are used in executor tests for DAG construction and edge management.
+ * These are used in executor tests for DAG construction and edge management
  */
 
 import { createSerializedBlock, type SerializedBlock } from './serialized-block.factory'

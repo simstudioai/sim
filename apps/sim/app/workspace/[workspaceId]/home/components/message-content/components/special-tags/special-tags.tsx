@@ -1,10 +1,19 @@
 'use client'
 
-import { createElement, useState } from 'react'
+import { createElement, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { ArrowRight, ChevronDown, Expandable, ExpandableContent } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
+import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
+import type {
+  ChatMessageContext,
+  MothershipResource,
+} from '@/app/workspace/[workspaceId]/home/types'
+import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
+import { useTablesList } from '@/hooks/queries/tables'
+import { useWorkflows } from '@/hooks/queries/workflows'
+import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
 export interface OptionsItemData {
   title: string
@@ -55,6 +64,16 @@ export interface FileTagData {
   content: string
 }
 
+export const WORKSPACE_RESOURCE_TAG_TYPES = ['workflow', 'table', 'file'] as const
+
+export type WorkspaceResourceTagType = (typeof WORKSPACE_RESOURCE_TAG_TYPES)[number]
+
+export interface WorkspaceResourceTagData {
+  type: WorkspaceResourceTagType
+  id: string
+  title?: string
+}
+
 export type ContentSegment =
   | { type: 'text'; content: string }
   | { type: 'thinking'; content: string }
@@ -62,6 +81,7 @@ export type ContentSegment =
   | { type: 'usage_upgrade'; data: UsageUpgradeTagData }
   | { type: 'credential'; data: CredentialTagData }
   | { type: 'mothership-error'; data: MothershipErrorTagData }
+  | { type: 'workspace_resource'; data: WorkspaceResourceTagData }
 
 export type RuntimeSpecialTagName =
   | 'thinking'
@@ -69,6 +89,7 @@ export type RuntimeSpecialTagName =
   | 'credential'
   | 'mothership-error'
   | 'file'
+  | 'workspace_resource'
 
 export interface ParsedSpecialContent {
   segments: ContentSegment[]
@@ -81,6 +102,7 @@ const RUNTIME_SPECIAL_TAG_NAMES = [
   'credential',
   'mothership-error',
   'file',
+  'workspace_resource',
 ] as const
 
 const SPECIAL_TAG_NAMES = [
@@ -89,6 +111,7 @@ const SPECIAL_TAG_NAMES = [
   'usage_upgrade',
   'credential',
   'mothership-error',
+  'workspace_resource',
 ] as const
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -131,6 +154,16 @@ function isMothershipErrorTagData(value: unknown): value is MothershipErrorTagDa
     typeof value.message === 'string' &&
     (value.code === undefined || typeof value.code === 'string') &&
     (value.provider === undefined || typeof value.provider === 'string')
+  )
+}
+
+function isWorkspaceResourceTagData(value: unknown): value is WorkspaceResourceTagData {
+  if (!isRecord(value)) return false
+  return (
+    typeof value.type === 'string' &&
+    (WORKSPACE_RESOURCE_TAG_TYPES as readonly string[]).includes(value.type) &&
+    typeof value.id === 'string' &&
+    value.id.trim().length > 0
   )
 }
 
@@ -181,6 +214,7 @@ function parseSpecialTagData(
   | { type: 'usage_upgrade'; data: UsageUpgradeTagData }
   | { type: 'credential'; data: CredentialTagData }
   | { type: 'mothership-error'; data: MothershipErrorTagData }
+  | { type: 'workspace_resource'; data: WorkspaceResourceTagData }
   | null {
   if (tagName === 'thinking') {
     const content = parseTextTagBody(body)
@@ -207,11 +241,16 @@ function parseSpecialTagData(
     return data ? { type: 'mothership-error', data } : null
   }
 
+  if (tagName === 'workspace_resource') {
+    const data = parseJsonTagBody(body, isWorkspaceResourceTagData)
+    return data ? { type: 'workspace_resource', data } : null
+  }
+
   return null
 }
 
 /**
- * Parses inline special tags (`<options>`, `<usage_upgrade>`) from streamed
+ * Parses inline special tags (`<options>`, `<usage_upgrade>`, `<workspace_resource>`) from streamed
  * text content. Complete tags are extracted into typed segments; incomplete
  * tags (still streaming) are suppressed from display and flagged via
  * `hasPendingTag` so the caller can show a loading indicator.
@@ -307,12 +346,18 @@ const THINKING_BLOCKS = [
 interface SpecialTagsProps {
   segment: Exclude<ContentSegment, { type: 'text' }>
   onOptionSelect?: (id: string) => void
+  onWorkspaceResourceSelect?: (resource: MothershipResource) => void
 }
 
 /**
- * Unified renderer for inline special tags: `<options>`, `<usage_upgrade>`, and `<credential>`.
+ * Unified renderer for inline special tags: `<options>`, `<usage_upgrade>`, `<credential>`,
+ * and `<workspace_resource>`.
  */
-export function SpecialTags({ segment, onOptionSelect }: SpecialTagsProps) {
+export function SpecialTags({
+  segment,
+  onOptionSelect,
+  onWorkspaceResourceSelect,
+}: SpecialTagsProps) {
   switch (segment.type) {
     case 'thinking':
       return null
@@ -324,6 +369,8 @@ export function SpecialTags({ segment, onOptionSelect }: SpecialTagsProps) {
       return <CredentialDisplay data={segment.data} />
     case 'mothership-error':
       return <MothershipErrorDisplay data={segment.data} />
+    case 'workspace_resource':
+      return <WorkspaceResourceDisplay data={segment.data} onSelect={onWorkspaceResourceSelect} />
     default:
       return null
   }
@@ -358,6 +405,13 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
   const disabled = !onSelect
   const [expanded, setExpanded] = useState(!disabled)
   const entries = Object.entries(data)
+
+  useEffect(() => {
+    if (!disabled) {
+      setExpanded(true)
+    }
+  }, [disabled])
+
   if (entries.length === 0) return null
 
   return (
@@ -410,6 +464,102 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
         </ExpandableContent>
       </Expandable>
     </div>
+  )
+}
+
+function fallbackWorkspaceResourceTitle(type: WorkspaceResourceTagType): string {
+  switch (type) {
+    case 'workflow':
+      return 'Workflow'
+    case 'table':
+      return 'Table'
+    case 'file':
+      return 'File'
+  }
+}
+
+function toMothershipResourceType(type: WorkspaceResourceTagType): MothershipResource['type'] {
+  return type
+}
+
+function toChatMessageContext(data: WorkspaceResourceTagData, label: string): ChatMessageContext {
+  switch (data.type) {
+    case 'workflow':
+      return { kind: 'workflow', label, workflowId: data.id }
+    case 'table':
+      return { kind: 'table', label, tableId: data.id }
+    case 'file':
+      return { kind: 'file', label, fileId: data.id }
+  }
+}
+
+export function WorkspaceResourceDisplay({
+  data,
+  onSelect,
+}: {
+  data: WorkspaceResourceTagData
+  onSelect?: (resource: MothershipResource) => void
+}) {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const { data: workflows = [] } = useWorkflows(workspaceId)
+  const { data: tables = [] } = useTablesList(workspaceId)
+  const { data: files = [] } = useWorkspaceFiles(workspaceId)
+  const { data: knowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId)
+
+  const resource = useMemo<MothershipResource>(() => {
+    const title =
+      data.type === 'workflow'
+        ? (workflows.find((workflow) => workflow.id === data.id)?.name ??
+          fallbackWorkspaceResourceTitle(data.type))
+        : data.type === 'table'
+          ? (tables.find((table) => table.id === data.id)?.name ??
+            fallbackWorkspaceResourceTitle(data.type))
+          : data.type === 'file'
+            ? (files.find((file) => file.id === data.id)?.name ??
+              fallbackWorkspaceResourceTitle(data.type))
+            : (knowledgeBases.find((knowledgeBase) => knowledgeBase.id === data.id)?.name ??
+              fallbackWorkspaceResourceTitle(data.type))
+
+    return {
+      type: toMothershipResourceType(data.type),
+      id: data.id,
+      title,
+    }
+  }, [data.id, data.type, files, knowledgeBases, tables, workflows])
+
+  const context = useMemo(() => toChatMessageContext(data, resource.title), [data, resource.title])
+
+  const workflowColor = useMemo(() => {
+    if (data.type !== 'workflow') return null
+    return workflows.find((workflow) => workflow.id === data.id)?.color ?? null
+  }, [data.id, data.type, workflows])
+
+  const mentionContent = (
+    <>
+      <ContextMentionIcon
+        context={context}
+        workflowColor={workflowColor}
+        className='relative top-0.5 h-[12px] w-[12px] flex-shrink-0 text-[var(--text-icon)]'
+      />
+      {resource.title}
+    </>
+  )
+
+  const classes =
+    'inline-flex items-baseline gap-1 rounded-[5px] bg-[var(--surface-5)] px-[5px] align-baseline font-[inherit] text-[inherit] leading-[inherit]'
+
+  if (!onSelect) {
+    return <span className={classes}>{mentionContent}</span>
+  }
+
+  return (
+    <button
+      type='button'
+      onClick={() => onSelect(resource)}
+      className={cn(classes, 'cursor-pointer transition-colors hover-hover:bg-[var(--surface-6)]')}
+    >
+      {mentionContent}
+    </button>
   )
 }
 

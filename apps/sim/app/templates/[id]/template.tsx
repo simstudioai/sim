@@ -14,7 +14,8 @@ import {
   User,
 } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import ReactMarkdown from 'react-markdown'
+import { Streamdown } from 'streamdown'
+import 'streamdown/styles.css'
 import {
   Breadcrumb,
   Button,
@@ -875,7 +876,8 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                 About this Workflow
               </h3>
               <div className='max-w-none space-y-2'>
-                <ReactMarkdown
+                <Streamdown
+                  mode='static'
                   components={{
                     p: ({ children }) => (
                       <p className='mb-2 font-sans text-muted-foreground text-sm leading-[1.4rem] last:mb-0'>
@@ -913,16 +915,16 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                       </ol>
                     ),
                     li: ({ children }) => <li className='leading-[1.4rem]'>{children}</li>,
-                    code: ({ inline, children }: any) =>
-                      inline ? (
-                        <code className='rounded bg-muted px-1.5 py-0.5 font-mono text-[var(--caution)] text-xs'>
-                          {children}
-                        </code>
-                      ) : (
-                        <code className='my-2 block overflow-x-auto rounded-md bg-muted p-3 font-mono text-foreground text-xs'>
-                          {children}
-                        </code>
-                      ),
+                    inlineCode: ({ children }) => (
+                      <code className='rounded bg-muted px-1.5 py-0.5 font-mono text-[var(--caution)] text-xs'>
+                        {children}
+                      </code>
+                    ),
+                    code: ({ children }) => (
+                      <code className='my-2 block overflow-x-auto rounded-md bg-muted p-3 font-mono text-foreground text-xs'>
+                        {children}
+                      </code>
+                    ),
                     a: ({ href, children }) => (
                       <a
                         href={href}
@@ -942,7 +944,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                   }}
                 >
                   {template.details.about}
-                </ReactMarkdown>
+                </Streamdown>
               </div>
             </div>
           )}
@@ -1056,7 +1058,8 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                     {/* Creator bio */}
                     {template.creator.details?.about && (
                       <div className='max-w-none'>
-                        <ReactMarkdown
+                        <Streamdown
+                          mode='static'
                           components={{
                             p: ({ children }) => (
                               <p className='mb-2 font-sans text-muted-foreground text-sm leading-[1.4rem] last:mb-0'>
@@ -1081,7 +1084,7 @@ export default function TemplateDetails({ isWorkspaceContext = false }: Template
                           }}
                         >
                           {template.creator.details.about}
-                        </ReactMarkdown>
+                        </Streamdown>
                       </div>
                     )}
                   </div>

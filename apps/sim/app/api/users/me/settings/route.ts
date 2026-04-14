@@ -28,6 +28,7 @@ const SettingsSchema = z.object({
   errorNotificationsEnabled: z.boolean().optional(),
   snapToGridSize: z.number().min(0).max(50).optional(),
   showActionBar: z.boolean().optional(),
+  lastActiveWorkspaceId: z.string().optional(),
 })
 
 const defaultSettings = {
@@ -41,6 +42,7 @@ const defaultSettings = {
   errorNotificationsEnabled: true,
   snapToGridSize: 0,
   showActionBar: true,
+  lastActiveWorkspaceId: null,
 }
 
 export async function GET() {
@@ -76,6 +78,7 @@ export async function GET() {
           errorNotificationsEnabled: userSettings.errorNotificationsEnabled ?? true,
           snapToGridSize: userSettings.snapToGridSize ?? 0,
           showActionBar: userSettings.showActionBar ?? true,
+          lastActiveWorkspaceId: userSettings.lastActiveWorkspaceId ?? null,
         },
       },
       { status: 200 }

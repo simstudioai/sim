@@ -4,7 +4,8 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { getJiraCloudId, getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
+import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
+import { getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
 const logger = createLogger('JsmSelectorServiceDesksAPI')
 
@@ -72,7 +73,7 @@ export async function POST(request: Request) {
         error: errorText,
       })
       return NextResponse.json(
-        { error: `JSM API error: ${response.status} ${response.statusText}` },
+        { error: parseAtlassianErrorMessage(response.status, response.statusText, errorText) },
         { status: response.status }
       )
     }

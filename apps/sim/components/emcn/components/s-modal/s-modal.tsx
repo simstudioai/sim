@@ -30,6 +30,7 @@ import * as TabsPrimitive from '@radix-ui/react-tabs'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
 import { Button } from '../button/button'
+import { focusFirstTextInput } from '../modal/auto-focus'
 import { Modal, type ModalContentProps, ModalOverlay, ModalPortal } from '../modal/modal'
 
 const ANIMATION_CLASSES =
@@ -59,7 +60,7 @@ const SModalClose = DialogPrimitive.Close
 const SModalContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   ModalContentProps
->(({ className, children, style, ...props }, ref) => {
+>(({ className, children, style, onOpenAutoFocus, ...props }, ref) => {
   const [isInteractionReady, setIsInteractionReady] = React.useState(false)
 
   React.useEffect(() => {
@@ -95,6 +96,7 @@ const SModalContent = React.forwardRef<
         onPointerUp={(e) => {
           e.stopPropagation()
         }}
+        onOpenAutoFocus={onOpenAutoFocus ?? focusFirstTextInput}
         {...props}
       >
         {children}

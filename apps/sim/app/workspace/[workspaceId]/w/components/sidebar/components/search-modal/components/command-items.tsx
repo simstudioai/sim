@@ -51,12 +51,14 @@ export const MemoizedWorkflowItem = memo(
     onSelect,
     color,
     name,
+    folderPath,
     isCurrent,
   }: {
     value: string
     onSelect: () => void
     color: string
     name: string
+    folderPath?: string
     isCurrent?: boolean
   }) {
     return (
@@ -73,6 +75,11 @@ export const MemoizedWorkflowItem = memo(
           {name}
           {isCurrent && ' (current)'}
         </span>
+        {folderPath && (
+          <span className='ml-auto min-w-0 truncate pl-2 font-base text-[var(--text-subtle)] text-small'>
+            {folderPath}
+          </span>
+        )}
       </Command.Item>
     )
   },
@@ -80,6 +87,7 @@ export const MemoizedWorkflowItem = memo(
     prev.value === next.value &&
     prev.color === next.color &&
     prev.name === next.name &&
+    prev.folderPath === next.folderPath &&
     prev.isCurrent === next.isCurrent
 )
 
