@@ -24,7 +24,12 @@ export function toAdf(value: string | Record<string, unknown>): Record<string, u
       if (typeof parsed === 'object' && parsed !== null && parsed.type === 'doc') {
         return parsed
       }
-      if (typeof parsed === 'object' && parsed !== null && parsed.type && Array.isArray(parsed.content)) {
+      if (
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        parsed.type &&
+        Array.isArray(parsed.content)
+      ) {
         return { type: 'doc', version: 1, content: [parsed] }
       }
     } catch {
