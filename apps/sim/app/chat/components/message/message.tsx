@@ -38,16 +38,6 @@ export interface ChatMessage {
   files?: ChatFile[]
 }
 
-function EnhancedMarkdownRenderer({
-  content,
-  isStreaming,
-}: {
-  content: string
-  isStreaming?: boolean
-}) {
-  return <MarkdownRenderer content={content} isStreaming={isStreaming} />
-}
-
 export const ClientChatMessage = memo(
   function ClientChatMessage({ message }: { message: ChatMessage }) {
     const [isCopied, setIsCopied] = useState(false)
@@ -192,7 +182,7 @@ export const ClientChatMessage = memo(
                       {JSON.stringify(cleanTextContent, null, 2)}
                     </pre>
                   ) : (
-                    <EnhancedMarkdownRenderer
+                    <MarkdownRenderer
                       content={cleanTextContent as string}
                       isStreaming={message.isStreaming}
                     />

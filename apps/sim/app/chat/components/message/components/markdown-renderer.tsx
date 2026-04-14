@@ -1,4 +1,4 @@
-import React, { type HTMLAttributes, memo, type ReactNode, useMemo } from 'react'
+import React, { type HTMLAttributes, memo, type ReactNode, useEffect, useMemo, useRef } from 'react'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { CopyCodeButton, Tooltip } from '@/components/emcn'
@@ -182,6 +182,14 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
   customLinkComponent?: typeof LinkWithPreview
   isStreaming?: boolean
 }) {
+  const hydratedStreamingRef = useRef(isStreaming && content.trim().length > 0)
+
+  useEffect(() => {
+    if (!isStreaming) {
+      hydratedStreamingRef.current = false
+    }
+  }, [isStreaming])
+
   const components = useMemo(() => {
     if (!customLinkComponent) {
       return DEFAULT_COMPONENTS
@@ -196,7 +204,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
       <Streamdown
         mode={isStreaming ? undefined : 'static'}
         isAnimating={isStreaming}
-        animated={isStreaming}
+        animated={isStreaming && !hydratedStreamingRef.current}
         components={components}
       >
         {processedContent}
