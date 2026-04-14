@@ -246,6 +246,8 @@ export function ChatContent({
   onWorkspaceResourceSelect,
   smoothStreaming = true,
 }: ChatContentProps) {
+  const hydratedStreamingRef = useRef(isStreaming && content.trim().length > 0)
+
   const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
   onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
 
@@ -334,6 +336,7 @@ export function ChatContent({
       <Streamdown
         mode={isStreaming ? undefined : 'static'}
         isAnimating={isStreaming}
+        animated={isStreaming && !hydratedStreamingRef.current}
         components={MARKDOWN_COMPONENTS}
       >
         {rendered}
