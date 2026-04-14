@@ -24,7 +24,10 @@ const SEO_SCAN_DIRS = [
   path.resolve(SIM_ROOT, 'content', 'blog'),
 ]
 
-const SEO_SCAN_INDIVIDUAL_FILES = [path.resolve(APP_DIR, 'page.tsx')]
+const SEO_SCAN_INDIVIDUAL_FILES = [
+  path.resolve(APP_DIR, 'page.tsx'),
+  path.resolve(SIM_ROOT, 'ee', 'whitelabeling', 'metadata.ts'),
+]
 
 function collectFiles(dir: string, exts: string[]): string[] {
   const results: string[] = []
@@ -108,8 +111,7 @@ describe('SEO canonical URLs', () => {
         content.includes('export async function generateMetadata')
       const usesGetBaseUrlInMetadata =
         hasMetadataExport &&
-        (content.includes('const baseUrl = getBaseUrl()') ||
-          content.includes('metadataBase: new URL(getBaseUrl'))
+        (content.includes('= getBaseUrl()') || content.includes('metadataBase: new URL(getBaseUrl'))
 
       if (usesGetBaseUrlInMetadata) {
         const rel = path.relative(SIM_ROOT, file)
