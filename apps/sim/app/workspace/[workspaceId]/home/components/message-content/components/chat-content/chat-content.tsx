@@ -8,8 +8,7 @@ import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'
 import 'prismjs/components/prism-markup'
 import '@/components/emcn/components/code/code.css'
-import { Checkbox, highlight, languages } from '@/components/emcn'
-import { CopyCodeButton } from '@/components/ui/copy-code-button'
+import { Checkbox, CopyCodeButton, highlight, languages } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import {
@@ -148,7 +147,7 @@ const MARKDOWN_COMPONENTS = {
           <span className='text-[var(--text-tertiary)] text-xs'>{language || 'code'}</span>
           <CopyCodeButton
             code={codeString}
-            className='text-[var(--text-tertiary)] hover:bg-[var(--surface-5)] hover:text-[var(--text-secondary)]'
+            className='-mr-2 text-[var(--text-tertiary)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-secondary)]'
           />
         </div>
         <div className='code-editor-theme bg-[var(--surface-5)] dark:bg-[var(--code-bg)]'>
@@ -265,12 +264,7 @@ export function ChatContent({
   useEffect(() => {
     const handler = (e: Event) => {
       const { type, id, title } = (e as CustomEvent).detail
-      const RESOURCE_TYPE_MAP: Record<string, string> = {}
-      onWorkspaceResourceSelectRef.current?.({
-        type: RESOURCE_TYPE_MAP[type] || type,
-        id,
-        title: title || id,
-      })
+      onWorkspaceResourceSelectRef.current?.({ type, id, title: title || id })
     }
     window.addEventListener('wsres-click', handler)
     return () => window.removeEventListener('wsres-click', handler)

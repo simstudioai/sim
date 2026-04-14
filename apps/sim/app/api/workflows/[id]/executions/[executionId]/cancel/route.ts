@@ -2,8 +2,10 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
+import { createExecutionEventWriter, setExecutionMeta } from '@/lib/execution/event-buffer'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 const logger = createLogger('CancelExecutionAPI')
@@ -49,11 +51,31 @@ export async function POST(
 
     const cancellation = await markExecutionCancelled(executionId)
     const locallyAborted = abortManualExecution(executionId)
+    let pausedCancelled = false
+    try {
+      pausedCancelled = await PauseResumeManager.cancelPausedExecution(executionId)
+    } catch (error) {
+      logger.warn('Failed to cancel paused execution in database', { executionId, error })
+    }
 
     if (cancellation.durablyRecorded) {
       logger.info('Execution marked as cancelled in Redis', { executionId })
     } else if (locallyAborted) {
       logger.info('Execution cancelled via local in-process fallback', { executionId })
+    } else if (pausedCancelled) {
+      logger.info('Paused execution cancelled directly in database', { executionId })
+      void setExecutionMeta(executionId, { status: 'cancelled', workflowId }).catch(() => {})
+      const writer = createExecutionEventWriter(executionId)
+      void writer
+        .write({
+          type: 'execution:cancelled',
+          timestamp: new Date().toISOString(),
+          executionId,
+          workflowId,
+          data: { duration: 0 },
+        })
+        .then(() => writer.close())
+        .catch(() => {})
     } else {
       logger.warn('Execution cancellation was not durably recorded', {
         executionId,
@@ -61,7 +83,9 @@ export async function POST(
       })
     }
 
-    if (cancellation.durablyRecorded || locallyAborted) {
+    const success = cancellation.durablyRecorded || locallyAborted || pausedCancelled
+
+    if (success) {
       const workspaceId = workflowAuthorization.workflow?.workspaceId
       captureServerEvent(
         auth.userId,
@@ -72,11 +96,12 @@ export async function POST(
     }
 
     return NextResponse.json({
-      success: cancellation.durablyRecorded || locallyAborted,
+      success,
       executionId,
       redisAvailable: cancellation.reason !== 'redis_unavailable',
       durablyRecorded: cancellation.durablyRecorded,
       locallyAborted,
+      pausedCancelled,
       reason: cancellation.reason,
     })
   } catch (error: any) {

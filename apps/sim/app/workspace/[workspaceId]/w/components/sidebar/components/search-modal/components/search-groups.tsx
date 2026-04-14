@@ -163,7 +163,7 @@ export const WorkflowsGroup = memo(function WorkflowsGroup({
       {items.map((workflow) => (
         <MemoizedWorkflowItem
           key={workflow.id}
-          value={`${workflow.name} ${workflow.folderPath ?? ''} workflow-${workflow.id}`}
+          value={`${workflow.name} ${workflow.folderPath?.join(' / ') ?? ''} workflow-${workflow.id}`}
           onSelect={() => onSelect(workflow)}
           color={workflow.color}
           name={workflow.name}

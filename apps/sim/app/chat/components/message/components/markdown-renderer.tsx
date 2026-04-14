@@ -1,8 +1,7 @@
 import React, { type HTMLAttributes, memo, type ReactNode, useMemo } from 'react'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
-import { Tooltip } from '@/components/emcn'
-import { CopyCodeButton } from '@/components/ui/copy-code-button'
+import { CopyCodeButton, Tooltip } from '@/components/emcn'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 
 export function LinkWithPreview({ href, children }: { href: string; children: React.ReactNode }) {
@@ -100,7 +99,7 @@ function createCustomComponents(LinkComponent: typeof LinkWithPreview) {
             </span>
             <CopyCodeButton
               code={extractTextContent(codeContent)}
-              className='text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+              className='text-gray-400 hover-hover:bg-gray-700 hover-hover:text-gray-200'
             />
           </div>
           <pre className='overflow-x-auto p-4 font-mono text-gray-200 dark:text-gray-100'>

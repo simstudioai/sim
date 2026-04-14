@@ -176,7 +176,7 @@ export function MothershipChat({
                     blocks={msg.contentBlocks || []}
                     fallbackContent={msg.content}
                     isStreaming={isThisStreaming}
-                    onOptionSelect={isLastMessage && !isStreamActive ? onSubmit : undefined}
+                    onOptionSelect={isLastMessage ? onSubmit : undefined}
                     onWorkspaceResourceSelect={onWorkspaceResourceSelect}
                   />
                   {!isThisStreaming && (msg.content || msg.contentBlocks?.length) && (

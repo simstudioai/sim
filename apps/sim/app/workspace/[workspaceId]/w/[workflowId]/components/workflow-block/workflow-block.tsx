@@ -640,7 +640,7 @@ const SubBlockRow = memo(function SubBlockRow({
   }, [subBlock?.id, rawValue, tables])
 
   const webhookUrlDisplayValue = useMemo(() => {
-    if (subBlock?.id !== 'webhookUrlDisplay' || !blockId) {
+    if (!subBlock?.id?.startsWith('webhookUrlDisplay') || !blockId) {
       return null
     }
     const baseUrl = getBaseUrl()

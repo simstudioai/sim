@@ -101,7 +101,6 @@ export class BrowserStorage {
 
 export const STORAGE_KEYS = {
   LANDING_PAGE_PROMPT: 'sim_landing_page_prompt',
-  LANDING_PAGE_TEMPLATE: 'sim_landing_page_template',
   LANDING_PAGE_WORKFLOW_SEED: 'sim_landing_page_workflow_seed',
   WORKSPACE_RECENCY: 'sim_workspace_recency',
 } as const
@@ -245,56 +244,6 @@ export class LandingPromptStorage {
    */
   static clear(): boolean {
     return BrowserStorage.removeItem(LandingPromptStorage.KEY)
-  }
-}
-
-/**
- * Specialized utility for managing a template selection from the landing page.
- * Stores the marketplace template ID so it can be consumed after signup.
- */
-export class LandingTemplateStorage {
-  private static readonly KEY = STORAGE_KEYS.LANDING_PAGE_TEMPLATE
-
-  /**
-   * Store a template ID selected on the landing page
-   * @param templateId - The marketplace template UUID
-   */
-  static store(templateId: string): boolean {
-    if (!templateId || templateId.trim().length === 0) {
-      return false
-    }
-
-    return BrowserStorage.setItem(LandingTemplateStorage.KEY, {
-      templateId: templateId.trim(),
-      timestamp: Date.now(),
-    })
-  }
-
-  /**
-   * Retrieve and consume the stored template ID
-   * @param maxAge - Maximum age in milliseconds (default: 24 hours)
-   */
-  static consume(maxAge: number = 24 * 60 * 60 * 1000): string | null {
-    const data = BrowserStorage.getItem<{ templateId: string; timestamp: number } | null>(
-      LandingTemplateStorage.KEY,
-      null
-    )
-
-    if (!data || !data.templateId || !data.timestamp) {
-      return null
-    }
-
-    if (Date.now() - data.timestamp > maxAge) {
-      LandingTemplateStorage.clear()
-      return null
-    }
-
-    LandingTemplateStorage.clear()
-    return data.templateId
-  }
-
-  static clear(): boolean {
-    return BrowserStorage.removeItem(LandingTemplateStorage.KEY)
   }
 }
 
