@@ -183,9 +183,7 @@ export function ResourceTabs({
   useEffect(() => {
     const node = scrollNodeRef.current
     if (!node || !activeId) return
-    const tab = node.querySelector<HTMLElement>(
-      `[data-resource-tab-id="${CSS.escape(activeId)}"]`
-    )
+    const tab = node.querySelector<HTMLElement>(`[data-resource-tab-id="${CSS.escape(activeId)}"]`)
     tab?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
   }, [activeId])
 
