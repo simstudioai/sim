@@ -103,12 +103,32 @@ export async function deduplicateWorkflowName(
   return `${name} (${generateId().slice(0, 6)})`
 }
 
+export type WorkflowResolutionResult =
+  | {
+      status: 'resolved'
+      workflowId: string
+      workflowName?: string
+    }
+  | {
+      status: 'not_found'
+      message: string
+    }
+  | {
+      status: 'ambiguous'
+      message: string
+      candidates: Array<{
+        workflowId: string
+        workflowName?: string
+        folderId?: string | null
+      }>
+    }
+
 export async function resolveWorkflowIdForUser(
   userId: string,
   workflowId?: string,
   workflowName?: string,
   workspaceId?: string
-): Promise<{ workflowId: string; workflowName?: string } | null> {
+): Promise<WorkflowResolutionResult> {
   if (workflowId) {
     const authorization = await authorizeWorkflowByWorkspacePermission({
       workflowId,
@@ -116,10 +136,13 @@ export async function resolveWorkflowIdForUser(
       action: 'read',
     })
     if (!authorization.allowed) {
-      return null
+      return {
+        status: 'not_found',
+        message: 'No workflows found. Create a workflow first or provide a valid workflowId.',
+      }
     }
     const wf = await getWorkflowById(workflowId)
-    return { workflowId, workflowName: wf?.name || undefined }
+    return { status: 'resolved', workflowId, workflowName: wf?.name || undefined }
   }
 
   const workspaceIds = await db
@@ -132,7 +155,10 @@ export async function resolveWorkflowIdForUser(
     ? workspaceIdList.filter((candidateWorkspaceId) => candidateWorkspaceId === workspaceId)
     : workspaceIdList
   if (allowedWorkspaceIds.length === 0) {
-    return null
+    return {
+      status: 'not_found',
+      message: 'No workflows found. Create a workflow first or provide a valid workflowId.',
+    }
   }
 
   const workflows = await db
@@ -144,23 +170,62 @@ export async function resolveWorkflowIdForUser(
     .orderBy(asc(workflowTable.sortOrder), asc(workflowTable.createdAt), asc(workflowTable.id))
 
   if (workflows.length === 0) {
-    return null
+    return {
+      status: 'not_found',
+      message: 'No workflows found. Create a workflow first or provide a valid workflowId.',
+    }
   }
 
   if (workflowName) {
-    const match = workflows.find(
+    const matches = workflows.filter(
       (w) =>
         String(w.name || '')
           .trim()
           .toLowerCase() === workflowName.toLowerCase()
     )
-    if (match) {
-      return { workflowId: match.id, workflowName: match.name || undefined }
+    if (matches.length === 1) {
+      const [match] = matches
+      return {
+        status: 'resolved',
+        workflowId: match.id,
+        workflowName: match.name || undefined,
+      }
     }
-    return null
+    if (matches.length > 1) {
+      return {
+        status: 'ambiguous',
+        message: `Multiple workflows named "${workflowName}" were found. Provide workflowId to disambiguate.`,
+        candidates: matches.map((match) => ({
+          workflowId: match.id,
+          workflowName: match.name || undefined,
+          folderId: match.folderId,
+        })),
+      }
+    }
+    return {
+      status: 'not_found',
+      message: `No workflow named "${workflowName}" was found.`,
+    }
   }
 
-  return { workflowId: workflows[0].id, workflowName: workflows[0].name || undefined }
+  if (workflows.length === 1) {
+    return {
+      status: 'resolved',
+      workflowId: workflows[0].id,
+      workflowName: workflows[0].name || undefined,
+    }
+  }
+
+  return {
+    status: 'ambiguous',
+    message:
+      'Multiple workflows are available. Provide workflowId or workflowName to disambiguate.',
+    candidates: workflows.slice(0, 20).map((workflow) => ({
+      workflowId: workflow.id,
+      workflowName: workflow.name || undefined,
+      folderId: workflow.folderId,
+    })),
+  }
 }
 
 type WorkflowRecord = ReturnType<typeof getWorkflowById> extends Promise<infer R>

@@ -70,7 +70,13 @@ function resolveAgentLabel(key: string): string {
 }
 
 function isToolDone(status: ToolCallData['status']): boolean {
-  return status === 'success' || status === 'error' || status === 'cancelled'
+  return (
+    status === 'success' ||
+    status === 'error' ||
+    status === 'cancelled' ||
+    status === 'skipped' ||
+    status === 'rejected'
+  )
 }
 
 function isDelegatingTool(tc: NonNullable<ContentBlock['toolCall']>): boolean {
@@ -87,6 +93,10 @@ function mapToolStatusToClientState(
       return ClientToolCallState.error
     case 'cancelled':
       return ClientToolCallState.cancelled
+    case 'skipped':
+      return ClientToolCallState.aborted
+    case 'rejected':
+      return ClientToolCallState.rejected
     default:
       return ClientToolCallState.executing
   }
