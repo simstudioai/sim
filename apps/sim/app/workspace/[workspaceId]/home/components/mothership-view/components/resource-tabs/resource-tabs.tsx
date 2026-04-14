@@ -184,7 +184,16 @@ export function ResourceTabs({
     const node = scrollNodeRef.current
     if (!node || !activeId) return
     const tab = node.querySelector<HTMLElement>(`[data-resource-tab-id="${CSS.escape(activeId)}"]`)
-    tab?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+    if (!tab) return
+    const tabLeft = tab.offsetLeft
+    const tabRight = tabLeft + tab.offsetWidth
+    const viewLeft = node.scrollLeft
+    const viewRight = viewLeft + node.clientWidth
+    if (tabLeft < viewLeft) {
+      node.scrollTo({ left: tabLeft, behavior: 'smooth' })
+    } else if (tabRight > viewRight) {
+      node.scrollTo({ left: tabRight - node.clientWidth, behavior: 'smooth' })
+    }
   }, [activeId])
 
   const addResource = useAddChatResource(chatId)

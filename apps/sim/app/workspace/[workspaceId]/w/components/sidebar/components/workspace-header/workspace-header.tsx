@@ -35,6 +35,9 @@ import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 const logger = createLogger('WorkspaceHeader')
 
+/** Minimum workspace count before the search input and keyboard navigation are shown. */
+const WORKSPACE_SEARCH_THRESHOLD = 3
+
 interface WorkspaceHeaderProps {
   /** The active workspace object */
   activeWorkspace?: { name: string } | null
@@ -492,7 +495,7 @@ export function WorkspaceHeader({
                     </div>
                   </div>
 
-                  {workspaces.length > 3 && (
+                  {workspaces.length > WORKSPACE_SEARCH_THRESHOLD && (
                     <div className='mt-1 flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-transparent px-2 py-1 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
                       <Search
                         className='h-[12px] w-[12px] flex-shrink-0 text-[var(--text-tertiary)]'
@@ -607,6 +610,7 @@ export function WorkspaceHeader({
                                   menuOpenWorkspaceId === workspace.id) &&
                                   'bg-[var(--surface-active)]',
                                 idx === highlightedIndex &&
+                                  workspaces.length > WORKSPACE_SEARCH_THRESHOLD &&
                                   workspace.id !== workspaceId &&
                                   menuOpenWorkspaceId !== workspace.id &&
                                   'bg-[var(--surface-hover)]'
