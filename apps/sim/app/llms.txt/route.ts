@@ -25,10 +25,10 @@ Sim lets teams create agents visually with the workflow builder, conversationall
 
 ## Key Concepts
 
-- **Workspace**: The AI workspace — container for agents, workflows, data sources, and executions
+- **Workspace**: The AI workspace — container for agents, workflows, data sources, and runs
 - **Workflow**: Visual builder — directed graph of blocks defining agent logic
 - **Block**: Individual step such as an LLM call, tool call, HTTP request, or code execution
-- **Trigger**: Event or schedule that initiates workflow execution
+- **Trigger**: Event or schedule that initiates a workflow run
 - **Execution**: A single run of a workflow with logs and outputs
 - **Knowledge Base**: Document store used for retrieval-augmented generation
 
@@ -41,7 +41,7 @@ Sim lets teams create agents visually with the workflow builder, conversationall
 - Knowledge bases and retrieval-augmented generation
 - Table creation and management
 - Document creation and processing
-- Scheduled and webhook-triggered executions
+- Scheduled and webhook-triggered runs
 
 ## Use Cases
 

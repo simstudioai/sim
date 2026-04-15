@@ -292,9 +292,9 @@ export function useCancelExecution() {
       const res = await fetch(`/api/workflows/${workflowId}/executions/${executionId}/cancel`, {
         method: 'POST',
       })
-      if (!res.ok) throw new Error('Failed to cancel execution')
+      if (!res.ok) throw new Error('Failed to cancel run')
       const data = await res.json()
-      if (!data.success) throw new Error('Failed to cancel execution')
+      if (!data.success) throw new Error('Failed to cancel run')
       return data
     },
     onMutate: async ({ executionId }) => {

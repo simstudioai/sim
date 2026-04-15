@@ -555,7 +555,7 @@ export class LoggingSession {
               models: {},
             }
 
-      const message = error?.message || 'Execution failed before starting blocks'
+      const message = error?.message || 'Run failed before starting blocks'
 
       const errorSpan: TraceSpan = {
         id: 'workflow-error-root',
@@ -994,7 +994,7 @@ export class LoggingSession {
         traceSpans: params?.traceSpans,
         endedAt: params?.endedAt,
         totalDurationMs: params?.totalDurationMs,
-        errorMessage: 'Execution was cancelled',
+        errorMessage: 'Run was cancelled',
         isError: false,
         finalizationPath: 'cancelled',
         finalOutput: { cancelled: true },
@@ -1021,7 +1021,7 @@ export class LoggingSession {
         traceSpans: params?.traceSpans,
         endedAt: params?.endedAt,
         totalDurationMs: params?.totalDurationMs,
-        errorMessage: 'Execution paused but failed to store full trace spans',
+        errorMessage: 'Run paused but failed to store full trace spans',
         isError: false,
         finalizationPath: 'paused',
         finalOutput: { paused: true },
@@ -1041,7 +1041,7 @@ export class LoggingSession {
     requestId?: string
   ): Promise<void> {
     try {
-      const message = errorMessage || 'Execution failed'
+      const message = errorMessage || 'Run failed'
       await db
         .update(workflowExecutionLogs)
         .set({
