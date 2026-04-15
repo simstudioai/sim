@@ -38,17 +38,17 @@ export const brightDataCancelSnapshotTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     if (!response.ok) {
       const errorText = await response.text()
       throw new Error(errorText || `Cancel snapshot failed with status ${response.status}`)
     }
 
-    const data = (await response.json().catch(() => null)) as Record<string, unknown> | null
+    await response.json().catch(() => null)
     return {
       success: true,
       output: {
-        snapshotId: (data?.snapshot_id as string) ?? null,
+        snapshotId: params?.snapshotId ?? null,
         cancelled: true,
       },
     }

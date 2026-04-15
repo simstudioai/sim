@@ -56,7 +56,7 @@ export const brightDataDownloadSnapshotTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     if (response.status === 409) {
       throw new Error(
         'Snapshot is not ready for download. Check the snapshot status first and wait until it is "ready".'
@@ -89,7 +89,7 @@ export const brightDataDownloadSnapshotTool: ToolConfig<
       output: {
         data,
         format: contentType,
-        snapshotId: (data[0]?.snapshot_id as string) ?? null,
+        snapshotId: params?.snapshotId ?? null,
       },
     }
   },

@@ -66,7 +66,7 @@ export const brightDataScrapeUrlTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     const contentType = response.headers.get('content-type') || ''
 
     if (!response.ok) {
@@ -86,7 +86,7 @@ export const brightDataScrapeUrlTool: ToolConfig<
       success: true,
       output: {
         content,
-        url: null,
+        url: params?.url ?? null,
         statusCode: response.status,
       },
     }

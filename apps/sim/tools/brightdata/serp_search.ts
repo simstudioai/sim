@@ -129,7 +129,7 @@ export const brightDataSerpSearchTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     if (!response.ok) {
       const errorText = await response.text()
       throw new Error(errorText || `SERP request failed with status ${response.status}`)
@@ -178,9 +178,14 @@ export const brightDataSerpSearchTool: ToolConfig<
       success: true,
       output: {
         results,
-        query: ((data?.general as Record<string, unknown> | undefined)?.query as string) ?? null,
+        query:
+          ((data?.general as Record<string, unknown> | undefined)?.query as string) ??
+          params?.query ??
+          null,
         searchEngine:
-          ((data?.general as Record<string, unknown> | undefined)?.search_engine as string) ?? null,
+          ((data?.general as Record<string, unknown> | undefined)?.search_engine as string) ??
+          params?.searchEngine ??
+          null,
       },
     }
   },
