@@ -183,6 +183,7 @@ vi.mock('@/tools/registry', () => {
       name: 'Gmail Read',
       description: 'Read Gmail messages',
       version: '1.0.0',
+      oauth: { required: true, provider: 'google-email' },
       params: {},
       request: { url: '/api/tools/gmail/read', method: 'GET' },
     },
@@ -191,6 +192,7 @@ vi.mock('@/tools/registry', () => {
       name: 'Gmail Send',
       description: 'Send Gmail messages',
       version: '1.0.0',
+      oauth: { required: true, provider: 'google-email' },
       params: {},
       request: { url: '/api/tools/gmail/send', method: 'POST' },
     },
@@ -979,6 +981,37 @@ describe('Copilot File Parameter Normalization', () => {
 
     expect(result.success).toBe(true)
     expect(mockResolveWorkspaceFileReference).not.toHaveBeenCalled()
+  })
+})
+
+describe('Copilot OAuth Credential Enforcement', () => {
+  let cleanupEnvVars: () => void
+
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+    cleanupEnvVars = setupEnvVars({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
+  })
+
+  afterEach(() => {
+    vi.resetAllMocks()
+    cleanupEnvVars()
+  })
+
+  it('fails fast when copilot executes an oauth tool without an explicit credential selector', async () => {
+    const fetchMock = vi.fn()
+    global.fetch = Object.assign(fetchMock, { preconnect: vi.fn() }) as typeof fetch
+
+    const context = createToolExecutionContext({
+      workspaceId: 'workspace-456',
+      copilotToolExecution: true,
+    } as any)
+
+    const result = await executeTool('gmail_read', { maxResults: 5 }, false, context)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('credentialId')
+    expect(result.error).toContain('environment/credentials.json')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
 

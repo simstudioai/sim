@@ -165,6 +165,43 @@ async function normalizeCopilotFileParams(
   }
 }
 
+function readExplicitCredentialSelector(params: Record<string, unknown>): string | undefined {
+  for (const key of ['credentialId', 'oauthCredential', 'credential'] as const) {
+    const value = params[key]
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim()
+    }
+  }
+  return undefined
+}
+
+function normalizeCopilotCredentialParams(params: Record<string, unknown>): void {
+  const credentialId = typeof params.credentialId === 'string' ? params.credentialId.trim() : ''
+  if (credentialId && !params.credential && !params.oauthCredential) {
+    params.credential = credentialId
+  }
+}
+
+function enforceCopilotCredentialSelection(
+  toolId: string,
+  tool: ToolConfig,
+  params: Record<string, unknown>,
+  scope: ToolExecutionScope
+): void {
+  if (!scope.copilotToolExecution || !tool.oauth?.required) {
+    return
+  }
+
+  if (readExplicitCredentialSelector(params)) {
+    return
+  }
+
+  const toolLabel = tool.name || toolId
+  throw new Error(
+    `Copilot must pass credentialId for ${toolLabel}. Read environment/credentials.json and pass the exact credentialId for provider "${tool.oauth.provider}".`
+  )
+}
+
 /** Result from hosted key injection */
 interface HostedKeyInjectionResult {
   isUsingHostedKey: boolean
@@ -789,6 +826,8 @@ export async function executeTool(
     }
 
     await normalizeCopilotFileParams(tool, contextParams, scope)
+    normalizeCopilotCredentialParams(contextParams)
+    enforceCopilotCredentialSelection(toolId, tool, contextParams, scope)
 
     // Inject hosted API key if tool supports it and user didn't provide one
     const hostedKeyInfo = await injectHostedKeyIfNeeded(

@@ -752,7 +752,7 @@ export function serializeIntegrationSchema(tool: ToolConfig): string {
                 type: 'string',
                 required: false,
                 description:
-                  'Optional credential ID to use when multiple accounts are connected for this provider. Get IDs from environment/credentials.json. If omitted, auto-selects the first available credential.',
+                  'Credential ID to use for this OAuth tool call. For Copilot/Superagent execution, pass this explicitly. Get valid IDs from environment/credentials.json.',
               },
             }),
           }
