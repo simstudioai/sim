@@ -1064,19 +1064,9 @@ export function isDeepResearchModel(model: string): boolean {
   return MODELS_WITH_DEEP_RESEARCH.includes(model.toLowerCase())
 }
 
-const GEMINI_3_MODELS = [
-  'gemini-3.1-pro-preview',
-  'gemini-3.1-flash-lite-preview',
-  'gemini-3-flash-preview',
-  'gemini-3-pro-preview',
-  'vertex/gemini-3.1-pro-preview',
-  'vertex/gemini-3.1-flash-lite-preview',
-  'vertex/gemini-3-pro-preview',
-  'vertex/gemini-3-flash-preview',
-]
-
 export function isGemini3Model(model: string): boolean {
-  return GEMINI_3_MODELS.includes(model.toLowerCase())
+  const normalized = model.toLowerCase().replace(/^vertex\//, '')
+  return normalized.startsWith('gemini-3')
 }
 
 /**
