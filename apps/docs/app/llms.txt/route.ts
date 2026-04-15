@@ -1,9 +1,10 @@
 import { source } from '@/lib/source'
+import { DOCS_BASE_URL } from '@/lib/urls'
 
 export const revalidate = false
 
 export async function GET() {
-  const baseUrl = 'https://docs.sim.ai'
+  const baseUrl = DOCS_BASE_URL
 
   try {
     const pages = source.getPages().filter((page) => {

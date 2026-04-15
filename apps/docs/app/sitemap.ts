@@ -1,10 +1,9 @@
 import type { MetadataRoute } from 'next'
 import { i18n } from '@/lib/i18n'
 import { source } from '@/lib/source'
+import { DOCS_BASE_URL } from '@/lib/urls'
 
 export const revalidate = 3600
-
-const DOCS_BASE_URL = process.env.NEXT_PUBLIC_DOCS_URL ?? 'https://docs.sim.ai'
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = DOCS_BASE_URL
