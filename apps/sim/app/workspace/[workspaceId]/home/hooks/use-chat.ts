@@ -1902,10 +1902,7 @@ export function useChat(
                       content: streamingContentRef.current,
                       contentBlocks: streamingBlocksRef.current,
                     })
-                    const seededMessages =
-                      assistantMessage.content || assistantMessage.contentBlocks?.length
-                        ? [userMsg, assistantMessage]
-                        : [userMsg]
+                    const seededMessages = [userMsg, assistantMessage]
                     queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(payloadChatId), {
                       id: payloadChatId,
                       title: null,
