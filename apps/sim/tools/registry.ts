@@ -236,6 +236,16 @@ import {
   boxSignResendRequestTool,
 } from '@/tools/box_sign'
 import { brandfetchGetBrandTool, brandfetchSearchTool } from '@/tools/brandfetch'
+import {
+  brightDataCancelSnapshotTool,
+  brightDataDiscoverTool,
+  brightDataDownloadSnapshotTool,
+  brightDataScrapeDatasetTool,
+  brightDataScrapeUrlTool,
+  brightDataSerpSearchTool,
+  brightDataSnapshotStatusTool,
+  brightDataSyncScrapeTool,
+} from '@/tools/brightdata'
 import { browserUseRunTaskTool } from '@/tools/browser_use'
 import {
   calcomCancelBookingTool,
@@ -2921,6 +2931,14 @@ export const tools: Record<string, ToolConfig> = {
   athena_stop_query: athenaStopQueryTool,
   brandfetch_get_brand: brandfetchGetBrandTool,
   brandfetch_search: brandfetchSearchTool,
+  brightdata_cancel_snapshot: brightDataCancelSnapshotTool,
+  brightdata_discover: brightDataDiscoverTool,
+  brightdata_download_snapshot: brightDataDownloadSnapshotTool,
+  brightdata_scrape_dataset: brightDataScrapeDatasetTool,
+  brightdata_scrape_url: brightDataScrapeUrlTool,
+  brightdata_serp_search: brightDataSerpSearchTool,
+  brightdata_snapshot_status: brightDataSnapshotStatusTool,
+  brightdata_sync_scrape: brightDataSyncScrapeTool,
   box_copy_file: boxCopyFileTool,
   box_create_folder: boxCreateFolderTool,
   box_delete_file: boxDeleteFileTool,

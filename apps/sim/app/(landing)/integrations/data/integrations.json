@@ -214,7 +214,7 @@
     "name": "Agiloft",
     "description": "Manage records in Agiloft CLM",
     "longDescription": "Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, and record locking across any table in your knowledge base.",
-    "bgColor": "#263A5C",
+    "bgColor": "#FFFFFF",
     "iconName": "AgiloftIcon",
     "docsUrl": "https://docs.sim.ai/tools/agiloft",
     "operations": [
@@ -1742,6 +1742,57 @@
     "category": "tools",
     "integrationTypes": ["sales", "analytics"],
     "tags": ["enrichment", "marketing"]
+  },
+  {
+    "type": "brightdata",
+    "slug": "bright-data",
+    "name": "Bright Data",
+    "description": "Scrape websites, search engines, and extract structured data",
+    "longDescription": "Integrate Bright Data into the workflow. Scrape any URL with Web Unlocker, search Google and other engines with SERP API, discover web content ranked by intent, or trigger pre-built scrapers for structured data extraction.",
+    "bgColor": "#FFFFFF",
+    "iconName": "BrightDataIcon",
+    "docsUrl": "https://docs.sim.ai/tools/brightdata",
+    "operations": [
+      {
+        "name": "Scrape URL",
+        "description": "Fetch content from any URL using Bright Data Web Unlocker. Bypasses anti-bot protections, CAPTCHAs, and IP blocks automatically."
+      },
+      {
+        "name": "SERP Search",
+        "description": "Search Google, Bing, DuckDuckGo, or Yandex and get structured search results using Bright Data SERP API."
+      },
+      {
+        "name": "Discover",
+        "description": "AI-powered web discovery that finds and ranks results by intent. Returns up to 1,000 results with optional cleaned page content for RAG and verification."
+      },
+      {
+        "name": "Sync Scrape",
+        "description": "Scrape URLs synchronously using a Bright Data pre-built scraper and get structured results directly. Supports up to 20 URLs with a 1-minute timeout."
+      },
+      {
+        "name": "Scrape Dataset",
+        "description": "Trigger a Bright Data pre-built scraper to extract structured data from URLs. Supports 660+ scrapers for platforms like Amazon, LinkedIn, Instagram, and more."
+      },
+      {
+        "name": "Snapshot Status",
+        "description": "Check the progress of an async Bright Data scraping job. Returns status: starting, running, ready, or failed."
+      },
+      {
+        "name": "Download Snapshot",
+        "description": "Download the results of a completed Bright Data scraping job using its snapshot ID. The snapshot must have ready status."
+      },
+      {
+        "name": "Cancel Snapshot",
+        "description": "Cancel an active Bright Data scraping job using its snapshot ID. Terminates data collection in progress."
+      }
+    ],
+    "operationCount": 8,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationTypes": ["search", "developer-tools"],
+    "tags": ["web-scraping", "automation"]
   },
   {
     "type": "browser_use",

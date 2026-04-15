@@ -18,6 +18,7 @@ import { AthenaBlock } from '@/blocks/blocks/athena'
 import { AttioBlock } from '@/blocks/blocks/attio'
 import { BoxBlock } from '@/blocks/blocks/box'
 import { BrandfetchBlock } from '@/blocks/blocks/brandfetch'
+import { BrightDataBlock } from '@/blocks/blocks/brightdata'
 import { BrowserUseBlock } from '@/blocks/blocks/browser_use'
 import { CalComBlock } from '@/blocks/blocks/calcom'
 import { CalendlyBlock } from '@/blocks/blocks/calendly'
@@ -245,6 +246,7 @@ export const registry: Record<string, BlockConfig> = {
   athena: AthenaBlock,
   attio: AttioBlock,
   brandfetch: BrandfetchBlock,
+  brightdata: BrightDataBlock,
   box: BoxBlock,
   browser_use: BrowserUseBlock,
   calcom: CalComBlock,
