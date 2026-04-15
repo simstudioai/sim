@@ -38,9 +38,7 @@ export function WorkflowSelector({
    * When allWorkflows is true, pass empty array so the "All" option is selected.
    * Otherwise, pass the selected workflow IDs.
    */
-  const currentValues = useMemo(() => {
-    return allWorkflows ? [] : selectedIds
-  }, [allWorkflows, selectedIds])
+  const currentValues = allWorkflows ? [] : selectedIds
 
   /**
    * Handle multi-select changes from Combobox.
