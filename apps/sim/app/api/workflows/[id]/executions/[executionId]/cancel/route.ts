@@ -86,9 +86,6 @@ export async function POST(
       })
     }
 
-    // For running executions, update DB directly so the UI sees 'cancelled' immediately
-    // instead of flashing back to 'running' before the executor finishes processing.
-    // Paused executions are already handled by cancelPausedExecution's transaction.
     if ((cancellation.durablyRecorded || locallyAborted) && !pausedCancelled) {
       try {
         await db
