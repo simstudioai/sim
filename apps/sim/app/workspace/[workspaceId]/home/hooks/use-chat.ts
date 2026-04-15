@@ -58,12 +58,16 @@ import {
   WorkspaceFile,
   WorkspaceFileOperation,
 } from '@/lib/copilot/generated/tool-catalog-v1'
-import { parsePersistedStreamEventEnvelopeJson } from '@/lib/copilot/request/session/contract'
+import {
+  type ParseStreamEventEnvelopeFailure,
+  parsePersistedStreamEventEnvelope,
+  parsePersistedStreamEventEnvelopeJson,
+} from '@/lib/copilot/request/session/contract'
 import {
   type FilePreviewSession,
   isFilePreviewSession,
 } from '@/lib/copilot/request/session/file-preview-session-contract'
-import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/copilot/request/session/types'
+import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import {
   extractResourcesFromToolResult,
   isResourceToolName,
@@ -509,6 +513,33 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
+const STREAM_SCHEMA_ENFORCEMENT_PREFIX = 'Client stream schema enforcement failed.'
+
+class StreamSchemaValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'StreamSchemaValidationError'
+  }
+}
+
+function createStreamSchemaValidationError(
+  failure: ParseStreamEventEnvelopeFailure,
+  context?: string
+): StreamSchemaValidationError {
+  const details = failure.errors?.filter(Boolean).join('; ')
+  return new StreamSchemaValidationError(
+    [STREAM_SCHEMA_ENFORCEMENT_PREFIX, context, failure.message, details].filter(Boolean).join(' ')
+  )
+}
+
+function createBatchSchemaValidationError(message: string): StreamSchemaValidationError {
+  return new StreamSchemaValidationError([STREAM_SCHEMA_ENFORCEMENT_PREFIX, message].join(' '))
+}
+
+function isStreamSchemaValidationError(error: unknown): error is StreamSchemaValidationError {
+  return error instanceof StreamSchemaValidationError
+}
+
 function parseStreamBatchResponse(value: unknown): StreamBatchResponse {
   if (!isRecord(value)) {
     throw new Error('Invalid stream batch response')
@@ -516,20 +547,41 @@ function parseStreamBatchResponse(value: unknown): StreamBatchResponse {
 
   const rawEvents = Array.isArray(value.events) ? value.events : []
   const events: StreamBatchEvent[] = []
-  for (const entry of rawEvents) {
-    if (!isStreamBatchEvent(entry)) {
-      throw new Error('Invalid stream batch event')
+  for (const [index, entry] of rawEvents.entries()) {
+    if (!isRecord(entry)) {
+      throw createBatchSchemaValidationError(`Reconnect batch event ${index + 1} is not an object.`)
     }
-    events.push(entry)
+    if (
+      typeof entry.eventId !== 'number' ||
+      !Number.isFinite(entry.eventId) ||
+      typeof entry.streamId !== 'string'
+    ) {
+      throw createBatchSchemaValidationError(
+        `Reconnect batch event ${index + 1} is missing required metadata.`
+      )
+    }
+
+    const parsedEvent = parsePersistedStreamEventEnvelope(entry.event)
+    if (!parsedEvent.ok) {
+      throw createStreamSchemaValidationError(parsedEvent, `Reconnect batch event ${index + 1}.`)
+    }
+
+    events.push({
+      eventId: entry.eventId,
+      streamId: entry.streamId,
+      event: parsedEvent.event,
+    })
   }
 
   const rawPreviewSessions = Array.isArray(value.previewSessions)
     ? value.previewSessions
     : undefined
   const previewSessions =
-    rawPreviewSessions?.map((session) => {
+    rawPreviewSessions?.map((session, index) => {
       if (!isFilePreviewSession(session)) {
-        throw new Error('Invalid stream preview session')
+        throw createBatchSchemaValidationError(
+          `Reconnect preview session ${index + 1} failed validation.`
+        )
       }
       return session
     }) ?? undefined
@@ -1579,12 +1631,14 @@ export function useChat(
 
           const parsedResult = parsePersistedStreamEventEnvelopeJson(raw)
           if (!parsedResult.ok) {
-            logger.warn('Failed to parse chat SSE event', {
+            const error = createStreamSchemaValidationError(parsedResult, 'Live SSE event.')
+            logger.error('Rejected chat SSE event due to client-side schema enforcement', {
               reason: parsedResult.reason,
               message: parsedResult.message,
               errors: parsedResult.errors,
+              error: error.message,
             })
-            continue
+            throw error
           }
           const parsed = parsedResult.event
 
@@ -2533,6 +2587,17 @@ export function useChat(
             }
             return true
           }
+          if (isStreamSchemaValidationError(err)) {
+            logger.error('Reconnect halted by client-side stream schema enforcement', {
+              streamId,
+              attempt: attempt + 1,
+              error: err.message,
+            })
+            if (streamGenRef.current === gen) {
+              setError(err.message)
+            }
+            return false
+          }
           logger.warn('Reconnect attempt failed', {
             streamId,
             attempt: attempt + 1,
@@ -2892,6 +2957,13 @@ export function useChat(
         }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return consumedByTranscript
+        if (isStreamSchemaValidationError(err)) {
+          setError(err.message)
+          if (streamGenRef.current === gen) {
+            finalize({ error: true })
+          }
+          return consumedByTranscript
+        }
 
         const activeStreamId = streamIdRef.current
         if (activeStreamId && streamGenRef.current === gen) {
