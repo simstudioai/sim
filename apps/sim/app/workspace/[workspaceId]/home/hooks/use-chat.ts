@@ -2967,7 +2967,7 @@ export function useChat(
         input: {},
         output: {},
         success: false,
-        error: 'Execution was cancelled',
+        error: 'Run was cancelled',
         durationMs: 0,
         startedAt: now.toISOString(),
         executionOrder: Number.MAX_SAFE_INTEGER,
@@ -2975,7 +2975,7 @@ export function useChat(
         workflowId,
         blockId: 'cancelled',
         executionId: executionId ?? undefined,
-        blockName: 'Execution Cancelled',
+        blockName: 'Run Cancelled',
         blockType: 'cancelled',
       })
 

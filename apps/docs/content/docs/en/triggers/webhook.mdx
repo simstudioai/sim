@@ -8,7 +8,7 @@ import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
 
-Webhooks allow external services to trigger workflow execution by sending HTTP requests to your workflow. Sim supports two approaches for webhook-based triggers.
+Webhooks allow external services to trigger workflow runs by sending HTTP requests to your workflow. Sim supports two approaches for webhook-based triggers.
 
 ## Generic Webhook Trigger
 
@@ -30,7 +30,7 @@ The Generic Webhook block creates a flexible endpoint that can receive any paylo
 2. **Configure Payload** - Set up the expected payload structure (optional)
 3. **Get Webhook URL** - Copy the automatically generated unique endpoint
 4. **External Integration** - Configure your external service to send POST requests to this URL
-5. **Workflow Execution** - Every request to the webhook URL triggers the workflow
+5. **Workflow Run** - Every request to the webhook URL triggers the workflow
 
 ### Features
 
@@ -38,7 +38,7 @@ The Generic Webhook block creates a flexible endpoint that can receive any paylo
 - **Automatic Parsing**: Webhook data is automatically parsed and available to subsequent blocks
 - **Authentication**: Optional bearer token or custom header authentication
 - **Rate Limiting**: Built-in protection against abuse
-- **Deduplication**: Prevents duplicate executions from repeated requests
+- **Deduplication**: Prevents duplicate runs from repeated requests
 
 <Callout type="info">
 The Generic Webhook trigger fires every time the webhook URL receives a request, making it perfect for real-time integrations.
@@ -58,7 +58,7 @@ Alternatively, you can use specific service blocks (like Slack, GitHub, etc.) in
 2. **Enable Trigger Mode** - Toggle "Use as Trigger" in the block settings
 3. **Configure Service** - Set up authentication and event filters specific to that service
 4. **Webhook Registration** - The service automatically registers the webhook with the external platform
-5. **Event-Based Execution** - Workflow triggers only for specific events from that service
+5. **Event-Based Runs** - Workflow triggers only for specific events from that service
 
 ### When to Use Each Approach
 
@@ -120,7 +120,7 @@ Alternatively, you can use specific service blocks (like Slack, GitHub, etc.) in
 ### Testing Webhooks
 
 1. Use tools like Postman or curl to test your webhook endpoints
-2. Check workflow execution logs for debugging
+2. Check workflow run logs for debugging
 3. Verify payload structure matches your expectations
 4. Test authentication and error scenarios
 
@@ -153,8 +153,8 @@ Always validate and sanitize incoming webhook data before processing it in your 
   { question: "What HTTP methods does the Generic Webhook endpoint accept?", answer: "The webhook endpoint handles POST requests for triggering workflows. GET requests are only used for provider-specific verification challenges (such as Microsoft Graph or WhatsApp verification). Other methods return a 405 Method Not Allowed response." },
   { question: "How do I authenticate webhook requests?", answer: "Enable the Require Authentication toggle in the webhook configuration, then set an Authentication Token. Callers can send the token as a Bearer token in the Authorization header, or you can specify a custom header name (e.g., X-Secret-Key) and the token will be matched against that header instead." },
   { question: "Can I define the expected payload structure for a webhook?", answer: "Yes. The Generic Webhook block includes an Input Format field where you can define the expected JSON schema. This is optional but helps document the expected structure. You can also use type \"file[]\" for file upload fields." },
-  { question: "Does the webhook have deduplication built in?", answer: "Yes. The webhook processing pipeline includes idempotency checks to prevent duplicate executions from repeated requests with the same payload." },
+  { question: "Does the webhook have deduplication built in?", answer: "Yes. The webhook processing pipeline includes idempotency checks to prevent duplicate runs from repeated requests with the same payload." },
   { question: "What data from the webhook request is available in my workflow?", answer: "All request data including headers, body, and query parameters is parsed and made available to subsequent blocks. Common fields like event, id, and data are automatically extracted from the payload when present." },
-  { question: "Do I need to deploy my workflow for the webhook URL to work?", answer: "Yes. The webhook endpoint checks that the associated workflow is deployed before triggering execution. If the workflow is not deployed, the webhook returns a not-found response." },
-  { question: "Does the webhook auto-disable after repeated failures?", answer: "No. Unlike polling-based triggers (RSS, Gmail, IMAP), push-based generic webhooks do not auto-disable after consecutive failures. Each incoming request is processed independently. If your workflow consistently fails, check the execution logs for error details." },
+  { question: "Do I need to deploy my workflow for the webhook URL to work?", answer: "Yes. The webhook endpoint checks that the associated workflow is deployed before triggering a run. If the workflow is not deployed, the webhook returns a not-found response." },
+  { question: "Does the webhook auto-disable after repeated failures?", answer: "No. Unlike polling-based triggers (RSS, Gmail, IMAP), push-based generic webhooks do not auto-disable after consecutive failures. Each incoming request is processed independently. If your workflow consistently fails, check the run logs for error details." },
 ]} />
