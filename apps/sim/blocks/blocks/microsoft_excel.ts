@@ -415,7 +415,7 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       selectorKey: 'sharepoint.sites',
       requiredScopes: [],
       placeholder: 'Select a SharePoint site',
-      dependsOn: ['credential'],
+      dependsOn: ['credential', 'fileSource'],
       condition: { field: 'fileSource', value: 'sharepoint' },
       required: { field: 'fileSource', value: 'sharepoint' },
       mode: 'basic',
@@ -430,7 +430,7 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       selectorKey: 'microsoft.excel.drives',
       selectorAllowSearch: false,
       placeholder: 'Select a document library',
-      dependsOn: ['credential', 'siteSelector'],
+      dependsOn: ['credential', 'siteSelector', 'fileSource'],
       condition: { field: 'fileSource', value: 'sharepoint' },
       required: { field: 'fileSource', value: 'sharepoint' },
       mode: 'basic',
@@ -446,18 +446,8 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       requiredScopes: [],
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       placeholder: 'Select a spreadsheet',
-      dependsOn: { all: ['credential'], any: ['credential', 'driveSelector'] },
+      dependsOn: { all: ['credential', 'fileSource'], any: ['credential', 'driveSelector'] },
       mode: 'basic',
-    },
-    // Manual Spreadsheet ID (advanced mode)
-    {
-      id: 'manualSpreadsheetId',
-      title: 'Spreadsheet ID',
-      type: 'short-input',
-      canonicalParamId: 'spreadsheetId',
-      placeholder: 'Enter spreadsheet ID',
-      dependsOn: { all: ['credential'], any: ['credential', 'manualDriveId'] },
-      mode: 'advanced',
     },
     // Drive ID for SharePoint (advanced mode, only when SharePoint is selected)
     {
@@ -467,6 +457,16 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       canonicalParamId: 'driveId',
       placeholder: 'Enter the SharePoint drive ID',
       condition: { field: 'fileSource', value: 'sharepoint' },
+      mode: 'advanced',
+    },
+    // Manual Spreadsheet ID (advanced mode)
+    {
+      id: 'manualSpreadsheetId',
+      title: 'Spreadsheet ID',
+      type: 'short-input',
+      canonicalParamId: 'spreadsheetId',
+      placeholder: 'Enter spreadsheet ID',
+      dependsOn: { all: ['credential'], any: ['credential', 'manualDriveId'] },
       mode: 'advanced',
     },
     // Sheet Name Selector (basic mode)

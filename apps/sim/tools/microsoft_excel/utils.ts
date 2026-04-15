@@ -1,5 +1,8 @@
 import { createLogger } from '@sim/logger'
-import { validateAlphanumericId } from '@/lib/core/security/input-validation'
+import {
+  validateAlphanumericId,
+  validateMicrosoftGraphId,
+} from '@/lib/core/security/input-validation'
 import type { ExcelCellValue } from '@/tools/microsoft_excel/types'
 
 const logger = createLogger('MicrosoftExcelUtils')
@@ -10,10 +13,15 @@ const logger = createLogger('MicrosoftExcelUtils')
  * When driveId is omitted, uses /me/drive/items/{itemId} (personal OneDrive).
  */
 export function getItemBasePath(spreadsheetId: string, driveId?: string): string {
+  const spreadsheetValidation = validateMicrosoftGraphId(spreadsheetId, 'spreadsheetId')
+  if (!spreadsheetValidation.isValid) {
+    throw new Error(spreadsheetValidation.error)
+  }
+
   if (driveId) {
-    const validation = validateAlphanumericId(driveId, 'driveId')
-    if (!validation.isValid) {
-      throw new Error(validation.error)
+    const driveValidation = validateAlphanumericId(driveId, 'driveId')
+    if (!driveValidation.isValid) {
+      throw new Error(driveValidation.error)
     }
     return `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${spreadsheetId}`
   }

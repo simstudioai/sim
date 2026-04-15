@@ -1,7 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
-import { validateAlphanumericId } from '@/lib/core/security/input-validation'
+import {
+  validateAlphanumericId,
+  validateMicrosoftGraphId,
+} from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
@@ -62,6 +65,11 @@ export async function GET(request: NextRequest) {
     logger.info(
       `[${requestId}] Fetching worksheets from Microsoft Graph API for workbook ${spreadsheetId}`
     )
+
+    const spreadsheetValidation = validateMicrosoftGraphId(spreadsheetId, 'spreadsheetId')
+    if (!spreadsheetValidation.isValid) {
+      return NextResponse.json({ error: spreadsheetValidation.error }, { status: 400 })
+    }
 
     if (driveId) {
       const driveIdValidation = validateAlphanumericId(driveId, 'driveId')
