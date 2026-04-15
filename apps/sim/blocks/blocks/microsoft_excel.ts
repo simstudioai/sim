@@ -457,6 +457,7 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       canonicalParamId: 'driveId',
       placeholder: 'Enter the SharePoint drive ID',
       condition: { field: 'fileSource', value: 'sharepoint' },
+      dependsOn: ['fileSource'],
       mode: 'advanced',
     },
     // Manual Spreadsheet ID (advanced mode)
