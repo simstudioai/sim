@@ -1,4 +1,7 @@
+import { db } from '@sim/db'
+import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
@@ -81,6 +84,28 @@ export async function POST(
         executionId,
         reason: cancellation.reason,
       })
+    }
+
+    // For running executions, update DB directly so the UI sees 'cancelled' immediately
+    // instead of flashing back to 'running' before the executor finishes processing.
+    // Paused executions are already handled by cancelPausedExecution's transaction.
+    if ((cancellation.durablyRecorded || locallyAborted) && !pausedCancelled) {
+      try {
+        await db
+          .update(workflowExecutionLogs)
+          .set({ status: 'cancelled', endedAt: new Date() })
+          .where(
+            and(
+              eq(workflowExecutionLogs.executionId, executionId),
+              eq(workflowExecutionLogs.status, 'running')
+            )
+          )
+      } catch (dbError) {
+        logger.warn('Failed to update execution log status directly', {
+          executionId,
+          error: dbError,
+        })
+      }
     }
 
     const success = cancellation.durablyRecorded || locallyAborted || pausedCancelled

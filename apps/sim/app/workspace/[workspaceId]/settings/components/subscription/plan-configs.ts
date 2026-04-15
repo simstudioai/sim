@@ -15,7 +15,7 @@ import type { PlanFeature } from '@/app/workspace/[workspaceId]/settings/compone
 export const PRO_PLAN_FEATURES: PlanFeature[] = [
   { icon: Zap, text: '150 runs/min (sync)' },
   { icon: Clock, text: '1,000 runs/min (async)' },
-  { icon: Timer, text: '50 min sync execution limit' },
+  { icon: Timer, text: '50 min sync run limit' },
   { icon: HardDrive, text: '50GB file storage' },
   { icon: Table2, text: '25 tables · 5,000 rows each' },
 ]
@@ -23,7 +23,7 @@ export const PRO_PLAN_FEATURES: PlanFeature[] = [
 export const MAX_PLAN_FEATURES: PlanFeature[] = [
   { icon: Zap, text: '300 runs/min (sync)' },
   { icon: Clock, text: '2,500 runs/min (async)' },
-  { icon: Timer, text: '50 min sync execution limit' },
+  { icon: Timer, text: '50 min sync run limit' },
   { icon: HardDrive, text: '500GB file storage' },
   { icon: Table2, text: '25 tables · 5,000 rows each' },
 ]
