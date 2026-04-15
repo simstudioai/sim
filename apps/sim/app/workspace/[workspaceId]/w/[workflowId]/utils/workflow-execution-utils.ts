@@ -652,7 +652,7 @@ export async function executeWorkflowWithFullLogging(
 
   if (!response.ok) {
     const error = await response.json()
-    const errorMessage = error.error || 'Workflow execution failed'
+    const errorMessage = error.error || 'Workflow run failed'
     addHttpErrorConsoleEntry(addConsole, {
       workflowId: wfId,
       executionId,

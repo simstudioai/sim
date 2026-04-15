@@ -604,7 +604,7 @@ export class SearchSuggestions {
         id: `trigger-match-${trigger.value}`,
         value: `trigger:${trigger.value}`,
         label: trigger.label,
-        description: `${trigger.label}-triggered executions`,
+        description: `${trigger.label}-triggered runs`,
         category: 'trigger' as const,
         color: trigger.color,
       }))
