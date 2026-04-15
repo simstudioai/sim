@@ -91,7 +91,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Select Jira project',
       dependsOn: ['credential', 'domain'],
       mode: 'basic',
-      required: { field: 'operation', value: ['write', 'update', 'read-bulk'] },
+      required: { field: 'operation', value: ['write', 'read-bulk'] },
     },
     // Manual project ID input (advanced mode)
     {
@@ -102,7 +102,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Enter Jira project ID',
       dependsOn: ['credential', 'domain'],
       mode: 'advanced',
-      required: { field: 'operation', value: ['write', 'update', 'read-bulk'] },
+      required: { field: 'operation', value: ['write', 'read-bulk'] },
     },
     // Issue selector (basic mode)
     {
@@ -218,7 +218,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       id: 'summary',
       title: 'New Summary',
       type: 'short-input',
-      required: true,
+      required: { field: 'operation', value: 'write' },
       placeholder: 'Enter new summary for the issue',
       dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['update', 'write'] },
