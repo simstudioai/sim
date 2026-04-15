@@ -8,10 +8,34 @@ const SEARCH_ENGINE_CONFIG: Record<
   string,
   { url: string; queryKey: string; numKey: string; langKey: string; countryKey: string }
 > = {
-  google: { url: 'https://www.google.com/search', queryKey: 'q', numKey: 'num', langKey: 'hl', countryKey: 'gl' },
-  bing: { url: 'https://www.bing.com/search', queryKey: 'q', numKey: 'count', langKey: 'setLang', countryKey: 'cc' },
-  duckduckgo: { url: 'https://duckduckgo.com/', queryKey: 'q', numKey: '', langKey: 'kl', countryKey: '' },
-  yandex: { url: 'https://yandex.com/search/', queryKey: 'text', numKey: 'numdoc', langKey: 'lang', countryKey: 'lr' },
+  google: {
+    url: 'https://www.google.com/search',
+    queryKey: 'q',
+    numKey: 'num',
+    langKey: 'hl',
+    countryKey: 'gl',
+  },
+  bing: {
+    url: 'https://www.bing.com/search',
+    queryKey: 'q',
+    numKey: 'count',
+    langKey: 'setLang',
+    countryKey: 'cc',
+  },
+  duckduckgo: {
+    url: 'https://duckduckgo.com/',
+    queryKey: 'q',
+    numKey: '',
+    langKey: 'kl',
+    countryKey: '',
+  },
+  yandex: {
+    url: 'https://yandex.com/search/',
+    queryKey: 'text',
+    numKey: 'numdoc',
+    langKey: 'lang',
+    countryKey: 'lr',
+  },
 } as const
 
 export const brightDataSerpSearchTool: ToolConfig<
