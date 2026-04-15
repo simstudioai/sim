@@ -193,9 +193,7 @@ function isStreamScope(value: unknown): value is MothershipStreamV1StreamScope {
 // structural checking to safely dispatch inside the switch statement.
 // ---------------------------------------------------------------------------
 
-const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set(
-  Object.values(MothershipStreamV1EventType)
-)
+const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set(Object.values(MothershipStreamV1EventType))
 
 function isValidEnvelopeShell(value: unknown): value is JsonRecord & {
   v: 1

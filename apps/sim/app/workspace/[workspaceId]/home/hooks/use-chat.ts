@@ -67,7 +67,7 @@ import {
   type FilePreviewSession,
   isFilePreviewSession,
 } from '@/lib/copilot/request/session/file-preview-session-contract'
-import { type StreamBatchEvent } from '@/lib/copilot/request/session/types'
+import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import {
   extractResourcesFromToolResult,
   isResourceToolName,
@@ -528,9 +528,7 @@ function createStreamSchemaValidationError(
 ): StreamSchemaValidationError {
   const details = failure.errors?.filter(Boolean).join('; ')
   return new StreamSchemaValidationError(
-    [STREAM_SCHEMA_ENFORCEMENT_PREFIX, context, failure.message, details]
-      .filter(Boolean)
-      .join(' ')
+    [STREAM_SCHEMA_ENFORCEMENT_PREFIX, context, failure.message, details].filter(Boolean).join(' ')
   )
 }
 
@@ -565,10 +563,7 @@ function parseStreamBatchResponse(value: unknown): StreamBatchResponse {
 
     const parsedEvent = parsePersistedStreamEventEnvelope(entry.event)
     if (!parsedEvent.ok) {
-      throw createStreamSchemaValidationError(
-        parsedEvent,
-        `Reconnect batch event ${index + 1}.`
-      )
+      throw createStreamSchemaValidationError(parsedEvent, `Reconnect batch event ${index + 1}.`)
     }
 
     events.push({
