@@ -84,7 +84,7 @@ export const brightDataDiscoverTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     if (!response.ok) {
       const errorText = await response.text()
       throw new Error(errorText || `Discover request failed with status ${response.status}`)
@@ -117,7 +117,7 @@ export const brightDataDiscoverTool: ToolConfig<
       success: true,
       output: {
         results,
-        query: null,
+        query: params?.query ?? null,
         totalResults: results.length,
       },
     }
