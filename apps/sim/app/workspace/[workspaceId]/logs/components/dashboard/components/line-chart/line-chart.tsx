@@ -241,7 +241,7 @@ function LineChartComponent({
         )}
         style={{ width, height }}
       >
-        <p className='text-muted-foreground text-sm'>No data</p>
+        <p className='text-[var(--text-muted)] text-sm'>No data</p>
       </div>
     )
   }
@@ -256,7 +256,7 @@ function LineChartComponent({
     >
       {!hasExternalWrapper && (
         <div className='mb-3 flex items-center gap-3'>
-          <h4 className='font-medium text-foreground text-sm'>{label}</h4>
+          <h4 className='font-medium text-[var(--text-primary)] text-sm'>{label}</h4>
           {allSeries.length > 1 && (
             <div className='flex items-center gap-2'>
               {scaledSeries.slice(1).map((s) => {

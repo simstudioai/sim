@@ -197,12 +197,9 @@ export const NotificationSettings = memo(function NotificationSettings({
   // Show form if user explicitly opened it OR if loading is complete with no subscriptions
   const displayForm = showForm || (!isLoading && !hasSubscriptions && !editingId)
 
-  const getSubscriptionsForTab = useCallback(
-    (tab: NotificationType) => {
-      return subscriptions.filter((s) => s.notificationType === tab)
-    },
-    [subscriptions]
-  )
+  const getSubscriptionsForTab = (tab: NotificationType) => {
+    return subscriptions.filter((s) => s.notificationType === tab)
+  }
 
   const resetForm = useCallback(() => {
     setFormData({

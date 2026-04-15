@@ -29,38 +29,109 @@ export interface CSPDirectives {
   'object-src'?: string[]
 }
 
+/**
+ * Static CSP sources shared between build-time and runtime.
+ * Add new domains here — both paths pick them up automatically.
+ */
+const STATIC_SCRIPT_SRC = [
+  "'self'",
+  "'unsafe-inline'",
+  'https://*.google.com',
+  'https://apis.google.com',
+  'https://challenges.cloudflare.com',
+  ...(isReactGrabEnabled ? ['https://unpkg.com'] : []),
+  ...(isHosted
+    ? [
+        'https://www.googletagmanager.com',
+        'https://www.google-analytics.com',
+        'https://analytics.ahrefs.com',
+      ]
+    : []),
+] as const
+
+const STATIC_IMG_SRC = [
+  "'self'",
+  'data:',
+  'blob:',
+  'https://*.googleusercontent.com',
+  'https://*.google.com',
+  'https://*.atlassian.com',
+  'https://cdn.discordapp.com',
+  'https://*.githubusercontent.com',
+  'https://*.s3.amazonaws.com',
+  'https://s3.amazonaws.com',
+  'https://*.amazonaws.com',
+  'https://*.blob.core.windows.net',
+  'https://github.com/*',
+  'https://cursor.com',
+  ...(isHosted ? ['https://www.googletagmanager.com', 'https://www.google-analytics.com'] : []),
+] as const
+
+const STATIC_CONNECT_SRC = [
+  "'self'",
+  'https://api.browser-use.com',
+  'https://api.elevenlabs.io',
+  'wss://api.elevenlabs.io',
+  'https://api.exa.ai',
+  'https://api.firecrawl.dev',
+  'https://*.googleapis.com',
+  'https://*.amazonaws.com',
+  'https://*.s3.amazonaws.com',
+  'https://*.blob.core.windows.net',
+  'https://*.atlassian.com',
+  'https://*.supabase.co',
+  'https://api.github.com',
+  'https://github.com/*',
+  'https://challenges.cloudflare.com',
+  ...(isHosted
+    ? [
+        'https://www.googletagmanager.com',
+        'https://*.google-analytics.com',
+        'https://*.analytics.google.com',
+        'https://analytics.google.com',
+        'https://www.google.com',
+      ]
+    : []),
+] as const
+
+const STATIC_FRAME_SRC = [
+  "'self'",
+  'https://challenges.cloudflare.com',
+  'https://drive.google.com',
+  'https://docs.google.com',
+  'https://*.google.com',
+  'https://www.youtube.com',
+  'https://player.vimeo.com',
+  'https://www.dailymotion.com',
+  'https://player.twitch.tv',
+  'https://clips.twitch.tv',
+  'https://streamable.com',
+  'https://fast.wistia.net',
+  'https://www.tiktok.com',
+  'https://w.soundcloud.com',
+  'https://open.spotify.com',
+  'https://embed.music.apple.com',
+  'https://www.loom.com',
+  'https://www.facebook.com',
+  'https://www.instagram.com',
+  'https://platform.twitter.com',
+  'https://rumble.com',
+  'https://play.vidyard.com',
+  'https://iframe.cloudflarestream.com',
+  'https://www.mixcloud.com',
+  'https://tenor.com',
+  'https://giphy.com',
+  ...(isHosted ? ['https://www.googletagmanager.com'] : []),
+] as const
+
 // Build-time CSP directives (for next.config.ts)
 export const buildTimeCSPDirectives: CSPDirectives = {
   'default-src': ["'self'"],
-
-  'script-src': [
-    "'self'",
-    "'unsafe-inline'",
-    "'unsafe-eval'",
-    'https://*.google.com',
-    'https://apis.google.com',
-    'https://assets.onedollarstats.com',
-    'https://challenges.cloudflare.com',
-    ...(isReactGrabEnabled ? ['https://unpkg.com'] : []),
-    ...(isHosted ? ['https://www.googletagmanager.com', 'https://www.google-analytics.com'] : []),
-  ],
-
+  'script-src': [...STATIC_SCRIPT_SRC],
   'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
 
   'img-src': [
-    "'self'",
-    'data:',
-    'blob:',
-    'https://*.googleusercontent.com',
-    'https://*.google.com',
-    'https://*.atlassian.com',
-    'https://cdn.discordapp.com',
-    'https://*.githubusercontent.com',
-    'https://*.s3.amazonaws.com',
-    'https://s3.amazonaws.com',
-    'https://github.com/*',
-    'https://collector.onedollarstats.com',
-    ...(isHosted ? ['https://www.googletagmanager.com', 'https://www.google-analytics.com'] : []),
+    ...STATIC_IMG_SRC,
     ...(env.S3_BUCKET_NAME && env.AWS_REGION
       ? [`https://${env.S3_BUCKET_NAME}.s3.${env.AWS_REGION}.amazonaws.com`]
       : []),
@@ -70,21 +141,16 @@ export const buildTimeCSPDirectives: CSPDirectives = {
     ...(env.S3_CHAT_BUCKET_NAME && env.AWS_REGION
       ? [`https://${env.S3_CHAT_BUCKET_NAME}.s3.${env.AWS_REGION}.amazonaws.com`]
       : []),
-    'https://*.amazonaws.com',
-    'https://*.blob.core.windows.net',
-    'https://github.com/*',
     ...getHostnameFromUrl(env.NEXT_PUBLIC_BRAND_LOGO_URL),
     ...getHostnameFromUrl(env.NEXT_PUBLIC_BRAND_FAVICON_URL),
   ],
 
   'media-src': ["'self'", 'blob:'],
-
   'font-src': ["'self'", 'https://fonts.gstatic.com'],
 
   'connect-src': [
-    "'self'",
+    ...STATIC_CONNECT_SRC,
     env.NEXT_PUBLIC_APP_URL || '',
-    // Only include localhost fallbacks in development mode
     ...(env.OLLAMA_URL ? [env.OLLAMA_URL] : isDev ? ['http://localhost:11434'] : []),
     ...(env.NEXT_PUBLIC_SOCKET_URL
       ? [
@@ -94,42 +160,12 @@ export const buildTimeCSPDirectives: CSPDirectives = {
       : isDev
         ? ['http://localhost:3002', 'ws://localhost:3002']
         : []),
-    'https://api.browser-use.com',
-    'https://api.elevenlabs.io',
-    'wss://api.elevenlabs.io',
-    'https://api.exa.ai',
-    'https://api.firecrawl.dev',
-    'https://*.googleapis.com',
-    'https://*.amazonaws.com',
-    'https://*.s3.amazonaws.com',
-    'https://*.blob.core.windows.net',
-    'https://*.atlassian.com',
-    'https://*.supabase.co',
-    'https://api.github.com',
-    'https://github.com/*',
-    'https://challenges.cloudflare.com',
-    'https://collector.onedollarstats.com',
-    ...(isHosted
-      ? [
-          'https://www.googletagmanager.com',
-          'https://*.google-analytics.com',
-          'https://*.analytics.google.com',
-        ]
-      : []),
     ...getHostnameFromUrl(env.NEXT_PUBLIC_BRAND_LOGO_URL),
     ...getHostnameFromUrl(env.NEXT_PUBLIC_PRIVACY_URL),
     ...getHostnameFromUrl(env.NEXT_PUBLIC_TERMS_URL),
   ],
 
-  'frame-src': [
-    "'self'",
-    'https://challenges.cloudflare.com',
-    'https://drive.google.com',
-    'https://docs.google.com',
-    'https://*.google.com',
-    ...(isHosted ? ['https://www.googletagmanager.com'] : []),
-  ],
-
+  'frame-src': [...STATIC_FRAME_SRC],
   'frame-ancestors': ["'self'"],
   'form-action': ["'self'"],
   'base-uri': ["'self'"],
@@ -152,13 +188,14 @@ export function buildCSPString(directives: CSPDirectives): string {
 }
 
 /**
- * Generate runtime CSP header with dynamic environment variables (safer approach)
- * This maintains compatibility with existing inline scripts while fixing Docker env var issues
+ * Generate runtime CSP header with dynamic environment variables.
+ * Composes from the same STATIC_* constants as buildTimeCSPDirectives,
+ * but resolves env vars at request time via getEnv() to fix Docker
+ * deployments where build-time values may be stale placeholders.
  */
 export function generateRuntimeCSP(): string {
   const appUrl = getEnv('NEXT_PUBLIC_APP_URL') || ''
 
-  // Only include localhost URLs in development or when explicitly configured
   const socketUrl = getEnv('NEXT_PUBLIC_SOCKET_URL') || (isDev ? 'http://localhost:3002' : '')
   const socketWsUrl = socketUrl
     ? socketUrl.replace('http://', 'ws://').replace('https://', 'wss://')
@@ -172,42 +209,24 @@ export function generateRuntimeCSP(): string {
   const privacyDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_PRIVACY_URL'))
   const termsDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_TERMS_URL'))
 
-  const allDynamicDomains = [
-    ...brandLogoDomains,
-    ...brandFaviconDomains,
-    ...privacyDomains,
-    ...termsDomains,
-  ]
-  const uniqueDynamicDomains = Array.from(new Set(allDynamicDomains))
-  const dynamicDomainsStr = uniqueDynamicDomains.join(' ')
-  const brandLogoDomain = brandLogoDomains[0] || ''
-  const brandFaviconDomain = brandFaviconDomains[0] || ''
-  const reactGrabScript = isReactGrabEnabled ? 'https://unpkg.com' : ''
-  const gtmScript = isHosted
-    ? 'https://www.googletagmanager.com https://www.google-analytics.com'
-    : ''
-  const gtmConnect = isHosted
-    ? 'https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com'
-    : ''
-  const gtmImg = isHosted ? 'https://www.googletagmanager.com https://www.google-analytics.com' : ''
-  const gtmFrame = isHosted ? 'https://www.googletagmanager.com' : ''
+  const runtimeDirectives: CSPDirectives = {
+    ...buildTimeCSPDirectives,
 
-  return `
-    default-src 'self';
-    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.google.com https://apis.google.com https://assets.onedollarstats.com https://challenges.cloudflare.com ${reactGrabScript} ${gtmScript};
-    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    img-src 'self' data: blob: https://*.googleusercontent.com https://*.google.com https://*.atlassian.com https://cdn.discordapp.com https://*.githubusercontent.com https://*.s3.amazonaws.com https://s3.amazonaws.com https://*.amazonaws.com https://*.blob.core.windows.net https://github.com/* https://collector.onedollarstats.com ${gtmImg} ${brandLogoDomain} ${brandFaviconDomain};
-    media-src 'self' blob:;
-    font-src 'self' https://fonts.gstatic.com;
-    connect-src 'self' ${appUrl} ${ollamaUrl} ${socketUrl} ${socketWsUrl} https://api.browser-use.com https://api.elevenlabs.io wss://api.elevenlabs.io https://api.exa.ai https://api.firecrawl.dev https://*.googleapis.com https://*.amazonaws.com https://*.s3.amazonaws.com https://*.blob.core.windows.net https://api.github.com https://github.com/* https://*.atlassian.com https://*.supabase.co https://challenges.cloudflare.com https://collector.onedollarstats.com ${gtmConnect} ${dynamicDomainsStr};
-    frame-src 'self' https://challenges.cloudflare.com https://drive.google.com https://docs.google.com https://*.google.com ${gtmFrame};
-    frame-ancestors 'self';
-    form-action 'self';
-    base-uri 'self';
-    object-src 'none';
-  `
-    .replace(/\s{2,}/g, ' ')
-    .trim()
+    'img-src': [...STATIC_IMG_SRC, ...brandLogoDomains, ...brandFaviconDomains],
+
+    'connect-src': [
+      ...STATIC_CONNECT_SRC,
+      appUrl,
+      ollamaUrl,
+      socketUrl,
+      socketWsUrl,
+      ...brandLogoDomains,
+      ...privacyDomains,
+      ...termsDomains,
+    ],
+  }
+
+  return buildCSPString(runtimeDirectives)
 }
 
 /**

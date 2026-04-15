@@ -5,7 +5,6 @@ import { BrandedLayout } from '@/components/branded-layout'
 import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
 import { generateBrandedMetadata, generateThemeCSS } from '@/ee/whitelabeling'
 import '@/app/_styles/globals.css'
-import { OneDollarStats } from '@/components/analytics/onedollarstats'
 import { isHosted, isReactGrabEnabled, isReactScanEnabled } from '@/lib/core/config/feature-flags'
 import { HydrationErrorHandler } from '@/app/_shell/hydration-error-handler'
 import { QueryProvider } from '@/app/_shell/providers/query-provider'
@@ -207,10 +206,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name='format-detection' content='telephone=no' />
         <meta httpEquiv='x-ua-compatible' content='ie=edge' />
 
-        {/* OneDollarStats Analytics */}
-        <link rel='dns-prefetch' href='https://assets.onedollarstats.com' />
-        <script defer src='https://assets.onedollarstats.com/stonks.js' />
-
         {/* Google Tag Manager — hosted only */}
         {isHosted && (
           <Script
@@ -260,7 +255,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           </noscript>
         )}
         <HydrationErrorHandler />
-        <OneDollarStats />
         <PostHogProvider>
           <ThemeProvider>
             <QueryProvider>

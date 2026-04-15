@@ -142,6 +142,41 @@ describe('Tool Parameters Utils', () => {
       expect(schema.properties).toHaveProperty('message')
     })
 
+    it.concurrent('adds credentialId only for copilot-facing oauth schemas', () => {
+      const oauthTool = {
+        ...mockToolConfig,
+        id: 'oauth_schema_tool',
+        oauth: {
+          required: true,
+          provider: 'google-email',
+        },
+        params: {
+          message: {
+            type: 'string',
+            required: true,
+            visibility: 'user-or-llm' as ParameterVisibility,
+            description: 'Message to send',
+          },
+          accessToken: {
+            type: 'string',
+            required: true,
+            visibility: 'hidden' as ParameterVisibility,
+            description: 'OAuth access token',
+          },
+        },
+      }
+
+      const defaultSchema = createUserToolSchema(oauthTool)
+      const copilotSchema = createUserToolSchema(oauthTool, { surface: 'copilot' })
+
+      expect(defaultSchema.properties).not.toHaveProperty('credentialId')
+      expect(copilotSchema.properties).toHaveProperty('credentialId')
+      expect(copilotSchema.properties.credentialId).toMatchObject({
+        type: 'string',
+      })
+      expect(copilotSchema.required).toContain('credentialId')
+    })
+
     it.concurrent('keeps shared file params unchanged by default', () => {
       const toolWithFileParam = {
         ...mockToolConfig,

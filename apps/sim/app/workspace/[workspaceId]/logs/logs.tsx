@@ -568,6 +568,8 @@ export default function Logs() {
     }
   }, [selectedLogId, selectedLogIndex])
 
+  const effectiveSidebarOpen = isSidebarOpen && selectedLogIndex !== -1
+
   const handleRefresh = useCallback(() => {
     setIsVisuallyRefreshing(true)
     const timerId = window.setTimeout(() => {
@@ -777,7 +779,7 @@ export default function Logs() {
     () => (
       <LogDetails
         log={selectedLog}
-        isOpen={isSidebarOpen}
+        isOpen={effectiveSidebarOpen}
         onClose={handleCloseSidebar}
         onNavigateNext={handleNavigateNext}
         onNavigatePrev={handleNavigatePrev}
@@ -787,7 +789,7 @@ export default function Logs() {
     ),
     [
       selectedLog,
-      isSidebarOpen,
+      effectiveSidebarOpen,
       handleCloseSidebar,
       handleNavigateNext,
       handleNavigatePrev,
@@ -1260,20 +1262,10 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
   const { data: folders = {} } = useFolderMap(workspaceId)
   const { data: allWorkflowList = [] } = useWorkflows(workspaceId)
 
-  const workflows = useMemo(
-    () => allWorkflowList.map((w) => ({ id: w.id, name: w.name, color: w.color })),
-    [allWorkflowList]
-  )
+  const workflows = allWorkflowList.map((w) => ({ id: w.id, name: w.name, color: w.color }))
+  const folderList = Object.values(folders).filter((f) => f.workspaceId === workspaceId)
 
-  const folderList = useMemo(
-    () => Object.values(folders).filter((f) => f.workspaceId === workspaceId),
-    [folders, workspaceId]
-  )
-
-  const selectedStatuses = useMemo((): string[] => {
-    if (level === 'all' || !level) return []
-    return level.split(',').filter(Boolean)
-  }, [level])
+  const selectedStatuses = level === 'all' || !level ? [] : level.split(',').filter(Boolean)
 
   const statusOptions: ComboboxOption[] = useMemo(
     () =>
@@ -1285,58 +1277,46 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
     []
   )
 
-  const handleStatusChange = useCallback(
-    (values: string[]) => {
-      setLevel(values.length === 0 ? 'all' : values.join(','))
-    },
-    [setLevel]
-  )
+  const handleStatusChange = (values: string[]) => {
+    setLevel(values.length === 0 ? 'all' : values.join(','))
+  }
 
-  const statusDisplayLabel = useMemo(() => {
-    if (selectedStatuses.length === 0) return 'Status'
-    if (selectedStatuses.length === 1) {
-      const status = statusOptions.find((s) => s.value === selectedStatuses[0])
-      return status?.label || '1 selected'
-    }
-    return `${selectedStatuses.length} selected`
-  }, [selectedStatuses, statusOptions])
+  const statusDisplayLabel =
+    selectedStatuses.length === 0
+      ? 'Status'
+      : selectedStatuses.length === 1
+        ? statusOptions.find((s) => s.value === selectedStatuses[0])?.label || '1 selected'
+        : `${selectedStatuses.length} selected`
 
-  const selectedStatusColor = useMemo(() => {
-    if (selectedStatuses.length !== 1) return null
-    const status = selectedStatuses[0] as LogStatus
-    return STATUS_CONFIG[status]?.color ?? null
-  }, [selectedStatuses])
+  const selectedStatusColor =
+    selectedStatuses.length === 1
+      ? (STATUS_CONFIG[selectedStatuses[0] as LogStatus]?.color ?? null)
+      : null
 
-  const workflowOptions: ComboboxOption[] = useMemo(
-    () => workflows.map((w) => ({ value: w.id, label: w.name, icon: getColorIcon(w.color, true) })),
-    [workflows]
-  )
+  const workflowOptions: ComboboxOption[] = workflows.map((w) => ({
+    value: w.id,
+    label: w.name,
+    icon: getColorIcon(w.color, true),
+  }))
 
-  const workflowDisplayLabel = useMemo(() => {
-    if (workflowIds.length === 0) return 'Workflow'
-    if (workflowIds.length === 1) {
-      const workflow = workflows.find((w) => w.id === workflowIds[0])
-      return workflow?.name || '1 selected'
-    }
-    return `${workflowIds.length} workflows`
-  }, [workflowIds, workflows])
+  const workflowDisplayLabel =
+    workflowIds.length === 0
+      ? 'Workflow'
+      : workflowIds.length === 1
+        ? workflows.find((w) => w.id === workflowIds[0])?.name || '1 selected'
+        : `${workflowIds.length} workflows`
 
   const selectedWorkflow =
     workflowIds.length === 1 ? workflows.find((w) => w.id === workflowIds[0]) : null
 
-  const folderOptions: ComboboxOption[] = useMemo(
-    () => folderList.map((f) => ({ value: f.id, label: f.name })),
-    [folderList]
-  )
+  const folderOptions: ComboboxOption[] = folderList.map((f) => ({ value: f.id, label: f.name }))
 
-  const folderDisplayLabel = useMemo(() => {
-    if (folderIds.length === 0) return 'Folder'
-    if (folderIds.length === 1) {
-      const folder = folderList.find((f) => f.id === folderIds[0])
-      return folder?.name || '1 selected'
-    }
-    return `${folderIds.length} folders`
-  }, [folderIds, folderList])
+  const folderDisplayLabel =
+    folderIds.length === 0
+      ? 'Folder'
+      : folderIds.length === 1
+        ? folderList.find((f) => f.id === folderIds[0])?.name || '1 selected'
+        : `${folderIds.length} folders`
 
   const triggerOptions: ComboboxOption[] = useMemo(
     () =>
@@ -1348,69 +1328,57 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
     []
   )
 
-  const triggerDisplayLabel = useMemo(() => {
-    if (triggers.length === 0) return 'Trigger'
-    if (triggers.length === 1) {
-      const trigger = triggerOptions.find((t) => t.value === triggers[0])
-      return trigger?.label || '1 selected'
+  const triggerDisplayLabel =
+    triggers.length === 0
+      ? 'Trigger'
+      : triggers.length === 1
+        ? triggerOptions.find((t) => t.value === triggers[0])?.label || '1 selected'
+        : `${triggers.length} triggers`
+
+  const timeDisplayLabel =
+    timeRange === 'All time'
+      ? 'Time'
+      : timeRange === 'Custom range' && startDate && endDate
+        ? `${formatDateShort(startDate)} - ${formatDateShort(endDate)}`
+        : timeRange === 'Custom range'
+          ? 'Custom range'
+          : timeRange
+
+  const handleTimeRangeChange = (val: string) => {
+    if (val === 'Custom range') {
+      setPreviousTimeRange(timeRange)
+      setDatePickerOpen(true)
+    } else {
+      clearDateRange()
+      setTimeRange(val as typeof timeRange)
     }
-    return `${triggers.length} triggers`
-  }, [triggers, triggerOptions])
+  }
 
-  const timeDisplayLabel = useMemo(() => {
-    if (timeRange === 'All time') return 'Time'
-    if (timeRange === 'Custom range' && startDate && endDate) {
-      return `${formatDateShort(startDate)} - ${formatDateShort(endDate)}`
-    }
-    if (timeRange === 'Custom range') return 'Custom range'
-    return timeRange
-  }, [timeRange, startDate, endDate])
+  const handleDateRangeApply = (start: string, end: string) => {
+    setDateRange(start, end)
+    setDatePickerOpen(false)
+  }
 
-  const handleTimeRangeChange = useCallback(
-    (val: string) => {
-      if (val === 'Custom range') {
-        setPreviousTimeRange(timeRange)
-        setDatePickerOpen(true)
-      } else {
-        clearDateRange()
-        setTimeRange(val as typeof timeRange)
-      }
-    },
-    [timeRange, setTimeRange, clearDateRange]
-  )
-
-  const handleDateRangeApply = useCallback(
-    (start: string, end: string) => {
-      setDateRange(start, end)
-      setDatePickerOpen(false)
-    },
-    [setDateRange]
-  )
-
-  const handleDatePickerCancel = useCallback(() => {
+  const handleDatePickerCancel = () => {
     if (timeRange === 'Custom range' && !startDate) {
       setTimeRange(previousTimeRange)
     }
     setDatePickerOpen(false)
-  }, [timeRange, startDate, previousTimeRange, setTimeRange])
+  }
 
-  const filtersActive = useMemo(
-    () =>
-      hasActiveFilters({
-        timeRange,
-        level,
-        workflowIds,
-        folderIds,
-        triggers,
-        searchQuery,
-      }),
-    [timeRange, level, workflowIds, folderIds, triggers, searchQuery]
-  )
+  const filtersActive = hasActiveFilters({
+    timeRange,
+    level,
+    workflowIds,
+    folderIds,
+    triggers,
+    searchQuery,
+  })
 
-  const handleClearFilters = useCallback(() => {
+  const handleClearFilters = () => {
     resetFilters()
     onSearchQueryChange('')
-  }, [resetFilters, onSearchQueryChange])
+  }
 
   return (
     <div className='flex w-[240px] flex-col gap-3 p-3'>
