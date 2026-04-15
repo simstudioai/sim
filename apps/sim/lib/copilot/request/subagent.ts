@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import {
   MothershipStreamV1EventType,
@@ -16,8 +17,10 @@ import type {
 } from '@/lib/copilot/request/types'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { env } from '@/lib/core/config/env'
+import { isHosted } from '@/lib/core/config/feature-flags'
 import { generateId } from '@/lib/core/utils/uuid'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { getWorkflowById } from '@/lib/workflows/utils'
 
 const logger = createLogger('CopilotSubagentOrchestrator')
 
@@ -49,10 +52,40 @@ export async function orchestrateSubagentStream(
   options: SubagentOrchestratorOptions
 ): Promise<SubagentOrchestratorResult> {
   const { userId, workflowId, workspaceId, userPermission } = options
-  const execContext = await buildExecutionContext(userId, workflowId, workspaceId)
+  const chatId =
+    (typeof requestPayload.chatId === 'string' && requestPayload.chatId) || generateId()
+  const execContext = await buildExecutionContext(userId, workflowId, workspaceId, chatId)
+  let resolvedWorkflowName =
+    typeof requestPayload.workflowName === 'string' ? requestPayload.workflowName : undefined
+  let resolvedWorkspaceId =
+    execContext.workspaceId ||
+    (typeof requestPayload.workspaceId === 'string' ? requestPayload.workspaceId : workspaceId)
+
+  if (workflowId && (!resolvedWorkflowName || !resolvedWorkspaceId)) {
+    const workflow = await getWorkflowById(workflowId)
+    resolvedWorkflowName ||= workflow?.name || undefined
+    resolvedWorkspaceId ||= workflow?.workspaceId || undefined
+  }
+
+  let resolvedWorkspaceContext =
+    typeof requestPayload.workspaceContext === 'string'
+      ? requestPayload.workspaceContext
+      : undefined
+  if (!resolvedWorkspaceContext && resolvedWorkspaceId) {
+    try {
+      resolvedWorkspaceContext = await generateWorkspaceContext(resolvedWorkspaceId, userId)
+    } catch (error) {
+      logger.warn('Failed to generate workspace context for subagent request', {
+        agentId,
+        workspaceId: resolvedWorkspaceId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
 
   const msgId = requestPayload?.messageId
   const context = createStreamingContext({
+    chatId,
     messageId: typeof msgId === 'string' ? msgId : generateId(),
   })
 
@@ -69,8 +102,13 @@ export async function orchestrateSubagentStream(
         },
         body: JSON.stringify({
           ...requestPayload,
+          chatId,
           userId,
           stream: true,
+          ...(resolvedWorkflowName ? { workflowName: resolvedWorkflowName } : {}),
+          ...(resolvedWorkspaceId ? { workspaceId: resolvedWorkspaceId } : {}),
+          ...(resolvedWorkspaceContext ? { workspaceContext: resolvedWorkspaceContext } : {}),
+          isHosted,
           ...(userPermission ? { userPermission } : {}),
         }),
       },
@@ -135,16 +173,18 @@ function normalizeStructuredResult(data: unknown): SubagentOrchestratorResult['s
 async function buildExecutionContext(
   userId: string,
   workflowId?: string,
-  workspaceId?: string
+  workspaceId?: string,
+  chatId?: string
 ): Promise<ExecutionContext> {
   if (workflowId) {
-    return prepareExecutionContext(userId, workflowId)
+    return prepareExecutionContext(userId, workflowId, chatId, { workspaceId })
   }
   const decryptedEnvVars = await getEffectiveDecryptedEnv(userId, workspaceId)
   return {
     userId,
     workflowId: workflowId || '',
     workspaceId,
+    chatId,
     decryptedEnvVars,
   }
 }
