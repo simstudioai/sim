@@ -1504,6 +1504,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       'microsoft.excel.sheets',
       context.oauthCredential ?? 'none',
       context.spreadsheetId ?? 'none',
+      context.driveId ?? 'none',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential && context.spreadsheetId),
     fetchList: async ({ context }: SelectorQueryArgs) => {
@@ -1517,6 +1518,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
           searchParams: {
             credentialId,
             spreadsheetId: context.spreadsheetId,
+            driveId: context.driveId,
             workflowId: context.workflowId,
           },
         }
@@ -1527,6 +1529,54 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       }))
     },
   },
+  'microsoft.excel.drives': {
+    key: 'microsoft.excel.drives',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'microsoft.excel.drives',
+      context.oauthCredential ?? 'none',
+      context.siteId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.siteId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'microsoft.excel.drives')
+      if (!context.siteId) {
+        throw new Error('Missing site ID for microsoft.excel.drives selector')
+      }
+      const body = JSON.stringify({
+        credential: credentialId,
+        workflowId: context.workflowId,
+        siteId: context.siteId,
+      })
+      const data = await fetchJson<{ drives: { id: string; name: string }[] }>(
+        '/api/tools/microsoft_excel/drives',
+        { method: 'POST', body }
+      )
+      return (data.drives || []).map((drive) => ({
+        id: drive.id,
+        label: drive.name,
+      }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId || !context.siteId) return null
+      const credentialId = ensureCredential(context, 'microsoft.excel.drives')
+      const data = await fetchJson<{ drive: { id: string; name: string } }>(
+        '/api/tools/microsoft_excel/drives',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            credential: credentialId,
+            workflowId: context.workflowId,
+            siteId: context.siteId,
+            driveId: detailId,
+          }),
+        }
+      )
+      if (!data.drive) return null
+      return { id: data.drive.id, label: data.drive.name }
+    },
+  },
   'microsoft.excel': {
     key: 'microsoft.excel',
     staleTime: SELECTOR_STALE,
@@ -1534,6 +1584,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       'selectors',
       'microsoft.excel',
       context.oauthCredential ?? 'none',
+      context.driveId ?? 'none',
       search ?? '',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential),
@@ -1545,6 +1596,7 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
           searchParams: {
             credentialId,
             query: search,
+            driveId: context.driveId,
             workflowId: context.workflowId,
           },
         }

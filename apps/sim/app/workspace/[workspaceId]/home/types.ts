@@ -2,6 +2,7 @@ import {
   Agent,
   Auth,
   CreateWorkflow,
+  Debug,
   Deploy,
   EditWorkflow,
   FunctionExecute,
@@ -161,6 +162,7 @@ export interface ChatMessage {
 
 export const SUBAGENT_LABELS: Record<string, string> = {
   workflow: 'Workflow Agent',
+  debug: 'Debug Agent',
   deploy: 'Deploy Agent',
   auth: 'Auth Agent',
   research: 'Research Agent',
@@ -200,6 +202,7 @@ export const TOOL_UI_METADATA: Record<string, ToolTitleMetadata> = {
   [CreateWorkflow.id]: { title: 'Creating workflow' },
   [EditWorkflow.id]: { title: 'Editing workflow' },
   [Workflow.id]: { title: 'Workflow Agent' },
+  [Debug.id]: { title: 'Debug Agent' },
   [RUN_SUBAGENT_ID]: { title: 'Run Agent' },
   [Deploy.id]: { title: 'Deploy Agent' },
   [Auth.id]: { title: 'Auth Agent' },

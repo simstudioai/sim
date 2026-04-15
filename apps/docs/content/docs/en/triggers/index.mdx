@@ -29,7 +29,7 @@ Use the Start block for everything originating from the editor, deploy-to-API, o
     Receive external webhook payloads
   </Card>
   <Card title="Schedule" href="/triggers/schedule">
-    Cron or interval based execution
+    Cron or interval based runs
   </Card>
   <Card title="RSS Feed" href="/triggers/rss">
     Monitor RSS and Atom feeds for new content
@@ -59,17 +59,17 @@ Use the Start block for everything originating from the editor, deploy-to-API, o
 
 > Deployments power every trigger. Update the workflow, redeploy, and all trigger entry points pick up the new snapshot. Learn more in [Execution → Deployment Snapshots](/execution).
 
-## Manual Execution Priority
+## Manual Run Priority
 
-When you click **Run** in the editor, Sim automatically selects which trigger to execute based on the following priority order:
+When you click **Run** in the editor, Sim automatically selects which trigger to run based on the following priority order:
 
 1. **Start Block** (highest priority)
 2. **Schedule Triggers**
 3. **External Triggers** (webhooks, integrations like Slack, Gmail, Airtable, etc.)
 
-If your workflow has multiple triggers, the highest priority trigger will be executed. For example, if you have both a Start block and a Webhook trigger, clicking Run will execute the Start block.
+If your workflow has multiple triggers, the highest priority trigger will be used. For example, if you have both a Start block and a Webhook trigger, clicking Run will use the Start block.
 
-**External triggers with mock payloads**: When external triggers (webhooks and integrations) are executed manually, Sim automatically generates mock payloads based on the trigger's expected data structure. This ensures downstream blocks can resolve variables correctly during testing.
+**External triggers with mock payloads**: When external triggers (webhooks and integrations) are run manually, Sim automatically generates mock payloads based on the trigger's expected data structure. This ensures downstream blocks can resolve variables correctly during testing.
 
 ## Email Polling Groups
 
@@ -94,10 +94,10 @@ Invitees receive an email with a link to connect their account. Once connected, 
 When configuring an email trigger, select your polling group from the credentials dropdown instead of an individual account. The system creates webhooks for each member and routes all emails through your workflow.
 
 <FAQ items={[
-  { question: "Can I have multiple triggers on the same workflow?", answer: "Yes, a workflow can have multiple triggers (for example, a Start block and a Webhook trigger). When you click Run in the editor, Sim executes the highest-priority trigger: Start block first, then Schedule, then external triggers like webhooks. Each trigger type can also fire independently when its event occurs." },
+  { question: "Can I have multiple triggers on the same workflow?", answer: "Yes, a workflow can have multiple triggers (for example, a Start block and a Webhook trigger). When you click Run in the editor, Sim uses the highest-priority trigger: Start block first, then Schedule, then external triggers like webhooks. Each trigger type can also fire independently when its event occurs." },
   { question: "How do I secure my webhook endpoint?", answer: "The Generic Webhook trigger supports authentication. Enable the Require Authentication toggle, set an auth token, and optionally specify a custom header name. Incoming requests must include the token as a Bearer token in the Authorization header (or in your custom header). Requests without a valid token are rejected." },
   { question: "What happens when I test an external trigger manually?", answer: "When you click Run on a workflow with an external trigger (webhook, Slack, Gmail, etc.), Sim generates a mock payload based on the trigger's expected data structure. This lets downstream blocks resolve their variable references correctly so you can test the full workflow without waiting for a real event." },
-  { question: "Do triggers use the draft canvas or the deployed version?", answer: "All trigger-based executions (API, chat, schedule, webhook) run against the active deployment snapshot, not your draft canvas. After making changes, you need to redeploy for triggers to pick up the updated workflow version." },
+  { question: "Do triggers use the draft canvas or the deployed version?", answer: "All trigger-based runs (API, chat, schedule, webhook) use the active deployment snapshot, not your draft canvas. After making changes, you need to redeploy for triggers to pick up the updated workflow version." },
   { question: "What integrations are available as triggers?", answer: "Sim supports a wide range of trigger integrations including GitHub (push, PR, issues), Slack, Gmail, Outlook, Linear, Jira, HubSpot, Stripe, Airtable, Calendly, Typeform, Telegram, WhatsApp, Microsoft Teams, RSS feeds, and more. Each integration provides event-specific triggers like issue_created or email_received." },
   { question: "How does the Schedule trigger work?", answer: "The Schedule trigger runs your workflow on a timer using cron expressions or interval-based configuration. The schedule is managed within the schedule block settings. Like all triggers, scheduled runs execute the active deployment snapshot, so make sure to redeploy after making workflow changes." },
 ]} />

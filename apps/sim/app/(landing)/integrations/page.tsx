@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { Badge } from '@/components/emcn'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { SITE_URL } from '@/lib/core/utils/urls'
 import { IntegrationCard } from './components/integration-card'
 import { IntegrationGrid } from './components/integration-grid'
 import { RequestIntegrationModal } from './components/request-integration-modal'
@@ -18,7 +18,7 @@ const INTEGRATION_COUNT = allIntegrations.length
  */
 const TOP_NAMES = [...new Set(POPULAR_WORKFLOWS.flatMap((p) => [p.from, p.to]))].slice(0, 6)
 
-const baseUrl = getBaseUrl()
+const baseUrl = SITE_URL
 
 /** Curated featured integrations — high-recognition services shown as cards. */
 const FEATURED_SLUGS = ['slack', 'notion', 'github', 'gmail'] as const

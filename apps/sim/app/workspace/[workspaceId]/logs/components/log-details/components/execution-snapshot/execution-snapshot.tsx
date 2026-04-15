@@ -94,7 +94,7 @@ export function ExecutionSnapshot({
         >
           <div className='flex items-center gap-2 text-[var(--text-secondary)]'>
             <Loader2 className='h-[16px] w-[16px] animate-spin' />
-            <span className='text-small'>Loading execution snapshot...</span>
+            <span className='text-small'>Loading run snapshot...</span>
           </div>
         </div>
       )
@@ -108,7 +108,7 @@ export function ExecutionSnapshot({
         >
           <div className='flex items-center gap-2 text-[var(--text-error)]'>
             <AlertCircle className='h-[16px] w-[16px]' />
-            <span className='text-small'>Failed to load execution snapshot: {error.message}</span>
+            <span className='text-small'>Failed to load run snapshot: {error.message}</span>
           </div>
         </div>
       )
@@ -122,7 +122,7 @@ export function ExecutionSnapshot({
         >
           <div className='flex items-center gap-2 text-[var(--text-secondary)]'>
             <Loader2 className='h-[16px] w-[16px] animate-spin' />
-            <span className='text-small'>Loading execution snapshot...</span>
+            <span className='text-small'>Loading run snapshot...</span>
           </div>
         </div>
       )
@@ -139,8 +139,8 @@ export function ExecutionSnapshot({
             <span className='font-medium text-base'>Logged State Not Found</span>
           </div>
           <div className='max-w-md text-center text-[var(--text-secondary)] text-small'>
-            This log was migrated from the old logging system. The workflow state at execution time
-            is not available.
+            This log was migrated from the old logging system. The workflow state at the time of
+            this run is not available.
           </div>
           <div className='text-[var(--text-tertiary)] text-caption'>
             Note: {workflowState._note}
@@ -191,7 +191,7 @@ export function ExecutionSnapshot({
             >
               <DropdownMenuItem onSelect={handleCopyExecutionId}>
                 <Copy />
-                Copy Execution ID
+                Copy Run ID
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>,

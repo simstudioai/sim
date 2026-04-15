@@ -150,6 +150,15 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        source: '/:all*(svg|jpg|jpeg|png|gif|ico|webp|avif|woff|woff2|ttf|eot)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, stale-while-revalidate=604800',
+          },
+        ],
+      },
+      {
         source: '/.well-known/:path*',
         headers: [
           { key: 'Access-Control-Allow-Origin', value: '*' },
@@ -386,12 +395,12 @@ const nextConfig: NextConfig = {
     redirects.push(
       {
         source: '/building/:path*',
-        destination: 'https://sim.ai/blog/:path*',
+        destination: 'https://www.sim.ai/blog/:path*',
         permanent: true,
       },
       {
         source: '/studio/:path*',
-        destination: 'https://sim.ai/blog/:path*',
+        destination: 'https://www.sim.ai/blog/:path*',
         permanent: true,
       }
     )

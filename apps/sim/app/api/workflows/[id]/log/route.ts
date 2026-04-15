@@ -95,7 +95,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const { traceSpans, totalDuration } = buildTraceSpans(resultWithOutput as ExecutionResult)
 
       if (result.success === false) {
-        const message = result.error || 'Workflow execution failed'
+        const message = result.error || 'Workflow run failed'
         await loggingSession.safeCompleteWithError({
           endedAt: new Date().toISOString(),
           totalDurationMs: totalDuration || result.metadata?.duration || 0,
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
 
       return createSuccessResponse({
-        message: 'Execution logs persisted successfully',
+        message: 'Run logs persisted successfully',
       })
     }
 

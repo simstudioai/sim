@@ -2,6 +2,7 @@ import type { ComponentType, SVGProps } from 'react'
 import {
   Asterisk,
   Blimp,
+  Bug,
   Calendar,
   Database,
   Eye,
@@ -44,6 +45,7 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   create_workflow: Layout,
   edit_workflow: Pencil,
   workflow: Hammer,
+  debug: Bug,
   run: PlayOutline,
   deploy: Rocket,
   auth: Integration,

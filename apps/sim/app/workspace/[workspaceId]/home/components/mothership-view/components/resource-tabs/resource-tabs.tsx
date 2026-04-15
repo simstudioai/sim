@@ -180,6 +180,26 @@ export function ResourceTabs({
     return () => node.removeEventListener('wheel', handler)
   }, [])
 
+  useEffect(() => {
+    const node = scrollNodeRef.current
+    if (!node || !activeId) return
+    const tab = node.querySelector<HTMLElement>(`[data-resource-tab-id="${CSS.escape(activeId)}"]`)
+    if (!tab) return
+    // Use bounding rects because the tab's offsetParent is a `position: relative`
+    // wrapper, so `offsetLeft` is relative to that wrapper rather than `node`.
+    const tabRect = tab.getBoundingClientRect()
+    const nodeRect = node.getBoundingClientRect()
+    const tabLeft = tabRect.left - nodeRect.left + node.scrollLeft
+    const tabRight = tabLeft + tabRect.width
+    const viewLeft = node.scrollLeft
+    const viewRight = viewLeft + node.clientWidth
+    if (tabLeft < viewLeft) {
+      node.scrollTo({ left: tabLeft, behavior: 'smooth' })
+    } else if (tabRight > viewRight) {
+      node.scrollTo({ left: tabRight - node.clientWidth, behavior: 'smooth' })
+    }
+  }, [activeId])
+
   const addResource = useAddChatResource(chatId)
   const removeResource = useRemoveChatResource(chatId)
   const reorderResources = useReorderChatResources(chatId)
@@ -286,24 +306,9 @@ export function ResourceTabs({
       if (anchorIdRef.current && removedIds.has(anchorIdRef.current)) {
         anchorIdRef.current = null
       }
-      // Serialize mutations so each onMutate sees the cache updated by the prior
-      // one. Continue on individual failures so remaining removals still fire.
-      const persistable = targets.filter((r) => !isEphemeralResource(r))
-      if (persistable.length > 0) {
-        void (async () => {
-          for (const r of persistable) {
-            try {
-              await removeResource.mutateAsync({
-                chatId,
-                resourceType: r.type,
-                resourceId: r.id,
-              })
-            } catch {
-              // Individual failure — the mutation's onError already rolled back
-              // this resource in cache. Remaining removals continue.
-            }
-          }
-        })()
+      for (const r of targets) {
+        if (isEphemeralResource(r)) continue
+        removeResource.mutate({ chatId, resourceType: r.type, resourceId: r.id })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -6,7 +6,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { Image } from '@/components/ui/image'
 
-Sim automatically calculates costs for all workflow executions, providing transparent pricing based on AI model usage and execution charges. Understanding these costs helps you optimize workflows and manage your budget effectively.
+Sim automatically calculates costs for all workflow runs, providing transparent pricing based on AI model usage and run charges. Understanding these costs helps you optimize workflows and manage your budget effectively.
 
 ## Credits
 
@@ -16,18 +16,18 @@ All plan limits, usage meters, and billing thresholds are displayed in credits t
 
 ## How Costs Are Calculated
 
-Every workflow execution includes two cost components:
+Every workflow run includes two cost components:
 
-**Base Execution Charge**: 1 credit ($0.005) per execution
+**Base Run Charge**: 1 credit ($0.005) per run
 
 **AI Model Usage**: Variable cost based on token consumption
 ```javascript
 modelCost = (inputTokens × inputPrice + outputTokens × outputPrice) / 1,000,000
-totalCredits = baseExecutionCharge + modelCost × 200
+totalCredits = baseRunCharge + modelCost × 200
 ```
 
 <Callout type="info">
-  AI model prices are per million tokens. The calculation divides by 1,000,000 to get the actual cost. Workflows without AI blocks only incur the base execution charge.
+  AI model prices are per million tokens. The calculation divides by 1,000,000 to get the actual cost. Workflows without AI blocks only incur the base run charge.
 </Callout>
 
 ## Model Breakdown in Logs
@@ -48,7 +48,7 @@ The model breakdown shows:
 - **Token Usage**: Input and output token counts for each model
 - **Cost Breakdown**: Individual costs per model and operation
 - **Model Distribution**: Which models were used and how many times
-- **Total Cost**: Aggregate cost for the entire workflow execution
+- **Total Cost**: Aggregate cost for the entire workflow run
 
 ## Pricing Options
 
@@ -330,18 +330,18 @@ Max (individual) shares the same rate limits as team plans. Team plans (Pro or M
 
 Team plans (Pro or Max for Teams) use 500 GB.
 
-### Execution Time Limits
+### Run Time Limits
 
 | Plan | Sync | Async |
 |------|------|-------|
 | **Free** | 5 minutes | 90 minutes |
 | **Pro / Max / Team / Enterprise** | 50 minutes | 90 minutes |
 
-**Sync executions** run immediately and return results directly. These are triggered via the API with `async: false` (default) or through the UI.
-**Async executions** (triggered via API with `async: true`, webhooks, or schedules) run in the background.
+**Sync runs** complete immediately and return results directly. These are triggered via the API with `async: false` (default) or through the UI.
+**Async runs** (triggered via API with `async: true`, webhooks, or schedules) run in the background.
 
 <Callout type="info">
-  If a workflow exceeds its time limit, it will be terminated and marked as failed with a timeout error. Design long-running workflows to use async execution or break them into smaller workflows.
+  If a workflow exceeds its time limit, it will be terminated and marked as failed with a timeout error. Design long-running workflows to use async runs or break them into smaller workflows.
 </Callout>
 
 ## Billing Model
@@ -452,18 +452,18 @@ curl -X GET -H "X-API-Key: YOUR_API_KEY" -H "Content-Type: application/json" htt
 ## Next Steps
 
 - Review your current usage in [Settings → Subscription](https://sim.ai/settings/subscription)
-- Learn about [Logging](/execution/logging) to track execution details
+- Learn about [Logging](/execution/logging) to track run details
 - Explore the [External API](/execution/api) for programmatic cost monitoring
 - Check out [workflow optimization techniques](/blocks) to reduce costs
 
 import { FAQ } from '@/components/ui/faq'
 
 <FAQ items={[
-  { question: "How much does a single workflow execution cost?", answer: "Every execution incurs a base charge of 1 credit ($0.005). On top of that, any AI model usage is billed based on token consumption. Workflows that do not use AI blocks only pay the base execution charge." },
+  { question: "How much does a single workflow run cost?", answer: "Every run incurs a base charge of 1 credit ($0.005). On top of that, any AI model usage is billed based on token consumption. Workflows that do not use AI blocks only pay the base run charge." },
   { question: "What is the credit-to-dollar conversion rate?", answer: "1 credit equals $0.005. All plan limits, usage meters, and billing thresholds in the Sim UI are displayed in credits." },
   { question: "Do unused daily refresh credits carry over?", answer: "No. Daily refresh credits reset every 24 hours and do not accumulate. If you do not use them within the day, they are lost." },
-  { question: "What happens when I exceed my plan's credit limit?", answer: "By default, your usage is capped at your plan's included credits and executions will stop. If you enable on-demand billing or manually raise your usage limit in Settings, you can continue running workflows and pay for the overage at the end of the billing period." },
+  { question: "What happens when I exceed my plan's credit limit?", answer: "By default, your usage is capped at your plan's included credits and runs will stop. If you enable on-demand billing or manually raise your usage limit in Settings, you can continue running workflows and pay for the overage at the end of the billing period." },
   { question: "How does the 1.1x hosted model multiplier work?", answer: "When you use Sim's hosted API keys (instead of bringing your own), a 1.1x multiplier is applied to the base model pricing for Agent blocks. This covers infrastructure and API management costs. You can avoid this multiplier by using your own API keys via the BYOK feature." },
-  { question: "Are there any free options for AI models?", answer: "Yes. If you run local models through Ollama or VLLM, there are no API costs for those model calls. You still pay the base execution charge of 1 credit per execution." },
+  { question: "Are there any free options for AI models?", answer: "Yes. If you run local models through Ollama or VLLM, there are no API costs for those model calls. You still pay the base run charge of 1 credit per run." },
   { question: "When does threshold billing trigger?", answer: "When on-demand billing is enabled and your unbilled overage reaches $50, Sim automatically bills the full unbilled amount. This spreads large charges throughout the month instead of accumulating one large bill at period end." },
 ]} />

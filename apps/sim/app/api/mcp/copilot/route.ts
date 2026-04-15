@@ -17,6 +17,7 @@ import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { validateOAuthAccessToken } from '@/lib/auth/oauth-token'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { ORCHESTRATION_TIMEOUT_MS, SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { orchestrateSubagentStream } from '@/lib/copilot/request/subagent'
@@ -136,14 +137,14 @@ When the user refers to a workflow by name or description ("the email one", "my 
 ### Organization
 
 - \`rename_workflow\` — rename a workflow
-- \`move_workflow\` — move a workflow into a folder (or root with null)
-- \`move_folder\` — nest a folder inside another (or root with null)
+- \`move_workflow\` — move a workflow into a folder (or back to root by clearing the folder id)
+- \`move_folder\` — nest a folder inside another (or move it back to root by clearing the parent id)
 - \`create_folder(name, parentId)\` — create nested folder hierarchies
 
 ### Key Rules
 
 - You can test workflows immediately after building — deployment is only needed for external access (API, chat, MCP).
-- All workflow-scoped copilot tools require \`workflowId\`.
+- Tools that operate on a specific workflow such as \`sim_workflow\`, \`sim_test\`, \`sim_deploy\`, and workflow-scoped \`sim_info\` requests require \`workflowId\`.
 - If the user reports errors, route through \`sim_workflow\` and ask it to reproduce, inspect logs, and fix the issue end to end.
 - Variable syntax: \`<blockname.field>\` for block outputs, \`{{ENV_VAR}}\` for env vars.
 `
@@ -667,10 +668,10 @@ async function handleDirectToolCall(
 }
 
 /**
- * Build mode uses the main chat orchestrator with the 'fast' command instead of
- * the subagent endpoint. In Go, 'workflow' is not a registered subagent — it's a mode
- * (ModeFast) on the main chat processor that bypasses subagent orchestration and
- * executes all tools directly.
+ * Build mode uses the main /api/mcp orchestrator instead of /api/subagent/workflow.
+ * The main agent still delegates workflow work to the workflow subagent inside Go;
+ * this helper simply uses the full headless lifecycle so build requests behave like
+ * the primary MCP chat flow.
  */
 async function handleBuildToolCall(
   args: Record<string, unknown>,
@@ -680,6 +681,8 @@ async function handleBuildToolCall(
   try {
     const requestText = (args.request as string) || JSON.stringify(args)
     const workflowId = args.workflowId as string | undefined
+    let resolvedWorkflowName: string | undefined
+    let resolvedWorkspaceId: string | undefined
 
     const resolved = workflowId
       ? await (async () => {
@@ -688,14 +691,20 @@ async function handleBuildToolCall(
             userId,
             action: 'read',
           })
+          resolvedWorkflowName = authorization.workflow?.name || undefined
+          resolvedWorkspaceId = authorization.workflow?.workspaceId || undefined
           return authorization.allowed
-            ? { status: 'resolved' as const, workflowId }
+            ? { status: 'resolved' as const, workflowId, workflowName: resolvedWorkflowName }
             : {
                 status: 'not_found' as const,
                 message: 'workflowId is required for build. Call create_workflow first.',
               }
         })()
       : await resolveWorkflowIdForUser(userId)
+
+    if (resolved.status === 'resolved') {
+      resolvedWorkflowName ||= resolved.workflowName
+    }
 
     if (!resolved || resolved.status !== 'resolved') {
       return {
@@ -719,10 +728,29 @@ async function handleBuildToolCall(
     }
 
     const chatId = generateId()
+    const executionContext = await prepareExecutionContext(userId, resolved.workflowId, chatId, {
+      workspaceId: resolvedWorkspaceId,
+    })
+    resolvedWorkspaceId = executionContext.workspaceId
+    let workspaceContext: string | undefined
+    if (resolvedWorkspaceId) {
+      try {
+        workspaceContext = await generateWorkspaceContext(resolvedWorkspaceId, userId)
+      } catch (error) {
+        logger.warn('Failed to generate workspace context for build tool call', {
+          workflowId: resolved.workflowId,
+          workspaceId: resolvedWorkspaceId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
 
     const requestPayload = {
       message: requestText,
       workflowId: resolved.workflowId,
+      ...(resolvedWorkflowName ? { workflowName: resolvedWorkflowName } : {}),
+      ...(resolvedWorkspaceId ? { workspaceId: resolvedWorkspaceId } : {}),
+      ...(workspaceContext ? { workspaceContext } : {}),
       userId,
       model: DEFAULT_COPILOT_MODEL,
       mode: 'agent',
@@ -734,8 +762,10 @@ async function handleBuildToolCall(
     const result = await runHeadlessCopilotLifecycle(requestPayload, {
       userId,
       workflowId: resolved.workflowId,
+      workspaceId: resolvedWorkspaceId,
       chatId,
       goRoute: '/api/mcp',
+      executionContext,
       autoExecuteTools: true,
       timeout: ORCHESTRATION_TIMEOUT_MS,
       interactive: false,

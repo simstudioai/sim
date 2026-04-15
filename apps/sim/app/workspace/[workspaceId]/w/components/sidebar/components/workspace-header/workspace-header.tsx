@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { MoreHorizontal } from 'lucide-react'
+import { MoreHorizontal, Search } from 'lucide-react'
 import {
   Button,
   ChevronDown,
@@ -11,6 +11,7 @@ import {
   DropdownMenuGroup,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Input,
   Modal,
   ModalBody,
   ModalContent,
@@ -33,6 +34,9 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 const logger = createLogger('WorkspaceHeader')
+
+/** Minimum workspace count before the search input and keyboard navigation are shown. */
+const WORKSPACE_SEARCH_THRESHOLD = 3
 
 interface WorkspaceHeaderProps {
   /** The active workspace object */
@@ -120,6 +124,22 @@ export function WorkspaceHeader({
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
   const [isListRenaming, setIsListRenaming] = useState(false)
+  const [workspaceSearch, setWorkspaceSearch] = useState('')
+  const [highlightedIndex, setHighlightedIndex] = useState(0)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const workspaceListRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const row = workspaceListRef.current?.querySelector<HTMLElement>(
+      `[data-workspace-row-idx="${highlightedIndex}"]`
+    )
+    row?.scrollIntoView({ block: 'nearest' })
+  }, [highlightedIndex])
+
+  const searchQuery = workspaceSearch.trim().toLowerCase()
+  const filteredWorkspaces = searchQuery
+    ? workspaces.filter((w) => w.name.toLowerCase().includes(searchQuery))
+    : workspaces
 
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
@@ -172,6 +192,15 @@ export function WorkspaceHeader({
       setEditingWorkspaceId(null)
     }
   }, [isWorkspaceMenuOpen, editingWorkspaceId, editingName, workspaces, onRenameWorkspace])
+
+  useEffect(() => {
+    if (isWorkspaceMenuOpen) {
+      setHighlightedIndex(0)
+      const id = requestAnimationFrame(() => searchInputRef.current?.focus())
+      return () => cancelAnimationFrame(id)
+    }
+    setWorkspaceSearch('')
+  }, [isWorkspaceMenuOpen])
 
   const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId) || null
 
@@ -466,10 +495,57 @@ export function WorkspaceHeader({
                     </div>
                   </div>
 
-                  <DropdownMenuGroup className='mt-1 min-h-0 flex-1'>
-                    <div className='flex max-h-[130px] flex-col gap-0.5 overflow-y-auto'>
-                      {workspaces.map((workspace) => (
-                        <div key={workspace.id}>
+                  {workspaces.length > WORKSPACE_SEARCH_THRESHOLD && (
+                    <div className='mt-1 flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-transparent px-2 py-1 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
+                      <Search
+                        className='h-[12px] w-[12px] flex-shrink-0 text-[var(--text-tertiary)]'
+                        strokeWidth={2}
+                      />
+                      <Input
+                        ref={searchInputRef}
+                        placeholder='Search workspaces...'
+                        value={workspaceSearch}
+                        onChange={(e) => {
+                          setWorkspaceSearch(e.target.value)
+                          setHighlightedIndex(0)
+                        }}
+                        onKeyDown={(e) => {
+                          e.stopPropagation()
+                          if (filteredWorkspaces.length === 0) return
+                          if (e.key === 'ArrowDown') {
+                            e.preventDefault()
+                            setHighlightedIndex((i) => (i + 1) % filteredWorkspaces.length)
+                          } else if (e.key === 'ArrowUp') {
+                            e.preventDefault()
+                            setHighlightedIndex(
+                              (i) => (i - 1 + filteredWorkspaces.length) % filteredWorkspaces.length
+                            )
+                          } else if (e.key === 'Enter') {
+                            e.preventDefault()
+                            const target = filteredWorkspaces[highlightedIndex]
+                            if (target) onWorkspaceSwitch(target)
+                          }
+                        }}
+                        className='h-auto flex-1 border-0 bg-transparent p-0 text-caption leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
+                      />
+                    </div>
+                  )}
+                  <DropdownMenuGroup className='mt-2 min-h-0 flex-1'>
+                    <div
+                      ref={workspaceListRef}
+                      className='flex max-h-[130px] flex-col gap-0.5 overflow-y-auto'
+                    >
+                      {filteredWorkspaces.length === 0 && workspaceSearch && (
+                        <div className='px-2 py-[5px] text-[var(--text-tertiary)] text-caption'>
+                          No workspaces match "{workspaceSearch}"
+                        </div>
+                      )}
+                      {filteredWorkspaces.map((workspace, idx) => (
+                        <div
+                          key={workspace.id}
+                          data-workspace-row-idx={idx}
+                          onMouseEnter={() => setHighlightedIndex(idx)}
+                        >
                           {editingWorkspaceId === workspace.id ? (
                             <div className='flex items-center gap-2 rounded-[5px] bg-[var(--surface-active)] px-2 py-[5px]'>
                               <input
@@ -532,9 +608,26 @@ export function WorkspaceHeader({
                                   'hover-hover:bg-[var(--surface-hover)]',
                                 (workspace.id === workspaceId ||
                                   menuOpenWorkspaceId === workspace.id) &&
-                                  'bg-[var(--surface-active)]'
+                                  'bg-[var(--surface-active)]',
+                                idx === highlightedIndex &&
+                                  workspaces.length > WORKSPACE_SEARCH_THRESHOLD &&
+                                  workspace.id !== workspaceId &&
+                                  menuOpenWorkspaceId !== workspace.id &&
+                                  'bg-[var(--surface-hover)]'
                               )}
-                              onClick={() => onWorkspaceSwitch(workspace)}
+                              onClick={(e) => {
+                                if (e.metaKey || e.ctrlKey) {
+                                  window.open(`/workspace/${workspace.id}/home`, '_blank')
+                                  return
+                                }
+                                onWorkspaceSwitch(workspace)
+                              }}
+                              onAuxClick={(e) => {
+                                if (e.button === 1) {
+                                  e.preventDefault()
+                                  window.open(`/workspace/${workspace.id}/home`, '_blank')
+                                }
+                              }}
                               onContextMenu={(e) => handleContextMenu(e, workspace)}
                             >
                               <span className='min-w-0 flex-1 truncate'>{workspace.name}</span>

@@ -266,6 +266,25 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  debug: {
+    parameters: {
+      properties: {
+        context: {
+          description:
+            'Pre-gathered context: workflow state JSON, block schemas, error logs. The debug agent will skip re-reading anything included here.',
+          type: 'string',
+        },
+        request: {
+          description:
+            'What to debug. Include error messages, block IDs, and any context about the failure.',
+          type: 'string',
+        },
+      },
+      required: ['request'],
+      type: 'object',
+    },
+    resultSchema: undefined,
+  },
   delete_file: {
     parameters: {
       type: 'object',
@@ -1872,7 +1891,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         path: {
           type: 'string',
-          description: "Path to the file to read (e.g. 'workflows/My Workflow/state.json').",
+          description:
+            "Path to the file to read (e.g. 'workflows/My Workflow/state.json' or 'workflows/Projects/Q1/My Workflow/state.json').",
         },
       },
       required: ['path'],
@@ -2067,6 +2087,23 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['workflowId', 'version'],
+    },
+    resultSchema: undefined,
+  },
+  run: {
+    parameters: {
+      properties: {
+        context: {
+          description: 'Pre-gathered context: workflow state, block IDs, input requirements.',
+          type: 'string',
+        },
+        request: {
+          description: 'What to run or what logs to check.',
+          type: 'string',
+        },
+      },
+      required: ['request'],
+      type: 'object',
     },
     resultSchema: undefined,
   },
