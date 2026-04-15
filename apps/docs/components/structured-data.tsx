@@ -1,3 +1,5 @@
+import { DOCS_BASE_URL } from '@/lib/urls'
+
 interface StructuredDataProps {
   title: string
   description: string
@@ -15,7 +17,7 @@ export function StructuredData({
   dateModified,
   breadcrumb,
 }: StructuredDataProps) {
-  const baseUrl = 'https://docs.sim.ai'
+  const baseUrl = DOCS_BASE_URL
 
   const articleStructuredData = {
     '@context': 'https://schema.org',

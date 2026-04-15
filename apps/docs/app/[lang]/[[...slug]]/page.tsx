@@ -17,9 +17,10 @@ import { ResponseSection } from '@/components/ui/response-section'
 import { i18n } from '@/lib/i18n'
 import { getApiSpecContent, openapi } from '@/lib/openapi'
 import { type PageData, source } from '@/lib/source'
+import { DOCS_BASE_URL } from '@/lib/urls'
 
 const SUPPORTED_LANGUAGES: Set<string> = new Set(i18n.languages)
-const BASE_URL = 'https://docs.sim.ai'
+const BASE_URL = DOCS_BASE_URL
 
 const OG_LOCALE_MAP: Record<string, string> = {
   en: 'en_US',

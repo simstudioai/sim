@@ -38,7 +38,6 @@ const STATIC_SCRIPT_SRC = [
   "'unsafe-inline'",
   'https://*.google.com',
   'https://apis.google.com',
-  'https://assets.onedollarstats.com',
   'https://challenges.cloudflare.com',
   ...(isReactGrabEnabled ? ['https://unpkg.com'] : []),
   ...(isHosted
@@ -64,7 +63,6 @@ const STATIC_IMG_SRC = [
   'https://*.amazonaws.com',
   'https://*.blob.core.windows.net',
   'https://github.com/*',
-  'https://collector.onedollarstats.com',
   'https://cursor.com',
   ...(isHosted ? ['https://www.googletagmanager.com', 'https://www.google-analytics.com'] : []),
 ] as const
@@ -85,7 +83,6 @@ const STATIC_CONNECT_SRC = [
   'https://api.github.com',
   'https://github.com/*',
   'https://challenges.cloudflare.com',
-  'https://collector.onedollarstats.com',
   ...(isHosted
     ? [
         'https://www.googletagmanager.com',
