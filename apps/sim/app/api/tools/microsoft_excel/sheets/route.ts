@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
-import { validatePathSegment } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { getItemBasePath } from '@/tools/microsoft_excel/utils'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
@@ -63,29 +63,15 @@ export async function GET(request: NextRequest) {
       `[${requestId}] Fetching worksheets from Microsoft Graph API for workbook ${spreadsheetId}`
     )
 
-    const graphIdPattern = /^[a-zA-Z0-9!_-]+$/
-
-    const spreadsheetValidation = validatePathSegment(spreadsheetId, {
-      paramName: 'spreadsheetId',
-      customPattern: graphIdPattern,
-    })
-    if (!spreadsheetValidation.isValid) {
-      return NextResponse.json({ error: spreadsheetValidation.error }, { status: 400 })
+    let basePath: string
+    try {
+      basePath = getItemBasePath(spreadsheetId, driveId)
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : 'Invalid parameters' },
+        { status: 400 }
+      )
     }
-
-    if (driveId) {
-      const driveIdValidation = validatePathSegment(driveId, {
-        paramName: 'driveId',
-        customPattern: graphIdPattern,
-      })
-      if (!driveIdValidation.isValid) {
-        return NextResponse.json({ error: driveIdValidation.error }, { status: 400 })
-      }
-    }
-
-    const basePath = driveId
-      ? `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${spreadsheetId}`
-      : `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}`
 
     const worksheetsResponse = await fetch(`${basePath}/workbook/worksheets`, {
       method: 'GET',
