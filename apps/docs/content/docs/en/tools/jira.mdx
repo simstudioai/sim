@@ -251,7 +251,7 @@ Update a Jira issue
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `issueKey` | string | Yes | Jira issue key to update \(e.g., PROJ-123\) |
 | `summary` | string | No | New summary for the issue |
-| `description` | string | No | New description for the issue |
+| `description` | string | No | New description for the issue. Accepts plain text \(auto-wrapped in ADF\) or a raw ADF document object |
 | `priority` | string | No | New priority ID or name for the issue \(e.g., "High"\) |
 | `assignee` | string | No | New assignee account ID for the issue |
 | `labels` | json | No | Labels to set on the issue \(array of label name strings\) |
@@ -284,7 +284,7 @@ Create a new Jira issue
 | `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
 | `projectId` | string | Yes | Jira project key \(e.g., PROJ\) |
 | `summary` | string | Yes | Summary for the issue |
-| `description` | string | No | Description for the issue |
+| `description` | string | No | Description for the issue. Accepts plain text \(auto-wrapped in ADF\) or a raw ADF document object |
 | `priority` | string | No | Priority ID or name for the issue \(e.g., "10000" or "High"\) |
 | `assignee` | string | No | Assignee account ID for the issue |
 | `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
