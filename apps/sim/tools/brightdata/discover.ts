@@ -1,11 +1,12 @@
 import { createLogger } from '@sim/logger'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import type { BrightDataDiscoverParams, BrightDataDiscoverResponse } from '@/tools/brightdata/types'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('tools:brightdata:discover')
 
 const POLL_INTERVAL_MS = 3000
-const MAX_POLL_TIME_MS = 120000
+const MAX_POLL_TIME_MS = DEFAULT_EXECUTION_TIMEOUT_MS
 
 export const brightDataDiscoverTool: ToolConfig<
   BrightDataDiscoverParams,
