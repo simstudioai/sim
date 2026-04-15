@@ -15,7 +15,7 @@ import {
   Input,
   Tooltip,
 } from '@/components/emcn'
-import { Copy as CopyIcon, Search as SearchIcon } from '@/components/emcn/icons'
+import { Copy as CopyIcon, Redo, Search as SearchIcon } from '@/components/emcn/icons'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDuration } from '@/lib/core/utils/formatting'
@@ -264,6 +264,8 @@ interface LogDetailsProps {
   hasNext?: boolean
   /** Whether there is a previous log available */
   hasPrev?: boolean
+  /** Callback to retry a failed execution */
+  onRetryExecution?: () => void
 }
 
 /**
@@ -280,6 +282,7 @@ export const LogDetails = memo(function LogDetails({
   onNavigatePrev,
   hasNext = false,
   hasPrev = false,
+  onRetryExecution,
 }: LogDetailsProps) {
   const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -389,6 +392,21 @@ export const LogDetails = memo(function LogDetails({
                 >
                   <ChevronUp className='h-[14px] w-[14px] rotate-180' />
                 </Button>
+                {log?.status === 'failed' && (log?.workflow?.id || log?.workflowId) && (
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <Button
+                        variant='ghost'
+                        className='!p-1'
+                        onClick={() => onRetryExecution?.()}
+                        aria-label='Retry execution'
+                      >
+                        <Redo className='h-[14px] w-[14px]' />
+                      </Button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='bottom'>Retry</Tooltip.Content>
+                  </Tooltip.Root>
+                )}
                 <Button variant='ghost' className='!p-1' onClick={onClose} aria-label='Close'>
                   <X className='h-[14px] w-[14px]' />
                 </Button>

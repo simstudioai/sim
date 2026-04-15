@@ -120,7 +120,7 @@ async function fetchLogsPage(
   }
 }
 
-async function fetchLogDetail(logId: string, signal?: AbortSignal): Promise<WorkflowLog> {
+export async function fetchLogDetail(logId: string, signal?: AbortSignal): Promise<WorkflowLog> {
   const response = await fetch(`/api/logs/${logId}`, { signal })
 
   if (!response.ok) {
@@ -323,6 +323,37 @@ export function useCancelExecution() {
       for (const [queryKey, data] of context?.previousQueries ?? []) {
         queryClient.setQueryData(queryKey, data)
       }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: logKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: logKeys.details() })
+      queryClient.invalidateQueries({ queryKey: [...logKeys.all, 'stats'] })
+    },
+  })
+}
+
+export function useRetryExecution() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ workflowId, input }: { workflowId: string; input?: unknown }) => {
+      const res = await fetch(`/api/workflows/${workflowId}/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input, triggerType: 'manual', stream: true }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to retry execution')
+      }
+      // The ReadableStream is lazy — start() only runs when read.
+      // Read one chunk to trigger execution, then cancel.
+      // Execution continues server-side after client disconnect.
+      const reader = res.body?.getReader()
+      if (reader) {
+        await reader.read()
+        reader.cancel()
+      }
+      return { started: true }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: logKeys.lists() })
