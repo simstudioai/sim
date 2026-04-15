@@ -18,56 +18,6 @@ Allow: /llms.txt
 Allow: /llms-full.txt
 Allow: /llms.mdx/
 
-# Search engine crawlers
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Slurp
-Allow: /
-
-User-agent: DuckDuckBot
-Allow: /
-
-User-agent: Baiduspider
-Allow: /
-
-User-agent: YandexBot
-Allow: /
-
-# AI and LLM crawlers - explicitly allowed for documentation indexing
-User-agent: GPTBot
-Allow: /
-
-User-agent: ChatGPT-User
-Allow: /
-
-User-agent: CCBot
-Allow: /
-
-User-agent: anthropic-ai
-Allow: /
-
-User-agent: Claude-Web
-Allow: /
-
-User-agent: Applebot
-Allow: /
-
-User-agent: PerplexityBot
-Allow: /
-
-User-agent: Diffbot
-Allow: /
-
-User-agent: FacebookBot
-Allow: /
-
-User-agent: cohere-ai
-Allow: /
-
 # Sitemaps
 Sitemap: ${baseUrl}/sitemap.xml
 

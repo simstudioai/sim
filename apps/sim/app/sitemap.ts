@@ -80,12 +80,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     url: `${baseUrl}/integrations/${integration.slug}`,
   }))
 
-  const providerPages: MetadataRoute.Sitemap = MODEL_PROVIDERS_WITH_CATALOGS.map((provider) => ({
-    url: `${baseUrl}${provider.href}`,
-    lastModified: new Date(
-      Math.max(...provider.models.map((model) => new Date(model.pricing.updatedAt).getTime()))
-    ),
-  }))
+  const providerPages: MetadataRoute.Sitemap = MODEL_PROVIDERS_WITH_CATALOGS.flatMap((provider) => {
+    if (provider.models.length === 0) return []
+    return [
+      {
+        url: `${baseUrl}${provider.href}`,
+        lastModified: new Date(
+          Math.max(...provider.models.map((model) => new Date(model.pricing.updatedAt).getTime()))
+        ),
+      },
+    ]
+  })
 
   const modelEntries: MetadataRoute.Sitemap = ALL_CATALOG_MODELS.map((model) => ({
     url: `${baseUrl}${model.href}`,
