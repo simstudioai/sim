@@ -2,7 +2,7 @@ import type {
   MicrosoftExcelTableAddResponse,
   MicrosoftExcelTableToolParams,
 } from '@/tools/microsoft_excel/types'
-import { getSpreadsheetWebUrl } from '@/tools/microsoft_excel/utils'
+import { getItemBasePath, getSpreadsheetWebUrl } from '@/tools/microsoft_excel/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const tableAddTool: ToolConfig<
@@ -33,6 +33,13 @@ export const tableAddTool: ToolConfig<
       description:
         'The ID of the spreadsheet/workbook containing the table (e.g., "01ABC123DEF456")',
     },
+    driveId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the drive containing the spreadsheet. Required for SharePoint files. If omitted, uses personal OneDrive.',
+    },
     tableName: {
       type: 'string',
       required: true,
@@ -51,7 +58,8 @@ export const tableAddTool: ToolConfig<
   request: {
     url: (params) => {
       const tableName = encodeURIComponent(params.tableName)
-      return `https://graph.microsoft.com/v1.0/me/drive/items/${params.spreadsheetId}/workbook/tables('${tableName}')/rows/add`
+      const basePath = getItemBasePath(params.spreadsheetId, params.driveId)
+      return `${basePath}/workbook/tables('${tableName}')/rows/add`
     },
     method: 'POST',
     headers: (params) => ({
@@ -106,34 +114,26 @@ export const tableAddTool: ToolConfig<
   transformResponse: async (response: Response, params?: MicrosoftExcelTableToolParams) => {
     const data = await response.json()
 
-    const urlParts = response.url.split('/drive/items/')
-    const spreadsheetId = urlParts[1]?.split('/')[0] || ''
+    const spreadsheetId = params?.spreadsheetId?.trim() || ''
+    const driveId = params?.driveId
 
-    // Fetch the browser-accessible web URL
     const accessToken = params?.accessToken
     if (!accessToken) {
       throw new Error('Access token is required')
     }
-    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken)
+    const webUrl = await getSpreadsheetWebUrl(spreadsheetId, accessToken, driveId)
 
-    const metadata = {
-      spreadsheetId,
-      spreadsheetUrl: webUrl,
-    }
-
-    const result = {
+    return {
       success: true,
       output: {
         index: data.index || 0,
         values: data.values || [],
         metadata: {
-          spreadsheetId: metadata.spreadsheetId,
-          spreadsheetUrl: metadata.spreadsheetUrl,
+          spreadsheetId,
+          spreadsheetUrl: webUrl,
         },
       },
     }
-
-    return result
   },
 
   outputs: {

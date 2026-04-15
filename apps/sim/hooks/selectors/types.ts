@@ -40,6 +40,7 @@ export type SelectorKey =
   | 'onedrive.folders'
   | 'sharepoint.sites'
   | 'microsoft.excel'
+  | 'microsoft.excel.drives'
   | 'microsoft.excel.sheets'
   | 'microsoft.word'
   | 'microsoft.planner'
@@ -75,6 +76,7 @@ export interface SelectorContext {
   siteId?: string
   collectionId?: string
   spreadsheetId?: string
+  driveId?: string
   excludeWorkflowId?: string
   baseId?: string
   datasetId?: string

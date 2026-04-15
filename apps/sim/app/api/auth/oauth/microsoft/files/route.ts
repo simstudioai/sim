@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
+import { validatePathSegment } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getCredential, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
@@ -19,6 +20,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const credentialId = searchParams.get('credentialId')
     const query = searchParams.get('query') || ''
+    const driveId = searchParams.get('driveId') || undefined
     const workflowId = searchParams.get('workflowId') || undefined
 
     if (!credentialId) {
@@ -72,8 +74,21 @@ export async function GET(request: NextRequest) {
     )
     searchParams_new.append('$top', '50')
 
+    // When driveId is provided (SharePoint), search within that specific drive.
+    // Otherwise, search the user's personal OneDrive.
+    if (driveId) {
+      const driveIdValidation = validatePathSegment(driveId, {
+        paramName: 'driveId',
+        customPattern: /^[a-zA-Z0-9!_-]+$/,
+      })
+      if (!driveIdValidation.isValid) {
+        return NextResponse.json({ error: driveIdValidation.error }, { status: 400 })
+      }
+    }
+    const drivePath = driveId ? `drives/${driveId}` : 'me/drive'
+
     const response = await fetch(
-      `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(searchQuery)}')?${searchParams_new.toString()}`,
+      `https://graph.microsoft.com/v1.0/${drivePath}/root/search(q='${encodeURIComponent(searchQuery)}')?${searchParams_new.toString()}`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
