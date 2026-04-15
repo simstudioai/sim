@@ -26,7 +26,7 @@ const SEARCH_ENGINE_CONFIG: Record<
     url: 'https://duckduckgo.com/',
     queryKey: 'q',
     numKey: '',
-    langKey: 'kl',
+    langKey: '',
     countryKey: '',
   },
   yandex: {
@@ -34,7 +34,7 @@ const SEARCH_ENGINE_CONFIG: Record<
     queryKey: 'text',
     numKey: 'numdoc',
     langKey: 'lang',
-    countryKey: 'lr',
+    countryKey: '',
   },
 } as const
 
