@@ -1,12 +1,22 @@
+const DOCS_BASE_URL = process.env.NEXT_PUBLIC_DOCS_URL ?? 'https://docs.sim.ai'
+
 export const revalidate = false
 
 export async function GET() {
-  const baseUrl = 'https://docs.sim.ai'
+  const baseUrl = DOCS_BASE_URL
 
   const robotsTxt = `# Robots.txt for Sim Documentation
 
 User-agent: *
+Disallow: /.next/
+Disallow: /api/internal/
+Disallow: /_next/static/
+Disallow: /admin/
 Allow: /
+Allow: /api/search
+Allow: /llms.txt
+Allow: /llms-full.txt
+Allow: /llms.mdx/
 
 # Search engine crawlers
 User-agent: Googlebot
@@ -58,38 +68,15 @@ Allow: /
 User-agent: cohere-ai
 Allow: /
 
-# Disallow admin and internal paths (if any exist)
-Disallow: /.next/
-Disallow: /api/internal/
-Disallow: /_next/static/
-Disallow: /admin/
-
-# Allow but don't prioritize these
-Allow: /api/search
-Allow: /llms.txt
-Allow: /llms-full.txt
-Allow: /llms.mdx/
-
 # Sitemaps
 Sitemap: ${baseUrl}/sitemap.xml
-
-# Crawl delay for aggressive bots (optional)
-# Crawl-delay: 1
 
 # Additional resources for AI indexing
 # See https://github.com/AnswerDotAI/llms-txt for more info
 # LLM-friendly content:
 #   Manifest: ${baseUrl}/llms.txt
 #   Full content: ${baseUrl}/llms-full.txt
-#   Individual pages: ${baseUrl}/llms.mdx/[page-path]
-
-# Multi-language documentation available at:
-# ${baseUrl}/en - English
-# ${baseUrl}/es - Español
-# ${baseUrl}/fr - Français
-# ${baseUrl}/de - Deutsch
-# ${baseUrl}/ja - 日本語
-# ${baseUrl}/zh - 简体中文`
+#   Individual pages: ${baseUrl}/llms.mdx/[page-path]`
 
   return new Response(robotsTxt, {
     headers: {
