@@ -372,9 +372,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
         ? Math.max(0, Math.round(rawDurationMs))
         : 0
 
-    const redactedWorkflowInput =
-      workflowInput !== undefined ? redactApiKeys(filterForDisplay(workflowInput)) : undefined
-
     const completedExecutionData = this.buildCompletedExecutionData({
       existingExecutionData,
       traceSpans: redactedTraceSpans,
@@ -383,7 +380,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       completionFailure,
       executionCost,
       executionState,
-      workflowInput: redactedWorkflowInput,
+      workflowInput,
     })
 
     const [updatedLog] = await db
