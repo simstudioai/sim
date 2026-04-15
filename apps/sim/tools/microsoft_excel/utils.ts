@@ -1,8 +1,5 @@
 import { createLogger } from '@sim/logger'
-import {
-  validateAlphanumericId,
-  validateMicrosoftGraphId,
-} from '@/lib/core/security/input-validation'
+import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import type { ExcelCellValue } from '@/tools/microsoft_excel/types'
 
 const logger = createLogger('MicrosoftExcelUtils')
@@ -19,7 +16,7 @@ export function getItemBasePath(spreadsheetId: string, driveId?: string): string
   }
 
   if (driveId) {
-    const driveValidation = validateAlphanumericId(driveId, 'driveId')
+    const driveValidation = validateMicrosoftGraphId(driveId, 'driveId')
     if (!driveValidation.isValid) {
       throw new Error(driveValidation.error)
     }
