@@ -296,13 +296,10 @@ export const LogDetails = memo(function LogDetails({
     }
   }, [log?.id])
 
-  const isWorkflowExecutionLog = useMemo(() => {
-    if (!log) return false
-    return (
-      (log.trigger === 'manual' && !!log.duration) ||
-      (log.executionData?.enhanced && log.executionData?.traceSpans)
-    )
-  }, [log])
+  const isWorkflowExecutionLog =
+    !!log &&
+    ((log.trigger === 'manual' && !!log.duration) ||
+      !!(log.executionData?.enhanced && log.executionData?.traceSpans))
 
   const hasCostInfo = isWorkflowExecutionLog && log?.cost
 
@@ -337,10 +334,7 @@ export const LogDetails = memo(function LogDetails({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, onClose, hasPrev, hasNext, onNavigatePrev, onNavigateNext])
 
-  const formattedTimestamp = useMemo(
-    () => (log ? formatDate(log.createdAt) : null),
-    [log?.createdAt]
-  )
+  const formattedTimestamp = log ? formatDate(log.createdAt) : null
 
   const logStatus = getDisplayStatus(log?.status)
 

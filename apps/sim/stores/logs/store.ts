@@ -25,6 +25,7 @@ export const useLogDetailsUIStore = create<LogDetailsUIState>()(
     }),
     {
       name: 'log-details-ui-state',
+      partialize: (state) => ({ panelWidth: state.panelWidth }),
     }
   )
 )

@@ -58,19 +58,14 @@ const LogRow = memo(
         ? DELETED_WORKFLOW_COLOR
         : log.workflow?.color
 
-    const handleClick = useCallback(() => onClick(log), [onClick, log])
-
-    const handleMouseEnter = useCallback(() => onHover?.(log), [onHover, log])
-
-    const handleContextMenu = useCallback(
-      (e: React.MouseEvent) => {
-        if (onContextMenu) {
-          e.preventDefault()
-          onContextMenu(e, log)
-        }
-      },
-      [onContextMenu, log]
-    )
+    const handleClick = () => onClick(log)
+    const handleMouseEnter = () => onHover?.(log)
+    const handleContextMenu = (e: React.MouseEvent) => {
+      if (onContextMenu) {
+        e.preventDefault()
+        onContextMenu(e, log)
+      }
+    }
 
     return (
       <div
