@@ -10,7 +10,7 @@ const logger = createLogger('MicrosoftExcelUtils')
  * When driveId is omitted, uses /me/drive/items/{itemId} (personal OneDrive).
  */
 /** Pattern for Microsoft Graph item/drive IDs: alphanumeric, hyphens, underscores, and ! (for SharePoint b!<base64> format) */
-const GRAPH_ID_PATTERN = /^[a-zA-Z0-9!_-]+$/
+export const GRAPH_ID_PATTERN = /^[a-zA-Z0-9!_-]+$/
 
 export function getItemBasePath(spreadsheetId: string, driveId?: string): string {
   const spreadsheetValidation = validatePathSegment(spreadsheetId, {
