@@ -1064,6 +1064,21 @@ export function isDeepResearchModel(model: string): boolean {
   return MODELS_WITH_DEEP_RESEARCH.includes(model.toLowerCase())
 }
 
+const GEMINI_3_MODELS = [
+  'gemini-3.1-pro-preview',
+  'gemini-3.1-flash-lite-preview',
+  'gemini-3-flash-preview',
+  'gemini-3-pro-preview',
+  'vertex/gemini-3.1-pro-preview',
+  'vertex/gemini-3.1-flash-lite-preview',
+  'vertex/gemini-3-pro-preview',
+  'vertex/gemini-3-flash-preview',
+]
+
+export function isGemini3Model(model: string): boolean {
+  return GEMINI_3_MODELS.includes(model.toLowerCase())
+}
+
 /**
  * Get the maximum temperature value for a model
  * @returns Maximum temperature value (1 or 2) or undefined if temperature not supported

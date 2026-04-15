@@ -29,6 +29,7 @@ import type { FunctionCallResponse, ProviderRequest, ProviderResponse } from '@/
 import {
   calculateCost,
   isDeepResearchModel,
+  isGemini3Model,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
@@ -295,7 +296,8 @@ function buildNextConfig(
   state: ExecutionState,
   forcedTools: string[],
   request: ProviderRequest,
-  logger: ReturnType<typeof createLogger>
+  logger: ReturnType<typeof createLogger>,
+  model: string
 ): GenerateContentConfig {
   const nextConfig = { ...baseConfig }
   const allForcedToolsUsed =
@@ -304,9 +306,13 @@ function buildNextConfig(
   if (allForcedToolsUsed && request.responseFormat) {
     nextConfig.tools = undefined
     nextConfig.toolConfig = undefined
-    nextConfig.responseMimeType = 'application/json'
-    nextConfig.responseSchema = cleanSchemaForGemini(request.responseFormat.schema) as Schema
-    logger.info('Using structured output for final response after tool execution')
+    if (isGemini3Model(model)) {
+      logger.info('Gemini 3: Stripping tools after forced tool execution, schema already set')
+    } else {
+      nextConfig.responseMimeType = 'application/json'
+      nextConfig.responseSchema = cleanSchemaForGemini(request.responseFormat.schema) as Schema
+      logger.info('Using structured output for final response after tool execution')
+    }
   } else if (state.currentToolConfig) {
     nextConfig.toolConfig = state.currentToolConfig
   } else {
@@ -921,13 +927,19 @@ export async function executeGeminiRequest(
       geminiConfig.systemInstruction = systemInstruction
     }
 
-    // Handle response format (only when no tools)
+    // Handle response format
     if (request.responseFormat && !tools?.length) {
       geminiConfig.responseMimeType = 'application/json'
       geminiConfig.responseSchema = cleanSchemaForGemini(request.responseFormat.schema) as Schema
       logger.info('Using Gemini native structured output format')
+    } else if (request.responseFormat && tools?.length && isGemini3Model(model)) {
+      geminiConfig.responseMimeType = 'application/json'
+      geminiConfig.responseJsonSchema = request.responseFormat.schema
+      logger.info('Using Gemini 3 structured output with tools (responseJsonSchema)')
     } else if (request.responseFormat && tools?.length) {
-      logger.warn('Gemini does not support responseFormat with tools. Structured output ignored.')
+      logger.warn(
+        'Gemini 2 does not support responseFormat with tools. Structured output will be applied after tool execution.'
+      )
     }
 
     // Configure thinking only when the user explicitly selects a thinking level
@@ -1099,7 +1111,7 @@ export async function executeGeminiRequest(
         }
 
         state = { ...updatedState, iterationCount: updatedState.iterationCount + 1 }
-        const nextConfig = buildNextConfig(geminiConfig, state, forcedTools, request, logger)
+        const nextConfig = buildNextConfig(geminiConfig, state, forcedTools, request, logger, model)
 
         // Stream final response if requested
         if (request.stream) {
@@ -1120,10 +1132,12 @@ export async function executeGeminiRequest(
           if (request.responseFormat) {
             nextConfig.tools = undefined
             nextConfig.toolConfig = undefined
-            nextConfig.responseMimeType = 'application/json'
-            nextConfig.responseSchema = cleanSchemaForGemini(
-              request.responseFormat.schema
-            ) as Schema
+            if (!isGemini3Model(model)) {
+              nextConfig.responseMimeType = 'application/json'
+              nextConfig.responseSchema = cleanSchemaForGemini(
+                request.responseFormat.schema
+              ) as Schema
+            }
           }
 
           // Capture accumulated cost before streaming
