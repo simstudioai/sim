@@ -5,7 +5,9 @@ import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
+import { buildEffectiveChatTranscript } from '@/lib/copilot/chat/effective-transcript'
 import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
+import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -93,12 +95,23 @@ export async function GET(
       }
     }
 
+    const normalizedMessages = Array.isArray(chat.messages)
+      ? chat.messages
+          .filter((message): message is Record<string, unknown> => Boolean(message))
+          .map(normalizeMessage)
+      : []
+    const effectiveMessages = buildEffectiveChatTranscript({
+      messages: normalizedMessages,
+      activeStreamId: chat.conversationId || null,
+      ...(streamSnapshot ? { streamSnapshot } : {}),
+    })
+
     return NextResponse.json({
       success: true,
       chat: {
         id: chat.id,
         title: chat.title,
-        messages: Array.isArray(chat.messages) ? chat.messages : [],
+        messages: effectiveMessages,
         conversationId: chat.conversationId || null,
         resources: Array.isArray(chat.resources) ? chat.resources : [],
         createdAt: chat.createdAt,

@@ -38,18 +38,15 @@ function parseTaskStatusEventPayload(data: unknown): TaskStatusEventPayload | nu
 
 export function handleTaskStatusEvent(
   queryClient: Pick<QueryClient, 'invalidateQueries'>,
+  workspaceId: string,
   data: unknown
 ): void {
-  queryClient.invalidateQueries({ queryKey: taskKeys.lists() })
+  queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
 
   const payload = parseTaskStatusEventPayload(data)
   if (!payload) {
     logger.warn('Received invalid task_status payload')
     return
-  }
-
-  if (payload.type === 'completed' && payload.chatId) {
-    queryClient.invalidateQueries({ queryKey: taskKeys.detail(payload.chatId) })
   }
 }
 
@@ -67,7 +64,11 @@ export function useTaskEvents(workspaceId: string | undefined) {
     )
 
     eventSource.addEventListener('task_status', (event) => {
-      handleTaskStatusEvent(queryClient, event instanceof MessageEvent ? event.data : undefined)
+      handleTaskStatusEvent(
+        queryClient,
+        workspaceId,
+        event instanceof MessageEvent ? event.data : undefined
+      )
     })
 
     eventSource.onerror = () => {

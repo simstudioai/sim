@@ -70,7 +70,6 @@ export async function POST(req: NextRequest) {
     }
 
     const { chatId, streamId, content, contentBlocks } = StopSchema.parse(await req.json())
-
     const [row] = await db
       .select({
         workspaceId: copilotChats.workspaceId,
@@ -106,14 +105,20 @@ export async function POST(req: NextRequest) {
 
     const hasContent = content.trim().length > 0
     const hasBlocks = Array.isArray(contentBlocks) && contentBlocks.length > 0
+    const synthesizedStoppedBlocks = hasBlocks
+      ? contentBlocks
+      : hasContent
+        ? [{ type: 'text', channel: 'assistant', content }, { type: 'stopped' }]
+        : [{ type: 'stopped' }]
+    const shouldAppendAssistant = canAppendAssistant
 
-    if ((hasContent || hasBlocks) && canAppendAssistant) {
+    if (shouldAppendAssistant) {
       const normalized = normalizeMessage({
         id: crypto.randomUUID(),
         role: 'assistant',
         content,
         timestamp: new Date().toISOString(),
-        ...(hasBlocks ? { contentBlocks } : {}),
+        contentBlocks: synthesizedStoppedBlocks,
       })
       const assistantMessage: PersistedMessage = normalized
       setClause.messages = sql`${copilotChats.messages} || ${JSON.stringify([assistantMessage])}::jsonb`

@@ -4,7 +4,9 @@ import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
+import { buildEffectiveChatTranscript } from '@/lib/copilot/chat/effective-transcript'
 import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
+import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -113,11 +115,23 @@ export async function GET(req: NextRequest) {
         }
       }
 
+      const normalizedMessages = Array.isArray(chat.messages)
+        ? chat.messages
+            .filter((message): message is Record<string, unknown> => Boolean(message))
+            .map(normalizeMessage)
+        : []
+      const effectiveMessages = buildEffectiveChatTranscript({
+        messages: normalizedMessages,
+        activeStreamId: chat.conversationId || null,
+        ...(streamSnapshot ? { streamSnapshot } : {}),
+      })
+
       logger.info(`Retrieved chat ${chatId}`)
       return NextResponse.json({
         success: true,
         chat: {
           ...transformChat(chat),
+          messages: effectiveMessages,
           ...(streamSnapshot ? { streamSnapshot } : {}),
         },
       })
