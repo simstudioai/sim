@@ -4,6 +4,7 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validatePathSegment } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getCredential, refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { GRAPH_ID_PATTERN } from '@/tools/microsoft_excel/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,7 +80,7 @@ export async function GET(request: NextRequest) {
     if (driveId) {
       const driveIdValidation = validatePathSegment(driveId, {
         paramName: 'driveId',
-        customPattern: /^[a-zA-Z0-9!_-]+$/,
+        customPattern: GRAPH_ID_PATTERN,
       })
       if (!driveIdValidation.isValid) {
         return NextResponse.json({ error: driveIdValidation.error }, { status: 400 })

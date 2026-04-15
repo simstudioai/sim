@@ -4,14 +4,14 @@ import type { ExcelCellValue } from '@/tools/microsoft_excel/types'
 
 const logger = createLogger('MicrosoftExcelUtils')
 
+/** Pattern for Microsoft Graph item/drive IDs: alphanumeric, hyphens, underscores, and ! (for SharePoint b!<base64> format) */
+export const GRAPH_ID_PATTERN = /^[a-zA-Z0-9!_-]+$/
+
 /**
  * Returns the Graph API base path for an Excel item.
  * When driveId is provided, uses /drives/{driveId}/items/{itemId} (SharePoint/shared drives).
  * When driveId is omitted, uses /me/drive/items/{itemId} (personal OneDrive).
  */
-/** Pattern for Microsoft Graph item/drive IDs: alphanumeric, hyphens, underscores, and ! (for SharePoint b!<base64> format) */
-const GRAPH_ID_PATTERN = /^[a-zA-Z0-9!_-]+$/
-
 export function getItemBasePath(spreadsheetId: string, driveId?: string): string {
   const spreadsheetValidation = validatePathSegment(spreadsheetId, {
     paramName: 'spreadsheetId',
