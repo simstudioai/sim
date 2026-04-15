@@ -338,10 +338,10 @@ const nextConfig: NextConfig = {
         ],
       },
       // Apply security headers to routes not handled by middleware runtime CSP
-      // Middleware handles: /, /workspace/*
+      // Middleware handles: /, /login, /signup, /workspace/*
       // Exclude chat and form routes which have their own permissive embed headers
       {
-        source: '/((?!workspace|chat|form).*)',
+        source: '/((?!workspace|chat|form|login|signup|$).*)',
         headers: [
           {
             key: 'X-Content-Type-Options',
