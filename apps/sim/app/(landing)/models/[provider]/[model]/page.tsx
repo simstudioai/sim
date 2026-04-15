@@ -20,6 +20,8 @@ import {
 
 const baseUrl = SITE_URL
 
+export const dynamicParams = false
+
 export async function generateStaticParams() {
   return ALL_CATALOG_MODELS.map((model) => ({
     provider: model.providerSlug,
