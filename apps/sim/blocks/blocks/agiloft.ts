@@ -13,7 +13,7 @@ export const AgiloftBlock: BlockConfig = {
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   tags: ['automation'],
-  bgColor: '#263A5C',
+  bgColor: '#FFFFFF',
   icon: AgiloftIcon,
   authMode: AuthMode.ApiKey,
 
