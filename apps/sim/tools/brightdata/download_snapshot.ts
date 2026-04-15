@@ -11,7 +11,7 @@ export const brightDataDownloadSnapshotTool: ToolConfig<
   id: 'brightdata_download_snapshot',
   name: 'Bright Data Download Snapshot',
   description:
-    'Download the results of a completed Bright Data scraping job using its snapshot ID. The snapshot must have status "ready".',
+    'Download the results of a completed Bright Data scraping job using its snapshot ID. The snapshot must have ready status.',
   version: '1.0.0',
 
   params: {

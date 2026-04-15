@@ -214,7 +214,7 @@
     "name": "Agiloft",
     "description": "Manage records in Agiloft CLM",
     "longDescription": "Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, and record locking across any table in your knowledge base.",
-    "bgColor": "#263A5C",
+    "bgColor": "#FFFFFF",
     "iconName": "AgiloftIcon",
     "docsUrl": "https://docs.sim.ai/tools/agiloft",
     "operations": [
@@ -1779,7 +1779,7 @@
       },
       {
         "name": "Download Snapshot",
-        "description": "Download the results of a completed Bright Data scraping job using its snapshot ID. The snapshot must have status "
+        "description": "Download the results of a completed Bright Data scraping job using its snapshot ID. The snapshot must have ready status."
       },
       {
         "name": "Cancel Snapshot",
