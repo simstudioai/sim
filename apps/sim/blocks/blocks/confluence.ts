@@ -779,7 +779,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
       title: 'Content',
       type: 'long-input',
       placeholder: 'Enter content',
-      required: { field: 'operation', value: 'create' },
+      required: { field: 'operation', value: ['create', 'create_blogpost'] },
       condition: {
         field: 'operation',
         value: ['create', 'update', 'create_blogpost', 'update_blogpost'],
