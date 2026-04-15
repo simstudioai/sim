@@ -14,18 +14,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       ? new Date(Math.max(...posts.map((p) => new Date(p.updated ?? p.date).getTime())))
       : undefined
 
-  const latestModelDate = new Date(
-    Math.max(
-      ...MODEL_PROVIDERS_WITH_CATALOGS.flatMap((provider) =>
-        provider.models.map((model) => new Date(model.pricing.updatedAt).getTime())
-      )
-    )
+  const modelTimes = MODEL_PROVIDERS_WITH_CATALOGS.flatMap((provider) =>
+    provider.models.map((model) => new Date(model.pricing.updatedAt).getTime())
   )
+  const latestModelDate = modelTimes.length > 0 ? new Date(Math.max(...modelTimes)) : undefined
 
   const staticPages: MetadataRoute.Sitemap = [
     {
       url: baseUrl,
-      lastModified: new Date(),
     },
     {
       url: `${baseUrl}/blog`,
