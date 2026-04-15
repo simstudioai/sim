@@ -154,6 +154,8 @@ export async function proxy(request: NextRequest) {
     }
     const response = NextResponse.next()
     response.headers.set('Content-Security-Policy', generateRuntimeCSP())
+    response.headers.set('X-Content-Type-Options', 'nosniff')
+    response.headers.set('X-Frame-Options', 'SAMEORIGIN')
     return track(request, response)
   }
 
@@ -176,7 +178,11 @@ export async function proxy(request: NextRequest) {
     if (!hasActiveSession) {
       return track(request, NextResponse.redirect(new URL('/login', request.url)))
     }
-    return track(request, NextResponse.next())
+    const response = NextResponse.next()
+    response.headers.set('Content-Security-Policy', generateRuntimeCSP())
+    response.headers.set('X-Content-Type-Options', 'nosniff')
+    response.headers.set('X-Frame-Options', 'SAMEORIGIN')
+    return track(request, response)
   }
 
   const invitationRedirect = handleInvitationRedirects(request, hasActiveSession)
@@ -191,8 +197,10 @@ export async function proxy(request: NextRequest) {
   const response = NextResponse.next()
   response.headers.set('Vary', 'User-Agent')
 
-  if (url.pathname.startsWith('/workspace') || url.pathname === '/') {
+  if (url.pathname === '/') {
     response.headers.set('Content-Security-Policy', generateRuntimeCSP())
+    response.headers.set('X-Content-Type-Options', 'nosniff')
+    response.headers.set('X-Frame-Options', 'SAMEORIGIN')
   }
 
   return track(request, response)
