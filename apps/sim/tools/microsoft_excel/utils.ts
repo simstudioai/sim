@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
+import { validatePathSegment } from '@/lib/core/security/input-validation'
 import type { ExcelCellValue } from '@/tools/microsoft_excel/types'
 
 const logger = createLogger('MicrosoftExcelUtils')
@@ -9,14 +9,23 @@ const logger = createLogger('MicrosoftExcelUtils')
  * When driveId is provided, uses /drives/{driveId}/items/{itemId} (SharePoint/shared drives).
  * When driveId is omitted, uses /me/drive/items/{itemId} (personal OneDrive).
  */
+/** Pattern for Microsoft Graph item/drive IDs: alphanumeric, hyphens, underscores, and ! (for SharePoint b!<base64> format) */
+const GRAPH_ID_PATTERN = /^[a-zA-Z0-9!_-]+$/
+
 export function getItemBasePath(spreadsheetId: string, driveId?: string): string {
-  const spreadsheetValidation = validateMicrosoftGraphId(spreadsheetId, 'spreadsheetId')
+  const spreadsheetValidation = validatePathSegment(spreadsheetId, {
+    paramName: 'spreadsheetId',
+    customPattern: GRAPH_ID_PATTERN,
+  })
   if (!spreadsheetValidation.isValid) {
     throw new Error(spreadsheetValidation.error)
   }
 
   if (driveId) {
-    const driveValidation = validateMicrosoftGraphId(driveId, 'driveId')
+    const driveValidation = validatePathSegment(driveId, {
+      paramName: 'driveId',
+      customPattern: GRAPH_ID_PATTERN,
+    })
     if (!driveValidation.isValid) {
       throw new Error(driveValidation.error)
     }

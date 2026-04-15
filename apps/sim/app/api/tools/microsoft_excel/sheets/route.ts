@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
-import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
+import { validatePathSegment } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
@@ -63,13 +63,21 @@ export async function GET(request: NextRequest) {
       `[${requestId}] Fetching worksheets from Microsoft Graph API for workbook ${spreadsheetId}`
     )
 
-    const spreadsheetValidation = validateMicrosoftGraphId(spreadsheetId, 'spreadsheetId')
+    const graphIdPattern = /^[a-zA-Z0-9!_-]+$/
+
+    const spreadsheetValidation = validatePathSegment(spreadsheetId, {
+      paramName: 'spreadsheetId',
+      customPattern: graphIdPattern,
+    })
     if (!spreadsheetValidation.isValid) {
       return NextResponse.json({ error: spreadsheetValidation.error }, { status: 400 })
     }
 
     if (driveId) {
-      const driveIdValidation = validateMicrosoftGraphId(driveId, 'driveId')
+      const driveIdValidation = validatePathSegment(driveId, {
+        paramName: 'driveId',
+        customPattern: graphIdPattern,
+      })
       if (!driveIdValidation.isValid) {
         return NextResponse.json({ error: driveIdValidation.error }, { status: 400 })
       }

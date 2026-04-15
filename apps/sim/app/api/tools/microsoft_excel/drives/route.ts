@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import {
-  validateMicrosoftGraphId,
+  validatePathSegment,
   validateSharePointSiteId,
 } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -70,7 +70,10 @@ export async function POST(request: NextRequest) {
 
     // Single-drive lookup when driveId is provided (used by fetchById)
     if (driveId) {
-      const driveIdValidation = validateMicrosoftGraphId(driveId, 'driveId')
+      const driveIdValidation = validatePathSegment(driveId, {
+        paramName: 'driveId',
+        customPattern: /^[a-zA-Z0-9!_-]+$/,
+      })
       if (!driveIdValidation.isValid) {
         return NextResponse.json({ error: driveIdValidation.error }, { status: 400 })
       }
