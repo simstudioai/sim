@@ -394,7 +394,7 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       placeholder: 'Enter credential ID',
       required: true,
     },
-    // File Source selector (basic mode)
+    // File Source selector (both modes)
     {
       id: 'fileSource',
       title: 'File Source',
@@ -404,7 +404,6 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
         { label: 'SharePoint', id: 'sharepoint' },
       ],
       value: () => 'onedrive',
-      mode: 'basic',
     },
     // SharePoint Site Selector (basic mode, only when SharePoint is selected)
     {
@@ -460,13 +459,14 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
       dependsOn: { all: ['credential'], any: ['credential', 'manualDriveId'] },
       mode: 'advanced',
     },
-    // Drive ID for SharePoint (advanced mode)
+    // Drive ID for SharePoint (advanced mode, only when SharePoint is selected)
     {
       id: 'manualDriveId',
-      title: 'Drive ID (SharePoint)',
+      title: 'Drive ID',
       type: 'short-input',
       canonicalParamId: 'driveId',
-      placeholder: 'Leave empty for OneDrive, or enter drive ID for SharePoint',
+      placeholder: 'Enter the SharePoint drive ID',
+      condition: { field: 'fileSource', value: 'sharepoint' },
       mode: 'advanced',
     },
     // Sheet Name Selector (basic mode)
