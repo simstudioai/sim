@@ -1,3 +1,5 @@
+import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
+import { resolveStreamToolOutcome } from '@/lib/copilot/chat/stream-tool-outcome'
 import {
   MothershipStreamV1CompletionStatus,
   type MothershipStreamV1ErrorPayload,
@@ -11,8 +13,6 @@ import {
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { FilePreviewSession } from '@/lib/copilot/request/session/file-preview-session-contract'
 import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
-import { normalizeMessage, type PersistedMessage } from './persisted-message'
-import { resolveStreamToolOutcome } from './stream-tool-outcome'
 
 interface StreamSnapshotLike {
   events: StreamBatchEvent[]

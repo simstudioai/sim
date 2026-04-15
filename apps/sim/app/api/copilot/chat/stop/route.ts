@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import { taskPubSub } from '@/lib/copilot/tasks'
+import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('CopilotChatStopAPI')
 
@@ -110,11 +111,9 @@ export async function POST(req: NextRequest) {
       : hasContent
         ? [{ type: 'text', channel: 'assistant', content }, { type: 'stopped' }]
         : [{ type: 'stopped' }]
-    const shouldAppendAssistant = canAppendAssistant
-
-    if (shouldAppendAssistant) {
+    if (canAppendAssistant) {
       const normalized = normalizeMessage({
-        id: crypto.randomUUID(),
+        id: generateId(),
         role: 'assistant',
         content,
         timestamp: new Date().toISOString(),

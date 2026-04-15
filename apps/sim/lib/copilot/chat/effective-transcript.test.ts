@@ -4,14 +4,17 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  buildEffectiveChatTranscript,
+  getLiveAssistantMessageId,
+} from '@/lib/copilot/chat/effective-transcript'
+import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
+import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
   MothershipStreamV1SessionKind,
   MothershipStreamV1TextChannel,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
-import { buildEffectiveChatTranscript, getLiveAssistantMessageId } from './effective-transcript'
-import { normalizeMessage } from './persisted-message'
 
 function toBatchEvent(eventId: number, event: StreamBatchEvent['event']): StreamBatchEvent {
   return {

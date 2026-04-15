@@ -63,7 +63,7 @@ vi.mock('@/lib/copilot/tasks', () => ({
   },
 }))
 
-import { POST } from './route'
+import { POST } from '@/app/api/copilot/chat/stop/route'
 
 function createRequest(body: Record<string, unknown>) {
   return new NextRequest('http://localhost:3000/api/copilot/chat/stop', {
