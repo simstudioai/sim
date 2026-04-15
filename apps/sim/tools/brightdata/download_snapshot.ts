@@ -89,7 +89,7 @@ export const brightDataDownloadSnapshotTool: ToolConfig<
       output: {
         data,
         format: contentType,
-        snapshotId: null,
+        snapshotId: (data[0]?.snapshot_id as string) ?? null,
       },
     }
   },

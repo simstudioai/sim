@@ -44,10 +44,11 @@ export const brightDataCancelSnapshotTool: ToolConfig<
       throw new Error(errorText || `Cancel snapshot failed with status ${response.status}`)
     }
 
+    const data = (await response.json().catch(() => null)) as Record<string, unknown> | null
     return {
       success: true,
       output: {
-        snapshotId: null,
+        snapshotId: (data?.snapshot_id as string) ?? null,
         cancelled: true,
       },
     }

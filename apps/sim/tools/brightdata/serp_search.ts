@@ -4,11 +4,14 @@ import type {
 } from '@/tools/brightdata/types'
 import type { ToolConfig } from '@/tools/types'
 
-const SEARCH_ENGINE_URLS: Record<string, string> = {
-  google: 'https://www.google.com/search',
-  bing: 'https://www.bing.com/search',
-  duckduckgo: 'https://duckduckgo.com/',
-  yandex: 'https://yandex.com/search/',
+const SEARCH_ENGINE_CONFIG: Record<
+  string,
+  { url: string; queryKey: string; numKey: string; langKey: string; countryKey: string }
+> = {
+  google: { url: 'https://www.google.com/search', queryKey: 'q', numKey: 'num', langKey: 'hl', countryKey: 'gl' },
+  bing: { url: 'https://www.bing.com/search', queryKey: 'q', numKey: 'count', langKey: 'setLang', countryKey: 'cc' },
+  duckduckgo: { url: 'https://duckduckgo.com/', queryKey: 'q', numKey: '', langKey: 'kl', countryKey: '' },
+  yandex: { url: 'https://yandex.com/search/', queryKey: 'text', numKey: 'numdoc', langKey: 'lang', countryKey: 'lr' },
 } as const
 
 export const brightDataSerpSearchTool: ToolConfig<
@@ -76,19 +79,25 @@ export const brightDataSerpSearchTool: ToolConfig<
     }),
     body: (params) => {
       const engine = params.searchEngine || 'google'
-      const baseUrl = SEARCH_ENGINE_URLS[engine] || SEARCH_ENGINE_URLS.google
+      const config = SEARCH_ENGINE_CONFIG[engine] || SEARCH_ENGINE_CONFIG.google
 
       const searchParams = new URLSearchParams()
-      searchParams.set('q', params.query)
-      if (params.numResults) searchParams.set('num', String(params.numResults))
-      if (params.language) searchParams.set('hl', params.language)
-      if (params.country) searchParams.set('gl', params.country)
+      searchParams.set(config.queryKey, params.query)
+      if (params.numResults && config.numKey) {
+        searchParams.set(config.numKey, String(params.numResults))
+      }
+      if (params.language && config.langKey) {
+        searchParams.set(config.langKey, params.language)
+      }
+      if (params.country && config.countryKey) {
+        searchParams.set(config.countryKey, params.country)
+      }
 
       searchParams.set('brd_json', '1')
 
       const body: Record<string, unknown> = {
         zone: params.zone,
-        url: `${baseUrl}?${searchParams.toString()}`,
+        url: `${config.url}?${searchParams.toString()}`,
         format: 'raw',
       }
       if (params.country) body.country = params.country

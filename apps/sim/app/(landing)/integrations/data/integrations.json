@@ -1779,7 +1779,7 @@
       },
       {
         "name": "Download Snapshot",
-        "description": "Download the results of a completed Bright Data scraping job using its snapshot ID. The snapshot must have status "
+        "description": "Download the results of a completed Bright Data scraping job using its snapshot ID. The snapshot must have status ready."
       },
       {
         "name": "Cancel Snapshot",
