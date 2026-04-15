@@ -69,19 +69,19 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       mode: 'basic',
     },
     {
+      id: 'driveId',
+      title: 'Drive ID (SharePoint)',
+      type: 'short-input',
+      placeholder: 'Leave empty for OneDrive, or enter drive ID for SharePoint',
+      mode: 'advanced',
+    },
+    {
       id: 'manualSpreadsheetId',
       title: 'Spreadsheet ID',
       type: 'short-input',
       canonicalParamId: 'spreadsheetId',
       placeholder: 'Enter spreadsheet ID',
       dependsOn: ['credential'],
-      mode: 'advanced',
-    },
-    {
-      id: 'driveId',
-      title: 'Drive ID (SharePoint)',
-      type: 'short-input',
-      placeholder: 'Leave empty for OneDrive, or enter drive ID for SharePoint',
       mode: 'advanced',
     },
     {
