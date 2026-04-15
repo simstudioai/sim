@@ -821,6 +821,7 @@ export default function Logs() {
         hasNext={selectedLogIndex < sortedLogs.length - 1}
         hasPrev={selectedLogIndex > 0}
         onRetryExecution={handleRetrySidebarExecution}
+        isRetryPending={retryExecution.isPending}
       />
     ),
     [
@@ -830,6 +831,7 @@ export default function Logs() {
       handleNavigateNext,
       handleNavigatePrev,
       handleRetrySidebarExecution,
+      retryExecution.isPending,
       selectedLogIndex,
       sortedLogs.length,
     ]
@@ -1231,6 +1233,7 @@ export default function Logs() {
         onOpenPreview={handleOpenPreview}
         onCancelExecution={handleCancelExecution}
         onRetryExecution={handleRetryExecution}
+        isRetryPending={retryExecution.isPending}
         onToggleWorkflowFilter={handleToggleWorkflowFilter}
         onClearAllFilters={handleClearAllFilters}
         isFilteredByThisWorkflow={isFilteredByThisWorkflow}

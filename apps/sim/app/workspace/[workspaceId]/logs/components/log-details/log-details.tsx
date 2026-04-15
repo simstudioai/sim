@@ -266,6 +266,8 @@ interface LogDetailsProps {
   hasPrev?: boolean
   /** Callback to retry a failed execution */
   onRetryExecution?: () => void
+  /** Whether a retry is currently in progress */
+  isRetryPending?: boolean
 }
 
 /**
@@ -283,6 +285,7 @@ export const LogDetails = memo(function LogDetails({
   hasNext = false,
   hasPrev = false,
   onRetryExecution,
+  isRetryPending = false,
 }: LogDetailsProps) {
   const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -399,6 +402,7 @@ export const LogDetails = memo(function LogDetails({
                         variant='ghost'
                         className='!p-1'
                         onClick={() => onRetryExecution?.()}
+                        disabled={isRetryPending}
                         aria-label='Retry execution'
                       >
                         <Redo className='h-[14px] w-[14px]' />

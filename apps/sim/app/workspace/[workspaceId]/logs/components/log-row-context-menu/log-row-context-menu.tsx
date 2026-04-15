@@ -24,6 +24,7 @@ interface LogRowContextMenuProps {
   onClearAllFilters: () => void
   onCancelExecution: () => void
   onRetryExecution: () => void
+  isRetryPending?: boolean
   isFilteredByThisWorkflow: boolean
   hasActiveFilters: boolean
 }
@@ -45,6 +46,7 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   onClearAllFilters,
   onCancelExecution,
   onRetryExecution,
+  isRetryPending = false,
   isFilteredByThisWorkflow,
   hasActiveFilters,
 }: LogRowContextMenuProps) {
@@ -78,9 +80,9 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
       >
         {isRetryable && (
           <>
-            <DropdownMenuItem onSelect={onRetryExecution}>
+            <DropdownMenuItem onSelect={onRetryExecution} disabled={isRetryPending}>
               <Redo />
-              Retry
+              {isRetryPending ? 'Retrying...' : 'Retry'}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>

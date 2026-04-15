@@ -438,12 +438,19 @@ export function extractRetryInput(log: WorkflowLog): unknown | undefined {
   }
 
   const executionState = execData.executionState as
-    | { blockStates?: Record<string, { output?: unknown }> }
+    | {
+        blockStates?: Record<
+          string,
+          { output?: unknown; executed?: boolean; executionTime?: number }
+        >
+      }
     | undefined
   if (!executionState?.blockStates) return undefined
 
+  // Starter/trigger blocks are pre-populated with executed: false and executionTime: 0,
+  // which distinguishes them from blocks that actually ran during execution.
   for (const state of Object.values(executionState.blockStates)) {
-    if (state.output && typeof state.output === 'object' && 'input' in state.output) {
+    if (state.executed === false && state.executionTime === 0 && state.output != null) {
       return state.output
     }
   }
