@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('CopilotAutoAllowedToolsAPI')
@@ -30,9 +31,15 @@ export async function GET() {
 
     const userId = session.user.id
 
-    const res = await fetch(
+    const res = await fetchGo(
       `${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed?userId=${encodeURIComponent(userId)}`,
-      { method: 'GET', headers: copilotHeaders() }
+      {
+        method: 'GET',
+        headers: copilotHeaders(),
+        spanName: 'sim → go /api/tool-preferences/auto-allowed',
+        operation: 'list_auto_allowed_tools',
+        attributes: { 'user.id': userId },
+      }
     )
 
     if (!res.ok) {
@@ -66,10 +73,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'toolId must be a string' }, { status: 400 })
     }
 
-    const res = await fetch(`${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed`, {
+    const res = await fetchGo(`${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed`, {
       method: 'POST',
       headers: copilotHeaders(),
       body: JSON.stringify({ userId, toolId: body.toolId }),
+      spanName: 'sim → go /api/tool-preferences/auto-allowed',
+      operation: 'add_auto_allowed_tool',
+      attributes: { 'user.id': userId, 'tool.id': body.toolId },
     })
 
     if (!res.ok) {
@@ -107,9 +117,15 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'toolId query parameter is required' }, { status: 400 })
     }
 
-    const res = await fetch(
+    const res = await fetchGo(
       `${SIM_AGENT_API_URL}/api/tool-preferences/auto-allowed?userId=${encodeURIComponent(userId)}&toolId=${encodeURIComponent(toolId)}`,
-      { method: 'DELETE', headers: copilotHeaders() }
+      {
+        method: 'DELETE',
+        headers: copilotHeaders(),
+        spanName: 'sim → go /api/tool-preferences/auto-allowed',
+        operation: 'remove_auto_allowed_tool',
+        attributes: { 'user.id': userId, 'tool.id': toolId },
+      }
     )
 
     if (!res.ok) {

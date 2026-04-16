@@ -1,5 +1,5 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import {
   CallToolRequestSchema,
   type CallToolResult,
@@ -9,103 +9,122 @@ import {
   type ListToolsResult,
   McpError,
   type RequestId,
-} from '@modelcontextprotocol/sdk/types.js'
-import { db } from '@sim/db'
-import { userStats } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { eq, sql } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
-import { validateOAuthAccessToken } from '@/lib/auth/oauth-token'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
-import { ORCHESTRATION_TIMEOUT_MS, SIM_AGENT_API_URL } from '@/lib/copilot/constants'
-import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
-import { orchestrateSubagentStream } from '@/lib/copilot/request/subagent'
-import { ensureHandlersRegistered, executeTool } from '@/lib/copilot/tool-executor'
-import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
-import { DIRECT_TOOL_DEFS, SUBAGENT_TOOL_DEFS } from '@/lib/copilot/tools/mcp/definitions'
-import { env } from '@/lib/core/config/env'
-import { RateLimiter } from '@/lib/core/rate-limiter'
-import { getBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
+} from "@modelcontextprotocol/sdk/types.js";
+import { db } from "@sim/db";
+import { userStats } from "@sim/db/schema";
+import { createLogger } from "@sim/logger";
+import { eq, sql } from "drizzle-orm";
+import { type NextRequest, NextResponse } from "next/server";
+import { validateOAuthAccessToken } from "@/lib/auth/oauth-token";
+import { getHighestPrioritySubscription } from "@/lib/billing/core/subscription";
+import { generateWorkspaceContext } from "@/lib/copilot/chat/workspace-context";
+import {
+  ORCHESTRATION_TIMEOUT_MS,
+  SIM_AGENT_API_URL,
+} from "@/lib/copilot/constants";
+import { createRequestId } from "@/lib/copilot/request/http";
+import { runHeadlessCopilotLifecycle } from "@/lib/copilot/request/lifecycle/headless";
+import { orchestrateSubagentStream } from "@/lib/copilot/request/subagent";
+import {
+  ensureHandlersRegistered,
+  executeTool,
+} from "@/lib/copilot/tool-executor";
+import { prepareExecutionContext } from "@/lib/copilot/tools/handlers/context";
+import {
+  DIRECT_TOOL_DEFS,
+  SUBAGENT_TOOL_DEFS,
+} from "@/lib/copilot/tools/mcp/definitions";
+import { env } from "@/lib/core/config/env";
+import { RateLimiter } from "@/lib/core/rate-limiter";
+import { getBaseUrl } from "@/lib/core/utils/urls";
+import { generateId } from "@/lib/core/utils/uuid";
 import {
   authorizeWorkflowByWorkspacePermission,
   resolveWorkflowIdForUser,
-} from '@/lib/workflows/utils'
+} from "@/lib/workflows/utils";
 
-const logger = createLogger('CopilotMcpAPI')
-const mcpRateLimiter = new RateLimiter()
-const DEFAULT_COPILOT_MODEL = 'claude-opus-4-6'
+const logger = createLogger("CopilotMcpAPI");
+const mcpRateLimiter = new RateLimiter();
+const DEFAULT_COPILOT_MODEL = "claude-opus-4-6";
 
-export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
-export const maxDuration = 3600
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+export const maxDuration = 3600;
 
 interface CopilotKeyAuthResult {
-  success: boolean
-  userId?: string
-  error?: string
+  success: boolean;
+  userId?: string;
+  error?: string;
 }
 
 /**
  * Validates a copilot API key by forwarding it to the Go copilot service's
  * `/api/validate-key` endpoint. Returns the associated userId on success.
  */
-async function authenticateCopilotApiKey(apiKey: string): Promise<CopilotKeyAuthResult> {
+async function authenticateCopilotApiKey(
+  apiKey: string,
+): Promise<CopilotKeyAuthResult> {
   try {
-    const internalSecret = env.INTERNAL_API_SECRET
+    const internalSecret = env.INTERNAL_API_SECRET;
     if (!internalSecret) {
-      logger.error('INTERNAL_API_SECRET not configured')
-      return { success: false, error: 'Server configuration error' }
+      logger.error("INTERNAL_API_SECRET not configured");
+      return { success: false, error: "Server configuration error" };
     }
 
-    const res = await fetch(`${SIM_AGENT_API_URL}/api/validate-key`, {
-      method: 'POST',
+    const { fetchGo } = await import("@/lib/copilot/request/go/fetch");
+    const res = await fetchGo(`${SIM_AGENT_API_URL}/api/validate-key`, {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': internalSecret,
+        "Content-Type": "application/json",
+        "x-api-key": internalSecret,
       },
       body: JSON.stringify({ targetApiKey: apiKey }),
       signal: AbortSignal.timeout(10_000),
-    })
+      spanName: "sim → go /api/validate-key (mcp)",
+      operation: "mcp_validate_key",
+    });
 
     if (!res.ok) {
-      const body = await res.json().catch(() => null)
-      const upstream = (body as Record<string, unknown>)?.message
-      const status = res.status
+      const body = await res.json().catch(() => null);
+      const upstream = (body as Record<string, unknown>)?.message;
+      const status = res.status;
 
       if (status === 401 || status === 403) {
         return {
           success: false,
           error: `Invalid Copilot API key. Generate a new key in Settings → Copilot and set it in the x-api-key header.`,
-        }
+        };
       }
       if (status === 402) {
         return {
           success: false,
           error: `Usage limit exceeded for this Copilot API key. Upgrade your plan or wait for your quota to reset.`,
-        }
+        };
       }
 
-      return { success: false, error: String(upstream ?? 'Copilot API key validation failed') }
+      return {
+        success: false,
+        error: String(upstream ?? "Copilot API key validation failed"),
+      };
     }
 
-    const data = (await res.json()) as { ok?: boolean; userId?: string }
+    const data = (await res.json()) as { ok?: boolean; userId?: string };
     if (!data.ok || !data.userId) {
       return {
         success: false,
-        error: 'Invalid Copilot API key. Generate a new key in Settings → Copilot.',
-      }
+        error:
+          "Invalid Copilot API key. Generate a new key in Settings → Copilot.",
+      };
     }
 
-    return { success: true, userId: data.userId }
+    return { success: true, userId: data.userId };
   } catch (error) {
-    logger.error('Copilot API key validation failed', { error })
+    logger.error("Copilot API key validation failed", { error });
     return {
       success: false,
       error:
-        'Could not validate Copilot API key — the authentication service is temporarily unreachable. This is NOT a problem with the API key itself; please retry shortly.',
-    }
+        "Could not validate Copilot API key — the authentication service is temporarily unreachable. This is NOT a problem with the API key itself; please retry shortly.",
+    };
   }
 }
 
@@ -147,232 +166,252 @@ When the user refers to a workflow by name or description ("the email one", "my 
 - Tools that operate on a specific workflow such as \`sim_workflow\`, \`sim_test\`, \`sim_deploy\`, and workflow-scoped \`sim_info\` requests require \`workflowId\`.
 - If the user reports errors, route through \`sim_workflow\` and ask it to reproduce, inspect logs, and fix the issue end to end.
 - Variable syntax: \`<blockname.field>\` for block outputs, \`{{ENV_VAR}}\` for env vars.
-`
+`;
 
-type HeaderMap = Record<string, string | string[] | undefined>
+type HeaderMap = Record<string, string | string[] | undefined>;
 
-function createError(id: RequestId, code: ErrorCode | number, message: string): JSONRPCError {
+function createError(
+  id: RequestId,
+  code: ErrorCode | number,
+  message: string,
+): JSONRPCError {
   return {
-    jsonrpc: '2.0',
+    jsonrpc: "2.0",
     id,
     error: { code, message },
-  }
+  };
 }
 
 function normalizeRequestHeaders(request: NextRequest): HeaderMap {
-  const headers: HeaderMap = {}
+  const headers: HeaderMap = {};
 
   request.headers.forEach((value, key) => {
-    headers[key.toLowerCase()] = value
-  })
+    headers[key.toLowerCase()] = value;
+  });
 
-  return headers
+  return headers;
 }
 
-function readHeader(headers: HeaderMap | undefined, name: string): string | undefined {
-  if (!headers) return undefined
-  const value = headers[name.toLowerCase()]
+function readHeader(
+  headers: HeaderMap | undefined,
+  name: string,
+): string | undefined {
+  if (!headers) return undefined;
+  const value = headers[name.toLowerCase()];
   if (Array.isArray(value)) {
-    return value[0]
+    return value[0];
   }
-  return value
+  return value;
 }
 
 class NextResponseCapture {
-  private _status = 200
-  private _headers = new Headers()
-  private _controller: ReadableStreamDefaultController<Uint8Array> | null = null
-  private _pendingChunks: Uint8Array[] = []
-  private _closeHandlers: Array<() => void> = []
-  private _errorHandlers: Array<(error: Error) => void> = []
-  private _headersWritten = false
-  private _ended = false
-  private _headersPromise: Promise<void>
-  private _resolveHeaders: (() => void) | null = null
-  private _endedPromise: Promise<void>
-  private _resolveEnded: (() => void) | null = null
-  readonly readable: ReadableStream<Uint8Array>
+  private _status = 200;
+  private _headers = new Headers();
+  private _controller: ReadableStreamDefaultController<Uint8Array> | null =
+    null;
+  private _pendingChunks: Uint8Array[] = [];
+  private _closeHandlers: Array<() => void> = [];
+  private _errorHandlers: Array<(error: Error) => void> = [];
+  private _headersWritten = false;
+  private _ended = false;
+  private _headersPromise: Promise<void>;
+  private _resolveHeaders: (() => void) | null = null;
+  private _endedPromise: Promise<void>;
+  private _resolveEnded: (() => void) | null = null;
+  readonly readable: ReadableStream<Uint8Array>;
 
   constructor() {
     this._headersPromise = new Promise<void>((resolve) => {
-      this._resolveHeaders = resolve
-    })
+      this._resolveHeaders = resolve;
+    });
 
     this._endedPromise = new Promise<void>((resolve) => {
-      this._resolveEnded = resolve
-    })
+      this._resolveEnded = resolve;
+    });
 
     this.readable = new ReadableStream<Uint8Array>({
       start: (controller) => {
-        this._controller = controller
+        this._controller = controller;
         if (this._pendingChunks.length > 0) {
           for (const chunk of this._pendingChunks) {
-            controller.enqueue(chunk)
+            controller.enqueue(chunk);
           }
-          this._pendingChunks = []
+          this._pendingChunks = [];
         }
       },
       cancel: () => {
-        this._ended = true
-        this._resolveEnded?.()
-        this.triggerCloseHandlers()
+        this._ended = true;
+        this._resolveEnded?.();
+        this.triggerCloseHandlers();
       },
-    })
+    });
   }
 
   private markHeadersWritten(): void {
-    if (this._headersWritten) return
-    this._headersWritten = true
-    this._resolveHeaders?.()
+    if (this._headersWritten) return;
+    this._headersWritten = true;
+    this._resolveHeaders?.();
   }
 
   private triggerCloseHandlers(): void {
     for (const handler of this._closeHandlers) {
       try {
-        handler()
+        handler();
       } catch (error) {
-        this.triggerErrorHandlers(error instanceof Error ? error : new Error(String(error)))
+        this.triggerErrorHandlers(
+          error instanceof Error ? error : new Error(String(error)),
+        );
       }
     }
   }
 
   private triggerErrorHandlers(error: Error): void {
     for (const errorHandler of this._errorHandlers) {
-      errorHandler(error)
+      errorHandler(error);
     }
   }
 
   private normalizeChunk(chunk: unknown): Uint8Array | null {
-    if (typeof chunk === 'string') {
-      return new TextEncoder().encode(chunk)
+    if (typeof chunk === "string") {
+      return new TextEncoder().encode(chunk);
     }
 
     if (chunk instanceof Uint8Array) {
-      return chunk
+      return chunk;
     }
 
     if (chunk === undefined || chunk === null) {
-      return null
+      return null;
     }
 
-    return new TextEncoder().encode(String(chunk))
+    return new TextEncoder().encode(String(chunk));
   }
 
-  writeHead(status: number, headers?: Record<string, string | number | string[]>): this {
-    this._status = status
+  writeHead(
+    status: number,
+    headers?: Record<string, string | number | string[]>,
+  ): this {
+    this._status = status;
 
     if (headers) {
       Object.entries(headers).forEach(([key, value]) => {
         if (Array.isArray(value)) {
-          this._headers.set(key, value.join(', '))
+          this._headers.set(key, value.join(", "));
         } else {
-          this._headers.set(key, String(value))
+          this._headers.set(key, String(value));
         }
-      })
+      });
     }
 
-    this.markHeadersWritten()
-    return this
+    this.markHeadersWritten();
+    return this;
   }
 
   flushHeaders(): this {
-    this.markHeadersWritten()
-    return this
+    this.markHeadersWritten();
+    return this;
   }
 
   write(chunk: unknown): boolean {
-    const normalized = this.normalizeChunk(chunk)
-    if (!normalized) return true
+    const normalized = this.normalizeChunk(chunk);
+    if (!normalized) return true;
 
-    this.markHeadersWritten()
+    this.markHeadersWritten();
 
     if (this._controller) {
       try {
-        this._controller.enqueue(normalized)
+        this._controller.enqueue(normalized);
       } catch (error) {
-        this.triggerErrorHandlers(error instanceof Error ? error : new Error(String(error)))
+        this.triggerErrorHandlers(
+          error instanceof Error ? error : new Error(String(error)),
+        );
       }
     } else {
-      this._pendingChunks.push(normalized)
+      this._pendingChunks.push(normalized);
     }
 
-    return true
+    return true;
   }
 
   end(chunk?: unknown): this {
-    if (chunk !== undefined) this.write(chunk)
-    this.markHeadersWritten()
-    if (this._ended) return this
+    if (chunk !== undefined) this.write(chunk);
+    this.markHeadersWritten();
+    if (this._ended) return this;
 
-    this._ended = true
-    this._resolveEnded?.()
+    this._ended = true;
+    this._resolveEnded?.();
 
     if (this._controller) {
       try {
-        this._controller.close()
+        this._controller.close();
       } catch (error) {
-        this.triggerErrorHandlers(error instanceof Error ? error : new Error(String(error)))
+        this.triggerErrorHandlers(
+          error instanceof Error ? error : new Error(String(error)),
+        );
       }
     }
 
-    this.triggerCloseHandlers()
+    this.triggerCloseHandlers();
 
-    return this
+    return this;
   }
 
   async waitForHeaders(timeoutMs = 30000): Promise<void> {
-    if (this._headersWritten) return
+    if (this._headersWritten) return;
 
     await Promise.race([
       this._headersPromise,
       new Promise<void>((resolve) => {
-        setTimeout(resolve, timeoutMs)
+        setTimeout(resolve, timeoutMs);
       }),
-    ])
+    ]);
   }
 
   async waitForEnd(timeoutMs = 30000): Promise<void> {
-    if (this._ended) return
+    if (this._ended) return;
 
     await Promise.race([
       this._endedPromise,
       new Promise<void>((resolve) => {
-        setTimeout(resolve, timeoutMs)
+        setTimeout(resolve, timeoutMs);
       }),
-    ])
+    ]);
   }
 
-  on(event: 'close' | 'error', handler: (() => void) | ((error: Error) => void)): this {
-    if (event === 'close') {
-      this._closeHandlers.push(handler as () => void)
+  on(
+    event: "close" | "error",
+    handler: (() => void) | ((error: Error) => void),
+  ): this {
+    if (event === "close") {
+      this._closeHandlers.push(handler as () => void);
     }
 
-    if (event === 'error') {
-      this._errorHandlers.push(handler as (error: Error) => void)
+    if (event === "error") {
+      this._errorHandlers.push(handler as (error: Error) => void);
     }
 
-    return this
+    return this;
   }
 
   toNextResponse(): NextResponse {
     return new NextResponse(this.readable, {
       status: this._status,
       headers: this._headers,
-    })
+    });
   }
 }
 
 function buildMcpServer(abortSignal?: AbortSignal): Server {
   const server = new Server(
     {
-      name: 'sim-copilot',
-      version: '1.0.0',
+      name: "sim-copilot",
+      version: "1.0.0",
     },
     {
       capabilities: { tools: {} },
       instructions: MCP_SERVER_INSTRUCTIONS,
-    }
-  )
+    },
+  );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     const directTools = DIRECT_TOOL_DEFS.map((tool) => ({
@@ -380,100 +419,100 @@ function buildMcpServer(abortSignal?: AbortSignal): Server {
       description: tool.description,
       inputSchema: tool.inputSchema,
       ...(tool.annotations && { annotations: tool.annotations }),
-    }))
+    }));
 
     const subagentTools = SUBAGENT_TOOL_DEFS.map((tool) => ({
       name: tool.name,
       description: tool.description,
       inputSchema: tool.inputSchema,
       ...(tool.annotations && { annotations: tool.annotations }),
-    }))
+    }));
 
     const result: ListToolsResult = {
       tools: [...directTools, ...subagentTools],
-    }
+    };
 
-    return result
-  })
+    return result;
+  });
 
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
-    const headers = (extra.requestInfo?.headers || {}) as HeaderMap
-    const apiKeyHeader = readHeader(headers, 'x-api-key')
-    const authorizationHeader = readHeader(headers, 'authorization')
+    const headers = (extra.requestInfo?.headers || {}) as HeaderMap;
+    const apiKeyHeader = readHeader(headers, "x-api-key");
+    const authorizationHeader = readHeader(headers, "authorization");
 
-    let authResult: CopilotKeyAuthResult = { success: false }
+    let authResult: CopilotKeyAuthResult = { success: false };
 
-    if (authorizationHeader?.startsWith('Bearer ')) {
-      const token = authorizationHeader.slice(7)
-      const oauthResult = await validateOAuthAccessToken(token)
+    if (authorizationHeader?.startsWith("Bearer ")) {
+      const token = authorizationHeader.slice(7);
+      const oauthResult = await validateOAuthAccessToken(token);
       if (oauthResult.success && oauthResult.userId) {
-        if (!oauthResult.scopes?.includes('mcp:tools')) {
+        if (!oauthResult.scopes?.includes("mcp:tools")) {
           return {
             content: [
               {
-                type: 'text' as const,
+                type: "text" as const,
                 text: 'AUTHENTICATION ERROR: OAuth token is missing the required "mcp:tools" scope. Re-authorize with the correct scopes.',
               },
             ],
             isError: true,
-          }
+          };
         }
-        authResult = { success: true, userId: oauthResult.userId }
+        authResult = { success: true, userId: oauthResult.userId };
       } else {
         return {
           content: [
             {
-              type: 'text' as const,
-              text: `AUTHENTICATION ERROR: ${oauthResult.error ?? 'Invalid OAuth access token'} Do NOT retry — re-authorize via OAuth.`,
+              type: "text" as const,
+              text: `AUTHENTICATION ERROR: ${oauthResult.error ?? "Invalid OAuth access token"} Do NOT retry — re-authorize via OAuth.`,
             },
           ],
           isError: true,
-        }
+        };
       }
     } else if (apiKeyHeader) {
-      authResult = await authenticateCopilotApiKey(apiKeyHeader)
+      authResult = await authenticateCopilotApiKey(apiKeyHeader);
     }
 
     if (!authResult.success || !authResult.userId) {
       const errorMsg = apiKeyHeader
         ? `AUTHENTICATION ERROR: ${authResult.error} Do NOT retry — this will fail until the user fixes their Copilot API key.`
-        : 'AUTHENTICATION ERROR: No authentication provided. Provide a Bearer token (OAuth 2.1) or an x-api-key header. Generate a Copilot API key in Settings → Copilot.'
-      logger.warn('MCP copilot auth failed', { method: request.method })
+        : "AUTHENTICATION ERROR: No authentication provided. Provide a Bearer token (OAuth 2.1) or an x-api-key header. Generate a Copilot API key in Settings → Copilot.";
+      logger.warn("MCP copilot auth failed", { method: request.method });
       return {
         content: [
           {
-            type: 'text' as const,
+            type: "text" as const,
             text: errorMsg,
           },
         ],
         isError: true,
-      }
+      };
     }
 
     const rateLimitResult = await mcpRateLimiter.checkRateLimitWithSubscription(
       authResult.userId,
       await getHighestPrioritySubscription(authResult.userId),
-      'api-endpoint',
-      false
-    )
+      "api-endpoint",
+      false,
+    );
 
     if (!rateLimitResult.allowed) {
       return {
         content: [
           {
-            type: 'text' as const,
+            type: "text" as const,
             text: `RATE LIMIT: Too many requests. Please wait and retry after ${rateLimitResult.resetAt.toISOString()}.`,
           },
         ],
         isError: true,
-      }
+      };
     }
 
     const params = request.params as
       | { name?: string; arguments?: Record<string, unknown> }
-      | undefined
+      | undefined;
     if (!params?.name) {
-      throw new McpError(ErrorCode.InvalidParams, 'Tool name required')
+      throw new McpError(ErrorCode.InvalidParams, "Tool name required");
     }
 
     const result = await handleToolsCall(
@@ -482,46 +521,50 @@ function buildMcpServer(abortSignal?: AbortSignal): Server {
         arguments: params.arguments,
       },
       authResult.userId,
-      abortSignal
-    )
+      abortSignal,
+    );
 
-    trackMcpCopilotCall(authResult.userId)
+    trackMcpCopilotCall(authResult.userId);
 
-    return result
-  })
+    return result;
+  });
 
-  return server
+  return server;
 }
 
 async function handleMcpRequestWithSdk(
   request: NextRequest,
-  parsedBody: unknown
+  parsedBody: unknown,
 ): Promise<NextResponse> {
-  const server = buildMcpServer(request.signal)
+  const server = buildMcpServer(request.signal);
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
-  })
+  });
 
-  const responseCapture = new NextResponseCapture()
+  const responseCapture = new NextResponseCapture();
   const requestAdapter = {
     method: request.method,
     headers: normalizeRequestHeaders(request),
-  }
+  };
 
-  await server.connect(transport)
+  await server.connect(transport);
 
   try {
-    await transport.handleRequest(requestAdapter as any, responseCapture as any, parsedBody)
-    await responseCapture.waitForHeaders()
+    await transport.handleRequest(
+      requestAdapter as any,
+      responseCapture as any,
+      parsedBody,
+    );
+    await responseCapture.waitForHeaders();
     // Must exceed the longest possible tool execution.
     // Using ORCHESTRATION_TIMEOUT_MS + 60 s buffer so the orchestrator can
     // finish or time-out on its own before the transport is torn down.
-    await responseCapture.waitForEnd(ORCHESTRATION_TIMEOUT_MS + 60_000)
-    return responseCapture.toNextResponse()
+    await responseCapture.waitForEnd(ORCHESTRATION_TIMEOUT_MS + 60_000);
+    return responseCapture.toNextResponse();
   } finally {
-    await server.close().catch(() => {})
-    await transport.close().catch(() => {})
+    await server.close().catch(() => {});
+    await transport.close().catch(() => {});
   }
 }
 
@@ -529,41 +572,48 @@ export async function GET() {
   // Return 405 to signal that server-initiated SSE notifications are not
   // supported.  Without this, clients like mcp-remote will repeatedly
   // reconnect trying to open an SSE stream, flooding the logs with GETs.
-  return new NextResponse(null, { status: 405 })
+  return new NextResponse(null, { status: 405 });
 }
 
 export async function POST(request: NextRequest) {
-  const hasAuth = request.headers.has('authorization') || request.headers.has('x-api-key')
+  const hasAuth =
+    request.headers.has("authorization") || request.headers.has("x-api-key");
 
   if (!hasAuth) {
-    const origin = getBaseUrl().replace(/\/$/, '')
-    const resourceMetadataUrl = `${origin}/.well-known/oauth-protected-resource/api/mcp/copilot`
-    return new NextResponse(JSON.stringify({ error: 'unauthorized' }), {
+    const origin = getBaseUrl().replace(/\/$/, "");
+    const resourceMetadataUrl = `${origin}/.well-known/oauth-protected-resource/api/mcp/copilot`;
+    return new NextResponse(JSON.stringify({ error: "unauthorized" }), {
       status: 401,
       headers: {
-        'WWW-Authenticate': `Bearer resource_metadata="${resourceMetadataUrl}", scope="mcp:tools"`,
-        'Content-Type': 'application/json',
+        "WWW-Authenticate": `Bearer resource_metadata="${resourceMetadataUrl}", scope="mcp:tools"`,
+        "Content-Type": "application/json",
       },
-    })
+    });
   }
 
   try {
-    let parsedBody: unknown
+    let parsedBody: unknown;
 
     try {
-      parsedBody = await request.json()
+      parsedBody = await request.json();
     } catch {
-      return NextResponse.json(createError(0, ErrorCode.ParseError, 'Invalid JSON body'), {
-        status: 400,
-      })
+      return NextResponse.json(
+        createError(0, ErrorCode.ParseError, "Invalid JSON body"),
+        {
+          status: 400,
+        },
+      );
     }
 
-    return await handleMcpRequestWithSdk(request, parsedBody)
+    return await handleMcpRequestWithSdk(request, parsedBody);
   } catch (error) {
-    logger.error('Error handling MCP request', { error })
-    return NextResponse.json(createError(0, ErrorCode.InternalError, 'Internal error'), {
-      status: 500,
-    })
+    logger.error("Error handling MCP request", { error });
+    return NextResponse.json(
+      createError(0, ErrorCode.InternalError, "Internal error"),
+      {
+        status: 500,
+      },
+    );
   }
 }
 
@@ -571,18 +621,20 @@ export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
     headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, DELETE',
-      'Access-Control-Allow-Headers':
-        'Content-Type, Authorization, X-API-Key, X-Requested-With, Accept',
-      'Access-Control-Max-Age': '86400',
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS, DELETE",
+      "Access-Control-Allow-Headers":
+        "Content-Type, Authorization, X-API-Key, X-Requested-With, Accept",
+      "Access-Control-Max-Age": "86400",
     },
-  })
+  });
 }
 
 export async function DELETE(request: NextRequest) {
-  void request
-  return NextResponse.json(createError(0, -32000, 'Method not allowed.'), { status: 405 })
+  void request;
+  return NextResponse.json(createError(0, -32000, "Method not allowed."), {
+    status: 405,
+  });
 }
 
 /**
@@ -597,73 +649,82 @@ function trackMcpCopilotCall(userId: string): void {
     .where(eq(userStats.userId, userId))
     .then(() => {})
     .catch((error) => {
-      logger.error('Failed to track MCP copilot call', { error, userId })
-    })
+      logger.error("Failed to track MCP copilot call", { error, userId });
+    });
 }
 
 async function handleToolsCall(
   params: { name: string; arguments?: Record<string, unknown> },
   userId: string,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
 ): Promise<CallToolResult> {
-  const args = params.arguments || {}
+  const args = params.arguments || {};
 
-  const directTool = DIRECT_TOOL_DEFS.find((tool) => tool.name === params.name)
+  const directTool = DIRECT_TOOL_DEFS.find((tool) => tool.name === params.name);
   if (directTool) {
-    return handleDirectToolCall(directTool, args, userId)
+    return handleDirectToolCall(directTool, args, userId);
   }
 
-  const subagentTool = SUBAGENT_TOOL_DEFS.find((tool) => tool.name === params.name)
+  const subagentTool = SUBAGENT_TOOL_DEFS.find(
+    (tool) => tool.name === params.name,
+  );
   if (subagentTool) {
-    return handleSubagentToolCall(subagentTool, args, userId, abortSignal)
+    return handleSubagentToolCall(subagentTool, args, userId, abortSignal);
   }
 
-  throw new McpError(ErrorCode.MethodNotFound, `Tool not found: ${params.name}`)
+  throw new McpError(
+    ErrorCode.MethodNotFound,
+    `Tool not found: ${params.name}`,
+  );
 }
 
 async function handleDirectToolCall(
   toolDef: (typeof DIRECT_TOOL_DEFS)[number],
   args: Record<string, unknown>,
-  userId: string
+  userId: string,
 ): Promise<CallToolResult> {
   try {
     const execContext = await prepareExecutionContext(
       userId,
-      (args.workflowId as string) || '',
-      (args.chatId as string) || undefined
-    )
+      (args.workflowId as string) || "",
+      (args.chatId as string) || undefined,
+    );
 
     const toolCall = {
       id: generateId(),
       name: toolDef.toolId,
-      status: 'pending' as const,
+      status: "pending" as const,
       params: args as Record<string, any>,
       startTime: Date.now(),
-    }
+    };
 
-    ensureHandlersRegistered()
-    const result = await executeTool(toolCall.name, toolCall.params || {}, execContext)
+    ensureHandlersRegistered();
+    const result = await executeTool(
+      toolCall.name,
+      toolCall.params || {},
+      execContext,
+    );
 
     return {
       content: [
         {
-          type: 'text',
+          type: "text",
           text: JSON.stringify(result.output ?? result, null, 2),
         },
       ],
       isError: !result.success,
-    }
+    };
   } catch (error) {
-    logger.error('Direct tool execution failed', { tool: toolDef.name, error })
+    logger.error("Direct tool execution failed", { tool: toolDef.name, error });
     return {
       content: [
         {
-          type: 'text',
+          type: "text",
           text: `Tool execution failed: ${error instanceof Error ? error.message : String(error)}`,
         },
       ],
       isError: true,
-    }
+    };
   }
 }
 
@@ -676,72 +737,89 @@ async function handleDirectToolCall(
 async function handleBuildToolCall(
   args: Record<string, unknown>,
   userId: string,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
 ): Promise<CallToolResult> {
   try {
-    const requestText = (args.request as string) || JSON.stringify(args)
-    const workflowId = args.workflowId as string | undefined
-    let resolvedWorkflowName: string | undefined
-    let resolvedWorkspaceId: string | undefined
+    const requestText = (args.request as string) || JSON.stringify(args);
+    const workflowId = args.workflowId as string | undefined;
+    let resolvedWorkflowName: string | undefined;
+    let resolvedWorkspaceId: string | undefined;
 
     const resolved = workflowId
       ? await (async () => {
           const authorization = await authorizeWorkflowByWorkspacePermission({
             workflowId,
             userId,
-            action: 'read',
-          })
-          resolvedWorkflowName = authorization.workflow?.name || undefined
-          resolvedWorkspaceId = authorization.workflow?.workspaceId || undefined
+            action: "read",
+          });
+          resolvedWorkflowName = authorization.workflow?.name || undefined;
+          resolvedWorkspaceId =
+            authorization.workflow?.workspaceId || undefined;
           return authorization.allowed
-            ? { status: 'resolved' as const, workflowId, workflowName: resolvedWorkflowName }
-            : {
-                status: 'not_found' as const,
-                message: 'workflowId is required for build. Call create_workflow first.',
+            ? {
+                status: "resolved" as const,
+                workflowId,
+                workflowName: resolvedWorkflowName,
               }
+            : {
+                status: "not_found" as const,
+                message:
+                  "workflowId is required for build. Call create_workflow first.",
+              };
         })()
-      : await resolveWorkflowIdForUser(userId)
+      : await resolveWorkflowIdForUser(userId);
 
-    if (resolved.status === 'resolved') {
-      resolvedWorkflowName ||= resolved.workflowName
+    if (resolved.status === "resolved") {
+      resolvedWorkflowName ||= resolved.workflowName;
     }
 
-    if (!resolved || resolved.status !== 'resolved') {
+    if (!resolved || resolved.status !== "resolved") {
       return {
         content: [
           {
-            type: 'text',
+            type: "text",
             text: JSON.stringify(
               {
                 success: false,
                 error:
                   resolved?.message ??
-                  'workflowId is required for build. Call create_workflow first.',
+                  "workflowId is required for build. Call create_workflow first.",
               },
               null,
-              2
+              2,
             ),
           },
         ],
         isError: true,
-      }
+      };
     }
 
-    const chatId = generateId()
-    const executionContext = await prepareExecutionContext(userId, resolved.workflowId, chatId, {
-      workspaceId: resolvedWorkspaceId,
-    })
-    resolvedWorkspaceId = executionContext.workspaceId
-    let workspaceContext: string | undefined
+    const chatId = generateId();
+    const executionContext = await prepareExecutionContext(
+      userId,
+      resolved.workflowId,
+      chatId,
+      {
+        workspaceId: resolvedWorkspaceId,
+      },
+    );
+    resolvedWorkspaceId = executionContext.workspaceId;
+    let workspaceContext: string | undefined;
     if (resolvedWorkspaceId) {
       try {
-        workspaceContext = await generateWorkspaceContext(resolvedWorkspaceId, userId)
+        workspaceContext = await generateWorkspaceContext(
+          resolvedWorkspaceId,
+          userId,
+        );
       } catch (error) {
-        logger.warn('Failed to generate workspace context for build tool call', {
-          workflowId: resolved.workflowId,
-          workspaceId: resolvedWorkspaceId,
-          error: error instanceof Error ? error.message : String(error),
-        })
+        logger.warn(
+          "Failed to generate workspace context for build tool call",
+          {
+            workflowId: resolved.workflowId,
+            workspaceId: resolvedWorkspaceId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+        );
       }
     }
 
@@ -753,47 +831,47 @@ async function handleBuildToolCall(
       ...(workspaceContext ? { workspaceContext } : {}),
       userId,
       model: DEFAULT_COPILOT_MODEL,
-      mode: 'agent',
-      commands: ['fast'],
+      mode: "agent",
+      commands: ["fast"],
       messageId: generateId(),
       chatId,
-    }
+    };
 
     const result = await runHeadlessCopilotLifecycle(requestPayload, {
       userId,
       workflowId: resolved.workflowId,
       workspaceId: resolvedWorkspaceId,
       chatId,
-      goRoute: '/api/mcp',
+      goRoute: "/api/mcp",
       executionContext,
       autoExecuteTools: true,
       timeout: ORCHESTRATION_TIMEOUT_MS,
       interactive: false,
       abortSignal,
-    })
+    });
 
     const responseData = {
       success: result.success,
       content: result.content,
       toolCalls: result.toolCalls,
       error: result.error,
-    }
+    };
 
     return {
-      content: [{ type: 'text', text: JSON.stringify(responseData, null, 2) }],
+      content: [{ type: "text", text: JSON.stringify(responseData, null, 2) }],
       isError: !result.success,
-    }
+    };
   } catch (error) {
-    logger.error('Build tool call failed', { error })
+    logger.error("Build tool call failed", { error });
     return {
       content: [
         {
-          type: 'text',
+          type: "text",
           text: `Build failed: ${error instanceof Error ? error.message : String(error)}`,
         },
       ],
       isError: true,
-    }
+    };
   }
 }
 
@@ -801,10 +879,10 @@ async function handleSubagentToolCall(
   toolDef: (typeof SUBAGENT_TOOL_DEFS)[number],
   args: Record<string, unknown>,
   userId: string,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
 ): Promise<CallToolResult> {
-  if (toolDef.agentId === 'workflow') {
-    return handleBuildToolCall(args, userId, abortSignal)
+  if (toolDef.agentId === "workflow") {
+    return handleBuildToolCall(args, userId, abortSignal);
   }
 
   try {
@@ -812,11 +890,12 @@ async function handleSubagentToolCall(
       (args.request as string) ||
       (args.message as string) ||
       (args.error as string) ||
-      JSON.stringify(args)
+      JSON.stringify(args);
+    const simRequestId = createRequestId();
 
-    const context = (args.context as Record<string, unknown>) || {}
+    const context = (args.context as Record<string, unknown>) || {};
     if (args.plan && !context.plan) {
-      context.plan = args.plan
+      context.plan = args.plan;
     }
 
     const result = await orchestrateSubagentStream(
@@ -828,17 +907,18 @@ async function handleSubagentToolCall(
         context,
         model: DEFAULT_COPILOT_MODEL,
         headless: true,
-        source: 'mcp',
+        source: "mcp",
       },
       {
         userId,
         workflowId: args.workflowId as string | undefined,
         workspaceId: args.workspaceId as string | undefined,
+        simRequestId,
         abortSignal,
-      }
-    )
+      },
+    );
 
-    let responseData: unknown
+    let responseData: unknown;
 
     if (result.structuredResult) {
       responseData = {
@@ -846,44 +926,44 @@ async function handleSubagentToolCall(
         type: result.structuredResult.type,
         summary: result.structuredResult.summary,
         data: result.structuredResult.data,
-      }
+      };
     } else if (result.error) {
       responseData = {
         success: false,
         error: result.error,
         errors: result.errors,
-      }
+      };
     } else {
       responseData = {
         success: result.success,
         content: result.content,
-      }
+      };
     }
 
     return {
       content: [
         {
-          type: 'text',
+          type: "text",
           text: JSON.stringify(responseData, null, 2),
         },
       ],
       isError: !result.success,
-    }
+    };
   } catch (error) {
-    logger.error('Subagent tool call failed', {
+    logger.error("Subagent tool call failed", {
       tool: toolDef.name,
       agentId: toolDef.agentId,
       error,
-    })
+    });
 
     return {
       content: [
         {
-          type: 'text',
+          type: "text",
           text: `Subagent call failed: ${error instanceof Error ? error.message : String(error)}`,
         },
       ],
       isError: true,
-    }
+    };
   }
 }

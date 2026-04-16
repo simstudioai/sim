@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import { env } from '@/lib/core/config/env'
 
 const GenerateApiKeySchema = z.object({
@@ -32,13 +33,16 @@ export async function POST(req: NextRequest) {
 
     const { name } = validationResult.data
 
-    const res = await fetch(`${SIM_AGENT_API_URL}/api/validate-key/generate`, {
+    const res = await fetchGo(`${SIM_AGENT_API_URL}/api/validate-key/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
       },
       body: JSON.stringify({ userId, name }),
+      spanName: 'sim → go /api/validate-key/generate',
+      operation: 'generate_api_key',
+      attributes: { 'user.id': userId },
     })
 
     if (!res.ok) {

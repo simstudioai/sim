@@ -7,6 +7,9 @@ const logger = createLogger('FileReader')
 
 const MAX_TEXT_READ_BYTES = 5 * 1024 * 1024 // 5 MB
 const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
+const MAX_IMAGE_DIMENSION = 1568
+const IMAGE_RESIZE_DIMENSIONS = [1568, 1280, 1024, 768]
+const IMAGE_QUALITY_STEPS = [85, 70, 55, 40]
 
 const TEXT_TYPES = new Set([
   'text/plain',
@@ -41,6 +44,114 @@ function detectImageMime(buf: Buffer, claimed: string): string {
   return claimed
 }
 
+interface PreparedVisionImage {
+	buffer: Buffer
+	mediaType: string
+	resized: boolean
+}
+
+async function prepareImageForVision(
+	buffer: Buffer,
+	claimedType: string
+): Promise<PreparedVisionImage | null> {
+	const mediaType = detectImageMime(buffer, claimedType)
+
+	let sharpModule: typeof import('sharp').default
+	try {
+		sharpModule = (await import('sharp')).default
+	} catch (err) {
+		logger.warn('Failed to load sharp for image preparation', {
+			mediaType,
+			error: err instanceof Error ? err.message : String(err),
+		})
+		return buffer.length <= MAX_IMAGE_READ_BYTES ? { buffer, mediaType, resized: false } : null
+	}
+
+	let metadata: Awaited<ReturnType<ReturnType<typeof sharpModule>['metadata']>>
+	try {
+		metadata = await sharpModule(buffer, { limitInputPixels: false }).metadata()
+	} catch (err) {
+		logger.warn('Failed to read image metadata for VFS read', {
+			mediaType,
+			error: err instanceof Error ? err.message : String(err),
+		})
+		return buffer.length <= MAX_IMAGE_READ_BYTES ? { buffer, mediaType, resized: false } : null
+	}
+
+	const width = metadata.width ?? 0
+	const height = metadata.height ?? 0
+	const needsResize =
+		buffer.length > MAX_IMAGE_READ_BYTES ||
+		width > MAX_IMAGE_DIMENSION ||
+		height > MAX_IMAGE_DIMENSION
+	if (!needsResize) {
+		return { buffer, mediaType, resized: false }
+	}
+
+	const hasAlpha = Boolean(
+		metadata.hasAlpha ||
+			mediaType === 'image/png' ||
+			mediaType === 'image/webp' ||
+			mediaType === 'image/gif'
+	)
+
+	for (const dimension of IMAGE_RESIZE_DIMENSIONS) {
+		for (const quality of IMAGE_QUALITY_STEPS) {
+			try {
+				const pipeline = sharpModule(buffer, { limitInputPixels: false })
+					.rotate()
+					.resize({
+						width: dimension,
+						height: dimension,
+						fit: 'inside',
+						withoutEnlargement: true,
+					})
+
+				const transformed = hasAlpha
+					? {
+							buffer: await pipeline
+								.webp({ quality, alphaQuality: quality, effort: 4 })
+								.toBuffer(),
+							mediaType: 'image/webp',
+						}
+					: {
+							buffer: await pipeline
+								.jpeg({ quality, mozjpeg: true, chromaSubsampling: '4:4:4' })
+								.toBuffer(),
+							mediaType: 'image/jpeg',
+						}
+
+				if (transformed.buffer.length <= MAX_IMAGE_READ_BYTES) {
+					logger.info('Resized image for VFS read', {
+						originalBytes: buffer.length,
+						outputBytes: transformed.buffer.length,
+						originalWidth: width || undefined,
+						originalHeight: height || undefined,
+						maxDimension: dimension,
+						quality,
+						originalMediaType: mediaType,
+						outputMediaType: transformed.mediaType,
+					})
+					return {
+						buffer: transformed.buffer,
+						mediaType: transformed.mediaType,
+						resized: true,
+					}
+				}
+			} catch (err) {
+				logger.warn('Failed image resize attempt for VFS read', {
+					mediaType,
+					dimension,
+					quality,
+					error: err instanceof Error ? err.message : String(err),
+				})
+			}
+		}
+	}
+
+	return null
+}
+
 export interface FileReadResult {
   content: string
   totalLines: number
@@ -61,27 +172,29 @@ export interface FileReadResult {
  */
 export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileReadResult | null> {
   try {
-    if (isImageFileType(record.type)) {
-      if (record.size > MAX_IMAGE_READ_BYTES) {
-        return {
-          content: `[Image too large: ${record.name} (${(record.size / 1024 / 1024).toFixed(1)}MB, limit 5MB)]`,
-          totalLines: 1,
-        }
-      }
-      const buffer = await downloadWorkspaceFile(record)
-      const mime = detectImageMime(buffer, record.type)
-      return {
-        content: `Image: ${record.name} (${(record.size / 1024).toFixed(1)}KB, ${mime})`,
-        totalLines: 1,
-        attachment: {
-          type: 'image',
-          source: {
-            type: 'base64',
-            media_type: mime,
-            data: buffer.toString('base64'),
-          },
-        },
-      }
+		if (isImageFileType(record.type)) {
+			const originalBuffer = await downloadWorkspaceFile(record)
+			const prepared = await prepareImageForVision(originalBuffer, record.type)
+			if (!prepared) {
+				return {
+					content: `[Image too large: ${record.name} (${(record.size / 1024 / 1024).toFixed(1)}MB, limit 5MB after resize/compression)]`,
+					totalLines: 1,
+				}
+			}
+			const sizeKb = (prepared.buffer.length / 1024).toFixed(1)
+			const resizeNote = prepared.resized ? ', resized for vision' : ''
+			return {
+				content: `Image: ${record.name} (${sizeKb}KB, ${prepared.mediaType}${resizeNote})`,
+				totalLines: 1,
+				attachment: {
+					type: 'image',
+					source: {
+						type: 'base64',
+						media_type: prepared.mediaType,
+						data: prepared.buffer.toString('base64'),
+					},
+				},
+			}
     }
 
     if (isReadableType(record.type)) {

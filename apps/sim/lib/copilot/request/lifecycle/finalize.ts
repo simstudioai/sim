@@ -1,3 +1,4 @@
+import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { updateRunStatus } from '@/lib/copilot/async-runs/repository'
 import {
@@ -8,6 +9,8 @@ import type { StreamWriter } from '@/lib/copilot/request/session'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
 
 const logger = createLogger('CopilotStreamFinalize')
+// Lazy tracer resolution: see comment in lib/copilot/request/otel.ts.
+const getTracer = () => trace.getTracer('sim-copilot-finalize', '1.0.0')
 
 /**
  * Single finalization path for stream results.
@@ -21,13 +24,35 @@ export async function finalizeStream(
   aborted: boolean,
   requestId: string
 ): Promise<void> {
-  if (aborted) {
-    return handleAborted(result, publisher, runId, requestId)
+  const outcome = aborted ? 'aborted' : result.success ? 'success' : 'error'
+  const span = getTracer().startSpan('copilot.finalize_stream', {
+    attributes: {
+      'copilot.finalize.outcome': outcome,
+      'copilot.run.id': runId,
+      'copilot.request.id': requestId,
+      'copilot.result.tool_calls': result.toolCalls?.length ?? 0,
+      'copilot.result.content_blocks': result.contentBlocks?.length ?? 0,
+      'copilot.result.content_length': result.content?.length ?? 0,
+      'copilot.publisher.saw_complete': publisher.sawComplete,
+      'copilot.publisher.client_disconnected': publisher.clientDisconnected,
+    },
+  })
+  try {
+    if (aborted) {
+      await handleAborted(result, publisher, runId, requestId)
+    } else if (!result.success) {
+      span.setStatus({ code: SpanStatusCode.ERROR, message: result.error || 'orchestration failed' })
+      await handleError(result, publisher, runId, requestId)
+    } else {
+      await handleSuccess(publisher, runId, requestId)
+    }
+  } catch (error) {
+    span.recordException(error instanceof Error ? error : new Error(String(error)))
+    span.setStatus({ code: SpanStatusCode.ERROR, message: 'finalize threw' })
+    throw error
+  } finally {
+    span.end()
   }
-  if (!result.success) {
-    return handleError(result, publisher, runId, requestId)
-  }
-  return handleSuccess(publisher, runId, requestId)
 }
 
 async function handleAborted(

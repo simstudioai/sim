@@ -1,5 +1,6 @@
-import { createLogger } from '@sim/logger'
-import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import type { Context } from "@opentelemetry/api";
+import { createLogger } from "@sim/logger";
+import { SIM_AGENT_API_URL } from "@/lib/copilot/constants";
 import {
   type RequestTraceV1CostSummary,
   RequestTraceV1Outcome,
@@ -8,24 +9,24 @@ import {
   RequestTraceV1SpanSource,
   RequestTraceV1SpanStatus,
   type RequestTraceV1UsageSummary,
-} from '@/lib/copilot/generated/request-trace-v1'
-import { env } from '@/lib/core/config/env'
+} from "@/lib/copilot/generated/request-trace-v1";
+import { env } from "@/lib/core/config/env";
 
-const logger = createLogger('RequestTrace')
+const logger = createLogger("RequestTrace");
 
 export class TraceCollector {
-  private readonly spans: RequestTraceV1Span[] = []
-  private readonly startMs = Date.now()
-  private goTraceId?: string
-  private activeSpan?: RequestTraceV1Span
+  private readonly spans: RequestTraceV1Span[] = [];
+  private readonly startMs = Date.now();
+  private goTraceId?: string;
+  private activeSpan?: RequestTraceV1Span;
 
   startSpan(
     name: string,
     kind: string,
     attributes?: Record<string, unknown>,
-    parent?: RequestTraceV1Span
+    parent?: RequestTraceV1Span,
   ): RequestTraceV1Span {
-    const startMs = Date.now()
+    const startMs = Date.now();
     const span: RequestTraceV1Span = {
       name,
       kind,
@@ -39,55 +40,57 @@ export class TraceCollector {
         : this.activeSpan
           ? { parentName: this.activeSpan.name }
           : {}),
-      ...(attributes && Object.keys(attributes).length > 0 ? { attributes } : {}),
-    }
-    this.spans.push(span)
-    return span
+      ...(attributes && Object.keys(attributes).length > 0
+        ? { attributes }
+        : {}),
+    };
+    this.spans.push(span);
+    return span;
   }
 
   endSpan(
     span: RequestTraceV1Span,
-    status: RequestTraceV1SpanStatus | string = RequestTraceV1SpanStatus.ok
+    status: RequestTraceV1SpanStatus | string = RequestTraceV1SpanStatus.ok,
   ): void {
-    span.endMs = Date.now()
-    span.durationMs = span.endMs - span.startMs
-    span.status = status as RequestTraceV1SpanStatus
+    span.endMs = Date.now();
+    span.durationMs = span.endMs - span.startMs;
+    span.status = status as RequestTraceV1SpanStatus;
   }
 
   setActiveSpan(span: RequestTraceV1Span | undefined): void {
-    this.activeSpan = span
+    this.activeSpan = span;
   }
 
   setGoTraceId(id: string): void {
     if (!this.goTraceId && id) {
-      this.goTraceId = id
+      this.goTraceId = id;
     }
   }
 
   build(params: {
-    outcome: RequestTraceV1Outcome
-    simRequestId: string
-    streamId?: string
-    chatId?: string
-    runId?: string
-    executionId?: string
-    usage?: { prompt: number; completion: number }
-    cost?: { input: number; output: number; total: number }
+    outcome: RequestTraceV1Outcome;
+    simRequestId: string;
+    streamId?: string;
+    chatId?: string;
+    runId?: string;
+    executionId?: string;
+    usage?: { prompt: number; completion: number };
+    cost?: { input: number; output: number; total: number };
   }): RequestTraceV1SimReport {
-    const endMs = Date.now()
+    const endMs = Date.now();
     const usage: RequestTraceV1UsageSummary | undefined = params.usage
       ? {
           inputTokens: params.usage.prompt,
           outputTokens: params.usage.completion,
         }
-      : undefined
+      : undefined;
 
     const cost: RequestTraceV1CostSummary | undefined = params.cost
       ? {
           rawTotalCost: params.cost.total,
           billedTotalCost: params.cost.total,
         }
-      : undefined
+      : undefined;
 
     return {
       simRequestId: params.simRequestId,
@@ -103,26 +106,39 @@ export class TraceCollector {
       usage,
       cost,
       spans: this.spans,
-    }
+    };
   }
 }
 
-export async function reportTrace(trace: RequestTraceV1SimReport): Promise<void> {
-  const response = await fetch(`${SIM_AGENT_API_URL}/api/traces`, {
-    method: 'POST',
+export async function reportTrace(
+  trace: RequestTraceV1SimReport,
+  otelContext?: Context,
+): Promise<void> {
+  const { fetchGo } = await import("@/lib/copilot/request/go/fetch");
+  const body = JSON.stringify(trace);
+  const response = await fetchGo(`${SIM_AGENT_API_URL}/api/traces`, {
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
+      "Content-Type": "application/json",
+      ...(env.COPILOT_API_KEY ? { "x-api-key": env.COPILOT_API_KEY } : {}),
     },
-    body: JSON.stringify(trace),
-  })
+    body,
+    otelContext,
+    spanName: "sim → go /api/traces",
+    operation: "report_trace",
+    attributes: {
+      "copilot.request.id": trace.simRequestId ?? "",
+      "http.request.content_length": body.length,
+      "copilot.trace.span_count": trace.spans?.length ?? 0,
+    },
+  });
 
   if (!response.ok) {
-    logger.warn('Failed to report trace', {
+    logger.warn("Failed to report trace", {
       status: response.status,
       simRequestId: trace.simRequestId,
-    })
+    });
   }
 }
 
-export { RequestTraceV1Outcome, RequestTraceV1SpanStatus }
+export { RequestTraceV1Outcome, RequestTraceV1SpanStatus };

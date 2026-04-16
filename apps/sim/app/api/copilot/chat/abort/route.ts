@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
 import { abortActiveStream, waitForPendingChatStream } from '@/lib/copilot/request/session'
 import { env } from '@/lib/core/config/env'
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
       () => controller.abort('timeout:go_explicit_abort_fetch'),
       GO_EXPLICIT_ABORT_TIMEOUT_MS
     )
-    const response = await fetch(`${SIM_AGENT_API_URL}/api/streams/explicit-abort`, {
+    const response = await fetchGo(`${SIM_AGENT_API_URL}/api/streams/explicit-abort`, {
       method: 'POST',
       headers,
       signal: controller.signal,
@@ -63,6 +64,12 @@ export async function POST(request: Request) {
         userId: authenticatedUserId,
         ...(chatId ? { chatId } : {}),
       }),
+      spanName: 'sim → go /api/streams/explicit-abort',
+      operation: 'explicit_abort',
+      attributes: {
+        'copilot.stream.id': streamId,
+        ...(chatId ? { 'chat.id': chatId } : {}),
+      },
     }).finally(() => clearTimeout(timeout))
     if (!response.ok) {
       throw new Error(`Explicit abort marker request failed: ${response.status}`)

@@ -1,3 +1,4 @@
+import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { db } from '@sim/db'
 import {
   type CopilotAsyncToolStatus,
@@ -16,6 +17,47 @@ import {
 } from './lifecycle'
 
 const logger = createLogger('CopilotAsyncRunsRepo')
+// Resolve the tracer lazily per-call to avoid capturing the NoOp tracer
+// before NodeSDK installs the global TracerProvider (Next.js 16/Turbopack
+// can evaluate modules before instrumentation-node.ts finishes).
+const getAsyncRunsTracer = () => trace.getTracer('sim-copilot-async-runs', '1.0.0')
+
+/**
+ * withDbSpan wraps an async DB operation in a client-kind OTel span with
+ * canonical `db.*` attributes so every async-runs call is visible in traces
+ * alongside the owning request.
+ */
+async function withDbSpan<T>(
+  name: string,
+  op: string,
+  table: string,
+  attrs: Record<string, string | number | boolean | undefined>,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const span = getAsyncRunsTracer().startSpan(name, {
+    attributes: {
+      'db.system': 'postgresql',
+      'db.operation': op,
+      'db.sql.table': table,
+      ...Object.fromEntries(
+        Object.entries(attrs).filter(([, v]) => v !== undefined),
+      ),
+    },
+  })
+  try {
+    const result = await fn()
+    return result
+  } catch (error) {
+    span.recordException(error instanceof Error ? error : new Error(String(error)))
+    span.setStatus({
+      code: SpanStatusCode.ERROR,
+      message: error instanceof Error ? error.message : String(error),
+    })
+    throw error
+  } finally {
+    span.end()
+  }
+}
 
 export interface CreateRunSegmentInput {
   id?: string
@@ -34,26 +76,43 @@ export interface CreateRunSegmentInput {
 }
 
 export async function createRunSegment(input: CreateRunSegmentInput) {
-  const [run] = await db
-    .insert(copilotRuns)
-    .values({
-      ...(input.id ? { id: input.id } : {}),
-      executionId: input.executionId,
-      parentRunId: input.parentRunId ?? null,
-      chatId: input.chatId,
-      userId: input.userId,
-      workflowId: input.workflowId ?? null,
-      workspaceId: input.workspaceId ?? null,
-      streamId: input.streamId,
-      agent: input.agent ?? null,
-      model: input.model ?? null,
-      provider: input.provider ?? null,
-      requestContext: input.requestContext ?? {},
-      status: input.status ?? 'active',
-    })
-    .returning()
-
-  return run
+  return withDbSpan(
+    'copilot.async_runs.create_run_segment',
+    'INSERT',
+    'copilot_runs',
+    {
+      'copilot.execution_id': input.executionId,
+      'copilot.chat_id': input.chatId,
+      'copilot.stream_id': input.streamId,
+      'copilot.user_id': input.userId,
+      'copilot.run.parent_id': input.parentRunId ?? undefined,
+      'copilot.run.agent': input.agent ?? undefined,
+      'copilot.run.model': input.model ?? undefined,
+      'copilot.run.provider': input.provider ?? undefined,
+      'copilot.run.status': input.status ?? 'active',
+    },
+    async () => {
+      const [run] = await db
+        .insert(copilotRuns)
+        .values({
+          ...(input.id ? { id: input.id } : {}),
+          executionId: input.executionId,
+          parentRunId: input.parentRunId ?? null,
+          chatId: input.chatId,
+          userId: input.userId,
+          workflowId: input.workflowId ?? null,
+          workspaceId: input.workspaceId ?? null,
+          streamId: input.streamId,
+          agent: input.agent ?? null,
+          model: input.model ?? null,
+          provider: input.provider ?? null,
+          requestContext: input.requestContext ?? {},
+          status: input.status ?? 'active',
+        })
+        .returning()
+      return run
+    },
+  )
 }
 
 export async function updateRunStatus(
@@ -65,19 +124,31 @@ export async function updateRunStatus(
     requestContext?: Record<string, unknown>
   } = {}
 ) {
-  const [run] = await db
-    .update(copilotRuns)
-    .set({
-      status,
-      completedAt: updates.completedAt,
-      error: updates.error,
-      requestContext: updates.requestContext,
-      updatedAt: new Date(),
-    })
-    .where(eq(copilotRuns.id, runId))
-    .returning()
-
-  return run ?? null
+  return withDbSpan(
+    'copilot.async_runs.update_run_status',
+    'UPDATE',
+    'copilot_runs',
+    {
+      'copilot.run.id': runId,
+      'copilot.run.status': status,
+      'copilot.run.has_error': !!updates.error,
+      'copilot.run.has_completed_at': !!updates.completedAt,
+    },
+    async () => {
+      const [run] = await db
+        .update(copilotRuns)
+        .set({
+          status,
+          completedAt: updates.completedAt,
+          error: updates.error,
+          requestContext: updates.requestContext,
+          updatedAt: new Date(),
+        })
+        .where(eq(copilotRuns.id, runId))
+        .returning()
+      return run ?? null
+    },
+  )
 }
 
 export async function getLatestRunForExecution(executionId: string) {

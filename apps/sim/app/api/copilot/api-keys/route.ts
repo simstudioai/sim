@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import { env } from '@/lib/core/config/env'
 
 export async function GET(request: NextRequest) {
@@ -12,13 +13,16 @@ export async function GET(request: NextRequest) {
 
     const userId = session.user.id
 
-    const res = await fetch(`${SIM_AGENT_API_URL}/api/validate-key/get-api-keys`, {
+    const res = await fetchGo(`${SIM_AGENT_API_URL}/api/validate-key/get-api-keys`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
       },
       body: JSON.stringify({ userId }),
+      spanName: 'sim → go /api/validate-key/get-api-keys',
+      operation: 'get_api_keys',
+      attributes: { 'user.id': userId },
     })
 
     if (!res.ok) {
@@ -66,13 +70,16 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 })
     }
 
-    const res = await fetch(`${SIM_AGENT_API_URL}/api/validate-key/delete`, {
+    const res = await fetchGo(`${SIM_AGENT_API_URL}/api/validate-key/delete`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
       },
       body: JSON.stringify({ userId, apiKeyId: id }),
+      spanName: 'sim → go /api/validate-key/delete',
+      operation: 'delete_api_key',
+      attributes: { 'user.id': userId, 'api_key.id': id },
     })
 
     if (!res.ok) {

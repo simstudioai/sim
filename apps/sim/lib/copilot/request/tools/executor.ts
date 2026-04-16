@@ -39,6 +39,7 @@ import {
   type StreamingContext,
   type ToolCallState,
 } from '@/lib/copilot/request/types'
+import { withCopilotToolSpan } from '@/lib/copilot/request/otel'
 import { ensureHandlersRegistered, executeTool } from '@/lib/copilot/tool-executor'
 
 export { waitForToolCompletion } from '@/lib/copilot/request/tools/client'
@@ -51,6 +52,79 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function hasOutputValue(result: { output?: unknown } | undefined): result is { output: unknown } {
   return result !== undefined && Object.hasOwn(result, 'output')
+}
+
+interface ToolResultSpanSummary {
+  resultSuccess: boolean
+  outputBytes: number
+  outputKind: string
+  errorMessage?: string
+  imageCount?: number
+  imageBytes?: number
+  attachmentMediaType?: string
+}
+
+function summarizeToolResultForSpan(result: {
+  success: boolean
+  output?: unknown
+  error?: string
+}): ToolResultSpanSummary {
+  const summary: ToolResultSpanSummary = {
+    resultSuccess: Boolean(result.success),
+    outputBytes: 0,
+    outputKind: 'none',
+  }
+  if (!result.success && result.error) {
+    summary.errorMessage = String(result.error).slice(0, 500)
+  }
+  if (!hasOutputValue(result)) {
+    return summary
+  }
+  const output = (result as { output: unknown }).output
+  if (typeof output === 'string') {
+    summary.outputKind = 'string'
+    summary.outputBytes = output.length
+  } else if (output && typeof output === 'object') {
+    summary.outputKind = Array.isArray(output) ? 'array' : 'object'
+    try {
+      summary.outputBytes = JSON.stringify(output).length
+    } catch {
+      summary.outputBytes = 0
+    }
+    const attachment = extractAttachmentShape(output)
+    if (attachment) {
+      summary.imageCount = attachment.imageCount
+      summary.imageBytes = attachment.imageBytes
+      if (attachment.mediaType) {
+        summary.attachmentMediaType = attachment.mediaType
+      }
+    }
+  } else if (output !== undefined && output !== null) {
+    summary.outputKind = typeof output
+    summary.outputBytes = String(output).length
+  }
+  return summary
+}
+
+function extractAttachmentShape(
+  output: unknown,
+): { imageCount: number; imageBytes: number; mediaType?: string } | null {
+  if (!isRecord(output)) return null
+  const candidate = (output as Record<string, unknown>).attachment
+  if (!isRecord(candidate)) return null
+  const source = (candidate as Record<string, unknown>).source
+  if (!isRecord(source)) return null
+  const type = typeof (candidate as Record<string, unknown>).type === 'string'
+    ? ((candidate as Record<string, unknown>).type as string)
+    : ''
+  if (type !== 'image') return null
+  const mediaType = typeof source.media_type === 'string' ? (source.media_type as string) : undefined
+  const data = typeof source.data === 'string' ? (source.data as string) : ''
+  return {
+    imageCount: 1,
+    imageBytes: data.length,
+    mediaType,
+  }
 }
 
 function buildCompletionSignal(input: {
@@ -162,6 +236,40 @@ export async function executeToolAndReport(
       status: MothershipStreamV1ToolOutcome.error,
       message: 'Tool call not found',
     })
+
+  const argsPayload = toolCall.params ? (() => {
+    try {
+      return JSON.stringify(toolCall.params)
+    } catch {
+      return undefined
+    }
+  })() : undefined
+  return withCopilotToolSpan(
+    {
+      toolName: toolCall.name,
+      toolCallId: toolCall.id,
+      runId: context.runId,
+      chatId: execContext.chatId,
+      argsBytes: argsPayload?.length,
+      argsPreview: argsPayload?.slice(0, 200),
+    },
+    async (otelSpan) => {
+      const completion = await executeToolAndReportInner(toolCall, context, execContext, options)
+      otelSpan.setAttribute('tool.outcome', completion.status)
+      if (completion.message) {
+        otelSpan.setAttribute('tool.outcome.message', String(completion.message).slice(0, 500))
+      }
+      return completion
+    },
+  )
+}
+
+async function executeToolAndReportInner(
+  toolCall: ToolCallState,
+  context: StreamingContext,
+  execContext: ExecutionContext,
+  options?: OrchestratorOptions,
+): Promise<AsyncToolCompletion> {
 
   if (toolCall.status === 'executing') {
     return buildCompletionSignal({
@@ -376,6 +484,11 @@ export async function executeToolAndReport(
       endToolSpan('cancelled', { cancelReason: 'abort_during_post_processing_csv' })
       return cancelledCompletion('Request aborted during tool post-processing')
     }
+    toolSpan.attributes = {
+      ...toolSpan.attributes,
+      ...summarizeToolResultForSpan(result),
+    }
+
     setTerminalToolCallState(toolCall, {
       status: result.success
         ? MothershipStreamV1ToolOutcome.success

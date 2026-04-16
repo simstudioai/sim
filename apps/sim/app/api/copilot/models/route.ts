@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
 
 interface AvailableModel {
@@ -43,10 +44,12 @@ export async function GET(_req: NextRequest) {
   }
 
   try {
-    const response = await fetch(`${SIM_AGENT_API_URL}/api/get-available-models`, {
+    const response = await fetchGo(`${SIM_AGENT_API_URL}/api/get-available-models`, {
       method: 'GET',
       headers,
       cache: 'no-store',
+      spanName: 'sim → go /api/get-available-models',
+      operation: 'get_available_models',
     })
 
     const payload = await response.json().catch(() => ({}))

@@ -1,29 +1,30 @@
-import { createLogger } from '@sim/logger'
+import { createLogger } from "@sim/logger";
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
-} from '@/lib/copilot/generated/mothership-stream-v1'
-import { getLatestSeq, getOldestSeq } from './buffer'
-import { createEvent } from './event'
+} from "@/lib/copilot/generated/mothership-stream-v1";
+import { getLatestSeq, getOldestSeq, readEvents } from "./buffer";
+import { createEvent } from "./event";
 
-const logger = createLogger('SessionRecovery')
+const logger = createLogger("SessionRecovery");
 
 export interface ReplayGapResult {
-  gapDetected: true
-  envelopes: ReturnType<typeof createEvent>[]
+  gapDetected: true;
+  envelopes: ReturnType<typeof createEvent>[];
 }
 
 export async function checkForReplayGap(
   streamId: string,
-  afterCursor: string
+  afterCursor: string,
+  requestId?: string,
 ): Promise<ReplayGapResult | null> {
-  const requestedAfterSeq = Number(afterCursor || '0')
+  const requestedAfterSeq = Number(afterCursor || "0");
   if (requestedAfterSeq <= 0) {
-    return null
+    return null;
   }
 
-  const oldestSeq = await getOldestSeq(streamId)
-  const latestSeq = await getLatestSeq(streamId)
+  const oldestSeq = await getOldestSeq(streamId);
+  const latestSeq = await getLatestSeq(streamId);
 
   if (
     latestSeq !== null &&
@@ -31,46 +32,81 @@ export async function checkForReplayGap(
     oldestSeq !== null &&
     requestedAfterSeq < oldestSeq - 1
   ) {
-    logger.warn('Replay gap detected: requested cursor is below oldest available event', {
+    const resolvedRequestId = await resolveReplayGapRequestId(
       streamId,
-      requestedAfterSeq,
-      oldestAvailableSeq: oldestSeq,
       latestSeq,
-    })
+      requestId,
+    );
+    logger.warn(
+      "Replay gap detected: requested cursor is below oldest available event",
+      {
+        streamId,
+        requestedAfterSeq,
+        oldestAvailableSeq: oldestSeq,
+        latestSeq,
+      },
+    );
 
     const gapEnvelope = createEvent({
       streamId,
       cursor: String(latestSeq + 1),
       seq: latestSeq + 1,
-      requestId: '',
+      requestId: resolvedRequestId,
       type: MothershipStreamV1EventType.error,
       payload: {
-        message: 'Replay history is no longer available. Some events may have been lost.',
-        code: 'replay_gap',
+        message:
+          "Replay history is no longer available. Some events may have been lost.",
+        code: "replay_gap",
         data: {
           oldestAvailableSeq: oldestSeq,
           requestedAfterSeq,
         },
       },
-    })
+    });
 
     const terminalEnvelope = createEvent({
       streamId,
       cursor: String(latestSeq + 2),
       seq: latestSeq + 2,
-      requestId: '',
+      requestId: resolvedRequestId,
       type: MothershipStreamV1EventType.complete,
       payload: {
         status: MothershipStreamV1CompletionStatus.error,
-        reason: 'replay_gap',
+        reason: "replay_gap",
       },
-    })
+    });
 
     return {
       gapDetected: true,
       envelopes: [gapEnvelope, terminalEnvelope],
-    }
+    };
   }
 
-  return null
+  return null;
+}
+
+async function resolveReplayGapRequestId(
+  streamId: string,
+  latestSeq: number,
+  requestId?: string,
+): Promise<string> {
+  if (typeof requestId === "string" && requestId.length > 0) {
+    return requestId;
+  }
+
+  try {
+    const latestEvents = await readEvents(
+      streamId,
+      String(Math.max(latestSeq - 1, 0)),
+    );
+    const latestRequestId = latestEvents[0]?.trace?.requestId;
+    return typeof latestRequestId === "string" ? latestRequestId : "";
+  } catch (error) {
+    logger.warn("Failed to resolve request ID for replay gap", {
+      streamId,
+      latestSeq,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return "";
+  }
 }

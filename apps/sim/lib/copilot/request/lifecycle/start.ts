@@ -1,17 +1,18 @@
-import { db } from '@sim/db'
-import { copilotChats } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
-import { createRunSegment } from '@/lib/copilot/async-runs/repository'
-import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import type { Context } from "@opentelemetry/api";
+import { db } from "@sim/db";
+import { copilotChats } from "@sim/db/schema";
+import { createLogger } from "@sim/logger";
+import { eq } from "drizzle-orm";
+import { createRunSegment } from "@/lib/copilot/async-runs/repository";
+import { SIM_AGENT_API_URL } from "@/lib/copilot/constants";
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1SessionKind,
-} from '@/lib/copilot/generated/mothership-stream-v1'
-import { RequestTraceV1Outcome } from '@/lib/copilot/generated/request-trace-v1'
-import { finalizeStream } from '@/lib/copilot/request/lifecycle/finalize'
-import type { CopilotLifecycleOptions } from '@/lib/copilot/request/lifecycle/run'
-import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
+} from "@/lib/copilot/generated/mothership-stream-v1";
+import { RequestTraceV1Outcome } from "@/lib/copilot/generated/request-trace-v1";
+import { finalizeStream } from "@/lib/copilot/request/lifecycle/finalize";
+import type { CopilotLifecycleOptions } from "@/lib/copilot/request/lifecycle/run";
+import { runCopilotLifecycle } from "@/lib/copilot/request/lifecycle/run";
 import {
   cleanupAbortMarker,
   clearFilePreviewSessions,
@@ -23,38 +24,41 @@ import {
   scheduleFilePreviewSessionCleanup,
   startAbortPoller,
   unregisterActiveStream,
-} from '@/lib/copilot/request/session'
-import { SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/session/sse'
-import { reportTrace, TraceCollector } from '@/lib/copilot/request/trace'
-import { taskPubSub } from '@/lib/copilot/tasks'
-import { env } from '@/lib/core/config/env'
+} from "@/lib/copilot/request/session";
+import { SSE_RESPONSE_HEADERS } from "@/lib/copilot/request/session/sse";
+import { withCopilotOtelContext } from "@/lib/copilot/request/otel";
+import { reportTrace, TraceCollector } from "@/lib/copilot/request/trace";
+import { taskPubSub } from "@/lib/copilot/tasks";
+import { env } from "@/lib/core/config/env";
 
-export { SSE_RESPONSE_HEADERS }
+export { SSE_RESPONSE_HEADERS };
 
-const logger = createLogger('CopilotChatStreaming')
+const logger = createLogger("CopilotChatStreaming");
 
 type CurrentChatSummary = {
-  title?: string | null
-} | null
+  title?: string | null;
+} | null;
 
 export interface StreamingOrchestrationParams {
-  requestPayload: Record<string, unknown>
-  userId: string
-  streamId: string
-  executionId: string
-  runId: string
-  chatId?: string
-  currentChat: CurrentChatSummary
-  isNewChat: boolean
-  message: string
-  titleModel: string
-  titleProvider?: string
-  requestId: string
-  workspaceId?: string
-  orchestrateOptions: Omit<CopilotLifecycleOptions, 'onEvent'>
+  requestPayload: Record<string, unknown>;
+  userId: string;
+  streamId: string;
+  executionId: string;
+  runId: string;
+  chatId?: string;
+  currentChat: CurrentChatSummary;
+  isNewChat: boolean;
+  message: string;
+  titleModel: string;
+  titleProvider?: string;
+  requestId: string;
+  workspaceId?: string;
+  orchestrateOptions: Omit<CopilotLifecycleOptions, "onEvent">;
 }
 
-export function createSSEStream(params: StreamingOrchestrationParams): ReadableStream {
+export function createSSEStream(
+  params: StreamingOrchestrationParams,
+): ReadableStream {
   const {
     requestPayload,
     userId,
@@ -70,166 +74,212 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
     requestId,
     workspaceId,
     orchestrateOptions,
-  } = params
+  } = params;
 
-  const abortController = new AbortController()
-  registerActiveStream(streamId, abortController)
+  const abortController = new AbortController();
+  registerActiveStream(streamId, abortController);
 
-  const publisher = new StreamWriter({ streamId, chatId, requestId })
+  const publisher = new StreamWriter({ streamId, chatId, requestId });
 
-  const collector = new TraceCollector()
+  const collector = new TraceCollector();
 
   return new ReadableStream({
     async start(controller) {
-      publisher.attach(controller)
+      publisher.attach(controller);
 
-      const requestSpan = collector.startSpan('Mothership Request', 'request', {
-        streamId,
-        chatId,
-        runId,
-      })
-      let outcome: 'success' | 'error' | 'cancelled' = 'error'
-      let lifecycleResult:
-        | {
-            usage?: { prompt: number; completion: number }
-            cost?: { input: number; output: number; total: number }
+      await withCopilotOtelContext(
+        {
+          requestId,
+          route: orchestrateOptions.goRoute,
+          chatId,
+          workflowId: orchestrateOptions.workflowId,
+          executionId,
+          runId,
+          streamId,
+          transport: "stream",
+        },
+        async (otelContext) => {
+          const requestSpan = collector.startSpan(
+            "Mothership Request",
+            "request",
+            {
+              streamId,
+              chatId,
+              runId,
+            },
+          );
+          let outcome: "success" | "error" | "cancelled" = "error";
+          let lifecycleResult:
+            | {
+                usage?: { prompt: number; completion: number };
+                cost?: { input: number; output: number; total: number };
+              }
+            | undefined;
+
+          await Promise.all([
+            resetBuffer(streamId),
+            clearFilePreviewSessions(streamId),
+          ]);
+
+          if (chatId) {
+            createRunSegment({
+              id: runId,
+              executionId,
+              chatId,
+              userId,
+              workflowId:
+                (requestPayload.workflowId as string | undefined) || null,
+              workspaceId,
+              streamId,
+              model: (requestPayload.model as string | undefined) || null,
+              provider: (requestPayload.provider as string | undefined) || null,
+              requestContext: { requestId },
+            }).catch((error) => {
+              logger.warn(
+                `[${requestId}] Failed to create copilot run segment`,
+                {
+                  error: error instanceof Error ? error.message : String(error),
+                },
+              );
+            });
           }
-        | undefined
 
-      await Promise.all([resetBuffer(streamId), clearFilePreviewSessions(streamId)])
+          const abortPoller = startAbortPoller(streamId, abortController, {
+            requestId,
+          });
+          publisher.startKeepalive();
 
-      if (chatId) {
-        createRunSegment({
-          id: runId,
-          executionId,
-          chatId,
-          userId,
-          workflowId: (requestPayload.workflowId as string | undefined) || null,
-          workspaceId,
-          streamId,
-          model: (requestPayload.model as string | undefined) || null,
-          provider: (requestPayload.provider as string | undefined) || null,
-          requestContext: { requestId },
-        }).catch((error) => {
-          logger.warn(`[${requestId}] Failed to create copilot run segment`, {
-            error: error instanceof Error ? error.message : String(error),
-          })
-        })
-      }
+          if (chatId) {
+            publisher.publish({
+              type: MothershipStreamV1EventType.session,
+              payload: {
+                kind: MothershipStreamV1SessionKind.chat,
+                chatId,
+              },
+            });
+          }
 
-      const abortPoller = startAbortPoller(streamId, abortController, { requestId })
-      publisher.startKeepalive()
-
-      if (chatId) {
-        publisher.publish({
-          type: MothershipStreamV1EventType.session,
-          payload: {
-            kind: MothershipStreamV1SessionKind.chat,
+          fireTitleGeneration({
             chatId,
-          },
-        })
-      }
+            currentChat,
+            isNewChat,
+            message,
+            titleModel,
+            titleProvider,
+            workspaceId,
+            requestId,
+            publisher,
+            otelContext,
+          });
 
-      fireTitleGeneration({
-        chatId,
-        currentChat,
-        isNewChat,
-        message,
-        titleModel,
-        titleProvider,
-        workspaceId,
-        requestId,
-        publisher,
-      })
+          try {
+            const result = await runCopilotLifecycle(requestPayload, {
+              ...orchestrateOptions,
+              executionId,
+              runId,
+              trace: collector,
+              simRequestId: requestId,
+              otelContext,
+              abortSignal: abortController.signal,
+              onEvent: async (event) => {
+                await publisher.publish(event);
+              },
+            });
 
-      try {
-        const result = await runCopilotLifecycle(requestPayload, {
-          ...orchestrateOptions,
-          executionId,
-          runId,
-          trace: collector,
-          simRequestId: requestId,
-          abortSignal: abortController.signal,
-          onEvent: async (event) => {
-            await publisher.publish(event)
-          },
-        })
+            lifecycleResult = result;
+            outcome = abortController.signal.aborted
+              ? RequestTraceV1Outcome.cancelled
+              : result.success
+                ? RequestTraceV1Outcome.success
+                : RequestTraceV1Outcome.error;
+            await finalizeStream(
+              result,
+              publisher,
+              runId,
+              abortController.signal.aborted,
+              requestId,
+            );
+          } catch (error) {
+            outcome = abortController.signal.aborted
+              ? RequestTraceV1Outcome.cancelled
+              : RequestTraceV1Outcome.error;
+            if (publisher.clientDisconnected) {
+              logger.info(
+                `[${requestId}] Stream errored after client disconnect`,
+                {
+                  error:
+                    error instanceof Error ? error.message : "Stream error",
+                },
+              );
+            }
+            logger.error(
+              `[${requestId}] Unexpected orchestration error:`,
+              error,
+            );
 
-        lifecycleResult = result
-        outcome = abortController.signal.aborted
-          ? RequestTraceV1Outcome.cancelled
-          : result.success
-            ? RequestTraceV1Outcome.success
-            : RequestTraceV1Outcome.error
-        await finalizeStream(result, publisher, runId, abortController.signal.aborted, requestId)
-      } catch (error) {
-        outcome = abortController.signal.aborted
-          ? RequestTraceV1Outcome.cancelled
-          : RequestTraceV1Outcome.error
-        if (publisher.clientDisconnected) {
-          logger.info(`[${requestId}] Stream errored after client disconnect`, {
-            error: error instanceof Error ? error.message : 'Stream error',
-          })
-        }
-        logger.error(`[${requestId}] Unexpected orchestration error:`, error)
+            const syntheticResult = {
+              success: false as const,
+              content: "",
+              contentBlocks: [],
+              toolCalls: [],
+              error:
+                "An unexpected error occurred while processing the response.",
+            };
+            await finalizeStream(
+              syntheticResult,
+              publisher,
+              runId,
+              abortController.signal.aborted,
+              requestId,
+            );
+          } finally {
+            collector.endSpan(
+              requestSpan,
+              outcome === RequestTraceV1Outcome.success
+                ? "ok"
+                : outcome === RequestTraceV1Outcome.cancelled
+                  ? "cancelled"
+                  : "error",
+            );
 
-        const syntheticResult = {
-          success: false as const,
-          content: '',
-          contentBlocks: [],
-          toolCalls: [],
-          error: 'An unexpected error occurred while processing the response.',
-        }
-        await finalizeStream(
-          syntheticResult,
-          publisher,
-          runId,
-          abortController.signal.aborted,
-          requestId
-        )
-      } finally {
-        collector.endSpan(
-          requestSpan,
-          outcome === RequestTraceV1Outcome.success
-            ? 'ok'
-            : outcome === RequestTraceV1Outcome.cancelled
-              ? 'cancelled'
-              : 'error'
-        )
+            clearInterval(abortPoller);
+            try {
+              await publisher.close();
+            } catch (error) {
+              logger.warn(
+                `[${requestId}] Failed to flush stream persistence during close`,
+                {
+                  error: error instanceof Error ? error.message : String(error),
+                },
+              );
+            }
+            unregisterActiveStream(streamId);
+            if (chatId) {
+              await releasePendingChatStream(chatId, streamId);
+            }
+            await scheduleBufferCleanup(streamId);
+            await scheduleFilePreviewSessionCleanup(streamId);
+            await cleanupAbortMarker(streamId);
 
-        clearInterval(abortPoller)
-        try {
-          await publisher.close()
-        } catch (error) {
-          logger.warn(`[${requestId}] Failed to flush stream persistence during close`, {
-            error: error instanceof Error ? error.message : String(error),
-          })
-        }
-        unregisterActiveStream(streamId)
-        if (chatId) {
-          await releasePendingChatStream(chatId, streamId)
-        }
-        await scheduleBufferCleanup(streamId)
-        await scheduleFilePreviewSessionCleanup(streamId)
-        await cleanupAbortMarker(streamId)
-
-        const trace = collector.build({
-          outcome: outcome as 'success' | 'error' | 'cancelled',
-          simRequestId: requestId,
-          streamId,
-          chatId,
-          runId,
-          executionId,
-          usage: lifecycleResult?.usage,
-          cost: lifecycleResult?.cost,
-        })
-        reportTrace(trace).catch(() => {})
-      }
+            const trace = collector.build({
+              outcome: outcome as "success" | "error" | "cancelled",
+              simRequestId: requestId,
+              streamId,
+              chatId,
+              runId,
+              executionId,
+              usage: lifecycleResult?.usage,
+              cost: lifecycleResult?.cost,
+            });
+            reportTrace(trace, otelContext).catch(() => {});
+          }
+        },
+      );
     },
     cancel() {
-      publisher.markDisconnected()
+      publisher.markDisconnected();
     },
-  })
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -237,15 +287,16 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
 // ---------------------------------------------------------------------------
 
 function fireTitleGeneration(params: {
-  chatId?: string
-  currentChat: CurrentChatSummary
-  isNewChat: boolean
-  message: string
-  titleModel: string
-  titleProvider?: string
-  workspaceId?: string
-  requestId: string
-  publisher: StreamWriter
+  chatId?: string;
+  currentChat: CurrentChatSummary;
+  isNewChat: boolean;
+  message: string;
+  titleModel: string;
+  titleProvider?: string;
+  workspaceId?: string;
+  requestId: string;
+  publisher: StreamWriter;
+  otelContext?: Context;
 }): void {
   const {
     chatId,
@@ -257,24 +308,37 @@ function fireTitleGeneration(params: {
     workspaceId,
     requestId,
     publisher,
-  } = params
-  if (!chatId || currentChat?.title || !isNewChat) return
+    otelContext,
+  } = params;
+  if (!chatId || currentChat?.title || !isNewChat) return;
 
-  requestChatTitle({ message, model: titleModel, provider: titleProvider })
+  requestChatTitle({
+    message,
+    model: titleModel,
+    provider: titleProvider,
+    otelContext,
+  })
     .then(async (title) => {
-      if (!title) return
-      await db.update(copilotChats).set({ title }).where(eq(copilotChats.id, chatId))
+      if (!title) return;
+      await db
+        .update(copilotChats)
+        .set({ title })
+        .where(eq(copilotChats.id, chatId));
       await publisher.publish({
         type: MothershipStreamV1EventType.session,
         payload: { kind: MothershipStreamV1SessionKind.title, title },
-      })
+      });
       if (workspaceId) {
-        taskPubSub?.publishStatusChanged({ workspaceId, chatId, type: 'renamed' })
+        taskPubSub?.publishStatusChanged({
+          workspaceId,
+          chatId,
+          type: "renamed",
+        });
       }
     })
     .catch((error) => {
-      logger.error(`[${requestId}] Title generation failed:`, error)
-    })
+      logger.error(`[${requestId}] Title generation failed:`, error);
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -282,38 +346,57 @@ function fireTitleGeneration(params: {
 // ---------------------------------------------------------------------------
 
 export async function requestChatTitle(params: {
-  message: string
-  model: string
-  provider?: string
+  message: string;
+  model: string;
+  provider?: string;
+  otelContext?: Context;
 }): Promise<string | null> {
-  const { message, model, provider } = params
-  if (!message || !model) return null
+  const { message, model, provider, otelContext } = params;
+  if (!message || !model) return null;
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
   if (env.COPILOT_API_KEY) {
-    headers['x-api-key'] = env.COPILOT_API_KEY
+    headers["x-api-key"] = env.COPILOT_API_KEY;
   }
 
   try {
-    const response = await fetch(`${SIM_AGENT_API_URL}/api/generate-chat-title`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ message, model, ...(provider ? { provider } : {}) }),
-    })
+    const { fetchGo } = await import("@/lib/copilot/request/go/fetch");
+    const response = await fetchGo(
+      `${SIM_AGENT_API_URL}/api/generate-chat-title`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          message,
+          model,
+          ...(provider ? { provider } : {}),
+        }),
+        otelContext,
+        spanName: "sim → go /api/generate-chat-title",
+        operation: "generate_chat_title",
+        attributes: {
+          "gen_ai.request.model": model,
+          ...(provider ? { "gen_ai.system": provider } : {}),
+        },
+      },
+    );
 
-    const payload = await response.json().catch(() => ({}))
+    const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      logger.warn('Failed to generate chat title via copilot backend', {
+      logger.warn("Failed to generate chat title via copilot backend", {
         status: response.status,
         error: payload,
-      })
-      return null
+      });
+      return null;
     }
 
-    const title = typeof payload?.title === 'string' ? payload.title.trim() : ''
-    return title || null
+    const title =
+      typeof payload?.title === "string" ? payload.title.trim() : "";
+    return title || null;
   } catch (error) {
-    logger.error('Error generating chat title:', error)
-    return null
+    logger.error("Error generating chat title:", error);
+    return null;
   }
 }
