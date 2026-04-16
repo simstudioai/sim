@@ -14,6 +14,8 @@ interface UserMessageContentProps {
   content: string
   contexts?: ChatMessageContext[]
   className?: string
+  /** When true, render mentions as plain inline text (no icon/pill) so truncation flows naturally. */
+  plainMentions?: boolean
 }
 
 function escapeRegex(str: string): string {
@@ -66,7 +68,12 @@ function MentionHighlight({ context }: { context: ChatMessageContext }) {
   )
 }
 
-export function UserMessageContent({ content, contexts, className }: UserMessageContentProps) {
+export function UserMessageContent({
+  content,
+  contexts,
+  className,
+  plainMentions = false,
+}: UserMessageContentProps) {
   const trimmed = content.trim()
   const classes = cn(USER_MESSAGE_CLASSES, className)
 
@@ -91,7 +98,20 @@ export function UserMessageContent({ content, contexts, className }: UserMessage
       elements.push(<span key={`text-${i}-${lastIndex}`}>{before}</span>)
     }
 
-    elements.push(<MentionHighlight key={`mention-${i}-${range.start}`} context={range.context} />)
+    if (plainMentions) {
+      elements.push(
+        <span
+          key={`mention-${i}-${range.start}`}
+          className='font-medium text-[var(--text-primary)]'
+        >
+          {content.slice(range.start, range.end)}
+        </span>
+      )
+    } else {
+      elements.push(
+        <MentionHighlight key={`mention-${i}-${range.start}`} context={range.context} />
+      )
+    }
     lastIndex = range.end
   }
 
