@@ -397,14 +397,24 @@ export function UserInput({
 
   useEffect(() => {
     if (wasSendingRef.current && !isSending) {
-      textareaRef.current?.focus()
+      const active = document.activeElement
+      const isEditingElsewhere =
+        active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement
+      if (!isEditingElsewhere) {
+        textareaRef.current?.focus()
+      }
     }
     wasSendingRef.current = isSending
   }, [isSending, textareaRef])
 
   useEffect(() => {
     const raf = window.requestAnimationFrame(() => {
-      textareaRef.current?.focus()
+      const active = document.activeElement
+      const isEditingElsewhere =
+        active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement
+      if (!isEditingElsewhere) {
+        textareaRef.current?.focus()
+      }
     })
     return () => window.cancelAnimationFrame(raf)
   }, [textareaRef])
