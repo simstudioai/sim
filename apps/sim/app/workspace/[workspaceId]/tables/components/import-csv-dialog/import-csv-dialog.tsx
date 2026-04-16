@@ -23,8 +23,8 @@ import {
   toast,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import type { TableDefinition } from '@/lib/table'
-import { buildAutoMapping, parseCsvBuffer } from '@/lib/table'
+import { buildAutoMapping, parseCsvBuffer } from '@/lib/table/csv-import'
+import type { TableDefinition } from '@/lib/table/types'
 import { type CsvImportMode, useImportCsvIntoTable } from '@/hooks/queries/tables'
 
 const logger = createLogger('ImportCsvDialog')
