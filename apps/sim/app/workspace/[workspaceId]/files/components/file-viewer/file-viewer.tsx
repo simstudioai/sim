@@ -764,6 +764,8 @@ function TextEditor({
   )
 
   const textareaStuckRef = useRef(true)
+  const renderedContentRef = useRef(renderedContent)
+  renderedContentRef.current = renderedContent
 
   useEffect(() => {
     if (!shouldUseCodeRenderer) return
@@ -772,14 +774,13 @@ function TextEditor({
 
     const updateActiveLineNumber = () => {
       const pos = textarea.selectionStart
-      const textBeforeCursor = renderedContent.substring(0, pos)
+      const textBeforeCursor = renderedContentRef.current.substring(0, pos)
       const nextActiveLineNumber = textBeforeCursor.split('\n').length
       setActiveLineNumber((currentLineNumber) =>
         currentLineNumber === nextActiveLineNumber ? currentLineNumber : nextActiveLineNumber
       )
     }
 
-    updateActiveLineNumber()
     textarea.addEventListener('click', updateActiveLineNumber)
     textarea.addEventListener('keyup', updateActiveLineNumber)
     textarea.addEventListener('focus', updateActiveLineNumber)
@@ -789,60 +790,64 @@ function TextEditor({
       textarea.removeEventListener('keyup', updateActiveLineNumber)
       textarea.removeEventListener('focus', updateActiveLineNumber)
     }
-  }, [renderedContent, shouldUseCodeRenderer])
+  }, [shouldUseCodeRenderer])
+
+  const calculateVisualLinesRef = useRef(() => {})
+  calculateVisualLinesRef.current = () => {
+    const preElement = codeEditorRef.current?.querySelector('pre')
+    if (!(preElement instanceof HTMLElement)) return
+
+    const lines = renderedContentRef.current.split('\n')
+    const newVisualLineHeights: number[] = []
+
+    const tempContainer = document.createElement('div')
+    tempContainer.style.cssText = `
+      position: absolute;
+      visibility: hidden;
+      height: auto;
+      width: ${preElement.clientWidth}px;
+      font-family: ${window.getComputedStyle(preElement).fontFamily};
+      font-size: ${window.getComputedStyle(preElement).fontSize};
+      line-height: ${CODE_EDITOR_LINE_HEIGHT_PX}px;
+      padding: 8px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      box-sizing: border-box;
+    `
+    document.body.appendChild(tempContainer)
+
+    lines.forEach((line) => {
+      const lineDiv = document.createElement('div')
+      lineDiv.textContent = line || ' '
+      tempContainer.appendChild(lineDiv)
+      const actualHeight = lineDiv.getBoundingClientRect().height
+      const lineUnits = Math.max(1, Math.ceil(actualHeight / CODE_EDITOR_LINE_HEIGHT_PX))
+      newVisualLineHeights.push(lineUnits)
+      tempContainer.removeChild(lineDiv)
+    })
+
+    document.body.removeChild(tempContainer)
+    setVisualLineHeights((currentVisualLineHeights) =>
+      areNumberArraysEqual(currentVisualLineHeights, newVisualLineHeights)
+        ? currentVisualLineHeights
+        : newVisualLineHeights
+    )
+  }
 
   useEffect(() => {
     if (!shouldUseCodeRenderer || !codeEditorRef.current) return
 
-    const calculateVisualLines = () => {
-      const preElement = codeEditorRef.current?.querySelector('pre')
-      if (!(preElement instanceof HTMLElement)) return
-
-      const lines = renderedContent.split('\n')
-      const newVisualLineHeights: number[] = []
-
-      const tempContainer = document.createElement('div')
-      tempContainer.style.cssText = `
-        position: absolute;
-        visibility: hidden;
-        height: auto;
-        width: ${preElement.clientWidth}px;
-        font-family: ${window.getComputedStyle(preElement).fontFamily};
-        font-size: ${window.getComputedStyle(preElement).fontSize};
-        line-height: ${CODE_EDITOR_LINE_HEIGHT_PX}px;
-        padding: 8px;
-        white-space: pre-wrap;
-        word-break: break-word;
-        box-sizing: border-box;
-      `
-      document.body.appendChild(tempContainer)
-
-      lines.forEach((line) => {
-        const lineDiv = document.createElement('div')
-        lineDiv.textContent = line || ' '
-        tempContainer.appendChild(lineDiv)
-        const actualHeight = lineDiv.getBoundingClientRect().height
-        const lineUnits = Math.max(1, Math.ceil(actualHeight / CODE_EDITOR_LINE_HEIGHT_PX))
-        newVisualLineHeights.push(lineUnits)
-        tempContainer.removeChild(lineDiv)
-      })
-
-      document.body.removeChild(tempContainer)
-      setVisualLineHeights((currentVisualLineHeights) =>
-        areNumberArraysEqual(currentVisualLineHeights, newVisualLineHeights)
-          ? currentVisualLineHeights
-          : newVisualLineHeights
-      )
-    }
-
-    const timeoutId = setTimeout(calculateVisualLines, 50)
-    const resizeObserver = new ResizeObserver(calculateVisualLines)
+    const resizeObserver = new ResizeObserver(() => calculateVisualLinesRef.current())
     resizeObserver.observe(codeEditorRef.current)
 
     return () => {
-      clearTimeout(timeoutId)
       resizeObserver.disconnect()
     }
+  }, [shouldUseCodeRenderer])
+
+  useEffect(() => {
+    if (!shouldUseCodeRenderer) return
+    calculateVisualLinesRef.current()
   }, [renderedContent, shouldUseCodeRenderer])
 
   const renderCodeLineNumbers = useCallback((): ReactElement[] => {
@@ -938,7 +943,7 @@ function TextEditor({
   if (streamingContent === undefined) {
     if (isLoading) return DOCUMENT_SKELETON
 
-    if (error) {
+    if (error && !isInitialized) {
       return (
         <div className='flex flex-1 items-center justify-center'>
           <p className='text-[13px] text-[var(--text-muted)]'>Failed to load file content</p>
