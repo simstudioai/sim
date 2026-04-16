@@ -32,10 +32,99 @@ Trigger workflow when a GitHub Actions workflow run is requested, in progress, o
 | --------- | ---- | ----------- |
 | `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., workflow_run\) |
 | `action` | string | Action performed \(requested, in_progress, completed\) |
-| `workflow_run` | number | Workflow run ID |
-| `workflow` | number | Workflow ID |
-| `repository` | number | Repository ID |
-| `sender` | string | Username |
+| `workflow_run` | object | workflow_run output from the tool |
+|   ↳ `id` | number | Workflow run ID |
+|   ↳ `node_id` | string | Workflow run node ID |
+|   ↳ `name` | string | Workflow name |
+|   ↳ `workflow_id` | number | Workflow ID |
+|   ↳ `run_number` | number | Run number for this workflow |
+|   ↳ `run_attempt` | number | Attempt number for this run |
+|   ↳ `event` | string | Event that triggered the workflow \(push, pull_request, etc.\) |
+|   ↳ `status` | string | Current status \(queued, in_progress, completed\) |
+|   ↳ `conclusion` | string | Conclusion \(success, failure, cancelled, skipped, timed_out, action_required\) |
+|   ↳ `head_branch` | string | Branch name |
+|   ↳ `head_sha` | string | Commit SHA that triggered the workflow |
+|   ↳ `path` | string | Path to the workflow file |
+|   ↳ `display_title` | string | Display title for the run |
+|   ↳ `run_started_at` | string | Timestamp when the run started |
+|   ↳ `created_at` | string | Workflow run creation timestamp |
+|   ↳ `updated_at` | string | Workflow run last update timestamp |
+|   ↳ `html_url` | string | Workflow run HTML URL |
+|   ↳ `check_suite_id` | number | Associated check suite ID |
+|   ↳ `check_suite_node_id` | string | Associated check suite node ID |
+|   ↳ `url` | string | Workflow run API URL |
+|   ↳ `actor` | object | actor output from the tool |
+|     ↳ `login` | string | Username |
+|     ↳ `id` | number | User ID |
+|     ↳ `node_id` | string | User node ID |
+|     ↳ `avatar_url` | string | Avatar URL |
+|     ↳ `html_url` | string | Profile URL |
+|     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
+|   ↳ `triggering_actor` | object | triggering_actor output from the tool |
+|     ↳ `login` | string | Username |
+|     ↳ `id` | number | User ID |
+|     ↳ `node_id` | string | User node ID |
+|     ↳ `avatar_url` | string | Avatar URL |
+|     ↳ `html_url` | string | Profile URL |
+|     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
+|   ↳ `repository` | object | repository output from the tool |
+|     ↳ `id` | number | Repository ID |
+|     ↳ `node_id` | string | Repository node ID |
+|     ↳ `name` | string | Repository name |
+|     ↳ `full_name` | string | Repository full name |
+|     ↳ `private` | boolean | Whether repository is private |
+|   ↳ `head_repository` | object | head_repository output from the tool |
+|     ↳ `id` | number | Head repository ID |
+|     ↳ `node_id` | string | Head repository node ID |
+|     ↳ `name` | string | Head repository name |
+|     ↳ `full_name` | string | Head repository full name |
+|     ↳ `private` | boolean | Whether repository is private |
+|   ↳ `head_commit` | object | head_commit output from the tool |
+|     ↳ `id` | string | Commit SHA |
+|     ↳ `tree_id` | string | Tree ID |
+|     ↳ `message` | string | Commit message |
+|     ↳ `timestamp` | string | Commit timestamp |
+|     ↳ `author` | object | author output from the tool |
+|       ↳ `name` | string | Author name |
+|       ↳ `email` | string | Author email |
+|     ↳ `committer` | object | committer output from the tool |
+|       ↳ `name` | string | Committer name |
+|       ↳ `email` | string | Committer email |
+|   ↳ `pull_requests` | array | Array of associated pull requests |
+|   ↳ `referenced_workflows` | array | Array of referenced workflow runs |
+| `workflow` | object | workflow output from the tool |
+|   ↳ `id` | number | Workflow ID |
+|   ↳ `node_id` | string | Workflow node ID |
+|   ↳ `name` | string | Workflow name |
+|   ↳ `path` | string | Path to workflow file |
+|   ↳ `state` | string | Workflow state \(active, deleted, disabled_fork, etc.\) |
+|   ↳ `created_at` | string | Workflow creation timestamp |
+|   ↳ `updated_at` | string | Workflow last update timestamp |
+|   ↳ `url` | string | Workflow API URL |
+|   ↳ `html_url` | string | Workflow HTML URL |
+|   ↳ `badge_url` | string | Workflow badge URL |
+| `repository` | object | repository output from the tool |
+|   ↳ `id` | number | Repository ID |
+|   ↳ `node_id` | string | Repository node ID |
+|   ↳ `name` | string | Repository name |
+|   ↳ `full_name` | string | Repository full name \(owner/repo\) |
+|   ↳ `private` | boolean | Whether the repository is private |
+|   ↳ `html_url` | string | Repository HTML URL |
+|   ↳ `repo_description` | string | Repository description |
+|   ↳ `owner` | object | owner output from the tool |
+|     ↳ `login` | string | Owner username |
+|     ↳ `id` | number | Owner ID |
+|     ↳ `node_id` | string | Owner node ID |
+|     ↳ `avatar_url` | string | Owner avatar URL |
+|     ↳ `html_url` | string | Owner profile URL |
+|     ↳ `owner_type` | string | Owner type \(User, Organization\) |
+| `sender` | object | sender output from the tool |
+|   ↳ `login` | string | Username |
+|   ↳ `id` | number | User ID |
+|   ↳ `node_id` | string | User node ID |
+|   ↳ `avatar_url` | string | Avatar URL |
+|   ↳ `html_url` | string | Profile URL |
+|   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 
 
 ---
@@ -58,9 +147,59 @@ Trigger workflow when an issue is closed in a GitHub repository
 | --------- | ---- | ----------- |
 | `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., issues, pull_request, push\) |
 | `action` | string | Action performed \(opened, closed, reopened, edited, etc.\) |
-| `issue` | number | Issue ID |
-| `repository` | number | Repository ID |
-| `sender` | string | Username |
+| `issue` | object | issue output from the tool |
+|   ↳ `id` | number | Issue ID |
+|   ↳ `node_id` | string | Issue node ID |
+|   ↳ `number` | number | Issue number |
+|   ↳ `title` | string | Issue title |
+|   ↳ `body` | string | Issue body/description |
+|   ↳ `state` | string | Issue state \(open, closed\) |
+|   ↳ `state_reason` | string | Reason for state \(completed, not_planned, reopened\) |
+|   ↳ `html_url` | string | Issue HTML URL |
+|   ↳ `user` | object | user output from the tool |
+|     ↳ `login` | string | Username |
+|     ↳ `id` | number | User ID |
+|     ↳ `node_id` | string | User node ID |
+|     ↳ `avatar_url` | string | Avatar URL |
+|     ↳ `html_url` | string | Profile URL |
+|     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
+|   ↳ `labels` | array | Array of label objects |
+|   ↳ `assignees` | array | Array of assigned users |
+|   ↳ `milestone` | object | Milestone object if assigned |
+|   ↳ `created_at` | string | Issue creation timestamp |
+|   ↳ `updated_at` | string | Issue last update timestamp |
+|   ↳ `closed_at` | string | Issue closed timestamp |
+| `repository` | object | repository output from the tool |
+|   ↳ `id` | number | Repository ID |
+|   ↳ `node_id` | string | Repository node ID |
+|   ↳ `name` | string | Repository name |
+|   ↳ `full_name` | string | Repository full name \(owner/repo\) |
+|   ↳ `private` | boolean | Whether the repository is private |
+|   ↳ `html_url` | string | Repository HTML URL |
+|   ↳ `repo_description` | string | Repository description |
+|   ↳ `fork` | boolean | Whether the repository is a fork |
+|   ↳ `url` | string | Repository API URL |
+|   ↳ `homepage` | string | Repository homepage URL |
+|   ↳ `size` | number | Repository size in KB |
+|   ↳ `stargazers_count` | number | Number of stars |
+|   ↳ `watchers_count` | number | Number of watchers |
+|   ↳ `language` | string | Primary programming language |
+|   ↳ `forks_count` | number | Number of forks |
+|   ↳ `open_issues_count` | number | Number of open issues |
+|   ↳ `default_branch` | string | Default branch name |
+|   ↳ `owner` | object | owner output from the tool |
+|     ↳ `login` | string | Owner username |
+|     ↳ `id` | number | Owner ID |
+|     ↳ `avatar_url` | string | Owner avatar URL |
+|     ↳ `html_url` | string | Owner profile URL |
+|     ↳ `owner_type` | string | Owner type \(User, Organization\) |
+| `sender` | object | sender output from the tool |
+|   ↳ `login` | string | Username |
+|   ↳ `id` | number | User ID |
+|   ↳ `node_id` | string | User node ID |
+|   ↳ `avatar_url` | string | Avatar URL |
+|   ↳ `html_url` | string | Profile URL |
+|   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 
 
 ---
@@ -83,10 +222,63 @@ Trigger workflow when a comment is added to an issue (not pull requests)
 | --------- | ---- | ----------- |
 | `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., issue_comment\) |
 | `action` | string | Action performed \(created, edited, deleted\) |
-| `issue` | number | Issue number |
-| `comment` | number | Comment ID |
-| `repository` | number | Repository ID |
-| `sender` | string | Username |
+| `issue` | object | issue output from the tool |
+|   ↳ `number` | number | Issue number |
+|   ↳ `title` | string | Issue title |
+|   ↳ `state` | string | Issue state \(open, closed\) |
+|   ↳ `html_url` | string | Issue HTML URL |
+|   ↳ `user` | object | user output from the tool |
+|     ↳ `login` | string | Username |
+|     ↳ `id` | number | User ID |
+|     ↳ `node_id` | string | User node ID |
+|     ↳ `avatar_url` | string | Avatar URL |
+|     ↳ `html_url` | string | Profile URL |
+|     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
+| `comment` | object | comment output from the tool |
+|   ↳ `id` | number | Comment ID |
+|   ↳ `node_id` | string | Comment node ID |
+|   ↳ `body` | string | Comment text |
+|   ↳ `html_url` | string | Comment HTML URL |
+|   ↳ `user` | object | user output from the tool |
+|     ↳ `login` | string | Username |
+|     ↳ `id` | number | User ID |
+|     ↳ `node_id` | string | User node ID |
+|     ↳ `avatar_url` | string | Avatar URL |
+|     ↳ `html_url` | string | Profile URL |
+|     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
+|   ↳ `created_at` | string | Comment creation timestamp |
+|   ↳ `updated_at` | string | Comment last update timestamp |
+| `repository` | object | repository output from the tool |
+|   ↳ `id` | number | Repository ID |
+|   ↳ `node_id` | string | Repository node ID |
+|   ↳ `name` | string | Repository name |
+|   ↳ `full_name` | string | Repository full name \(owner/repo\) |
+|   ↳ `private` | boolean | Whether the repository is private |
+|   ↳ `html_url` | string | Repository HTML URL |
+|   ↳ `repo_description` | string | Repository description |
+|   ↳ `fork` | boolean | Whether the repository is a fork |
+|   ↳ `url` | string | Repository API URL |
+|   ↳ `homepage` | string | Repository homepage URL |
+|   ↳ `size` | number | Repository size in KB |
+|   ↳ `stargazers_count` | number | Number of stars |
+|   ↳ `watchers_count` | number | Number of watchers |
+|   ↳ `language` | string | Primary programming language |
+|   ↳ `forks_count` | number | Number of forks |
+|   ↳ `open_issues_count` | number | Number of open issues |
+|   ↳ `default_branch` | string | Default branch name |
+|   ↳ `owner` | object | owner output from the tool |
+|     ↳ `login` | string | Owner username |
+|     ↳ `id` | number | Owner ID |
+|     ↳ `avatar_url` | string | Owner avatar URL |
+|     ↳ `html_url` | string | Owner profile URL |
+|     ↳ `owner_type` | string | Owner type \(User, Organization\) |
+| `sender` | object | sender output from the tool |
+|   ↳ `login` | string | Username |
+|   ↳ `id` | number | User ID |
+|   ↳ `node_id` | string | User node ID |
+|   ↳ `avatar_url` | string | Avatar URL |
+|   ↳ `html_url` | string | Profile URL |
+|   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 
 
 ---
@@ -109,9 +301,59 @@ Trigger workflow when a new issue is opened in a GitHub repository
 | --------- | ---- | ----------- |
 | `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., issues, pull_request, push\) |
 | `action` | string | Action performed \(opened, closed, reopened, edited, etc.\) |
-| `issue` | number | Issue ID |
-| `repository` | number | Repository ID |
-| `sender` | string | Username |
+| `issue` | object | issue output from the tool |
+|   ↳ `id` | number | Issue ID |
+|   ↳ `node_id` | string | Issue node ID |
+|   ↳ `number` | number | Issue number |
+|   ↳ `title` | string | Issue title |
+|   ↳ `body` | string | Issue body/description |
+|   ↳ `state` | string | Issue state \(open, closed\) |
+|   ↳ `state_reason` | string | Reason for state \(completed, not_planned, reopened\) |
+|   ↳ `html_url` | string | Issue HTML URL |
+|   ↳ `user` | object | user output from the tool |
+|     ↳ `login` | string | Username |
+|     ↳ `id` | number | User ID |
+|     ↳ `node_id` | string | User node ID |
+|     ↳ `avatar_url` | string | Avatar URL |
+|     ↳ `html_url` | string | Profile URL |
+|     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
+|   ↳ `labels` | array | Array of label objects |
+|   ↳ `assignees` | array | Array of assigned users |
+|   ↳ `milestone` | object | Milestone object if assigned |
+|   ↳ `created_at` | string | Issue creation timestamp |
+|   ↳ `updated_at` | string | Issue last update timestamp |
+|   ↳ `closed_at` | string | Issue closed timestamp |
+| `repository` | object | repository output from the tool |
+|   ↳ `id` | number | Repository ID |
+|   ↳ `node_id` | string | Repository node ID |
+|   ↳ `name` | string | Repository name |
+|   ↳ `full_name` | string | Repository full name \(owner/repo\) |
+|   ↳ `private` | boolean | Whether the repository is private |
+|   ↳ `html_url` | string | Repository HTML URL |
+|   ↳ `repo_description` | string | Repository description |
+|   ↳ `fork` | boolean | Whether the repository is a fork |
+|   ↳ `url` | string | Repository API URL |
+|   ↳ `homepage` | string | Repository homepage URL |
+|   ↳ `size` | number | Repository size in KB |
+|   ↳ `stargazers_count` | number | Number of stars |
+|   ↳ `watchers_count` | number | Number of watchers |
+|   ↳ `language` | string | Primary programming language |
+|   ↳ `forks_count` | number | Number of forks |
+|   ↳ `open_issues_count` | number | Number of open issues |
+|   ↳ `default_branch` | string | Default branch name |
+|   ↳ `owner` | object | owner output from the tool |
+|     ↳ `login` | string | Owner username |
+|     ↳ `id` | number | Owner ID |
+|     ↳ `avatar_url` | string | Owner avatar URL |
+|     ↳ `html_url` | string | Owner profile URL |
+|     ↳ `owner_type` | string | Owner type \(User, Organization\) |
+| `sender` | object | sender output from the tool |
+|   ↳ `login` | string | Username |
+|   ↳ `id` | number | User ID |
+|   ↳ `node_id` | string | User node ID |
+|   ↳ `avatar_url` | string | Avatar URL |
+|   ↳ `html_url` | string | Profile URL |
+|   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 
 
 ---
@@ -135,9 +377,84 @@ Trigger workflow when a pull request is closed without being merged (e.g., aband
 | `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., pull_request\) |
 | `action` | string | Action performed \(opened, closed, synchronize, reopened, edited, etc.\) |
 | `number` | number | Pull request number |
-| `pull_request` | number | Pull request ID |
-| `repository` | number | Repository ID |
-| `sender` | string | Username |
+| `pull_request` | object | pull_request output from the tool |
+|   ↳ `id` | number | Pull request ID |
+|   ↳ `node_id` | string | Pull request node ID |
+|   ↳ `number` | number | Pull request number |
+|   ↳ `title` | string | Pull request title |
+|   ↳ `body` | string | Pull request description |
+|   ↳ `state` | string | Pull request state \(open, closed\) |
+|   ↳ `merged` | boolean | Whether the PR was merged |
+|   ↳ `merged_at` | string | Timestamp when PR was merged |
+|   ↳ `merged_by` | object | merged_by output from the tool |
+|     ↳ `login` | string | Username |
+|     ↳ `id` | number | User ID |
+|     ↳ `node_id` | string | User node ID |
+|     ↳ `avatar_url` | string | Avatar URL |
+|     ↳ `html_url` | string | Profile URL |
+|     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
+|   ↳ `draft` | boolean | Whether the PR is a draft |
+|   ↳ `html_url` | string | Pull request HTML URL |
+|   ↳ `diff_url` | string | Pull request diff URL |
+|   ↳ `patch_url` | string | Pull request patch URL |
+|   ↳ `user` | object | user output from the tool |
+|     ↳ `login` | string | Username |
+|     ↳ `id` | number | User ID |
+|     ↳ `node_id` | string | User node ID |
+|     ↳ `avatar_url` | string | Avatar URL |
+|     ↳ `html_url` | string | Profile URL |
+|     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
+|   ↳ `head` | object | head output from the tool |
+|     ↳ `ref` | string | Source branch name |
+|     ↳ `sha` | string | Source branch commit SHA |
+|     ↳ `repo` | object | repo output from the tool |
+|       ↳ `name` | string | Source repository name |
+|       ↳ `full_name` | string | Source repository full name |
+|   ↳ `base` | object | base output from the tool |
+|     ↳ `ref` | string | Target branch name |
+|     ↳ `sha` | string | Target branch commit SHA |
+|     ↳ `repo` | object | repo output from the tool |
+|       ↳ `name` | string | Target repository name |
+|       ↳ `full_name` | string | Target repository full name |
+|   ↳ `additions` | number | Number of lines added |
+|   ↳ `deletions` | number | Number of lines deleted |
+|   ↳ `changed_files` | number | Number of files changed |
+|   ↳ `labels` | array | Array of label objects |
+|   ↳ `assignees` | array | Array of assigned users |
+|   ↳ `requested_reviewers` | array | Array of requested reviewers |
+|   ↳ `created_at` | string | Pull request creation timestamp |
+|   ↳ `updated_at` | string | Pull request last update timestamp |
+|   ↳ `closed_at` | string | Pull request closed timestamp |
+| `repository` | object | repository output from the tool |
+|   ↳ `id` | number | Repository ID |
+|   ↳ `node_id` | string | Repository node ID |
+|   ↳ `name` | string | Repository name |
+|   ↳ `full_name` | string | Repository full name \(owner/repo\) |
+|   ↳ `private` | boolean | Whether the repository is private |
+|   ↳ `html_url` | string | Repository HTML URL |
+|   ↳ `repo_description` | string | Repository description |
+|   ↳ `fork` | boolean | Whether the repository is a fork |
+|   ↳ `url` | string | Repository API URL |
+|   ↳ `homepage` | string | Repository homepage URL |
+|   ↳ `size` | number | Repository size in KB |
+|   ↳ `stargazers_count` | number | Number of stars |
+|   ↳ `watchers_count` | number | Number of watchers |
+|   ↳ `language` | string | Primary programming language |
+|   ↳ `forks_count` | number | Number of forks |
+|   ↳ `open_issues_count` | number | Number of open issues |
+|   ↳ `default_branch` | string | Default branch name |
+|   ↳ `owner` | object | owner output from the tool |
+|     ↳ `login` | string | Owner username |
+|     ↳ `id` | number | Owner ID |
+|     ↳ `avatar_url` | string | Owner avatar URL |
+|     ↳ `html_url` | string | Owner profile URL |
+| `sender` | object | sender output from the tool |
+|   ↳ `login` | string | Username |
+|   ↳ `id` | number | User ID |
+|   ↳ `node_id` | string | User node ID |
+|   ↳ `avatar_url` | string | Avatar URL |
+|   ↳ `html_url` | string | Profile URL |
+|   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 
 
 ---
@@ -160,10 +477,67 @@ Trigger workflow when a comment is added to a pull request in a GitHub repositor
 | --------- | ---- | ----------- |
 | `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., issue_comment\) |
 | `action` | string | Action performed \(created, edited, deleted\) |
-| `issue` | number | Issue ID |
-| `comment` | number | Comment ID |
-| `repository` | number | Repository ID |
-| `sender` | string | Username |
+| `issue` | object | issue output from the tool |
+|   ↳ `id` | number | Issue ID |
+|   ↳ `node_id` | string | Issue node ID |
+|   ↳ `number` | number | Issue/PR number |
+|   ↳ `title` | string | Issue/PR title |
+|   ↳ `body` | string | Issue/PR description |
+|   ↳ `state` | string | Issue/PR state \(open, closed\) |
+|   ↳ `html_url` | string | Issue/PR HTML URL |
+|   ↳ `user` | object | user output from the tool |
+|     ↳ `login` | string | Username |
+|     ↳ `id` | number | User ID |
+|     ↳ `node_id` | string | User node ID |
+|     ↳ `avatar_url` | string | Avatar URL |
+|     ↳ `html_url` | string | Profile URL |
+|     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
+|   ↳ `labels` | array | Array of label objects |
+|   ↳ `assignees` | array | Array of assigned users |
+|   ↳ `pull_request` | object | pull_request output from the tool |
+|     ↳ `url` | string | Pull request API URL \(present only for PR comments\) |
+|     ↳ `html_url` | string | Pull request HTML URL |
+|     ↳ `diff_url` | string | Pull request diff URL |
+|     ↳ `patch_url` | string | Pull request patch URL |
+|   ↳ `created_at` | string | Issue/PR creation timestamp |
+|   ↳ `updated_at` | string | Issue/PR last update timestamp |
+| `comment` | object | comment output from the tool |
+|   ↳ `id` | number | Comment ID |
+|   ↳ `node_id` | string | Comment node ID |
+|   ↳ `url` | string | Comment API URL |
+|   ↳ `html_url` | string | Comment HTML URL |
+|   ↳ `body` | string | Comment text |
+|   ↳ `user` | object | user output from the tool |
+|     ↳ `login` | string | Username |
+|     ↳ `id` | number | User ID |
+|     ↳ `node_id` | string | User node ID |
+|     ↳ `avatar_url` | string | Avatar URL |
+|     ↳ `html_url` | string | Profile URL |
+|     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
+|   ↳ `created_at` | string | Comment creation timestamp |
+|   ↳ `updated_at` | string | Comment last update timestamp |
+| `repository` | object | repository output from the tool |
+|   ↳ `id` | number | Repository ID |
+|   ↳ `node_id` | string | Repository node ID |
+|   ↳ `name` | string | Repository name |
+|   ↳ `full_name` | string | Repository full name \(owner/repo\) |
+|   ↳ `private` | boolean | Whether the repository is private |
+|   ↳ `html_url` | string | Repository HTML URL |
+|   ↳ `repo_description` | string | Repository description |
+|   ↳ `owner` | object | owner output from the tool |
+|     ↳ `login` | string | Owner username |
+|     ↳ `id` | number | Owner ID |
+|     ↳ `node_id` | string | Owner node ID |
+|     ↳ `avatar_url` | string | Owner avatar URL |
+|     ↳ `html_url` | string | Owner profile URL |
+|     ↳ `owner_type` | string | Owner type \(User, Organization\) |
+| `sender` | object | sender output from the tool |
+|   ↳ `login` | string | Username |
+|   ↳ `id` | number | User ID |
+|   ↳ `node_id` | string | User node ID |
+|   ↳ `avatar_url` | string | Avatar URL |
+|   ↳ `html_url` | string | Profile URL |
+|   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 
 
 ---
@@ -187,9 +561,84 @@ Trigger workflow when a pull request is successfully merged in a GitHub reposito
 | `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., pull_request\) |
 | `action` | string | Action performed \(opened, closed, synchronize, reopened, edited, etc.\) |
 | `number` | number | Pull request number |
-| `pull_request` | number | Pull request ID |
-| `repository` | number | Repository ID |
-| `sender` | string | Username |
+| `pull_request` | object | pull_request output from the tool |
+|   ↳ `id` | number | Pull request ID |
+|   ↳ `node_id` | string | Pull request node ID |
+|   ↳ `number` | number | Pull request number |
+|   ↳ `title` | string | Pull request title |
+|   ↳ `body` | string | Pull request description |
+|   ↳ `state` | string | Pull request state \(open, closed\) |
+|   ↳ `merged` | boolean | Whether the PR was merged |
+|   ↳ `merged_at` | string | Timestamp when PR was merged |
+|   ↳ `merged_by` | object | merged_by output from the tool |
+|     ↳ `login` | string | Username |
+|     ↳ `id` | number | User ID |
+|     ↳ `node_id` | string | User node ID |
+|     ↳ `avatar_url` | string | Avatar URL |
+|     ↳ `html_url` | string | Profile URL |
+|     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
+|   ↳ `draft` | boolean | Whether the PR is a draft |
+|   ↳ `html_url` | string | Pull request HTML URL |
+|   ↳ `diff_url` | string | Pull request diff URL |
+|   ↳ `patch_url` | string | Pull request patch URL |
+|   ↳ `user` | object | user output from the tool |
+|     ↳ `login` | string | Username |
+|     ↳ `id` | number | User ID |
+|     ↳ `node_id` | string | User node ID |
+|     ↳ `avatar_url` | string | Avatar URL |
+|     ↳ `html_url` | string | Profile URL |
+|     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
+|   ↳ `head` | object | head output from the tool |
+|     ↳ `ref` | string | Source branch name |
+|     ↳ `sha` | string | Source branch commit SHA |
+|     ↳ `repo` | object | repo output from the tool |
+|       ↳ `name` | string | Source repository name |
+|       ↳ `full_name` | string | Source repository full name |
+|   ↳ `base` | object | base output from the tool |
+|     ↳ `ref` | string | Target branch name |
+|     ↳ `sha` | string | Target branch commit SHA |
+|     ↳ `repo` | object | repo output from the tool |
+|       ↳ `name` | string | Target repository name |
+|       ↳ `full_name` | string | Target repository full name |
+|   ↳ `additions` | number | Number of lines added |
+|   ↳ `deletions` | number | Number of lines deleted |
+|   ↳ `changed_files` | number | Number of files changed |
+|   ↳ `labels` | array | Array of label objects |
+|   ↳ `assignees` | array | Array of assigned users |
+|   ↳ `requested_reviewers` | array | Array of requested reviewers |
+|   ↳ `created_at` | string | Pull request creation timestamp |
+|   ↳ `updated_at` | string | Pull request last update timestamp |
+|   ↳ `closed_at` | string | Pull request closed timestamp |
+| `repository` | object | repository output from the tool |
+|   ↳ `id` | number | Repository ID |
+|   ↳ `node_id` | string | Repository node ID |
+|   ↳ `name` | string | Repository name |
+|   ↳ `full_name` | string | Repository full name \(owner/repo\) |
+|   ↳ `private` | boolean | Whether the repository is private |
+|   ↳ `html_url` | string | Repository HTML URL |
+|   ↳ `repo_description` | string | Repository description |
+|   ↳ `fork` | boolean | Whether the repository is a fork |
+|   ↳ `url` | string | Repository API URL |
+|   ↳ `homepage` | string | Repository homepage URL |
+|   ↳ `size` | number | Repository size in KB |
+|   ↳ `stargazers_count` | number | Number of stars |
+|   ↳ `watchers_count` | number | Number of watchers |
+|   ↳ `language` | string | Primary programming language |
+|   ↳ `forks_count` | number | Number of forks |
+|   ↳ `open_issues_count` | number | Number of open issues |
+|   ↳ `default_branch` | string | Default branch name |
+|   ↳ `owner` | object | owner output from the tool |
+|     ↳ `login` | string | Owner username |
+|     ↳ `id` | number | Owner ID |
+|     ↳ `avatar_url` | string | Owner avatar URL |
+|     ↳ `html_url` | string | Owner profile URL |
+| `sender` | object | sender output from the tool |
+|   ↳ `login` | string | Username |
+|   ↳ `id` | number | User ID |
+|   ↳ `node_id` | string | User node ID |
+|   ↳ `avatar_url` | string | Avatar URL |
+|   ↳ `html_url` | string | Profile URL |
+|   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 
 
 ---
@@ -213,9 +662,85 @@ Trigger workflow when a new pull request is opened in a GitHub repository
 | `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., pull_request\) |
 | `action` | string | Action performed \(opened, closed, synchronize, reopened, edited, etc.\) |
 | `number` | number | Pull request number |
-| `pull_request` | number | Pull request ID |
-| `repository` | number | Repository ID |
-| `sender` | string | Username |
+| `pull_request` | object | pull_request output from the tool |
+|   ↳ `id` | number | Pull request ID |
+|   ↳ `node_id` | string | Pull request node ID |
+|   ↳ `number` | number | Pull request number |
+|   ↳ `title` | string | Pull request title |
+|   ↳ `body` | string | Pull request description |
+|   ↳ `state` | string | Pull request state \(open, closed\) |
+|   ↳ `merged` | boolean | Whether the PR was merged |
+|   ↳ `merged_at` | string | Timestamp when PR was merged |
+|   ↳ `merged_by` | object | merged_by output from the tool |
+|     ↳ `login` | string | Username |
+|     ↳ `id` | number | User ID |
+|     ↳ `node_id` | string | User node ID |
+|     ↳ `avatar_url` | string | Avatar URL |
+|     ↳ `html_url` | string | Profile URL |
+|     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
+|   ↳ `draft` | boolean | Whether the PR is a draft |
+|   ↳ `html_url` | string | Pull request HTML URL |
+|   ↳ `diff_url` | string | Pull request diff URL |
+|   ↳ `patch_url` | string | Pull request patch URL |
+|   ↳ `user` | object | user output from the tool |
+|     ↳ `login` | string | Username |
+|     ↳ `id` | number | User ID |
+|     ↳ `node_id` | string | User node ID |
+|     ↳ `avatar_url` | string | Avatar URL |
+|     ↳ `html_url` | string | Profile URL |
+|     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
+|   ↳ `head` | object | head output from the tool |
+|     ↳ `ref` | string | Source branch name |
+|     ↳ `sha` | string | Source branch commit SHA |
+|     ↳ `repo` | object | repo output from the tool |
+|       ↳ `name` | string | Source repository name |
+|       ↳ `full_name` | string | Source repository full name |
+|   ↳ `base` | object | base output from the tool |
+|     ↳ `ref` | string | Target branch name |
+|     ↳ `sha` | string | Target branch commit SHA |
+|     ↳ `repo` | object | repo output from the tool |
+|       ↳ `name` | string | Target repository name |
+|       ↳ `full_name` | string | Target repository full name |
+|   ↳ `additions` | number | Number of lines added |
+|   ↳ `deletions` | number | Number of lines deleted |
+|   ↳ `changed_files` | number | Number of files changed |
+|   ↳ `labels` | array | Array of label objects |
+|   ↳ `assignees` | array | Array of assigned users |
+|   ↳ `requested_reviewers` | array | Array of requested reviewers |
+|   ↳ `created_at` | string | Pull request creation timestamp |
+|   ↳ `updated_at` | string | Pull request last update timestamp |
+|   ↳ `closed_at` | string | Pull request closed timestamp |
+| `repository` | object | repository output from the tool |
+|   ↳ `id` | number | Repository ID |
+|   ↳ `node_id` | string | Repository node ID |
+|   ↳ `name` | string | Repository name |
+|   ↳ `full_name` | string | Repository full name \(owner/repo\) |
+|   ↳ `private` | boolean | Whether the repository is private |
+|   ↳ `html_url` | string | Repository HTML URL |
+|   ↳ `repo_description` | string | Repository description |
+|   ↳ `fork` | boolean | Whether the repository is a fork |
+|   ↳ `url` | string | Repository API URL |
+|   ↳ `homepage` | string | Repository homepage URL |
+|   ↳ `size` | number | Repository size in KB |
+|   ↳ `stargazers_count` | number | Number of stars |
+|   ↳ `watchers_count` | number | Number of watchers |
+|   ↳ `language` | string | Primary programming language |
+|   ↳ `forks_count` | number | Number of forks |
+|   ↳ `open_issues_count` | number | Number of open issues |
+|   ↳ `default_branch` | string | Default branch name |
+|   ↳ `owner` | object | owner output from the tool |
+|     ↳ `login` | string | Owner username |
+|     ↳ `id` | number | Owner ID |
+|     ↳ `avatar_url` | string | Owner avatar URL |
+|     ↳ `html_url` | string | Owner profile URL |
+|     ↳ `owner_type` | string | Owner type \(User, Organization\) |
+| `sender` | object | sender output from the tool |
+|   ↳ `login` | string | Username |
+|   ↳ `id` | number | User ID |
+|   ↳ `node_id` | string | User node ID |
+|   ↳ `avatar_url` | string | Avatar URL |
+|   ↳ `html_url` | string | Profile URL |
+|   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 
 
 ---
@@ -238,10 +763,77 @@ Trigger workflow when a pull request review is submitted, edited, or dismissed i
 | --------- | ---- | ----------- |
 | `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., pull_request_review\) |
 | `action` | string | Action performed \(submitted, edited, dismissed\) |
-| `review` | number | Review ID |
-| `pull_request` | number | Pull request ID |
-| `repository` | number | Repository ID |
-| `sender` | string | Username |
+| `review` | object | review output from the tool |
+|   ↳ `id` | number | Review ID |
+|   ↳ `node_id` | string | Review node ID |
+|   ↳ `user` | object | user output from the tool |
+|     ↳ `login` | string | Reviewer username |
+|     ↳ `id` | number | Reviewer user ID |
+|     ↳ `node_id` | string | Reviewer node ID |
+|     ↳ `avatar_url` | string | Reviewer avatar URL |
+|     ↳ `html_url` | string | Reviewer profile URL |
+|     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
+|   ↳ `body` | string | Review comment text |
+|   ↳ `state` | string | Review state \(approved, changes_requested, commented, dismissed\) |
+|   ↳ `html_url` | string | Review HTML URL |
+|   ↳ `submitted_at` | string | Review submission timestamp |
+|   ↳ `commit_id` | string | Commit SHA that was reviewed |
+|   ↳ `author_association` | string | Author association \(OWNER, MEMBER, COLLABORATOR, CONTRIBUTOR, etc.\) |
+| `pull_request` | object | pull_request output from the tool |
+|   ↳ `id` | number | Pull request ID |
+|   ↳ `node_id` | string | Pull request node ID |
+|   ↳ `number` | number | Pull request number |
+|   ↳ `title` | string | Pull request title |
+|   ↳ `body` | string | Pull request description |
+|   ↳ `state` | string | Pull request state \(open, closed\) |
+|   ↳ `merged` | boolean | Whether the PR was merged |
+|   ↳ `draft` | boolean | Whether the PR is a draft |
+|   ↳ `html_url` | string | Pull request HTML URL |
+|   ↳ `diff_url` | string | Pull request diff URL |
+|   ↳ `patch_url` | string | Pull request patch URL |
+|   ↳ `user` | object | user output from the tool |
+|     ↳ `login` | string | PR author username |
+|     ↳ `id` | number | PR author user ID |
+|     ↳ `node_id` | string | PR author node ID |
+|     ↳ `avatar_url` | string | PR author avatar URL |
+|     ↳ `html_url` | string | PR author profile URL |
+|     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
+|   ↳ `head` | object | head output from the tool |
+|     ↳ `ref` | string | Source branch name |
+|     ↳ `sha` | string | Source branch commit SHA |
+|     ↳ `repo` | object | repo output from the tool |
+|       ↳ `name` | string | Source repository name |
+|       ↳ `full_name` | string | Source repository full name |
+|   ↳ `base` | object | base output from the tool |
+|     ↳ `ref` | string | Target branch name |
+|     ↳ `sha` | string | Target branch commit SHA |
+|     ↳ `repo` | object | repo output from the tool |
+|       ↳ `name` | string | Target repository name |
+|       ↳ `full_name` | string | Target repository full name |
+|   ↳ `created_at` | string | Pull request creation timestamp |
+|   ↳ `updated_at` | string | Pull request last update timestamp |
+| `repository` | object | repository output from the tool |
+|   ↳ `id` | number | Repository ID |
+|   ↳ `node_id` | string | Repository node ID |
+|   ↳ `name` | string | Repository name |
+|   ↳ `full_name` | string | Repository full name \(owner/repo\) |
+|   ↳ `private` | boolean | Whether the repository is private |
+|   ↳ `html_url` | string | Repository HTML URL |
+|   ↳ `repo_description` | string | Repository description |
+|   ↳ `owner` | object | owner output from the tool |
+|     ↳ `login` | string | Owner username |
+|     ↳ `id` | number | Owner ID |
+|     ↳ `node_id` | string | Owner node ID |
+|     ↳ `avatar_url` | string | Owner avatar URL |
+|     ↳ `html_url` | string | Owner profile URL |
+|     ↳ `owner_type` | string | Owner type \(User, Organization\) |
+| `sender` | object | sender output from the tool |
+|   ↳ `login` | string | Username |
+|   ↳ `id` | number | User ID |
+|   ↳ `node_id` | string | User node ID |
+|   ↳ `avatar_url` | string | Avatar URL |
+|   ↳ `html_url` | string | Profile URL |
+|   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 
 
 ---
@@ -273,10 +865,59 @@ Trigger workflow when code is pushed to a repository
 | `base_ref` | string | Base reference for the push |
 | `compare` | string | URL to compare the changes |
 | `commits` | array | Array of commit objects included in this push |
-| `head_commit` | string | Commit SHA of the most recent commit |
-| `pusher` | string | Pusher name |
-| `repository` | number | Repository ID |
-| `sender` | string | Username |
+| `head_commit` | object | head_commit output from the tool |
+|   ↳ `id` | string | Commit SHA of the most recent commit |
+|   ↳ `tree_id` | string | Git tree SHA |
+|   ↳ `distinct` | boolean | Whether this commit is distinct |
+|   ↳ `message` | string | Commit message |
+|   ↳ `timestamp` | string | Commit timestamp |
+|   ↳ `url` | string | Commit URL |
+|   ↳ `author` | object | author output from the tool |
+|     ↳ `name` | string | Author name |
+|     ↳ `email` | string | Author email |
+|     ↳ `username` | string | Author GitHub username |
+|   ↳ `committer` | object | committer output from the tool |
+|     ↳ `name` | string | Committer name |
+|     ↳ `email` | string | Committer email |
+|     ↳ `username` | string | Committer GitHub username |
+|   ↳ `added` | array | Array of file paths added in this commit |
+|   ↳ `removed` | array | Array of file paths removed in this commit |
+|   ↳ `modified` | array | Array of file paths modified in this commit |
+| `pusher` | object | pusher output from the tool |
+|   ↳ `name` | string | Pusher name |
+|   ↳ `email` | string | Pusher email |
+| `repository` | object | repository output from the tool |
+|   ↳ `id` | number | Repository ID |
+|   ↳ `node_id` | string | Repository node ID |
+|   ↳ `name` | string | Repository name |
+|   ↳ `full_name` | string | Repository full name \(owner/repo\) |
+|   ↳ `private` | boolean | Whether the repository is private |
+|   ↳ `html_url` | string | Repository HTML URL |
+|   ↳ `repo_description` | string | Repository description |
+|   ↳ `fork` | boolean | Whether the repository is a fork |
+|   ↳ `url` | string | Repository API URL |
+|   ↳ `homepage` | string | Repository homepage URL |
+|   ↳ `size` | number | Repository size in KB |
+|   ↳ `stargazers_count` | number | Number of stars |
+|   ↳ `watchers_count` | number | Number of watchers |
+|   ↳ `language` | string | Primary programming language |
+|   ↳ `forks_count` | number | Number of forks |
+|   ↳ `open_issues_count` | number | Number of open issues |
+|   ↳ `default_branch` | string | Default branch name |
+|   ↳ `owner` | object | owner output from the tool |
+|     ↳ `login` | string | Owner username |
+|     ↳ `id` | number | Owner ID |
+|     ↳ `node_id` | string | Owner node ID |
+|     ↳ `avatar_url` | string | Owner avatar URL |
+|     ↳ `html_url` | string | Owner profile URL |
+|     ↳ `owner_type` | string | Owner type \(User, Organization\) |
+| `sender` | object | sender output from the tool |
+|   ↳ `login` | string | Username |
+|   ↳ `id` | number | User ID |
+|   ↳ `node_id` | string | User node ID |
+|   ↳ `avatar_url` | string | Avatar URL |
+|   ↳ `html_url` | string | Profile URL |
+|   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
 
 
 ---
@@ -299,9 +940,160 @@ Trigger workflow when a new release is published in a GitHub repository
 | --------- | ---- | ----------- |
 | `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., release\) |
 | `action` | string | Action performed \(published, unpublished, created, edited, deleted, prereleased, released\) |
-| `release` | number | Release ID |
-| `repository` | number | Repository ID |
-| `sender` | string | Username |
+| `release` | object | release output from the tool |
+|   ↳ `id` | number | Release ID |
+|   ↳ `node_id` | string | Release node ID |
+|   ↳ `tag_name` | string | Git tag name for the release |
+|   ↳ `target_commitish` | string | Target branch or commit SHA |
+|   ↳ `name` | string | Release name/title |
+|   ↳ `body` | string | Release description/notes in markdown format |
+|   ↳ `draft` | boolean | Whether the release is a draft |
+|   ↳ `prerelease` | boolean | Whether the release is a pre-release |
+|   ↳ `created_at` | string | Release creation timestamp |
+|   ↳ `published_at` | string | Release publication timestamp |
+|   ↳ `url` | string | Release API URL |
+|   ↳ `html_url` | string | Release HTML URL |
+|   ↳ `assets_url` | string | Release assets API URL |
+|   ↳ `upload_url` | string | URL for uploading release assets |
+|   ↳ `tarball_url` | string | Source code tarball download URL |
+|   ↳ `zipball_url` | string | Source code zipball download URL |
+|   ↳ `discussion_url` | string | Discussion URL if available |
+|   ↳ `author` | object | author output from the tool |
+|     ↳ `login` | string | Username |
+|     ↳ `id` | number | User ID |
+|     ↳ `node_id` | string | User node ID |
+|     ↳ `avatar_url` | string | Avatar URL |
+|     ↳ `gravatar_id` | string | Gravatar ID |
+|     ↳ `url` | string | User API URL |
+|     ↳ `html_url` | string | Profile URL |
+|     ↳ `followers_url` | string | Followers API URL |
+|     ↳ `following_url` | string | Following API URL |
+|     ↳ `gists_url` | string | Gists API URL |
+|     ↳ `starred_url` | string | Starred repositories API URL |
+|     ↳ `subscriptions_url` | string | Subscriptions API URL |
+|     ↳ `organizations_url` | string | Organizations API URL |
+|     ↳ `repos_url` | string | Repositories API URL |
+|     ↳ `events_url` | string | Events API URL |
+|     ↳ `received_events_url` | string | Received events API URL |
+|     ↳ `user_type` | string | User type \(User, Bot, Organization\) |
+|     ↳ `site_admin` | boolean | Whether user is a site administrator |
+|   ↳ `assets` | array | Array of release asset objects with download URLs |
+| `repository` | object | repository output from the tool |
+|   ↳ `id` | number | Repository ID |
+|   ↳ `node_id` | string | Repository node ID |
+|   ↳ `name` | string | Repository name |
+|   ↳ `full_name` | string | Repository full name \(owner/repo\) |
+|   ↳ `private` | boolean | Whether the repository is private |
+|   ↳ `html_url` | string | Repository HTML URL |
+|   ↳ `repo_description` | string | Repository description |
+|   ↳ `fork` | boolean | Whether the repository is a fork |
+|   ↳ `url` | string | Repository API URL |
+|   ↳ `archive_url` | string | Archive API URL |
+|   ↳ `assignees_url` | string | Assignees API URL |
+|   ↳ `blobs_url` | string | Blobs API URL |
+|   ↳ `branches_url` | string | Branches API URL |
+|   ↳ `collaborators_url` | string | Collaborators API URL |
+|   ↳ `comments_url` | string | Comments API URL |
+|   ↳ `commits_url` | string | Commits API URL |
+|   ↳ `compare_url` | string | Compare API URL |
+|   ↳ `contents_url` | string | Contents API URL |
+|   ↳ `contributors_url` | string | Contributors API URL |
+|   ↳ `deployments_url` | string | Deployments API URL |
+|   ↳ `downloads_url` | string | Downloads API URL |
+|   ↳ `events_url` | string | Events API URL |
+|   ↳ `forks_url` | string | Forks API URL |
+|   ↳ `git_commits_url` | string | Git commits API URL |
+|   ↳ `git_refs_url` | string | Git refs API URL |
+|   ↳ `git_tags_url` | string | Git tags API URL |
+|   ↳ `hooks_url` | string | Hooks API URL |
+|   ↳ `issue_comment_url` | string | Issue comment API URL |
+|   ↳ `issue_events_url` | string | Issue events API URL |
+|   ↳ `issues_url` | string | Issues API URL |
+|   ↳ `keys_url` | string | Keys API URL |
+|   ↳ `labels_url` | string | Labels API URL |
+|   ↳ `languages_url` | string | Languages API URL |
+|   ↳ `merges_url` | string | Merges API URL |
+|   ↳ `milestones_url` | string | Milestones API URL |
+|   ↳ `notifications_url` | string | Notifications API URL |
+|   ↳ `pulls_url` | string | Pull requests API URL |
+|   ↳ `releases_url` | string | Releases API URL |
+|   ↳ `stargazers_url` | string | Stargazers API URL |
+|   ↳ `statuses_url` | string | Statuses API URL |
+|   ↳ `subscribers_url` | string | Subscribers API URL |
+|   ↳ `subscription_url` | string | Subscription API URL |
+|   ↳ `tags_url` | string | Tags API URL |
+|   ↳ `teams_url` | string | Teams API URL |
+|   ↳ `trees_url` | string | Trees API URL |
+|   ↳ `homepage` | string | Repository homepage URL |
+|   ↳ `size` | number | Repository size in KB |
+|   ↳ `stargazers_count` | number | Number of stars |
+|   ↳ `watchers_count` | number | Number of watchers |
+|   ↳ `language` | string | Primary programming language |
+|   ↳ `has_issues` | boolean | Whether issues are enabled |
+|   ↳ `has_projects` | boolean | Whether projects are enabled |
+|   ↳ `has_downloads` | boolean | Whether downloads are enabled |
+|   ↳ `has_wiki` | boolean | Whether wiki is enabled |
+|   ↳ `has_pages` | boolean | Whether GitHub Pages is enabled |
+|   ↳ `forks_count` | number | Number of forks |
+|   ↳ `mirror_url` | string | Mirror URL if repository is a mirror |
+|   ↳ `archived` | boolean | Whether the repository is archived |
+|   ↳ `disabled` | boolean | Whether the repository is disabled |
+|   ↳ `open_issues_count` | number | Number of open issues |
+|   ↳ `license` | object | license output from the tool |
+|     ↳ `key` | string | License key |
+|     ↳ `name` | string | License name |
+|     ↳ `spdx_id` | string | SPDX license identifier |
+|     ↳ `url` | string | License API URL |
+|     ↳ `node_id` | string | License node ID |
+|   ↳ `allow_forking` | boolean | Whether forking is allowed |
+|   ↳ `is_template` | boolean | Whether repository is a template |
+|   ↳ `topics` | array | Array of repository topics |
+|   ↳ `visibility` | string | Repository visibility \(public, private, internal\) |
+|   ↳ `forks` | number | Number of forks |
+|   ↳ `open_issues` | number | Number of open issues |
+|   ↳ `watchers` | number | Number of watchers |
+|   ↳ `default_branch` | string | Default branch name |
+|   ↳ `created_at` | string | Repository creation timestamp |
+|   ↳ `updated_at` | string | Repository last update timestamp |
+|   ↳ `pushed_at` | string | Repository last push timestamp |
+|   ↳ `owner` | object | owner output from the tool |
+|     ↳ `login` | string | Owner username |
+|     ↳ `id` | number | Owner ID |
+|     ↳ `node_id` | string | Owner node ID |
+|     ↳ `avatar_url` | string | Owner avatar URL |
+|     ↳ `gravatar_id` | string | Owner gravatar ID |
+|     ↳ `url` | string | Owner API URL |
+|     ↳ `html_url` | string | Owner profile URL |
+|     ↳ `followers_url` | string | Followers API URL |
+|     ↳ `following_url` | string | Following API URL |
+|     ↳ `gists_url` | string | Gists API URL |
+|     ↳ `starred_url` | string | Starred repositories API URL |
+|     ↳ `subscriptions_url` | string | Subscriptions API URL |
+|     ↳ `organizations_url` | string | Organizations API URL |
+|     ↳ `repos_url` | string | Repositories API URL |
+|     ↳ `events_url` | string | Events API URL |
+|     ↳ `received_events_url` | string | Received events API URL |
+|     ↳ `owner_type` | string | Owner type \(User, Organization\) |
+|     ↳ `site_admin` | boolean | Whether owner is a site administrator |
+| `sender` | object | sender output from the tool |
+|   ↳ `login` | string | Username |
+|   ↳ `id` | number | User ID |
+|   ↳ `node_id` | string | User node ID |
+|   ↳ `avatar_url` | string | Avatar URL |
+|   ↳ `gravatar_id` | string | Gravatar ID |
+|   ↳ `url` | string | User API URL |
+|   ↳ `html_url` | string | Profile URL |
+|   ↳ `followers_url` | string | Followers API URL |
+|   ↳ `following_url` | string | Following API URL |
+|   ↳ `gists_url` | string | Gists API URL |
+|   ↳ `starred_url` | string | Starred repositories API URL |
+|   ↳ `subscriptions_url` | string | Subscriptions API URL |
+|   ↳ `organizations_url` | string | Organizations API URL |
+|   ↳ `repos_url` | string | Repositories API URL |
+|   ↳ `events_url` | string | Events API URL |
+|   ↳ `received_events_url` | string | Received events API URL |
+|   ↳ `user_type` | string | User type \(User, Bot, Organization\) |
+|   ↳ `site_admin` | boolean | Whether user is a site administrator |
 
 
 ---
@@ -330,9 +1122,62 @@ Trigger workflow from GitHub events like push, pull requests, issues, and more
 | `forced` | boolean | Whether the push was forced |
 | `base_ref` | string | Base reference for the push |
 | `compare` | string | URL to compare the changes |
-| `repository` | number | Repository ID |
+| `repository` | object | repository output from the tool |
+|   ↳ `id` | number | Repository ID |
+|   ↳ `node_id` | string | Repository node ID |
+|   ↳ `name` | string | Repository name |
+|   ↳ `full_name` | string | Repository full name \(owner/repo\) |
+|   ↳ `private` | boolean | Whether the repository is private |
+|   ↳ `html_url` | string | Repository HTML URL |
+|   ↳ `fork` | boolean | Whether the repository is a fork |
+|   ↳ `url` | string | Repository API URL |
+|   ↳ `created_at` | number | Repository creation timestamp |
+|   ↳ `updated_at` | string | Repository last updated time |
+|   ↳ `pushed_at` | number | Repository last push timestamp |
+|   ↳ `git_url` | string | Repository git URL |
+|   ↳ `ssh_url` | string | Repository SSH URL |
+|   ↳ `clone_url` | string | Repository clone URL |
+|   ↳ `homepage` | string | Repository homepage URL |
+|   ↳ `size` | number | Repository size |
+|   ↳ `stargazers_count` | number | Number of stars |
+|   ↳ `watchers_count` | number | Number of watchers |
+|   ↳ `language` | string | Primary programming language |
+|   ↳ `forks_count` | number | Number of forks |
+|   ↳ `archived` | boolean | Whether the repository is archived |
+|   ↳ `disabled` | boolean | Whether the repository is disabled |
+|   ↳ `open_issues_count` | number | Number of open issues |
+|   ↳ `topics` | array | Repository topics |
+|   ↳ `visibility` | string | Repository visibility \(public, private\) |
+|   ↳ `forks` | number | Number of forks |
+|   ↳ `open_issues` | number | Number of open issues |
+|   ↳ `watchers` | number | Number of watchers |
+|   ↳ `default_branch` | string | Default branch name |
+|   ↳ `stargazers` | number | Number of stargazers |
+|   ↳ `master_branch` | string | Master branch name |
+|   ↳ `owner` | object | owner output from the tool |
+|     ↳ `name` | string | Owner name |
+|     ↳ `email` | string | Owner email |
+|     ↳ `login` | string | Owner username |
+|     ↳ `id` | number | Owner ID |
+|     ↳ `node_id` | string | Owner node ID |
+|     ↳ `avatar_url` | string | Owner avatar URL |
+|     ↳ `gravatar_id` | string | Owner gravatar ID |
+|     ↳ `url` | string | Owner API URL |
+|     ↳ `html_url` | string | Owner profile URL |
+|     ↳ `user_view_type` | string | User view type |
+|     ↳ `site_admin` | boolean | Whether the owner is a site admin |
+|   ↳ `license` | object | Repository license information |
 | `pusher` | object | Information about who pushed the changes |
-| `sender` | string | Sender username |
+| `sender` | object | sender output from the tool |
+|   ↳ `login` | string | Sender username |
+|   ↳ `id` | number | Sender ID |
+|   ↳ `node_id` | string | Sender node ID |
+|   ↳ `avatar_url` | string | Sender avatar URL |
+|   ↳ `gravatar_id` | string | Sender gravatar ID |
+|   ↳ `url` | string | Sender API URL |
+|   ↳ `html_url` | string | Sender profile URL |
+|   ↳ `user_view_type` | string | User view type |
+|   ↳ `site_admin` | boolean | Whether the sender is a site admin |
 | `commits` | array | Array of commit objects |
 | `head_commit` | object | Head commit object |
 | `event_type` | string | Type of GitHub event \(e.g., push, pull_request, issues\) |

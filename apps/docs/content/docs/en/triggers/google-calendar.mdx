@@ -34,7 +34,21 @@ Triggers when events are created, updated, or cancelled in Google Calendar
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `event` | string | Calendar event ID |
+| `event` | object | event output from the tool |
+|   ↳ `id` | string | Calendar event ID |
+|   ↳ `status` | string | Event status \(confirmed, tentative, cancelled\) |
+|   ↳ `eventType` | string | Change type: "created", "updated", or "cancelled" |
+|   ↳ `summary` | string | Event title |
+|   ↳ `eventDescription` | string | Event description |
+|   ↳ `location` | string | Event location |
+|   ↳ `htmlLink` | string | Link to event in Google Calendar |
+|   ↳ `start` | json | Event start time |
+|   ↳ `end` | json | Event end time |
+|   ↳ `created` | string | Event creation time |
+|   ↳ `updated` | string | Event last updated time |
+|   ↳ `attendees` | json | Event attendees |
+|   ↳ `creator` | json | Event creator |
+|   ↳ `organizer` | json | Event organizer |
 | `calendarId` | string | Calendar ID |
 | `timestamp` | string | Event processing timestamp in ISO format |
 

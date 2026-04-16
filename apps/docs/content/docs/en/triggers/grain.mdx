@@ -53,7 +53,18 @@ Trigger workflow when a new highlight/clip is created in Grain
 | --------- | ---- | ----------- |
 | `type` | string | Event type |
 | `user_id` | string | User UUID who triggered the event |
-| `data` | string | Highlight UUID |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Highlight UUID |
+|   ↳ `recording_id` | string | Parent recording UUID |
+|   ↳ `text` | string | Highlight title/description |
+|   ↳ `transcript` | string | Transcript text of the clip |
+|   ↳ `speakers` | array | Array of speaker names |
+|   ↳ `timestamp` | number | Start timestamp in ms |
+|   ↳ `duration` | number | Duration in ms |
+|   ↳ `tags` | array | Array of tag strings |
+|   ↳ `url` | string | URL to view in Grain |
+|   ↳ `thumbnail_url` | string | Thumbnail URL |
+|   ↳ `created_datetime` | string | ISO8601 creation timestamp |
 
 
 ---
@@ -75,7 +86,18 @@ Trigger workflow when a highlight/clip is updated in Grain
 | --------- | ---- | ----------- |
 | `type` | string | Event type |
 | `user_id` | string | User UUID who triggered the event |
-| `data` | string | Highlight UUID |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Highlight UUID |
+|   ↳ `recording_id` | string | Parent recording UUID |
+|   ↳ `text` | string | Highlight title/description |
+|   ↳ `transcript` | string | Transcript text of the clip |
+|   ↳ `speakers` | array | Array of speaker names |
+|   ↳ `timestamp` | number | Start timestamp in ms |
+|   ↳ `duration` | number | Duration in ms |
+|   ↳ `tags` | array | Array of tag strings |
+|   ↳ `url` | string | URL to view in Grain |
+|   ↳ `thumbnail_url` | string | Thumbnail URL |
+|   ↳ `created_datetime` | string | ISO8601 creation timestamp |
 
 
 ---
@@ -141,7 +163,19 @@ Trigger workflow when a new recording is added in Grain
 | --------- | ---- | ----------- |
 | `type` | string | Event type |
 | `user_id` | string | User UUID who triggered the event |
-| `data` | string | Recording UUID |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Recording UUID |
+|   ↳ `title` | string | Recording title |
+|   ↳ `start_datetime` | string | ISO8601 start timestamp |
+|   ↳ `end_datetime` | string | ISO8601 end timestamp |
+|   ↳ `duration_ms` | number | Duration in milliseconds |
+|   ↳ `media_type` | string | audio, transcript, or video |
+|   ↳ `source` | string | Recording source \(zoom, meet, local_capture, etc.\) |
+|   ↳ `url` | string | URL to view in Grain |
+|   ↳ `thumbnail_url` | string | Thumbnail URL \(nullable\) |
+|   ↳ `tags` | array | Array of tag strings |
+|   ↳ `teams` | array | Array of team objects |
+|   ↳ `meeting_type` | object | Meeting type info with id, name, scope \(nullable\) |
 
 
 ---
@@ -163,7 +197,19 @@ Trigger workflow when a recording is updated in Grain
 | --------- | ---- | ----------- |
 | `type` | string | Event type |
 | `user_id` | string | User UUID who triggered the event |
-| `data` | string | Recording UUID |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Recording UUID |
+|   ↳ `title` | string | Recording title |
+|   ↳ `start_datetime` | string | ISO8601 start timestamp |
+|   ↳ `end_datetime` | string | ISO8601 end timestamp |
+|   ↳ `duration_ms` | number | Duration in milliseconds |
+|   ↳ `media_type` | string | audio, transcript, or video |
+|   ↳ `source` | string | Recording source \(zoom, meet, local_capture, etc.\) |
+|   ↳ `url` | string | URL to view in Grain |
+|   ↳ `thumbnail_url` | string | Thumbnail URL \(nullable\) |
+|   ↳ `tags` | array | Array of tag strings |
+|   ↳ `teams` | array | Array of team objects |
+|   ↳ `meeting_type` | object | Meeting type info with id, name, scope \(nullable\) |
 
 
 ---
@@ -185,5 +231,9 @@ Trigger workflow when a new story is created in Grain
 | --------- | ---- | ----------- |
 | `type` | string | Event type |
 | `user_id` | string | User UUID who triggered the event |
-| `data` | string | Story UUID |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Story UUID |
+|   ↳ `title` | string | Story title |
+|   ↳ `url` | string | URL to view in Grain |
+|   ↳ `created_datetime` | string | ISO8601 creation timestamp |
 

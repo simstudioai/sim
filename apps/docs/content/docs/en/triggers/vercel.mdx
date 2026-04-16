@@ -35,15 +35,27 @@ Trigger workflow when a deployment is canceled
 | `createdAt` | number | Event timestamp in milliseconds |
 | `region` | string | Region where the event occurred |
 | `payload` | json | Raw event payload from Vercel |
-| `links` | string | Vercel Dashboard URL for the deployment |
+| `links` | object | links output from the tool |
+|   ↳ `deployment` | string | Vercel Dashboard URL for the deployment |
+|   ↳ `project` | string | Vercel Dashboard URL for the project |
 | `regions` | json | Regions associated with the deployment \(array\), when provided by Vercel |
-| `deployment` | string | Deployment ID |
-| `project` | string | Project ID |
-| `team` | string | Team ID |
-| `user` | string | User ID |
+| `deployment` | object | deployment output from the tool |
+|   ↳ `id` | string | Deployment ID |
+|   ↳ `url` | string | Deployment URL |
+|   ↳ `name` | string | Deployment name |
+|   ↳ `meta` | json | Deployment metadata map \(e.g. Git metadata\), per Vercel Webhooks API |
+| `project` | object | project output from the tool |
+|   ↳ `id` | string | Project ID |
+|   ↳ `name` | string | Project name |
+| `team` | object | team output from the tool |
+|   ↳ `id` | string | Team ID |
+| `user` | object | user output from the tool |
+|   ↳ `id` | string | User ID |
 | `target` | string | Deployment target \(production, staging, or preview\) |
 | `plan` | string | Account plan type |
-| `domain` | string | Domain name |
+| `domain` | object | domain output from the tool |
+|   ↳ `name` | string | Domain name |
+|   ↳ `delegated` | boolean | Whether the domain was delegated/shared when present on the payload |
 
 
 ---
@@ -69,15 +81,27 @@ Trigger workflow when a new deployment is created
 | `createdAt` | number | Event timestamp in milliseconds |
 | `region` | string | Region where the event occurred |
 | `payload` | json | Raw event payload from Vercel |
-| `links` | string | Vercel Dashboard URL for the deployment |
+| `links` | object | links output from the tool |
+|   ↳ `deployment` | string | Vercel Dashboard URL for the deployment |
+|   ↳ `project` | string | Vercel Dashboard URL for the project |
 | `regions` | json | Regions associated with the deployment \(array\), when provided by Vercel |
-| `deployment` | string | Deployment ID |
-| `project` | string | Project ID |
-| `team` | string | Team ID |
-| `user` | string | User ID |
+| `deployment` | object | deployment output from the tool |
+|   ↳ `id` | string | Deployment ID |
+|   ↳ `url` | string | Deployment URL |
+|   ↳ `name` | string | Deployment name |
+|   ↳ `meta` | json | Deployment metadata map \(e.g. Git metadata\), per Vercel Webhooks API |
+| `project` | object | project output from the tool |
+|   ↳ `id` | string | Project ID |
+|   ↳ `name` | string | Project name |
+| `team` | object | team output from the tool |
+|   ↳ `id` | string | Team ID |
+| `user` | object | user output from the tool |
+|   ↳ `id` | string | User ID |
 | `target` | string | Deployment target \(production, staging, or preview\) |
 | `plan` | string | Account plan type |
-| `domain` | string | Domain name |
+| `domain` | object | domain output from the tool |
+|   ↳ `name` | string | Domain name |
+|   ↳ `delegated` | boolean | Whether the domain was delegated/shared when present on the payload |
 
 
 ---
@@ -103,15 +127,27 @@ Trigger workflow when a deployment fails
 | `createdAt` | number | Event timestamp in milliseconds |
 | `region` | string | Region where the event occurred |
 | `payload` | json | Raw event payload from Vercel |
-| `links` | string | Vercel Dashboard URL for the deployment |
+| `links` | object | links output from the tool |
+|   ↳ `deployment` | string | Vercel Dashboard URL for the deployment |
+|   ↳ `project` | string | Vercel Dashboard URL for the project |
 | `regions` | json | Regions associated with the deployment \(array\), when provided by Vercel |
-| `deployment` | string | Deployment ID |
-| `project` | string | Project ID |
-| `team` | string | Team ID |
-| `user` | string | User ID |
+| `deployment` | object | deployment output from the tool |
+|   ↳ `id` | string | Deployment ID |
+|   ↳ `url` | string | Deployment URL |
+|   ↳ `name` | string | Deployment name |
+|   ↳ `meta` | json | Deployment metadata map \(e.g. Git metadata\), per Vercel Webhooks API |
+| `project` | object | project output from the tool |
+|   ↳ `id` | string | Project ID |
+|   ↳ `name` | string | Project name |
+| `team` | object | team output from the tool |
+|   ↳ `id` | string | Team ID |
+| `user` | object | user output from the tool |
+|   ↳ `id` | string | User ID |
 | `target` | string | Deployment target \(production, staging, or preview\) |
 | `plan` | string | Account plan type |
-| `domain` | string | Domain name |
+| `domain` | object | domain output from the tool |
+|   ↳ `name` | string | Domain name |
+|   ↳ `delegated` | boolean | Whether the domain was delegated/shared when present on the payload |
 
 
 ---
@@ -137,15 +173,27 @@ Trigger workflow when a deployment is ready to serve traffic
 | `createdAt` | number | Event timestamp in milliseconds |
 | `region` | string | Region where the event occurred |
 | `payload` | json | Raw event payload from Vercel |
-| `links` | string | Vercel Dashboard URL for the deployment |
+| `links` | object | links output from the tool |
+|   ↳ `deployment` | string | Vercel Dashboard URL for the deployment |
+|   ↳ `project` | string | Vercel Dashboard URL for the project |
 | `regions` | json | Regions associated with the deployment \(array\), when provided by Vercel |
-| `deployment` | string | Deployment ID |
-| `project` | string | Project ID |
-| `team` | string | Team ID |
-| `user` | string | User ID |
+| `deployment` | object | deployment output from the tool |
+|   ↳ `id` | string | Deployment ID |
+|   ↳ `url` | string | Deployment URL |
+|   ↳ `name` | string | Deployment name |
+|   ↳ `meta` | json | Deployment metadata map \(e.g. Git metadata\), per Vercel Webhooks API |
+| `project` | object | project output from the tool |
+|   ↳ `id` | string | Project ID |
+|   ↳ `name` | string | Project name |
+| `team` | object | team output from the tool |
+|   ↳ `id` | string | Team ID |
+| `user` | object | user output from the tool |
+|   ↳ `id` | string | User ID |
 | `target` | string | Deployment target \(production, staging, or preview\) |
 | `plan` | string | Account plan type |
-| `domain` | string | Domain name |
+| `domain` | object | domain output from the tool |
+|   ↳ `name` | string | Domain name |
+|   ↳ `delegated` | boolean | Whether the domain was delegated/shared when present on the payload |
 
 
 ---
@@ -171,13 +219,24 @@ Trigger workflow when a domain is created
 | `createdAt` | number | Event timestamp in milliseconds |
 | `region` | string | Region where the event occurred |
 | `payload` | json | Raw event payload from Vercel |
-| `links` | string | Vercel Dashboard URL for the deployment |
+| `links` | object | links output from the tool |
+|   ↳ `deployment` | string | Vercel Dashboard URL for the deployment |
+|   ↳ `project` | string | Vercel Dashboard URL for the project |
 | `regions` | json | Regions associated with the deployment \(array\), when provided by Vercel |
-| `deployment` | string | Deployment ID |
-| `domain` | string | Domain name |
-| `project` | string | Project ID |
-| `team` | string | Team ID |
-| `user` | string | User ID |
+| `deployment` | object | deployment output from the tool |
+|   ↳ `id` | string | Deployment ID |
+|   ↳ `url` | string | Deployment URL |
+|   ↳ `name` | string | Deployment name |
+|   ↳ `meta` | json | Deployment metadata map \(e.g. Git metadata\), per Vercel Webhooks API |
+| `domain` | object | domain output from the tool |
+|   ↳ `name` | string | Domain name |
+|   ↳ `delegated` | boolean | Whether the domain was delegated/shared \(domain.created\), per Vercel Webhooks API |
+| `project` | object | project output from the tool |
+|   ↳ `id` | string | Project ID |
+| `team` | object | team output from the tool |
+|   ↳ `id` | string | Team ID |
+| `user` | object | user output from the tool |
+|   ↳ `id` | string | User ID |
 
 
 ---
@@ -203,12 +262,22 @@ Trigger workflow when a new project is created
 | `createdAt` | number | Event timestamp in milliseconds |
 | `region` | string | Region where the event occurred |
 | `payload` | json | Raw event payload from Vercel |
-| `links` | string | Vercel Dashboard URL for the deployment |
+| `links` | object | links output from the tool |
+|   ↳ `deployment` | string | Vercel Dashboard URL for the deployment |
+|   ↳ `project` | string | Vercel Dashboard URL for the project |
 | `regions` | json | Regions associated with the deployment \(array\), when provided by Vercel |
-| `deployment` | string | Deployment ID |
-| `project` | string | Project ID |
-| `team` | string | Team ID |
-| `user` | string | User ID |
+| `deployment` | object | deployment output from the tool |
+|   ↳ `id` | string | Deployment ID |
+|   ↳ `url` | string | Deployment URL |
+|   ↳ `name` | string | Deployment name |
+|   ↳ `meta` | json | Deployment metadata map \(e.g. Git metadata\), per Vercel Webhooks API |
+| `project` | object | project output from the tool |
+|   ↳ `id` | string | Project ID |
+|   ↳ `name` | string | Project name |
+| `team` | object | team output from the tool |
+|   ↳ `id` | string | Team ID |
+| `user` | object | user output from the tool |
+|   ↳ `id` | string | User ID |
 
 
 ---
@@ -234,12 +303,22 @@ Trigger workflow when a project is removed
 | `createdAt` | number | Event timestamp in milliseconds |
 | `region` | string | Region where the event occurred |
 | `payload` | json | Raw event payload from Vercel |
-| `links` | string | Vercel Dashboard URL for the deployment |
+| `links` | object | links output from the tool |
+|   ↳ `deployment` | string | Vercel Dashboard URL for the deployment |
+|   ↳ `project` | string | Vercel Dashboard URL for the project |
 | `regions` | json | Regions associated with the deployment \(array\), when provided by Vercel |
-| `deployment` | string | Deployment ID |
-| `project` | string | Project ID |
-| `team` | string | Team ID |
-| `user` | string | User ID |
+| `deployment` | object | deployment output from the tool |
+|   ↳ `id` | string | Deployment ID |
+|   ↳ `url` | string | Deployment URL |
+|   ↳ `name` | string | Deployment name |
+|   ↳ `meta` | json | Deployment metadata map \(e.g. Git metadata\), per Vercel Webhooks API |
+| `project` | object | project output from the tool |
+|   ↳ `id` | string | Project ID |
+|   ↳ `name` | string | Project name |
+| `team` | object | team output from the tool |
+|   ↳ `id` | string | Team ID |
+| `user` | object | user output from the tool |
+|   ↳ `id` | string | User ID |
 
 
 ---
@@ -264,8 +343,14 @@ Trigger on a curated set of common Vercel events (deployments, projects, domains
 | `id` | string | Unique webhook delivery ID \(string\) |
 | `createdAt` | number | Event timestamp in milliseconds |
 | `region` | string | Region where the event occurred |
-| `links` | string | Vercel Dashboard URL for the deployment |
+| `links` | object | links output from the tool |
+|   ↳ `deployment` | string | Vercel Dashboard URL for the deployment |
+|   ↳ `project` | string | Vercel Dashboard URL for the project |
 | `regions` | json | Regions associated with the deployment \(array\), when provided by Vercel |
-| `deployment` | string | Deployment ID |
+| `deployment` | object | deployment output from the tool |
+|   ↳ `id` | string | Deployment ID |
+|   ↳ `url` | string | Deployment URL |
+|   ↳ `name` | string | Deployment name |
+|   ↳ `meta` | json | Deployment metadata map \(e.g. Git metadata\), per Vercel Webhooks API |
 | `payload` | json | Full event payload |
 

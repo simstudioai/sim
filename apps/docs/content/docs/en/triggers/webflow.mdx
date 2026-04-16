@@ -32,7 +32,15 @@ Trigger workflow when an item is updated in a Webflow CMS collection (requires W
 | --------- | ---- | ----------- |
 | `siteId` | string | The site ID where the event occurred |
 | `collectionId` | string | The collection ID where the item was changed |
-| `payload` | string | The ID of the changed item |
+| `payload` | object | payload output from the tool |
+|   ↳ `id` | string | The ID of the changed item |
+|   ↳ `cmsLocaleId` | string | CMS locale ID |
+|   ↳ `lastPublished` | string | Last published timestamp |
+|   ↳ `lastUpdated` | string | Last updated timestamp |
+|   ↳ `createdOn` | string | Timestamp when the item was created |
+|   ↳ `isArchived` | boolean | Whether the item is archived |
+|   ↳ `isDraft` | boolean | Whether the item is a draft |
+|   ↳ `fieldData` | object | The updated field data of the item |
 
 
 ---
@@ -55,7 +63,15 @@ Trigger workflow when a new item is created in a Webflow CMS collection (require
 | --------- | ---- | ----------- |
 | `siteId` | string | The site ID where the event occurred |
 | `collectionId` | string | The collection ID where the item was created |
-| `payload` | string | The ID of the created item |
+| `payload` | object | payload output from the tool |
+|   ↳ `id` | string | The ID of the created item |
+|   ↳ `cmsLocaleId` | string | CMS locale ID |
+|   ↳ `lastPublished` | string | Last published timestamp |
+|   ↳ `lastUpdated` | string | Last updated timestamp |
+|   ↳ `createdOn` | string | Timestamp when the item was created |
+|   ↳ `isArchived` | boolean | Whether the item is archived |
+|   ↳ `isDraft` | boolean | Whether the item is a draft |
+|   ↳ `fieldData` | object | The field data of the item |
 
 
 ---
@@ -78,7 +94,9 @@ Trigger workflow when an item is deleted from a Webflow CMS collection (requires
 | --------- | ---- | ----------- |
 | `siteId` | string | The site ID where the event occurred |
 | `collectionId` | string | The collection ID where the item was deleted |
-| `payload` | string | The ID of the deleted item |
+| `payload` | object | payload output from the tool |
+|   ↳ `id` | string | The ID of the deleted item |
+|   ↳ `deletedOn` | string | Timestamp when the item was deleted |
 
 
 ---

@@ -34,6 +34,21 @@ Triggers when new emails are received in Outlook (requires Microsoft credentials
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `email` | string | Outlook message ID |
+| `email` | object | email output from the tool |
+|   ↳ `id` | string | Outlook message ID |
+|   ↳ `conversationId` | string | Outlook conversation ID |
+|   ↳ `subject` | string | Email subject line |
+|   ↳ `from` | string | Sender email address |
+|   ↳ `to` | string | Recipient email address |
+|   ↳ `cc` | string | CC recipients |
+|   ↳ `date` | string | Email date in ISO format |
+|   ↳ `bodyText` | string | Plain text email body |
+|   ↳ `bodyHtml` | string | HTML email body |
+|   ↳ `hasAttachments` | boolean | Whether email has attachments |
+|   ↳ `attachments` | file[] | Array of email attachments as files \(if includeAttachments is enabled\) |
+|   ↳ `isRead` | boolean | Whether email is read |
+|   ↳ `folderId` | string | Outlook folder ID where email is located |
+|   ↳ `messageId` | string | Message ID for threading |
+|   ↳ `threadId` | string | Thread ID for conversation threading |
 | `timestamp` | string | Event timestamp |
 

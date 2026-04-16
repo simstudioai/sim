@@ -39,8 +39,14 @@ Trigger workflow when a comment or suggested edit is added in Notion
 | `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
 | `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
 | `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
-| `entity` | string | Comment ID |
-| `data` | string | Page ID that owns the comment thread |
+| `entity` | object | entity output from the tool |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `entity_type` | string | Entity type \(comment\) |
+| `data` | object | data output from the tool |
+|   ↳ `page_id` | string | Page ID that owns the comment thread |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page or block ID |
+|     ↳ `parent_type` | string | Parent type \(page or block\) |
 
 
 ---
@@ -70,7 +76,12 @@ Trigger workflow when a new database is created in Notion
 | `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
 | `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
 | `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
-| `data` | array | Blocks updated as part of the event, when provided by Notion |
+| `data` | object | data output from the tool |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Database properties updated as part of the event, when provided by Notion |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page, database, workspace, or space ID |
+|     ↳ `parent_type` | string | Parent type: `page`, `database`, `workspace`, or `space` |
 
 
 ---
@@ -100,7 +111,12 @@ Trigger workflow when a database is deleted in Notion
 | `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
 | `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
 | `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
-| `data` | array | Blocks updated as part of the event, when provided by Notion |
+| `data` | object | data output from the tool |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Database properties updated as part of the event, when provided by Notion |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page, database, workspace, or space ID |
+|     ↳ `parent_type` | string | Parent type: `page`, `database`, `workspace`, or `space` |
 
 
 ---
@@ -130,7 +146,12 @@ Trigger workflow when a database schema is modified in Notion
 | `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
 | `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
 | `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
-| `data` | array | Blocks updated as part of the event, when provided by Notion |
+| `data` | object | data output from the tool |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Database properties updated as part of the event, when provided by Notion |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page, database, workspace, or space ID |
+|     ↳ `parent_type` | string | Parent type: `page`, `database`, `workspace`, or `space` |
 
 
 ---
@@ -160,7 +181,12 @@ Trigger workflow when page content is changed in Notion
 | `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
 | `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
 | `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
-| `data` | array | Blocks updated as part of the event, when provided by Notion |
+| `data` | object | data output from the tool |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Property IDs updated as part of the event, when provided by Notion |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page, database, workspace \(space\), or block ID |
+|     ↳ `parent_type` | string | Parent type: `page`, `database`, `block`, `workspace`, or `space` |
 
 
 ---
@@ -190,7 +216,12 @@ Trigger workflow when a new page is created in Notion
 | `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
 | `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
 | `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
-| `data` | array | Blocks updated as part of the event, when provided by Notion |
+| `data` | object | data output from the tool |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Property IDs updated as part of the event, when provided by Notion |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page, database, workspace \(space\), or block ID |
+|     ↳ `parent_type` | string | Parent type: `page`, `database`, `block`, `workspace`, or `space` |
 
 
 ---
@@ -220,7 +251,12 @@ Trigger workflow when a page is deleted in Notion
 | `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
 | `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
 | `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
-| `data` | array | Blocks updated as part of the event, when provided by Notion |
+| `data` | object | data output from the tool |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Property IDs updated as part of the event, when provided by Notion |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page, database, workspace \(space\), or block ID |
+|     ↳ `parent_type` | string | Parent type: `page`, `database`, `block`, `workspace`, or `space` |
 
 
 ---
@@ -250,7 +286,12 @@ Trigger workflow when page properties are modified in Notion
 | `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
 | `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
 | `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
-| `data` | array | Blocks updated as part of the event, when provided by Notion |
+| `data` | object | data output from the tool |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Property IDs updated as part of the event, when provided by Notion |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page, database, workspace \(space\), or block ID |
+|     ↳ `parent_type` | string | Parent type: `page`, `database`, `block`, `workspace`, or `space` |
 
 
 ---
@@ -280,5 +321,11 @@ Trigger workflow on any Notion webhook event
 | `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
 | `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
 | `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
-| `data` | string | Parent entity ID, when provided by Notion |
+| `data` | object | data output from the tool |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent entity ID, when provided by Notion |
+|     ↳ `parent_type` | string | Parent type \(`page`, `database`, `block`, `workspace`, `space`, …\), when present |
+|   ↳ `page_id` | string | Page ID related to the event, when present |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Updated properties included with the event, when provided by Notion |
 

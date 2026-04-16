@@ -1463,18 +1463,15 @@ function resolveConstFromTypesContent(
  * Handles single quotes, double quotes, and backticks, preserving internal quotes.
  */
 function extractDescription(fieldContent: string): string | null {
-  // Try single-quoted string (can contain double quotes)
-  const singleQuoteMatch = fieldContent.match(/description\s*:\s*'([^']*)'/)
-  if (singleQuoteMatch) return singleQuoteMatch[1]
-
-  // Try double-quoted string (can contain single quotes)
-  const doubleQuoteMatch = fieldContent.match(/description\s*:\s*"([^"]*)"/)
-  if (doubleQuoteMatch) return doubleQuoteMatch[1]
-
-  // Try backtick string
-  const backtickMatch = fieldContent.match(/description\s*:\s*`([^`]*)`/)
-  if (backtickMatch) return backtickMatch[1]
-
+  // Walk through all `description:` matches and return the first one at depth 0.
+  // This prevents accidentally picking up `description:` keys inside nested child objects.
+  const descRegex = /description\s*:\s*('([^']*)'|"([^"]*)"|`([^`]*)`)/g
+  let m: RegExpExecArray | null
+  while ((m = descRegex.exec(fieldContent)) !== null) {
+    if (isAtDepthZero(fieldContent, m.index)) {
+      return m[2] ?? m[3] ?? m[4] ?? null
+    }
+  }
   return null
 }
 
@@ -2051,8 +2048,31 @@ function parseToolOutputsField(outputsContent: string, toolPrefix?: string): Rec
   return outputs
 }
 
+/**
+ * Returns true if the regex match at `matchIndex` within `content` is at brace depth 0.
+ * Used to distinguish top-level keys from keys nested inside child objects.
+ */
+function isAtDepthZero(content: string, matchIndex: number): boolean {
+  let depth = 0
+  for (let i = 0; i < matchIndex; i++) {
+    if (content[i] === '{') depth++
+    else if (content[i] === '}') depth--
+  }
+  return depth === 0
+}
+
 function parseFieldContent(fieldContent: string, toolPrefix?: string): any {
-  const typeMatch = fieldContent.match(/type\s*:\s*['"]([^'"]+)['"]/)
+  // Only match `type:` that is at the top level of fieldContent (depth 0).
+  // Child objects like `title: { type: 'string', ... }` also contain `type:` but at depth 1.
+  const typeRegex = /type\s*:\s*['"]([^'"]+)['"]/g
+  let typeMatch: RegExpExecArray | null = null
+  let m: RegExpExecArray | null
+  while ((m = typeRegex.exec(fieldContent)) !== null) {
+    if (isAtDepthZero(fieldContent, m.index)) {
+      typeMatch = m
+      break
+    }
+  }
   const description = extractDescription(fieldContent)
 
   // Check for spread operator at the start of field content (e.g., ...SUBSCRIPTION_OUTPUT)
@@ -2072,7 +2092,20 @@ function parseFieldContent(fieldContent: string, toolPrefix?: string): any {
     }
   }
 
-  if (!typeMatch) return null
+  if (!typeMatch) {
+    // No top-level `type` key — check if the content contains named child fields that each
+    // have their own `type` property. This is the "implicit object" pattern used in trigger
+    // outputs (e.g., Cal.com's `payload`, Linear's `data`).
+    const properties = parsePropertiesContent(fieldContent, toolPrefix)
+    if (Object.keys(properties).length > 0) {
+      return {
+        type: 'object',
+        description: description || '',
+        properties,
+      }
+    }
+    return null
+  }
 
   const fieldType = typeMatch[1]
 

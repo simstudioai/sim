@@ -30,7 +30,9 @@ Trigger workflow when a Zoom meeting ends
 | --------- | ---- | ----------- |
 | `event` | string | The webhook event type \(e.g., meeting.started\) |
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
-| `payload` | string | Zoom account ID |
+| `payload` | object | payload output from the tool |
+|   ↳ `account_id` | string | Zoom account ID |
+|   ↳ `object` | object | Meeting details \(shape aligns with Zoom Meetings webhook object fields\) |
 
 
 ---
@@ -51,7 +53,9 @@ Trigger workflow when a Zoom meeting starts
 | --------- | ---- | ----------- |
 | `event` | string | The webhook event type \(e.g., meeting.started\) |
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
-| `payload` | string | Zoom account ID |
+| `payload` | object | payload output from the tool |
+|   ↳ `account_id` | string | Zoom account ID |
+|   ↳ `object` | object | Meeting details \(shape aligns with Zoom Meetings webhook object fields\) |
 
 
 ---
@@ -72,7 +76,9 @@ Trigger workflow when a participant joins a Zoom meeting
 | --------- | ---- | ----------- |
 | `event` | string | The webhook event type \(e.g., meeting.participant_joined\) |
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
-| `payload` | string | Zoom account ID |
+| `payload` | object | payload output from the tool |
+|   ↳ `account_id` | string | Zoom account ID |
+|   ↳ `object` | object | Meeting and participant details |
 
 
 ---
@@ -93,7 +99,9 @@ Trigger workflow when a participant leaves a Zoom meeting
 | --------- | ---- | ----------- |
 | `event` | string | The webhook event type \(e.g., meeting.participant_joined\) |
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
-| `payload` | string | Zoom account ID |
+| `payload` | object | payload output from the tool |
+|   ↳ `account_id` | string | Zoom account ID |
+|   ↳ `object` | object | Meeting and participant details |
 
 
 ---
@@ -114,7 +122,9 @@ Trigger workflow when a Zoom cloud recording is completed
 | --------- | ---- | ----------- |
 | `event` | string | The webhook event type \(recording.completed\) |
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
-| `payload` | string | Zoom account ID |
+| `payload` | object | payload output from the tool |
+|   ↳ `account_id` | string | Zoom account ID |
+|   ↳ `object` | object | Cloud recording details \(aligns with Zoom cloud recording objects\) |
 
 
 ---
