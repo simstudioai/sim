@@ -6,9 +6,9 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { generateId } from '@/lib/core/utils/uuid'
-import { COLUMN_TYPES } from '@/lib/table/constants'
 import {
   buildAutoMapping,
+  COLUMN_TYPES,
   CSV_MAX_BATCH_SIZE,
   type CsvHeaderMapping,
   CsvImportValidationError,
@@ -17,7 +17,7 @@ import {
   parseCsvBuffer,
   sanitizeName,
   validateMapping,
-} from '@/lib/table/csv-import'
+} from '@/lib/table'
 import {
   addTableColumn,
   batchInsertRows,
