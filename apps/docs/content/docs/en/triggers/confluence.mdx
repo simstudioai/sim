@@ -18,6 +18,16 @@ Confluence provides 16 triggers for automating workflows based on events.
 
 Trigger workflow when an attachment is uploaded in Confluence
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+| `confluenceEmail` | string | No | Your Atlassian account email. Required together with API token to download attachment files. |
+| `confluenceApiToken` | string | No | API token from https://id.atlassian.com/manage-profile/security/api-tokens. Required to download attachment file content. |
+| `includeFileContent` | boolean | No | Download and include actual file content from attachments. Requires email, API token, and domain. |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -44,6 +54,16 @@ Trigger workflow when an attachment is uploaded in Confluence
 ### Confluence Attachment Removed
 
 Trigger workflow when an attachment is removed in Confluence
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+| `confluenceEmail` | string | No | Your Atlassian account email. Required together with API token to download attachment files. |
+| `confluenceApiToken` | string | No | API token from https://id.atlassian.com/manage-profile/security/api-tokens. Required to download attachment file content. |
+| `includeFileContent` | boolean | No | Download and include actual file content from attachments. Requires email, API token, and domain. |
 
 #### Output
 
@@ -72,6 +92,13 @@ Trigger workflow when an attachment is removed in Confluence
 
 Trigger workflow when a blog post is created in Confluence
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -86,6 +113,13 @@ Trigger workflow when a blog post is created in Confluence
 ### Confluence Blog Post Removed
 
 Trigger workflow when a blog post is removed in Confluence
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
 
 #### Output
 
@@ -102,6 +136,13 @@ Trigger workflow when a blog post is removed in Confluence
 
 Trigger workflow when a blog post is updated in Confluence
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -116,6 +157,13 @@ Trigger workflow when a blog post is updated in Confluence
 ### Confluence Comment Created
 
 Trigger workflow when a comment is created in Confluence
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
 
 #### Output
 
@@ -143,6 +191,13 @@ Trigger workflow when a comment is created in Confluence
 
 Trigger workflow when a comment is removed in Confluence
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -169,6 +224,13 @@ Trigger workflow when a comment is removed in Confluence
 
 Trigger workflow when a label is added to content in Confluence
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -185,6 +247,13 @@ Trigger workflow when a label is added to content in Confluence
 ### Confluence Label Removed
 
 Trigger workflow when a label is removed from content in Confluence
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
 
 #### Output
 
@@ -203,6 +272,13 @@ Trigger workflow when a label is removed from content in Confluence
 
 Trigger workflow when a new page is created in Confluence
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -217,6 +293,13 @@ Trigger workflow when a new page is created in Confluence
 ### Confluence Page Moved
 
 Trigger workflow when a page is moved in Confluence
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
 
 #### Output
 
@@ -233,6 +316,13 @@ Trigger workflow when a page is moved in Confluence
 
 Trigger workflow when a page is removed or trashed in Confluence
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -248,6 +338,13 @@ Trigger workflow when a page is removed or trashed in Confluence
 
 Trigger workflow when a page is updated in Confluence
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -262,6 +359,13 @@ Trigger workflow when a page is updated in Confluence
 ### Confluence Space Created
 
 Trigger workflow when a new space is created in Confluence
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
 
 #### Output
 
@@ -279,6 +383,13 @@ Trigger workflow when a new space is created in Confluence
 
 Trigger workflow when a space is updated in Confluence
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -294,6 +405,16 @@ Trigger workflow when a space is updated in Confluence
 ### Confluence Webhook (All Events)
 
 Trigger workflow on any Confluence webhook event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+| `confluenceEmail` | string | No | Your Atlassian account email. Required together with API token to download attachment files. |
+| `confluenceApiToken` | string | No | API token from https://id.atlassian.com/manage-profile/security/api-tokens. Required to download attachment file content. |
+| `includeFileContent` | boolean | No | Download and include actual file content from attachments. Requires email, API token, and domain. |
 
 #### Output
 

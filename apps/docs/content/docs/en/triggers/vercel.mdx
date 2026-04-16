@@ -18,6 +18,14 @@ Vercel provides 8 triggers for automating workflows based on events.
 
 Trigger workflow when a deployment is canceled
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Vercel. |
+| `teamId` | string | No | Scope webhook to a specific team |
+| `filterProjectIds` | string | No | Limit webhook to specific projects |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -43,6 +51,14 @@ Trigger workflow when a deployment is canceled
 ### Vercel Deployment Created
 
 Trigger workflow when a new deployment is created
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Vercel. |
+| `teamId` | string | No | Scope webhook to a specific team |
+| `filterProjectIds` | string | No | Limit webhook to specific projects |
 
 #### Output
 
@@ -70,6 +86,14 @@ Trigger workflow when a new deployment is created
 
 Trigger workflow when a deployment fails
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Vercel. |
+| `teamId` | string | No | Scope webhook to a specific team |
+| `filterProjectIds` | string | No | Limit webhook to specific projects |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -95,6 +119,14 @@ Trigger workflow when a deployment fails
 ### Vercel Deployment Ready
 
 Trigger workflow when a deployment is ready to serve traffic
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Vercel. |
+| `teamId` | string | No | Scope webhook to a specific team |
+| `filterProjectIds` | string | No | Limit webhook to specific projects |
 
 #### Output
 
@@ -122,6 +154,14 @@ Trigger workflow when a deployment is ready to serve traffic
 
 Trigger workflow when a domain is created
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Vercel. |
+| `teamId` | string | No | Scope webhook to a specific team |
+| `filterProjectIds` | string | No | Limit webhook to specific projects |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -146,6 +186,14 @@ Trigger workflow when a domain is created
 
 Trigger workflow when a new project is created
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Vercel. |
+| `teamId` | string | No | Scope webhook to a specific team |
+| `filterProjectIds` | string | No | Limit webhook to specific projects |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -169,6 +217,14 @@ Trigger workflow when a new project is created
 
 Trigger workflow when a project is removed
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Vercel. |
+| `teamId` | string | No | Scope webhook to a specific team |
+| `filterProjectIds` | string | No | Limit webhook to specific projects |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -191,6 +247,14 @@ Trigger workflow when a project is removed
 ### Vercel Webhook (Common Events)
 
 Trigger on a curated set of common Vercel events (deployments, projects, domains, edge config). Pick a specific trigger to listen to one event type only.
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Vercel. |
+| `teamId` | string | No | Scope webhook to a specific team |
+| `filterProjectIds` | string | No | Limit webhook to specific projects |
 
 #### Output
 

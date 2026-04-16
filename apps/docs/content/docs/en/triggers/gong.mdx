@@ -18,6 +18,12 @@ Gong provides 2 triggers for automating workflows based on events.
 
 Trigger workflow when a call is completed and processed in Gong
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `gongJwtPublicKeyPem` | string | No | Required only when your Gong rule uses **Signed JWT header**. Sim verifies RS256, `webhook_url`, and `body_sha256` per Gong. If empty, only the webhook URL path authenticates the request. |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -39,6 +45,12 @@ Trigger workflow when a call is completed and processed in Gong
 ### Gong Webhook
 
 Generic webhook trigger for all Gong events
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `gongJwtPublicKeyPem` | string | No | Required only when your Gong rule uses **Signed JWT header**. Sim verifies RS256, `webhook_url`, and `body_sha256` per Gong. If empty, only the webhook URL path authenticates the request. |
 
 #### Output
 

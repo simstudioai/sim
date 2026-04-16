@@ -18,6 +18,13 @@ ServiceNow provides 5 triggers for automating workflows based on events.
 
 Trigger workflow when a new change request is created in ServiceNow
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -51,6 +58,13 @@ Trigger workflow when a new change request is created in ServiceNow
 
 Trigger workflow when a change request is updated in ServiceNow
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -83,6 +97,13 @@ Trigger workflow when a change request is updated in ServiceNow
 ### ServiceNow Incident Created
 
 Trigger workflow when a new incident is created in ServiceNow
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
 
 #### Output
 
@@ -118,6 +139,13 @@ Trigger workflow when a new incident is created in ServiceNow
 
 Trigger workflow when an incident is updated in ServiceNow
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -151,6 +179,13 @@ Trigger workflow when an incident is updated in ServiceNow
 ### ServiceNow Webhook (All Events)
 
 Trigger workflow on any ServiceNow webhook event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your ServiceNow Business Rule as Bearer token or X-Sim-Webhook-Secret. |
+| `tableName` | string | No | Optionally filter to a specific ServiceNow table |
 
 #### Output
 

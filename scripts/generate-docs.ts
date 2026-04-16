@@ -3074,69 +3074,273 @@ function extractTriggerOutputs(
 }
 
 /**
- * Extract user-facing configuration fields from a TriggerConfig subBlocks array.
- * Skips UI-only blocks (webhook URL display, setup instructions, trigger selector).
+ * Lazy-loaded cache of all TypeScript files in `lib/webhooks/providers/`.
+ * Used to resolve exported string constants that are imported by trigger utils files
+ * (e.g. `GONG_JWT_PUBLIC_KEY_CONFIG_KEY` from `lib/webhooks/providers/gong.ts`).
  */
-function extractTriggerConfigFields(segment: string): TriggerConfigField[] {
+let _webhookProviderConstantsCache: string | null = null
+function getWebhookProviderConstants(): string {
+  if (_webhookProviderConstantsCache === null) {
+    const dir = path.join(rootDir, 'apps/sim/lib/webhooks/providers')
+    if (fs.existsSync(dir)) {
+      _webhookProviderConstantsCache = fs
+        .readdirSync(dir)
+        .filter((f) => f.endsWith('.ts'))
+        .map((f) => fs.readFileSync(path.join(dir, f), 'utf-8'))
+        .join('\n')
+    } else {
+      _webhookProviderConstantsCache = ''
+    }
+  }
+  return _webhookProviderConstantsCache
+}
+
+/**
+ * Try to resolve a SCREAMING_SNAKE_CASE constant to its string value by
+ * searching in the given content AND the webhook provider constants cache.
+ */
+function resolveConstStringValue(constName: string, content: string): string | null {
+  const pattern = new RegExp(`\\b${constName}\\s*=\\s*['"]([^'"]+)['"]`)
+  return pattern.exec(content)?.[1] ?? pattern.exec(getWebhookProviderConstants())?.[1] ?? null
+}
+
+/**
+ * Parse a single SubBlockConfig object literal into a TriggerConfigField.
+ * Returns null for blocks that should be skipped (UI-only IDs, text type, readOnly).
+ * Accepts optional `resolverContent` to resolve const-reference field IDs.
+ */
+function parseSubBlockObject(
+  obj: string,
+  uiOnlyIds: Set<string>,
+  resolverContent?: string
+): TriggerConfigField | null {
+  let id: string | undefined = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(obj)?.[1]
+
+  // Handle const-reference ids: `id: SCREAMING_CASE_IDENTIFIER`
+  if (!id) {
+    const constRefMatch = /\bid\s*:\s*([A-Z][A-Z0-9_]+)\b/.exec(obj)
+    if (constRefMatch) {
+      id = resolveConstStringValue(constRefMatch[1], resolverContent ?? '') ?? undefined
+    }
+  }
+
+  if (!id || uiOnlyIds.has(id)) return null
+
+  const typeMatch = /\btype\s*:\s*['"]([^'"]+)['"]/.exec(obj)
+  if (typeMatch?.[1] === 'text') return null
+  if (/\breadOnly\s*:\s*true/.test(obj)) return null
+
+  const titleMatch = /\btitle\s*:\s*['"]([^'"]+)['"]/.exec(obj)
+  const requiredMatch = /\brequired\s*:\s*(true)/.exec(obj)
+  const placeholderMatch = /\bplaceholder\s*:\s*['"]([^'"]+)['"]/.exec(obj)
+  const descMatch = /\bdescription\s*:\s*['"]([^'"]+)['"]/.exec(obj)
+
+  // Use title as description fallback so oauth-input and other fields without
+  // an explicit description still show something meaningful in the docs table.
+  const description = descMatch?.[1] ?? (titleMatch ? `${titleMatch[1]}` : undefined)
+
+  return {
+    id,
+    title: titleMatch?.[1] ?? id,
+    type: typeMatch?.[1] ?? 'short-input',
+    required: Boolean(requiredMatch),
+    placeholder: placeholderMatch?.[1],
+    description,
+  }
+}
+
+/**
+ * Resolve a SubBlockConfig builder function to its field definitions.
+ * Handles `return [...]`, `return {...}`, and `blocks.push(...)` patterns.
+ * Searches `utilsContent` first, then `primaryContent`.
+ */
+function resolveSubBlockBuilderFunction(
+  funcName: string,
+  utilsContent: string,
+  primaryContent?: string
+): TriggerConfigField[] {
   const UI_ONLY_IDS = new Set(['webhookUrlDisplay', 'triggerInstructions', 'selectedTriggerId'])
+
+  for (const content of [utilsContent, primaryContent ?? '']) {
+    if (!content) continue
+    const funcRegex = new RegExp(`(?:export\\s+)?function\\s+${funcName}\\s*\\(`)
+    const funcMatch = funcRegex.exec(content)
+    if (!funcMatch) continue
+
+    // Find the closing ')' of the parameter list, then the '{' that opens the function body.
+    // Using just indexOf('{') would pick up '{' inside object-type parameters.
+    const openParen = content.indexOf('(', funcMatch.index)
+    if (openParen === -1) continue
+    const closeParen = findMatchingClose(content, openParen, '(', ')')
+    if (closeParen === -1) continue
+    const bodyStart = content.indexOf('{', closeParen)
+    if (bodyStart === -1) continue
+    const bodyEnd = findMatchingClose(content, bodyStart)
+    if (bodyEnd === -1) continue
+
+    const funcBody = content.substring(bodyStart + 1, bodyEnd - 1)
+
+    // Pattern 1: `return [...]`
+    const returnArrayMatch = /\breturn\s*\[/.exec(funcBody)
+    if (returnArrayMatch) {
+      const arrayStart = funcBody.indexOf('[', returnArrayMatch.index)
+      const arrayEnd = findMatchingClose(funcBody, arrayStart, '[', ']')
+      if (arrayEnd !== -1) {
+        return parseSubBlockArrayContent(
+          funcBody.substring(arrayStart + 1, arrayEnd - 1),
+          UI_ONLY_IDS,
+          content
+        )
+      }
+    }
+
+    // Pattern 2: `return { ... }` (single object)
+    const returnObjMatch = /\breturn\s*\{/.exec(funcBody)
+    if (returnObjMatch) {
+      const objStart = funcBody.indexOf('{', returnObjMatch.index)
+      const objEnd = findMatchingClose(funcBody, objStart)
+      if (objEnd !== -1) {
+        const field = parseSubBlockObject(
+          funcBody.substring(objStart, objEnd),
+          UI_ONLY_IDS,
+          content
+        )
+        return field ? [field] : []
+      }
+    }
+
+    // Pattern 3: `blocks.push({...})`
+    const pushFields: TriggerConfigField[] = []
+    const pushRegex = /\bblocks\.push\s*\(/g
+    let pushMatch: RegExpExecArray | null
+    while ((pushMatch = pushRegex.exec(funcBody)) !== null) {
+      const parenStart = pushMatch.index + pushMatch[0].length - 1
+      const parenEnd = findMatchingClose(funcBody, parenStart, '(', ')')
+      if (parenEnd === -1) continue
+      const pushArg = funcBody.substring(parenStart + 1, parenEnd - 1).trim()
+      if (pushArg.startsWith('{')) {
+        const field = parseSubBlockObject(pushArg, UI_ONLY_IDS, content)
+        if (field) pushFields.push(field)
+      }
+    }
+    if (pushFields.length > 0) return pushFields
+  }
+
+  return []
+}
+
+/**
+ * Parse SubBlockConfig items from within an array body (between the brackets).
+ * Handles inline `{...}` objects and function calls `funcName(...)`.
+ */
+function parseSubBlockArrayContent(
+  arrayContent: string,
+  uiOnlyIds: Set<string>,
+  utilsContent: string
+): TriggerConfigField[] {
   const fields: TriggerConfigField[] = []
-
-  const subBlocksMatch = /\bsubBlocks\s*:\s*\[/.exec(segment)
-  if (!subBlocksMatch) return fields
-
-  const arrayStart = subBlocksMatch.index + subBlocksMatch[0].length - 1
-  const arrayEnd = findMatchingClose(segment, arrayStart, '[', ']')
-  if (arrayEnd === -1) return fields
-
-  const subBlocksContent = segment.substring(arrayStart + 1, arrayEnd - 1)
-
   let i = 0
-  while (i < subBlocksContent.length) {
-    if (subBlocksContent[i] === '{') {
-      const j = findMatchingClose(subBlocksContent, i)
+
+  while (i < arrayContent.length) {
+    if (arrayContent[i] === '{') {
+      const j = findMatchingClose(arrayContent, i)
       if (j === -1) break
-      const obj = subBlocksContent.substring(i, j)
-
-      const idMatch = /\bid\s*:\s*['"]([^'"]+)['"]/.exec(obj)
-      if (!idMatch || UI_ONLY_IDS.has(idMatch[1])) {
-        i = j
-        continue
-      }
-
-      const typeMatch = /\btype\s*:\s*['"]([^'"]+)['"]/.exec(obj)
-      // Skip text-type blocks (setup instructions rendered as prose)
-      if (typeMatch?.[1] === 'text') {
-        i = j
-        continue
-      }
-
-      // Skip read-only display blocks (webhook URL display, sample payloads, curl examples)
-      if (/\breadOnly\s*:\s*true/.test(obj)) {
-        i = j
-        continue
-      }
-
-      const titleMatch = /\btitle\s*:\s*['"]([^'"]+)['"]/.exec(obj)
-      const requiredMatch = /\brequired\s*:\s*(true)/.exec(obj)
-      const placeholderMatch = /\bplaceholder\s*:\s*['"]([^'"]+)['"]/.exec(obj)
-      const descMatch = /\bdescription\s*:\s*['"]([^'"]+)['"]/.exec(obj)
-
-      fields.push({
-        id: idMatch[1],
-        title: titleMatch?.[1] ?? idMatch[1],
-        type: typeMatch?.[1] ?? 'short-input',
-        required: Boolean(requiredMatch),
-        placeholder: placeholderMatch?.[1],
-        description: descMatch?.[1],
-      })
-
+      const field = parseSubBlockObject(arrayContent.substring(i, j), uiOnlyIds, utilsContent)
+      if (field) fields.push(field)
       i = j
+    } else if (/[a-zA-Z_]/.test(arrayContent[i])) {
+      // Possible function call: funcName(args)
+      const funcCallMatch = /^(\w+)\s*\(/.exec(arrayContent.substring(i))
+      if (funcCallMatch && utilsContent) {
+        const funcName = funcCallMatch[1]
+        if (funcName !== 'true' && funcName !== 'false' && funcName !== 'null') {
+          fields.push(...resolveSubBlockBuilderFunction(funcName, utilsContent))
+        }
+        // Advance past the function call's closing paren
+        const openIdx = arrayContent.indexOf('(', i + funcName.length)
+        if (openIdx !== -1) {
+          const closeIdx = findMatchingClose(arrayContent, openIdx, '(', ')')
+          i = closeIdx !== -1 ? closeIdx : openIdx + 1
+        } else {
+          i += funcName.length
+        }
+      } else {
+        i++
+      }
     } else {
       i++
     }
   }
 
   return fields
+}
+
+/**
+ * Extract user-facing configuration fields from a TriggerConfig subBlocks definition.
+ * Handles both inline arrays (`subBlocks: [...]`) and builder function calls
+ * (`subBlocks: buildXSubBlocks({...})`), resolving them from the trigger file and utils.ts.
+ */
+function extractTriggerConfigFields(
+  segment: string,
+  primaryContent?: string,
+  utilsContent?: string
+): TriggerConfigField[] {
+  const UI_ONLY_IDS = new Set(['webhookUrlDisplay', 'triggerInstructions', 'selectedTriggerId'])
+  const allContent = utilsContent || primaryContent || ''
+
+  // Case 1: Inline subBlocks: [...]
+  const subBlocksMatch = /\bsubBlocks\s*:\s*\[/.exec(segment)
+  if (subBlocksMatch) {
+    const arrayStart = subBlocksMatch.index + subBlocksMatch[0].length - 1
+    const arrayEnd = findMatchingClose(segment, arrayStart, '[', ']')
+    if (arrayEnd === -1) return []
+    return parseSubBlockArrayContent(
+      segment.substring(arrayStart + 1, arrayEnd - 1),
+      UI_ONLY_IDS,
+      allContent
+    )
+  }
+
+  // Case 2: Builder function call — subBlocks: buildXFunc(...)
+  if (!allContent) return []
+  const builderCallMatch = /\bsubBlocks\s*:\s*(\w+)\s*\(/.exec(segment)
+  if (!builderCallMatch) return []
+
+  const funcName = builderCallMatch[1]
+
+  // Special case: buildTriggerSubBlocks — user config lives in the `extraFields` parameter
+  if (funcName === 'buildTriggerSubBlocks') {
+    const openParen = builderCallMatch.index + builderCallMatch[0].length - 1
+    const closeParen = findMatchingClose(segment, openParen, '(', ')')
+    if (closeParen === -1) return []
+
+    const argsBody = segment.substring(openParen + 1, closeParen - 1)
+    const extraFieldsMatch = /\bextraFields\s*:\s*/.exec(argsBody)
+    if (!extraFieldsMatch) return []
+
+    // Find first non-whitespace char after "extraFields:"
+    let valuePos = extraFieldsMatch.index + extraFieldsMatch[0].length
+    while (valuePos < argsBody.length && /\s/.test(argsBody[valuePos])) valuePos++
+
+    if (argsBody[valuePos] === '[') {
+      // extraFields: [...] — inline array, may contain function calls
+      const arrayEnd = findMatchingClose(argsBody, valuePos, '[', ']')
+      if (arrayEnd === -1) return []
+      return parseSubBlockArrayContent(
+        argsBody.substring(valuePos + 1, arrayEnd - 1),
+        UI_ONLY_IDS,
+        allContent
+      )
+    }
+
+    // extraFields: buildXFunc(args) — resolve the builder function
+    const extraFuncMatch = /^(\w+)\s*\(/.exec(argsBody.substring(valuePos))
+    if (!extraFuncMatch) return []
+    return resolveSubBlockBuilderFunction(extraFuncMatch[1], allContent)
+  }
+
+  // For all other builders, resolve the function body directly
+  return resolveSubBlockBuilderFunction(funcName, allContent)
 }
 
 /**
@@ -3188,7 +3392,7 @@ async function buildFullTriggerRegistry(): Promise<Map<string, TriggerFullInfo>>
           provider: providerMatch[1],
           polling,
           outputs: extractTriggerOutputs(segment, content, utilsContent),
-          configFields: extractTriggerConfigFields(segment),
+          configFields: extractTriggerConfigFields(segment, content, utilsContent),
         })
       }
     } catch {

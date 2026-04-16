@@ -18,6 +18,12 @@ Notion provides 9 triggers for automating workflows based on events.
 
 Trigger workflow when a comment or suggested edit is added in Notion
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -43,6 +49,12 @@ Trigger workflow when a comment or suggested edit is added in Notion
 
 Trigger workflow when a new database is created in Notion
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -66,6 +78,12 @@ Trigger workflow when a new database is created in Notion
 ### Notion Database Deleted
 
 Trigger workflow when a database is deleted in Notion
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
 
 #### Output
 
@@ -91,6 +109,12 @@ Trigger workflow when a database is deleted in Notion
 
 Trigger workflow when a database schema is modified in Notion
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -114,6 +138,12 @@ Trigger workflow when a database schema is modified in Notion
 ### Notion Page Content Updated
 
 Trigger workflow when page content is changed in Notion
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
 
 #### Output
 
@@ -139,6 +169,12 @@ Trigger workflow when page content is changed in Notion
 
 Trigger workflow when a new page is created in Notion
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -162,6 +198,12 @@ Trigger workflow when a new page is created in Notion
 ### Notion Page Deleted
 
 Trigger workflow when a page is deleted in Notion
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
 
 #### Output
 
@@ -187,6 +229,12 @@ Trigger workflow when a page is deleted in Notion
 
 Trigger workflow when page properties are modified in Notion
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -210,6 +258,12 @@ Trigger workflow when page properties are modified in Notion
 ### Notion Webhook (All Events)
 
 Trigger workflow on any Notion webhook event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
 
 #### Output
 

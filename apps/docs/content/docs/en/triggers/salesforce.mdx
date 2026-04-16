@@ -18,6 +18,12 @@ Salesforce provides 6 triggers for automating workflows based on events.
 
 Trigger workflow when a case status changes
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your Salesforce HTTP Callout as Bearer token or X-Sim-Webhook-Secret. |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -38,6 +44,12 @@ Trigger workflow when a case status changes
 ### Salesforce Opportunity Stage Changed
 
 Trigger workflow when an opportunity stage changes
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your Salesforce HTTP Callout as Bearer token or X-Sim-Webhook-Secret. |
 
 #### Output
 
@@ -60,6 +72,13 @@ Trigger workflow when an opportunity stage changes
 
 Trigger workflow when a Salesforce record is created
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your Salesforce HTTP Callout as Bearer token or X-Sim-Webhook-Secret. |
+| `objectType` | string | No | When set, the payload must include matching object type metadata \(for example objectType, sobjectType, or attributes.type\) or the event is rejected. |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -79,6 +98,13 @@ Trigger workflow when a Salesforce record is created
 ### Salesforce Record Deleted
 
 Trigger workflow when a Salesforce record is deleted
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your Salesforce HTTP Callout as Bearer token or X-Sim-Webhook-Secret. |
+| `objectType` | string | No | When set, the payload must include matching object type metadata \(for example objectType, sobjectType, or attributes.type\) or the event is rejected. |
 
 #### Output
 
@@ -100,6 +126,13 @@ Trigger workflow when a Salesforce record is deleted
 
 Trigger workflow when a Salesforce record is updated
 
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your Salesforce HTTP Callout as Bearer token or X-Sim-Webhook-Secret. |
+| `objectType` | string | No | When set, the payload must include matching object type metadata \(for example objectType, sobjectType, or attributes.type\) or the event is rejected. |
+
 #### Output
 
 | Parameter | Type | Description |
@@ -119,6 +152,13 @@ Trigger workflow when a Salesforce record is updated
 ### Salesforce Webhook (All Events)
 
 Trigger workflow on any Salesforce webhook event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | Yes | Required. Use the same value in your Salesforce HTTP Callout as Bearer token or X-Sim-Webhook-Secret. |
+| `objectType` | string | No | When set, the payload must include matching object type metadata \(for example objectType, sobjectType, or attributes.type\) or the event is rejected. |
 
 #### Output
 
