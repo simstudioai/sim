@@ -244,16 +244,15 @@ export function ImportCsvDialog({
     }
   }, [mapping, parsed?.headers, table.schema.columns])
 
-  const appendCapacityDeficit = useMemo(() => {
-    if (!parsed || mode !== 'append') return 0
-    const projected = table.rowCount + parsed.totalRows
-    return projected > table.maxRows ? projected - table.maxRows : 0
-  }, [mode, parsed, table.maxRows, table.rowCount])
+  const appendCapacityDeficit =
+    parsed && mode === 'append' && table.rowCount + parsed.totalRows > table.maxRows
+      ? table.rowCount + parsed.totalRows - table.maxRows
+      : 0
 
-  const replaceCapacityDeficit = useMemo(() => {
-    if (!parsed || mode !== 'replace') return 0
-    return parsed.totalRows > table.maxRows ? parsed.totalRows - table.maxRows : 0
-  }, [mode, parsed, table.maxRows])
+  const replaceCapacityDeficit =
+    parsed && mode === 'replace' && parsed.totalRows > table.maxRows
+      ? parsed.totalRows - table.maxRows
+      : 0
 
   const canSubmit =
     parsed !== null &&
@@ -264,12 +263,11 @@ export function ImportCsvDialog({
     appendCapacityDeficit === 0 &&
     replaceCapacityDeficit === 0
 
-  const importCsv = importMutation.mutateAsync
   const handleSubmit = useCallback(async () => {
     if (!parsed || !canSubmit) return
     setSubmitError(null)
     try {
-      const result = await importCsv({
+      const result = await importMutation.mutateAsync({
         workspaceId,
         tableId: table.id,
         file: parsed.file,
@@ -294,9 +292,9 @@ export function ImportCsvDialog({
       setSubmitError(summarizeImportError(message))
       logger.error('CSV import into existing table failed', err)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     canSubmit,
-    importCsv,
     mapping,
     mode,
     onImported,
@@ -363,7 +361,7 @@ export function ImportCsvDialog({
             <div className='flex flex-col gap-4'>
               <div className='flex items-center justify-between gap-3 rounded-sm border border-[var(--border)] p-2'>
                 <div className='flex min-w-0 flex-col'>
-                  <span className='truncate text-caption text-[var(--text-primary)]'>
+                  <span className='truncate text-[var(--text-primary)] text-caption'>
                     {parsed.file.name}
                   </span>
                   <span className='text-[var(--text-tertiary)] text-xs'>

@@ -5,7 +5,15 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/emcn'
-import type { Filter, RowData, Sort, TableDefinition, TableMetadata, TableRow } from '@/lib/table'
+import type {
+  CsvHeaderMapping,
+  Filter,
+  RowData,
+  Sort,
+  TableDefinition,
+  TableMetadata,
+  TableRow,
+} from '@/lib/table'
 
 const logger = createLogger('TableQueries')
 
@@ -780,7 +788,6 @@ export function useUploadCsvToTable() {
   })
 }
 
-export type CsvHeaderMapping = Record<string, string | null>
 export type CsvImportMode = 'append' | 'replace'
 
 interface ImportCsvIntoTableParams {
