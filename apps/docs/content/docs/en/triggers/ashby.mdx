@@ -1,0 +1,95 @@
+---
+title: Ashby
+description: Available Ashby triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="ashby"
+  color="#5D4ED6"
+/>
+
+Ashby provides 6 triggers for automating workflows based on events.
+
+## Ashby Application Submitted
+
+Trigger workflow when a new application is submitted
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `application` | string | Application UUID |
+
+
+---
+
+## Ashby Candidate Deleted
+
+Trigger workflow when a candidate is deleted
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `candidate` | string | Deleted candidate UUID |
+
+
+---
+
+## Ashby Candidate Hired
+
+Trigger workflow when a candidate is hired
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `application` | string | Application UUID |
+
+
+---
+
+## Ashby Candidate Stage Change
+
+Trigger workflow when a candidate changes interview stages
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `application` | string | Application UUID |
+
+
+---
+
+## Ashby Job Created
+
+Trigger workflow when a new job is created
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `job` | string | Job UUID |
+
+
+---
+
+## Ashby Offer Created
+
+Trigger workflow when a new offer is created
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `offer` | string | Offer UUID |
+

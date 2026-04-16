@@ -1,0 +1,59 @@
+---
+title: Microsoft Teams
+description: Available Microsoft Teams triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="microsoft_teams"
+  color="#E0E0E0"
+/>
+
+Microsoft Teams provides 2 triggers for automating workflows based on events.
+
+## Microsoft Teams Channel
+
+Trigger workflow from Microsoft Teams channel messages via outgoing webhooks
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `hmacSecret` | short-input | Yes | The security token provided by Teams when creating an outgoing webhook. Used to verify request authenticity. |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `from` | string | Sender ID |
+| `message` | json | Array of attachments |
+| `activity` | object | Activity payload |
+| `conversation` | string | Composite conversation ID |
+
+
+---
+
+## Microsoft Teams Chat
+
+Trigger workflow from new messages in Microsoft Teams chats via Microsoft Graph subscriptions
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `triggerCredentials` | oauth-input | Yes | This trigger requires microsoft teams credentials to access your account. |
+| `triggerChatId` | short-input | Yes | The ID of the Teams chat to monitor |
+| `includeAttachments` | switch | No | Fetch hosted contents and upload to storage |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `message_id` | string | Message ID |
+| `chat_id` | string | Chat ID |
+| `from_name` | string | Sender display name |
+| `text` | string | Message body \(HTML or text\) |
+| `created_at` | string | Message timestamp |
+| `attachments` | file[] | Uploaded attachments as files |
+

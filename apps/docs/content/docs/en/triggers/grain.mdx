@@ -1,0 +1,187 @@
+---
+title: Grain
+description: Available Grain triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="grain"
+  color="#F6FAF9"
+/>
+
+Grain provides 8 triggers for automating workflows based on events.
+
+## Grain All Events
+
+Trigger on all actions (added, updated, removed) in a Grain view
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `apiKey` | short-input | Yes | Required to create the webhook in Grain. |
+| `viewId` | short-input | Yes | The view determines which content type fires events \(recordings, highlights, or stories\). |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `type` | string | Event type \(e.g., recording_added\) |
+| `user_id` | string | User UUID who triggered the event |
+| `data` | object | Event data object \(recording, highlight, etc.\) |
+
+
+---
+
+## Grain Highlight Created
+
+Trigger workflow when a new highlight/clip is created in Grain
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `apiKey` | short-input | Yes | Required to create the webhook in Grain. |
+| `viewId` | short-input | Yes | Required by Grain to create the webhook subscription. |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `type` | string | Event type |
+| `user_id` | string | User UUID who triggered the event |
+| `data` | string | Highlight UUID |
+
+
+---
+
+## Grain Highlight Updated
+
+Trigger workflow when a highlight/clip is updated in Grain
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `apiKey` | short-input | Yes | Required to create the webhook in Grain. |
+| `viewId` | short-input | Yes | Required by Grain to create the webhook subscription. |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `type` | string | Event type |
+| `user_id` | string | User UUID who triggered the event |
+| `data` | string | Highlight UUID |
+
+
+---
+
+## Grain Item Added
+
+Trigger when a new item is added to a Grain view (recording, highlight, or story)
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `apiKey` | short-input | Yes | Required to create the webhook in Grain. |
+| `viewId` | short-input | Yes | The view determines which content type fires events \(recordings, highlights, or stories\). |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `type` | string | Event type \(e.g., recording_added\) |
+| `user_id` | string | User UUID who triggered the event |
+| `data` | object | Event data object \(recording, highlight, etc.\) |
+
+
+---
+
+## Grain Item Updated
+
+Trigger when an item is updated in a Grain view (recording, highlight, or story)
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `apiKey` | short-input | Yes | Required to create the webhook in Grain. |
+| `viewId` | short-input | Yes | The view determines which content type fires events \(recordings, highlights, or stories\). |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `type` | string | Event type \(e.g., recording_added\) |
+| `user_id` | string | User UUID who triggered the event |
+| `data` | object | Event data object \(recording, highlight, etc.\) |
+
+
+---
+
+## Grain Recording Created
+
+Trigger workflow when a new recording is added in Grain
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `apiKey` | short-input | Yes | Required to create the webhook in Grain. |
+| `viewId` | short-input | Yes | Required by Grain to create the webhook subscription. |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `type` | string | Event type |
+| `user_id` | string | User UUID who triggered the event |
+| `data` | string | Recording UUID |
+
+
+---
+
+## Grain Recording Updated
+
+Trigger workflow when a recording is updated in Grain
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `apiKey` | short-input | Yes | Required to create the webhook in Grain. |
+| `viewId` | short-input | Yes | Required by Grain to create the webhook subscription. |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `type` | string | Event type |
+| `user_id` | string | User UUID who triggered the event |
+| `data` | string | Recording UUID |
+
+
+---
+
+## Grain Story Created
+
+Trigger workflow when a new story is created in Grain
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `apiKey` | short-input | Yes | Required to create the webhook in Grain. |
+| `viewId` | short-input | Yes | Required by Grain to create the webhook subscription. |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `type` | string | Event type |
+| `user_id` | string | User UUID who triggered the event |
+| `data` | string | Story UUID |
+

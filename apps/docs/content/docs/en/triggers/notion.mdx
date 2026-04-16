@@ -1,0 +1,228 @@
+---
+title: Notion
+description: Available Notion triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="notion"
+  color="#181C1E"
+/>
+
+Notion provides 9 triggers for automating workflows based on events.
+
+## Notion Comment Created
+
+Trigger workflow when a comment or suggested edit is added in Notion
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `entity` | string | Comment ID |
+| `data` | string | Page ID that owns the comment thread |
+
+
+---
+
+## Notion Database Created
+
+Trigger workflow when a new database is created in Notion
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | array | Blocks updated as part of the event, when provided by Notion |
+
+
+---
+
+## Notion Database Deleted
+
+Trigger workflow when a database is deleted in Notion
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | array | Blocks updated as part of the event, when provided by Notion |
+
+
+---
+
+## Notion Database Schema Updated
+
+Trigger workflow when a database schema is modified in Notion
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | array | Blocks updated as part of the event, when provided by Notion |
+
+
+---
+
+## Notion Page Content Updated
+
+Trigger workflow when page content is changed in Notion
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | array | Blocks updated as part of the event, when provided by Notion |
+
+
+---
+
+## Notion Page Created
+
+Trigger workflow when a new page is created in Notion
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | array | Blocks updated as part of the event, when provided by Notion |
+
+
+---
+
+## Notion Page Deleted
+
+Trigger workflow when a page is deleted in Notion
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | array | Blocks updated as part of the event, when provided by Notion |
+
+
+---
+
+## Notion Page Properties Updated
+
+Trigger workflow when page properties are modified in Notion
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | array | Blocks updated as part of the event, when provided by Notion |
+
+
+---
+
+## Notion Webhook (All Events)
+
+Trigger workflow on any Notion webhook event
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | string | Parent entity ID, when provided by Notion |
+

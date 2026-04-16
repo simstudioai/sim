@@ -1,0 +1,339 @@
+---
+title: GitHub
+description: Available GitHub triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="github"
+  color="#181C1E"
+/>
+
+GitHub provides 12 triggers for automating workflows based on events.
+
+## GitHub Actions Workflow Run
+
+Trigger workflow when a GitHub Actions workflow run is requested, in progress, or completed
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `contentType` | dropdown | Yes | Format GitHub will use when sending the webhook payload. |
+| `webhookSecret` | short-input | No | Validates that webhook deliveries originate from GitHub. |
+| `sslVerification` | dropdown | Yes | GitHub verifies SSL certificates when delivering webhooks. |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., workflow_run\) |
+| `action` | string | Action performed \(requested, in_progress, completed\) |
+| `workflow_run` | number | Workflow run ID |
+| `workflow` | number | Workflow ID |
+| `repository` | number | Repository ID |
+| `sender` | string | Username |
+
+
+---
+
+## GitHub Issue Closed
+
+Trigger workflow when an issue is closed in a GitHub repository
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `contentType` | dropdown | Yes | Format GitHub will use when sending the webhook payload. |
+| `webhookSecret` | short-input | No | Validates that webhook deliveries originate from GitHub. |
+| `sslVerification` | dropdown | Yes | GitHub verifies SSL certificates when delivering webhooks. |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., issues, pull_request, push\) |
+| `action` | string | Action performed \(opened, closed, reopened, edited, etc.\) |
+| `issue` | number | Issue ID |
+| `repository` | number | Repository ID |
+| `sender` | string | Username |
+
+
+---
+
+## GitHub Issue Comment
+
+Trigger workflow when a comment is added to an issue (not pull requests)
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `contentType` | dropdown | Yes | Format GitHub will use when sending the webhook payload. |
+| `webhookSecret` | short-input | No | Validates that webhook deliveries originate from GitHub. |
+| `sslVerification` | dropdown | Yes | GitHub verifies SSL certificates when delivering webhooks. |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., issue_comment\) |
+| `action` | string | Action performed \(created, edited, deleted\) |
+| `issue` | number | Issue number |
+| `comment` | number | Comment ID |
+| `repository` | number | Repository ID |
+| `sender` | string | Username |
+
+
+---
+
+## GitHub Issue Opened
+
+Trigger workflow when a new issue is opened in a GitHub repository
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `contentType` | dropdown | Yes | Format GitHub will use when sending the webhook payload. |
+| `webhookSecret` | short-input | No | Validates that webhook deliveries originate from GitHub. |
+| `sslVerification` | dropdown | Yes | GitHub verifies SSL certificates when delivering webhooks. |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., issues, pull_request, push\) |
+| `action` | string | Action performed \(opened, closed, reopened, edited, etc.\) |
+| `issue` | number | Issue ID |
+| `repository` | number | Repository ID |
+| `sender` | string | Username |
+
+
+---
+
+## GitHub PR Closed
+
+Trigger workflow when a pull request is closed without being merged (e.g., abandoned) in a GitHub repository
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `contentType` | dropdown | Yes | Format GitHub will use when sending the webhook payload. |
+| `webhookSecret` | short-input | No | Validates that webhook deliveries originate from GitHub. |
+| `sslVerification` | dropdown | Yes | GitHub verifies SSL certificates when delivering webhooks. |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., pull_request\) |
+| `action` | string | Action performed \(opened, closed, synchronize, reopened, edited, etc.\) |
+| `number` | number | Pull request number |
+| `pull_request` | number | Pull request ID |
+| `repository` | number | Repository ID |
+| `sender` | string | Username |
+
+
+---
+
+## GitHub PR Comment
+
+Trigger workflow when a comment is added to a pull request in a GitHub repository
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `contentType` | dropdown | Yes | Format GitHub will use when sending the webhook payload. |
+| `webhookSecret` | short-input | No | Validates that webhook deliveries originate from GitHub. |
+| `sslVerification` | dropdown | Yes | GitHub verifies SSL certificates when delivering webhooks. |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., issue_comment\) |
+| `action` | string | Action performed \(created, edited, deleted\) |
+| `issue` | number | Issue ID |
+| `comment` | number | Comment ID |
+| `repository` | number | Repository ID |
+| `sender` | string | Username |
+
+
+---
+
+## GitHub PR Merged
+
+Trigger workflow when a pull request is successfully merged in a GitHub repository
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `contentType` | dropdown | Yes | Format GitHub will use when sending the webhook payload. |
+| `webhookSecret` | short-input | No | Validates that webhook deliveries originate from GitHub. |
+| `sslVerification` | dropdown | Yes | GitHub verifies SSL certificates when delivering webhooks. |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., pull_request\) |
+| `action` | string | Action performed \(opened, closed, synchronize, reopened, edited, etc.\) |
+| `number` | number | Pull request number |
+| `pull_request` | number | Pull request ID |
+| `repository` | number | Repository ID |
+| `sender` | string | Username |
+
+
+---
+
+## GitHub PR Opened
+
+Trigger workflow when a new pull request is opened in a GitHub repository
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `contentType` | dropdown | Yes | Format GitHub will use when sending the webhook payload. |
+| `webhookSecret` | short-input | No | Validates that webhook deliveries originate from GitHub. |
+| `sslVerification` | dropdown | Yes | GitHub verifies SSL certificates when delivering webhooks. |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., pull_request\) |
+| `action` | string | Action performed \(opened, closed, synchronize, reopened, edited, etc.\) |
+| `number` | number | Pull request number |
+| `pull_request` | number | Pull request ID |
+| `repository` | number | Repository ID |
+| `sender` | string | Username |
+
+
+---
+
+## GitHub PR Reviewed
+
+Trigger workflow when a pull request review is submitted, edited, or dismissed in a GitHub repository
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `contentType` | dropdown | Yes | Format GitHub will use when sending the webhook payload. |
+| `webhookSecret` | short-input | No | Validates that webhook deliveries originate from GitHub. |
+| `sslVerification` | dropdown | Yes | GitHub verifies SSL certificates when delivering webhooks. |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., pull_request_review\) |
+| `action` | string | Action performed \(submitted, edited, dismissed\) |
+| `review` | number | Review ID |
+| `pull_request` | number | Pull request ID |
+| `repository` | number | Repository ID |
+| `sender` | string | Username |
+
+
+---
+
+## GitHub Push
+
+Trigger workflow when code is pushed to a repository
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `contentType` | dropdown | Yes | Format GitHub will use when sending the webhook payload. |
+| `webhookSecret` | short-input | No | Validates that webhook deliveries originate from GitHub. |
+| `sslVerification` | dropdown | Yes | GitHub verifies SSL certificates when delivering webhooks. |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., push\) |
+| `branch` | string | Branch name derived from ref \(e.g., main from refs/heads/main\) |
+| `ref` | string | Git reference that was pushed \(e.g., refs/heads/main\) |
+| `before` | string | SHA of the commit before the push |
+| `after` | string | SHA of the commit after the push |
+| `created` | boolean | Whether this push created a new branch or tag |
+| `deleted` | boolean | Whether this push deleted a branch or tag |
+| `forced` | boolean | Whether this was a force push |
+| `base_ref` | string | Base reference for the push |
+| `compare` | string | URL to compare the changes |
+| `commits` | array | Array of commit objects included in this push |
+| `head_commit` | string | Commit SHA of the most recent commit |
+| `pusher` | string | Pusher name |
+| `repository` | number | Repository ID |
+| `sender` | string | Username |
+
+
+---
+
+## GitHub Release Published
+
+Trigger workflow when a new release is published in a GitHub repository
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `contentType` | dropdown | Yes | Format GitHub will use when sending the webhook payload. |
+| `webhookSecret` | short-input | No | Validates that webhook deliveries originate from GitHub. |
+| `sslVerification` | dropdown | Yes | GitHub verifies SSL certificates when delivering webhooks. |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `event_type` | string | GitHub event type from X-GitHub-Event header \(e.g., release\) |
+| `action` | string | Action performed \(published, unpublished, created, edited, deleted, prereleased, released\) |
+| `release` | number | Release ID |
+| `repository` | number | Repository ID |
+| `sender` | string | Username |
+
+
+---
+
+## GitHub Webhook
+
+Trigger workflow from GitHub events like push, pull requests, issues, and more
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `contentType` | dropdown | Yes | Format GitHub will use when sending the webhook payload. |
+| `webhookSecret` | short-input | No | Validates that webhook deliveries originate from GitHub. |
+| `sslVerification` | dropdown | Yes | GitHub verifies SSL certificates when delivering webhooks. |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `ref` | string | Git reference \(e.g., refs/heads/fix/telegram-wh\) |
+| `before` | string | SHA of the commit before the push |
+| `after` | string | SHA of the commit after the push |
+| `created` | boolean | Whether the push created the reference |
+| `deleted` | boolean | Whether the push deleted the reference |
+| `forced` | boolean | Whether the push was forced |
+| `base_ref` | string | Base reference for the push |
+| `compare` | string | URL to compare the changes |
+| `repository` | number | Repository ID |
+| `pusher` | object | Information about who pushed the changes |
+| `sender` | string | Sender username |
+| `commits` | array | Array of commit objects |
+| `head_commit` | object | Head commit object |
+| `event_type` | string | Type of GitHub event \(e.g., push, pull_request, issues\) |
+| `action` | string | The action that was performed \(e.g., opened, closed, synchronize\) |
+| `branch` | string | Branch name extracted from ref |
+

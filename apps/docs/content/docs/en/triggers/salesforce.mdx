@@ -1,0 +1,132 @@
+---
+title: Salesforce
+description: Available Salesforce triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="salesforce"
+  color="#E0E0E0"
+/>
+
+Salesforce provides 6 triggers for automating workflows based on events.
+
+## Salesforce Case Status Changed
+
+Trigger workflow when a case status changes
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `eventType` | string | The type of event |
+| `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
+| `objectType` | string | Salesforce object type \(Case\) |
+| `recordId` | string | Case ID |
+| `timestamp` | string | When the event occurred \(ISO 8601\) |
+| `record` | string | Case ID |
+| `previousStatus` | string | Previous case status |
+| `newStatus` | string | New case status |
+| `payload` | json | Full webhook payload |
+
+
+---
+
+## Salesforce Opportunity Stage Changed
+
+Trigger workflow when an opportunity stage changes
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `eventType` | string | The type of event |
+| `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
+| `objectType` | string | Salesforce object type \(Opportunity\) |
+| `recordId` | string | Opportunity ID |
+| `timestamp` | string | When the event occurred \(ISO 8601\) |
+| `record` | string | Opportunity ID |
+| `previousStage` | string | Previous stage name |
+| `newStage` | string | New stage name |
+| `payload` | json | Full webhook payload |
+
+
+---
+
+## Salesforce Record Created
+
+Trigger workflow when a Salesforce record is created
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g., created, updated, deleted\) |
+| `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
+| `objectType` | string | Salesforce object type \(e.g., Account, Contact, Lead\) |
+| `recordId` | string | ID of the affected record |
+| `timestamp` | string | When the event occurred \(ISO 8601\) |
+| `record` | string | Record ID |
+| `changedFields` | json | Fields that were changed \(for update events\) |
+| `payload` | json | Full webhook payload |
+
+
+---
+
+## Salesforce Record Deleted
+
+Trigger workflow when a Salesforce record is deleted
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g., created, updated, deleted\) |
+| `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
+| `objectType` | string | Salesforce object type \(e.g., Account, Contact, Lead\) |
+| `recordId` | string | ID of the affected record |
+| `timestamp` | string | When the event occurred \(ISO 8601\) |
+| `record` | string | Record ID |
+| `changedFields` | json | Fields that were changed \(for update events\) |
+| `payload` | json | Full webhook payload |
+
+
+---
+
+## Salesforce Record Updated
+
+Trigger workflow when a Salesforce record is updated
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `eventType` | string | The type of event \(e.g., created, updated, deleted\) |
+| `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
+| `objectType` | string | Salesforce object type \(e.g., Account, Contact, Lead\) |
+| `recordId` | string | ID of the affected record |
+| `timestamp` | string | When the event occurred \(ISO 8601\) |
+| `record` | string | Record ID |
+| `changedFields` | json | Fields that were changed \(for update events\) |
+| `payload` | json | Full webhook payload |
+
+
+---
+
+## Salesforce Webhook (All Events)
+
+Trigger workflow on any Salesforce webhook event
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `eventType` | string | The type of event |
+| `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
+| `objectType` | string | Salesforce object type |
+| `recordId` | string | ID of the affected record |
+| `timestamp` | string | When the event occurred \(ISO 8601\) |
+| `record` | json | Full record data |
+| `payload` | json | Full webhook payload |
+

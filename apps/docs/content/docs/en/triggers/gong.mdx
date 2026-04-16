@@ -1,0 +1,55 @@
+---
+title: Gong
+description: Available Gong triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="gong"
+  color="#8039DF"
+/>
+
+Gong provides 2 triggers for automating workflows based on events.
+
+## Gong Call Completed
+
+Trigger workflow when a call is completed and processed in Gong
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `eventType` | string | Constant identifier for automation-rule webhooks \(`gong.automation_rule`\). Gong does not send distinct event names in the payload. |
+| `callId` | string | Gong call ID \(same value as metaData.id when present\) |
+| `isTest` | boolean | Whether this is a test webhook from the Gong UI |
+| `callData` | json | Full call data object |
+| `metaData` | string | Gong call ID |
+| `parties` | array | Array of call participants with name, email, title, and affiliation |
+| `context` | array | Array of CRM context objects \(Salesforce opportunities, accounts, etc.\) |
+| `trackers` | array | Keyword and smart trackers from call content \(same shape as Gong extensive-calls `content.trackers`\) |
+| `topics` | array | Topic segments with durations from call content \(`content.topics`\) |
+| `highlights` | array | AI-generated highlights from call content \(`content.highlights`\) |
+
+
+---
+
+## Gong Webhook
+
+Generic webhook trigger for all Gong events
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `eventType` | string | Constant identifier for automation-rule webhooks \(`gong.automation_rule`\). Gong does not send distinct event names in the payload. |
+| `callId` | string | Gong call ID \(same value as metaData.id when present\) |
+| `isTest` | boolean | Whether this is a test webhook from the Gong UI |
+| `callData` | json | Full call data object |
+| `metaData` | string | Gong call ID |
+| `parties` | array | Array of call participants with name, email, title, and affiliation |
+| `context` | array | Array of CRM context objects \(Salesforce opportunities, accounts, etc.\) |
+| `trackers` | array | Keyword and smart trackers from call content \(same shape as Gong extensive-calls `content.trackers`\) |
+| `topics` | array | Topic segments with durations from call content \(`content.topics`\) |
+| `highlights` | array | AI-generated highlights from call content \(`content.highlights`\) |
+

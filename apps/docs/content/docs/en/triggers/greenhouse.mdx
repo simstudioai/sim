@@ -1,0 +1,145 @@
+---
+title: Greenhouse
+description: Available Greenhouse triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="greenhouse"
+  color="#469776"
+/>
+
+Greenhouse provides 8 triggers for automating workflows based on events.
+
+## Greenhouse Candidate Hired
+
+Trigger workflow when a candidate is hired
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
+| `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
+| `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
+| `action` | string | The webhook event type \(hire_candidate\) |
+| `payload` | number | Application ID |
+
+
+---
+
+## Greenhouse Candidate Rejected
+
+Trigger workflow when a candidate is rejected
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
+| `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
+| `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
+| `action` | string | The webhook event type \(reject_candidate\) |
+| `payload` | number | Application ID |
+
+
+---
+
+## Greenhouse Candidate Stage Change
+
+Trigger workflow when a candidate changes interview stages
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
+| `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
+| `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
+| `action` | string | The webhook event type \(candidate_stage_change\) |
+| `payload` | number | Application ID |
+
+
+---
+
+## Greenhouse Job Created
+
+Trigger workflow when a new job is created
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
+| `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
+| `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
+| `action` | string | The webhook event type \(job_created\) |
+
+
+---
+
+## Greenhouse Job Updated
+
+Trigger workflow when a job is updated
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
+| `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
+| `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
+| `action` | string | The webhook event type \(job_updated\) |
+
+
+---
+
+## Greenhouse New Application
+
+Trigger workflow when a new application is submitted
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
+| `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
+| `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
+| `action` | string | The webhook event type \(new_candidate_application\) |
+| `payload` | number | Application ID |
+
+
+---
+
+## Greenhouse Offer Created
+
+Trigger workflow when a new offer is created
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
+| `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
+| `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
+| `action` | string | The webhook event type \(offer_created\) |
+| `payload` | number | Offer ID |
+
+
+---
+
+## Greenhouse Webhook (Endpoint Events)
+
+Trigger on whichever event types you select for this URL in Greenhouse. Sim does not filter deliveries for this trigger.
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
+| `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
+| `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
+| `action` | string | The webhook event type |
+| `payload` | json | Full event payload |
+

@@ -1,0 +1,111 @@
+---
+title: Webflow
+description: Available Webflow triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="webflow"
+  color="#E0E0E0"
+/>
+
+Webflow provides 4 triggers for automating workflows based on events.
+
+## Collection Item Changed
+
+Trigger workflow when an item is updated in a Webflow CMS collection (requires Webflow credentials)
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `triggerCredentials` | oauth-input | Yes | This trigger requires webflow credentials to access your account. |
+| `triggerSiteId` | dropdown | Yes | The Webflow site to monitor |
+| `triggerCollectionId` | dropdown | No | Optionally filter to monitor only a specific collection |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `siteId` | string | The site ID where the event occurred |
+| `collectionId` | string | The collection ID where the item was changed |
+| `payload` | string | The ID of the changed item |
+
+
+---
+
+## Collection Item Created
+
+Trigger workflow when a new item is created in a Webflow CMS collection (requires Webflow credentials)
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `triggerCredentials` | oauth-input | Yes | This trigger requires webflow credentials to access your account. |
+| `triggerSiteId` | dropdown | Yes | The Webflow site to monitor |
+| `triggerCollectionId` | dropdown | No | Optionally filter to monitor only a specific collection |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `siteId` | string | The site ID where the event occurred |
+| `collectionId` | string | The collection ID where the item was created |
+| `payload` | string | The ID of the created item |
+
+
+---
+
+## Collection Item Deleted
+
+Trigger workflow when an item is deleted from a Webflow CMS collection (requires Webflow credentials)
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `triggerCredentials` | oauth-input | Yes | This trigger requires webflow credentials to access your account. |
+| `triggerSiteId` | dropdown | Yes | The Webflow site to monitor |
+| `triggerCollectionId` | dropdown | No | Optionally filter to monitor only a specific collection |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `siteId` | string | The site ID where the event occurred |
+| `collectionId` | string | The collection ID where the item was deleted |
+| `payload` | string | The ID of the deleted item |
+
+
+---
+
+## Form Submission
+
+Trigger workflow when a form is submitted on a Webflow site (requires Webflow credentials)
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `triggerCredentials` | oauth-input | Yes | This trigger requires webflow credentials to access your account. |
+| `triggerSiteId` | dropdown | Yes | The Webflow site to monitor |
+| `formName` | short-input | No | The name of the specific form to monitor \(optional - leave empty for all forms\) |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `siteId` | string | The site ID where the form was submitted |
+| `formId` | string | The form ID |
+| `name` | string | The name of the form |
+| `id` | string | The unique ID of the form submission |
+| `submittedAt` | string | Timestamp when the form was submitted |
+| `data` | object | The form submission field data \(keys are field names, values are submitted data\) |
+| `schema` | array | Form schema describing each field |
+|   ↳ `fieldName` | string | Name of the form field |
+|   ↳ `fieldType` | string | Type of input \(e.g., FormTextInput, FormEmail\) |
+|   ↳ `fieldElementId` | string | Unique identifier for the form element \(UUID\) |
+| `formElementId` | string | The form element ID |
+

@@ -1,0 +1,37 @@
+---
+title: Outlook
+description: Available Outlook triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="outlook"
+  color="#E0E0E0"
+/>
+
+Outlook provides 1 trigger for automating workflows based on events.
+
+All triggers below are **polling-based** — they check for new data on a schedule rather than receiving push notifications.
+
+## Outlook Email Trigger
+
+Triggers when new emails are received in Outlook (requires Microsoft credentials)
+
+### Configuration
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `triggerCredentials` | oauth-input | Yes | This trigger requires outlook credentials to access your account. |
+| `folderIds` | dropdown | No | Choose which Outlook folders to monitor. Leave empty to monitor all emails. |
+| `folderFilterBehavior` | dropdown | Yes | Include only emails from selected folders, or exclude emails from selected folders |
+| `markAsRead` | switch | No | Automatically mark emails as read after processing |
+| `includeAttachments` | switch | No | Download and include email attachments in the trigger payload |
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `email` | string | Outlook message ID |
+| `timestamp` | string | Event timestamp |
+

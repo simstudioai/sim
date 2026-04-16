@@ -1,7 +1,6 @@
 {
   "pages": [
     "index",
-    "custom-tools",
     "a2a",
     "agentmail",
     "agiloft",
@@ -31,6 +30,7 @@
     "confluence",
     "crowdstrike",
     "cursor",
+    "custom-tools",
     "dagster",
     "databricks",
     "datadog",

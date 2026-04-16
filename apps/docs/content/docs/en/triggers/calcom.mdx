@@ -1,0 +1,146 @@
+---
+title: Cal.com
+description: Available Cal.com triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="calcom"
+  color="#FFFFFE"
+/>
+
+Cal.com provides 9 triggers for automating workflows based on events.
+
+## CalCom Booking Cancelled
+
+Trigger workflow when a booking is cancelled in Cal.com
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `triggerEvent` | string | The webhook event type |
+| `createdAt` | string | When the webhook event was created \(ISO 8601\) |
+| `payload` | string | Booking title |
+
+
+---
+
+## CalCom Booking Created
+
+Trigger workflow when a new booking is created in Cal.com
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `triggerEvent` | string | The webhook event type |
+| `createdAt` | string | When the webhook event was created \(ISO 8601\) |
+| `payload` | string | Booking title |
+
+
+---
+
+## CalCom Booking Paid
+
+Trigger workflow when payment is completed for a paid booking
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `triggerEvent` | string | The webhook event type \(BOOKING_PAID\) |
+| `createdAt` | string | When the webhook event was created \(ISO 8601\) |
+| `payload` | string | Booking title |
+
+
+---
+
+## CalCom Booking Rejected
+
+Trigger workflow when a booking request is rejected by the host
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `triggerEvent` | string | The webhook event type \(BOOKING_REJECTED\) |
+| `createdAt` | string | When the webhook event was created \(ISO 8601\) |
+| `payload` | string | Booking title |
+
+
+---
+
+## CalCom Booking Requested
+
+Trigger workflow when a booking request is submitted (pending confirmation)
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `triggerEvent` | string | The webhook event type \(BOOKING_REQUESTED\) |
+| `createdAt` | string | When the webhook event was created \(ISO 8601\) |
+| `payload` | string | Booking title |
+
+
+---
+
+## CalCom Booking Rescheduled
+
+Trigger workflow when a booking is rescheduled in Cal.com
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `triggerEvent` | string | The webhook event type |
+| `createdAt` | string | When the webhook event was created \(ISO 8601\) |
+| `payload` | string | Booking title |
+
+
+---
+
+## CalCom Meeting Ended
+
+Trigger workflow when a Cal.com meeting ends
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `triggerEvent` | string | The webhook event type \(MEETING_ENDED\) |
+| `createdAt` | string | When the webhook event was created \(ISO 8601\) |
+| `payload` | string | Meeting title |
+
+
+---
+
+## CalCom Recording Ready
+
+Trigger workflow when a meeting recording is ready for download
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `triggerEvent` | string | The webhook event type \(RECORDING_READY\) |
+| `createdAt` | string | When the webhook event was created \(ISO 8601\) |
+| `payload` | string | Meeting title |
+
+
+---
+
+## CalCom Webhook (All Events)
+
+Trigger workflow on any Cal.com webhook event (configure event types in Cal.com)
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `triggerEvent` | string | The webhook event type \(e.g., BOOKING_CREATED, MEETING_ENDED\) |
+| `createdAt` | string | When the webhook event was created \(ISO 8601\) |
+| `payload` | json | Complete webhook payload \(structure varies by event type\) |
+

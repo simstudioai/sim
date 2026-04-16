@@ -1,0 +1,205 @@
+---
+title: Vercel
+description: Available Vercel triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="vercel"
+  color="#171717"
+/>
+
+Vercel provides 8 triggers for automating workflows based on events.
+
+## Vercel Deployment Canceled
+
+Trigger workflow when a deployment is canceled
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `type` | string | Event type \(e.g., deployment.created\) |
+| `id` | string | Unique webhook delivery ID \(string\) |
+| `createdAt` | number | Event timestamp in milliseconds |
+| `region` | string | Region where the event occurred |
+| `payload` | json | Raw event payload from Vercel |
+| `links` | string | Vercel Dashboard URL for the deployment |
+| `regions` | json | Regions associated with the deployment \(array\), when provided by Vercel |
+| `deployment` | string | Deployment ID |
+| `project` | string | Project ID |
+| `team` | string | Team ID |
+| `user` | string | User ID |
+| `target` | string | Deployment target \(production, staging, or preview\) |
+| `plan` | string | Account plan type |
+| `domain` | string | Domain name |
+
+
+---
+
+## Vercel Deployment Created
+
+Trigger workflow when a new deployment is created
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `type` | string | Event type \(e.g., deployment.created\) |
+| `id` | string | Unique webhook delivery ID \(string\) |
+| `createdAt` | number | Event timestamp in milliseconds |
+| `region` | string | Region where the event occurred |
+| `payload` | json | Raw event payload from Vercel |
+| `links` | string | Vercel Dashboard URL for the deployment |
+| `regions` | json | Regions associated with the deployment \(array\), when provided by Vercel |
+| `deployment` | string | Deployment ID |
+| `project` | string | Project ID |
+| `team` | string | Team ID |
+| `user` | string | User ID |
+| `target` | string | Deployment target \(production, staging, or preview\) |
+| `plan` | string | Account plan type |
+| `domain` | string | Domain name |
+
+
+---
+
+## Vercel Deployment Error
+
+Trigger workflow when a deployment fails
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `type` | string | Event type \(e.g., deployment.created\) |
+| `id` | string | Unique webhook delivery ID \(string\) |
+| `createdAt` | number | Event timestamp in milliseconds |
+| `region` | string | Region where the event occurred |
+| `payload` | json | Raw event payload from Vercel |
+| `links` | string | Vercel Dashboard URL for the deployment |
+| `regions` | json | Regions associated with the deployment \(array\), when provided by Vercel |
+| `deployment` | string | Deployment ID |
+| `project` | string | Project ID |
+| `team` | string | Team ID |
+| `user` | string | User ID |
+| `target` | string | Deployment target \(production, staging, or preview\) |
+| `plan` | string | Account plan type |
+| `domain` | string | Domain name |
+
+
+---
+
+## Vercel Deployment Ready
+
+Trigger workflow when a deployment is ready to serve traffic
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `type` | string | Event type \(e.g., deployment.created\) |
+| `id` | string | Unique webhook delivery ID \(string\) |
+| `createdAt` | number | Event timestamp in milliseconds |
+| `region` | string | Region where the event occurred |
+| `payload` | json | Raw event payload from Vercel |
+| `links` | string | Vercel Dashboard URL for the deployment |
+| `regions` | json | Regions associated with the deployment \(array\), when provided by Vercel |
+| `deployment` | string | Deployment ID |
+| `project` | string | Project ID |
+| `team` | string | Team ID |
+| `user` | string | User ID |
+| `target` | string | Deployment target \(production, staging, or preview\) |
+| `plan` | string | Account plan type |
+| `domain` | string | Domain name |
+
+
+---
+
+## Vercel Domain Created
+
+Trigger workflow when a domain is created
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `type` | string | Event type \(e.g., deployment.created\) |
+| `id` | string | Unique webhook delivery ID \(string\) |
+| `createdAt` | number | Event timestamp in milliseconds |
+| `region` | string | Region where the event occurred |
+| `payload` | json | Raw event payload from Vercel |
+| `links` | string | Vercel Dashboard URL for the deployment |
+| `regions` | json | Regions associated with the deployment \(array\), when provided by Vercel |
+| `deployment` | string | Deployment ID |
+| `domain` | string | Domain name |
+| `project` | string | Project ID |
+| `team` | string | Team ID |
+| `user` | string | User ID |
+
+
+---
+
+## Vercel Project Created
+
+Trigger workflow when a new project is created
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `type` | string | Event type \(e.g., deployment.created\) |
+| `id` | string | Unique webhook delivery ID \(string\) |
+| `createdAt` | number | Event timestamp in milliseconds |
+| `region` | string | Region where the event occurred |
+| `payload` | json | Raw event payload from Vercel |
+| `links` | string | Vercel Dashboard URL for the deployment |
+| `regions` | json | Regions associated with the deployment \(array\), when provided by Vercel |
+| `deployment` | string | Deployment ID |
+| `project` | string | Project ID |
+| `team` | string | Team ID |
+| `user` | string | User ID |
+
+
+---
+
+## Vercel Project Removed
+
+Trigger workflow when a project is removed
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `type` | string | Event type \(e.g., deployment.created\) |
+| `id` | string | Unique webhook delivery ID \(string\) |
+| `createdAt` | number | Event timestamp in milliseconds |
+| `region` | string | Region where the event occurred |
+| `payload` | json | Raw event payload from Vercel |
+| `links` | string | Vercel Dashboard URL for the deployment |
+| `regions` | json | Regions associated with the deployment \(array\), when provided by Vercel |
+| `deployment` | string | Deployment ID |
+| `project` | string | Project ID |
+| `team` | string | Team ID |
+| `user` | string | User ID |
+
+
+---
+
+## Vercel Webhook (Common Events)
+
+Trigger on a curated set of common Vercel events (deployments, projects, domains, edge config). Pick a specific trigger to listen to one event type only.
+
+### Output
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `type` | string | Event type \(e.g., deployment.created\) |
+| `id` | string | Unique webhook delivery ID \(string\) |
+| `createdAt` | number | Event timestamp in milliseconds |
+| `region` | string | Region where the event occurred |
+| `links` | string | Vercel Dashboard URL for the deployment |
+| `regions` | json | Regions associated with the deployment \(array\), when provided by Vercel |
+| `deployment` | string | Deployment ID |
+| `payload` | json | Full event payload |
+
