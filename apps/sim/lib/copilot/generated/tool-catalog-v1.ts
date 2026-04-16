@@ -2830,6 +2830,22 @@ export const UserTable: ToolCatalogEntry = {
             type: 'number',
             description: 'Maximum rows to return or affect (optional, default 100)',
           },
+          mapping: {
+            type: 'object',
+            description:
+              'Optional explicit CSV-header → table-column mapping for import_file, as { "csvHeader": "columnName" | null }. When omitted, headers are auto-matched by sanitized name (case-insensitive fallback). Use null to skip a CSV column.',
+            additionalProperties: {
+              type: 'string',
+              description:
+                'Target column name on the table. Use null to skip this CSV header instead of a column name.',
+            },
+          },
+          mode: {
+            type: 'string',
+            description:
+              "Import mode for import_file. 'append' (default) adds rows; 'replace' truncates existing rows in a transaction before inserting the new rows.",
+            enum: ['append', 'replace'],
+          },
           name: { type: 'string', description: "Table name (required for 'create')" },
           newName: { type: 'string', description: 'New column name (required for rename_column)' },
           newType: {

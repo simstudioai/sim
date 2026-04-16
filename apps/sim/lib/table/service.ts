@@ -30,6 +30,8 @@ import type {
   QueryOptions,
   QueryResult,
   RenameColumnData,
+  ReplaceRowsData,
+  ReplaceRowsResult,
   RowData,
   TableDefinition,
   TableMetadata,
@@ -774,6 +776,120 @@ export async function batchInsertRows(
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   }))
+}
+
+/**
+ * Replaces all rows in a table with a new set of rows. Deletes existing rows
+ * and inserts the provided rows inside a single transaction so the table is
+ * never observed in an empty intermediate state by other readers.
+ *
+ * Validates each row against the schema, enforces unique constraints within the
+ * new rows (existing rows are deleted, so DB-side checks are unnecessary), and
+ * enforces `maxRows` before the replace executes.
+ *
+ * @param data - Replace data (rows to install)
+ * @param table - Table definition
+ * @param requestId - Request ID for logging
+ * @returns Count of rows deleted and inserted
+ * @throws Error if validation fails or capacity exceeded
+ */
+export async function replaceTableRows(
+  data: ReplaceRowsData,
+  table: TableDefinition,
+  requestId: string
+): Promise<ReplaceRowsResult> {
+  if (data.tableId !== table.id) {
+    throw new Error(`Table ID mismatch: ${data.tableId} vs ${table.id}`)
+  }
+  if (data.workspaceId !== table.workspaceId) {
+    throw new Error(`Workspace ID mismatch: ${data.workspaceId} does not own table ${data.tableId}`)
+  }
+  if (data.rows.length > table.maxRows) {
+    throw new Error(
+      `Cannot replace: ${data.rows.length} rows exceeds table row limit (${table.maxRows})`
+    )
+  }
+
+  for (let i = 0; i < data.rows.length; i++) {
+    const row = data.rows[i]
+
+    const sizeValidation = validateRowSize(row)
+    if (!sizeValidation.valid) {
+      throw new Error(`Row ${i + 1}: ${sizeValidation.errors.join(', ')}`)
+    }
+
+    const schemaValidation = validateRowAgainstSchema(row, table.schema)
+    if (!schemaValidation.valid) {
+      throw new Error(`Row ${i + 1}: ${schemaValidation.errors.join(', ')}`)
+    }
+  }
+
+  const uniqueColumns = getUniqueColumns(table.schema)
+  if (uniqueColumns.length > 0 && data.rows.length > 0) {
+    const seen = new Map<string, Map<string, number>>()
+    for (const col of uniqueColumns) {
+      seen.set(col.name, new Map())
+    }
+    for (let i = 0; i < data.rows.length; i++) {
+      const row = data.rows[i]
+      for (const col of uniqueColumns) {
+        const value = row[col.name]
+        if (value === null || value === undefined) continue
+        const normalized = typeof value === 'string' ? value.toLowerCase() : JSON.stringify(value)
+        const map = seen.get(col.name)!
+        if (map.has(normalized)) {
+          throw new Error(
+            `Row ${i + 1}: Column "${col.name}" must be unique. Value "${String(value)}" duplicates row ${map.get(normalized)! + 1} in batch`
+          )
+        }
+        map.set(normalized, i)
+      }
+    }
+  }
+
+  const now = new Date()
+
+  const result = await db.transaction(async (trx) => {
+    await trx.execute(
+      sql`SELECT 1 FROM user_table_definitions WHERE id = ${data.tableId} FOR UPDATE`
+    )
+
+    const deletedRows = await trx
+      .delete(userTableRows)
+      .where(eq(userTableRows.tableId, data.tableId))
+      .returning({ id: userTableRows.id })
+
+    let insertedCount = 0
+    if (data.rows.length > 0) {
+      const rowsToInsert = data.rows.map((rowData, i) => ({
+        id: `row_${generateId().replace(/-/g, '')}`,
+        tableId: data.tableId,
+        workspaceId: data.workspaceId,
+        data: rowData,
+        position: i,
+        createdAt: now,
+        updatedAt: now,
+        ...(data.userId ? { createdBy: data.userId } : {}),
+      }))
+
+      const batchSize = TABLE_LIMITS.MAX_BATCH_INSERT_SIZE
+      for (let i = 0; i < rowsToInsert.length; i += batchSize) {
+        const chunk = rowsToInsert.slice(i, i + batchSize)
+        const inserted = await trx.insert(userTableRows).values(chunk).returning({
+          id: userTableRows.id,
+        })
+        insertedCount += inserted.length
+      }
+    }
+
+    return { deletedCount: deletedRows.length, insertedCount }
+  })
+
+  logger.info(
+    `[${requestId}] Replaced rows in table ${data.tableId}: deleted ${result.deletedCount}, inserted ${result.insertedCount}`
+  )
+
+  return result
 }
 
 /**

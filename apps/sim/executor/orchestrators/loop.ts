@@ -7,13 +7,8 @@ import type { DAG } from '@/executor/dag/builder'
 import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { LoopScope } from '@/executor/execution/state'
 import type { BlockStateController, ContextExtensions } from '@/executor/execution/types'
-import {
-  type ExecutionContext,
-  getNextExecutionOrder,
-  type NormalizedBlockOutput,
-} from '@/executor/types'
+import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { LoopConfigWithNodes } from '@/executor/types/loop'
-import { buildContainerIterationContext } from '@/executor/utils/iteration-context'
 import { replaceValidReferences } from '@/executor/utils/reference-validation'
 import {
   addSubflowErrorLog,
@@ -22,6 +17,7 @@ import {
   buildSentinelEndId,
   buildSentinelStartId,
   emitEmptySubflowEvents,
+  emitSubflowSuccessEvents,
   extractBaseBlockId,
   resolveArrayInput,
   validateMaxCount,
@@ -319,31 +315,7 @@ export class LoopOrchestrator {
     const output = { results }
     this.state.setBlockOutput(loopId, output, DEFAULTS.EXECUTION_TIME)
 
-    if (this.contextExtensions?.onBlockComplete) {
-      const now = new Date().toISOString()
-      const iterationContext = buildContainerIterationContext(ctx, loopId)
-
-      try {
-        await this.contextExtensions.onBlockComplete(
-          loopId,
-          'Loop',
-          'loop',
-          {
-            output,
-            executionTime: DEFAULTS.EXECUTION_TIME,
-            startedAt: now,
-            executionOrder: getNextExecutionOrder(ctx),
-            endedAt: now,
-          },
-          iterationContext
-        )
-      } catch (error) {
-        logger.warn('Loop completion callback failed', {
-          loopId,
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-    }
+    await emitSubflowSuccessEvents(ctx, loopId, 'loop', output, this.contextExtensions)
 
     return {
       shouldContinue: false,

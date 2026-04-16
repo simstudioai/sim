@@ -22,6 +22,7 @@ export interface CSPDirectives {
   'media-src'?: string[]
   'font-src'?: string[]
   'connect-src'?: string[]
+  'worker-src'?: string[]
   'frame-src'?: string[]
   'frame-ancestors'?: string[]
   'form-action'?: string[]
@@ -83,6 +84,8 @@ const STATIC_CONNECT_SRC = [
   'https://api.github.com',
   'https://github.com/*',
   'https://challenges.cloudflare.com',
+  ...(isReactGrabEnabled ? ['https://www.react-grab.com'] : []),
+  ...(isDev ? ['ws://localhost:4722'] : []),
   ...(isHosted
     ? [
         'https://www.googletagmanager.com',
@@ -90,6 +93,7 @@ const STATIC_CONNECT_SRC = [
         'https://*.analytics.google.com',
         'https://analytics.google.com',
         'https://www.google.com',
+        'https://analytics.ahrefs.com',
       ]
     : []),
 ] as const
@@ -146,6 +150,7 @@ export const buildTimeCSPDirectives: CSPDirectives = {
   ],
 
   'media-src': ["'self'", 'blob:'],
+  'worker-src': ["'self'", 'blob:'],
   'font-src': ["'self'", 'https://fonts.gstatic.com'],
 
   'connect-src': [

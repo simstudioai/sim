@@ -14,7 +14,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
   Library,
-  Loader,
+  RefreshCw,
 } from '@/components/emcn'
 import { DatePicker } from '@/components/emcn/components/date-picker/date-picker'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
@@ -1086,9 +1086,9 @@ export default function Logs() {
   )
 
   const refreshIcon = useMemo(() => {
-    if (!isVisuallyRefreshing) return Loader
-    const Spinning = (props: React.SVGProps<SVGSVGElement>) => <Loader {...props} animate />
-    Spinning.displayName = 'SpinningLoader'
+    if (!isVisuallyRefreshing) return RefreshCw
+    const Spinning = (props: React.SVGProps<SVGSVGElement>) => <RefreshCw {...props} animate />
+    Spinning.displayName = 'SpinningRefresh'
     return Spinning
   }, [isVisuallyRefreshing])
 
@@ -1106,7 +1106,7 @@ export default function Logs() {
         onClick: handleOpenNotificationSettings,
       },
       {
-        label: '',
+        label: 'Refresh',
         icon: refreshIcon,
         onClick: handleRefresh,
         disabled: isVisuallyRefreshing,
@@ -1114,12 +1114,12 @@ export default function Logs() {
       {
         label: 'Logs',
         onClick: () => setViewMode('logs'),
-        disabled: !isDashboardView,
+        active: !isDashboardView,
       },
       {
         label: 'Dashboard',
         onClick: () => setViewMode('dashboard'),
-        disabled: isDashboardView,
+        active: isDashboardView,
       },
     ],
     [

@@ -26,8 +26,29 @@ export const FORMAT_TO_CONTENT_TYPE: Record<OutputFormat, string> = {
 }
 
 /**
- * Try to pull a flat array of row-objects out of the various shapes that
- * `function_execute` and `user_table` can return.
+ * Unwraps the `function_execute` response envelope `{ result, stdout }` so the
+ * rest of the serialization code works on the user's actual payload (a string,
+ * array, object, etc.) instead of JSON-stringifying the envelope itself.
+ *
+ * Only unwraps when both keys are present — that's the unique shape of
+ * `function_execute` (see `apps/sim/tools/function/types.ts` `CodeExecutionOutput`).
+ * `user_table` returns `{ data, message, success }` which is left alone.
+ */
+export function unwrapFunctionExecuteOutput(output: unknown): unknown {
+  if (!output || typeof output !== 'object' || Array.isArray(output)) return output
+  const obj = output as Record<string, unknown>
+  if ('result' in obj && 'stdout' in obj) {
+    return obj.result
+  }
+  return output
+}
+
+/**
+ * Try to pull a flat array of row-objects out of an already-unwrapped tool
+ * payload. Callers are responsible for stripping any `function_execute`
+ * envelope first (via {@link unwrapFunctionExecuteOutput}) — this function
+ * does not re-unwrap, so a user payload that coincidentally has `result` and
+ * `stdout` keys is not mistaken for another envelope.
  */
 export function extractTabularData(output: unknown): Record<string, unknown>[] | null {
   if (!output || typeof output !== 'object') return null
@@ -40,14 +61,6 @@ export function extractTabularData(output: unknown): Record<string, unknown>[] |
   }
 
   const obj = output as Record<string, unknown>
-
-  // function_execute shape: { result: [...], stdout: "..." }
-  if (Array.isArray(obj.result)) {
-    const rows = obj.result
-    if (rows.length > 0 && typeof rows[0] === 'object' && rows[0] !== null) {
-      return rows as Record<string, unknown>[]
-    }
-  }
 
   // user_table query_rows shape: { data: { rows: [{ data: {...} }], totalCount } }
   if (obj.data && typeof obj.data === 'object' && !Array.isArray(obj.data)) {
@@ -112,16 +125,18 @@ export function resolveOutputFormat(fileName: string, explicit?: string): Output
 }
 
 export function serializeOutputForFile(output: unknown, format: OutputFormat): string {
-  if (typeof output === 'string') return output
+  const unwrapped = unwrapFunctionExecuteOutput(output)
+
+  if (typeof unwrapped === 'string') return unwrapped
 
   if (format === 'csv') {
-    const rows = extractTabularData(output)
+    const rows = extractTabularData(unwrapped)
     if (rows && rows.length > 0) {
       return convertRowsToCsv(rows)
     }
   }
 
-  return JSON.stringify(output, null, 2)
+  return JSON.stringify(unwrapped, null, 2)
 }
 
 export async function maybeWriteOutputToFile(

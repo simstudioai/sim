@@ -3,17 +3,13 @@ import { DEFAULTS } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { ParallelScope } from '@/executor/execution/state'
 import type { BlockStateWriter, ContextExtensions } from '@/executor/execution/types'
-import {
-  type ExecutionContext,
-  getNextExecutionOrder,
-  type NormalizedBlockOutput,
-} from '@/executor/types'
+import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
 import type { ParallelConfigWithNodes } from '@/executor/types/parallel'
-import { buildContainerIterationContext } from '@/executor/utils/iteration-context'
 import { ParallelExpander } from '@/executor/utils/parallel-expansion'
 import {
   addSubflowErrorLog,
   emitEmptySubflowEvents,
+  emitSubflowSuccessEvents,
   extractBranchIndex,
   resolveArrayInput,
   validateMaxCount,
@@ -318,34 +314,7 @@ export class ParallelOrchestrator {
     const output = { results }
     this.state.setBlockOutput(parallelId, output)
 
-    // Emit onBlockComplete for the parallel container so the UI can track it.
-    // When this parallel is nested inside a parent subflow (parallel or loop), emit
-    // iteration context so the terminal can group this event under the parent container.
-    if (this.contextExtensions?.onBlockComplete) {
-      const now = new Date().toISOString()
-      const iterationContext = buildContainerIterationContext(ctx, parallelId)
-
-      try {
-        await this.contextExtensions.onBlockComplete(
-          parallelId,
-          'Parallel',
-          'parallel',
-          {
-            output,
-            executionTime: 0,
-            startedAt: now,
-            executionOrder: getNextExecutionOrder(ctx),
-            endedAt: now,
-          },
-          iterationContext
-        )
-      } catch (error) {
-        logger.warn('Parallel completion callback failed', {
-          parallelId,
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-    }
+    await emitSubflowSuccessEvents(ctx, parallelId, 'parallel', output, this.contextExtensions)
 
     return {
       allBranchesComplete: true,
