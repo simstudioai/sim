@@ -301,6 +301,19 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
     setAttachedFiles([])
   }, [attachedFiles])
 
+  /**
+   * Replaces the current attached files with a given set.
+   * Cleans up preview URLs from the prior set before replacing.
+   */
+  const restoreAttachedFiles = useCallback((files: AttachedFile[]) => {
+    setAttachedFiles((prev) => {
+      prev.forEach((f) => {
+        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl)
+      })
+      return files
+    })
+  }, [])
+
   return {
     // State
     attachedFiles,
@@ -321,6 +334,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
     handleDragOver,
     handleDrop,
     clearAttachedFiles,
+    restoreAttachedFiles,
     processFiles,
   }
 }
