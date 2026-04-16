@@ -161,27 +161,6 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
 
   const contextManagement = useContextManagement({ message: value })
 
-  useImperativeHandle(
-    ref,
-    () => ({
-      loadQueuedMessage: (msg: QueuedMessage) => {
-        setValue(msg.content)
-        const restored: AttachedFile[] = (msg.fileAttachments ?? []).map((a) => ({
-          id: a.id,
-          name: a.filename,
-          size: a.size,
-          type: a.media_type,
-          path: a.path ?? '',
-          key: a.key,
-          uploading: false,
-        }))
-        files.restoreAttachedFiles(restored)
-        contextManagement.setSelectedContexts(msg.contexts ?? [])
-      },
-    }),
-    [files.restoreAttachedFiles, contextManagement.setSelectedContexts]
-  )
-
   const { addContext } = contextManagement
 
   const handleContextAdd = useCallback(
@@ -302,6 +281,34 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   const wasSendingRef = useRef(false)
   const atInsertPosRef = useRef<number | null>(null)
   const pendingCursorRef = useRef<number | null>(null)
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      loadQueuedMessage: (msg: QueuedMessage) => {
+        setValue(msg.content)
+        const restored: AttachedFile[] = (msg.fileAttachments ?? []).map((a) => ({
+          id: a.id,
+          name: a.filename,
+          size: a.size,
+          type: a.media_type,
+          path: a.path ?? '',
+          key: a.key,
+          uploading: false,
+        }))
+        files.restoreAttachedFiles(restored)
+        contextManagement.setSelectedContexts(msg.contexts ?? [])
+        requestAnimationFrame(() => {
+          const textarea = textareaRef.current
+          if (!textarea) return
+          textarea.focus()
+          const end = textarea.value.length
+          textarea.setSelectionRange(end, end)
+        })
+      },
+    }),
+    [files.restoreAttachedFiles, contextManagement.setSelectedContexts, textareaRef]
+  )
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current
@@ -480,8 +487,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === 'ArrowUp' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        const isEmpty =
-          valueRef.current.length === 0 && filesRef.current.attachedFiles.length === 0
+        const isEmpty = valueRef.current.length === 0 && filesRef.current.attachedFiles.length === 0
         if (isEmpty && onEditQueuedTailRef.current) {
           e.preventDefault()
           onEditQueuedTailRef.current()
