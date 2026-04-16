@@ -400,14 +400,6 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
     copilotStopGeneration()
   }, [copilotStopGeneration, workspaceId])
 
-  const handleCopilotStopGeneration = useCallback(() => {
-    captureEvent(posthogRef.current, 'task_generation_aborted', {
-      workspace_id: workspaceId,
-      view: 'copilot',
-    })
-    copilotStopGeneration()
-  }, [copilotStopGeneration, workspaceId])
-
   const handleCopilotSubmit = useCallback(
     (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
       const trimmed = text.trim()

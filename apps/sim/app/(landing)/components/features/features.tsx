@@ -8,8 +8,9 @@ import { Badge } from '@/components/emcn'
 import { FeaturesPreview } from '@/app/(landing)/components/features/components/features-preview'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 
-const AuthModal = dynamic(() =>
-  import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal)
+const AuthModal = dynamic(
+  () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
+  { loading: () => null }
 )
 
 function hexToRgba(hex: string, alpha: number): string {

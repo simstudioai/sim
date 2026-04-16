@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { ArrowUp, ChevronDown, ChevronRight, Paperclip, Pencil, Trash2 } from 'lucide-react'
 import { Tooltip } from '@/components/emcn'
 import { UserMessageContent } from '@/app/workspace/[workspaceId]/home/components/user-message-content'
@@ -17,22 +17,23 @@ interface QueuedMessagesProps {
 
 export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: QueuedMessagesProps) {
   const [isExpanded, setIsExpanded] = useState(true)
-  const containerRef = useRef<HTMLDivElement>(null)
   const [isNarrow, setIsNarrow] = useState(false)
+  const roRef = useRef<ResizeObserver | null>(null)
 
-  const hasMessages = messageQueue.length > 0
-
-  useEffect(() => {
-    const el = containerRef.current
+  const containerRef = useCallback((el: HTMLDivElement | null) => {
+    if (roRef.current) {
+      roRef.current.disconnect()
+      roRef.current = null
+    }
     if (!el) return
     const ro = new ResizeObserver((entries) => {
       setIsNarrow(entries[0].contentRect.width < NARROW_WIDTH_PX)
     })
     ro.observe(el)
-    return () => ro.disconnect()
-  }, [hasMessages])
+    roRef.current = ro
+  }, [])
 
-  if (!hasMessages) return null
+  if (messageQueue.length === 0) return null
 
   return (
     <div
@@ -70,7 +71,7 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
                   content={msg.content}
                   contexts={msg.contexts}
                   plainMentions
-                  className='!truncate !whitespace-nowrap !text-small !leading-[20px]'
+                  compact
                 />
               </div>
 

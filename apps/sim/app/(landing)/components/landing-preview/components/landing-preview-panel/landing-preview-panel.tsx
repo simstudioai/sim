@@ -21,8 +21,9 @@ import {
 } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 
-const AuthModal = dynamic(() =>
-  import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal)
+const AuthModal = dynamic(
+  () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
+  { loading: () => null }
 )
 
 type PanelTab = 'copilot' | 'editor'
