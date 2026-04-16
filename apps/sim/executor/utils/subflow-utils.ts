@@ -396,3 +396,60 @@ export async function emitEmptySubflowEvents(
     }
   }
 }
+
+/**
+ * Emits the BlockLog + onBlockComplete callback for a loop/parallel container that
+ * finished successfully with at least one iteration. Without this, successful container
+ * runs produce no top-level BlockLog, which forces the trace-span builder to fall back
+ * to generic counter-based names ("Loop 1", "Parallel 1") instead of the user-configured
+ * block name.
+ */
+export async function emitSubflowSuccessEvents(
+  ctx: ExecutionContext,
+  blockId: string,
+  blockType: 'loop' | 'parallel',
+  output: { results: any[] },
+  contextExtensions: ContextExtensions | null
+): Promise<void> {
+  const now = new Date().toISOString()
+  const executionOrder = getNextExecutionOrder(ctx)
+  const block = ctx.workflow?.blocks.find((b) => b.id === blockId)
+  const blockName = block?.metadata?.name ?? blockType
+  const iterationContext = buildContainerIterationContext(ctx, blockId)
+
+  ctx.blockLogs.push({
+    blockId,
+    blockName,
+    blockType,
+    startedAt: now,
+    endedAt: now,
+    durationMs: DEFAULTS.EXECUTION_TIME,
+    success: true,
+    output,
+    executionOrder,
+  })
+
+  if (contextExtensions?.onBlockComplete) {
+    try {
+      await contextExtensions.onBlockComplete(
+        blockId,
+        blockName,
+        blockType,
+        {
+          output,
+          executionTime: DEFAULTS.EXECUTION_TIME,
+          startedAt: now,
+          executionOrder,
+          endedAt: now,
+        },
+        iterationContext
+      )
+    } catch (error) {
+      logger.warn('Subflow success completion callback failed', {
+        blockId,
+        blockType,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+}
