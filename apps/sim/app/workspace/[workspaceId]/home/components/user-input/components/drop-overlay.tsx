@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import { memo } from 'react'
 import {
   AudioIcon,
   CsvIcon,
@@ -25,7 +25,7 @@ const DROP_OVERLAY_ICONS = [
   VideoIcon,
 ] as const
 
-export const DropOverlay = React.memo(function DropOverlay() {
+export const DropOverlay = memo(function DropOverlay() {
   return (
     <div className='pointer-events-none absolute inset-[6px] z-10 flex items-center justify-center rounded-[14px] border-[1.5px] border-[var(--border-1)] border-dashed bg-[var(--white)] dark:bg-[var(--surface-4)]'>
       <div className='flex flex-col items-center gap-2'>

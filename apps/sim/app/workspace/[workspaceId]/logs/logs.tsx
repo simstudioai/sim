@@ -1114,12 +1114,12 @@ export default function Logs() {
       {
         label: 'Logs',
         onClick: () => setViewMode('logs'),
-        disabled: !isDashboardView,
+        active: !isDashboardView,
       },
       {
         label: 'Dashboard',
         onClick: () => setViewMode('dashboard'),
-        disabled: isDashboardView,
+        active: isDashboardView,
       },
     ],
     [
