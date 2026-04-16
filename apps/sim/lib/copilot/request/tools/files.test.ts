@@ -72,19 +72,18 @@ describe('serializeOutputForFile (json / txt / md)', () => {
 })
 
 describe('extractTabularData', () => {
-  it('extracts rows from function_execute { result: [...] } via unwrap', () => {
-    const rows = extractTabularData({
-      result: [{ a: 1 }, { a: 2 }],
-      stdout: '',
-    })
-    expect(rows).toEqual([{ a: 1 }, { a: 2 }])
+  it('extracts rows directly from an array input', () => {
+    expect(extractTabularData([{ a: 1 }, { a: 2 }])).toEqual([{ a: 1 }, { a: 2 }])
   })
 
-  it('returns null when function_execute result is a non-tabular string', () => {
-    expect(extractTabularData({ result: 'name,age\nAlice,30', stdout: '' })).toBeNull()
+  it('does NOT unwrap function_execute envelopes on its own (callers must pre-unwrap)', () => {
+    // Caller is responsible for unwrapping { result, stdout } envelopes first.
+    // Keeping that concern out of this function prevents a double unwrap when
+    // the user's payload itself happens to have matching keys.
+    expect(extractTabularData({ result: [{ a: 1 }], stdout: '' })).toBeNull()
   })
 
-  it('still extracts rows from the user_table query_rows shape', () => {
+  it('extracts rows from the user_table query_rows shape', () => {
     const rows = extractTabularData({
       data: {
         rows: [
@@ -95,5 +94,11 @@ describe('extractTabularData', () => {
       },
     })
     expect(rows).toEqual([{ name: 'Alice' }, { name: 'Bob' }])
+  })
+
+  it('returns null for non-tabular inputs', () => {
+    expect(extractTabularData('plain string')).toBeNull()
+    expect(extractTabularData(null)).toBeNull()
+    expect(extractTabularData({ foo: 'bar' })).toBeNull()
   })
 })

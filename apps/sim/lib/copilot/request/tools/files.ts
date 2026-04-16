@@ -44,21 +44,23 @@ export function unwrapFunctionExecuteOutput(output: unknown): unknown {
 }
 
 /**
- * Try to pull a flat array of row-objects out of the various shapes that
- * `function_execute` and `user_table` can return.
+ * Try to pull a flat array of row-objects out of an already-unwrapped tool
+ * payload. Callers are responsible for stripping any `function_execute`
+ * envelope first (via {@link unwrapFunctionExecuteOutput}) — this function
+ * does not re-unwrap, so a user payload that coincidentally has `result` and
+ * `stdout` keys is not mistaken for another envelope.
  */
 export function extractTabularData(output: unknown): Record<string, unknown>[] | null {
-  const unwrapped = unwrapFunctionExecuteOutput(output)
-  if (!unwrapped || typeof unwrapped !== 'object') return null
+  if (!output || typeof output !== 'object') return null
 
-  if (Array.isArray(unwrapped)) {
-    if (unwrapped.length > 0 && typeof unwrapped[0] === 'object' && unwrapped[0] !== null) {
-      return unwrapped as Record<string, unknown>[]
+  if (Array.isArray(output)) {
+    if (output.length > 0 && typeof output[0] === 'object' && output[0] !== null) {
+      return output as Record<string, unknown>[]
     }
     return null
   }
 
-  const obj = unwrapped as Record<string, unknown>
+  const obj = output as Record<string, unknown>
 
   // user_table query_rows shape: { data: { rows: [{ data: {...} }], totalCount } }
   if (obj.data && typeof obj.data === 'object' && !Array.isArray(obj.data)) {
