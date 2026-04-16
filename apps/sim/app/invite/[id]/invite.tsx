@@ -147,13 +147,13 @@ function parseApiError(error: unknown, statusCode?: number): InviteErrorCode {
   if (errorMessage.includes('already a member of an organization')) return 'already-in-organization'
   if (errorMessage.includes('no available seats')) return 'no-seats-available'
   if (errorMessage.includes('already a member')) return 'already-member'
+  if (errorMessage.includes('expired')) return 'expired'
   if (errorMessage.includes('email mismatch') || errorMessage.includes('different email'))
     return 'email-mismatch'
   if (errorMessage.includes('already processed')) return 'already-processed'
   if (errorMessage.includes('unauthorized')) return 'unauthorized'
   if (errorMessage.includes('forbidden') || errorMessage.includes('permission')) return 'forbidden'
-  if (errorMessage.includes('not found') || errorMessage.includes('expired'))
-    return 'invalid-invitation'
+  if (errorMessage.includes('not found')) return 'invalid-invitation'
 
   // Handle HTTP status codes as fallback
   if (statusCode) {

@@ -6,6 +6,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { hasPaidSubscription } from '@/lib/billing'
+import { isOrgPlan } from '@/lib/billing/plan-helpers'
+import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 
 const logger = createLogger('SubscriptionTransferAPI')
 
@@ -63,6 +65,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json(
         { error: 'Unauthorized - subscription does not belong to user' },
         { status: 403 }
+      )
+    }
+
+    if (!isOrgPlan(sub.plan) || !hasPaidSubscriptionStatus(sub.status)) {
+      return NextResponse.json(
+        {
+          error:
+            'Only active Team or Enterprise subscriptions can be transferred to an organization.',
+        },
+        { status: 400 }
       )
     }
 

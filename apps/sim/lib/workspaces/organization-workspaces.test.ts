@@ -109,6 +109,7 @@ vi.mock('drizzle-orm', () => ({
 import {
   attachOwnedWorkspacesToOrganization,
   detachOrganizationWorkspaces,
+  WorkspaceOrganizationMembershipConflictError,
 } from '@/lib/workspaces/organization-workspaces'
 
 describe('organization workspace helpers', () => {
@@ -124,6 +125,7 @@ describe('organization workspace helpers', () => {
       [{ id: 'ws-1' }, { id: 'ws-2' }],
       [{ userId: 'owner-1' }],
       [{ userId: 'owner-1' }, { userId: 'member-1' }],
+      [{ userId: 'owner-1', organizationId: 'org-1' }],
     ]
     mockEnsureUserInOrganization
       .mockResolvedValueOnce({
@@ -165,6 +167,25 @@ describe('organization workspace helpers', () => {
       skipSeatValidation: true,
     })
     expect(mockSyncUsageLimitsFromSubscription).toHaveBeenCalledWith('member-1')
+  })
+
+  it('fails before attaching workspaces when an existing member belongs to another organization', async () => {
+    mockDbResults.value = [
+      [{ id: 'ws-1' }],
+      [{ userId: 'owner-1' }],
+      [{ userId: 'owner-1' }, { userId: 'member-2' }],
+      [{ userId: 'member-2', organizationId: 'org-2' }],
+    ]
+
+    await expect(
+      attachOwnedWorkspacesToOrganization({
+        ownerUserId: 'user-1',
+        organizationId: 'org-1',
+      })
+    ).rejects.toBeInstanceOf(WorkspaceOrganizationMembershipConflictError)
+
+    expect(mockEnsureUserInOrganization).not.toHaveBeenCalled()
+    expect(mockDbUpdate).not.toHaveBeenCalled()
   })
 
   it('detaches organization workspaces into grandfathered shared mode', async () => {

@@ -2,8 +2,13 @@ import { auditMock, createSession, createWorkspaceRecord, loggerMock } from '@si
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnsureUserInOrganization, mockSyncUsageLimitsFromSubscription } = vi.hoisted(() => ({
+const {
+  mockEnsureUserInOrganization,
+  mockSetActiveOrganizationForCurrentSession,
+  mockSyncUsageLimitsFromSubscription,
+} = vi.hoisted(() => ({
   mockEnsureUserInOrganization: vi.fn(),
+  mockSetActiveOrganizationForCurrentSession: vi.fn().mockResolvedValue(undefined),
   mockSyncUsageLimitsFromSubscription: vi.fn().mockResolvedValue(undefined),
 }))
 
@@ -84,6 +89,10 @@ vi.mock('@/lib/billing/core/usage', () => ({
   syncUsageLimitsFromSubscription: mockSyncUsageLimitsFromSubscription,
 }))
 
+vi.mock('@/lib/auth/active-organization', () => ({
+  setActiveOrganizationForCurrentSession: mockSetActiveOrganizationForCurrentSession,
+}))
+
 vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/lib/audit/log', () => auditMock)
@@ -119,6 +128,10 @@ vi.mock('@sim/db', () => ({
 }))
 
 vi.mock('@sim/db/schema', () => ({
+  invitation: {
+    id: 'id',
+    status: 'status',
+  },
   workspaceInvitation: {
     id: 'id',
     workspaceId: 'workspaceId',
@@ -127,7 +140,9 @@ vi.mock('@sim/db/schema', () => ({
     status: 'status',
     token: 'token',
     permissions: 'permissions',
+    orgInvitationId: 'orgInvitationId',
     expiresAt: 'expiresAt',
+    updatedAt: 'updatedAt',
   },
   workspace: {
     id: 'id',
@@ -569,12 +584,89 @@ describe('Workspace Invitation [invitationId] API Route', () => {
         role: 'member',
       })
       expect(mockSyncUsageLimitsFromSubscription).toHaveBeenCalledWith(mockUser.id)
-      expect(mockDbUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userId: 'userId',
-          activeOrganizationId: 'activeOrganizationId',
-        })
+      expect(mockSetActiveOrganizationForCurrentSession).toHaveBeenCalledWith('org-1')
+    })
+
+    it('redirects linked workspace invitations through the parent organization invitation flow', async () => {
+      const session = createSession({
+        userId: mockUser.id,
+        email: 'invited@example.com',
+        name: mockUser.name,
+      })
+      mockGetSession.mockResolvedValue(session)
+
+      dbSelectResults = [
+        [{ ...mockInvitation, orgInvitationId: 'org-invite-123' }],
+        [mockWorkspace],
+        [{ id: 'org-invite-123', status: 'pending' }],
+      ]
+
+      const request = new NextRequest(
+        'http://localhost/api/workspaces/invitations/token-abc123?token=token-abc123'
       )
+      const params = Promise.resolve({ invitationId: 'token-abc123' })
+
+      const response = await GET(request, { params })
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('https://test.sim.ai/invite/org-invite-123')
+      expect(mockEnsureUserInOrganization).not.toHaveBeenCalled()
+    })
+
+    it('blocks linked workspace invitations when the parent organization invitation is already processed', async () => {
+      const session = createSession({
+        userId: mockUser.id,
+        email: 'invited@example.com',
+        name: mockUser.name,
+      })
+      mockGetSession.mockResolvedValue(session)
+
+      dbSelectResults = [
+        [{ ...mockInvitation, orgInvitationId: 'org-invite-123' }],
+        [mockWorkspace],
+        [{ id: 'org-invite-123', status: 'rejected' }],
+      ]
+
+      const request = new NextRequest(
+        'http://localhost/api/workspaces/invitations/token-abc123?token=token-abc123'
+      )
+      const params = Promise.resolve({ invitationId: 'token-abc123' })
+
+      const response = await GET(request, { params })
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe(
+        'https://test.sim.ai/invite/org-invite-123?error=already-processed'
+      )
+      expect(mockEnsureUserInOrganization).not.toHaveBeenCalled()
+    })
+
+    it('redirects linked workspace invitations to an expired org invite state when the parent invite is expired', async () => {
+      const session = createSession({
+        userId: mockUser.id,
+        email: 'invited@example.com',
+        name: mockUser.name,
+      })
+      mockGetSession.mockResolvedValue(session)
+
+      dbSelectResults = [
+        [{ ...mockInvitation, orgInvitationId: 'org-invite-123' }],
+        [mockWorkspace],
+        [{ id: 'org-invite-123', status: 'pending', expiresAt: new Date(Date.now() - 1000) }],
+      ]
+
+      const request = new NextRequest(
+        'http://localhost/api/workspaces/invitations/token-abc123?token=token-abc123'
+      )
+      const params = Promise.resolve({ invitationId: 'token-abc123' })
+
+      const response = await GET(request, { params })
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe(
+        'https://test.sim.ai/invite/org-invite-123?error=expired'
+      )
+      expect(mockEnsureUserInOrganization).not.toHaveBeenCalled()
     })
   })
 

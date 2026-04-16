@@ -7,6 +7,7 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getUserOrganization } from '@/lib/billing/organizations/membership'
 import { isEnterprise, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
+import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 
 const logger = createLogger('WorkspacePolicy')
 
@@ -65,10 +66,10 @@ export async function getWorkspaceCreationPolicy({
 }: GetWorkspaceCreationPolicyParams): Promise<WorkspaceCreationPolicy> {
   const membership = await getUserOrganization(userId)
   const organizationId = activeOrganizationId ?? membership?.organizationId ?? null
-
-  if (organizationId) {
-    const orgRole =
-      membership?.organizationId === organizationId
+  const orgRole =
+    organizationId == null
+      ? undefined
+      : membership?.organizationId === organizationId
         ? membership.role
         : (
             await db
@@ -78,41 +79,83 @@ export async function getWorkspaceCreationPolicy({
               .limit(1)
           )[0]?.role
 
-    if (orgRole) {
-      const organizationSubscription = await getOrganizationSubscription(organizationId)
+  if (!isBillingEnabled) {
+    if (organizationId && orgRole) {
+      const billedAccountUserId = (await getOrganizationOwnerId(organizationId)) ?? userId
 
-      if (
-        organizationSubscription &&
-        hasUsableSubscriptionStatus(organizationSubscription.status) &&
-        (isTeam(organizationSubscription.plan) || isEnterprise(organizationSubscription.plan))
-      ) {
-        if (!['owner', 'admin'].includes(orgRole)) {
-          const billedAccountUserId = (await getOrganizationOwnerId(organizationId)) ?? userId
-
-          return {
-            canCreate: false,
-            workspaceMode: WORKSPACE_MODE.ORGANIZATION,
-            organizationId,
-            billedAccountUserId,
-            maxWorkspaces: null,
-            currentWorkspaceCount: 0,
-            reason: 'Only organization owners and admins can create organization workspaces.',
-            status: 403,
-          }
-        }
-
-        const billedAccountUserId = (await getOrganizationOwnerId(organizationId)) ?? userId
-
+      if (!['owner', 'admin'].includes(orgRole)) {
         return {
-          canCreate: true,
+          canCreate: false,
           workspaceMode: WORKSPACE_MODE.ORGANIZATION,
           organizationId,
           billedAccountUserId,
           maxWorkspaces: null,
           currentWorkspaceCount: 0,
-          reason: null,
-          status: 200,
+          reason: 'Only organization owners and admins can create organization workspaces.',
+          status: 403,
         }
+      }
+
+      return {
+        canCreate: true,
+        workspaceMode: WORKSPACE_MODE.ORGANIZATION,
+        organizationId,
+        billedAccountUserId,
+        maxWorkspaces: null,
+        currentWorkspaceCount: 0,
+        reason: null,
+        status: 200,
+      }
+    }
+
+    const currentWorkspaceCount = await countNonOrganizationOwnedWorkspaces(userId)
+
+    return {
+      canCreate: true,
+      workspaceMode: WORKSPACE_MODE.PERSONAL,
+      organizationId: null,
+      billedAccountUserId: userId,
+      maxWorkspaces: null,
+      currentWorkspaceCount,
+      reason: null,
+      status: 200,
+    }
+  }
+
+  if (organizationId && orgRole) {
+    const organizationSubscription = await getOrganizationSubscription(organizationId)
+
+    if (
+      organizationSubscription &&
+      hasUsableSubscriptionStatus(organizationSubscription.status) &&
+      (isTeam(organizationSubscription.plan) || isEnterprise(organizationSubscription.plan))
+    ) {
+      if (!['owner', 'admin'].includes(orgRole)) {
+        const billedAccountUserId = (await getOrganizationOwnerId(organizationId)) ?? userId
+
+        return {
+          canCreate: false,
+          workspaceMode: WORKSPACE_MODE.ORGANIZATION,
+          organizationId,
+          billedAccountUserId,
+          maxWorkspaces: null,
+          currentWorkspaceCount: 0,
+          reason: 'Only organization owners and admins can create organization workspaces.',
+          status: 403,
+        }
+      }
+
+      const billedAccountUserId = (await getOrganizationOwnerId(organizationId)) ?? userId
+
+      return {
+        canCreate: true,
+        workspaceMode: WORKSPACE_MODE.ORGANIZATION,
+        organizationId,
+        billedAccountUserId,
+        maxWorkspaces: null,
+        currentWorkspaceCount: 0,
+        reason: null,
+        status: 200,
       }
     }
   }

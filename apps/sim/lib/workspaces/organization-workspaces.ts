@@ -20,6 +20,18 @@ export interface DetachOrganizationWorkspacesResult {
   billedAccountUserId: string | null
 }
 
+export class WorkspaceOrganizationMembershipConflictError extends Error {
+  conflicts: Array<{ userId: string; organizationId: string }>
+
+  constructor(conflicts: Array<{ userId: string; organizationId: string }>) {
+    super(
+      'One or more workspace members already belong to another organization and cannot be attached.'
+    )
+    this.name = 'WorkspaceOrganizationMembershipConflictError'
+    this.conflicts = conflicts
+  }
+}
+
 interface AttachOwnedWorkspacesToOrganizationParams {
   ownerUserId: string
   organizationId: string
@@ -46,6 +58,36 @@ export async function attachOwnedWorkspacesToOrganization({
     organizationId,
     ownerUserId
   )
+  const ownedWorkspaceIds = ownedWorkspaces.map((ownedWorkspace) => ownedWorkspace.id)
+  const uniqueWorkspaceMemberIds = await getWorkspaceMemberIds(ownedWorkspaceIds)
+  await assertWorkspaceMembersCanJoinOrganization(uniqueWorkspaceMemberIds, organizationId)
+
+  const addedMemberIds: string[] = []
+
+  for (const userId of uniqueWorkspaceMemberIds) {
+    const result = await ensureUserInOrganization({
+      userId,
+      organizationId,
+      role: userId === billedAccountUserId ? 'owner' : 'member',
+      skipSeatValidation: true,
+    })
+
+    if (!result.success) {
+      logger.error('Failed to sync workspace member into organization before attachment', {
+        userId,
+        organizationId,
+        ownerUserId,
+        error: result.error,
+      })
+      throw new Error(result.error || 'Failed to sync workspace member into organization')
+    }
+
+    if (!result.alreadyMember) {
+      addedMemberIds.push(userId)
+      await syncUsageLimitsFromSubscription(userId)
+    }
+  }
+
   const attachedWorkspaceIds: string[] = []
 
   for (const ownedWorkspace of ownedWorkspaces) {
@@ -63,44 +105,17 @@ export async function attachOwnedWorkspacesToOrganization({
     attachedWorkspaceIds.push(ownedWorkspace.id)
   }
 
-  const uniqueWorkspaceMemberIds = await getWorkspaceMemberIds(attachedWorkspaceIds)
-  const addedMemberIds: string[] = []
-  const skippedMembers: Array<{ userId: string; reason: string }> = []
-
-  for (const userId of uniqueWorkspaceMemberIds) {
-    const result = await ensureUserInOrganization({
-      userId,
-      organizationId,
-      role: userId === billedAccountUserId ? 'owner' : 'member',
-      skipSeatValidation: true,
-    })
-
-    if (!result.success) {
-      skippedMembers.push({
-        userId,
-        reason: result.error || 'Failed to sync user into organization',
-      })
-      continue
-    }
-
-    if (!result.alreadyMember) {
-      addedMemberIds.push(userId)
-      await syncUsageLimitsFromSubscription(userId)
-    }
-  }
-
   logger.info('Attached owned workspaces to organization', {
     ownerUserId,
     organizationId,
     attachedWorkspaceCount: attachedWorkspaceIds.length,
     addedMemberCount: addedMemberIds.length,
-    skippedMemberCount: skippedMembers.length,
   })
 
   return {
     attachedWorkspaceIds,
     addedMemberIds,
-    skippedMembers,
+    skippedMembers: [],
   }
 }
 
@@ -181,6 +196,37 @@ async function getOrganizationOwnerId(organizationId: string): Promise<string | 
     .limit(1)
 
   return ownerMembership?.userId ?? null
+}
+
+async function assertWorkspaceMembersCanJoinOrganization(
+  userIds: string[],
+  organizationId: string
+): Promise<void> {
+  if (userIds.length === 0) {
+    return
+  }
+
+  const memberships = await db
+    .select({
+      userId: member.userId,
+      organizationId: member.organizationId,
+    })
+    .from(member)
+    .where(inArray(member.userId, userIds))
+
+  const conflicts = memberships.filter((membership) => membership.organizationId !== organizationId)
+
+  if (conflicts.length === 0) {
+    return
+  }
+
+  logger.warn('Workspace attachment blocked by members in another organization', {
+    organizationId,
+    conflictCount: conflicts.length,
+    conflictingUserIds: conflicts.map((conflict) => conflict.userId),
+  })
+
+  throw new WorkspaceOrganizationMembershipConflictError(conflicts)
 }
 
 async function getWorkspaceMemberIds(workspaceIds: string[]): Promise<string[]> {

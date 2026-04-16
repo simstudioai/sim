@@ -8,17 +8,20 @@ const {
   mockGetOrganizationSubscription,
   mockGetHighestPrioritySubscription,
   mockDbResults,
+  mockFeatureFlags,
 } = vi.hoisted(() => {
   const mockGetUserOrganization = vi.fn()
   const mockGetOrganizationSubscription = vi.fn()
   const mockGetHighestPrioritySubscription = vi.fn()
   const mockDbResults: { value: any[] } = { value: [] }
+  const mockFeatureFlags = { isBillingEnabled: true }
 
   return {
     mockGetUserOrganization,
     mockGetOrganizationSubscription,
     mockGetHighestPrioritySubscription,
     mockDbResults,
+    mockFeatureFlags,
   }
 })
 
@@ -65,6 +68,12 @@ vi.mock('@/lib/billing/core/plan', () => ({
   getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
 }))
 
+vi.mock('@/lib/core/config/feature-flags', () => ({
+  get isBillingEnabled() {
+    return mockFeatureFlags.isBillingEnabled
+  },
+}))
+
 vi.mock('@sim/logger', () => ({
   createLogger: vi.fn().mockReturnValue({
     info: vi.fn(),
@@ -87,6 +96,7 @@ describe('getWorkspaceCreationPolicy', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockDbResults.value = []
+    mockFeatureFlags.isBillingEnabled = true
     mockGetUserOrganization.mockResolvedValue(null)
     mockGetOrganizationSubscription.mockResolvedValue(null)
     mockGetHighestPrioritySubscription.mockResolvedValue(null)
@@ -119,6 +129,19 @@ describe('getWorkspaceCreationPolicy', () => {
     expect(result.currentWorkspaceCount).toBe(2)
   })
 
+  it('allows unlimited personal workspaces when billing is disabled', async () => {
+    mockFeatureFlags.isBillingEnabled = false
+    mockDbResults.value = [[{ value: 9 }]]
+
+    const result = await getWorkspaceCreationPolicy({ userId: 'user-1' })
+
+    expect(result.canCreate).toBe(true)
+    expect(result.workspaceMode).toBe(WORKSPACE_MODE.PERSONAL)
+    expect(result.maxWorkspaces).toBeNull()
+    expect(result.currentWorkspaceCount).toBe(9)
+    expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
+  })
+
   it('allows org admins on a team plan to create organization workspaces', async () => {
     mockGetUserOrganization.mockResolvedValueOnce({
       organizationId: 'org-1',
@@ -141,6 +164,27 @@ describe('getWorkspaceCreationPolicy', () => {
     expect(result.workspaceMode).toBe(WORKSPACE_MODE.ORGANIZATION)
     expect(result.organizationId).toBe('org-1')
     expect(result.billedAccountUserId).toBe('owner-1')
+  })
+
+  it('allows org admins to create organization workspaces when billing is disabled', async () => {
+    mockFeatureFlags.isBillingEnabled = false
+    mockGetUserOrganization.mockResolvedValueOnce({
+      organizationId: 'org-1',
+      role: 'admin',
+      memberId: 'member-1',
+    })
+    mockDbResults.value = [[{ userId: 'owner-1' }]]
+
+    const result = await getWorkspaceCreationPolicy({
+      userId: 'user-1',
+      activeOrganizationId: 'org-1',
+    })
+
+    expect(result.canCreate).toBe(true)
+    expect(result.workspaceMode).toBe(WORKSPACE_MODE.ORGANIZATION)
+    expect(result.organizationId).toBe('org-1')
+    expect(result.billedAccountUserId).toBe('owner-1')
+    expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
   })
 
   it('blocks non-admin org members from creating organization workspaces', async () => {

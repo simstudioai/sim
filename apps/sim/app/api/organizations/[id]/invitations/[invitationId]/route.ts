@@ -6,7 +6,6 @@ import {
   permissionGroup,
   permissionGroupMember,
   permissions,
-  session as sessionTable,
   user,
   type WorkspaceInvitationStatus,
   workspaceEnvironment,
@@ -19,6 +18,7 @@ import { z } from 'zod'
 import { getEmailSubject, renderInvitationEmail } from '@/components/emails'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
+import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import { hasAccessControlAccess } from '@/lib/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { ensureUserInOrganization } from '@/lib/billing/organizations/membership'
@@ -150,6 +150,19 @@ export async function POST(
       .set({ expiresAt: newExpiresAt })
       .where(eq(invitation.id, invitationId))
 
+    await db
+      .update(workspaceInvitation)
+      .set({
+        expiresAt: newExpiresAt,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(workspaceInvitation.orgInvitationId, invitationId),
+          eq(workspaceInvitation.status, 'pending' as WorkspaceInvitationStatus)
+        )
+      )
+
     // Send email
     const emailHtml = await renderInvitationEmail(
       inviter[0]?.name || 'Someone',
@@ -249,6 +262,10 @@ export async function PUT(
       return NextResponse.json({ error: 'Invitation already processed' }, { status: 400 })
     }
 
+    if (new Date() > new Date(orgInvitation.expiresAt)) {
+      return NextResponse.json({ error: 'Invitation has expired' }, { status: 400 })
+    }
+
     if (status === 'accepted') {
       const userData = await db
         .select()
@@ -296,12 +313,27 @@ export async function PUT(
 
       if (!membershipResult.success) {
         if (membershipResult.existingOrgId) {
-          await db
-            .update(invitation)
-            .set({
-              status: 'rejected',
-            })
-            .where(eq(invitation.id, invitationId))
+          await db.transaction(async (tx) => {
+            await tx
+              .update(invitation)
+              .set({
+                status: 'rejected',
+              })
+              .where(eq(invitation.id, invitationId))
+
+            await tx
+              .update(workspaceInvitation)
+              .set({
+                status: 'rejected' as WorkspaceInvitationStatus,
+                updatedAt: new Date(),
+              })
+              .where(
+                and(
+                  eq(workspaceInvitation.orgInvitationId, invitationId),
+                  eq(workspaceInvitation.status, 'pending' as WorkspaceInvitationStatus)
+                )
+              )
+          })
 
           return NextResponse.json(
             {
@@ -325,11 +357,6 @@ export async function PUT(
       await tx.update(invitation).set({ status }).where(eq(invitation.id, invitationId))
 
       if (status === 'accepted') {
-        await tx
-          .update(sessionTable)
-          .set({ activeOrganizationId: organizationId })
-          .where(eq(sessionTable.userId, session.user.id))
-
         // Auto-assign to permission group if one has autoAddNewMembers enabled
         try {
           const hasAccessControl = await hasAccessControlAccess(session.user.id)
@@ -440,13 +467,36 @@ export async function PUT(
             })
           }
         }
-      } else if (status === 'cancelled') {
+      } else if (status === 'rejected' || status === 'cancelled') {
         await tx
           .update(workspaceInvitation)
-          .set({ status: 'cancelled' as WorkspaceInvitationStatus })
-          .where(eq(workspaceInvitation.orgInvitationId, invitationId))
+          .set({
+            status:
+              status === 'rejected'
+                ? ('rejected' as WorkspaceInvitationStatus)
+                : ('cancelled' as WorkspaceInvitationStatus),
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(workspaceInvitation.orgInvitationId, invitationId),
+              eq(workspaceInvitation.status, 'pending' as WorkspaceInvitationStatus)
+            )
+          )
       }
     })
+
+    if (status === 'accepted') {
+      try {
+        await setActiveOrganizationForCurrentSession(organizationId)
+      } catch (error) {
+        logger.error('Failed to activate organization after accepting invitation', {
+          userId: session.user.id,
+          organizationId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
 
     if (status === 'accepted') {
       const acceptedWsInvitations = await db

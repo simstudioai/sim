@@ -143,18 +143,30 @@ export async function getOrganizationSeatInfo(
       return null
     }
 
-    const subscription = await getOrganizationSubscription(organizationId)
-
-    if (!subscription) {
-      return null
-    }
-
     const memberCount = await db
       .select({ count: count() })
       .from(member)
       .where(eq(member.organizationId, organizationId))
 
     const currentSeats = memberCount[0]?.count || 0
+
+    if (!isBillingEnabled) {
+      return {
+        organizationId,
+        organizationName: organizationData[0].name,
+        currentSeats,
+        maxSeats: Number.MAX_SAFE_INTEGER,
+        availableSeats: Number.MAX_SAFE_INTEGER,
+        subscriptionPlan: 'billing_disabled',
+        canAddSeats: false,
+      }
+    }
+
+    const subscription = await getOrganizationSubscription(organizationId)
+
+    if (!subscription) {
+      return null
+    }
 
     // Team: seats from column, Enterprise: seats from metadata
     const maxSeats = getEffectiveSeats(subscription)

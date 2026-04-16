@@ -1,18 +1,12 @@
 import { db } from '@sim/db'
-import {
-  member,
-  organization,
-  session,
-  subscription as subscriptionTable,
-  user,
-} from '@sim/db/schema'
+import { member, organization, subscription as subscriptionTable, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { hasPaidSubscription } from '@/lib/billing'
 import { getPlanPricing } from '@/lib/billing/core/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
+import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
 import { isOrgPlan, isTeam } from '@/lib/billing/plan-helpers'
-import { generateId } from '@/lib/core/utils/uuid'
 import { attachOwnedWorkspacesToOrganization } from '@/lib/workspaces/organization-workspaces'
 
 const logger = createLogger('BillingOrganization')
@@ -48,52 +42,16 @@ async function getUserOwnedOrganization(userId: string): Promise<string | null> 
   return null
 }
 
-/**
- * Create a new organization and add user as owner
- * Uses transaction to ensure org + member are created atomically
- * Also updates user's active sessions to set the new org as active
- */
-async function createOrganizationWithOwner(
-  userId: string,
-  organizationName: string,
-  organizationSlug: string,
-  metadata: Record<string, any> = {}
-): Promise<string> {
-  const orgId = `org_${generateId()}`
-  let sessionsUpdated = 0
+export async function getOrganizationIdForSubscriptionReference(
+  referenceId: string
+): Promise<string | null> {
+  const [referencedOrganization] = await db
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.id, referenceId))
+    .limit(1)
 
-  await db.transaction(async (tx) => {
-    await tx.insert(organization).values({
-      id: orgId,
-      name: organizationName,
-      slug: organizationSlug,
-      metadata,
-    })
-
-    await tx.insert(member).values({
-      id: generateId(),
-      userId: userId,
-      organizationId: orgId,
-      role: 'owner',
-    })
-
-    const updatedSessions = await tx
-      .update(session)
-      .set({ activeOrganizationId: orgId })
-      .where(eq(session.userId, userId))
-      .returning({ id: session.id })
-
-    sessionsUpdated = updatedSessions.length
-  })
-
-  logger.info('Created organization with owner', {
-    userId,
-    organizationId: orgId,
-    organizationName,
-    sessionsUpdated,
-  })
-
-  return orgId
+  return referencedOrganization?.id ?? null
 }
 
 export async function createOrganizationForTeamPlan(
@@ -109,11 +67,21 @@ export async function createOrganizationForTeamPlan(
     }
 
     const organizationName = userName || `${userEmail || 'User'}'s Team`
-    const slug = organizationSlug || `${userId}-team-${Date.now()}`
+    const slug =
+      organizationSlug ||
+      `${userId}-team-${Date.now()}`
+        .toLowerCase()
+        .replace(/[^a-z0-9-_]+/g, '-')
+        .replace(/^-|-$/g, '')
 
-    const orgId = await createOrganizationWithOwner(userId, organizationName, slug, {
-      createdForTeamPlan: true,
-      originalUserId: userId,
+    const { organizationId: orgId } = await createOrganizationWithOwner({
+      ownerUserId: userId,
+      name: organizationName,
+      slug,
+      metadata: {
+        createdForTeamPlan: true,
+        originalUserId: userId,
+      },
     })
 
     logger.info('Created organization for team/enterprise plan', {
@@ -139,8 +107,15 @@ export async function ensureOrganizationForTeamSubscription(
     return subscription
   }
 
-  if (subscription.referenceId.startsWith('org_')) {
-    return subscription
+  const referencedOrganizationId = await getOrganizationIdForSubscriptionReference(
+    subscription.referenceId
+  )
+
+  if (referencedOrganizationId) {
+    return {
+      ...subscription,
+      referenceId: referencedOrganizationId,
+    }
   }
 
   const userId = subscription.referenceId
@@ -178,17 +153,10 @@ export async function ensureOrganizationForTeamSubscription(
         organizationId: membership.organizationId,
       })
 
-      await db.transaction(async (tx) => {
-        await tx
-          .update(subscriptionTable)
-          .set({ referenceId: membership.organizationId })
-          .where(eq(subscriptionTable.id, subscription.id))
-
-        await tx
-          .update(session)
-          .set({ activeOrganizationId: membership.organizationId })
-          .where(eq(session.userId, userId))
-      })
+      await db
+        .update(subscriptionTable)
+        .set({ referenceId: membership.organizationId })
+        .where(eq(subscriptionTable.id, subscription.id))
 
       await attachOwnedWorkspacesToOrganization({
         ownerUserId: userId,
@@ -218,14 +186,10 @@ export async function ensureOrganizationForTeamSubscription(
     userData?.email || undefined
   )
 
-  await db.transaction(async (tx) => {
-    await tx
-      .update(subscriptionTable)
-      .set({ referenceId: orgId })
-      .where(eq(subscriptionTable.id, subscription.id))
-
-    await tx.update(session).set({ activeOrganizationId: orgId }).where(eq(session.userId, userId))
-  })
+  await db
+    .update(subscriptionTable)
+    .set({ referenceId: orgId })
+    .where(eq(subscriptionTable.id, subscription.id))
 
   await attachOwnedWorkspacesToOrganization({
     ownerUserId: userId,
@@ -253,14 +217,21 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
       plan: subscription.plan,
     })
 
-    // Check if this is a user or organization subscription
-    const users = await db
-      .select({ id: user.id })
-      .from(user)
-      .where(eq(user.id, subscription.referenceId))
-      .limit(1)
+    const organizationId = await getOrganizationIdForSubscriptionReference(subscription.referenceId)
 
-    if (users.length > 0) {
+    if (!organizationId) {
+      const users = await db
+        .select({ id: user.id })
+        .from(user)
+        .where(eq(user.id, subscription.referenceId))
+        .limit(1)
+
+      if (users.length === 0) {
+        throw new Error(
+          `Subscription reference ${subscription.referenceId} does not match a user or organization`
+        )
+      }
+
       // Individual user subscription - sync their usage limits
       await syncUsageLimitsFromSubscription(subscription.referenceId)
 
@@ -271,8 +242,6 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
       })
     } else {
       // Organization subscription - set org usage limit and sync member limits
-      const organizationId = subscription.referenceId
-
       // Set orgUsageLimit for team plans (enterprise is set via webhook with custom pricing)
       if (isTeam(subscription.plan)) {
         const { basePrice } = getPlanPricing(subscription.plan)

@@ -1,8 +1,8 @@
 import { render } from '@react-email/render'
 import { db } from '@sim/db'
 import {
+  invitation as organizationInvitation,
   permissions,
-  session as sessionTable,
   user,
   type WorkspaceInvitationStatus,
   workspace,
@@ -15,6 +15,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { WorkspaceInvitationEmail } from '@/components/emails'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
+import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { ensureUserInOrganization } from '@/lib/billing/organizations/membership'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -100,6 +101,41 @@ export async function GET(
         )
       }
 
+      if (invitation.orgInvitationId) {
+        const linkedOrgInvitation = await db
+          .select({
+            id: organizationInvitation.id,
+            status: organizationInvitation.status,
+            expiresAt: organizationInvitation.expiresAt,
+          })
+          .from(organizationInvitation)
+          .where(eq(organizationInvitation.id, invitation.orgInvitationId))
+          .then((rows) => rows[0])
+
+        if (!linkedOrgInvitation || linkedOrgInvitation.status !== 'pending') {
+          logger.warn('Blocked linked workspace invitation with inactive organization invitation', {
+            workspaceInvitationId: invitation.id,
+            orgInvitationId: invitation.orgInvitationId,
+            linkedOrgInvitationStatus: linkedOrgInvitation?.status ?? 'missing',
+          })
+
+          return NextResponse.redirect(
+            new URL(
+              `/invite/${linkedOrgInvitation?.id ?? invitation.id}?error=already-processed`,
+              getBaseUrl()
+            )
+          )
+        }
+
+        if (new Date() > new Date(linkedOrgInvitation.expiresAt)) {
+          return NextResponse.redirect(
+            new URL(`/invite/${linkedOrgInvitation.id}?error=expired`, getBaseUrl())
+          )
+        }
+
+        return NextResponse.redirect(new URL(`/invite/${linkedOrgInvitation.id}`, getBaseUrl()))
+      }
+
       const userEmail = session.user.email.toLowerCase()
       const invitationEmail = invitation.email.toLowerCase()
 
@@ -144,10 +180,7 @@ export async function GET(
         }
 
         try {
-          await db
-            .update(sessionTable)
-            .set({ activeOrganizationId: workspaceDetails.organizationId })
-            .where(eq(sessionTable.userId, session.user.id))
+          await setActiveOrganizationForCurrentSession(workspaceDetails.organizationId)
         } catch (error) {
           logger.error('Failed to activate organization after workspace invitation acceptance', {
             userId: session.user.id,

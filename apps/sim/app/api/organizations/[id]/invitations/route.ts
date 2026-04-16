@@ -569,8 +569,16 @@ export async function DELETE(
 
     await db
       .update(workspaceInvitation)
-      .set({ status: 'cancelled' as WorkspaceInvitationStatus })
-      .where(eq(workspaceInvitation.orgInvitationId, invitationId))
+      .set({
+        status: 'cancelled' as WorkspaceInvitationStatus,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(workspaceInvitation.orgInvitationId, invitationId),
+          eq(workspaceInvitation.status, 'pending' as WorkspaceInvitationStatus)
+        )
+      )
 
     await db
       .update(workspaceInvitation)

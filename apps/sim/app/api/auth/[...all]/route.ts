@@ -7,6 +7,11 @@ import { isAuthDisabled } from '@/lib/core/config/feature-flags'
 export const dynamic = 'force-dynamic'
 
 const { GET: betterAuthGET, POST: betterAuthPOST } = toNextJsHandler(auth.handler)
+const SAFE_ORGANIZATION_POST_PATHS = new Set(['organization/check-slug', 'organization/set-active'])
+
+function isBlockedOrganizationMutationPath(path: string): boolean {
+  return path.startsWith('organization/') && !SAFE_ORGANIZATION_POST_PATHS.has(path)
+}
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url)
@@ -20,4 +25,16 @@ export async function GET(request: NextRequest) {
   return betterAuthGET(request)
 }
 
-export const POST = betterAuthPOST
+export async function POST(request: NextRequest) {
+  const url = new URL(request.url)
+  const path = url.pathname.replace('/api/auth/', '')
+
+  if (isBlockedOrganizationMutationPath(path)) {
+    return NextResponse.json(
+      { error: 'Organization mutations are handled by application API routes.' },
+      { status: 404 }
+    )
+  }
+
+  return betterAuthPOST(request)
+}

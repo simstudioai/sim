@@ -41,11 +41,11 @@ import { writeBillingInterval } from '@/lib/billing/core/subscription'
 import { handleNewUser } from '@/lib/billing/core/usage'
 import {
   ensureOrganizationForTeamSubscription,
+  getOrganizationIdForSubscriptionReference,
   syncSubscriptionUsageLimits,
 } from '@/lib/billing/organization'
-import { isOrgPlan, isTeam } from '@/lib/billing/plan-helpers'
+import { isTeam } from '@/lib/billing/plan-helpers'
 import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
-import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -2903,10 +2903,11 @@ export const auth = betterAuth({
                   )
                 }
 
+                const referenceOrganizationId = await getOrganizationIdForSubscriptionReference(
+                  subscription.referenceId
+                )
                 const isUpgradeToTeam =
-                  isTeamPlan &&
-                  !isTeam(subscription.plan) &&
-                  !subscription.referenceId.startsWith('org_')
+                  isTeamPlan && !isTeam(subscription.plan) && referenceOrganizationId == null
 
                 const effectivePlanForTeamFeatures = planFromStripe ?? subscription.plan
 
@@ -2918,6 +2919,7 @@ export const auth = betterAuth({
                   isUpgradeToTeam,
                   isAnnual,
                   referenceId: subscription.referenceId,
+                  referenceOrganizationId,
                 })
 
                 if (!planFromStripe) {
@@ -3088,21 +3090,8 @@ export const auth = betterAuth({
     ...(isOrganizationsEnabled
       ? [
           organization({
-            allowUserToCreateOrganization: async (user) => {
-              if (!isBillingEnabled) {
-                return true
-              }
-              const dbSubscriptions = await db
-                .select()
-                .from(schema.subscription)
-                .where(eq(schema.subscription.referenceId, user.id))
-
-              const hasTeamPlan = dbSubscriptions.some(
-                (sub) => hasPaidSubscriptionStatus(sub.status) && isOrgPlan(sub.plan)
-              )
-
-              return hasTeamPlan
-            },
+            allowUserToCreateOrganization: async () => false,
+            disableOrganizationDeletion: true,
             organizationCreation: {
               afterCreate: async ({ organization, user }) => {
                 logger.info('[organizationCreation.afterCreate] Organization created', {
