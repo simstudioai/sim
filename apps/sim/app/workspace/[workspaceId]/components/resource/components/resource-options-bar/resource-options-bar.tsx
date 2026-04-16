@@ -222,7 +222,7 @@ const SortDropdown = memo(function SortDropdown({ config }: { config: SortConfig
           Sort
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align='end'>
+      <DropdownMenuContent align='start'>
         {options.map((option) => {
           const isActive = active?.column === option.id
           const Icon = option.icon

@@ -40,6 +40,7 @@ export interface HeaderAction {
   icon?: React.ElementType
   onClick: () => void
   disabled?: boolean
+  active?: boolean
 }
 
 export interface CreateAction {
@@ -103,7 +104,13 @@ export const ResourceHeader = memo(function ResourceHeader({
                 onClick={action.onClick}
                 disabled={action.disabled}
                 variant='subtle'
-                className='px-2 py-1 text-caption'
+                className={cn(
+                  'px-2 py-1 text-caption',
+                  action.active !== undefined && 'rounded-lg',
+                  action.active === true &&
+                    'bg-[var(--surface-active)] hover-hover:bg-[var(--surface-active)]',
+                  action.active === false && 'hover-hover:bg-[var(--surface-hover)]'
+                )}
               >
                 {ActionIcon && (
                   <ActionIcon
