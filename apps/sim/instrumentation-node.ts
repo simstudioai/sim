@@ -49,25 +49,23 @@ const DEFAULT_TELEMETRY_CONFIG = {
 }
 
 /**
- * Span name prefixes we keep after sampling. All spans we care about
- * (copilot lifecycle, fetchGo Sim→Go calls, gen_ai.* root, workflow/block
- * executions, etc.) start with one of these. Anything else is Next.js
- * framework noise and gets dropped unless its parent is already sampled.
+ * Span name prefixes we keep after sampling.
+ *
+ * Scope: this process only traces *mothership / copilot* requests for now.
+ * Anything outside that lifecycle (workflow executor, block runtime,
+ * Next.js framework noise, etc.) is intentionally dropped so Jaeger only
+ * shows the Sim half of a mothership trace.
+ *
+ * Any new prefix here should correspond to a span our copilot code
+ * explicitly creates; adding a broad prefix (e.g. `http.`) risks
+ * silently re-enabling non-copilot tracing.
  */
 const ALLOWED_SPAN_PREFIXES = [
-  'platform.',
   'gen_ai.',
-  'workflow.',
-  'block.',
-  'http.client.',
-  'function.',
-  'router.',
-  'condition.',
-  'loop.',
-  'parallel.',
   'copilot.',
   'sim →',
   'sim.',
+  'tool.execute',
 ]
 
 function isBusinessSpan(spanName: string): boolean {
@@ -227,12 +225,24 @@ async function initializeOpenTelemetry() {
       exportTimeoutMillis: telemetryConfig.batchSettings.exportTimeoutMillis,
     })
 
+    // service.instance.id identifies this specific process within the
+    // shared `mothership` service. Jaeger's clock-skew adjuster groups
+    // spans by (service, instance) — without a unique instance per
+    // origin, Sim and Go spans fall into the same group, Jaeger sees
+    // multi-second cross-machine clock drift within one group, and its
+    // adjuster emits spurious "parent is not in the trace; skipping
+    // clock skew adjustment" warnings on every cross-process child.
+    // Stable per-origin instance ID (`mothership-sim` / `mothership-go`)
+    // is enough to split the groups cleanly; Jaeger still shows both
+    // under the single `mothership` service in its service picker.
+    const serviceInstanceId = `${telemetryConfig.serviceName}-${MOTHERSHIP_ORIGIN}`
     const resource = defaultResource().merge(
       resourceFromAttributes({
         [ATTR_SERVICE_NAME]: telemetryConfig.serviceName,
         [ATTR_SERVICE_VERSION]: telemetryConfig.serviceVersion,
         [ATTR_DEPLOYMENT_ENVIRONMENT]: env.NODE_ENV || 'development',
         'service.namespace': 'mothership',
+        'service.instance.id': serviceInstanceId,
         'mothership.origin': MOTHERSHIP_ORIGIN,
         'telemetry.sdk.name': 'opentelemetry',
         'telemetry.sdk.language': 'nodejs',

@@ -1,3 +1,8 @@
+import {
+  context as otelContext,
+  SpanStatusCode,
+  trace,
+} from "@opentelemetry/api";
 import { createLogger } from "@sim/logger";
 import { type NextRequest, NextResponse } from "next/server";
 import { getLatestRunForStream } from "@/lib/copilot/async-runs/repository";
@@ -6,6 +11,7 @@ import {
   MothershipStreamV1EventType,
 } from "@/lib/copilot/generated/mothership-stream-v1";
 import { authenticateCopilotRequestSessionOnly } from "@/lib/copilot/request/http";
+import { getCopilotTracer } from "@/lib/copilot/request/otel";
 import {
   checkForReplayGap,
   createEvent,
@@ -127,6 +133,64 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // Root span for the whole resume/reconnect request. In stream mode the
+  // work happens inside `ReadableStream.start`, which the Node runtime
+  // invokes after this function returns and OUTSIDE the AsyncLocalStorage
+  // scope installed by `startActiveSpan`. We therefore start the span
+  // manually, capture its context, and re-enter that context inside the
+  // stream callback so every nested `withCopilotSpan` / `withDbSpan` call
+  // attaches to this root.
+  const rootSpan = getCopilotTracer().startSpan("copilot.resume.request", {
+    attributes: {
+      "copilot.transport": batchMode ? "batch" : "stream",
+      "stream.id": streamId,
+      "user.id": authenticatedUserId,
+      "copilot.resume.after_cursor": afterCursor || "0",
+    },
+  });
+  const rootContext = trace.setSpan(otelContext.active(), rootSpan);
+
+  try {
+    return await otelContext.with(rootContext, () =>
+      handleResumeRequestBody({
+        request,
+        streamId,
+        afterCursor,
+        batchMode,
+        authenticatedUserId,
+        rootSpan,
+        rootContext,
+      }),
+    );
+  } catch (err) {
+    rootSpan.setStatus({
+      code: SpanStatusCode.ERROR,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    rootSpan.recordException(err instanceof Error ? err : new Error(String(err)));
+    rootSpan.end();
+    throw err;
+  }
+}
+
+async function handleResumeRequestBody({
+  request,
+  streamId,
+  afterCursor,
+  batchMode,
+  authenticatedUserId,
+  rootSpan,
+  rootContext,
+}: {
+  request: NextRequest;
+  streamId: string;
+  afterCursor: string;
+  batchMode: boolean;
+  authenticatedUserId: string;
+  rootSpan: import("@opentelemetry/api").Span;
+  rootContext: import("@opentelemetry/api").Context;
+}) {
+
   const run = await getLatestRunForStream(streamId, authenticatedUserId).catch(
     (err) => {
       logger.warn("Failed to fetch latest run for stream", {
@@ -144,8 +208,11 @@ export async function GET(request: NextRequest) {
     runStatus: run?.status,
   });
   if (!run) {
+    rootSpan.setAttribute("copilot.resume.outcome", "stream_not_found");
+    rootSpan.end();
     return NextResponse.json({ error: "Stream not found" }, { status: 404 });
   }
+  rootSpan.setAttribute("copilot.run.status", run.status);
 
   if (batchMode) {
     const afterSeq = afterCursor || "0";
@@ -167,6 +234,12 @@ export async function GET(request: NextRequest) {
       previewSessionCount: previewSessions.length,
       runStatus: run.status,
     });
+    rootSpan.setAttributes({
+      "copilot.resume.outcome": "batch_delivered",
+      "copilot.resume.event_count": batchEvents.length,
+      "copilot.resume.preview_session_count": previewSessions.length,
+    });
+    rootSpan.end();
     return NextResponse.json({
       success: true,
       events: batchEvents,
@@ -176,9 +249,19 @@ export async function GET(request: NextRequest) {
   }
 
   const startTime = Date.now();
+  let totalEventsFlushed = 0;
+  let pollIterations = 0;
 
   const stream = new ReadableStream({
     async start(controller) {
+      // Re-enter the root OTel context so any `withCopilotSpan` call below
+      // (inside flushEvents/checkForReplayGap/etc.) parents under
+      // copilot.resume.request instead of becoming an orphan.
+      return otelContext.with(rootContext, () => startInner(controller));
+    },
+  });
+
+  async function startInner(controller: ReadableStreamDefaultController) {
       let cursor = afterCursor || "0";
       let controllerClosed = false;
       let sawTerminalEvent = false;
@@ -213,6 +296,7 @@ export async function GET(request: NextRequest) {
       const flushEvents = async () => {
         const events = await readEvents(streamId, cursor);
         if (events.length > 0) {
+          totalEventsFlushed += events.length;
           logger.info("[Resume] Flushing events", {
             streamId,
             afterCursor: cursor,
@@ -274,6 +358,7 @@ export async function GET(request: NextRequest) {
         await flushEvents();
 
         while (!controllerClosed && Date.now() - startTime < MAX_STREAM_MS) {
+          pollIterations += 1;
           const currentRun = await getLatestRunForStream(
             streamId,
             authenticatedUserId,
@@ -342,12 +427,29 @@ export async function GET(request: NextRequest) {
             reason: "stream_replay_failed",
           });
         }
+        rootSpan.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: error instanceof Error ? error.message : String(error),
+        });
+        rootSpan.recordException(
+          error instanceof Error ? error : new Error(String(error)),
+        );
       } finally {
         request.signal.removeEventListener("abort", abortListener);
         closeController();
+        rootSpan.setAttributes({
+          "copilot.resume.outcome": sawTerminalEvent
+            ? "terminal_delivered"
+            : controllerClosed
+              ? "client_disconnected"
+              : "ended_without_terminal",
+          "copilot.resume.event_count": totalEventsFlushed,
+          "copilot.resume.poll_iterations": pollIterations,
+          "copilot.resume.duration_ms": Date.now() - startTime,
+        });
+        rootSpan.end();
       }
-    },
-  });
+  }
 
   return new Response(stream, { headers: SSE_RESPONSE_HEADERS });
 }

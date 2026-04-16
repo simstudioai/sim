@@ -3,6 +3,8 @@ import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
 } from "@/lib/copilot/generated/mothership-stream-v1";
+import { TraceSpan } from "@/lib/copilot/generated/trace-spans-v1";
+import { withCopilotSpan } from "@/lib/copilot/request/otel";
 import { getLatestSeq, getOldestSeq, readEvents } from "./buffer";
 import { createEvent } from "./event";
 
@@ -20,69 +22,87 @@ export async function checkForReplayGap(
 ): Promise<ReplayGapResult | null> {
   const requestedAfterSeq = Number(afterCursor || "0");
   if (requestedAfterSeq <= 0) {
+    // Fast path: no cursor → nothing to check. Skip the span to avoid
+    // emitting zero-work spans on every stream connect.
     return null;
   }
 
-  const oldestSeq = await getOldestSeq(streamId);
-  const latestSeq = await getLatestSeq(streamId);
+  return withCopilotSpan(
+    TraceSpan.CopilotRecoveryCheckReplayGap,
+    {
+      "stream.id": streamId,
+      "copilot.recovery.requested_after_seq": requestedAfterSeq,
+      ...(requestId ? { "request.id": requestId } : {}),
+    },
+    async (span) => {
+      const oldestSeq = await getOldestSeq(streamId);
+      const latestSeq = await getLatestSeq(streamId);
+      span.setAttributes({
+        "copilot.recovery.oldest_seq": oldestSeq ?? -1,
+        "copilot.recovery.latest_seq": latestSeq ?? -1,
+      });
 
-  if (
-    latestSeq !== null &&
-    latestSeq > 0 &&
-    oldestSeq !== null &&
-    requestedAfterSeq < oldestSeq - 1
-  ) {
-    const resolvedRequestId = await resolveReplayGapRequestId(
-      streamId,
-      latestSeq,
-      requestId,
-    );
-    logger.warn(
-      "Replay gap detected: requested cursor is below oldest available event",
-      {
-        streamId,
-        requestedAfterSeq,
-        oldestAvailableSeq: oldestSeq,
-        latestSeq,
-      },
-    );
+      if (
+        latestSeq !== null &&
+        latestSeq > 0 &&
+        oldestSeq !== null &&
+        requestedAfterSeq < oldestSeq - 1
+      ) {
+        const resolvedRequestId = await resolveReplayGapRequestId(
+          streamId,
+          latestSeq,
+          requestId,
+        );
+        logger.warn(
+          "Replay gap detected: requested cursor is below oldest available event",
+          {
+            streamId,
+            requestedAfterSeq,
+            oldestAvailableSeq: oldestSeq,
+            latestSeq,
+          },
+        );
+        span.setAttribute("copilot.recovery.outcome", "gap_detected");
 
-    const gapEnvelope = createEvent({
-      streamId,
-      cursor: String(latestSeq + 1),
-      seq: latestSeq + 1,
-      requestId: resolvedRequestId,
-      type: MothershipStreamV1EventType.error,
-      payload: {
-        message:
-          "Replay history is no longer available. Some events may have been lost.",
-        code: "replay_gap",
-        data: {
-          oldestAvailableSeq: oldestSeq,
-          requestedAfterSeq,
-        },
-      },
-    });
+        const gapEnvelope = createEvent({
+          streamId,
+          cursor: String(latestSeq + 1),
+          seq: latestSeq + 1,
+          requestId: resolvedRequestId,
+          type: MothershipStreamV1EventType.error,
+          payload: {
+            message:
+              "Replay history is no longer available. Some events may have been lost.",
+            code: "replay_gap",
+            data: {
+              oldestAvailableSeq: oldestSeq,
+              requestedAfterSeq,
+            },
+          },
+        });
 
-    const terminalEnvelope = createEvent({
-      streamId,
-      cursor: String(latestSeq + 2),
-      seq: latestSeq + 2,
-      requestId: resolvedRequestId,
-      type: MothershipStreamV1EventType.complete,
-      payload: {
-        status: MothershipStreamV1CompletionStatus.error,
-        reason: "replay_gap",
-      },
-    });
+        const terminalEnvelope = createEvent({
+          streamId,
+          cursor: String(latestSeq + 2),
+          seq: latestSeq + 2,
+          requestId: resolvedRequestId,
+          type: MothershipStreamV1EventType.complete,
+          payload: {
+            status: MothershipStreamV1CompletionStatus.error,
+            reason: "replay_gap",
+          },
+        });
 
-    return {
-      gapDetected: true,
-      envelopes: [gapEnvelope, terminalEnvelope],
-    };
-  }
+        return {
+          gapDetected: true,
+          envelopes: [gapEnvelope, terminalEnvelope],
+        };
+      }
 
-  return null;
+      span.setAttribute("copilot.recovery.outcome", "in_range");
+      return null;
+    },
+  );
 }
 
 async function resolveReplayGapRequestId(

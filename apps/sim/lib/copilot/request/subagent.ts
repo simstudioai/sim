@@ -8,6 +8,8 @@ import {
 import { createStreamingContext } from "@/lib/copilot/request/context/request-context";
 import { buildToolCallSummaries } from "@/lib/copilot/request/context/result";
 import { runStreamLoop } from "@/lib/copilot/request/go/stream";
+import { TraceSpan } from "@/lib/copilot/generated/trace-spans-v1";
+import { withCopilotSpan } from "@/lib/copilot/request/otel";
 import type {
   ExecutionContext,
   OrchestratorOptions,
@@ -51,6 +53,42 @@ export interface SubagentOrchestratorResult {
 }
 
 export async function orchestrateSubagentStream(
+  agentId: string,
+  requestPayload: Record<string, unknown>,
+  options: SubagentOrchestratorOptions,
+): Promise<SubagentOrchestratorResult> {
+  return withCopilotSpan(
+    TraceSpan.CopilotSubagentExecute,
+    {
+      "subagent.id": agentId,
+      "user.id": options.userId,
+      ...(options.simRequestId ? { "sim.request_id": options.simRequestId } : {}),
+      ...(options.workflowId ? { "workflow.id": options.workflowId } : {}),
+      ...(options.workspaceId ? { "workspace.id": options.workspaceId } : {}),
+    },
+    async (otelSpan) => {
+      const result = await orchestrateSubagentStreamInner(
+        agentId,
+        requestPayload,
+        options,
+      );
+      otelSpan.setAttributes({
+        "subagent.outcome.success": result.success,
+        "subagent.outcome.tool_call_count": result.toolCalls.length,
+        "subagent.outcome.content_bytes": result.content?.length ?? 0,
+        ...(result.structuredResult?.type
+          ? { "subagent.outcome.structured_type": result.structuredResult.type }
+          : {}),
+        ...(result.error
+          ? { "subagent.outcome.error": String(result.error).slice(0, 500) }
+          : {}),
+      });
+      return result;
+    },
+  );
+}
+
+async function orchestrateSubagentStreamInner(
   agentId: string,
   requestPayload: Record<string, unknown>,
   options: SubagentOrchestratorOptions,

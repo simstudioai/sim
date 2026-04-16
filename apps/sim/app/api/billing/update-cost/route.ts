@@ -4,7 +4,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
+import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
+import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { type AtomicClaimResult, billingIdempotency } from '@/lib/core/idempotency/service'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -26,8 +28,28 @@ const UpdateCostSchema = z.object({
 /**
  * POST /api/billing/update-cost
  * Update user cost with a pre-calculated cost value (internal API key auth required)
+ *
+ * Parented under the Go-side `sim.update_cost` span via W3C traceparent
+ * propagation. Every mothership request that bills should therefore show
+ * the Go client span AND this Sim server span sharing one trace, with
+ * the actual usage/overage work nested below.
  */
 export async function POST(req: NextRequest) {
+  return withIncomingGoSpan(
+    req.headers,
+    TraceSpan.CopilotBillingUpdateCost,
+    {
+      'http.method': 'POST',
+      'http.route': '/api/billing/update-cost',
+    },
+    async (span) => updateCostInner(req, span),
+  )
+}
+
+async function updateCostInner(
+  req: NextRequest,
+  span: import('@opentelemetry/api').Span,
+): Promise<NextResponse> {
   const requestId = generateRequestId()
   const startTime = Date.now()
   let claim: AtomicClaimResult | null = null
@@ -37,6 +59,8 @@ export async function POST(req: NextRequest) {
     logger.info(`[${requestId}] Update cost request started`)
 
     if (!isBillingEnabled) {
+      span.setAttribute('billing.outcome', 'billing_disabled')
+      span.setAttribute('http.status_code', 200)
       return NextResponse.json({
         success: true,
         message: 'Billing disabled, cost update skipped',
@@ -52,6 +76,8 @@ export async function POST(req: NextRequest) {
     const authResult = checkInternalApiKey(req)
     if (!authResult.success) {
       logger.warn(`[${requestId}] Authentication failed: ${authResult.error}`)
+      span.setAttribute('billing.outcome', 'auth_failed')
+      span.setAttribute('http.status_code', 401)
       return NextResponse.json(
         {
           success: false,
@@ -69,6 +95,8 @@ export async function POST(req: NextRequest) {
         errors: validation.error.issues,
         body,
       })
+      span.setAttribute('billing.outcome', 'invalid_body')
+      span.setAttribute('http.status_code', 400)
       return NextResponse.json(
         {
           success: false,
@@ -83,6 +111,17 @@ export async function POST(req: NextRequest) {
       validation.data
     const isMcp = source === 'mcp_copilot'
 
+    span.setAttributes({
+      'user.id': userId,
+      'gen_ai.request.model': model,
+      'billing.source': source,
+      'billing.cost_usd': cost,
+      'gen_ai.usage.input_tokens': inputTokens,
+      'gen_ai.usage.output_tokens': outputTokens,
+      'billing.is_mcp': isMcp,
+      ...(idempotencyKey ? { 'billing.idempotency_key': idempotencyKey } : {}),
+    })
+
     claim = idempotencyKey
       ? await billingIdempotency.atomicallyClaim('update-cost', idempotencyKey)
       : null
@@ -93,6 +132,8 @@ export async function POST(req: NextRequest) {
         userId,
         source,
       })
+      span.setAttribute('billing.outcome', 'duplicate_idempotency_key')
+      span.setAttribute('http.status_code', 409)
       return NextResponse.json(
         {
           success: false,
@@ -157,6 +198,9 @@ export async function POST(req: NextRequest) {
       cost,
     })
 
+    span.setAttribute('billing.outcome', 'billed')
+    span.setAttribute('http.status_code', 200)
+    span.setAttribute('billing.duration_ms', duration)
     return NextResponse.json({
       success: true,
       data: {
@@ -191,6 +235,9 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    span.setAttribute('billing.outcome', 'internal_error')
+    span.setAttribute('http.status_code', 500)
+    span.setAttribute('billing.duration_ms', duration)
     return NextResponse.json(
       {
         success: false,

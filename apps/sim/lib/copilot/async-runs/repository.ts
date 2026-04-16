@@ -152,33 +152,58 @@ export async function updateRunStatus(
 }
 
 export async function getLatestRunForExecution(executionId: string) {
-  const [run] = await db
-    .select()
-    .from(copilotRuns)
-    .where(eq(copilotRuns.executionId, executionId))
-    .orderBy(desc(copilotRuns.startedAt))
-    .limit(1)
-
-  return run ?? null
+  return withDbSpan(
+    'copilot.async_runs.get_latest_for_execution',
+    'SELECT',
+    'copilot_runs',
+    { 'copilot.execution_id': executionId },
+    async () => {
+      const [run] = await db
+        .select()
+        .from(copilotRuns)
+        .where(eq(copilotRuns.executionId, executionId))
+        .orderBy(desc(copilotRuns.startedAt))
+        .limit(1)
+      return run ?? null
+    },
+  )
 }
 
 export async function getLatestRunForStream(streamId: string, userId?: string) {
-  const conditions = userId
-    ? and(eq(copilotRuns.streamId, streamId), eq(copilotRuns.userId, userId))
-    : eq(copilotRuns.streamId, streamId)
-  const [run] = await db
-    .select()
-    .from(copilotRuns)
-    .where(conditions)
-    .orderBy(desc(copilotRuns.startedAt))
-    .limit(1)
-
-  return run ?? null
+  return withDbSpan(
+    'copilot.async_runs.get_latest_for_stream',
+    'SELECT',
+    'copilot_runs',
+    {
+      'copilot.stream_id': streamId,
+      'copilot.user_id': userId,
+    },
+    async () => {
+      const conditions = userId
+        ? and(eq(copilotRuns.streamId, streamId), eq(copilotRuns.userId, userId))
+        : eq(copilotRuns.streamId, streamId)
+      const [run] = await db
+        .select()
+        .from(copilotRuns)
+        .where(conditions)
+        .orderBy(desc(copilotRuns.startedAt))
+        .limit(1)
+      return run ?? null
+    },
+  )
 }
 
 export async function getRunSegment(runId: string) {
-  const [run] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId)).limit(1)
-  return run ?? null
+  return withDbSpan(
+    'copilot.async_runs.get_run_segment',
+    'SELECT',
+    'copilot_runs',
+    { 'copilot.run.id': runId },
+    async () => {
+      const [run] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId)).limit(1)
+      return run ?? null
+    },
+  )
 }
 
 export async function createRunCheckpoint(input: {
@@ -188,18 +213,29 @@ export async function createRunCheckpoint(input: {
   agentState: Record<string, unknown>
   providerRequest: Record<string, unknown>
 }) {
-  const [checkpoint] = await db
-    .insert(copilotRunCheckpoints)
-    .values({
-      runId: input.runId,
-      pendingToolCallId: input.pendingToolCallId,
-      conversationSnapshot: input.conversationSnapshot,
-      agentState: input.agentState,
-      providerRequest: input.providerRequest,
-    })
-    .returning()
+  return withDbSpan(
+    'copilot.async_runs.create_run_checkpoint',
+    'INSERT',
+    'copilot_run_checkpoints',
+    {
+      'copilot.run.id': input.runId,
+      'copilot.checkpoint.pending_tool_call_id': input.pendingToolCallId,
+    },
+    async () => {
+      const [checkpoint] = await db
+        .insert(copilotRunCheckpoints)
+        .values({
+          runId: input.runId,
+          pendingToolCallId: input.pendingToolCallId,
+          conversationSnapshot: input.conversationSnapshot,
+          agentState: input.agentState,
+          providerRequest: input.providerRequest,
+        })
+        .returning()
 
-  return checkpoint
+      return checkpoint
+    },
+  )
 }
 
 export async function upsertAsyncToolCall(input: {
@@ -210,67 +246,87 @@ export async function upsertAsyncToolCall(input: {
   args?: Record<string, unknown>
   status?: CopilotAsyncToolStatus
 }) {
-  const existing = await getAsyncToolCall(input.toolCallId)
-  const incomingStatus = input.status ?? 'pending'
-  if (
-    existing &&
-    (isTerminalAsyncStatus(existing.status) || isDeliveredAsyncStatus(existing.status)) &&
-    !isTerminalAsyncStatus(incomingStatus) &&
-    !isDeliveredAsyncStatus(incomingStatus)
-  ) {
-    logger.info('Ignoring async tool upsert that would downgrade terminal state', {
-      toolCallId: input.toolCallId,
-      existingStatus: existing.status,
-      incomingStatus,
-    })
-    return existing
-  }
-  const effectiveRunId = input.runId ?? existing?.runId ?? null
-  if (!effectiveRunId) {
-    logger.warn('upsertAsyncToolCall missing runId and no existing row', {
-      toolCallId: input.toolCallId,
-      toolName: input.toolName,
-      status: input.status ?? 'pending',
-    })
-    return null
-  }
+  return withDbSpan(
+    'copilot.async_runs.upsert_async_tool_call',
+    'UPSERT',
+    'copilot_async_tool_calls',
+    {
+      'tool.call_id': input.toolCallId,
+      'tool.name': input.toolName,
+      'copilot.async_tool.status': input.status ?? 'pending',
+      'copilot.run.id': input.runId ?? undefined,
+    },
+    async () => {
+      const existing = await getAsyncToolCall(input.toolCallId)
+      const incomingStatus = input.status ?? 'pending'
+      if (
+        existing &&
+        (isTerminalAsyncStatus(existing.status) || isDeliveredAsyncStatus(existing.status)) &&
+        !isTerminalAsyncStatus(incomingStatus) &&
+        !isDeliveredAsyncStatus(incomingStatus)
+      ) {
+        logger.info('Ignoring async tool upsert that would downgrade terminal state', {
+          toolCallId: input.toolCallId,
+          existingStatus: existing.status,
+          incomingStatus,
+        })
+        return existing
+      }
+      const effectiveRunId = input.runId ?? existing?.runId ?? null
+      if (!effectiveRunId) {
+        logger.warn('upsertAsyncToolCall missing runId and no existing row', {
+          toolCallId: input.toolCallId,
+          toolName: input.toolName,
+          status: input.status ?? 'pending',
+        })
+        return null
+      }
 
-  const now = new Date()
-  const [row] = await db
-    .insert(copilotAsyncToolCalls)
-    .values({
-      runId: effectiveRunId,
-      checkpointId: input.checkpointId ?? null,
-      toolCallId: input.toolCallId,
-      toolName: input.toolName,
-      args: input.args ?? {},
-      status: incomingStatus,
-      updatedAt: now,
-    })
-    .onConflictDoUpdate({
-      target: copilotAsyncToolCalls.toolCallId,
-      set: {
-        runId: effectiveRunId,
-        checkpointId: input.checkpointId ?? null,
-        toolName: input.toolName,
-        args: input.args ?? {},
-        status: incomingStatus,
-        updatedAt: now,
-      },
-    })
-    .returning()
+      const now = new Date()
+      const [row] = await db
+        .insert(copilotAsyncToolCalls)
+        .values({
+          runId: effectiveRunId,
+          checkpointId: input.checkpointId ?? null,
+          toolCallId: input.toolCallId,
+          toolName: input.toolName,
+          args: input.args ?? {},
+          status: incomingStatus,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: copilotAsyncToolCalls.toolCallId,
+          set: {
+            runId: effectiveRunId,
+            checkpointId: input.checkpointId ?? null,
+            toolName: input.toolName,
+            args: input.args ?? {},
+            status: incomingStatus,
+            updatedAt: now,
+          },
+        })
+        .returning()
 
-  return row
+      return row
+    },
+  )
 }
 
 export async function getAsyncToolCall(toolCallId: string) {
-  const [row] = await db
-    .select()
-    .from(copilotAsyncToolCalls)
-    .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
-    .limit(1)
-
-  return row ?? null
+  return withDbSpan(
+    'copilot.async_runs.get_async_tool_call',
+    'SELECT',
+    'copilot_async_tool_calls',
+    { 'tool.call_id': toolCallId },
+    async () => {
+      const [row] = await db
+        .select()
+        .from(copilotAsyncToolCalls)
+        .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+        .limit(1)
+      return row ?? null
+    },
+  )
 }
 
 export async function markAsyncToolStatus(
@@ -284,28 +340,41 @@ export async function markAsyncToolStatus(
     completedAt?: Date | null
   } = {}
 ) {
-  const claimedAt =
-    updates.claimedAt !== undefined
-      ? updates.claimedAt
-      : status === 'running' && updates.claimedBy
-        ? new Date()
-        : undefined
+  return withDbSpan(
+    'copilot.async_runs.mark_async_tool_status',
+    'UPDATE',
+    'copilot_async_tool_calls',
+    {
+      'tool.call_id': toolCallId,
+      'copilot.async_tool.status': status,
+      'copilot.async_tool.has_error': !!updates.error,
+      'copilot.async_tool.claimed_by': updates.claimedBy ?? undefined,
+    },
+    async () => {
+      const claimedAt =
+        updates.claimedAt !== undefined
+          ? updates.claimedAt
+          : status === 'running' && updates.claimedBy
+            ? new Date()
+            : undefined
 
-  const [row] = await db
-    .update(copilotAsyncToolCalls)
-    .set({
-      status,
-      claimedBy: updates.claimedBy,
-      claimedAt,
-      result: updates.result,
-      error: updates.error,
-      completedAt: updates.completedAt,
-      updatedAt: new Date(),
-    })
-    .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
-    .returning()
+      const [row] = await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          status,
+          claimedBy: updates.claimedBy,
+          claimedAt,
+          result: updates.result,
+          error: updates.error,
+          completedAt: updates.completedAt,
+          updatedAt: new Date(),
+        })
+        .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+        .returning()
 
-  return row ?? null
+      return row ?? null
+    },
+  )
 }
 
 export async function markAsyncToolRunning(toolCallId: string, claimedBy: string) {
@@ -349,57 +418,91 @@ export async function markAsyncToolDelivered(toolCallId: string) {
 }
 
 export async function listAsyncToolCallsForRun(runId: string) {
-  return db
-    .select()
-    .from(copilotAsyncToolCalls)
-    .where(eq(copilotAsyncToolCalls.runId, runId))
-    .orderBy(desc(copilotAsyncToolCalls.createdAt))
+  return withDbSpan(
+    'copilot.async_runs.list_for_run',
+    'SELECT',
+    'copilot_async_tool_calls',
+    { 'copilot.run.id': runId },
+    async () =>
+      db
+        .select()
+        .from(copilotAsyncToolCalls)
+        .where(eq(copilotAsyncToolCalls.runId, runId))
+        .orderBy(desc(copilotAsyncToolCalls.createdAt)),
+  )
 }
 
 export async function getAsyncToolCalls(toolCallIds: string[]) {
   if (toolCallIds.length === 0) return []
-  return db
-    .select()
-    .from(copilotAsyncToolCalls)
-    .where(inArray(copilotAsyncToolCalls.toolCallId, toolCallIds))
+  return withDbSpan(
+    'copilot.async_runs.get_many',
+    'SELECT',
+    'copilot_async_tool_calls',
+    { 'copilot.async_tool.ids_count': toolCallIds.length },
+    async () =>
+      db
+        .select()
+        .from(copilotAsyncToolCalls)
+        .where(inArray(copilotAsyncToolCalls.toolCallId, toolCallIds)),
+  )
 }
 
 export async function claimCompletedAsyncToolCall(toolCallId: string, workerId: string) {
-  const [row] = await db
-    .update(copilotAsyncToolCalls)
-    .set({
-      claimedBy: workerId,
-      claimedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(copilotAsyncToolCalls.toolCallId, toolCallId),
-        inArray(copilotAsyncToolCalls.status, ['completed', 'failed', 'cancelled']),
-        isNull(copilotAsyncToolCalls.claimedBy)
-      )
-    )
-    .returning()
-
-  return row ?? null
+  return withDbSpan(
+    'copilot.async_runs.claim_completed',
+    'UPDATE',
+    'copilot_async_tool_calls',
+    {
+      'tool.call_id': toolCallId,
+      'copilot.async_tool.worker_id': workerId,
+    },
+    async () => {
+      const [row] = await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          claimedBy: workerId,
+          claimedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+            inArray(copilotAsyncToolCalls.status, ['completed', 'failed', 'cancelled']),
+            isNull(copilotAsyncToolCalls.claimedBy)
+          )
+        )
+        .returning()
+      return row ?? null
+    },
+  )
 }
 
 export async function releaseCompletedAsyncToolClaim(toolCallId: string, workerId: string) {
-  const [row] = await db
-    .update(copilotAsyncToolCalls)
-    .set({
-      claimedBy: null,
-      claimedAt: null,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(copilotAsyncToolCalls.toolCallId, toolCallId),
-        inArray(copilotAsyncToolCalls.status, ['completed', 'failed', 'cancelled']),
-        eq(copilotAsyncToolCalls.claimedBy, workerId)
-      )
-    )
-    .returning()
-
-  return row ?? null
+  return withDbSpan(
+    'copilot.async_runs.release_claim',
+    'UPDATE',
+    'copilot_async_tool_calls',
+    {
+      'tool.call_id': toolCallId,
+      'copilot.async_tool.worker_id': workerId,
+    },
+    async () => {
+      const [row] = await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          claimedBy: null,
+          claimedAt: null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+            inArray(copilotAsyncToolCalls.status, ['completed', 'failed', 'cancelled']),
+            eq(copilotAsyncToolCalls.claimedBy, workerId)
+          )
+        )
+        .returning()
+      return row ?? null
+    },
+  )
 }

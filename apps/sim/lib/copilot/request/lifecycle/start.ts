@@ -1,4 +1,4 @@
-import type { Context } from "@opentelemetry/api";
+import { context as otelContextApi, type Context } from "@opentelemetry/api";
 import { db } from "@sim/db";
 import { copilotChats } from "@sim/db/schema";
 import { createLogger } from "@sim/logger";
@@ -26,7 +26,10 @@ import {
   unregisterActiveStream,
 } from "@/lib/copilot/request/session";
 import { SSE_RESPONSE_HEADERS } from "@/lib/copilot/request/session/sse";
-import { withCopilotOtelContext } from "@/lib/copilot/request/otel";
+import {
+  type CopilotLifecycleOutcome,
+  startCopilotOtelRoot,
+} from "@/lib/copilot/request/otel";
 import { reportTrace, TraceCollector } from "@/lib/copilot/request/trace";
 import { taskPubSub } from "@/lib/copilot/tasks";
 import { env } from "@/lib/core/config/env";
@@ -54,6 +57,14 @@ export interface StreamingOrchestrationParams {
   requestId: string;
   workspaceId?: string;
   orchestrateOptions: Omit<CopilotLifecycleOptions, "onEvent">;
+  /**
+   * Pre-started gen_ai.agent.execute root returned by
+   * `startCopilotOtelRoot`. When provided, this stream binds every nested
+   * span to that root and calls `finish()` on termination. When omitted,
+   * this function starts its own root internally (kept for back-compat
+   * with the headless path).
+   */
+  otelRoot?: ReturnType<typeof startCopilotOtelRoot>;
 }
 
 export function createSSEStream(
@@ -74,7 +85,26 @@ export function createSSEStream(
     requestId,
     workspaceId,
     orchestrateOptions,
+    otelRoot,
   } = params;
+
+  // If the caller (POST handler) already started the gen_ai.agent.execute
+  // root so that pre-stream setup work (persistUserMessage, resource
+  // loads, etc.) could nest under it, reuse that root and finish it from
+  // our terminal code path via the idempotent `finish`. Otherwise start
+  // our own so the stream still gets a proper OTel trace.
+  const activeOtelRoot =
+    otelRoot ??
+    startCopilotOtelRoot({
+      requestId,
+      route: orchestrateOptions.goRoute,
+      chatId,
+      workflowId: orchestrateOptions.workflowId,
+      executionId,
+      runId,
+      streamId,
+      transport: "stream",
+    });
 
   const abortController = new AbortController();
   registerActiveStream(streamId, abortController);
@@ -87,18 +117,16 @@ export function createSSEStream(
     async start(controller) {
       publisher.attach(controller);
 
-      await withCopilotOtelContext(
-        {
-          requestId,
-          route: orchestrateOptions.goRoute,
-          chatId,
-          workflowId: orchestrateOptions.workflowId,
-          executionId,
-          runId,
-          streamId,
-          transport: "stream",
-        },
-        async (otelContext) => {
+      // Re-enter the root OTel context. Node's AsyncLocalStorage does
+      // not survive the Next.js handler -> ReadableStream.start boundary,
+      // so nested `withCopilotSpan` / `withDbSpan` calls would otherwise
+      // orphan into new traces.
+      await otelContextApi.with(activeOtelRoot.context, async () => {
+        const otelContext = activeOtelRoot.context;
+        let rootOutcome: CopilotLifecycleOutcome =
+          RequestTraceV1Outcome.error;
+        let rootError: unknown = undefined;
+        try {
           const requestSpan = collector.startSpan(
             "Mothership Request",
             "request",
@@ -108,7 +136,7 @@ export function createSSEStream(
               runId,
             },
           );
-          let outcome: "success" | "error" | "cancelled" = "error";
+          let outcome: CopilotLifecycleOutcome = RequestTraceV1Outcome.error;
           let lifecycleResult:
             | {
                 usage?: { prompt: number; completion: number };
@@ -262,7 +290,7 @@ export function createSSEStream(
             await cleanupAbortMarker(streamId);
 
             const trace = collector.build({
-              outcome: outcome as "success" | "error" | "cancelled",
+              outcome,
               simRequestId: requestId,
               streamId,
               chatId,
@@ -272,9 +300,33 @@ export function createSSEStream(
               cost: lifecycleResult?.cost,
             });
             reportTrace(trace, otelContext).catch(() => {});
+            rootOutcome = outcome;
+            if (lifecycleResult?.usage) {
+              activeOtelRoot.span.setAttributes({
+                "gen_ai.usage.input_tokens": lifecycleResult.usage.prompt ?? 0,
+                "gen_ai.usage.output_tokens":
+                  lifecycleResult.usage.completion ?? 0,
+              });
+            }
+            if (lifecycleResult?.cost) {
+              activeOtelRoot.span.setAttributes({
+                "billing.cost.input_usd": lifecycleResult.cost.input ?? 0,
+                "billing.cost.output_usd": lifecycleResult.cost.output ?? 0,
+                "billing.cost.total_usd": lifecycleResult.cost.total ?? 0,
+              });
+            }
           }
-        },
-      );
+        } catch (error) {
+          rootOutcome = RequestTraceV1Outcome.error;
+          rootError = error;
+          throw error;
+        } finally {
+          // `finish` is idempotent, so it's safe whether the POST
+          // handler started the root (and may also call finish on an
+          // error path before the stream ran) or we did.
+          activeOtelRoot.finish(rootOutcome, rootError);
+        }
+      });
     },
     cancel() {
       publisher.markDisconnected();
