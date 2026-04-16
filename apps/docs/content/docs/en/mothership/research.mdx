@@ -1,0 +1,56 @@
+---
+title: Research
+description: Search the web, scrape pages, and run deep multi-step research from Mothership.
+---
+
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+Ask Mothership to research anything and it goes to work — searching the web, reading pages, crawling sites, and writing up what it finds. Point it at a URL, a topic, or a competitive question and it handles the rest.
+
+{/* TODO: Screenshot of the Research subagent section in the Mothership chat — expanded, showing multiple steps (search, scrape, synthesize) and the final report appearing. Ideally with a file tab open in the resource panel showing the output report. */}
+
+## Web Search
+
+Mothership searches the internet for current information:
+
+- "What are the current rate limits on the Anthropic API?"
+- "Find recent GitHub issues in the Prisma repo related to connection pooling"
+- "What did Google announce at I/O this year?"
+
+## Reading Specific Pages
+
+Provide a URL and Mothership reads its contents:
+
+- "Read [URL] and summarize what changed in v3"
+- "Extract all pricing tiers from [URL]"
+- "What does the API docs at [URL] say about pagination?"
+
+## Crawling a Website
+
+For broader coverage across multiple pages:
+
+- "Crawl the docs site and find every page that mentions authentication"
+- "Go through all posts on [URL] and list the ones about performance optimization"
+
+## Library and Framework Docs
+
+Mothership has a dedicated search tool for technical documentation — more precise than general web search for API and library questions:
+
+- "How do I configure connection pooling in Drizzle ORM with PostgreSQL?"
+- "What's the correct way to use React 19's `use()` hook for async data?"
+- "Show me the Stripe API for creating a subscription with a trial period"
+
+## Deep Research
+
+For complex, multi-source research, describe the goal and Mothership handles the full process — searching, reading, and cross-referencing multiple sources before writing up the findings. The output is saved as a file in your workspace and opened in the resource panel.
+
+- "Research how our top 5 competitors handle multi-tenant auth — pricing, architecture, and any known vulnerabilities. Write it up as a report."
+- "Find every public case study about AI agents in healthcare compliance. Summarize the key outcomes and save as a markdown file."
+- "Compare the developer experience of Stripe, Paddle, and Lemon Squeezy for SaaS billing. I want a side-by-side breakdown."
+
+<FAQ items={[
+  { question: "Does Mothership have access to real-time information?", answer: "Yes. Web search queries live internet data. Results reflect current information, not a training cutoff." },
+  { question: "Can Mothership read pages that require login?", answer: "No. Mothership can only read publicly accessible pages." },
+  { question: "Where are research reports saved?", answer: "Reports are saved as files in your workspace and opened in the resource panel. You can find them in the Files section of the sidebar." },
+]} />

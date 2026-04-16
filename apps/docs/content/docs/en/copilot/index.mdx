@@ -1,225 +1,70 @@
 ---
 title: Copilot
+description: Your per-workflow AI assistant for building and editing workflows.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Image } from '@/components/ui/image'
-import { MessageCircle, Hammer, ListChecks, Zap, Globe, Paperclip, History, RotateCcw, Brain } from 'lucide-react'
+import { FAQ } from '@/components/ui/faq'
 
-Copilot is your in-editor assistant that helps you build and edit workflows. It can:
+Copilot is the AI assistant built into every workflow editor. It is scoped to the workflow you have open — it reads the current structure, makes changes directly, and saves checkpoints so you can revert if needed.
 
-- **Explain**: Answer questions about Sim and your current workflow
-- **Guide**: Suggest edits and best practices
-- **Build**: Add blocks, wire connections, and configure settings
-- **Debug**: Analyze execution issues and optimize performance
+For workspace-wide tasks (managing multiple workflows, running research, working with tables, scheduling jobs), use [Mothership](/mothership).
 
 <Callout type="info">
-  Copilot is a Sim-managed service. For self-hosted deployments:
-  1. Go to [sim.ai](https://sim.ai) → Settings → Copilot and generate a Copilot API key
-  2. Set `COPILOT_API_KEY` in your self-hosted environment
+  Copilot is a Sim-managed service. For self-hosted deployments, go to [sim.ai](https://sim.ai) → Settings → Copilot, generate a Copilot API key, then set `COPILOT_API_KEY` in your self-hosted environment.
 </Callout>
 
-## Modes
+{/* TODO: Screenshot of the workflow editor with the Copilot panel open on the right side — showing a conversation with a workflow change applied. Ideally shows a message from the user, a response from Copilot, and the checkpoint icon visible on the message. */}
 
-Switch between modes using the mode selector at the bottom of the input area.
+## What Copilot Can Do
 
-<Cards>
-  <Card
-    title={
-      <span className="inline-flex items-center gap-2">
-        <MessageCircle className="h-4 w-4 text-muted-foreground" />
-        Ask
-      </span>
-    }
-  >
-    <div className="m-0 text-sm">
-      Q&A mode for explanations, guidance, and suggestions without making changes to your workflow.
-    </div>
-  </Card>
-  <Card
-    title={
-      <span className="inline-flex items-center gap-2">
-        <Hammer className="h-4 w-4 text-muted-foreground" />
-        Build
-      </span>
-    }
-  >
-    <div className="m-0 text-sm">
-      Workflow building mode. Copilot can add blocks, wire connections, edit configurations, and debug issues.
-    </div>
-  </Card>
-  <Card
-    title={
-      <span className="inline-flex items-center gap-2">
-        <ListChecks className="h-4 w-4 text-muted-foreground" />
-        Plan
-      </span>
-    }
-  >
-    <div className="m-0 text-sm">
-      Creates a step-by-step implementation plan for your workflow without making any changes. Helps you think through the approach before building.
-    </div>
-  </Card>
-</Cards>
+Copilot can read and modify the workflow you are currently editing:
 
-## Models
+- Add, configure, and connect blocks
+- Edit existing block configurations
+- Delete blocks and connections
+- Debug failures by reading execution logs
+- Answer questions about the workflow or how Sim works
 
-Select your preferred AI model using the model selector at the bottom right of the input area.
+## Chat History
 
-**Available Models:**
-- Claude 4.6 Opus (default), 4.5 Opus, Sonnet, Haiku
-- GPT 5.2 Codex, Pro
-- Gemini 3 Pro
-
-Choose based on your needs: faster models for simple tasks, more capable models for complex workflows.
-
-## Context Menu (@)
-
-Use the `@` symbol to reference resources and give Copilot more context:
-
-| Reference | Description |
-|-----------|-------------|
-| **Chats** | Previous copilot conversations |
-| **Workflows** | Any workflow in your workspace |
-| **Workflow Blocks** | Blocks in the current workflow |
-| **Blocks** | Block types and templates |
-| **Knowledge** | Uploaded documents and knowledge bases |
-| **Docs** | Sim documentation |
-| **Templates** | Workflow templates |
-| **Logs** | Execution logs and results |
-
-Type `@` in the input field to open the context menu, then search or browse to find what you need.
-
-## Slash Commands (/)
-
-Use slash commands for quick actions:
-
-| Command | Description |
-|---------|-------------|
-| `/fast` | Fast mode execution |
-| `/research` | Research and exploration mode |
-| `/actions` | Execute agent actions |
-
-**Web Commands:**
-
-| Command | Description |
-|---------|-------------|
-| `/search` | Search the web |
-| `/read` | Read a specific URL |
-| `/scrape` | Scrape web page content |
-| `/crawl` | Crawl multiple pages |
-
-Type `/` in the input field to see available commands.
-
-## Chat Management
-
-### Starting a New Chat
-
-Click the **+** button in the Copilot header to start a fresh conversation.
-
-### Chat History
-
-Click **History** to view previous conversations grouped by date. You can:
-- Click a chat to resume it
-- Delete chats you no longer need
-
-### Editing Messages
-
-Hover over any of your messages and click **Edit** to modify and resend it. This is useful for refining your prompts.
-
-### Message Queue
-
-If you send a message while Copilot is still responding, it gets queued. You can:
-- View queued messages in the expandable queue panel
-- Send a queued message immediately (aborts current response)
-- Remove messages from the queue
+Click **History** (clock icon) in the Copilot header to see past conversations for this workflow. Click any chat to resume it, or click **+** to start a new one.
 
 ## File Attachments
 
-Click the attachment icon to upload files with your message. Supported file types include:
-- Images (preview thumbnails shown)
-- PDFs
-- Text files, JSON, XML
-- Other document formats
+Click the attachment icon in the input to upload files alongside your message. Copilot can read images, PDFs, and text-based files as context.
 
-Files are displayed as clickable thumbnails that open in a new tab.
+## Checkpoints
 
-## Checkpoints & Changes
+When Copilot modifies a workflow, it saves a checkpoint of the previous state.
 
-When Copilot makes changes to your workflow, it saves checkpoints so you can revert if needed.
+To revert: hover over a Copilot message and click the checkpoints icon, then click **Revert** on the state you want to restore. Reverting cannot be undone.
 
-### Viewing Checkpoints
+## Thinking
 
-Hover over a Copilot message and click the checkpoints icon to see saved workflow states for that message.
+For complex requests, Copilot may show its reasoning in an expandable thinking block before responding. The block shows how long the thinking took and collapses after the response is complete.
 
-### Reverting Changes
+## Usage
 
-Click **Revert** on any checkpoint to restore your workflow to that state. A confirmation dialog will warn that this action cannot be undone.
+Copilot usage is billed per token and counts toward your plan's credit usage. If you reach your limit, enable on-demand billing from Settings → Subscription.
 
-### Accepting Changes
-
-When Copilot proposes changes, you can:
-- **Accept**: Apply the proposed changes (`Mod+Shift+Enter`)
-- **Reject**: Dismiss the changes and keep your current workflow
-
-## Thinking Blocks
-
-For complex requests, Copilot may show its reasoning process in expandable thinking blocks:
-
-- Blocks auto-expand while Copilot is thinking
-- Click to manually expand/collapse
-- Shows duration of the thinking process
-- Helps you understand how Copilot arrived at its solution
-
-## Options Selection
-
-When Copilot presents multiple options, you can select using:
-
-| Control | Action |
-|---------|--------|
-| **1-9** | Select option by number |
-| **Arrow Up/Down** | Navigate between options |
-| **Enter** | Select highlighted option |
-
-Selected options are highlighted; unselected options appear struck through.
-
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `@` | Open context menu |
-| `/` | Open slash commands |
-| `Arrow Up/Down` | Navigate menu items |
-| `Enter` | Select menu item |
-| `Esc` | Close menus |
-| `Mod+Shift+Enter` | Accept Copilot changes |
-
-## Usage Limits
-
-Copilot usage is billed per token from the underlying LLM and counts toward your plan's credit usage. If you reach your usage limit, enable on-demand billing from Settings → Subscription to continue using Copilot beyond your plan's included credits.
-
-<Callout type="info">
-  See the [Cost Calculation page](/execution/costs) for billing and plan details.
-</Callout>
 ## Copilot MCP
 
-You can use Copilot as an MCP server in your favorite editor or AI client. This lets you build, test, deploy, and manage Sim workflows directly from tools like Cursor, Claude Code, Claude Desktop, and VS Code.
+You can use Copilot as an MCP server to build, test, and manage Sim workflows from external editors — Cursor, Claude Code, Claude Desktop, and VS Code.
 
 ### Generating a Copilot API Key
-
-To connect to the Copilot MCP server, you need a **Copilot API key**:
 
 1. Go to [sim.ai](https://sim.ai) and sign in
 2. Navigate to **Settings** → **Copilot**
 3. Click **Generate API Key**
 4. Copy the key — it is only shown once
 
-The key will look like `sk-sim-copilot-...`. You will use this in the configuration below.
+The key will look like `sk-sim-copilot-...`.
 
 ### Cursor
 
-Add the following to your `.cursor/mcp.json` (project-level) or global Cursor MCP settings:
+Add to `.cursor/mcp.json`:
 
 ```json
 {
@@ -234,11 +79,7 @@ Add the following to your `.cursor/mcp.json` (project-level) or global Cursor MC
 }
 ```
 
-Replace `YOUR_COPILOT_API_KEY` with the key you generated above.
-
 ### Claude Code
-
-Run the following command to add the Copilot MCP server:
 
 ```bash
 claude mcp add sim-copilot \
@@ -247,11 +88,9 @@ claude mcp add sim-copilot \
   --header "X-API-Key: YOUR_COPILOT_API_KEY"
 ```
 
-Replace `YOUR_COPILOT_API_KEY` with your key.
-
 ### Claude Desktop
 
-Claude Desktop requires [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) to connect to HTTP-based MCP servers. Add the following to your Claude Desktop config file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+Claude Desktop requires [`mcp-remote`](https://www.npmjs.com/package/mcp-remote). Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
@@ -270,11 +109,9 @@ Claude Desktop requires [`mcp-remote`](https://www.npmjs.com/package/mcp-remote)
 }
 ```
 
-Replace `YOUR_COPILOT_API_KEY` with your key.
-
 ### VS Code
 
-Add the following to your VS Code `settings.json` or workspace `.vscode/settings.json`:
+Add to `settings.json` or `.vscode/settings.json`:
 
 ```json
 {
@@ -292,21 +129,14 @@ Add the following to your VS Code `settings.json` or workspace `.vscode/settings
 }
 ```
 
-Replace `YOUR_COPILOT_API_KEY` with your key.
-
 <Callout type="info">
   For self-hosted deployments, replace `https://www.sim.ai` with your self-hosted Sim URL.
 </Callout>
 
-import { FAQ } from '@/components/ui/faq'
-
 <FAQ items={[
-  { question: "What is the difference between Ask, Build, and Plan mode?", answer: "Copilot has three modes. Ask mode is a read-only Q&A mode for explanations, guidance, and suggestions without making any changes to your workflow. Build mode allows Copilot to actively modify your workflow by adding blocks, wiring connections, editing configurations, and debugging issues. Plan mode creates a step-by-step implementation plan for your request without making any changes, so you can review the approach before committing. Use Ask when you want to learn or explore ideas, Plan when you want to see a proposed approach first, and Build when you want Copilot to make changes directly." },
-  { question: "Does Copilot have access to my full workflow when answering questions?", answer: "Copilot has access to the workflow you are currently editing as context. You can also use the @ context menu to reference other workflows, previous chats, execution logs, knowledge bases, documentation, and templates to give Copilot additional context for your request." },
-  { question: "How do I use Copilot from an external editor like Cursor or VS Code?", answer: "You can use Copilot as an MCP server from external editors. First, generate a Copilot API key from Settings > Copilot on sim.ai. Then add the MCP server configuration to your editor using the endpoint https://www.sim.ai/api/mcp/copilot with your API key in the X-API-Key header. Configuration examples are available for Cursor, Claude Code, Claude Desktop, and VS Code." },
-  { question: "Can I revert changes that Copilot made to my workflow?", answer: "Yes. When Copilot makes changes in Build mode, it saves checkpoints of your workflow state. You can hover over a Copilot message and click the checkpoints icon to see saved states, then click Revert on any checkpoint to restore your workflow. Note that reverting cannot be undone, so review the checkpoint before confirming." },
-  { question: "How does Copilot billing work?", answer: "Copilot usage is billed per token from the underlying LLM and counts toward your plan's credit usage. More capable models like Claude Opus cost more per token than lighter models like Haiku. If you reach your usage limit, you can enable on-demand billing from Settings > Subscription to continue using Copilot." },
-  { question: "What do the slash commands like /research and /search do?", answer: "Slash commands trigger specialized behaviors. /fast enables fast mode execution, /research activates a research and exploration mode, and /actions executes agent actions. Web commands like /search, /read, /scrape, and /crawl let Copilot interact with the web to search for information, read URLs, scrape page content, or crawl multiple pages to gather context for your request." },
-  { question: "How do I set up Copilot for a self-hosted deployment?", answer: "For self-hosted deployments, go to sim.ai > Settings > Copilot and generate a Copilot API key. Then set the COPILOT_API_KEY environment variable in your self-hosted environment. Copilot is a Sim-managed service, so the self-hosted instance communicates with Sim's servers to process requests." },
+  { question: "How is Copilot different from Mothership?", answer: "Copilot is scoped to the workflow you have open — it reads and edits that workflow's blocks and connections. Mothership has access to your entire workspace and can build workflows, manage tables, run research, schedule jobs, and take actions across integrations." },
+  { question: "Can Copilot access other workflows or workspace data?", answer: "Copilot is scoped to the current workflow. For tasks that span multiple workflows or require workspace-level context, use Mothership." },
+  { question: "Can I revert changes Copilot made?", answer: "Yes. Copilot saves a checkpoint before each change. Hover over the message and click the checkpoints icon to see saved states, then click Revert to restore one. Reverting cannot be undone." },
+  { question: "How does Copilot billing work?", answer: "Copilot usage is billed per token and counts toward your plan's credit usage. If you reach your limit, enable on-demand billing from Settings → Subscription." },
+  { question: "How do I set up Copilot for a self-hosted deployment?", answer: "Go to sim.ai → Settings → Copilot and generate a Copilot API key. Set the COPILOT_API_KEY environment variable in your self-hosted environment. Copilot runs on Sim's infrastructure regardless of where you host the application." },
 ]} />
-
