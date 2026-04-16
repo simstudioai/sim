@@ -1,9 +1,18 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { Badge } from '@/components/emcn'
-import { AuthModal } from '@/app/(landing)/components/auth-modal/auth-modal'
-import { DemoRequestModal } from '@/app/(landing)/components/demo-request/demo-request-modal'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
+
+const AuthModal = dynamic(() =>
+  import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal)
+)
+
+const DemoRequestModal = dynamic(() =>
+  import('@/app/(landing)/components/demo-request/demo-request-modal').then(
+    (m) => m.DemoRequestModal
+  )
+)
 
 interface PricingTier {
   id: string

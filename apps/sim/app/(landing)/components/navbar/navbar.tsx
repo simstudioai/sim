@@ -1,13 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { GithubOutlineIcon } from '@/components/icons'
-import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
-import { AuthModal } from '@/app/(landing)/components/auth-modal/auth-modal'
+import { SessionContext } from '@/app/_shell/providers/session-provider'
 import {
   BlogDropdown,
   type NavBlogPost,
@@ -16,6 +16,10 @@ import { DocsDropdown } from '@/app/(landing)/components/navbar/components/docs-
 import { GitHubStars } from '@/app/(landing)/components/navbar/components/github-stars'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 import { getBrandConfig } from '@/ee/whitelabeling'
+
+const AuthModal = dynamic(() =>
+  import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal)
+)
 
 type DropdownId = 'docs' | 'blog' | null
 
@@ -48,7 +52,9 @@ interface NavbarProps {
 export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps) {
   const brand = getBrandConfig()
   const searchParams = useSearchParams()
-  const { data: session, isPending: isSessionPending } = useSession()
+  const sessionCtx = useContext(SessionContext)
+  const session = sessionCtx?.data ?? null
+  const isSessionPending = sessionCtx?.isPending ?? true
   const isAuthenticated = Boolean(session?.user?.id)
   const isBrowsingHome = searchParams.has('home')
   const useHomeLinks = isAuthenticated || isBrowsingHome
@@ -125,7 +131,7 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
         ) : (
           <Image
             src='/logo/sim-landing.svg'
-            alt='Sim'
+            alt=''
             width={71}
             height={22}
             className='h-[22px] w-auto'
