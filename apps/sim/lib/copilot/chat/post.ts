@@ -52,7 +52,7 @@ const FileAttachmentSchema = z.object({
 })
 
 const ResourceAttachmentSchema = z.object({
-  type: z.enum(['workflow', 'table', 'file', 'knowledgebase', 'folder']),
+  type: z.enum(['workflow', 'table', 'file', 'knowledgebase', 'folder', 'task', 'log', 'generic']),
   id: z.string().min(1),
   title: z.string().optional(),
   active: z.boolean().optional(),
@@ -64,6 +64,9 @@ const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['t
   file: 'File',
   knowledgebase: 'Knowledge Base',
   folder: 'Folder',
+  task: 'Task',
+  log: 'Log',
+  generic: 'Resource',
 }
 
 const ChatContextSchema = z.object({
@@ -420,10 +423,8 @@ async function resolveBranch(params: {
       workflowName,
       requestedWorkspaceId
     )
-    if (!resolved) {
-      return createBadRequestResponse(
-        'No workflows found. Create a workflow first or provide a valid workflowId.'
-      )
+    if (resolved.status !== 'resolved') {
+      return createBadRequestResponse(resolved.message)
     }
 
     const resolvedWorkflowId = resolved.workflowId

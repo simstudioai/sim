@@ -9,6 +9,8 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { BackLink } from '@/app/(landing)/blog/[slug]/back-link'
 import { ShareButton } from '@/app/(landing)/blog/[slug]/share-button'
 
+export const dynamicParams = false
+
 export async function generateStaticParams() {
   const posts = await getAllPostMeta()
   return posts.map((p) => ({ slug: p.slug }))

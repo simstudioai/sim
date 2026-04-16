@@ -422,13 +422,14 @@ export function serializeBlockSchema(block: BlockConfig): string {
 
 /**
  * Serialize OAuth credentials for VFS environment/credentials.json.
- * Shows which integrations are connected — IDs and scopes, NOT tokens.
+ * Shows which integrations are connected — IDs, roles, and scopes, NOT tokens.
  */
 export function serializeCredentials(
   accounts: Array<{
     id?: string
     providerId: string
     displayName?: string | null
+    role?: string | null
     scope: string | null
     createdAt: Date
   }>
@@ -438,6 +439,7 @@ export function serializeCredentials(
       id: a.id || undefined,
       provider: a.providerId,
       displayName: a.displayName || undefined,
+      role: a.role || undefined,
       scope: a.scope || undefined,
       connectedAt: a.createdAt.toISOString(),
     })),
@@ -750,7 +752,7 @@ export function serializeIntegrationSchema(tool: ToolConfig): string {
                 type: 'string',
                 required: false,
                 description:
-                  'Optional credential ID to use when multiple accounts are connected for this provider. Get IDs from environment/credentials.json. If omitted, auto-selects the first available credential.',
+                  'Credential ID to use for this OAuth tool call. For Copilot/Superagent execution, pass this explicitly. Get valid IDs from environment/credentials.json.',
               },
             }),
           }

@@ -3,7 +3,6 @@ import { defineI18nUI } from 'fumadocs-ui/i18n'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import { RootProvider } from 'fumadocs-ui/provider/next'
 import { Geist_Mono, Inter } from 'next/font/google'
-import Script from 'next/script'
 import {
   SidebarFolder,
   SidebarItem,
@@ -13,6 +12,7 @@ import { Navbar } from '@/components/navbar/navbar'
 import { SimLogoFull } from '@/components/ui/sim-logo'
 import { i18n } from '@/lib/i18n'
 import { source } from '@/lib/source'
+import { DOCS_BASE_URL } from '@/lib/urls'
 import '../global.css'
 
 const inter = Inter({
@@ -67,14 +67,14 @@ export default async function Layout({ children, params }: LayoutProps) {
     name: 'Sim Documentation',
     description:
       'Documentation for Sim — the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM.',
-    url: 'https://docs.sim.ai',
+    url: DOCS_BASE_URL,
     publisher: {
       '@type': 'Organization',
       name: 'Sim',
       url: 'https://sim.ai',
       logo: {
         '@type': 'ImageObject',
-        url: 'https://docs.sim.ai/static/logo.png',
+        url: `${DOCS_BASE_URL}/static/logo.png`,
       },
     },
     inLanguage: lang,
@@ -82,7 +82,7 @@ export default async function Layout({ children, params }: LayoutProps) {
       '@type': 'SearchAction',
       target: {
         '@type': 'EntryPoint',
-        urlTemplate: 'https://docs.sim.ai/api/search?q={search_term_string}',
+        urlTemplate: `${DOCS_BASE_URL}/api/search?q={search_term_string}`,
       },
       'query-input': 'required name=search_term_string',
     },
@@ -101,7 +101,6 @@ export default async function Layout({ children, params }: LayoutProps) {
         />
       </head>
       <body className='flex min-h-screen flex-col font-sans'>
-        <Script src='https://assets.onedollarstats.com/stonks.js' strategy='lazyOnload' />
         <RootProvider i18n={provider(lang)}>
           <Navbar />
           <DocsLayout

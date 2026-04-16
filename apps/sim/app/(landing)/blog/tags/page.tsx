@@ -1,15 +1,16 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { getAllTags } from '@/lib/blog/registry'
+import { SITE_URL } from '@/lib/core/utils/urls'
 
 export const metadata: Metadata = {
   title: 'Tags',
   description: 'Browse Sim blog posts by topic — AI agents, workflows, integrations, and more.',
-  alternates: { canonical: 'https://sim.ai/blog/tags' },
+  alternates: { canonical: `${SITE_URL}/blog/tags` },
   openGraph: {
     title: 'Blog Tags | Sim',
     description: 'Browse Sim blog posts by topic — AI agents, workflows, integrations, and more.',
-    url: 'https://sim.ai/blog/tags',
+    url: `${SITE_URL}/blog/tags`,
     siteName: 'Sim',
     locale: 'en_US',
     type: 'website',
@@ -26,9 +27,9 @@ const breadcrumbJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'BreadcrumbList',
   itemListElement: [
-    { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sim.ai' },
-    { '@type': 'ListItem', position: 2, name: 'Blog', item: 'https://sim.ai/blog' },
-    { '@type': 'ListItem', position: 3, name: 'Tags', item: 'https://sim.ai/blog/tags' },
+    { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
+    { '@type': 'ListItem', position: 2, name: 'Blog', item: `${SITE_URL}/blog` },
+    { '@type': 'ListItem', position: 3, name: 'Tags', item: `${SITE_URL}/blog/tags` },
   ],
 }
 

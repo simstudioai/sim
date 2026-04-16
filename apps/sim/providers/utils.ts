@@ -1064,6 +1064,11 @@ export function isDeepResearchModel(model: string): boolean {
   return MODELS_WITH_DEEP_RESEARCH.includes(model.toLowerCase())
 }
 
+export function isGemini3Model(model: string): boolean {
+  const normalized = model.toLowerCase().replace(/^vertex\//, '')
+  return normalized.startsWith('gemini-3')
+}
+
 /**
  * Get the maximum temperature value for a model
  * @returns Maximum temperature value (1 or 2) or undefined if temperature not supported

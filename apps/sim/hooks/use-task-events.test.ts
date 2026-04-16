@@ -16,9 +16,10 @@ describe('handleTaskStatusEvent', () => {
     vi.clearAllMocks()
   })
 
-  it('invalidates the task list and completed chat detail', () => {
+  it('invalidates only the task list for completed task events', () => {
     handleTaskStatusEvent(
       queryClient,
+      'ws-1',
       JSON.stringify({
         chatId: 'chat-1',
         type: 'completed',
@@ -26,18 +27,16 @@ describe('handleTaskStatusEvent', () => {
       })
     )
 
-    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
-    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(1, {
-      queryKey: taskKeys.lists(),
-    })
-    expect(queryClient.invalidateQueries).toHaveBeenNthCalledWith(2, {
-      queryKey: taskKeys.detail('chat-1'),
+    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: taskKeys.list('ws-1'),
     })
   })
 
   it('keeps list invalidation only for non-completed task events', () => {
     handleTaskStatusEvent(
       queryClient,
+      'ws-1',
       JSON.stringify({
         chatId: 'chat-1',
         type: 'started',
@@ -47,16 +46,16 @@ describe('handleTaskStatusEvent', () => {
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.lists(),
+      queryKey: taskKeys.list('ws-1'),
     })
   })
 
   it('preserves list invalidation when task event payload is invalid', () => {
-    handleTaskStatusEvent(queryClient, '{')
+    handleTaskStatusEvent(queryClient, 'ws-1', '{')
 
     expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: taskKeys.lists(),
+      queryKey: taskKeys.list('ws-1'),
     })
   })
 })

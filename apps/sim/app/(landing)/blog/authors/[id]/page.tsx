@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import { getAllPostMeta } from '@/lib/blog/registry'
+import { SITE_URL } from '@/lib/core/utils/urls'
 
 export const revalidate = 3600
 
@@ -17,11 +18,11 @@ export async function generateMetadata({
   return {
     title: `${name} — Sim Blog`,
     description: `Read articles by ${name} on the Sim blog.`,
-    alternates: { canonical: `https://sim.ai/blog/authors/${id}` },
+    alternates: { canonical: `${SITE_URL}/blog/authors/${id}` },
     openGraph: {
       title: `${name} — Sim Blog`,
       description: `Read articles by ${name} on the Sim blog.`,
-      url: `https://sim.ai/blog/authors/${id}`,
+      url: `${SITE_URL}/blog/authors/${id}`,
       siteName: 'Sim',
       type: 'profile',
       ...(author?.avatarUrl
@@ -55,25 +56,25 @@ export default async function AuthorPage({ params }: { params: Promise<{ id: str
       {
         '@type': 'Person',
         name: author.name,
-        url: `https://sim.ai/blog/authors/${author.id}`,
+        url: `${SITE_URL}/blog/authors/${author.id}`,
         sameAs: author.url ? [author.url] : [],
         image: author.avatarUrl,
         worksFor: {
           '@type': 'Organization',
           name: 'Sim',
-          url: 'https://sim.ai',
+          url: SITE_URL,
         },
       },
       {
         '@type': 'BreadcrumbList',
         itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sim.ai' },
-          { '@type': 'ListItem', position: 2, name: 'Blog', item: 'https://sim.ai/blog' },
+          { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
+          { '@type': 'ListItem', position: 2, name: 'Blog', item: `${SITE_URL}/blog` },
           {
             '@type': 'ListItem',
             position: 3,
             name: author.name,
-            item: `https://sim.ai/blog/authors/${author.id}`,
+            item: `${SITE_URL}/blog/authors/${author.id}`,
           },
         ],
       },

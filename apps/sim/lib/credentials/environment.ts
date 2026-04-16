@@ -367,6 +367,7 @@ export interface AccessibleOAuthCredential {
   id: string
   providerId: string
   displayName: string
+  role: 'admin' | 'member'
   updatedAt: Date
 }
 
@@ -379,6 +380,7 @@ export async function getAccessibleOAuthCredentials(
       id: credential.id,
       providerId: credential.providerId,
       displayName: credential.displayName,
+      role: credentialMember.role,
       updatedAt: credential.updatedAt,
     })
     .from(credential)
@@ -403,6 +405,7 @@ export async function getAccessibleOAuthCredentials(
       id: row.id,
       providerId: row.providerId!,
       displayName: row.displayName,
+      role: row.role,
       updatedAt: row.updatedAt,
     }))
 }

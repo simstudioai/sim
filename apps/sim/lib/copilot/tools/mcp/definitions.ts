@@ -284,16 +284,18 @@ CAN DO:
 - Configure block settings and connections
 - Set environment variables and workflow variables
 - Move, rename, delete workflows and folders
+- Run or inspect workflows through the nested run/debug specialists when validation is needed
+- Delegate deployment or auth setup to the nested specialists when needed
 
 CANNOT DO:
-- Run or test workflows (use sim_test separately)
-- Deploy workflows (use sim_deploy separately)
+- Replace dedicated testing flows like sim_test when you want a standalone execution-only pass
+- Replace dedicated deploy flows like sim_deploy when you want deployment as a separate step
 
 WORKFLOW:
 1. Call create_workflow to get a workflowId (for new workflows)
 2. Call sim_workflow with the request and workflowId
-3. Workflow agent gathers info and builds in one pass
-4. Call sim_test to verify it works
+3. Workflow agent gathers info, builds, and can delegate run/debug/auth/deploy help in one pass
+4. Call sim_test when you want a dedicated execution-only verification pass
 5. Optionally call sim_deploy to make it externally accessible`,
     inputSchema: {
       type: 'object',
@@ -375,7 +377,7 @@ ALSO CAN:
   },
   {
     name: 'sim_test',
-    agentId: 'test',
+    agentId: 'run',
     description: `Run a workflow and verify its outputs. Works on both deployed and undeployed (draft) workflows. Use after building to verify correctness.
 
 Supports full and partial execution:
@@ -476,7 +478,7 @@ Supports full and partial execution:
     name: 'sim_info',
     agentId: 'info',
     description:
-      "Inspect a workflow's blocks, connections, outputs, variables, and metadata. Use for questions about the Sim platform itself — how blocks work, what integrations are available, platform concepts, etc. Always provide workflowId to scope results to a specific workflow.",
+      "Inspect a workflow's blocks, connections, outputs, variables, and metadata. Use for questions about the Sim platform itself — how blocks work, what integrations are available, platform concepts, etc. Provide workflowId when you want results scoped to a specific workflow.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -487,22 +489,6 @@ Supports full and partial execution:
       required: ['request'],
     },
     annotations: { readOnlyHint: true },
-  },
-  {
-    name: 'sim_workflow',
-    agentId: 'workflow',
-    description:
-      'Manage workflow-level configuration: environment variables, settings, scheduling, and deployment status. Use for any data about a specific workflow — its settings, credentials, variables, or deployment state.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        request: { type: 'string' },
-        workflowId: { type: 'string' },
-        context: { type: 'object' },
-      },
-      required: ['request'],
-    },
-    annotations: { destructiveHint: false },
   },
   {
     name: 'sim_research',

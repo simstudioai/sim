@@ -25,8 +25,9 @@ export const logKeys = {
     [...logKeys.lists(), workspaceId ?? '', filters] as const,
   details: () => [...logKeys.all, 'detail'] as const,
   detail: (logId: string | undefined) => [...logKeys.details(), logId ?? ''] as const,
+  statsAll: () => [...logKeys.all, 'stats'] as const,
   stats: (workspaceId: string | undefined, filters: object) =>
-    [...logKeys.all, 'stats', workspaceId ?? '', filters] as const,
+    [...logKeys.statsAll(), workspaceId ?? '', filters] as const,
   executionSnapshots: () => [...logKeys.all, 'executionSnapshot'] as const,
   executionSnapshot: (executionId: string | undefined) =>
     [...logKeys.executionSnapshots(), executionId ?? ''] as const,
@@ -292,9 +293,9 @@ export function useCancelExecution() {
       const res = await fetch(`/api/workflows/${workflowId}/executions/${executionId}/cancel`, {
         method: 'POST',
       })
-      if (!res.ok) throw new Error('Failed to cancel execution')
+      if (!res.ok) throw new Error('Failed to cancel run')
       const data = await res.json()
-      if (!data.success) throw new Error('Failed to cancel execution')
+      if (!data.success) throw new Error('Failed to cancel run')
       return data
     },
     onMutate: async ({ executionId }) => {
@@ -327,7 +328,7 @@ export function useCancelExecution() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: logKeys.lists() })
       queryClient.invalidateQueries({ queryKey: logKeys.details() })
-      queryClient.invalidateQueries({ queryKey: [...logKeys.all, 'stats'] })
+      queryClient.invalidateQueries({ queryKey: logKeys.statsAll() })
     },
   })
 }

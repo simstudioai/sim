@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { getNavBlogPosts } from '@/lib/blog/registry'
+import { SITE_URL } from '@/lib/core/utils/urls'
 import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
 import { season } from '@/app/_styles/fonts/season/season'
 import Footer from '@/app/(landing)/components/footer/footer'
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
   title: 'Partner Program',
   description:
     "Join the Sim partner program. Build, deploy, and sell AI agent solutions powered by Sim's AI workspace. Earn your certification through Sim Academy.",
-  metadataBase: new URL('https://sim.ai'),
+  metadataBase: new URL(SITE_URL),
   openGraph: {
     title: 'Partner Program | Sim',
     description: 'Join the Sim partner program.',

@@ -1,20 +1,21 @@
-import type { ErrorObject, ValidateFunction } from 'ajv'
-import Ajv2020 from 'ajv/dist/2020.js'
 import type {
   MothershipStreamV1EventEnvelope,
   MothershipStreamV1StreamRef,
   MothershipStreamV1StreamScope,
   MothershipStreamV1Trace,
 } from '@/lib/copilot/generated/mothership-stream-v1'
-import { MOTHERSHIP_STREAM_V1_SCHEMA } from '@/lib/copilot/generated/mothership-stream-v1-schema'
+import {
+  MothershipStreamV1EventType,
+  MothershipStreamV1ResourceOp,
+  MothershipStreamV1RunKind,
+  MothershipStreamV1SessionKind,
+  MothershipStreamV1SpanPayloadKind,
+  MothershipStreamV1TextChannel,
+  MothershipStreamV1ToolPhase,
+} from '@/lib/copilot/generated/mothership-stream-v1'
 import type { FilePreviewTargetKind } from './file-preview-session-contract'
 
 type JsonRecord = Record<string, unknown>
-
-const ajv = new Ajv2020({
-  allErrors: true,
-  strict: false,
-})
 
 const FILE_PREVIEW_PHASE = {
   start: 'file_preview_start',
@@ -144,26 +145,9 @@ export type ParseStreamEventEnvelopeResult =
   | ParseStreamEventEnvelopeSuccess
   | ParseStreamEventEnvelopeFailure
 
-let validator: ValidateFunction<MothershipStreamV1EventEnvelope> | null = null
-
-function getValidator(): ValidateFunction<MothershipStreamV1EventEnvelope> {
-  if (validator) {
-    return validator
-  }
-
-  validator = ajv.compile<MothershipStreamV1EventEnvelope>(MOTHERSHIP_STREAM_V1_SCHEMA as object)
-  return validator
-}
-
-function formatValidationErrors(errors: ErrorObject[] | null | undefined): string[] | undefined {
-  if (!errors || errors.length === 0) {
-    return undefined
-  }
-
-  return errors
-    .slice(0, 5)
-    .map((error) => `${error.instancePath || '/'} ${error.message || 'is invalid'}`.trim())
-}
+// ---------------------------------------------------------------------------
+// Structural helpers (CSP-safe – no codegen / eval / new Function)
+// ---------------------------------------------------------------------------
 
 function isRecord(value: unknown): value is JsonRecord {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -198,6 +182,140 @@ function isStreamScope(value: unknown): value is MothershipStreamV1StreamScope {
     isOptionalString(value.parentToolCallId)
   )
 }
+
+// ---------------------------------------------------------------------------
+// Contract envelope validator (replaces Ajv runtime compilation)
+//
+// Validates the envelope shell (v, seq, ts, stream, trace?, scope?) and that
+// `type` is one of the known event types with a non-null payload object.
+// Per-payload-variant validation is intentionally lightweight: the server
+// already performs strict schema validation; the client only needs enough
+// structural checking to safely dispatch inside the switch statement.
+// ---------------------------------------------------------------------------
+
+const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set(Object.values(MothershipStreamV1EventType))
+
+function isValidEnvelopeShell(value: unknown): value is JsonRecord & {
+  v: 1
+  seq: number
+  ts: string
+  stream: MothershipStreamV1StreamRef
+  type: string
+  payload: JsonRecord
+} {
+  if (!isRecord(value)) return false
+  if (value.v !== 1) return false
+  if (typeof value.seq !== 'number' || !Number.isFinite(value.seq)) return false
+  if (typeof value.ts !== 'string') return false
+  if (!isStreamRef(value.stream)) return false
+  if (value.trace !== undefined && !isTrace(value.trace)) return false
+  if (value.scope !== undefined && !isStreamScope(value.scope)) return false
+  if (typeof value.type !== 'string' || !KNOWN_EVENT_TYPES.has(value.type)) return false
+  if (!isRecord(value.payload)) return false
+  return true
+}
+
+function isValidSessionPayload(payload: JsonRecord): boolean {
+  const kind = payload.kind
+  if (typeof kind !== 'string') return false
+  switch (kind) {
+    case MothershipStreamV1SessionKind.start:
+      return true
+    case MothershipStreamV1SessionKind.chat:
+      return typeof payload.chatId === 'string'
+    case MothershipStreamV1SessionKind.title:
+      return typeof payload.title === 'string'
+    case MothershipStreamV1SessionKind.trace:
+      return typeof payload.requestId === 'string'
+    default:
+      return false
+  }
+}
+
+function isValidTextPayload(payload: JsonRecord): boolean {
+  return (
+    (payload.channel === MothershipStreamV1TextChannel.assistant ||
+      payload.channel === MothershipStreamV1TextChannel.thinking) &&
+    typeof payload.text === 'string'
+  )
+}
+
+function isValidToolPayload(payload: JsonRecord): boolean {
+  if (typeof payload.toolCallId !== 'string') return false
+  if (typeof payload.toolName !== 'string') return false
+  const phase = payload.phase
+  return (
+    phase === MothershipStreamV1ToolPhase.call ||
+    phase === MothershipStreamV1ToolPhase.args_delta ||
+    phase === MothershipStreamV1ToolPhase.result
+  )
+}
+
+function isValidSpanPayload(payload: JsonRecord): boolean {
+  const kind = payload.kind
+  return (
+    kind === MothershipStreamV1SpanPayloadKind.subagent ||
+    kind === MothershipStreamV1SpanPayloadKind.structured_result ||
+    kind === MothershipStreamV1SpanPayloadKind.subagent_result
+  )
+}
+
+function isValidResourcePayload(payload: JsonRecord): boolean {
+  return (
+    (payload.op === MothershipStreamV1ResourceOp.upsert ||
+      payload.op === MothershipStreamV1ResourceOp.remove) &&
+    isRecord(payload.resource) &&
+    typeof (payload.resource as JsonRecord).id === 'string' &&
+    typeof (payload.resource as JsonRecord).type === 'string'
+  )
+}
+
+function isValidRunPayload(payload: JsonRecord): boolean {
+  const kind = payload.kind
+  return (
+    kind === MothershipStreamV1RunKind.checkpoint_pause ||
+    kind === MothershipStreamV1RunKind.resumed ||
+    kind === MothershipStreamV1RunKind.compaction_start ||
+    kind === MothershipStreamV1RunKind.compaction_done
+  )
+}
+
+function isValidErrorPayload(payload: JsonRecord): boolean {
+  return typeof payload.message === 'string' || typeof payload.error === 'string'
+}
+
+function isValidCompletePayload(payload: JsonRecord): boolean {
+  return typeof payload.status === 'string'
+}
+
+function isContractEnvelope(value: unknown): value is MothershipStreamV1EventEnvelope {
+  if (!isValidEnvelopeShell(value)) return false
+  const payload = value.payload as JsonRecord
+  switch (value.type) {
+    case MothershipStreamV1EventType.session:
+      return isValidSessionPayload(payload)
+    case MothershipStreamV1EventType.text:
+      return isValidTextPayload(payload)
+    case MothershipStreamV1EventType.tool:
+      return isValidToolPayload(payload)
+    case MothershipStreamV1EventType.span:
+      return isValidSpanPayload(payload)
+    case MothershipStreamV1EventType.resource:
+      return isValidResourcePayload(payload)
+    case MothershipStreamV1EventType.run:
+      return isValidRunPayload(payload)
+    case MothershipStreamV1EventType.error:
+      return isValidErrorPayload(payload)
+    case MothershipStreamV1EventType.complete:
+      return isValidCompletePayload(payload)
+    default:
+      return false
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Synthetic file-preview envelope validators
+// ---------------------------------------------------------------------------
 
 function isSyntheticEnvelopeBase(
   value: unknown
@@ -269,6 +387,10 @@ export function isSyntheticFilePreviewEventEnvelope(
   return isSyntheticEnvelopeBase(value) && isSyntheticFilePreviewPayload(value.payload)
 }
 
+// ---------------------------------------------------------------------------
+// Stream event type guards
+// ---------------------------------------------------------------------------
+
 export function isToolCallStreamEvent(event: SessionStreamEvent): event is ToolCallStreamEvent {
   return event.type === 'tool' && isRecord(event.payload) && event.payload.phase === 'call'
 }
@@ -289,33 +411,40 @@ export function isSubagentSpanStreamEvent(
   return event.type === 'span' && isRecord(event.payload) && event.payload.kind === 'subagent'
 }
 
+// ---------------------------------------------------------------------------
+// Public contract validators & parsers
+// ---------------------------------------------------------------------------
+
 export function isContractStreamEventEnvelope(
   value: unknown
 ): value is MothershipStreamV1EventEnvelope {
-  return getValidator()(value)
+  return isContractEnvelope(value)
 }
 
 export function parsePersistedStreamEventEnvelope(value: unknown): ParseStreamEventEnvelopeResult {
-  const envelopeValidator = getValidator()
-  if (envelopeValidator(value)) {
-    return {
-      ok: true,
-      event: value,
-    }
+  if (isContractEnvelope(value)) {
+    return { ok: true, event: value }
   }
 
   if (isSyntheticFilePreviewEventEnvelope(value)) {
-    return {
-      ok: true,
-      event: value,
-    }
+    return { ok: true, event: value }
+  }
+
+  const hints: string[] = []
+  if (!isRecord(value)) {
+    hints.push('value is not an object')
+  } else {
+    if (value.v !== 1) hints.push(`unexpected v=${JSON.stringify(value.v)}`)
+    if (typeof value.type !== 'string') hints.push('missing type')
+    else if (!KNOWN_EVENT_TYPES.has(value.type)) hints.push(`unknown type="${value.type}"`)
+    if (!isRecord(value.payload)) hints.push('missing or invalid payload')
   }
 
   return {
     ok: false,
     reason: 'invalid_stream_event',
-    message: 'Stream event failed validation',
-    errors: formatValidationErrors(envelopeValidator.errors),
+    message: 'A stream event failed validation.',
+    ...(hints.length > 0 ? { errors: hints } : {}),
   }
 }
 
@@ -324,10 +453,12 @@ export function parsePersistedStreamEventEnvelopeJson(raw: string): ParseStreamE
   try {
     parsed = JSON.parse(raw)
   } catch (error) {
+    const rawMessage = error instanceof Error ? error.message : 'Invalid JSON'
     return {
       ok: false,
       reason: 'invalid_json',
-      message: error instanceof Error ? error.message : 'Invalid JSON',
+      message: 'Received invalid JSON while parsing a stream event.',
+      ...(rawMessage ? { errors: [rawMessage] } : {}),
     }
   }
 

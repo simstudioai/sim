@@ -1,3 +1,5 @@
+import { SITE_URL } from '@/lib/core/utils/urls'
+
 /**
  * JSON-LD structured data for the landing page.
  *
@@ -23,22 +25,22 @@ export default function StructuredData() {
     '@graph': [
       {
         '@type': 'Organization',
-        '@id': 'https://sim.ai/#organization',
+        '@id': `${SITE_URL}/#organization`,
         name: 'Sim',
         alternateName: 'Sim Studio',
         description:
           'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work.',
-        url: 'https://sim.ai',
+        url: SITE_URL,
         logo: {
           '@type': 'ImageObject',
-          '@id': 'https://sim.ai/#logo',
-          url: 'https://sim.ai/logo/b%26w/text/b%26w.svg',
-          contentUrl: 'https://sim.ai/logo/b%26w/text/b%26w.svg',
+          '@id': `${SITE_URL}/#logo`,
+          url: `${SITE_URL}/logo/b%26w/text/b%26w.svg`,
+          contentUrl: `${SITE_URL}/logo/b%26w/text/b%26w.svg`,
           width: 49.78314,
           height: 24.276,
           caption: 'Sim Logo',
         },
-        image: { '@id': 'https://sim.ai/#logo' },
+        image: { '@id': `${SITE_URL}/#logo` },
         sameAs: [
           'https://x.com/simdotai',
           'https://github.com/simstudioai/sim',
@@ -53,44 +55,42 @@ export default function StructuredData() {
       },
       {
         '@type': 'WebSite',
-        '@id': 'https://sim.ai/#website',
-        url: 'https://sim.ai',
+        '@id': `${SITE_URL}/#website`,
+        url: SITE_URL,
         name: 'Sim — The AI Workspace | Build, Deploy & Manage AI Agents',
         description:
           'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM. Join 100,000+ builders.',
-        publisher: { '@id': 'https://sim.ai/#organization' },
+        publisher: { '@id': `${SITE_URL}/#organization` },
         inLanguage: 'en-US',
       },
       {
         '@type': 'WebPage',
-        '@id': 'https://sim.ai/#webpage',
-        url: 'https://sim.ai',
+        '@id': `${SITE_URL}/#webpage`,
+        url: SITE_URL,
         name: 'Sim — The AI Workspace | Build, Deploy & Manage AI Agents',
-        isPartOf: { '@id': 'https://sim.ai/#website' },
-        about: { '@id': 'https://sim.ai/#software' },
+        isPartOf: { '@id': `${SITE_URL}/#website` },
+        about: { '@id': `${SITE_URL}/#software` },
         datePublished: '2024-01-01T00:00:00+00:00',
         dateModified: new Date().toISOString(),
         description:
           'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work.',
-        breadcrumb: { '@id': 'https://sim.ai/#breadcrumb' },
+        breadcrumb: { '@id': `${SITE_URL}/#breadcrumb` },
         inLanguage: 'en-US',
         speakable: {
           '@type': 'SpeakableSpecification',
           cssSelector: ['#hero-heading', '[id="hero"] p'],
         },
-        potentialAction: [{ '@type': 'ReadAction', target: ['https://sim.ai'] }],
+        potentialAction: [{ '@type': 'ReadAction', target: [SITE_URL] }],
       },
       {
         '@type': 'BreadcrumbList',
-        '@id': 'https://sim.ai/#breadcrumb',
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sim.ai' },
-        ],
+        '@id': `${SITE_URL}/#breadcrumb`,
+        itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL }],
       },
       {
         '@type': 'WebApplication',
-        '@id': 'https://sim.ai/#software',
-        url: 'https://sim.ai',
+        '@id': `${SITE_URL}/#software`,
+        url: SITE_URL,
         name: 'Sim — The AI Workspace',
         description:
           'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work — visually, conversationally, or with code. Trusted by over 100,000 builders. SOC2 compliant.',
@@ -98,7 +98,7 @@ export default function StructuredData() {
         applicationSubCategory: 'AI Workspace',
         operatingSystem: 'Web',
         browserRequirements: 'Requires a modern browser with JavaScript enabled',
-        installUrl: 'https://sim.ai/signup',
+        installUrl: `${SITE_URL}/signup`,
         offers: [
           {
             '@type': 'Offer',
@@ -175,16 +175,16 @@ export default function StructuredData() {
       },
       {
         '@type': 'SoftwareSourceCode',
-        '@id': 'https://sim.ai/#source',
+        '@id': `${SITE_URL}/#source`,
         codeRepository: 'https://github.com/simstudioai/sim',
         programmingLanguage: ['TypeScript', 'Python'],
         runtimePlatform: 'Node.js',
         license: 'https://opensource.org/licenses/Apache-2.0',
-        isPartOf: { '@id': 'https://sim.ai/#software' },
+        isPartOf: { '@id': `${SITE_URL}/#software` },
       },
       {
         '@type': 'FAQPage',
-        '@id': 'https://sim.ai/#faq',
+        '@id': `${SITE_URL}/#faq`,
         mainEntity: [
           {
             '@type': 'Question',
