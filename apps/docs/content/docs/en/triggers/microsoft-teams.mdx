@@ -1,0 +1,92 @@
+---
+title: Microsoft Teams
+description: Available Microsoft Teams triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="microsoft_teams"
+  color="#E0E0E0"
+/>
+
+Microsoft Teams provides 2 triggers for automating workflows based on events.
+
+## Triggers
+
+### Microsoft Teams Channel
+
+Trigger workflow from Microsoft Teams channel messages via outgoing webhooks
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `hmacSecret` | string | Yes | The security token provided by Teams when creating an outgoing webhook. Used to verify request authenticity. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `from` | object | from output from the tool |
+|   ↳ `id` | string | Sender ID |
+|   ↳ `name` | string | Sender name |
+|   ↳ `aadObjectId` | string | AAD Object ID |
+| `message` | object | message output from the tool |
+|   ↳ `raw` | object | raw output from the tool |
+|     ↳ `attachments` | json | Array of attachments |
+|     ↳ `channelData` | object | channelData output from the tool |
+|       ↳ `team` | object | team output from the tool |
+|         ↳ `id` | string | Team ID |
+|       ↳ `tenant` | object | tenant output from the tool |
+|         ↳ `id` | string | Tenant ID |
+|       ↳ `channel` | object | channel output from the tool |
+|         ↳ `id` | string | Channel ID |
+|       ↳ `teamsTeamId` | string | Teams team ID |
+|       ↳ `teamsChannelId` | string | Teams channel ID |
+|     ↳ `conversation` | object | conversation output from the tool |
+|       ↳ `id` | string | Composite conversation ID |
+|       ↳ `name` | string | Conversation name \(nullable\) |
+|       ↳ `isGroup` | boolean | Is group conversation |
+|       ↳ `tenantId` | string | Tenant ID |
+|       ↳ `aadObjectId` | string | AAD Object ID \(nullable\) |
+|       ↳ `conversationType` | string | Conversation type \(channel\) |
+|     ↳ `text` | string | Message text content |
+|     ↳ `messageType` | string | Message type |
+|     ↳ `channelId` | string | Channel ID \(msteams\) |
+|     ↳ `timestamp` | string | Timestamp |
+| `activity` | object | Activity payload |
+| `conversation` | object | conversation output from the tool |
+|   ↳ `id` | string | Composite conversation ID |
+|   ↳ `name` | string | Conversation name \(nullable\) |
+|   ↳ `isGroup` | boolean | Is group conversation |
+|   ↳ `tenantId` | string | Tenant ID |
+|   ↳ `aadObjectId` | string | AAD Object ID \(nullable\) |
+|   ↳ `conversationType` | string | Conversation type \(channel\) |
+
+
+---
+
+### Microsoft Teams Chat
+
+Trigger workflow from new messages in Microsoft Teams chats via Microsoft Graph subscriptions
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | This trigger requires microsoft teams credentials to access your account. |
+| `triggerChatId` | string | Yes | The ID of the Teams chat to monitor |
+| `includeAttachments` | boolean | No | Fetch hosted contents and upload to storage |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message_id` | string | Message ID |
+| `chat_id` | string | Chat ID |
+| `from_name` | string | Sender display name |
+| `text` | string | Message body \(HTML or text\) |
+| `created_at` | string | Message timestamp |
+| `attachments` | file[] | Uploaded attachments as files |
+

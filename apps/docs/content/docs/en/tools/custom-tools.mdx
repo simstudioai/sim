@@ -1,0 +1,162 @@
+---
+title: Custom Tools
+description: Create your own tools with JavaScript code and use them in Agent blocks
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { FAQ } from '@/components/ui/faq'
+
+Custom tools let you write your own JavaScript functions and make them available as callable tools in Agent blocks. This is useful when you need functionality that isn't covered by Sim's built-in integrations — for example, calling an internal API, performing a custom calculation, or transforming data in a specific way.
+
+## How Custom Tools Work
+
+A custom tool has two parts:
+
+1. **Schema** — A JSON definition describing the tool's name, description, and parameters (using the OpenAI function-calling format). This tells the AI agent what the tool does and what inputs it expects.
+2. **Code** — A JavaScript function body that runs when the agent calls the tool. Parameters defined in the schema are available as variables in your code.
+
+When an Agent block has access to a custom tool, the AI model decides when to call it based on the schema description and the conversation context — just like built-in tools.
+
+## Creating a Custom Tool
+
+<Steps>
+<Step>
+
+### Open Custom Tools settings
+
+Navigate to **Settings → Custom Tools** in your workspace and click **Add**.
+
+</Step>
+<Step>
+
+### Define the schema
+
+In the **Schema** tab, define your tool using JSON in the OpenAI function-calling format:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "get_weather",
+    "description": "Get the current weather for a city",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "type": "string",
+          "description": "The city name"
+        },
+        "units": {
+          "type": "string",
+          "enum": ["celsius", "fahrenheit"],
+          "description": "Temperature units"
+        }
+      },
+      "required": ["city"]
+    }
+  }
+}
+```
+
+<Callout type="info">
+  You can use the AI wand button to generate a schema from a natural language description of what the tool should do.
+</Callout>
+
+</Step>
+<Step>
+
+### Write the code
+
+Switch to the **Code** tab and write the JavaScript function body. Parameters from your schema are available directly as variables:
+
+```javascript
+const response = await fetch(
+  `https://api.openweathermap.org/data/2.5/weather?q=${city}&units=${units === 'celsius' ? 'metric' : 'imperial'}&appid={{OPENWEATHER_API_KEY}}`
+);
+
+const data = await response.json();
+
+return {
+  temperature: data.main.temp,
+  description: data.weather[0].description,
+  humidity: data.main.humidity
+};
+```
+
+<Callout type="info">
+  You can also use the AI wand to generate code from a description. Environment variables are referenced with `&#123;&#123;KEY&#125;&#125;` syntax.
+</Callout>
+
+</Step>
+<Step>
+
+### Save
+
+Click **Save** to create the tool. It's now available to use in any Agent block across your workspace.
+
+</Step>
+</Steps>
+
+## Using Custom Tools in Workflows
+
+Once created, custom tools appear alongside built-in tools when configuring an Agent block:
+
+1. Open an Agent block
+2. Click **Add Tools**
+3. Find your custom tool in the tool list
+4. The agent will call the tool when it determines it's relevant to the task
+
+## Code Environment
+
+### Available Features
+
+- **Async/await** — Your code runs in an async context, so you can use `await` directly
+- **fetch()** — Make HTTP requests to external APIs
+- **Node.js built-ins** — Access to `crypto`, `Buffer`, and other standard modules
+- **Environment variables** — Use `{{KEY}}` syntax to inject secrets
+
+### Limitations
+
+- **No npm packages** — External libraries like `axios` or `lodash` are not available. Use built-in APIs instead
+- **Parameters by name** — Schema parameters are available directly as variables (e.g., `city`), not via a `params` object
+
+### Returning Results
+
+Return a value from your code to send it back to the agent:
+
+```javascript
+const result = await fetch(`https://api.example.com/data?q=${query}`);
+const data = await result.json();
+return data;
+```
+
+The returned value becomes the tool output that the agent sees and can use in its response.
+
+## Managing Custom Tools
+
+From **Settings → Custom Tools** you can:
+
+- **Search** tools by name, function name, or description
+- **Edit** any tool's schema or code
+- **Delete** tools that are no longer needed
+
+<Callout type="warn">
+  Deleting a custom tool removes it from all Agent blocks that reference it. Make sure no active workflows depend on the tool before deleting.
+</Callout>
+
+## Permissions
+
+| Action | Required Permission |
+|--------|-------------------|
+| View custom tools | **Read**, **Write**, or **Admin** |
+| Create or edit tools | **Write** or **Admin** |
+| Delete tools | **Write** or **Admin** |
+
+<FAQ items={[
+  { question: "Can I use custom tools in standalone blocks (not agents)?", answer: "No. Custom tools are designed for use within Agent blocks, where the AI model decides when to call them. For deterministic tool execution, use the Function block instead." },
+  { question: "How do I pass API keys to my custom tool code?", answer: "Use environment variables with double curly brace syntax: {{MY_API_KEY}}. Create the environment variable in Settings → Secrets, and it will be injected at execution time without appearing in logs." },
+  { question: "Can I use external npm packages?", answer: "No. Custom tool code runs in a sandboxed environment with access to built-in Node.js modules and fetch(), but not external packages. For complex dependencies, consider calling an external API that wraps the functionality you need." },
+  { question: "What's the difference between custom tools and the Function block?", answer: "Custom tools are called by AI agents when they decide the tool is relevant — the agent chooses when to use it. Function blocks run deterministically at a fixed point in the workflow. Use custom tools for agent-driven actions and Function blocks for predictable data transformations." },
+  { question: "Are custom tools shared across the workspace?", answer: "Yes. Custom tools are workspace-scoped, so all workspace members can use them in their workflows." },
+]} />

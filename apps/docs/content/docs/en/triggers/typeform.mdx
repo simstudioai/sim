@@ -1,0 +1,78 @@
+---
+title: Typeform
+description: Available Typeform triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="typeform"
+  color="#262627"
+/>
+
+Typeform provides 1 trigger for automating workflows based on events.
+
+## Triggers
+
+### Typeform Webhook
+
+Trigger workflow when a Typeform submission is received
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Yes | The unique identifier for your Typeform. Find it in the form URL or form settings. |
+| `apiKey` | string | Yes | Required to automatically register the webhook with Typeform. Get yours at https://admin.typeform.com/account#/section/tokens |
+| `secret` | string | No | A secret string used to verify webhook authenticity. Highly recommended for security. Generate a secure random string \(min 20 characters recommended\). |
+| `includeDefinition` | boolean | No | Include the complete form structure \(questions, fields, endings\) in your workflow variables. Note: Typeform always sends this data, but enabling this makes it accessible in your workflow. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event_id` | string | Unique identifier for this webhook event |
+| `event_type` | string | Type of event \(always "form_response" for form submissions\) |
+| `form_id` | string | Typeform form identifier |
+| `token` | string | Unique response/submission identifier |
+| `submitted_at` | string | ISO timestamp when the form was submitted |
+| `landed_at` | string | ISO timestamp when the user first landed on the form |
+| `calculated` | object | Calculated values from the form |
+|   ↳ `score` | number | Calculated score value |
+| `variables` | array | Array of dynamic variables |
+|   ↳ `key` | string | Variable key |
+|   ↳ `number` | number | Numeric value \(if type is number\) |
+|   ↳ `text` | string | Text value \(if type is text\) |
+| `hidden` | object | Hidden fields passed to the form \(e.g., UTM parameters\) |
+| `answers` | array | Array of respondent answers \(only includes answered questions\) |
+|   ↳ `text` | string | Text answer value |
+|   ↳ `email` | string | Email answer value |
+|   ↳ `number` | number | Number answer value |
+|   ↳ `boolean` | boolean | Boolean answer value |
+|   ↳ `date` | string | Date answer value \(ISO format\) |
+|   ↳ `url` | string | URL answer value |
+|   ↳ `file_url` | string | File URL answer value |
+|   ↳ `choice` | object | Single choice answer |
+|     ↳ `id` | string | Choice ID |
+|     ↳ `ref` | string | Choice reference |
+|     ↳ `label` | string | Choice label |
+|   ↳ `choices` | object | Multiple choices answer |
+|     ↳ `ids` | array | Array of choice IDs |
+|     ↳ `refs` | array | Array of choice refs |
+|     ↳ `labels` | array | Array of choice labels |
+|   ↳ `field` | object | Field reference |
+|     ↳ `id` | string | Field ID |
+|     ↳ `ref` | string | Field reference |
+| `definition` | object | Form definition \(only included when "Include Form Definition" is enabled\) |
+|   ↳ `id` | string | Form ID |
+|   ↳ `title` | string | Form title |
+|   ↳ `fields` | array | Array of form fields |
+|     ↳ `id` | string | Field ID |
+|     ↳ `ref` | string | Field reference |
+|     ↳ `title` | string | Field title |
+|   ↳ `endings` | array | Array of form endings |
+| `ending` | object | Ending screen information |
+|   ↳ `id` | string | Ending screen ID |
+|   ↳ `ref` | string | Ending screen reference |
+| `raw` | object | Complete original webhook payload from Typeform |
+

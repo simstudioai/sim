@@ -1,0 +1,476 @@
+---
+title: Confluence
+description: Available Confluence triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="confluence"
+  color="#E0E0E0"
+/>
+
+Confluence provides 16 triggers for automating workflows based on events.
+
+## Triggers
+
+### Confluence Attachment Created
+
+Trigger workflow when an attachment is uploaded in Confluence
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+| `confluenceEmail` | string | No | Your Atlassian account email. Required together with API token to download attachment files. |
+| `confluenceApiToken` | string | No | API token from https://id.atlassian.com/manage-profile/security/api-tokens. Required to download attachment file content. |
+| `includeFileContent` | boolean | No | Download and include actual file content from attachments. Requires email, API token, and domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
+| `userAccountId` | string | Account ID of the user who triggered the event |
+| `accountType` | string | Account type \(e.g., customer\) |
+| `id` | number | Content ID |
+| `title` | string | Content title |
+| `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
+| `version` | number | Version number |
+| `spaceKey` | string | Space key the content belongs to |
+| `creatorAccountId` | string | Account ID of the creator |
+| `lastModifierAccountId` | string | Account ID of the last modifier |
+| `self` | string | URL link to the content |
+| `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
+| `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
+| `attachment` | object | attachment output from the tool |
+|   ↳ `mediaType` | string | MIME type of the attachment |
+|   ↳ `fileSize` | number | File size in bytes |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | number | Container page/blog ID |
+|     ↳ `title` | string | Container page/blog title |
+|     ↳ `contentType` | string | Container content type |
+| `files` | file[] | Attachment file content downloaded from Confluence \(if includeFileContent is enabled with credentials\) |
+
+
+---
+
+### Confluence Attachment Removed
+
+Trigger workflow when an attachment is removed in Confluence
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+| `confluenceEmail` | string | No | Your Atlassian account email. Required together with API token to download attachment files. |
+| `confluenceApiToken` | string | No | API token from https://id.atlassian.com/manage-profile/security/api-tokens. Required to download attachment file content. |
+| `includeFileContent` | boolean | No | Download and include actual file content from attachments. Requires email, API token, and domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
+| `userAccountId` | string | Account ID of the user who triggered the event |
+| `accountType` | string | Account type \(e.g., customer\) |
+| `id` | number | Content ID |
+| `title` | string | Content title |
+| `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
+| `version` | number | Version number |
+| `spaceKey` | string | Space key the content belongs to |
+| `creatorAccountId` | string | Account ID of the creator |
+| `lastModifierAccountId` | string | Account ID of the last modifier |
+| `self` | string | URL link to the content |
+| `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
+| `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
+| `attachment` | object | attachment output from the tool |
+|   ↳ `mediaType` | string | MIME type of the attachment |
+|   ↳ `fileSize` | number | File size in bytes |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | number | Container page/blog ID |
+|     ↳ `title` | string | Container page/blog title |
+|     ↳ `contentType` | string | Container content type |
+| `files` | file[] | Attachment file content downloaded from Confluence \(if includeFileContent is enabled with credentials\) |
+
+
+---
+
+### Confluence Blog Post Created
+
+Trigger workflow when a blog post is created in Confluence
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
+| `userAccountId` | string | Account ID of the user who triggered the event |
+| `accountType` | string | Account type \(e.g., customer\) |
+
+
+---
+
+### Confluence Blog Post Removed
+
+Trigger workflow when a blog post is removed in Confluence
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
+| `userAccountId` | string | Account ID of the user who triggered the event |
+| `accountType` | string | Account type \(e.g., customer\) |
+
+
+---
+
+### Confluence Blog Post Updated
+
+Trigger workflow when a blog post is updated in Confluence
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
+| `userAccountId` | string | Account ID of the user who triggered the event |
+| `accountType` | string | Account type \(e.g., customer\) |
+
+
+---
+
+### Confluence Comment Created
+
+Trigger workflow when a comment is created in Confluence
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
+| `userAccountId` | string | Account ID of the user who triggered the event |
+| `accountType` | string | Account type \(e.g., customer\) |
+| `id` | number | Content ID |
+| `title` | string | Content title |
+| `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
+| `version` | number | Version number |
+| `spaceKey` | string | Space key the content belongs to |
+| `creatorAccountId` | string | Account ID of the creator |
+| `lastModifierAccountId` | string | Account ID of the last modifier |
+| `self` | string | URL link to the content |
+| `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
+| `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
+| `comment` | object | comment output from the tool |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | number | Parent page/blog ID |
+|     ↳ `title` | string | Parent page/blog title |
+|     ↳ `contentType` | string | Parent content type \(page or blogpost\) |
+|     ↳ `spaceKey` | string | Space key of the parent |
+|     ↳ `self` | string | URL link to the parent content |
+
+
+---
+
+### Confluence Comment Removed
+
+Trigger workflow when a comment is removed in Confluence
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
+| `userAccountId` | string | Account ID of the user who triggered the event |
+| `accountType` | string | Account type \(e.g., customer\) |
+| `id` | number | Content ID |
+| `title` | string | Content title |
+| `contentType` | string | Content type \(page, blogpost, comment, attachment\) |
+| `version` | number | Version number |
+| `spaceKey` | string | Space key the content belongs to |
+| `creatorAccountId` | string | Account ID of the creator |
+| `lastModifierAccountId` | string | Account ID of the last modifier |
+| `self` | string | URL link to the content |
+| `creationDate` | number | Creation timestamp \(Unix epoch milliseconds\) |
+| `modificationDate` | number | Last modification timestamp \(Unix epoch milliseconds\) |
+| `comment` | object | comment output from the tool |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | number | Parent page/blog ID |
+|     ↳ `title` | string | Parent page/blog title |
+|     ↳ `contentType` | string | Parent content type \(page or blogpost\) |
+|     ↳ `spaceKey` | string | Space key of the parent |
+|     ↳ `self` | string | URL link to the parent content |
+
+
+---
+
+### Confluence Label Added
+
+Trigger workflow when a label is added to content in Confluence
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
+| `userAccountId` | string | Account ID of the user who triggered the event |
+| `accountType` | string | Account type \(e.g., customer\) |
+| `label` | object | label output from the tool |
+|   ↳ `name` | string | Label name |
+|   ↳ `id` | string | Label ID |
+|   ↳ `prefix` | string | Label prefix \(global, my, team\) |
+| `content` | object | content output from the tool |
+|   ↳ `id` | number | Content ID the label was added to or removed from |
+|   ↳ `title` | string | Content title |
+|   ↳ `contentType` | string | Content type \(page, blogpost\) |
+
+
+---
+
+### Confluence Label Removed
+
+Trigger workflow when a label is removed from content in Confluence
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
+| `userAccountId` | string | Account ID of the user who triggered the event |
+| `accountType` | string | Account type \(e.g., customer\) |
+| `label` | object | label output from the tool |
+|   ↳ `name` | string | Label name |
+|   ↳ `id` | string | Label ID |
+|   ↳ `prefix` | string | Label prefix \(global, my, team\) |
+| `content` | object | content output from the tool |
+|   ↳ `id` | number | Content ID the label was added to or removed from |
+|   ↳ `title` | string | Content title |
+|   ↳ `contentType` | string | Content type \(page, blogpost\) |
+
+
+---
+
+### Confluence Page Created
+
+Trigger workflow when a new page is created in Confluence
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
+| `userAccountId` | string | Account ID of the user who triggered the event |
+| `accountType` | string | Account type \(e.g., customer\) |
+
+
+---
+
+### Confluence Page Moved
+
+Trigger workflow when a page is moved in Confluence
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
+| `userAccountId` | string | Account ID of the user who triggered the event |
+| `accountType` | string | Account type \(e.g., customer\) |
+
+
+---
+
+### Confluence Page Removed
+
+Trigger workflow when a page is removed or trashed in Confluence
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
+| `userAccountId` | string | Account ID of the user who triggered the event |
+| `accountType` | string | Account type \(e.g., customer\) |
+
+
+---
+
+### Confluence Page Updated
+
+Trigger workflow when a page is updated in Confluence
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
+| `userAccountId` | string | Account ID of the user who triggered the event |
+| `accountType` | string | Account type \(e.g., customer\) |
+
+
+---
+
+### Confluence Space Created
+
+Trigger workflow when a new space is created in Confluence
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
+| `userAccountId` | string | Account ID of the user who triggered the event |
+| `accountType` | string | Account type \(e.g., customer\) |
+| `space` | object | space output from the tool |
+|   ↳ `key` | string | Space key |
+|   ↳ `name` | string | Space name |
+|   ↳ `self` | string | URL link to the space |
+
+
+---
+
+### Confluence Space Updated
+
+Trigger workflow when a space is updated in Confluence
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
+| `userAccountId` | string | Account ID of the user who triggered the event |
+| `accountType` | string | Account type \(e.g., customer\) |
+| `space` | object | space output from the tool |
+|   ↳ `key` | string | Space key |
+|   ↳ `name` | string | Space name |
+|   ↳ `self` | string | URL link to the space |
+
+
+---
+
+### Confluence Webhook (All Events)
+
+Trigger workflow on any Confluence webhook event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Confluence using HMAC signature |
+| `confluenceDomain` | string | No | Your Confluence Cloud domain |
+| `confluenceEmail` | string | No | Your Atlassian account email. Required together with API token to download attachment files. |
+| `confluenceApiToken` | string | No | API token from https://id.atlassian.com/manage-profile/security/api-tokens. Required to download attachment file content. |
+| `includeFileContent` | boolean | No | Download and include actual file content from attachments. Requires email, API token, and domain. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
+| `userAccountId` | string | Account ID of the user who triggered the event |
+| `accountType` | string | Account type \(e.g., customer\) |
+| `page` | json | Page object \(present in page events\) |
+| `comment` | json | Comment object \(present in comment events\) |
+| `blog` | json | Blog post object \(present in blog events\) |
+| `attachment` | json | Attachment object \(present in attachment events\) |
+| `space` | json | Space object \(present in space events\) |
+| `label` | json | Label object \(present in label events\) |
+| `content` | json | Content object \(present in label events\) |
+| `files` | file[] | Attachment file content \(present in attachment events when includeFileContent is enabled\) |
+

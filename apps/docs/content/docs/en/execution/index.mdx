@@ -32,6 +32,15 @@ Sim's execution engine brings your workflows to life by processing blocks in the
   <Card title="External API" href="/execution/api">
     Access run logs and set up webhooks programmatically via REST API
   </Card>
+
+  <Card title="API Deployment" href="/execution/api-deployment">
+    Deploy your workflow as a REST API endpoint with sync, streaming, and async modes
+  </Card>
+
+  <Card title="Chat Deployment" href="/execution/chat">
+    Deploy your workflow as a conversational chat interface with streaming, file uploads, and voice
+  </Card>
+
 </Cards>
 
 ## Key Concepts
@@ -58,17 +67,51 @@ Each workflow maintains a rich context during a run containing:
 
 API, Chat, Schedule, and Webhook runs use the workflow’s active deployment snapshot. Manual runs from the editor use the current draft canvas state, letting you test changes before deploying. Publish a new deployment whenever you change the canvas so every trigger uses the updated version.
 
-<div className='flex justify-center my-6'>
+<div className="flex justify-center my-6">
   <Image
-    src='/static/execution/deployment-versions.png'
-    alt='Deployment versions table'
+    src="/static/execution/deployment-versions.png"
+    alt="Deployment versions table"
     width={500}
     height={280}
-    className='rounded-xl border border-border shadow-sm'
+    className="rounded-xl border border-border shadow-sm"
   />
 </div>
 
-The Deploy modal keeps a full version history—inspect any snapshot, compare it against your draft, and promote or roll back with one click when you need to restore a prior release.
+### Version History
+
+The **General** tab in the Deploy modal shows a version history table for every deployment. Each row shows the version name, who deployed it, and when.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/execution/deployment-versions-table.png"
+    alt="Version history table with multiple deployment versions"
+    width={600}
+    height={650}
+    className="my-6"
+  />
+</div>
+
+From the version table you can:
+
+- **Rename** a version to give it a meaningful label (e.g., "v2 — added error handling")
+- **Add a description** with notes about what changed in that deployment
+- **Promote to live** to roll back to an older version — this makes the selected version the active deployment without changing your draft canvas
+- **Load into editor** to restore a previous version's workflow into the canvas for editing and redeploying
+- **Preview a version** by selecting a row to view that version's workflow in the canvas preview, then toggle between **Live** and the selected version
+
+<div className="flex justify-center">
+  <Image
+    src="/static/execution/deployment-version-preview.png"
+    alt="Previewing a selected deployment version"
+    width={600}
+    height={650}
+    className="my-6"
+  />
+</div>
+
+<Callout type="info">
+  Promoting an old version takes effect immediately — all API, Chat, Schedule, and Webhook executions will use the promoted version. Your draft canvas is not affected.
+</Callout>
 
 ## Programmatic Access
 

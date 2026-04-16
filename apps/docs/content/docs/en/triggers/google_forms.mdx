@@ -1,0 +1,41 @@
+---
+title: Google Forms
+description: Available Google Forms triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="google_forms"
+  color="#E0E0E0"
+/>
+
+Google Forms provides 1 trigger for automating workflows based on events.
+
+## Triggers
+
+### Google Forms Webhook
+
+Trigger workflow from Google Form submissions (via Apps Script forwarder)
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `token` | string | Yes | We validate requests using this secret. Send it as Authorization: Bearer &lt;token&gt; or a custom header. |
+| `secretHeaderName` | string | No | If set, the webhook will validate this header equals your Shared Secret instead of Authorization. |
+| `triggerFormId` | string | No | Optional, for clarity and matching in workflows. Not required for webhook to work. |
+| `includeRawPayload` | boolean | No | Include the original payload from Apps Script in the workflow input. |
+| `setupScript` | string | No | Copy this code and paste it into your Google Forms Apps Script editor |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `responseId` | string | Unique response identifier \(if available\) |
+| `createTime` | string | Response creation timestamp |
+| `lastSubmittedTime` | string | Last submitted timestamp |
+| `formId` | string | Google Form ID |
+| `answers` | object | Normalized map of question -&gt; answer |
+| `raw` | object | Original payload \(when enabled\) |
+

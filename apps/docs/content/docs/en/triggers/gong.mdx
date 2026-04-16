@@ -1,0 +1,109 @@
+---
+title: Gong
+description: Available Gong triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="gong"
+  color="#8039DF"
+/>
+
+Gong provides 2 triggers for automating workflows based on events.
+
+## Triggers
+
+### Gong Call Completed
+
+Trigger workflow when a call is completed and processed in Gong
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `gongJwtPublicKeyPem` | string | No | Required only when your Gong rule uses **Signed JWT header**. Sim verifies RS256, `webhook_url`, and `body_sha256` per Gong. If empty, only the webhook URL path authenticates the request. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Constant identifier for automation-rule webhooks \(`gong.automation_rule`\). Gong does not send distinct event names in the payload. |
+| `callId` | string | Gong call ID \(same value as metaData.id when present\) |
+| `isTest` | boolean | Whether this is a test webhook from the Gong UI |
+| `callData` | json | Full call data object |
+| `metaData` | object | metaData output from the tool |
+|   ↳ `id` | string | Gong call ID |
+|   ↳ `url` | string | URL to the call in Gong |
+|   ↳ `title` | string | Call title |
+|   ↳ `scheduled` | string | Scheduled start time \(ISO 8601\) |
+|   ↳ `started` | string | Actual start time \(ISO 8601\) |
+|   ↳ `duration` | number | Call duration in seconds |
+|   ↳ `primaryUserId` | string | Primary Gong user ID |
+|   ↳ `workspaceId` | string | Gong workspace ID |
+|   ↳ `direction` | string | Call direction \(Inbound, Outbound, etc.\) |
+|   ↳ `system` | string | Communication platform used \(e.g. Zoom, Teams\) |
+|   ↳ `scope` | string | Call scope \(Internal, External, or Unknown\) |
+|   ↳ `media` | string | Media type \(Video or Audio\) |
+|   ↳ `language` | string | Language code \(ISO-639-2B\) |
+|   ↳ `sdrDisposition` | string | SDR disposition classification \(when present\) |
+|   ↳ `clientUniqueId` | string | Call identifier from the origin recording system \(when present\) |
+|   ↳ `customData` | string | Custom metadata from call creation \(when present\) |
+|   ↳ `purpose` | string | Call purpose \(when present\) |
+|   ↳ `meetingUrl` | string | Web conference provider URL \(when present\) |
+|   ↳ `isPrivate` | boolean | Whether the call is private \(when present\) |
+|   ↳ `calendarEventId` | string | Calendar event identifier \(when present\) |
+| `parties` | array | Array of call participants with name, email, title, and affiliation |
+| `context` | array | Array of CRM context objects \(Salesforce opportunities, accounts, etc.\) |
+| `trackers` | array | Keyword and smart trackers from call content \(same shape as Gong extensive-calls `content.trackers`\) |
+| `topics` | array | Topic segments with durations from call content \(`content.topics`\) |
+| `highlights` | array | AI-generated highlights from call content \(`content.highlights`\) |
+
+
+---
+
+### Gong Webhook
+
+Generic webhook trigger for all Gong events
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `gongJwtPublicKeyPem` | string | No | Required only when your Gong rule uses **Signed JWT header**. Sim verifies RS256, `webhook_url`, and `body_sha256` per Gong. If empty, only the webhook URL path authenticates the request. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventType` | string | Constant identifier for automation-rule webhooks \(`gong.automation_rule`\). Gong does not send distinct event names in the payload. |
+| `callId` | string | Gong call ID \(same value as metaData.id when present\) |
+| `isTest` | boolean | Whether this is a test webhook from the Gong UI |
+| `callData` | json | Full call data object |
+| `metaData` | object | metaData output from the tool |
+|   ↳ `id` | string | Gong call ID |
+|   ↳ `url` | string | URL to the call in Gong |
+|   ↳ `title` | string | Call title |
+|   ↳ `scheduled` | string | Scheduled start time \(ISO 8601\) |
+|   ↳ `started` | string | Actual start time \(ISO 8601\) |
+|   ↳ `duration` | number | Call duration in seconds |
+|   ↳ `primaryUserId` | string | Primary Gong user ID |
+|   ↳ `workspaceId` | string | Gong workspace ID |
+|   ↳ `direction` | string | Call direction \(Inbound, Outbound, etc.\) |
+|   ↳ `system` | string | Communication platform used \(e.g. Zoom, Teams\) |
+|   ↳ `scope` | string | Call scope \(Internal, External, or Unknown\) |
+|   ↳ `media` | string | Media type \(Video or Audio\) |
+|   ↳ `language` | string | Language code \(ISO-639-2B\) |
+|   ↳ `sdrDisposition` | string | SDR disposition classification \(when present\) |
+|   ↳ `clientUniqueId` | string | Call identifier from the origin recording system \(when present\) |
+|   ↳ `customData` | string | Custom metadata from call creation \(when present\) |
+|   ↳ `purpose` | string | Call purpose \(when present\) |
+|   ↳ `meetingUrl` | string | Web conference provider URL \(when present\) |
+|   ↳ `isPrivate` | boolean | Whether the call is private \(when present\) |
+|   ↳ `calendarEventId` | string | Calendar event identifier \(when present\) |
+| `parties` | array | Array of call participants with name, email, title, and affiliation |
+| `context` | array | Array of CRM context objects \(Salesforce opportunities, accounts, etc.\) |
+| `trackers` | array | Keyword and smart trackers from call content \(same shape as Gong extensive-calls `content.trackers`\) |
+| `topics` | array | Topic segments with durations from call content \(`content.topics`\) |
+| `highlights` | array | AI-generated highlights from call content \(`content.highlights`\) |
+
