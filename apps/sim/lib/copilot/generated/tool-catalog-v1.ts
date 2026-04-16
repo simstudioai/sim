@@ -2834,6 +2834,11 @@ export const UserTable: ToolCatalogEntry = {
             type: 'object',
             description:
               'Optional explicit CSV-header → table-column mapping for import_file, as { "csvHeader": "columnName" | null }. When omitted, headers are auto-matched by sanitized name (case-insensitive fallback). Use null to skip a CSV column.',
+            additionalProperties: {
+              type: 'string',
+              description:
+                'Target column name on the table. Use null to skip this CSV header instead of a column name.',
+            },
           },
           mode: {
             type: 'string',
