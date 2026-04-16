@@ -12,20 +12,22 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Microsoft Teams provides 2 triggers for automating workflows based on events.
 
-## Microsoft Teams Channel
+## Triggers
+
+### `microsoftteams_webhook`
 
 Trigger workflow from Microsoft Teams channel messages via outgoing webhooks
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `hmacSecret` | short-input | Yes | The security token provided by Teams when creating an outgoing webhook. Used to verify request authenticity. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `hmacSecret` | string | Yes | The security token provided by Teams when creating an outgoing webhook. Used to verify request authenticity. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `from` | string | Sender ID |
 | `message` | json | Array of attachments |
 | `activity` | object | Activity payload |
@@ -34,22 +36,22 @@ Trigger workflow from Microsoft Teams channel messages via outgoing webhooks
 
 ---
 
-## Microsoft Teams Chat
+### `microsoftteams_chat_subscription`
 
 Trigger workflow from new messages in Microsoft Teams chats via Microsoft Graph subscriptions
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `triggerCredentials` | oauth-input | Yes | This trigger requires microsoft teams credentials to access your account. |
-| `triggerChatId` | short-input | Yes | The ID of the Teams chat to monitor |
-| `includeAttachments` | switch | No | Fetch hosted contents and upload to storage |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | This trigger requires microsoft teams credentials to access your account. |
+| `triggerChatId` | string | Yes | The ID of the Teams chat to monitor |
+| `includeAttachments` | boolean | No | Fetch hosted contents and upload to storage |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `message_id` | string | Message ID |
 | `chat_id` | string | Chat ID |
 | `from_name` | string | Sender display name |

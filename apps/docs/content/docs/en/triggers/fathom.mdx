@@ -12,25 +12,27 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Fathom provides 2 triggers for automating workflows based on events.
 
-## Fathom New Meeting Content
+## Triggers
+
+### `fathom_new_meeting`
 
 Trigger workflow when new meeting content is ready in Fathom
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `apiKey` | short-input | Yes | Required to create the webhook in Fathom. |
-| `triggeredFor` | dropdown | No | Which recording types should trigger this webhook. |
-| `includeSummary` | switch | No | Include the meeting summary in the webhook payload. |
-| `includeTranscript` | switch | No | Include the full transcript in the webhook payload. |
-| `includeActionItems` | switch | No | Include action items extracted from the meeting. |
-| `includeCrmMatches` | switch | No | Include matched CRM contacts, companies, and deals from your linked CRM. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Fathom. |
+| `triggeredFor` | string | No | Which recording types should trigger this webhook. |
+| `includeSummary` | boolean | No | Include the meeting summary in the webhook payload. |
+| `includeTranscript` | boolean | No | Include the full transcript in the webhook payload. |
+| `includeActionItems` | boolean | No | Include action items extracted from the meeting. |
+| `includeCrmMatches` | boolean | No | Include matched CRM contacts, companies, and deals from your linked CRM. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `title` | string | Meeting title |
 | `meeting_title` | string | Calendar event title |
 | `recording_id` | number | Unique recording ID |
@@ -53,25 +55,25 @@ Trigger workflow when new meeting content is ready in Fathom
 
 ---
 
-## Fathom Webhook
+### `fathom_webhook`
 
 Generic webhook trigger for all Fathom events
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `apiKey` | short-input | Yes | Required to create the webhook in Fathom. |
-| `triggeredFor` | dropdown | No | Which recording types should trigger this webhook. |
-| `includeSummary` | switch | No | Include the meeting summary in the webhook payload. |
-| `includeTranscript` | switch | No | Include the full transcript in the webhook payload. |
-| `includeActionItems` | switch | No | Include action items extracted from the meeting. |
-| `includeCrmMatches` | switch | No | Include matched CRM contacts, companies, and deals from your linked CRM. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Fathom. |
+| `triggeredFor` | string | No | Which recording types should trigger this webhook. |
+| `includeSummary` | boolean | No | Include the meeting summary in the webhook payload. |
+| `includeTranscript` | boolean | No | Include the full transcript in the webhook payload. |
+| `includeActionItems` | boolean | No | Include action items extracted from the meeting. |
+| `includeCrmMatches` | boolean | No | Include matched CRM contacts, companies, and deals from your linked CRM. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `title` | string | Meeting title |
 | `meeting_title` | string | Calendar event title |
 | `recording_id` | number | Unique recording ID |

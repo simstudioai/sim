@@ -12,14 +12,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Vercel provides 8 triggers for automating workflows based on events.
 
-## Vercel Deployment Canceled
+## Triggers
+
+### `vercel_deployment_canceled`
 
 Trigger workflow when a deployment is canceled
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `type` | string | Event type \(e.g., deployment.created\) |
 | `id` | string | Unique webhook delivery ID \(string\) |
 | `createdAt` | number | Event timestamp in milliseconds |
@@ -38,14 +40,14 @@ Trigger workflow when a deployment is canceled
 
 ---
 
-## Vercel Deployment Created
+### `vercel_deployment_created`
 
 Trigger workflow when a new deployment is created
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `type` | string | Event type \(e.g., deployment.created\) |
 | `id` | string | Unique webhook delivery ID \(string\) |
 | `createdAt` | number | Event timestamp in milliseconds |
@@ -64,14 +66,14 @@ Trigger workflow when a new deployment is created
 
 ---
 
-## Vercel Deployment Error
+### `vercel_deployment_error`
 
 Trigger workflow when a deployment fails
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `type` | string | Event type \(e.g., deployment.created\) |
 | `id` | string | Unique webhook delivery ID \(string\) |
 | `createdAt` | number | Event timestamp in milliseconds |
@@ -90,14 +92,14 @@ Trigger workflow when a deployment fails
 
 ---
 
-## Vercel Deployment Ready
+### `vercel_deployment_ready`
 
 Trigger workflow when a deployment is ready to serve traffic
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `type` | string | Event type \(e.g., deployment.created\) |
 | `id` | string | Unique webhook delivery ID \(string\) |
 | `createdAt` | number | Event timestamp in milliseconds |
@@ -116,14 +118,14 @@ Trigger workflow when a deployment is ready to serve traffic
 
 ---
 
-## Vercel Domain Created
+### `vercel_domain_created`
 
 Trigger workflow when a domain is created
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `type` | string | Event type \(e.g., deployment.created\) |
 | `id` | string | Unique webhook delivery ID \(string\) |
 | `createdAt` | number | Event timestamp in milliseconds |
@@ -140,14 +142,14 @@ Trigger workflow when a domain is created
 
 ---
 
-## Vercel Project Created
+### `vercel_project_created`
 
 Trigger workflow when a new project is created
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `type` | string | Event type \(e.g., deployment.created\) |
 | `id` | string | Unique webhook delivery ID \(string\) |
 | `createdAt` | number | Event timestamp in milliseconds |
@@ -163,14 +165,14 @@ Trigger workflow when a new project is created
 
 ---
 
-## Vercel Project Removed
+### `vercel_project_removed`
 
 Trigger workflow when a project is removed
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `type` | string | Event type \(e.g., deployment.created\) |
 | `id` | string | Unique webhook delivery ID \(string\) |
 | `createdAt` | number | Event timestamp in milliseconds |
@@ -186,14 +188,14 @@ Trigger workflow when a project is removed
 
 ---
 
-## Vercel Webhook (Common Events)
+### `vercel_webhook`
 
 Trigger on a curated set of common Vercel events (deployments, projects, domains, edge config). Pick a specific trigger to listen to one event type only.
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `type` | string | Event type \(e.g., deployment.created\) |
 | `id` | string | Unique webhook delivery ID \(string\) |
 | `createdAt` | number | Event timestamp in milliseconds |

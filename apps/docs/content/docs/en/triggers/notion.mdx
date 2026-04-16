@@ -12,14 +12,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Notion provides 9 triggers for automating workflows based on events.
 
-## Notion Comment Created
+## Triggers
+
+### `notion_comment_created`
 
 Trigger workflow when a comment or suggested edit is added in Notion
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `id` | string | Webhook event ID |
 | `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
 | `timestamp` | string | ISO 8601 timestamp of the event |
@@ -37,14 +39,14 @@ Trigger workflow when a comment or suggested edit is added in Notion
 
 ---
 
-## Notion Database Created
+### `notion_database_created`
 
 Trigger workflow when a new database is created in Notion
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `id` | string | Webhook event ID |
 | `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
 | `timestamp` | string | ISO 8601 timestamp of the event |
@@ -61,14 +63,14 @@ Trigger workflow when a new database is created in Notion
 
 ---
 
-## Notion Database Deleted
+### `notion_database_deleted`
 
 Trigger workflow when a database is deleted in Notion
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `id` | string | Webhook event ID |
 | `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
 | `timestamp` | string | ISO 8601 timestamp of the event |
@@ -85,14 +87,14 @@ Trigger workflow when a database is deleted in Notion
 
 ---
 
-## Notion Database Schema Updated
+### `notion_database_schema_updated`
 
 Trigger workflow when a database schema is modified in Notion
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `id` | string | Webhook event ID |
 | `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
 | `timestamp` | string | ISO 8601 timestamp of the event |
@@ -109,14 +111,14 @@ Trigger workflow when a database schema is modified in Notion
 
 ---
 
-## Notion Page Content Updated
+### `notion_page_content_updated`
 
 Trigger workflow when page content is changed in Notion
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `id` | string | Webhook event ID |
 | `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
 | `timestamp` | string | ISO 8601 timestamp of the event |
@@ -133,14 +135,14 @@ Trigger workflow when page content is changed in Notion
 
 ---
 
-## Notion Page Created
+### `notion_page_created`
 
 Trigger workflow when a new page is created in Notion
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `id` | string | Webhook event ID |
 | `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
 | `timestamp` | string | ISO 8601 timestamp of the event |
@@ -157,14 +159,14 @@ Trigger workflow when a new page is created in Notion
 
 ---
 
-## Notion Page Deleted
+### `notion_page_deleted`
 
 Trigger workflow when a page is deleted in Notion
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `id` | string | Webhook event ID |
 | `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
 | `timestamp` | string | ISO 8601 timestamp of the event |
@@ -181,14 +183,14 @@ Trigger workflow when a page is deleted in Notion
 
 ---
 
-## Notion Page Properties Updated
+### `notion_page_properties_updated`
 
 Trigger workflow when page properties are modified in Notion
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `id` | string | Webhook event ID |
 | `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
 | `timestamp` | string | ISO 8601 timestamp of the event |
@@ -205,14 +207,14 @@ Trigger workflow when page properties are modified in Notion
 
 ---
 
-## Notion Webhook (All Events)
+### `notion_webhook`
 
 Trigger workflow on any Notion webhook event
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `id` | string | Webhook event ID |
 | `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
 | `timestamp` | string | ISO 8601 timestamp of the event |

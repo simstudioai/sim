@@ -14,26 +14,28 @@ Google Sheets provides 1 trigger for automating workflows based on events.
 
 All triggers below are **polling-based** — they check for new data on a schedule rather than receiving push notifications.
 
-## Google Sheets New Row Trigger
+## Triggers
+
+### `google_sheets_poller`
 
 Triggers when new rows are added to a Google Sheet
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `triggerCredentials` | oauth-input | Yes | Connect your Google account to access Google Sheets. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Connect your Google account to access Google Sheets. |
 | `spreadsheetId` | file-selector | Yes | The spreadsheet to monitor for new rows. |
-| `manualSpreadsheetId` | short-input | Yes | The spreadsheet to monitor for new rows. |
+| `manualSpreadsheetId` | string | Yes | The spreadsheet to monitor for new rows. |
 | `sheetName` | sheet-selector | Yes | The sheet tab to monitor for new rows. |
-| `manualSheetName` | short-input | Yes | The sheet tab to monitor for new rows. |
-| `valueRenderOption` | dropdown | No | How values are rendered. Formatted returns display strings, Unformatted returns raw numbers/booleans, Formula returns the formula text. |
-| `dateTimeRenderOption` | dropdown | No | How dates and times are rendered. Only applies when Value Render is not  |
+| `manualSheetName` | string | Yes | The sheet tab to monitor for new rows. |
+| `valueRenderOption` | string | No | How values are rendered. Formatted returns display strings, Unformatted returns raw numbers/booleans, Formula returns the formula text. |
+| `dateTimeRenderOption` | string | No | How dates and times are rendered. Only applies when Value Render is not  |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `row` | json | Row data mapped to column headers from row 1 |
 | `rawRow` | json | Raw row values as an array |
 | `headers` | json | Column headers from row 1 |

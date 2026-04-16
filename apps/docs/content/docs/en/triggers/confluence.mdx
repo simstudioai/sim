@@ -12,14 +12,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Confluence provides 16 triggers for automating workflows based on events.
 
-## Confluence Attachment Created
+## Triggers
+
+### `confluence_attachment_created`
 
 Trigger workflow when an attachment is uploaded in Confluence
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
@@ -39,14 +41,14 @@ Trigger workflow when an attachment is uploaded in Confluence
 
 ---
 
-## Confluence Attachment Removed
+### `confluence_attachment_removed`
 
 Trigger workflow when an attachment is removed in Confluence
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
@@ -66,14 +68,14 @@ Trigger workflow when an attachment is removed in Confluence
 
 ---
 
-## Confluence Blog Post Created
+### `confluence_blog_created`
 
 Trigger workflow when a blog post is created in Confluence
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
@@ -81,14 +83,14 @@ Trigger workflow when a blog post is created in Confluence
 
 ---
 
-## Confluence Blog Post Removed
+### `confluence_blog_removed`
 
 Trigger workflow when a blog post is removed in Confluence
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
@@ -96,14 +98,14 @@ Trigger workflow when a blog post is removed in Confluence
 
 ---
 
-## Confluence Blog Post Updated
+### `confluence_blog_updated`
 
 Trigger workflow when a blog post is updated in Confluence
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
@@ -111,14 +113,14 @@ Trigger workflow when a blog post is updated in Confluence
 
 ---
 
-## Confluence Comment Created
+### `confluence_comment_created`
 
 Trigger workflow when a comment is created in Confluence
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
@@ -137,14 +139,14 @@ Trigger workflow when a comment is created in Confluence
 
 ---
 
-## Confluence Comment Removed
+### `confluence_comment_removed`
 
 Trigger workflow when a comment is removed in Confluence
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
@@ -163,14 +165,14 @@ Trigger workflow when a comment is removed in Confluence
 
 ---
 
-## Confluence Label Added
+### `confluence_label_added`
 
 Trigger workflow when a label is added to content in Confluence
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
@@ -180,14 +182,14 @@ Trigger workflow when a label is added to content in Confluence
 
 ---
 
-## Confluence Label Removed
+### `confluence_label_removed`
 
 Trigger workflow when a label is removed from content in Confluence
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
@@ -197,14 +199,14 @@ Trigger workflow when a label is removed from content in Confluence
 
 ---
 
-## Confluence Page Created
+### `confluence_page_created`
 
 Trigger workflow when a new page is created in Confluence
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
@@ -212,14 +214,14 @@ Trigger workflow when a new page is created in Confluence
 
 ---
 
-## Confluence Page Moved
+### `confluence_page_moved`
 
 Trigger workflow when a page is moved in Confluence
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
@@ -227,14 +229,14 @@ Trigger workflow when a page is moved in Confluence
 
 ---
 
-## Confluence Page Removed
+### `confluence_page_removed`
 
 Trigger workflow when a page is removed or trashed in Confluence
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
@@ -242,14 +244,14 @@ Trigger workflow when a page is removed or trashed in Confluence
 
 ---
 
-## Confluence Page Updated
+### `confluence_page_updated`
 
 Trigger workflow when a page is updated in Confluence
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
@@ -257,14 +259,14 @@ Trigger workflow when a page is updated in Confluence
 
 ---
 
-## Confluence Space Created
+### `confluence_space_created`
 
 Trigger workflow when a new space is created in Confluence
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
@@ -273,14 +275,14 @@ Trigger workflow when a new space is created in Confluence
 
 ---
 
-## Confluence Space Updated
+### `confluence_space_updated`
 
 Trigger workflow when a space is updated in Confluence
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |
@@ -289,14 +291,14 @@ Trigger workflow when a space is updated in Confluence
 
 ---
 
-## Confluence Webhook (All Events)
+### `confluence_webhook`
 
 Trigger workflow on any Confluence webhook event
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `timestamp` | number | Timestamp of the webhook event \(Unix epoch milliseconds\) |
 | `userAccountId` | string | Account ID of the user who triggered the event |
 | `accountType` | string | Account type \(e.g., customer\) |

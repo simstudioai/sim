@@ -12,14 +12,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Zoom provides 6 triggers for automating workflows based on events.
 
-## Zoom Meeting Ended
+## Triggers
+
+### `zoom_meeting_ended`
 
 Trigger workflow when a Zoom meeting ends
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `event` | string | The webhook event type \(e.g., meeting.started\) |
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
 | `payload` | string | Zoom account ID |
@@ -27,14 +29,14 @@ Trigger workflow when a Zoom meeting ends
 
 ---
 
-## Zoom Meeting Started
+### `zoom_meeting_started`
 
 Trigger workflow when a Zoom meeting starts
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `event` | string | The webhook event type \(e.g., meeting.started\) |
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
 | `payload` | string | Zoom account ID |
@@ -42,14 +44,14 @@ Trigger workflow when a Zoom meeting starts
 
 ---
 
-## Zoom Participant Joined
+### `zoom_participant_joined`
 
 Trigger workflow when a participant joins a Zoom meeting
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `event` | string | The webhook event type \(e.g., meeting.participant_joined\) |
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
 | `payload` | string | Zoom account ID |
@@ -57,14 +59,14 @@ Trigger workflow when a participant joins a Zoom meeting
 
 ---
 
-## Zoom Participant Left
+### `zoom_participant_left`
 
 Trigger workflow when a participant leaves a Zoom meeting
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `event` | string | The webhook event type \(e.g., meeting.participant_joined\) |
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
 | `payload` | string | Zoom account ID |
@@ -72,14 +74,14 @@ Trigger workflow when a participant leaves a Zoom meeting
 
 ---
 
-## Zoom Recording Completed
+### `zoom_recording_completed`
 
 Trigger workflow when a Zoom cloud recording is completed
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `event` | string | The webhook event type \(recording.completed\) |
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
 | `payload` | string | Zoom account ID |
@@ -87,14 +89,14 @@ Trigger workflow when a Zoom cloud recording is completed
 
 ---
 
-## Zoom Webhook (All Events)
+### `zoom_webhook`
 
 Trigger workflow on any Zoom webhook event
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `event` | string | The webhook event type \(e.g., meeting.started, recording.completed\) |
 | `event_ts` | number | Unix timestamp in milliseconds when the event occurred |
 | `payload` | json | Complete webhook payload \(structure varies by event type\) |

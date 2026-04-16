@@ -14,25 +14,27 @@ Google Drive provides 1 trigger for automating workflows based on events.
 
 All triggers below are **polling-based** — they check for new data on a schedule rather than receiving push notifications.
 
-## Google Drive File Trigger
+## Triggers
+
+### `google_drive_poller`
 
 Triggers when files are created, modified, or deleted in Google Drive
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `triggerCredentials` | oauth-input | Yes | Connect your Google account to access Google Drive. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Connect your Google account to access Google Drive. |
 | `folderId` | file-selector | No | Optional: The folder to monitor. Leave empty to monitor all files in Drive. |
-| `manualFolderId` | short-input | No | Optional: The folder ID from the Google Drive URL to monitor. Leave empty to monitor all files. |
-| `mimeTypeFilter` | dropdown | No | Optional: Only trigger for specific file types. |
-| `eventTypeFilter` | dropdown | No | Only trigger for specific change types. Defaults to all changes. |
-| `includeSharedDrives` | switch | No | Include files from shared \(team\) drives. |
+| `manualFolderId` | string | No | Optional: The folder ID from the Google Drive URL to monitor. Leave empty to monitor all files. |
+| `mimeTypeFilter` | string | No | Optional: Only trigger for specific file types. |
+| `eventTypeFilter` | string | No | Only trigger for specific change types. Defaults to all changes. |
+| `includeSharedDrives` | boolean | No | Include files from shared \(team\) drives. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `file` | string | Google Drive file ID |
 | `eventType` | string | Change type: "created", "modified", or "deleted" |
 | `timestamp` | string | Event timestamp in ISO format |

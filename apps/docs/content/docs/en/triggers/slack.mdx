@@ -12,22 +12,24 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Slack provides 1 trigger for automating workflows based on events.
 
-## Slack Webhook
+## Triggers
+
+### `slack_webhook`
 
 Trigger workflow from Slack events like mentions, messages, and reactions
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `signingSecret` | short-input | Yes | The signing secret from your Slack app to validate request authenticity. |
-| `botToken` | short-input | No | The bot token from your Slack app. Required for downloading files attached to messages. |
-| `includeFiles` | switch | No | Download and include file attachments from messages. Requires a bot token with files:read scope. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `signingSecret` | string | Yes | The signing secret from your Slack app to validate request authenticity. |
+| `botToken` | string | No | The bot token from your Slack app. Required for downloading files attached to messages. |
+| `includeFiles` | boolean | No | Download and include file attachments from messages. Requires a bot token with files:read scope. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `event` | object | Slack event data |
 |   ↳ `event_type` | string | Type of Slack event \(e.g., app_mention, message\) |
 |   ↳ `subtype` | string | Message subtype \(e.g., channel_join, channel_leave, bot_message, file_share\). Null for regular user messages |

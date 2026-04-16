@@ -12,22 +12,24 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Twilio Voice provides 1 trigger for automating workflows based on events.
 
-## Twilio Voice Webhook
+## Triggers
+
+### `twilio_voice_webhook`
 
 Trigger workflow when phone calls are received via Twilio Voice
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `accountSid` | short-input | Yes | Your Twilio Account SID from the Twilio Console |
-| `authToken` | short-input | Yes | Your Twilio Auth Token for webhook signature verification |
-| `twimlResponse` | long-input | No | TwiML instructions to return immediately to Twilio. Use square brackets instead of angle brackets \(e.g., \[Response\] instead of &lt;Response&gt;\). This controls what happens when the call comes in \(e.g., play a message, record, gather input\). Your workflow will execute in the background. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accountSid` | string | Yes | Your Twilio Account SID from the Twilio Console |
+| `authToken` | string | Yes | Your Twilio Auth Token for webhook signature verification |
+| `twimlResponse` | string | No | TwiML instructions to return immediately to Twilio. Use square brackets instead of angle brackets \(e.g., \[Response\] instead of &lt;Response&gt;\). This controls what happens when the call comes in \(e.g., play a message, record, gather input\). Your workflow will execute in the background. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `callSid` | string | Unique identifier for this call |
 | `accountSid` | string | Twilio Account SID |
 | `from` | string | Caller's phone number \(E.164 format\) |

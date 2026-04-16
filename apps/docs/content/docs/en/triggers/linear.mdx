@@ -12,14 +12,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Linear provides 15 triggers for automating workflows based on events.
 
-## Linear Comment Created
+## Triggers
+
+### `linear_comment_created_v2`
 
 Trigger workflow when a new comment is created in Linear
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `action` | string | Action performed \(create, update, remove\) |
 | `type` | string | Entity type \(Comment\) |
 | `webhookId` | string | Webhook ID |
@@ -33,14 +35,14 @@ Trigger workflow when a new comment is created in Linear
 
 ---
 
-## Linear Comment Updated
+### `linear_comment_updated_v2`
 
 Trigger workflow when a comment is updated in Linear
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `action` | string | Action performed \(create, update, remove\) |
 | `type` | string | Entity type \(Comment\) |
 | `webhookId` | string | Webhook ID |
@@ -54,14 +56,14 @@ Trigger workflow when a comment is updated in Linear
 
 ---
 
-## Linear Customer Request Created
+### `linear_customer_request_created_v2`
 
 Trigger workflow when a new customer request is created in Linear
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `action` | string | Action performed \(create, update, remove\) |
 | `type` | string | Entity type \(CustomerNeed\) |
 | `webhookId` | string | Webhook ID |
@@ -75,14 +77,14 @@ Trigger workflow when a new customer request is created in Linear
 
 ---
 
-## Linear Customer Request Updated
+### `linear_customer_request_updated_v2`
 
 Trigger workflow when a customer request is updated in Linear
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `action` | string | Action performed \(create, update, remove\) |
 | `type` | string | Entity type \(CustomerNeed\) |
 | `webhookId` | string | Webhook ID |
@@ -96,14 +98,14 @@ Trigger workflow when a customer request is updated in Linear
 
 ---
 
-## Linear Cycle Created
+### `linear_cycle_created_v2`
 
 Trigger workflow when a new cycle is created in Linear
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `action` | string | Action performed \(create, update, remove\) |
 | `type` | string | Entity type \(Cycle\) |
 | `webhookId` | string | Webhook ID |
@@ -117,14 +119,14 @@ Trigger workflow when a new cycle is created in Linear
 
 ---
 
-## Linear Cycle Updated
+### `linear_cycle_updated_v2`
 
 Trigger workflow when a cycle is updated in Linear
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `action` | string | Action performed \(create, update, remove\) |
 | `type` | string | Entity type \(Cycle\) |
 | `webhookId` | string | Webhook ID |
@@ -138,14 +140,14 @@ Trigger workflow when a cycle is updated in Linear
 
 ---
 
-## Linear Issue Created
+### `linear_issue_created_v2`
 
 Trigger workflow when a new issue is created in Linear
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `action` | string | Action performed \(create, update, remove\) |
 | `type` | string | Entity type \(Issue\) |
 | `webhookId` | string | Webhook ID |
@@ -159,14 +161,14 @@ Trigger workflow when a new issue is created in Linear
 
 ---
 
-## Linear Issue Removed
+### `linear_issue_removed_v2`
 
 Trigger workflow when an issue is removed/deleted in Linear
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `action` | string | Action performed \(create, update, remove\) |
 | `type` | string | Entity type \(Issue\) |
 | `webhookId` | string | Webhook ID |
@@ -180,14 +182,14 @@ Trigger workflow when an issue is removed/deleted in Linear
 
 ---
 
-## Linear Issue Updated
+### `linear_issue_updated_v2`
 
 Trigger workflow when an issue is updated in Linear
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `action` | string | Action performed \(create, update, remove\) |
 | `type` | string | Entity type \(Issue\) |
 | `webhookId` | string | Webhook ID |
@@ -201,14 +203,14 @@ Trigger workflow when an issue is updated in Linear
 
 ---
 
-## Linear Label Created
+### `linear_label_created_v2`
 
 Trigger workflow when a new label is created in Linear
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `action` | string | Action performed \(create, update, remove\) |
 | `type` | string | Entity type \(IssueLabel\) |
 | `webhookId` | string | Webhook ID |
@@ -222,14 +224,14 @@ Trigger workflow when a new label is created in Linear
 
 ---
 
-## Linear Label Updated
+### `linear_label_updated_v2`
 
 Trigger workflow when a label is updated in Linear
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `action` | string | Action performed \(create, update, remove\) |
 | `type` | string | Entity type \(IssueLabel\) |
 | `webhookId` | string | Webhook ID |
@@ -243,14 +245,14 @@ Trigger workflow when a label is updated in Linear
 
 ---
 
-## Linear Project Created
+### `linear_project_created_v2`
 
 Trigger workflow when a new project is created in Linear
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `action` | string | Action performed \(create, update, remove\) |
 | `type` | string | Entity type \(Project\) |
 | `webhookId` | string | Webhook ID |
@@ -264,14 +266,14 @@ Trigger workflow when a new project is created in Linear
 
 ---
 
-## Linear Project Update Created
+### `linear_project_update_created_v2`
 
 Trigger workflow when a new project update is posted in Linear
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `action` | string | Action performed \(create, update, remove\) |
 | `type` | string | Entity type \(ProjectUpdate\) |
 | `webhookId` | string | Webhook ID |
@@ -285,14 +287,14 @@ Trigger workflow when a new project update is posted in Linear
 
 ---
 
-## Linear Project Updated
+### `linear_project_updated_v2`
 
 Trigger workflow when a project is updated in Linear
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `action` | string | Action performed \(create, update, remove\) |
 | `type` | string | Entity type \(Project\) |
 | `webhookId` | string | Webhook ID |
@@ -306,14 +308,14 @@ Trigger workflow when a project is updated in Linear
 
 ---
 
-## Linear Webhook
+### `linear_webhook_v2`
 
 Trigger workflow from Linear events you select when creating the webhook in Linear (not guaranteed to be every model or event type).
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `action` | string | Action performed \(create, update, remove\) |
 | `type` | string | Entity type \(Issue, Comment, Project, Cycle, IssueLabel, ProjectUpdate, etc.\) |
 | `webhookId` | string | Webhook ID |

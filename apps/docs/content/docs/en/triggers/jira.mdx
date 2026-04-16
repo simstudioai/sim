@@ -12,21 +12,23 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Jira provides 6 triggers for automating workflows based on events.
 
-## Jira Issue Commented
+## Triggers
+
+### `jira_issue_commented`
 
 Trigger workflow when a comment is added to a Jira issue
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `webhookSecret` | short-input | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
-| `jqlFilter` | long-input | No | Filter which issue comments trigger this workflow using JQL |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+| `jqlFilter` | string | No | Filter which issue comments trigger this workflow using JQL |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `webhookEvent` | string | The webhook event type \(e.g., jira:issue_created, comment_created, worklog_created\) |
 | `timestamp` | number | Timestamp of the webhook event |
 | `issue` | string | Jira issue ID |
@@ -35,21 +37,21 @@ Trigger workflow when a comment is added to a Jira issue
 
 ---
 
-## Jira Issue Created
+### `jira_issue_created`
 
 Trigger workflow when a new issue is created in Jira
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `webhookSecret` | short-input | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
-| `jqlFilter` | long-input | No | Filter which issues trigger this workflow using JQL \(Jira Query Language\) |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+| `jqlFilter` | string | No | Filter which issues trigger this workflow using JQL \(Jira Query Language\) |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `webhookEvent` | string | The webhook event type \(e.g., jira:issue_created, comment_created, worklog_created\) |
 | `timestamp` | number | Timestamp of the webhook event |
 | `issue` | string | Jira issue ID |
@@ -58,21 +60,21 @@ Trigger workflow when a new issue is created in Jira
 
 ---
 
-## Jira Issue Deleted
+### `jira_issue_deleted`
 
 Trigger workflow when an issue is deleted in Jira
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `webhookSecret` | short-input | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
-| `jqlFilter` | long-input | No | Filter which issue deletions trigger this workflow using JQL |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+| `jqlFilter` | string | No | Filter which issue deletions trigger this workflow using JQL |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `webhookEvent` | string | The webhook event type \(e.g., jira:issue_created, comment_created, worklog_created\) |
 | `timestamp` | number | Timestamp of the webhook event |
 | `issue` | string | Jira issue ID |
@@ -81,22 +83,22 @@ Trigger workflow when an issue is deleted in Jira
 
 ---
 
-## Jira Issue Updated
+### `jira_issue_updated`
 
 Trigger workflow when an issue is updated in Jira
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `webhookSecret` | short-input | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
-| `jqlFilter` | long-input | No | Filter which issue updates trigger this workflow using JQL |
-| `fieldFilters` | long-input | No | Comma-separated list of fields to monitor. Only trigger when these fields change. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+| `jqlFilter` | string | No | Filter which issue updates trigger this workflow using JQL |
+| `fieldFilters` | string | No | Comma-separated list of fields to monitor. Only trigger when these fields change. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `webhookEvent` | string | The webhook event type \(e.g., jira:issue_created, comment_created, worklog_created\) |
 | `timestamp` | number | Timestamp of the webhook event |
 | `issue` | string | Jira issue ID |
@@ -106,20 +108,20 @@ Trigger workflow when an issue is updated in Jira
 
 ---
 
-## Jira Webhook (All Events)
+### `jira_webhook`
 
 Trigger workflow on any Jira webhook event
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `webhookSecret` | short-input | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `changelog` | string | Changelog ID |
 | `comment` | string | Comment ID |
 | `worklog` | string | Worklog entry ID |
@@ -127,21 +129,21 @@ Trigger workflow on any Jira webhook event
 
 ---
 
-## Jira Worklog Created
+### `jira_worklog_created`
 
 Trigger workflow when time is logged on a Jira issue
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `webhookSecret` | short-input | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
-| `jqlFilter` | long-input | No | Filter which worklog entries trigger this workflow using JQL |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+| `jqlFilter` | string | No | Filter which worklog entries trigger this workflow using JQL |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `webhookEvent` | string | The webhook event type \(e.g., jira:issue_created, comment_created, worklog_created\) |
 | `timestamp` | number | Timestamp of the webhook event |
 | `issue` | string | Jira issue ID |

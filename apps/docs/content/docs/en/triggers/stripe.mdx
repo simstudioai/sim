@@ -12,21 +12,23 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Stripe provides 1 trigger for automating workflows based on events.
 
-## Stripe Webhook
+## Triggers
+
+### `stripe_webhook`
 
 Triggers when Stripe events occur (payments, subscriptions, invoices, etc.)
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `eventTypes` | dropdown | No | Select specific Stripe events to filter. Leave empty to receive all events from Stripe. |
-| `webhookSecret` | short-input | No | Your webhook signing secret from Stripe Dashboard. Used to verify webhook authenticity. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `eventTypes` | string | No | Select specific Stripe events to filter. Leave empty to receive all events from Stripe. |
+| `webhookSecret` | string | No | Your webhook signing secret from Stripe Dashboard. Used to verify webhook authenticity. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `id` | string | Unique identifier for the event |
 | `type` | string | Event type \(e.g., payment_intent.succeeded, customer.created, invoice.paid\) |
 | `object` | string | Always "event" |

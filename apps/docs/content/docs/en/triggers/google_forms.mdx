@@ -12,24 +12,26 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Google Forms provides 1 trigger for automating workflows based on events.
 
-## Google Forms Webhook
+## Triggers
+
+### `google_forms_webhook`
 
 Trigger workflow from Google Form submissions (via Apps Script forwarder)
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `token` | short-input | Yes | We validate requests using this secret. Send it as Authorization: Bearer &lt;token&gt; or a custom header. |
-| `secretHeaderName` | short-input | No | If set, the webhook will validate this header equals your Shared Secret instead of Authorization. |
-| `triggerFormId` | short-input | No | Optional, for clarity and matching in workflows. Not required for webhook to work. |
-| `includeRawPayload` | switch | No | Include the original payload from Apps Script in the workflow input. |
-| `setupScript` | code | No | Copy this code and paste it into your Google Forms Apps Script editor |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `token` | string | Yes | We validate requests using this secret. Send it as Authorization: Bearer &lt;token&gt; or a custom header. |
+| `secretHeaderName` | string | No | If set, the webhook will validate this header equals your Shared Secret instead of Authorization. |
+| `triggerFormId` | string | No | Optional, for clarity and matching in workflows. Not required for webhook to work. |
+| `includeRawPayload` | boolean | No | Include the original payload from Apps Script in the workflow input. |
+| `setupScript` | string | No | Copy this code and paste it into your Google Forms Apps Script editor |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `responseId` | string | Unique response identifier \(if available\) |
 | `createTime` | string | Response creation timestamp |
 | `lastSubmittedTime` | string | Last submitted timestamp |

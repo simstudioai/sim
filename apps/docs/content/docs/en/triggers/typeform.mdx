@@ -12,23 +12,25 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Typeform provides 1 trigger for automating workflows based on events.
 
-## Typeform Webhook
+## Triggers
+
+### `typeform_webhook`
 
 Trigger workflow when a Typeform submission is received
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `formId` | short-input | Yes | The unique identifier for your Typeform. Find it in the form URL or form settings. |
-| `apiKey` | short-input | Yes | Required to automatically register the webhook with Typeform. Get yours at https://admin.typeform.com/account#/section/tokens |
-| `secret` | short-input | No | A secret string used to verify webhook authenticity. Highly recommended for security. Generate a secure random string \(min 20 characters recommended\). |
-| `includeDefinition` | switch | No | Include the complete form structure \(questions, fields, endings\) in your workflow variables. Note: Typeform always sends this data, but enabling this makes it accessible in your workflow. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Yes | The unique identifier for your Typeform. Find it in the form URL or form settings. |
+| `apiKey` | string | Yes | Required to automatically register the webhook with Typeform. Get yours at https://admin.typeform.com/account#/section/tokens |
+| `secret` | string | No | A secret string used to verify webhook authenticity. Highly recommended for security. Generate a secure random string \(min 20 characters recommended\). |
+| `includeDefinition` | boolean | No | Include the complete form structure \(questions, fields, endings\) in your workflow variables. Note: Typeform always sends this data, but enabling this makes it accessible in your workflow. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `event_id` | string | Unique identifier for this webhook event |
 | `event_type` | string | Type of event \(always "form_response" for form submissions\) |
 | `form_id` | string | Typeform form identifier |

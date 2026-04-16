@@ -12,14 +12,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Gong provides 2 triggers for automating workflows based on events.
 
-## Gong Call Completed
+## Triggers
+
+### `gong_call_completed`
 
 Trigger workflow when a call is completed and processed in Gong
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | Constant identifier for automation-rule webhooks \(`gong.automation_rule`\). Gong does not send distinct event names in the payload. |
 | `callId` | string | Gong call ID \(same value as metaData.id when present\) |
 | `isTest` | boolean | Whether this is a test webhook from the Gong UI |
@@ -34,14 +36,14 @@ Trigger workflow when a call is completed and processed in Gong
 
 ---
 
-## Gong Webhook
+### `gong_webhook`
 
 Generic webhook trigger for all Gong events
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | Constant identifier for automation-rule webhooks \(`gong.automation_rule`\). Gong does not send distinct event names in the payload. |
 | `callId` | string | Gong call ID \(same value as metaData.id when present\) |
 | `isTest` | boolean | Whether this is a test webhook from the Gong UI |

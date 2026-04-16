@@ -12,14 +12,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Greenhouse provides 8 triggers for automating workflows based on events.
 
-## Greenhouse Candidate Hired
+## Triggers
+
+### `greenhouse_candidate_hired`
 
 Trigger workflow when a candidate is hired
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
@@ -29,14 +31,14 @@ Trigger workflow when a candidate is hired
 
 ---
 
-## Greenhouse Candidate Rejected
+### `greenhouse_candidate_rejected`
 
 Trigger workflow when a candidate is rejected
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
@@ -46,14 +48,14 @@ Trigger workflow when a candidate is rejected
 
 ---
 
-## Greenhouse Candidate Stage Change
+### `greenhouse_candidate_stage_change`
 
 Trigger workflow when a candidate changes interview stages
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
@@ -63,14 +65,14 @@ Trigger workflow when a candidate changes interview stages
 
 ---
 
-## Greenhouse Job Created
+### `greenhouse_job_created`
 
 Trigger workflow when a new job is created
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
@@ -79,14 +81,14 @@ Trigger workflow when a new job is created
 
 ---
 
-## Greenhouse Job Updated
+### `greenhouse_job_updated`
 
 Trigger workflow when a job is updated
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
@@ -95,14 +97,14 @@ Trigger workflow when a job is updated
 
 ---
 
-## Greenhouse New Application
+### `greenhouse_new_application`
 
 Trigger workflow when a new application is submitted
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
@@ -112,14 +114,14 @@ Trigger workflow when a new application is submitted
 
 ---
 
-## Greenhouse Offer Created
+### `greenhouse_offer_created`
 
 Trigger workflow when a new offer is created
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |
@@ -129,14 +131,14 @@ Trigger workflow when a new offer is created
 
 ---
 
-## Greenhouse Webhook (Endpoint Events)
+### `greenhouse_webhook`
 
 Trigger on whichever event types you select for this URL in Greenhouse. Sim does not filter deliveries for this trigger.
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `applicationId` | number | Application id when present \(`payload.application.id` or flat `payload.application_id` on offers\) |
 | `candidateId` | number | Candidate id when `payload.application.candidate.id` is present |
 | `jobId` | number | Job id from `payload.job.id` or flat `payload.job_id` when present |

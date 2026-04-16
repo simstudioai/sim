@@ -12,14 +12,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Attio provides 22 triggers for automating workflows based on events.
 
-## Attio Comment Created
+## Triggers
+
+### `attio_comment_created`
 
 Trigger workflow when a new comment is created in Attio
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `threadId` | string | The thread ID |
@@ -32,14 +34,14 @@ Trigger workflow when a new comment is created in Attio
 
 ---
 
-## Attio Comment Deleted
+### `attio_comment_deleted`
 
 Trigger workflow when a comment is deleted in Attio
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `threadId` | string | The thread ID |
@@ -52,14 +54,14 @@ Trigger workflow when a comment is deleted in Attio
 
 ---
 
-## Attio Comment Resolved
+### `attio_comment_resolved`
 
 Trigger workflow when a comment thread is resolved in Attio
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `threadId` | string | The thread ID |
@@ -72,14 +74,14 @@ Trigger workflow when a comment thread is resolved in Attio
 
 ---
 
-## Attio Comment Unresolved
+### `attio_comment_unresolved`
 
 Trigger workflow when a comment thread is unresolved in Attio
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `threadId` | string | The thread ID |
@@ -92,14 +94,14 @@ Trigger workflow when a comment thread is unresolved in Attio
 
 ---
 
-## Attio List Created
+### `attio_list_created`
 
 Trigger workflow when a list is created in Attio
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `listId` | string | The list ID |
@@ -107,14 +109,14 @@ Trigger workflow when a list is created in Attio
 
 ---
 
-## Attio List Deleted
+### `attio_list_deleted`
 
 Trigger workflow when a list is deleted in Attio
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `listId` | string | The list ID |
@@ -122,14 +124,14 @@ Trigger workflow when a list is deleted in Attio
 
 ---
 
-## Attio List Entry Created
+### `attio_list_entry_created`
 
 Trigger workflow when a new list entry is created in Attio
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `listId` | string | The list ID |
@@ -138,14 +140,14 @@ Trigger workflow when a new list entry is created in Attio
 
 ---
 
-## Attio List Entry Deleted
+### `attio_list_entry_deleted`
 
 Trigger workflow when a list entry is deleted in Attio
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `listId` | string | The list ID |
@@ -154,14 +156,14 @@ Trigger workflow when a list entry is deleted in Attio
 
 ---
 
-## Attio List Entry Updated
+### `attio_list_entry_updated`
 
 Trigger workflow when a list entry is updated in Attio
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `listId` | string | The list ID |
@@ -171,14 +173,14 @@ Trigger workflow when a list entry is updated in Attio
 
 ---
 
-## Attio List Updated
+### `attio_list_updated`
 
 Trigger workflow when a list is updated in Attio
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `listId` | string | The list ID |
@@ -186,14 +188,14 @@ Trigger workflow when a list is updated in Attio
 
 ---
 
-## Attio Note Created
+### `attio_note_created`
 
 Trigger workflow when a new note is created in Attio
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `noteId` | string | The note ID |
@@ -203,14 +205,14 @@ Trigger workflow when a new note is created in Attio
 
 ---
 
-## Attio Note Deleted
+### `attio_note_deleted`
 
 Trigger workflow when a note is deleted in Attio
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `noteId` | string | The note ID |
@@ -220,14 +222,14 @@ Trigger workflow when a note is deleted in Attio
 
 ---
 
-## Attio Note Updated
+### `attio_note_updated`
 
 Trigger workflow when a note is updated in Attio
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `noteId` | string | The note ID |
@@ -237,14 +239,14 @@ Trigger workflow when a note is updated in Attio
 
 ---
 
-## Attio Record Created
+### `attio_record_created`
 
 Trigger workflow when a new record is created in Attio
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `objectId` | string | The object type ID \(e.g. people, companies\) |
@@ -253,14 +255,14 @@ Trigger workflow when a new record is created in Attio
 
 ---
 
-## Attio Record Deleted
+### `attio_record_deleted`
 
 Trigger workflow when a record is deleted in Attio
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `objectId` | string | The object type ID \(e.g. people, companies\) |
@@ -269,14 +271,14 @@ Trigger workflow when a record is deleted in Attio
 
 ---
 
-## Attio Record Merged
+### `attio_record_merged`
 
 Trigger workflow when two records are merged in Attio
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `objectId` | string | The object type ID of the surviving record |
@@ -287,14 +289,14 @@ Trigger workflow when two records are merged in Attio
 
 ---
 
-## Attio Record Updated
+### `attio_record_updated`
 
 Trigger workflow when a record is updated in Attio
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `objectId` | string | The object type ID \(e.g. people, companies\) |
@@ -304,14 +306,14 @@ Trigger workflow when a record is updated in Attio
 
 ---
 
-## Attio Task Created
+### `attio_task_created`
 
 Trigger workflow when a new task is created in Attio
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `taskId` | string | The task ID |
@@ -319,14 +321,14 @@ Trigger workflow when a new task is created in Attio
 
 ---
 
-## Attio Task Deleted
+### `attio_task_deleted`
 
 Trigger workflow when a task is deleted in Attio
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `taskId` | string | The task ID |
@@ -334,14 +336,14 @@ Trigger workflow when a task is deleted in Attio
 
 ---
 
-## Attio Task Updated
+### `attio_task_updated`
 
 Trigger workflow when a task is updated in Attio
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `taskId` | string | The task ID |
@@ -349,14 +351,14 @@ Trigger workflow when a task is updated in Attio
 
 ---
 
-## Attio Webhook (All Events)
+### `attio_webhook`
 
 Trigger workflow on any Attio webhook event
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `id` | json | The event ID object containing resource identifiers |
 | `parentObjectId` | string | The parent object type ID \(if applicable\) |
@@ -365,14 +367,14 @@ Trigger workflow on any Attio webhook event
 
 ---
 
-## Attio Workspace Member Created
+### `attio_workspace_member_created`
 
 Trigger workflow when a new member is added to the Attio workspace
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g. record.created, note.created\) |
 | `workspaceId` | string | The workspace ID |
 | `workspaceMemberId` | string | The workspace member ID |

@@ -12,84 +12,86 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Ashby provides 6 triggers for automating workflows based on events.
 
-## Ashby Application Submitted
+## Triggers
+
+### `ashby_application_submit`
 
 Trigger workflow when a new application is submitted
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `application` | string | Application UUID |
 
 
 ---
 
-## Ashby Candidate Deleted
+### `ashby_candidate_delete`
 
 Trigger workflow when a candidate is deleted
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `candidate` | string | Deleted candidate UUID |
 
 
 ---
 
-## Ashby Candidate Hired
+### `ashby_candidate_hire`
 
 Trigger workflow when a candidate is hired
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `application` | string | Application UUID |
 
 
 ---
 
-## Ashby Candidate Stage Change
+### `ashby_candidate_stage_change`
 
 Trigger workflow when a candidate changes interview stages
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `application` | string | Application UUID |
 
 
 ---
 
-## Ashby Job Created
+### `ashby_job_create`
 
 Trigger workflow when a new job is created
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `job` | string | Job UUID |
 
 
 ---
 
-## Ashby Offer Created
+### `ashby_offer_create`
 
 Trigger workflow when a new offer is created
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
 | `offer` | string | Offer UUID |
 

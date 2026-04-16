@@ -12,14 +12,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Resend provides 8 triggers for automating workflows based on events.
 
-## Resend Email Bounced
+## Triggers
+
+### `resend_email_bounced`
 
 Trigger workflow when an email bounces
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `type` | string | Event type \(e.g., email.sent, email.delivered\) |
 | `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
 | `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
@@ -38,14 +40,14 @@ Trigger workflow when an email bounces
 
 ---
 
-## Resend Email Clicked
+### `resend_email_clicked`
 
 Trigger workflow when a link in an email is clicked
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `type` | string | Event type \(e.g., email.sent, email.delivered\) |
 | `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
 | `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
@@ -65,14 +67,14 @@ Trigger workflow when a link in an email is clicked
 
 ---
 
-## Resend Email Complained
+### `resend_email_complained`
 
 Trigger workflow when an email is marked as spam
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `type` | string | Event type \(e.g., email.sent, email.delivered\) |
 | `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
 | `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
@@ -88,14 +90,14 @@ Trigger workflow when an email is marked as spam
 
 ---
 
-## Resend Email Delivered
+### `resend_email_delivered`
 
 Trigger workflow when an email is delivered
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `type` | string | Event type \(e.g., email.sent, email.delivered\) |
 | `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
 | `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
@@ -111,14 +113,14 @@ Trigger workflow when an email is delivered
 
 ---
 
-## Resend Email Failed
+### `resend_email_failed`
 
 Trigger workflow when an email fails to send
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `type` | string | Event type \(e.g., email.sent, email.delivered\) |
 | `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
 | `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
@@ -134,14 +136,14 @@ Trigger workflow when an email fails to send
 
 ---
 
-## Resend Email Opened
+### `resend_email_opened`
 
 Trigger workflow when an email is opened
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `type` | string | Event type \(e.g., email.sent, email.delivered\) |
 | `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
 | `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
@@ -157,14 +159,14 @@ Trigger workflow when an email is opened
 
 ---
 
-## Resend Email Sent
+### `resend_email_sent`
 
 Trigger workflow when an email is sent
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `type` | string | Event type \(e.g., email.sent, email.delivered\) |
 | `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
 | `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |
@@ -180,14 +182,14 @@ Trigger workflow when an email is sent
 
 ---
 
-## Resend Webhook (All Events)
+### `resend_webhook`
 
 Trigger on Resend webhook events we subscribe to (email lifecycle, contacts, domains—see Resend docs). Flattened email fields may be null for non-email events; use <code>data</code> for the full payload.
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `type` | string | Event type \(e.g., email.sent, email.delivered\) |
 | `created_at` | string | Webhook event creation timestamp \(ISO 8601\), top-level `created_at` |
 | `data_created_at` | string | Email record timestamp from payload `data.created_at` \(ISO 8601\), when present — distinct from top-level `created_at` |

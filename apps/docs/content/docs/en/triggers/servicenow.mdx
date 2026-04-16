@@ -12,14 +12,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ServiceNow provides 5 triggers for automating workflows based on events.
 
-## ServiceNow Change Request Created
+## Triggers
+
+### `servicenow_change_request_created`
 
 Trigger workflow when a new change request is created in ServiceNow
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `sysId` | string | Unique system ID of the record |
 | `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
 | `tableName` | string | ServiceNow table name |
@@ -45,14 +47,14 @@ Trigger workflow when a new change request is created in ServiceNow
 
 ---
 
-## ServiceNow Change Request Updated
+### `servicenow_change_request_updated`
 
 Trigger workflow when a change request is updated in ServiceNow
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `sysId` | string | Unique system ID of the record |
 | `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
 | `tableName` | string | ServiceNow table name |
@@ -78,14 +80,14 @@ Trigger workflow when a change request is updated in ServiceNow
 
 ---
 
-## ServiceNow Incident Created
+### `servicenow_incident_created`
 
 Trigger workflow when a new incident is created in ServiceNow
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `sysId` | string | Unique system ID of the record |
 | `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
 | `tableName` | string | ServiceNow table name |
@@ -112,14 +114,14 @@ Trigger workflow when a new incident is created in ServiceNow
 
 ---
 
-## ServiceNow Incident Updated
+### `servicenow_incident_updated`
 
 Trigger workflow when an incident is updated in ServiceNow
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `sysId` | string | Unique system ID of the record |
 | `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
 | `tableName` | string | ServiceNow table name |
@@ -146,14 +148,14 @@ Trigger workflow when an incident is updated in ServiceNow
 
 ---
 
-## ServiceNow Webhook (All Events)
+### `servicenow_webhook`
 
 Trigger workflow on any ServiceNow webhook event
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `sysId` | string | Unique system ID of the record |
 | `number` | string | Record number \(e.g., INC0010001, CHG0010001\) |
 | `tableName` | string | ServiceNow table name |

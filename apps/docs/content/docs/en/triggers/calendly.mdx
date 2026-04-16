@@ -12,21 +12,23 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Calendly provides 4 triggers for automating workflows based on events.
 
-## Calendly Invitee Canceled
+## Triggers
+
+### `calendly_invitee_canceled`
 
 Trigger workflow when someone cancels a scheduled event on Calendly
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `apiKey` | short-input | Yes | Enter your Calendly personal access token |
-| `organization` | short-input | Yes | Organization URI for the webhook subscription. Get this from  |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Enter your Calendly personal access token |
+| `organization` | string | Yes | Organization URI for the webhook subscription. Get this from  |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `event` | string | Event type \(invitee.created or invitee.canceled\) |
 | `created_at` | string | Webhook event creation timestamp |
 | `created_by` | string | URI of the Calendly user who created this webhook |
@@ -35,21 +37,21 @@ Trigger workflow when someone cancels a scheduled event on Calendly
 
 ---
 
-## Calendly Invitee Created
+### `calendly_invitee_created`
 
 Trigger workflow when someone schedules a new event on Calendly
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `apiKey` | short-input | Yes | Enter your Calendly personal access token |
-| `organization` | short-input | Yes | Organization URI for the webhook subscription. Get this from  |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Enter your Calendly personal access token |
+| `organization` | string | Yes | Organization URI for the webhook subscription. Get this from  |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `event` | string | Event type \(invitee.created or invitee.canceled\) |
 | `created_at` | string | Webhook event creation timestamp |
 | `created_by` | string | URI of the Calendly user who created this webhook |
@@ -58,21 +60,21 @@ Trigger workflow when someone schedules a new event on Calendly
 
 ---
 
-## Calendly Routing Form Submitted
+### `calendly_routing_form_submitted`
 
 Trigger workflow when someone submits a Calendly routing form
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `apiKey` | short-input | Yes | Enter your Calendly personal access token |
-| `organization` | short-input | Yes | Organization URI for the webhook subscription. Get this from  |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Enter your Calendly personal access token |
+| `organization` | string | Yes | Organization URI for the webhook subscription. Get this from  |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `event` | string | Event type \(routing_form_submission.created\) |
 | `created_at` | string | Webhook event creation timestamp |
 | `created_by` | string | URI of the Calendly user who created this webhook |
@@ -81,21 +83,21 @@ Trigger workflow when someone submits a Calendly routing form
 
 ---
 
-## Calendly Webhook
+### `calendly_webhook`
 
 Trigger workflow from any Calendly webhook event
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `apiKey` | short-input | Yes | Enter your Calendly personal access token |
-| `organization` | short-input | Yes | Organization URI for the webhook subscription. Get this from  |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Enter your Calendly personal access token |
+| `organization` | string | Yes | Organization URI for the webhook subscription. Get this from  |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `event` | string | Event type \(invitee.created, invitee.canceled, or routing_form_submission.created\) |
 | `created_at` | string | Webhook event creation timestamp |
 | `created_by` | string | URI of the Calendly user who created this webhook |

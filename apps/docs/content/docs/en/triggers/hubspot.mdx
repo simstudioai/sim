@@ -12,23 +12,25 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 HubSpot provides 27 triggers for automating workflows based on events.
 
-## HubSpot Company Created
+## Triggers
+
+### `hubspot_company_created`
 
 Trigger workflow when a new company is created in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -54,23 +56,23 @@ Trigger workflow when a new company is created in HubSpot
 
 ---
 
-## HubSpot Company Deleted
+### `hubspot_company_deleted`
 
 Trigger workflow when a company is deleted in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -96,23 +98,23 @@ Trigger workflow when a company is deleted in HubSpot
 
 ---
 
-## HubSpot Company Merged
+### `hubspot_company_merged`
 
 Trigger workflow when companies are merged in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing merge event details |
 |   ↳ `objectId` | number | HubSpot object ID \(winning/primary record\) |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -136,24 +138,24 @@ Trigger workflow when companies are merged in HubSpot
 
 ---
 
-## HubSpot Company Property Changed
+### `hubspot_company_property_changed`
 
 Trigger workflow when any property of a company is updated in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
-| `propertyName` | short-input | No | Optional: Filter to only trigger when a specific property changes. Leave empty to trigger on any property change. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| `propertyName` | string | No | Optional: Filter to only trigger when a specific property changes. Leave empty to trigger on any property change. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -179,23 +181,23 @@ Trigger workflow when any property of a company is updated in HubSpot
 
 ---
 
-## HubSpot Company Restored
+### `hubspot_company_restored`
 
 Trigger workflow when a deleted company is restored in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -221,23 +223,23 @@ Trigger workflow when a deleted company is restored in HubSpot
 
 ---
 
-## HubSpot Contact Created
+### `hubspot_contact_created`
 
 Trigger workflow when a new contact is created in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -263,23 +265,23 @@ Trigger workflow when a new contact is created in HubSpot
 
 ---
 
-## HubSpot Contact Deleted
+### `hubspot_contact_deleted`
 
 Trigger workflow when a contact is deleted in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -305,23 +307,23 @@ Trigger workflow when a contact is deleted in HubSpot
 
 ---
 
-## HubSpot Contact Merged
+### `hubspot_contact_merged`
 
 Trigger workflow when contacts are merged in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing merge event details |
 |   ↳ `objectId` | number | HubSpot object ID \(winning/primary record\) |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -345,23 +347,23 @@ Trigger workflow when contacts are merged in HubSpot
 
 ---
 
-## HubSpot Contact Privacy Deleted
+### `hubspot_contact_privacy_deleted`
 
 Trigger workflow when a contact is deleted for privacy compliance (GDPR, CCPA, etc.) in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -387,24 +389,24 @@ Trigger workflow when a contact is deleted for privacy compliance (GDPR, CCPA, e
 
 ---
 
-## HubSpot Contact Property Changed
+### `hubspot_contact_property_changed`
 
 Trigger workflow when any property of a contact is updated in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
-| `propertyName` | short-input | No | Optional: Filter to only trigger when a specific property changes. Leave empty to trigger on any property change. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| `propertyName` | string | No | Optional: Filter to only trigger when a specific property changes. Leave empty to trigger on any property change. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -430,23 +432,23 @@ Trigger workflow when any property of a contact is updated in HubSpot
 
 ---
 
-## HubSpot Contact Restored
+### `hubspot_contact_restored`
 
 Trigger workflow when a deleted contact is restored in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -472,23 +474,23 @@ Trigger workflow when a deleted contact is restored in HubSpot
 
 ---
 
-## HubSpot Conversation Creation
+### `hubspot_conversation_creation`
 
 Trigger workflow when a new conversation is created in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -514,23 +516,23 @@ Trigger workflow when a new conversation is created in HubSpot
 
 ---
 
-## HubSpot Conversation Deletion
+### `hubspot_conversation_deletion`
 
 Trigger workflow when a conversation is deleted in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -556,23 +558,23 @@ Trigger workflow when a conversation is deleted in HubSpot
 
 ---
 
-## HubSpot Conversation New Message
+### `hubspot_conversation_new_message`
 
 Trigger workflow when a new message is added to a conversation in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -598,23 +600,23 @@ Trigger workflow when a new message is added to a conversation in HubSpot
 
 ---
 
-## HubSpot Conversation Privacy Deletion
+### `hubspot_conversation_privacy_deletion`
 
 Trigger workflow when a conversation is deleted for privacy compliance (GDPR, CCPA, etc.) in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -640,24 +642,24 @@ Trigger workflow when a conversation is deleted for privacy compliance (GDPR, CC
 
 ---
 
-## HubSpot Conversation Property Changed
+### `hubspot_conversation_property_changed`
 
 Trigger workflow when any property of a conversation is updated in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
-| `propertyName` | short-input | No | Optional: Filter to only trigger when a specific property changes. Leave empty to trigger on any property change. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| `propertyName` | string | No | Optional: Filter to only trigger when a specific property changes. Leave empty to trigger on any property change. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -683,23 +685,23 @@ Trigger workflow when any property of a conversation is updated in HubSpot
 
 ---
 
-## HubSpot Deal Created
+### `hubspot_deal_created`
 
 Trigger workflow when a new deal is created in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -725,23 +727,23 @@ Trigger workflow when a new deal is created in HubSpot
 
 ---
 
-## HubSpot Deal Deleted
+### `hubspot_deal_deleted`
 
 Trigger workflow when a deal is deleted in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -767,23 +769,23 @@ Trigger workflow when a deal is deleted in HubSpot
 
 ---
 
-## HubSpot Deal Merged
+### `hubspot_deal_merged`
 
 Trigger workflow when deals are merged in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing merge event details |
 |   ↳ `objectId` | number | HubSpot object ID \(winning/primary record\) |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -807,24 +809,24 @@ Trigger workflow when deals are merged in HubSpot
 
 ---
 
-## HubSpot Deal Property Changed
+### `hubspot_deal_property_changed`
 
 Trigger workflow when any property of a deal is updated in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
-| `propertyName` | short-input | No | Optional: Filter to only trigger when a specific property changes. Leave empty to trigger on any property change. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| `propertyName` | string | No | Optional: Filter to only trigger when a specific property changes. Leave empty to trigger on any property change. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -850,23 +852,23 @@ Trigger workflow when any property of a deal is updated in HubSpot
 
 ---
 
-## HubSpot Deal Restored
+### `hubspot_deal_restored`
 
 Trigger workflow when a deleted deal is restored in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -892,23 +894,23 @@ Trigger workflow when a deleted deal is restored in HubSpot
 
 ---
 
-## HubSpot Ticket Created
+### `hubspot_ticket_created`
 
 Trigger workflow when a new ticket is created in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -934,23 +936,23 @@ Trigger workflow when a new ticket is created in HubSpot
 
 ---
 
-## HubSpot Ticket Deleted
+### `hubspot_ticket_deleted`
 
 Trigger workflow when a ticket is deleted in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -976,23 +978,23 @@ Trigger workflow when a ticket is deleted in HubSpot
 
 ---
 
-## HubSpot Ticket Merged
+### `hubspot_ticket_merged`
 
 Trigger workflow when tickets are merged in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing merge event details |
 |   ↳ `objectId` | number | HubSpot object ID \(winning/primary record\) |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -1016,24 +1018,24 @@ Trigger workflow when tickets are merged in HubSpot
 
 ---
 
-## HubSpot Ticket Property Changed
+### `hubspot_ticket_property_changed`
 
 Trigger workflow when any property of a ticket is updated in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
-| `propertyName` | short-input | No | Optional: Filter to only trigger when a specific property changes. Leave empty to trigger on any property change. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| `propertyName` | string | No | Optional: Filter to only trigger when a specific property changes. Leave empty to trigger on any property change. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -1059,23 +1061,23 @@ Trigger workflow when any property of a ticket is updated in HubSpot
 
 ---
 
-## HubSpot Ticket Restored
+### `hubspot_ticket_restored`
 
 Trigger workflow when a deleted ticket is restored in HubSpot
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |
@@ -1101,23 +1103,23 @@ Trigger workflow when a deleted ticket is restored in HubSpot
 
 ---
 
-## HubSpot Webhook (All Events)
+### `hubspot_webhook`
 
 Trigger workflow on any HubSpot webhook event
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `clientId` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `clientSecret` | short-input | Yes | Found in your HubSpot app settings under Auth tab |
-| `appId` | short-input | Yes | Found in your HubSpot app settings. Used to identify your app. |
-| `developerApiKey` | short-input | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `clientId` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `clientSecret` | string | Yes | Found in your HubSpot app settings under Auth tab |
+| `appId` | string | Yes | Found in your HubSpot app settings. Used to identify your app. |
+| `developerApiKey` | string | Yes | Used for making API calls to HubSpot. Found in your HubSpot app settings. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payload` | array | Full webhook payload array from HubSpot containing event details |
 |   ↳ `objectId` | number | HubSpot object ID |
 |   ↳ `subscriptionType` | string | Type of subscription event |

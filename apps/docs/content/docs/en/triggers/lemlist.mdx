@@ -12,14 +12,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Lemlist provides 9 triggers for automating workflows based on events.
 
-## Lemlist Email Bounced
+## Triggers
+
+### `lemlist_email_bounced`
 
 Trigger workflow when an email bounces
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `_id` | string | Unique activity identifier |
 | `type` | string | Activity type \(e.g., emailsSent, emailsReplied\) |
 | `createdAt` | string | Activity creation timestamp \(ISO 8601\) |
@@ -45,14 +47,14 @@ Trigger workflow when an email bounces
 
 ---
 
-## Lemlist Email Clicked
+### `lemlist_email_clicked`
 
 Trigger workflow when a lead clicks a link in an email
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `_id` | string | Unique activity identifier |
 | `type` | string | Activity type \(e.g., emailsSent, emailsReplied\) |
 | `createdAt` | string | Activity creation timestamp \(ISO 8601\) |
@@ -78,14 +80,14 @@ Trigger workflow when a lead clicks a link in an email
 
 ---
 
-## Lemlist Email Opened
+### `lemlist_email_opened`
 
 Trigger workflow when a lead opens an email
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `_id` | string | Unique activity identifier |
 | `type` | string | Activity type \(e.g., emailsSent, emailsReplied\) |
 | `createdAt` | string | Activity creation timestamp \(ISO 8601\) |
@@ -110,14 +112,14 @@ Trigger workflow when a lead opens an email
 
 ---
 
-## Lemlist Email Replied
+### `lemlist_email_replied`
 
 Trigger workflow when a lead replies to an email
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `_id` | string | Unique activity identifier |
 | `type` | string | Activity type \(e.g., emailsSent, emailsReplied\) |
 | `createdAt` | string | Activity creation timestamp \(ISO 8601\) |
@@ -145,14 +147,14 @@ Trigger workflow when a lead replies to an email
 
 ---
 
-## Lemlist Email Sent
+### `lemlist_email_sent`
 
 Trigger workflow when an email is sent
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `_id` | string | Unique activity identifier |
 | `type` | string | Activity type \(e.g., emailsSent, emailsReplied\) |
 | `createdAt` | string | Activity creation timestamp \(ISO 8601\) |
@@ -180,14 +182,14 @@ Trigger workflow when an email is sent
 
 ---
 
-## Lemlist Lead Interested
+### `lemlist_interested`
 
 Trigger workflow when a lead is marked as interested
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `_id` | string | Unique activity identifier |
 | `type` | string | Activity type \(e.g., emailsSent, emailsReplied\) |
 | `createdAt` | string | Activity creation timestamp \(ISO 8601\) |
@@ -208,14 +210,14 @@ Trigger workflow when a lead is marked as interested
 
 ---
 
-## Lemlist Lead Not Interested
+### `lemlist_not_interested`
 
 Trigger workflow when a lead is marked as not interested
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `_id` | string | Unique activity identifier |
 | `type` | string | Activity type \(e.g., emailsSent, emailsReplied\) |
 | `createdAt` | string | Activity creation timestamp \(ISO 8601\) |
@@ -236,14 +238,14 @@ Trigger workflow when a lead is marked as not interested
 
 ---
 
-## Lemlist LinkedIn Replied
+### `lemlist_linkedin_replied`
 
 Trigger workflow when a lead replies to a LinkedIn message
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `_id` | string | Unique activity identifier |
 | `type` | string | Activity type \(e.g., emailsSent, emailsReplied\) |
 | `createdAt` | string | Activity creation timestamp \(ISO 8601\) |
@@ -265,14 +267,14 @@ Trigger workflow when a lead replies to a LinkedIn message
 
 ---
 
-## Lemlist Webhook (All Events)
+### `lemlist_webhook`
 
 Trigger workflow on any Lemlist webhook event
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `_id` | string | Unique activity identifier |
 | `type` | string | Activity type \(e.g., emailsSent, emailsReplied\) |
 | `createdAt` | string | Activity creation timestamp \(ISO 8601\) |

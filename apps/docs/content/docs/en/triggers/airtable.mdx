@@ -12,23 +12,25 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Airtable provides 1 trigger for automating workflows based on events.
 
-## Airtable Webhook
+## Triggers
+
+### `airtable_webhook`
 
 Trigger workflow from Airtable record changes like create, update, and delete events (requires Airtable credentials)
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `triggerCredentials` | oauth-input | Yes | This trigger requires airtable credentials to access your account. |
-| `baseId` | short-input | Yes | The ID of the Airtable Base this webhook will monitor. |
-| `tableId` | short-input | Yes | The ID of the table within the Base that the webhook will monitor. |
-| `includeCellValues` | switch | No | Enable to receive the complete record data in the payload, not just changes. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | This trigger requires airtable credentials to access your account. |
+| `baseId` | string | Yes | The ID of the Airtable Base this webhook will monitor. |
+| `tableId` | string | Yes | The ID of the table within the Base that the webhook will monitor. |
+| `includeCellValues` | boolean | No | Enable to receive the complete record data in the payload, not just changes. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `payloads` | array | The payloads of the Airtable changes |
 |   ↳ `timestamp` | string | Timestamp of the change |
 |   ↳ `baseTransactionNumber` | number | Transaction number |

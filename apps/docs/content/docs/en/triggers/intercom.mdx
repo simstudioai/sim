@@ -12,14 +12,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Intercom provides 6 triggers for automating workflows based on events.
 
-## Intercom Contact Created
+## Triggers
+
+### `intercom_contact_created`
 
 Trigger workflow when a new lead is created in Intercom
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `topic` | string | The webhook topic \(e.g., conversation.user.created\) |
 | `id` | string | Unique notification ID |
 | `app_id` | string | Your Intercom app ID |
@@ -31,14 +33,14 @@ Trigger workflow when a new lead is created in Intercom
 
 ---
 
-## Intercom Conversation Closed
+### `intercom_conversation_closed`
 
 Trigger workflow when a conversation is closed in Intercom
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `topic` | string | The webhook topic \(e.g., conversation.user.created\) |
 | `id` | string | Unique notification ID |
 | `app_id` | string | Your Intercom app ID |
@@ -50,14 +52,14 @@ Trigger workflow when a conversation is closed in Intercom
 
 ---
 
-## Intercom Conversation Created
+### `intercom_conversation_created`
 
 Trigger workflow when a new conversation is created in Intercom
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `topic` | string | The webhook topic \(e.g., conversation.user.created\) |
 | `id` | string | Unique notification ID |
 | `app_id` | string | Your Intercom app ID |
@@ -69,14 +71,14 @@ Trigger workflow when a new conversation is created in Intercom
 
 ---
 
-## Intercom Conversation Reply
+### `intercom_conversation_reply`
 
 Trigger workflow when someone replies to an Intercom conversation
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `topic` | string | The webhook topic \(e.g., conversation.user.created\) |
 | `id` | string | Unique notification ID |
 | `app_id` | string | Your Intercom app ID |
@@ -88,14 +90,14 @@ Trigger workflow when someone replies to an Intercom conversation
 
 ---
 
-## Intercom User Created
+### `intercom_user_created`
 
 Trigger workflow when a new user is created in Intercom
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `topic` | string | The webhook topic \(e.g., conversation.user.created\) |
 | `id` | string | Unique notification ID |
 | `app_id` | string | Your Intercom app ID |
@@ -107,14 +109,14 @@ Trigger workflow when a new user is created in Intercom
 
 ---
 
-## Intercom Webhook (All Events)
+### `intercom_webhook`
 
 Trigger workflow on any Intercom webhook event
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `topic` | string | The webhook topic \(e.g., conversation.user.created\) |
 | `id` | string | Unique notification ID |
 | `app_id` | string | Your Intercom app ID |

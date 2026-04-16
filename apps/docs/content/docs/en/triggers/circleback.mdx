@@ -12,20 +12,22 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Circleback provides 3 triggers for automating workflows based on events.
 
-## Circleback Meeting Completed
+## Triggers
+
+### `circleback_meeting_completed`
 
 Trigger workflow when a meeting is processed and ready in Circleback
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `webhookSecret` | short-input | No | Validates that webhook deliveries originate from Circleback using HMAC-SHA256. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Validates that webhook deliveries originate from Circleback using HMAC-SHA256. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `id` | number | Circleback meeting ID |
 | `name` | string | Meeting title/name |
 | `url` | string | URL of the virtual meeting \(Zoom, Google Meet, Teams, etc.\) |
@@ -62,20 +64,20 @@ Trigger workflow when a meeting is processed and ready in Circleback
 
 ---
 
-## Circleback Meeting Notes Ready
+### `circleback_meeting_notes`
 
 Trigger workflow when meeting notes and action items are ready
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `webhookSecret` | short-input | No | Validates that webhook deliveries originate from Circleback using HMAC-SHA256. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Validates that webhook deliveries originate from Circleback using HMAC-SHA256. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `id` | number | Circleback meeting ID |
 | `name` | string | Meeting title/name |
 | `url` | string | URL of the virtual meeting \(Zoom, Google Meet, Teams, etc.\) |
@@ -112,20 +114,20 @@ Trigger workflow when meeting notes and action items are ready
 
 ---
 
-## Circleback Webhook
+### `circleback_webhook`
 
 Generic webhook trigger for all Circleback events
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `webhookSecret` | short-input | No | Validates that webhook deliveries originate from Circleback using HMAC-SHA256. |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Validates that webhook deliveries originate from Circleback using HMAC-SHA256. |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `id` | number | Circleback meeting ID |
 | `name` | string | Meeting title/name |
 | `url` | string | URL of the virtual meeting \(Zoom, Google Meet, Teams, etc.\) |

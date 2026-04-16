@@ -3241,7 +3241,28 @@ function groupTriggersByProvider(
 }
 
 /**
+ * Map subBlock UI type identifiers to semantic data types for documentation.
+ * Users care about the data type (string/boolean/number), not the UI widget.
+ */
+const SUBBLOCK_TYPE_TO_SEMANTIC: Record<string, string> = {
+  'short-input': 'string',
+  'long-input': 'string',
+  dropdown: 'string',
+  switch: 'boolean',
+  slider: 'number',
+  'oauth-input': 'string',
+  code: 'string',
+  'file-upload': 'string',
+  text: 'string',
+}
+
+function toSemanticType(uiType: string): string {
+  return SUBBLOCK_TYPE_TO_SEMANTIC[uiType] ?? uiType
+}
+
+/**
  * Generate MDX content for a single trigger provider page.
+ * Matches the structure of tool docs: ## Triggers, ### `trigger_id`, #### Configuration / Output.
  */
 function generateTriggerProviderDoc(
   provider: string,
@@ -3270,12 +3291,13 @@ function generateTriggerProviderDoc(
     // Configuration table
     let configSection = ''
     if (trigger.configFields.length > 0) {
-      configSection = '### Configuration\n\n'
-      configSection += '| Field | Type | Required | Description |\n'
-      configSection += '| ----- | ---- | -------- | ----------- |\n'
+      configSection = '#### Configuration\n\n'
+      configSection += '| Parameter | Type | Required | Description |\n'
+      configSection += '| --------- | ---- | -------- | ----------- |\n'
       for (const field of trigger.configFields) {
+        const type = toSemanticType(field.type)
         const desc = escapeMdxCell(field.description ?? field.placeholder ?? '')
-        configSection += `| \`${field.id}\` | ${field.type} | ${field.required ? 'Yes' : 'No'} | ${desc} |\n`
+        configSection += `| \`${field.id}\` | ${type} | ${field.required ? 'Yes' : 'No'} | ${desc} |\n`
       }
       configSection += '\n'
     }
@@ -3283,16 +3305,16 @@ function generateTriggerProviderDoc(
     // Output table
     let outputSection = ''
     if (Object.keys(trigger.outputs).length > 0) {
-      outputSection = '### Output\n\n'
-      outputSection += '| Field | Type | Description |\n'
-      outputSection += '| ----- | ---- | ----------- |\n'
+      outputSection = '#### Output\n\n'
+      outputSection += '| Parameter | Type | Description |\n'
+      outputSection += '| --------- | ---- | ----------- |\n'
       outputSection += formatOutputStructure(trigger.outputs)
       outputSection += '\n'
     }
 
     const separator = i < triggers.length - 1 ? '\n---\n\n' : ''
 
-    triggersSection += `## ${trigger.name}\n\n`
+    triggersSection += `### \`${trigger.id}\`\n\n`
     triggersSection += `${trigger.description}\n\n`
     triggersSection += configSection
     triggersSection += outputSection
@@ -3313,6 +3335,8 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ${providerName} provides ${count} trigger${count === 1 ? '' : 's'} for automating workflows based on events.
 ${typeNote}
+## Triggers
+
 ${triggersSection}`
 }
 

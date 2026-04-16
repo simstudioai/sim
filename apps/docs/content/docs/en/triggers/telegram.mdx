@@ -12,20 +12,22 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Telegram provides 1 trigger for automating workflows based on events.
 
-## Telegram Webhook
+## Triggers
+
+### `telegram_webhook`
 
 Trigger workflow from Telegram bot messages and events
 
-### Configuration
+#### Configuration
 
-| Field | Type | Required | Description |
-| ----- | ---- | -------- | ----------- |
-| `botToken` | short-input | Yes | Your Telegram Bot Token from BotFather |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `botToken` | string | Yes | Your Telegram Bot Token from BotFather |
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `message` | object | Telegram message data |
 |   ↳ `id` | number | Telegram message ID |
 |   ↳ `text` | string | Message text content \(if present\) |

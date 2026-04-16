@@ -12,14 +12,16 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Salesforce provides 6 triggers for automating workflows based on events.
 
-## Salesforce Case Status Changed
+## Triggers
+
+### `salesforce_case_status_changed`
 
 Trigger workflow when a case status changes
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event |
 | `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
 | `objectType` | string | Salesforce object type \(Case\) |
@@ -33,14 +35,14 @@ Trigger workflow when a case status changes
 
 ---
 
-## Salesforce Opportunity Stage Changed
+### `salesforce_opportunity_stage_changed`
 
 Trigger workflow when an opportunity stage changes
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event |
 | `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
 | `objectType` | string | Salesforce object type \(Opportunity\) |
@@ -54,14 +56,14 @@ Trigger workflow when an opportunity stage changes
 
 ---
 
-## Salesforce Record Created
+### `salesforce_record_created`
 
 Trigger workflow when a Salesforce record is created
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g., created, updated, deleted\) |
 | `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
 | `objectType` | string | Salesforce object type \(e.g., Account, Contact, Lead\) |
@@ -74,14 +76,14 @@ Trigger workflow when a Salesforce record is created
 
 ---
 
-## Salesforce Record Deleted
+### `salesforce_record_deleted`
 
 Trigger workflow when a Salesforce record is deleted
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g., created, updated, deleted\) |
 | `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
 | `objectType` | string | Salesforce object type \(e.g., Account, Contact, Lead\) |
@@ -94,14 +96,14 @@ Trigger workflow when a Salesforce record is deleted
 
 ---
 
-## Salesforce Record Updated
+### `salesforce_record_updated`
 
 Trigger workflow when a Salesforce record is updated
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event \(e.g., created, updated, deleted\) |
 | `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
 | `objectType` | string | Salesforce object type \(e.g., Account, Contact, Lead\) |
@@ -114,14 +116,14 @@ Trigger workflow when a Salesforce record is updated
 
 ---
 
-## Salesforce Webhook (All Events)
+### `salesforce_webhook`
 
 Trigger workflow on any Salesforce webhook event
 
-### Output
+#### Output
 
-| Field | Type | Description |
-| ----- | ---- | ----------- |
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
 | `eventType` | string | The type of event |
 | `simEventType` | string | Optional alias from the payload \(`simEventType`\). Empty when only `eventType` is sent. |
 | `objectType` | string | Salesforce object type |
