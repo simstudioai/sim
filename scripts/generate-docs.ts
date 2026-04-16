@@ -3314,7 +3314,7 @@ function generateTriggerProviderDoc(
 
     const separator = i < triggers.length - 1 ? '\n---\n\n' : ''
 
-    triggersSection += `### \`${trigger.id}\`\n\n`
+    triggersSection += `### ${trigger.name}\n\n`
     triggersSection += `${trigger.description}\n\n`
     triggersSection += configSection
     triggersSection += outputSection
