@@ -1,5 +1,12 @@
+import { createLogger } from '@sim/logger'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import type { BrightDataDiscoverParams, BrightDataDiscoverResponse } from '@/tools/brightdata/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('tools:brightdata:discover')
+
+const POLL_INTERVAL_MS = 3000
+const MAX_POLL_TIME_MS = DEFAULT_EXECUTION_TIMEOUT_MS
 
 export const brightDataDiscoverTool: ToolConfig<
   BrightDataDiscoverParams,
@@ -84,7 +91,7 @@ export const brightDataDiscoverTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params) => {
     if (!response.ok) {
       const errorText = await response.text()
       throw new Error(errorText || `Discover request failed with status ${response.status}`)
@@ -92,34 +99,109 @@ export const brightDataDiscoverTool: ToolConfig<
 
     const data = await response.json()
 
-    let results: Array<{
-      url: string | null
-      title: string | null
-      description: string | null
-      relevanceScore: number | null
-      content: string | null
-    }> = []
-
-    const items = Array.isArray(data) ? data : (data?.results ?? data?.data ?? [])
-
-    if (Array.isArray(items)) {
-      results = items.map((item: Record<string, unknown>) => ({
-        url: (item.link as string) ?? (item.url as string) ?? null,
-        title: (item.title as string) ?? null,
-        description: (item.description as string) ?? (item.snippet as string) ?? null,
-        relevanceScore: (item.relevance_score as number) ?? null,
-        content:
-          (item.content as string) ?? (item.text as string) ?? (item.markdown as string) ?? null,
-      }))
-    }
-
     return {
       success: true,
       output: {
-        results,
-        query: null,
-        totalResults: results.length,
+        results: [],
+        query: params?.query ?? null,
+        totalResults: 0,
+        taskId: data.task_id ?? null,
       },
+    }
+  },
+
+  postProcess: async (result, params) => {
+    if (!result.success) return result
+
+    const taskId = result.output.taskId
+    if (!taskId) {
+      return {
+        ...result,
+        success: false,
+        error: 'Discover API did not return a task_id. Cannot poll for results.',
+      }
+    }
+
+    logger.info(`Bright Data Discover task ${taskId} created, polling for results...`)
+
+    let elapsedTime = 0
+
+    while (elapsedTime < MAX_POLL_TIME_MS) {
+      try {
+        const pollResponse = await fetch(
+          `https://api.brightdata.com/discover?task_id=${encodeURIComponent(taskId)}`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${params.apiKey}`,
+            },
+          }
+        )
+
+        if (!pollResponse.ok) {
+          return {
+            ...result,
+            success: false,
+            error: `Failed to poll discover results: ${pollResponse.statusText}`,
+          }
+        }
+
+        const data = await pollResponse.json()
+        logger.info(`Bright Data Discover task ${taskId} status: ${data.status}`)
+
+        if (data.status === 'done') {
+          const items = Array.isArray(data.results) ? data.results : []
+
+          const results = items.map((item: Record<string, unknown>) => ({
+            url: (item.link as string) ?? (item.url as string) ?? null,
+            title: (item.title as string) ?? null,
+            description: (item.description as string) ?? (item.snippet as string) ?? null,
+            relevanceScore: (item.relevance_score as number) ?? null,
+            content: (item.content as string) ?? null,
+          }))
+
+          return {
+            success: true,
+            output: {
+              results,
+              query: params.query ?? null,
+              totalResults: results.length,
+            },
+          }
+        }
+
+        if (data.status === 'failed' || data.status === 'error') {
+          return {
+            ...result,
+            success: false,
+            error: `Discover task failed: ${data.error ?? 'Unknown error'}`,
+          }
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+        elapsedTime += POLL_INTERVAL_MS
+      } catch (error) {
+        logger.error('Error polling for discover task:', {
+          message: error instanceof Error ? error.message : String(error),
+          taskId,
+        })
+
+        return {
+          ...result,
+          success: false,
+          error: `Error polling for discover task: ${error instanceof Error ? error.message : String(error)}`,
+        }
+      }
+    }
+
+    logger.warn(
+      `Discover task ${taskId} did not complete within the maximum polling time (${MAX_POLL_TIME_MS / 1000}s)`
+    )
+
+    return {
+      ...result,
+      success: false,
+      error: `Discover task ${taskId} timed out after ${MAX_POLL_TIME_MS / 1000}s. Check status manually.`,
     }
   },
 

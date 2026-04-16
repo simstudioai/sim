@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import { taskPubSub } from '@/lib/copilot/tasks'
+import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('CopilotChatStopAPI')
 
@@ -70,7 +71,6 @@ export async function POST(req: NextRequest) {
     }
 
     const { chatId, streamId, content, contentBlocks } = StopSchema.parse(await req.json())
-
     const [row] = await db
       .select({
         workspaceId: copilotChats.workspaceId,
@@ -106,14 +106,18 @@ export async function POST(req: NextRequest) {
 
     const hasContent = content.trim().length > 0
     const hasBlocks = Array.isArray(contentBlocks) && contentBlocks.length > 0
-
-    if ((hasContent || hasBlocks) && canAppendAssistant) {
+    const synthesizedStoppedBlocks = hasBlocks
+      ? contentBlocks
+      : hasContent
+        ? [{ type: 'text', channel: 'assistant', content }, { type: 'stopped' }]
+        : [{ type: 'stopped' }]
+    if (canAppendAssistant) {
       const normalized = normalizeMessage({
-        id: crypto.randomUUID(),
+        id: generateId(),
         role: 'assistant',
         content,
         timestamp: new Date().toISOString(),
-        ...(hasBlocks ? { contentBlocks } : {}),
+        contentBlocks: synthesizedStoppedBlocks,
       })
       const assistantMessage: PersistedMessage = normalized
       setClause.messages = sql`${copilotChats.messages} || ${JSON.stringify([assistantMessage])}::jsonb`

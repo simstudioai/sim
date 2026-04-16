@@ -131,6 +131,7 @@ export interface BrightDataDiscoverResponse extends ToolResponse {
     }>
     query: string | null
     totalResults: number
+    taskId?: string | null
   }
 }
 
