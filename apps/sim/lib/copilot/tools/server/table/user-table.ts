@@ -153,11 +153,16 @@ async function batchInsertAll(
   context?: ServerToolContext
 ): Promise<number> {
   let inserted = 0
+  const userId = context?.userId
   for (let i = 0; i < rows.length; i += MAX_BATCH_SIZE) {
     assertServerToolNotAborted(context, 'Request aborted before table mutation could be applied.')
     const batch = rows.slice(i, i + MAX_BATCH_SIZE)
     const requestId = generateId().slice(0, 8)
-    const result = await batchInsertRows({ tableId, rows: batch, workspaceId }, table, requestId)
+    const result = await batchInsertRows(
+      { tableId, rows: batch, workspaceId, userId },
+      table,
+      requestId
+    )
     inserted += result.length
   }
   return inserted
@@ -297,7 +302,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const row = await insertRow(
-            { tableId: args.tableId, data: args.data, workspaceId },
+            { tableId: args.tableId, data: args.data, workspaceId, userId: context.userId },
             table,
             requestId
           )
@@ -328,7 +333,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const rows = await batchInsertRows(
-            { tableId: args.tableId, rows: args.rows, workspaceId },
+            { tableId: args.tableId, rows: args.rows, workspaceId, userId: context.userId },
             table,
             requestId
           )
@@ -749,7 +754,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             assertNotAborted()
             const requestId = generateId().slice(0, 8)
             const result = await replaceTableRows(
-              { tableId: table.id, rows: coerced, workspaceId },
+              { tableId: table.id, rows: coerced, workspaceId, userId: context.userId },
               table,
               requestId
             )
