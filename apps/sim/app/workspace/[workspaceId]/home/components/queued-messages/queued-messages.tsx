@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowUp, ChevronDown, ChevronRight, Pencil, Trash2 } from 'lucide-react'
+import { ArrowUp, ChevronDown, ChevronRight, Paperclip, Pencil, Trash2 } from 'lucide-react'
 import { Tooltip } from '@/components/emcn'
+import { UserMessageContent } from '@/app/workspace/[workspaceId]/home/components/user-message-content'
 import type { QueuedMessage } from '@/app/workspace/[workspaceId]/home/types'
 
 interface QueuedMessagesProps {
@@ -39,15 +40,31 @@ export function QueuedMessages({ messageQueue, onRemove, onSendNow, onEdit }: Qu
           {messageQueue.map((msg) => (
             <div
               key={msg.id}
-              className='flex items-center gap-2 px-3.5 py-1.5 transition-colors hover-hover:bg-[var(--surface-active)]'
+              className='flex items-center gap-2 py-1.5 pr-2 pl-3.5 transition-colors hover-hover:bg-[var(--surface-active)]'
             >
               <div className='flex h-[16px] w-[16px] shrink-0 items-center justify-center'>
                 <div className='h-[10px] w-[10px] rounded-full border-[1.5px] border-[color-mix(in_srgb,var(--text-tertiary)_40%,transparent)]' />
               </div>
 
-              <div className='min-w-0 flex-1'>
-                <p className='truncate text-[var(--text-primary)] text-small'>{msg.content}</p>
+              <div className='min-w-0 flex-1 overflow-hidden'>
+                <UserMessageContent
+                  content={msg.content}
+                  contexts={msg.contexts}
+                  className='!truncate !whitespace-nowrap !text-small !leading-[20px]'
+                />
               </div>
+
+              {msg.fileAttachments && msg.fileAttachments.length > 0 && (
+                <span className='inline-flex min-w-0 max-w-[40%] shrink items-center gap-1 rounded-[5px] bg-[var(--surface-5)] px-[5px] py-0.5 text-[var(--text-primary)] text-small'>
+                  <Paperclip className='h-[12px] w-[12px] shrink-0 text-[var(--text-icon)]' />
+                  <span className='truncate'>{msg.fileAttachments[0].filename}</span>
+                  {msg.fileAttachments.length > 1 && (
+                    <span className='shrink-0 text-[var(--text-secondary)]'>
+                      +{msg.fileAttachments.length - 1}
+                    </span>
+                  )}
+                </span>
+              )}
 
               <div className='flex shrink-0 items-center gap-0.5'>
                 <Tooltip.Root>

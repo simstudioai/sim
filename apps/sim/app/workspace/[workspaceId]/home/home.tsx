@@ -159,26 +159,6 @@ export function Home({ chatId }: HomeProps = {}) {
     })
   )
 
-  const [editingInputValue, setEditingInputValue] = useState('')
-  const [prevChatId, setPrevChatId] = useState(chatId)
-  const clearEditingValue = useCallback(() => setEditingInputValue(''), [])
-
-  // Clear editing value when navigating to a different chat (guarded render-phase update)
-  if (chatId !== prevChatId) {
-    setPrevChatId(chatId)
-    setEditingInputValue('')
-  }
-
-  const handleEditQueuedMessage = useCallback(
-    (id: string) => {
-      const msg = editQueuedMessage(id)
-      if (msg) {
-        setEditingInputValue(msg.content)
-      }
-    },
-    [editQueuedMessage]
-  )
-
   useEffect(() => {
     const url = new URL(window.location.href)
     if (activeResourceId) {
@@ -375,13 +355,11 @@ export function Home({ chatId }: HomeProps = {}) {
           messageQueue={messageQueue}
           onRemoveQueuedMessage={removeFromQueue}
           onSendQueuedMessage={sendNow}
-          onEditQueuedMessage={handleEditQueuedMessage}
+          onEditQueuedMessage={editQueuedMessage}
           userId={session?.user?.id}
           chatId={resolvedChatId}
           onContextAdd={handleContextAdd}
           onWorkspaceResourceSelect={handleWorkspaceResourceSelect}
-          editValue={editingInputValue}
-          onEditValueConsumed={clearEditingValue}
           animateInput={isInputEntering}
           onInputAnimationEnd={isInputEntering ? () => setIsInputEntering(false) : undefined}
           initialScrollBlocked={resources.length > 0 && isResourceCollapsed}

@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
+import { cn } from '@/lib/core/utils/cn'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -12,6 +13,7 @@ const USER_MESSAGE_CLASSES =
 interface UserMessageContentProps {
   content: string
   contexts?: ChatMessageContext[]
+  className?: string
 }
 
 function escapeRegex(str: string): string {
@@ -64,17 +66,18 @@ function MentionHighlight({ context }: { context: ChatMessageContext }) {
   )
 }
 
-export function UserMessageContent({ content, contexts }: UserMessageContentProps) {
+export function UserMessageContent({ content, contexts, className }: UserMessageContentProps) {
   const trimmed = content.trim()
+  const classes = cn(USER_MESSAGE_CLASSES, className)
 
   if (!contexts || contexts.length === 0) {
-    return <p className={USER_MESSAGE_CLASSES}>{trimmed}</p>
+    return <p className={classes}>{trimmed}</p>
   }
 
   const ranges = computeMentionRanges(content, contexts)
 
   if (ranges.length === 0) {
-    return <p className={USER_MESSAGE_CLASSES}>{trimmed}</p>
+    return <p className={classes}>{trimmed}</p>
   }
 
   const elements: React.ReactNode[] = []
@@ -97,5 +100,5 @@ export function UserMessageContent({ content, contexts }: UserMessageContentProp
     elements.push(<span key={`tail-${lastIndex}`}>{tail}</span>)
   }
 
-  return <p className={USER_MESSAGE_CLASSES}>{elements}</p>
+  return <p className={classes}>{elements}</p>
 }
