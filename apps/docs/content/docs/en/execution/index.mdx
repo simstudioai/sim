@@ -81,7 +81,15 @@ API, Chat, Schedule, and Webhook runs use the workflow’s active deployment sna
 
 The **General** tab in the Deploy modal shows a version history table for every deployment. Each row shows the version name, who deployed it, and when.
 
-{/* TODO: Screenshot of the version history table with multiple versions */}
+<div className="flex justify-center">
+  <Image
+    src="/static/execution/deployment-versions-table.png"
+    alt="Version history table with multiple deployment versions"
+    width={600}
+    height={650}
+    className="my-6"
+  />
+</div>
 
 From the version table you can:
 
@@ -89,9 +97,17 @@ From the version table you can:
 - **Add a description** with notes about what changed in that deployment
 - **Promote to live** to roll back to an older version — this makes the selected version the active deployment without changing your draft canvas
 - **Load into editor** to restore a previous version's workflow into the canvas for editing and redeploying
-- **Preview a version** by selecting a row, then toggle between viewing the live deployment and the selected version in the canvas
+- **Preview a version** by selecting a row to view that version's workflow in the canvas preview, then toggle between **Live** and the selected version
 
-{/* TODO: Screenshot of the version preview toggle (live vs selected) */}
+<div className="flex justify-center">
+  <Image
+    src="/static/execution/deployment-version-preview.png"
+    alt="Previewing a selected deployment version"
+    width={600}
+    height={650}
+    className="my-6"
+  />
+</div>
 
 <Callout type="info">
   Promoting an old version takes effect immediately — all API, Chat, Schedule, and Webhook executions will use the promoted version. Your draft canvas is not affected.
