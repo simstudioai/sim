@@ -1,11 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Badge } from '@/components/emcn'
-import { AuthModal } from '@/app/(landing)/components/auth-modal/auth-modal'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
+
+const AuthModal = dynamic(() =>
+  import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal)
+)
 
 interface DotGridProps {
   className?: string

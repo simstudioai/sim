@@ -2,11 +2,15 @@
 
 import { useRef, useState } from 'react'
 import { type MotionValue, motion, useScroll, useTransform } from 'framer-motion'
+import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { Badge } from '@/components/emcn'
-import { AuthModal } from '@/app/(landing)/components/auth-modal/auth-modal'
 import { FeaturesPreview } from '@/app/(landing)/components/features/components/features-preview'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
+
+const AuthModal = dynamic(() =>
+  import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal)
+)
 
 function hexToRgba(hex: string, alpha: number): string {
   const r = Number.parseInt(hex.slice(1, 3), 16)

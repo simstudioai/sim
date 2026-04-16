@@ -470,7 +470,7 @@ export default function Templates() {
                 aria-labelledby={`template-tab-${activeIndex}`}
                 className='relative hidden flex-1 lg:block'
               >
-                <div aria-hidden='true' className='h-full'>
+                <div aria-hidden='true' inert className='h-full'>
                   <LandingPreviewWorkflow
                     key={activeIndex}
                     workflow={activeWorkflow}

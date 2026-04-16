@@ -92,6 +92,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
               email_verified: data.user.emailVerified,
               created_at: data.user.createdAt,
             })
+            if (
+              typeof posthog.startSessionRecording === 'function' &&
+              !posthog.sessionRecordingStarted()
+            ) {
+              posthog.startSessionRecording()
+            }
           } else {
             posthog.reset()
           }

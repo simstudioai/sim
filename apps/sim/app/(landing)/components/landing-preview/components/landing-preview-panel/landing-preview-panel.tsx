@@ -3,13 +3,13 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowUp } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { Blimp, BubbleChatPreview, ChevronDown, MoreHorizontal, Play } from '@/components/emcn'
 import { AgentIcon, HubspotIcon, OpenAIIcon, SalesforceIcon } from '@/components/icons'
 import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
 import { captureClientEvent } from '@/lib/posthog/client'
-import { AuthModal } from '@/app/(landing)/components/auth-modal/auth-modal'
 import {
   EASE_OUT,
   type EditorPromptData,
@@ -20,6 +20,10 @@ import {
   TYPE_START_BUFFER_MS,
 } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
+
+const AuthModal = dynamic(() =>
+  import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal)
+)
 
 type PanelTab = 'copilot' | 'editor'
 
