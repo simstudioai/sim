@@ -62,7 +62,7 @@ ${Object.entries(sections)
 
 - Full documentation content: ${baseUrl}/llms-full.txt
 - Individual page content: ${baseUrl}/llms.mdx/[page-path]
-- API documentation: ${baseUrl}/sdks/
+- API documentation: ${baseUrl}/api-reference/
 - Tool integrations: ${baseUrl}/tools/
 
 ## Statistics

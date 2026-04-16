@@ -1,0 +1,239 @@
+---
+title: Grain
+description: Available Grain triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="grain"
+  color="#F6FAF9"
+/>
+
+Grain provides 8 triggers for automating workflows based on events.
+
+## Triggers
+
+### Grain All Events
+
+Trigger on all actions (added, updated, removed) in a Grain view
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Grain. |
+| `viewId` | string | Yes | The view determines which content type fires events \(recordings, highlights, or stories\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., recording_added\) |
+| `user_id` | string | User UUID who triggered the event |
+| `data` | object | Event data object \(recording, highlight, etc.\) |
+
+
+---
+
+### Grain Highlight Created
+
+Trigger workflow when a new highlight/clip is created in Grain
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Grain. |
+| `viewId` | string | Yes | Required by Grain to create the webhook subscription. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type |
+| `user_id` | string | User UUID who triggered the event |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Highlight UUID |
+|   ↳ `recording_id` | string | Parent recording UUID |
+|   ↳ `text` | string | Highlight title/description |
+|   ↳ `transcript` | string | Transcript text of the clip |
+|   ↳ `speakers` | array | Array of speaker names |
+|   ↳ `timestamp` | number | Start timestamp in ms |
+|   ↳ `duration` | number | Duration in ms |
+|   ↳ `tags` | array | Array of tag strings |
+|   ↳ `url` | string | URL to view in Grain |
+|   ↳ `thumbnail_url` | string | Thumbnail URL |
+|   ↳ `created_datetime` | string | ISO8601 creation timestamp |
+
+
+---
+
+### Grain Highlight Updated
+
+Trigger workflow when a highlight/clip is updated in Grain
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Grain. |
+| `viewId` | string | Yes | Required by Grain to create the webhook subscription. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type |
+| `user_id` | string | User UUID who triggered the event |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Highlight UUID |
+|   ↳ `recording_id` | string | Parent recording UUID |
+|   ↳ `text` | string | Highlight title/description |
+|   ↳ `transcript` | string | Transcript text of the clip |
+|   ↳ `speakers` | array | Array of speaker names |
+|   ↳ `timestamp` | number | Start timestamp in ms |
+|   ↳ `duration` | number | Duration in ms |
+|   ↳ `tags` | array | Array of tag strings |
+|   ↳ `url` | string | URL to view in Grain |
+|   ↳ `thumbnail_url` | string | Thumbnail URL |
+|   ↳ `created_datetime` | string | ISO8601 creation timestamp |
+
+
+---
+
+### Grain Item Added
+
+Trigger when a new item is added to a Grain view (recording, highlight, or story)
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Grain. |
+| `viewId` | string | Yes | The view determines which content type fires events \(recordings, highlights, or stories\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., recording_added\) |
+| `user_id` | string | User UUID who triggered the event |
+| `data` | object | Event data object \(recording, highlight, etc.\) |
+
+
+---
+
+### Grain Item Updated
+
+Trigger when an item is updated in a Grain view (recording, highlight, or story)
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Grain. |
+| `viewId` | string | Yes | The view determines which content type fires events \(recordings, highlights, or stories\). |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type \(e.g., recording_added\) |
+| `user_id` | string | User UUID who triggered the event |
+| `data` | object | Event data object \(recording, highlight, etc.\) |
+
+
+---
+
+### Grain Recording Created
+
+Trigger workflow when a new recording is added in Grain
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Grain. |
+| `viewId` | string | Yes | Required by Grain to create the webhook subscription. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type |
+| `user_id` | string | User UUID who triggered the event |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Recording UUID |
+|   ↳ `title` | string | Recording title |
+|   ↳ `start_datetime` | string | ISO8601 start timestamp |
+|   ↳ `end_datetime` | string | ISO8601 end timestamp |
+|   ↳ `duration_ms` | number | Duration in milliseconds |
+|   ↳ `media_type` | string | audio, transcript, or video |
+|   ↳ `source` | string | Recording source \(zoom, meet, local_capture, etc.\) |
+|   ↳ `url` | string | URL to view in Grain |
+|   ↳ `thumbnail_url` | string | Thumbnail URL \(nullable\) |
+|   ↳ `tags` | array | Array of tag strings |
+|   ↳ `teams` | array | Array of team objects |
+|   ↳ `meeting_type` | object | Meeting type info with id, name, scope \(nullable\) |
+
+
+---
+
+### Grain Recording Updated
+
+Trigger workflow when a recording is updated in Grain
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Grain. |
+| `viewId` | string | Yes | Required by Grain to create the webhook subscription. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type |
+| `user_id` | string | User UUID who triggered the event |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Recording UUID |
+|   ↳ `title` | string | Recording title |
+|   ↳ `start_datetime` | string | ISO8601 start timestamp |
+|   ↳ `end_datetime` | string | ISO8601 end timestamp |
+|   ↳ `duration_ms` | number | Duration in milliseconds |
+|   ↳ `media_type` | string | audio, transcript, or video |
+|   ↳ `source` | string | Recording source \(zoom, meet, local_capture, etc.\) |
+|   ↳ `url` | string | URL to view in Grain |
+|   ↳ `thumbnail_url` | string | Thumbnail URL \(nullable\) |
+|   ↳ `tags` | array | Array of tag strings |
+|   ↳ `teams` | array | Array of team objects |
+|   ↳ `meeting_type` | object | Meeting type info with id, name, scope \(nullable\) |
+
+
+---
+
+### Grain Story Created
+
+Trigger workflow when a new story is created in Grain
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Required to create the webhook in Grain. |
+| `viewId` | string | Yes | Required by Grain to create the webhook subscription. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | string | Event type |
+| `user_id` | string | User UUID who triggered the event |
+| `data` | object | data output from the tool |
+|   ↳ `id` | string | Story UUID |
+|   ↳ `title` | string | Story title |
+|   ↳ `url` | string | URL to view in Grain |
+|   ↳ `created_datetime` | string | ISO8601 creation timestamp |
+

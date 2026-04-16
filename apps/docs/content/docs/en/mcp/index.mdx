@@ -18,27 +18,83 @@ MCP is an open standard that enables AI assistants to securely connect to extern
 - Execute custom tools and scripts
 - Maintain secure, controlled access to external resources
 
-## Configuring MCP Servers
+## Adding an MCP Server as a Tool
 
-MCP servers provide collections of tools that your agents can use. Configure them in workspace settings:
+MCP servers provide collections of tools that your agents can use.
 
 <div className="mx-auto w-full overflow-hidden rounded-lg">
   <Video src="mcp/settings-mcp-tools.mp4" width={700} height={450} />
 </div>
 
-1. Navigate to your workspace settings
-2. Go to the **MCP Servers** section
-3. Click **Add MCP Server**
-4. Enter the server configuration details
-5. Save the configuration
+To add one:
+
+1. Navigate to **Settings → MCP Tools**
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/mcp-settings.png"
+    alt="MCP Tools settings page"
+    width={700}
+    height={450}
+    className="my-6"
+  />
+</div>
+
+2. Click **Add** to open the configuration modal
+3. Enter a **Server Name** and **Server URL**
+4. Add any required **Headers** (e.g. API keys)
+5. Click **Add MCP** to save
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/mcp-add-modal.png"
+    alt="Add New MCP Server modal"
+    width={450}
+    height={290}
+    className="my-6"
+  />
+</div>
 
 <Callout type="info">
 You can also configure MCP servers directly from the toolbar in an Agent block for quick setup.
 </Callout>
 
+### Server Configuration Options
+
+| Field | Description |
+|-------|-------------|
+| **Name** | Display name for the server |
+| **URL** | The MCP server endpoint |
+| **Transport** | Currently supports `streamable-http` |
+| **Headers** | Key-value pairs for authentication or custom headers |
+| **Timeout** | Connection timeout in milliseconds (default: 30,000) |
+
+### Environment Variables in Configuration
+
+Server URLs and headers support environment variable substitution using `{{VAR_NAME}}` syntax. This keeps sensitive values like API keys out of the server configuration.
+
+```
+URL: https://api.example.com/mcp
+Authorization: Bearer {{MCP_API_TOKEN}}
+```
+
+When you type `{{` in the URL or header fields, a dropdown appears showing available workspace environment variables.
+
+### Testing and Validation
+
+Click **Test Connection** before saving to verify the server is reachable and discover available tools. The test response shows the number of tools found and the protocol version.
+
+After saving, each server displays its available tools with parameter names, types, and required flags. If a server's tools change (e.g., after a server update), click **Refresh** to fetch the latest schemas. This automatically updates any agent blocks using those tools.
+
+Tool validation badges appear on servers with issues — for example, if a tool was removed from the server but is still referenced in a workflow. Click the badge to see which workflows are affected.
+
+### Domain Allowlisting
+
+Self-hosted deployments can restrict which MCP server domains are allowed by setting the `ALLOWED_MCP_DOMAINS` environment variable (comma-separated list). When set, only servers on approved domains can be added. When unset, all domains are allowed.
+
 ### Refresh Tools
 
-Click **Refresh** on a server to fetch the latest tool schemas and automatically update any agent blocks using those tools with the new parameter definitions.
+To auto-refresh an MCP tool already in use by an agent, go to **Settings → MCP Tools**, open the server's details, and click **Refresh**. This fetches the latest tool schemas and automatically updates any agent blocks using those tools with the new parameter definitions.
 
 ## Using MCP Tools in Agents
 
@@ -46,7 +102,7 @@ Once MCP servers are configured, their tools become available within your agent 
 
 <div className="flex justify-center">
   <Image
-    src="/static/blocks/mcp-2.png"
+    src="/static/blocks/mcp-agent-dropdown.png"
     alt="Using MCP Tool in Agent Block"
     width={700}
     height={450}
@@ -55,9 +111,25 @@ Once MCP servers are configured, their tools become available within your agent 
 </div>
 
 1. Open an **Agent** block
-2. In the **Tools** section, you'll see available MCP tools
-3. Select the tools you want the agent to use
-4. The agent can now access these tools during execution
+2. In the **Tools** section, click **Add tool…**
+3. Under **MCP Servers**, click a server to see its tools
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/mcp-agent-tools.png"
+    alt="MCP tools list for a selected server"
+    width={400}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+4. Select individual tools, or choose **Use all N tools** to add every tool from that server
+5. The agent can now access these tools during execution
+
+<Callout type="info">
+If you haven't configured a server yet, click **Add MCP Server** at the top of the dropdown to open the setup modal without leaving the block.
+</Callout>
 
 ## Standalone MCP Tool Block
 
@@ -65,7 +137,7 @@ For more granular control, you can use the dedicated MCP Tool block to execute s
 
 <div className="flex justify-center">
   <Image
-    src="/static/blocks/mcp-3.png"
+    src="/static/blocks/mcp-tool-block.png"
     alt="Standalone MCP Tool Block"
     width={700}
     height={450}
@@ -79,17 +151,14 @@ The MCP Tool block allows you to:
 - Use the tool's output in subsequent workflow steps
 - Chain multiple MCP tools together
 
-### When to Use MCP Tool vs Agent
+## When to Use MCP Tool vs Agent
 
-**Use Agent with MCP tools when:**
-- You want the AI to decide which tools to use
-- You need complex reasoning about when and how to use tools
-- You want natural language interaction with the tools
-
-**Use MCP Tool block when:**
-- You need deterministic tool execution
-- You want to execute a specific tool with known parameters
-- You're building structured workflows with predictable steps
+| | **Agent with MCP tools** | **MCP Tool block** |
+|---|---|---|
+| **Execution** | AI decides which tools to call | Deterministic — runs the tool you pick |
+| **Parameters** | AI chooses at runtime | You set them explicitly |
+| **Best for** | Dynamic, conversational flows | Structured, repeatable steps |
+| **Reasoning** | Handles complex multi-step logic | One tool, one call |
 
 ## Permission Requirements
 

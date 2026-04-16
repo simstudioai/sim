@@ -1115,7 +1115,6 @@ export const Terminal = memo(function Terminal() {
     if (selectedEntryId === lastNavEntry.entry.id) return
 
     setSelectedEntryId(lastNavEntry.entry.id)
-    focusTerminal()
 
     if (lastNavEntry.parentNodeIds.length > 0) {
       setExpandedNodes((prev) => {
@@ -1126,7 +1125,7 @@ export const Terminal = memo(function Terminal() {
         return next
       })
     }
-  }, [executionGroups, navigableEntries, autoSelectEnabled, selectedEntryId, focusTerminal])
+  }, [executionGroups, navigableEntries, autoSelectEnabled, selectedEntryId])
 
   /**
    * Clear filters when there are no logs

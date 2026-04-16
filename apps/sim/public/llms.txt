@@ -56,4 +56,4 @@ The Sim blog covers announcements, technical deep-dives, and guides for building
 - MCP Protocol: https://docs.sim.ai/mcp
 - Self-Hosting: https://docs.sim.ai/self-hosting
 - API Reference: https://docs.sim.ai/api-reference/getting-started
-- SDKs: https://docs.sim.ai/sdks
+- SDKs: https://docs.sim.ai/api-reference

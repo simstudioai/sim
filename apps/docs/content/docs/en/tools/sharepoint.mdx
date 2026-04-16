@@ -87,7 +87,7 @@ Read a specific page from a SharePoint site
 |   ↳ `createdDateTime` | string | When the page was created |
 |   ↳ `lastModifiedDateTime` | string | When the page was last modified |
 | `pages` | array | List of SharePoint pages |
-|   ↳ `page` | object | The unique ID of the page |
+|   ↳ `page` | object | page output from the tool |
 |     ↳ `id` | string | The unique ID of the page |
 |     ↳ `name` | string | The name of the page |
 |     ↳ `title` | string | The title of the page |
@@ -95,7 +95,7 @@ Read a specific page from a SharePoint site
 |     ↳ `pageLayout` | string | The layout type of the page |
 |     ↳ `createdDateTime` | string | When the page was created |
 |     ↳ `lastModifiedDateTime` | string | When the page was last modified |
-|   ↳ `content` | object | Extracted text content from the page |
+|   ↳ `content` | object | content output from the tool |
 |     ↳ `content` | string | Extracted text content from the page |
 |     ↳ `canvasLayout` | object | Raw SharePoint canvas layout structure |
 | `content` | object | Content of the SharePoint page |
@@ -127,9 +127,9 @@ List details of all SharePoint sites
 |   ↳ `createdDateTime` | string | When the site was created |
 |   ↳ `lastModifiedDateTime` | string | When the site was last modified |
 |   ↳ `isPersonalSite` | boolean | Whether this is a personal site |
-|   ↳ `root` | object | Server relative URL |
+|   ↳ `root` | object | root output from the tool |
 |     ↳ `serverRelativeUrl` | string | Server relative URL |
-|   ↳ `siteCollection` | object | Site collection hostname |
+|   ↳ `siteCollection` | object | siteCollection output from the tool |
 |     ↳ `hostname` | string | Site collection hostname |
 | `sites` | array | List of all accessible SharePoint sites |
 |   ↳ `id` | string | The unique ID of the site |
