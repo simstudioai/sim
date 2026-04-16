@@ -18,6 +18,7 @@ const mockGetWorkspaceById = vi.fn()
 
 let dbSelectResults: any[] = []
 let dbSelectCallIndex = 0
+let dbUpdateCalls: Array<{ table: unknown; values: Record<string, unknown> }> = []
 
 const mockDbSelect = vi.fn().mockImplementation(() => {
   const makeThen = () =>
@@ -45,9 +46,13 @@ const mockDbInsert = vi.fn().mockImplementation(() => ({
   values: vi.fn().mockResolvedValue(undefined),
 }))
 
-const mockDbUpdate = vi.fn().mockImplementation(() => ({
-  set: vi.fn().mockReturnThis(),
-  where: vi.fn().mockResolvedValue(undefined),
+const mockDbUpdate = vi.fn().mockImplementation((table: unknown) => ({
+  set: vi.fn().mockImplementation((values: Record<string, unknown>) => {
+    dbUpdateCalls.push({ table, values })
+    return {
+      where: vi.fn().mockResolvedValue(undefined),
+    }
+  }),
 }))
 
 const mockDbDelete = vi.fn().mockImplementation(() => ({
@@ -183,7 +188,7 @@ vi.mock('@/lib/core/utils/uuid', () => ({
   ),
 }))
 
-import { DELETE, GET } from './route'
+import { DELETE, GET, POST } from './route'
 
 const mockUser = {
   id: 'user-123',
@@ -219,6 +224,7 @@ describe('Workspace Invitation [invitationId] API Route', () => {
     vi.clearAllMocks()
     dbSelectResults = []
     dbSelectCallIndex = 0
+    dbUpdateCalls = []
     mockGetWorkspaceById.mockResolvedValue({ id: 'workspace-456', name: 'Test Workspace' })
     mockEnsureUserInOrganization.mockResolvedValue({
       success: true,
@@ -667,6 +673,59 @@ describe('Workspace Invitation [invitationId] API Route', () => {
         'https://test.sim.ai/invite/org-invite-123?error=expired'
       )
       expect(mockEnsureUserInOrganization).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('POST /api/workspaces/invitations/[invitationId]', () => {
+    it('keeps the linked organization invitation expiry in sync on resend', async () => {
+      const session = createSession({
+        userId: mockUser.id,
+        email: mockUser.email,
+        name: mockUser.name,
+      })
+      mockGetSession.mockResolvedValue(session)
+      mockHasWorkspaceAdminAccess.mockResolvedValue(true)
+      dbSelectResults = [
+        [{ ...mockInvitation, orgInvitationId: 'org-invite-123' }],
+        [mockWorkspace],
+      ]
+
+      const request = new NextRequest(
+        'http://localhost/api/workspaces/invitations/invitation-789',
+        {
+          method: 'POST',
+        }
+      )
+      const params = Promise.resolve({ invitationId: 'invitation-789' })
+
+      const response = await POST(request, { params })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data).toEqual({ success: true })
+      expect(dbUpdateCalls).toHaveLength(2)
+      expect(dbUpdateCalls[0].table).toEqual(
+        expect.objectContaining({
+          id: 'id',
+          workspaceId: 'workspaceId',
+        })
+      )
+      expect(dbUpdateCalls[0].values).toEqual(
+        expect.objectContaining({
+          token: 'mock-uuid-1234',
+          expiresAt: expect.any(Date),
+          updatedAt: expect.any(Date),
+        })
+      )
+      expect(dbUpdateCalls[1].table).toEqual(
+        expect.objectContaining({
+          id: 'id',
+          status: 'status',
+        })
+      )
+      expect(dbUpdateCalls[1].values).toEqual({
+        expiresAt: dbUpdateCalls[0].values.expiresAt,
+      })
     })
   })
 

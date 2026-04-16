@@ -61,13 +61,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Subscription not found' }, { status: 404 })
     }
 
-    if (sub.referenceId !== session.user.id) {
-      return NextResponse.json(
-        { error: 'Unauthorized - subscription does not belong to user' },
-        { status: 403 }
-      )
-    }
-
     if (!isOrgPlan(sub.plan) || !hasPaidSubscriptionStatus(sub.status)) {
       return NextResponse.json(
         {
@@ -97,6 +90,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!mem || (mem.role !== 'owner' && mem.role !== 'admin')) {
       return NextResponse.json(
         { error: 'Unauthorized - user is not admin of organization' },
+        { status: 403 }
+      )
+    }
+
+    if (sub.referenceId === organizationId) {
+      return NextResponse.json({
+        success: true,
+        message: 'Subscription already belongs to this organization',
+      })
+    }
+
+    if (sub.referenceId !== session.user.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized - subscription does not belong to user' },
         { status: 403 }
       )
     }

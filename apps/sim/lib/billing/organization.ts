@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { hasPaidSubscription } from '@/lib/billing'
 import { getPlanPricing } from '@/lib/billing/core/billing'
+import { getOrganizationIdForSubscriptionReference } from '@/lib/billing/core/subscription'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
 import { isOrgPlan, isTeam } from '@/lib/billing/plan-helpers'
@@ -40,18 +41,6 @@ async function getUserOwnedOrganization(userId: string): Promise<string | null> 
   }
 
   return null
-}
-
-export async function getOrganizationIdForSubscriptionReference(
-  referenceId: string
-): Promise<string | null> {
-  const [referencedOrganization] = await db
-    .select({ id: organization.id })
-    .from(organization)
-    .where(eq(organization.id, referenceId))
-    .limit(1)
-
-  return referencedOrganization?.id ?? null
 }
 
 export async function createOrganizationForTeamPlan(

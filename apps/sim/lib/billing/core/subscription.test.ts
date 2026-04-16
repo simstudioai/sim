@@ -36,6 +36,9 @@ vi.mock('@sim/db/schema', () => ({
     organizationId: 'organization_id',
     role: 'role',
   },
+  organization: {
+    id: 'organization_id',
+  },
   subscription: {
     id: 'id',
     referenceId: 'reference_id',
@@ -102,7 +105,10 @@ vi.mock('@/lib/core/utils/urls', () => ({
   getBaseUrl: vi.fn().mockReturnValue('https://test.sim.ai'),
 }))
 
-import { hasPaidSubscription } from '@/lib/billing/core/subscription'
+import {
+  getOrganizationIdForSubscriptionReference,
+  hasPaidSubscription,
+} from '@/lib/billing/core/subscription'
 
 describe('hasPaidSubscription', () => {
   beforeEach(() => {
@@ -134,5 +140,32 @@ describe('hasPaidSubscription', () => {
     await expect(hasPaidSubscription('org-1', { onError: 'throw' })).rejects.toThrow(
       'db unavailable'
     )
+  })
+})
+
+describe('getOrganizationIdForSubscriptionReference', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockDbResults.value = []
+  })
+
+  it('returns an organization id directly when the reference already points to one', async () => {
+    mockDbResults.value = [[{ id: 'org-1' }]]
+
+    await expect(getOrganizationIdForSubscriptionReference('org-1')).resolves.toBe('org-1')
+  })
+
+  it('falls back to the admin-owned organization when the reference is still user-scoped', async () => {
+    mockDbResults.value = [
+      [],
+      [
+        {
+          organizationId: 'org-1',
+          role: 'owner',
+        },
+      ],
+    ]
+
+    await expect(getOrganizationIdForSubscriptionReference('user-1')).resolves.toBe('org-1')
   })
 })

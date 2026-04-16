@@ -94,7 +94,7 @@ export function getEffectiveSeats(subscription: any): number {
   }
 
   if (isTeam(subscription.plan)) {
-    return subscription.seats ?? 0
+    return subscription.seats ?? (hasPaidSubscriptionStatus(subscription.status) ? 1 : 0)
   }
 
   return 0

@@ -37,11 +37,13 @@ import {
 } from '@/lib/auth/cimd'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
-import { writeBillingInterval } from '@/lib/billing/core/subscription'
+import {
+  getOrganizationIdForSubscriptionReference,
+  writeBillingInterval,
+} from '@/lib/billing/core/subscription'
 import { handleNewUser } from '@/lib/billing/core/usage'
 import {
   ensureOrganizationForTeamSubscription,
-  getOrganizationIdForSubscriptionReference,
   syncSubscriptionUsageLimits,
 } from '@/lib/billing/organization'
 import { isTeam } from '@/lib/billing/plan-helpers'

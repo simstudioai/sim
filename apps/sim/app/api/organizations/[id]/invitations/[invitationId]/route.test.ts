@@ -192,6 +192,49 @@ describe('organization invitation route', () => {
     expect(mockDbState.updateCalls).toEqual([])
   })
 
+  it('only lets the invitee reject an organization invitation', async () => {
+    mockGetSession.mockResolvedValue(
+      createSession({
+        userId: 'user-2',
+        email: 'someone-else@example.com',
+        name: 'Someone Else',
+      })
+    )
+    mockDbState.selectResults = [
+      [
+        {
+          id: 'invite-1',
+          organizationId: 'org-1',
+          status: 'pending',
+          email: 'invitee@example.com',
+          role: 'member',
+          expiresAt: new Date(Date.now() + 1000 * 60 * 60),
+        },
+      ],
+      [
+        {
+          id: 'user-2',
+          email: 'someone-else@example.com',
+        },
+      ],
+    ]
+
+    const response = await PUT(
+      new Request('http://localhost/api/organizations/org-1/invitations/invite-1', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'rejected' }),
+      }) as any,
+      { params: Promise.resolve({ id: 'org-1', invitationId: 'invite-1' }) }
+    )
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Email mismatch. You can only reject invitations sent to your email address.',
+    })
+    expect(mockDbState.updateCalls).toEqual([])
+  })
+
   it('extends linked workspace invitations when resending an org invitation', async () => {
     mockGetSession.mockResolvedValue(
       createSession({

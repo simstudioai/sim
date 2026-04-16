@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, subscription, user } from '@sim/db/schema'
+import { member, organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
@@ -99,6 +99,35 @@ export async function hasPaidSubscription(
 
     return true
   }
+}
+
+export async function getOrganizationIdForSubscriptionReference(
+  referenceId: string
+): Promise<string | null> {
+  const [referencedOrganization] = await db
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.id, referenceId))
+    .limit(1)
+
+  if (referencedOrganization) {
+    return referencedOrganization.id
+  }
+
+  const [memberRecord] = await db
+    .select({
+      organizationId: member.organizationId,
+      role: member.role,
+    })
+    .from(member)
+    .where(eq(member.userId, referenceId))
+    .limit(1)
+
+  if (memberRecord && (memberRecord.role === 'owner' || memberRecord.role === 'admin')) {
+    return memberRecord.organizationId
+  }
+
+  return null
 }
 
 /**

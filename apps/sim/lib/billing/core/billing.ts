@@ -4,6 +4,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import {
   getBillingInterval,
   getHighestPrioritySubscription,
+  getOrganizationIdForSubscriptionReference,
   type SubscriptionMetadata,
 } from '@/lib/billing/core/subscription'
 import { getUserUsageData } from '@/lib/billing/core/usage'
@@ -21,6 +22,7 @@ import {
 } from '@/lib/billing/plan-helpers'
 import {
   ENTITLED_SUBSCRIPTION_STATUSES,
+  getEffectiveSeats,
   getFreeTierLimit,
   getPlanPricing,
   hasPaidSubscriptionStatus,
@@ -130,10 +132,21 @@ export async function calculateSubscriptionOverage(sub: {
   let totalOverageDecimal = new Decimal(0)
 
   if (isTeam(sub.plan)) {
+    const resolvedOrganizationId = await getOrganizationIdForSubscriptionReference(sub.referenceId)
+    const organizationReferenceId = resolvedOrganizationId ?? sub.referenceId
+    const effectiveSeats = getEffectiveSeats(sub)
+
+    if (!resolvedOrganizationId) {
+      logger.warn('Team subscription overage calculation using unresolved reference id', {
+        subscriptionId: sub.id,
+        referenceId: sub.referenceId,
+      })
+    }
+
     const members = await db
       .select({ userId: member.userId })
       .from(member)
-      .where(eq(member.organizationId, sub.referenceId))
+      .where(eq(member.organizationId, organizationReferenceId))
 
     let totalTeamUsageDecimal = new Decimal(0)
     for (const m of members) {
@@ -144,7 +157,7 @@ export async function calculateSubscriptionOverage(sub: {
     const orgData = await db
       .select({ departedMemberUsage: organization.departedMemberUsage })
       .from(organization)
-      .where(eq(organization.id, sub.referenceId))
+      .where(eq(organization.id, organizationReferenceId))
       .limit(1)
 
     const departedUsageDecimal =
@@ -161,7 +174,7 @@ export async function calculateSubscriptionOverage(sub: {
         periodStart: sub.periodStart,
         periodEnd: sub.periodEnd ?? null,
         planDollars,
-        seats: sub.seats ?? 1,
+        seats: effectiveSeats || 1,
       })
     }
 
@@ -170,11 +183,13 @@ export async function calculateSubscriptionOverage(sub: {
       totalUsageWithDepartedDecimal.minus(toDecimal(dailyRefreshDeduction))
     )
     const { basePrice } = getPlanPricing(sub.plan ?? '')
-    const baseSubscriptionAmount = (sub.seats ?? 0) * basePrice
+    const baseSubscriptionAmount = effectiveSeats * basePrice
     totalOverageDecimal = Decimal.max(0, effectiveUsageDecimal.minus(baseSubscriptionAmount))
 
     logger.info('Calculated team overage', {
       subscriptionId: sub.id,
+      organizationReferenceId,
+      effectiveSeats,
       currentMemberUsage: toNumber(totalTeamUsageDecimal),
       departedMemberUsage: toNumber(departedUsageDecimal),
       totalUsage: toNumber(totalUsageWithDepartedDecimal),

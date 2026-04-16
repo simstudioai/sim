@@ -4,14 +4,19 @@
 import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDbState, mockCreateOrganizationWithOwner, mockAttachOwnedWorkspacesToOrganization } =
-  vi.hoisted(() => ({
-    mockDbState: {
-      selectResults: [] as any[],
-    },
-    mockCreateOrganizationWithOwner: vi.fn(),
-    mockAttachOwnedWorkspacesToOrganization: vi.fn(),
-  }))
+const {
+  mockDbState,
+  mockCreateOrganizationWithOwner,
+  mockAttachOwnedWorkspacesToOrganization,
+  mockGetOrganizationIdForSubscriptionReference,
+} = vi.hoisted(() => ({
+  mockDbState: {
+    selectResults: [] as any[],
+  },
+  mockCreateOrganizationWithOwner: vi.fn(),
+  mockAttachOwnedWorkspacesToOrganization: vi.fn(),
+  mockGetOrganizationIdForSubscriptionReference: vi.fn(),
+}))
 
 vi.mock('@sim/db', () => ({
   db: {
@@ -67,6 +72,10 @@ vi.mock('@/lib/billing/core/billing', () => ({
   getPlanPricing: vi.fn(),
 }))
 
+vi.mock('@/lib/billing/core/subscription', () => ({
+  getOrganizationIdForSubscriptionReference: mockGetOrganizationIdForSubscriptionReference,
+}))
+
 vi.mock('@/lib/billing/core/usage', () => ({
   syncUsageLimitsFromSubscription: vi.fn(),
 }))
@@ -92,10 +101,11 @@ describe('ensureOrganizationForTeamSubscription', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockDbState.selectResults = []
+    mockGetOrganizationIdForSubscriptionReference.mockResolvedValue(null)
   })
 
   it('treats existing legacy organization ids as organization references', async () => {
-    mockDbState.selectResults = [[{ id: 'legacy-org-id' }]]
+    mockGetOrganizationIdForSubscriptionReference.mockResolvedValue('legacy-org-id')
 
     const result = await ensureOrganizationForTeamSubscription({
       id: 'sub-1',

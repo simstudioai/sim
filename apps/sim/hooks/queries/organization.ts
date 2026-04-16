@@ -277,14 +277,19 @@ export function useInviteMember() {
         }),
       })
 
+      const result = await response.json()
+
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || error.message || 'Failed to invite member')
+        throw new Error(result.error || result.message || 'Failed to invite member')
       }
 
-      return response.json()
+      if (result.success === false) {
+        throw new Error(result.error || result.message || 'Failed to invite member')
+      }
+
+      return result
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.memberUsage(variables.orgId) })

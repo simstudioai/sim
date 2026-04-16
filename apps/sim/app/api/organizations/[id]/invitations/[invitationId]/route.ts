@@ -266,7 +266,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Invitation has expired' }, { status: 400 })
     }
 
-    if (status === 'accepted') {
+    if (status === 'accepted' || status === 'rejected') {
       const userData = await db
         .select()
         .from(user)
@@ -275,7 +275,12 @@ export async function PUT(
 
       if (!userData || userData.email.toLowerCase() !== orgInvitation.email.toLowerCase()) {
         return NextResponse.json(
-          { error: 'Email mismatch. You can only accept invitations sent to your email address.' },
+          {
+            error:
+              status === 'accepted'
+                ? 'Email mismatch. You can only accept invitations sent to your email address.'
+                : 'Email mismatch. You can only reject invitations sent to your email address.',
+          },
           { status: 403 }
         )
       }

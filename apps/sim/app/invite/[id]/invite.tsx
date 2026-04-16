@@ -171,6 +171,7 @@ export default function Invite() {
   const router = useRouter()
   const params = useParams()
   const inviteId = params.id as string
+  const inviteTokenStorageKey = `inviteToken:${inviteId}`
   const searchParams = useSearchParams()
   const { data: session, isPending } = useSession()
   const [invitationDetails, setInvitationDetails] = useState<any>(null)
@@ -191,10 +192,10 @@ export default function Invite() {
     const tokenFromQuery = searchParams.get('token')
     if (tokenFromQuery) {
       setToken(tokenFromQuery)
-      sessionStorage.setItem('inviteToken', tokenFromQuery)
+      sessionStorage.setItem(inviteTokenStorageKey, tokenFromQuery)
     } else {
-      const storedToken = sessionStorage.getItem('inviteToken')
-      if (storedToken && storedToken !== inviteId) {
+      const storedToken = sessionStorage.getItem(inviteTokenStorageKey)
+      if (storedToken) {
         setToken(storedToken)
       }
     }
@@ -204,7 +205,7 @@ export default function Invite() {
       setIsLoading(false)
       return
     }
-  }, [searchParams, inviteId])
+  }, [searchParams, inviteId, inviteTokenStorageKey])
 
   useEffect(() => {
     if (!session?.user) return
@@ -371,8 +372,8 @@ export default function Invite() {
 
   const getCallbackUrl = () => {
     const effectiveToken =
-      token || sessionStorage.getItem('inviteToken') || searchParams.get('token')
-    return `/invite/${inviteId}${effectiveToken && effectiveToken !== inviteId ? `?token=${effectiveToken}` : ''}`
+      token || sessionStorage.getItem(inviteTokenStorageKey) || searchParams.get('token')
+    return `/invite/${inviteId}${effectiveToken ? `?token=${effectiveToken}` : ''}`
   }
 
   if (!session?.user && !isPending) {

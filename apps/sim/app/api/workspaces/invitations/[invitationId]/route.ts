@@ -418,6 +418,18 @@ export async function POST(
       .set({ token: newToken, expiresAt: newExpiresAt, updatedAt: new Date() })
       .where(eq(workspaceInvitation.id, invitationId))
 
+    if (invitation.orgInvitationId) {
+      await db
+        .update(organizationInvitation)
+        .set({ expiresAt: newExpiresAt })
+        .where(
+          and(
+            eq(organizationInvitation.id, invitation.orgInvitationId),
+            eq(organizationInvitation.status, 'pending')
+          )
+        )
+    }
+
     const baseUrl = getBaseUrl()
     const invitationLink = `${baseUrl}/invite/${invitationId}?token=${newToken}`
 

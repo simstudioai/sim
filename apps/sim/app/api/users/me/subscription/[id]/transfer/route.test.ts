@@ -150,4 +150,36 @@ describe('POST /api/users/me/subscription/[id]/transfer', () => {
       },
     ])
   })
+
+  it('treats an already-transferred organization subscription as a successful no-op', async () => {
+    mockGetSession.mockResolvedValue(
+      createSession({
+        userId: 'user-1',
+        email: 'owner@example.com',
+        name: 'Owner',
+      })
+    )
+    mockDbState.selectResults = [
+      [{ id: 'sub-1', referenceId: 'org-1', plan: 'team', status: 'active' }],
+      [{ id: 'org-1' }],
+      [{ id: 'member-1', role: 'owner' }],
+    ]
+
+    const response = await POST(
+      new Request('http://localhost/api/users/me/subscription/sub-1/transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ organizationId: 'org-1' }),
+      }) as any,
+      { params: Promise.resolve({ id: 'sub-1' }) }
+    )
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      message: 'Subscription already belongs to this organization',
+    })
+    expect(mockDbState.updateCalls).toEqual([])
+    expect(mockHasPaidSubscription).not.toHaveBeenCalled()
+  })
 })
