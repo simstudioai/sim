@@ -15,6 +15,7 @@ export {
   type PerformFullUndeployResult,
   type PerformRevertToVersionParams,
   type PerformRevertToVersionResult,
+  notifySocketDeploymentChanged,
   performActivateVersion,
   performFullDeploy,
   performFullUndeploy,

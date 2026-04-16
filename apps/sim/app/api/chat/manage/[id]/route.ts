@@ -9,7 +9,7 @@ import { getSession } from '@/lib/auth'
 import { isDev } from '@/lib/core/config/feature-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getEmailDomain } from '@/lib/core/utils/urls'
-import { performChatUndeploy } from '@/lib/workflows/orchestration'
+import { notifySocketDeploymentChanged, performChatUndeploy } from '@/lib/workflows/orchestration'
 import { deployWorkflow } from '@/lib/workflows/persistence/utils'
 import { checkChatAccess } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
@@ -155,6 +155,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         logger.info(
           `Redeployed workflow ${existingChat[0].workflowId} for chat update (v${deployResult.version})`
         )
+        await notifySocketDeploymentChanged(existingChat[0].workflowId)
       }
 
       let encryptedPassword

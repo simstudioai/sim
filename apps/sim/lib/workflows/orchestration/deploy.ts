@@ -31,6 +31,26 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DeployOrchestration')
 
+/**
+ * Notifies the socket server that a workflow's deployment state has changed,
+ * so all connected clients can refresh their deployment queries.
+ */
+export async function notifySocketDeploymentChanged(workflowId: string): Promise<void> {
+  try {
+    const socketServerUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
+    await fetch(`${socketServerUrl}/api/workflow-deployed`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': env.INTERNAL_API_SECRET,
+      },
+      body: JSON.stringify({ workflowId }),
+    })
+  } catch (error) {
+    logger.error('Error sending workflow deployed event to socket server', error)
+  }
+}
+
 export interface PerformFullDeployParams {
   workflowId: string
   userId: string
@@ -222,6 +242,8 @@ export async function performFullDeploy(
     request,
   })
 
+  await notifySocketDeploymentChanged(workflowId)
+
   return {
     success: true,
     deployedAt,
@@ -295,6 +317,8 @@ export async function performFullUndeploy(
     resourceName: (workflowData.name as string) || undefined,
     description: `Undeployed workflow "${(workflowData.name as string) || workflowId}"`,
   })
+
+  await notifySocketDeploymentChanged(workflowId)
 
   return { success: true }
 }
@@ -508,6 +532,8 @@ export async function performActivateVersion(
       previousVersionId: previousVersionId || undefined,
     },
   })
+
+  await notifySocketDeploymentChanged(workflowId)
 
   return {
     success: true,

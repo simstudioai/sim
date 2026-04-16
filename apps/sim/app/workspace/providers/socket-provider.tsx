@@ -102,6 +102,7 @@ interface SocketContextType {
   onWorkflowDeleted: (handler: (data: any) => void) => void
   onWorkflowReverted: (handler: (data: any) => void) => void
   onWorkflowUpdated: (handler: (data: any) => void) => void
+  onWorkflowDeployed: (handler: (data: any) => void) => void
   onOperationConfirmed: (handler: (data: any) => void) => void
   onOperationFailed: (handler: (data: any) => void) => void
 }
@@ -132,6 +133,7 @@ const SocketContext = createContext<SocketContextType>({
   onWorkflowDeleted: () => {},
   onWorkflowReverted: () => {},
   onWorkflowUpdated: () => {},
+  onWorkflowDeployed: () => {},
   onOperationConfirmed: () => {},
   onOperationFailed: () => {},
 })
@@ -176,6 +178,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     workflowDeleted?: (data: any) => void
     workflowReverted?: (data: any) => void
     workflowUpdated?: (data: any) => void
+    workflowDeployed?: (data: any) => void
     operationConfirmed?: (data: any) => void
     operationFailed?: (data: any) => void
   }>({})
@@ -548,6 +551,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         socketInstance.on('workflow-updated', (data) => {
           logger.info(`Workflow ${data.workflowId} has been updated externally`)
           eventHandlers.current.workflowUpdated?.(data)
+        })
+
+        socketInstance.on('workflow-deployed', (data) => {
+          logger.info(`Workflow ${data.workflowId} deployment state changed`)
+          eventHandlers.current.workflowDeployed?.(data)
         })
 
         const rehydrateWorkflowStores = async (workflowId: string, workflowState: any) => {
@@ -994,6 +1002,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     eventHandlers.current.workflowUpdated = handler
   }, [])
 
+  const onWorkflowDeployed = useCallback((handler: (data: any) => void) => {
+    eventHandlers.current.workflowDeployed = handler
+  }, [])
+
   const onOperationConfirmed = useCallback((handler: (data: any) => void) => {
     eventHandlers.current.operationConfirmed = handler
   }, [])
@@ -1029,6 +1041,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       onWorkflowDeleted,
       onWorkflowReverted,
       onWorkflowUpdated,
+      onWorkflowDeployed,
       onOperationConfirmed,
       onOperationFailed,
     }),
@@ -1058,6 +1071,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       onWorkflowDeleted,
       onWorkflowReverted,
       onWorkflowUpdated,
+      onWorkflowDeployed,
       onOperationConfirmed,
       onOperationFailed,
     ]
