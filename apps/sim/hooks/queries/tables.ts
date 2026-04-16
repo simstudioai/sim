@@ -780,6 +780,77 @@ export function useUploadCsvToTable() {
   })
 }
 
+export type CsvHeaderMapping = Record<string, string | null>
+export type CsvImportMode = 'append' | 'replace'
+
+interface ImportCsvIntoTableParams {
+  workspaceId: string
+  tableId: string
+  file: File
+  mode: CsvImportMode
+  mapping?: CsvHeaderMapping
+}
+
+interface ImportCsvIntoTableResponse {
+  success: boolean
+  data?: {
+    tableId: string
+    mode: CsvImportMode
+    insertedCount?: number
+    deletedCount?: number
+    mappedColumns?: string[]
+    skippedHeaders?: string[]
+    unmappedColumns?: string[]
+    sourceFile?: string
+  }
+}
+
+/**
+ * Upload a CSV file to an existing table in append or replace mode. Supports
+ * an optional explicit header-to-column mapping; when omitted the server
+ * auto-maps headers by sanitized name.
+ */
+export function useImportCsvIntoTable() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      workspaceId,
+      tableId,
+      file,
+      mode,
+      mapping,
+    }: ImportCsvIntoTableParams): Promise<ImportCsvIntoTableResponse> => {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('workspaceId', workspaceId)
+      formData.append('mode', mode)
+      if (mapping) {
+        formData.append('mapping', JSON.stringify(mapping))
+      }
+
+      const response = await fetch(`/api/table/${tableId}/import-csv`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        throw new Error(data.error || 'CSV import failed')
+      }
+
+      return response.json()
+    },
+    onSettled: (_data, _error, variables) => {
+      if (!variables) return
+      invalidateRowCount(queryClient, variables.workspaceId, variables.tableId)
+    },
+    onError: (error) => {
+      logger.error('Failed to import CSV into table:', error)
+    },
+  })
+}
+
 export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
 

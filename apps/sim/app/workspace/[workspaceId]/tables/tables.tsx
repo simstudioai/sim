@@ -27,7 +27,10 @@ import type {
 } from '@/app/workspace/[workspaceId]/components'
 import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { TablesListContextMenu } from '@/app/workspace/[workspaceId]/tables/components'
+import {
+  ImportCsvDialog,
+  TablesListContextMenu,
+} from '@/app/workspace/[workspaceId]/tables/components'
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
@@ -76,6 +79,7 @@ export function Tables() {
   const uploadCsv = useUploadCsvToTable()
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
   const [activeTable, setActiveTable] = useState<TableDefinition | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
@@ -525,9 +529,23 @@ export function Tables() {
           if (activeTable) navigator.clipboard.writeText(activeTable.id)
         }}
         onDelete={() => setIsDeleteDialogOpen(true)}
+        onImportCsv={() => setIsImportDialogOpen(true)}
         disableDelete={userPermissions.canEdit !== true}
         disableRename={userPermissions.canEdit !== true}
+        disableImport={userPermissions.canEdit !== true}
       />
+
+      {activeTable && (
+        <ImportCsvDialog
+          open={isImportDialogOpen}
+          onOpenChange={(open) => {
+            setIsImportDialogOpen(open)
+            if (!open) setActiveTable(null)
+          }}
+          workspaceId={workspaceId}
+          table={activeTable}
+        />
+      )}
 
       <Modal open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <ModalContent size='sm'>

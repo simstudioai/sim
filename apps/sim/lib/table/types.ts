@@ -241,6 +241,18 @@ export interface BulkDeleteByIdsResult {
   missingRowIds: string[]
 }
 
+export interface ReplaceRowsData {
+  tableId: string
+  rows: RowData[]
+  workspaceId: string
+  userId?: string
+}
+
+export interface ReplaceRowsResult {
+  deletedCount: number
+  insertedCount: number
+}
+
 export interface RenameColumnData {
   tableId: string
   oldName: string
