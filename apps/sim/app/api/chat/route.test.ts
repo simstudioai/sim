@@ -274,6 +274,50 @@ describe('Chat API Route', () => {
       )
     })
 
+    it('passes chat customizations and outputConfigs through in the API request shape', async () => {
+      mockGetSession.mockResolvedValue({
+        user: { id: 'user-id', email: 'user@example.com' },
+      })
+
+      const validData = {
+        workflowId: 'workflow-123',
+        identifier: 'test-chat',
+        title: 'Test Chat',
+        customizations: {
+          primaryColor: '#000000',
+          welcomeMessage: 'Hello',
+          imageUrl: 'https://example.com/icon.png',
+        },
+        outputConfigs: [{ blockId: 'agent-1', path: 'content' }],
+      }
+
+      mockLimit.mockResolvedValueOnce([])
+      mockCheckWorkflowAccessForChatCreation.mockResolvedValue({
+        hasAccess: true,
+        workflow: { userId: 'user-id', workspaceId: null, isDeployed: true },
+      })
+
+      const req = new NextRequest('http://localhost:3000/api/chat', {
+        method: 'POST',
+        body: JSON.stringify(validData),
+      })
+      const response = await POST(req)
+
+      expect(response.status).toBe(200)
+      expect(mockPerformChatDeploy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflowId: 'workflow-123',
+          identifier: 'test-chat',
+          customizations: {
+            primaryColor: '#000000',
+            welcomeMessage: 'Hello',
+            imageUrl: 'https://example.com/icon.png',
+          },
+          outputConfigs: [{ blockId: 'agent-1', path: 'content' }],
+        })
+      )
+    })
+
     it('should allow chat deployment when user has workspace admin permission', async () => {
       mockGetSession.mockResolvedValue({
         user: { id: 'user-id', email: 'user@example.com' },

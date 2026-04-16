@@ -134,6 +134,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       resourceId: userFile.id,
       resourceName: fileName,
       description: `Uploaded file "${fileName}"`,
+      metadata: { fileSize: rawFile.size, fileType: rawFile.type || 'application/octet-stream' },
       request,
     })
 

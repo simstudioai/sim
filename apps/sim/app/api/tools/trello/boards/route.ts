@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
@@ -8,7 +8,7 @@ const logger = createLogger('TrelloBoardsAPI')
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
   try {
     const apiKey = process.env.TRELLO_API_KEY
@@ -16,15 +16,19 @@ export async function POST(request: Request) {
       logger.error('Trello API key not configured')
       return NextResponse.json({ error: 'Trello API key not configured' }, { status: 500 })
     }
-    const body = await request.json()
-    const { credential, workflowId } = body
+    const body = (await request.json().catch(() => null)) as {
+      credential?: string
+      workflowId?: string
+    } | null
+    const credential = typeof body?.credential === 'string' ? body.credential : ''
+    const workflowId = typeof body?.workflowId === 'string' ? body.workflowId : undefined
 
     if (!credential) {
       logger.error('Missing credential in request')
       return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
     }
 
-    const authz = await authorizeCredentialUse(request as any, {
+    const authz = await authorizeCredentialUse(request, {
       credentialId: credential,
       workflowId,
     })
@@ -58,7 +62,7 @@ export async function POST(request: Request) {
     )
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const errorData = await response.json().catch(() => null)
       logger.error('Failed to fetch Trello boards', {
         status: response.status,
         error: errorData,
@@ -69,12 +73,31 @@ export async function POST(request: Request) {
       )
     }
 
-    const data = await response.json()
-    const boards = (data || []).map((board: { id: string; name: string; closed: boolean }) => ({
-      id: board.id,
-      name: board.name,
-      closed: board.closed,
-    }))
+    const data = (await response.json().catch(() => null)) as unknown
+
+    if (!Array.isArray(data)) {
+      logger.error('Trello returned an invalid board collection', { data })
+      return NextResponse.json({ error: 'Invalid Trello board response' }, { status: 502 })
+    }
+
+    const boards = data.flatMap((board) => {
+      if (typeof board !== 'object' || board === null) {
+        return []
+      }
+
+      const record = board as Record<string, unknown>
+      if (typeof record.id !== 'string' || typeof record.name !== 'string') {
+        return []
+      }
+
+      return [
+        {
+          id: record.id,
+          name: record.name,
+          closed: typeof record.closed === 'boolean' ? record.closed : false,
+        },
+      ]
+    })
 
     return NextResponse.json({ boards })
   } catch (error) {

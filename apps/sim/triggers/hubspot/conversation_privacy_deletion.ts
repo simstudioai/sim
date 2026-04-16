@@ -95,17 +95,6 @@ export const hubspotConversationPrivacyDeletionTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_conversation_privacy_deletion',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_conversation_privacy_deletion',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',

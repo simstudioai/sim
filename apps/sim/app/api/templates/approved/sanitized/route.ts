@@ -3,7 +3,7 @@ import { templates } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { checkInternalApiKey } from '@/lib/copilot/utils'
+import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 

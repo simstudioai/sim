@@ -116,6 +116,7 @@ export async function DELETE(req: NextRequest) {
       resourceType: AuditResourceType.CREDENTIAL_SET,
       resourceId: credentialSetId,
       description: `Left credential set`,
+      metadata: { credentialSetId },
       request: req,
     })
 

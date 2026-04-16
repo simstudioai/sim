@@ -423,7 +423,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         actorEmail: session.user.email ?? undefined,
         resourceName: organizationEntry[0]?.name,
         description: `Invited ${inv.email} to organization as ${role}`,
-        metadata: { invitationId: inv.id, targetEmail: inv.email, targetRole: role },
+        metadata: {
+          invitationId: inv.id,
+          targetEmail: inv.email,
+          targetRole: role,
+          isBatch,
+          workspaceInvitationCount: validWorkspaceInvitations.length,
+        },
         request,
       })
     }
@@ -558,7 +564,7 @@ export async function DELETE(
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
       description: `Revoked organization invitation for ${result[0].email}`,
-      metadata: { invitationId, targetEmail: result[0].email },
+      metadata: { invitationId, targetEmail: result[0].email, targetRole: result[0].role },
       request,
     })
 

@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -611,6 +612,23 @@ export async function POST(request: NextRequest) {
         setOnce: { first_credential_connected_at: new Date().toISOString() },
       }
     )
+
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.CREDENTIAL_CREATED,
+      resourceType: AuditResourceType.CREDENTIAL,
+      resourceId: credentialId,
+      resourceName: resolvedDisplayName,
+      description: `Created ${type} credential "${resolvedDisplayName}"`,
+      metadata: {
+        credentialType: type,
+        providerId: resolvedProviderId,
+      },
+      request,
+    })
 
     return NextResponse.json({ credential: created }, { status: 201 })
   } catch (error: any) {

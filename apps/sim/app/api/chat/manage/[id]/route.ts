@@ -233,6 +233,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         resourceId: chatId,
         resourceName: title || existingChatRecord.title,
         description: `Updated chat deployment "${title || existingChatRecord.title}"`,
+        metadata: {
+          identifier: updatedIdentifier,
+          authType: updateData.authType || existingChatRecord.authType,
+          workflowId: workflowId || existingChatRecord.workflowId,
+          chatUrl,
+        },
         request,
       })
 

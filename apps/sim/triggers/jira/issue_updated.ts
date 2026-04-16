@@ -71,18 +71,6 @@ export const jiraIssueUpdatedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'jira_issue_updated',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'jira_issue_updated',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

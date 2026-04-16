@@ -90,7 +90,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         resourceId: workflowId,
         resourceName: workflowData.name ?? undefined,
         description: `Updated workflow variables`,
-        metadata: { variableCount: Object.keys(variables).length },
+        metadata: {
+          variableCount: Object.keys(variables).length,
+          variableNames: Object.values(variables).map((v) => v.name),
+          workflowName: workflowData.name ?? undefined,
+        },
         request: req,
       })
 

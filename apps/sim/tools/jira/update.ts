@@ -13,8 +13,6 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
     provider: 'jira',
   },
 
-  errorExtractor: 'atlassian-errors',
-
   params: {
     accessToken: {
       type: 'string',
@@ -44,7 +42,8 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'New description for the issue',
+      description:
+        'New description for the issue. Accepts plain text (auto-wrapped in ADF) or a raw ADF document object',
     },
     priority: {
       type: 'string',

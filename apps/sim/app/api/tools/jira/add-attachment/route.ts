@@ -5,7 +5,7 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
-import { getJiraCloudId } from '@/tools/jira/utils'
+import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
 const logger = createLogger('JiraAddAttachmentAPI')
 
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: `Failed to upload attachments: ${response.statusText}`,
+          error: parseAtlassianErrorMessage(response.status, response.statusText, errorText),
         },
         { status: response.status }
       )

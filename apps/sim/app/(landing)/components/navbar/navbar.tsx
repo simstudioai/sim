@@ -1,12 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { GithubOutlineIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
+import { AuthModal } from '@/app/(landing)/components/auth-modal/auth-modal'
 import {
   BlogDropdown,
   type NavBlogPost,
@@ -29,11 +30,15 @@ interface NavLink {
 const NAV_LINKS: NavLink[] = [
   { label: 'Docs', href: 'https://docs.sim.ai', external: true, icon: 'chevron', dropdown: 'docs' },
   { label: 'Blog', href: '/blog', icon: 'chevron', dropdown: 'blog' },
+  { label: 'Integrations', href: '/integrations' },
+  { label: 'Models', href: '/models' },
   { label: 'Pricing', href: '/#pricing' },
 ]
 
 const LOGO_CELL = 'flex items-center pl-5 lg:pl-16 pr-5'
 const LINK_CELL = 'flex items-center px-3.5'
+
+const emptySubscribe = () => () => {}
 
 interface NavbarProps {
   logoOnly?: boolean
@@ -48,6 +53,12 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
   const isBrowsingHome = searchParams.has('home')
   const useHomeLinks = isAuthenticated || isBrowsingHome
   const logoHref = useHomeLinks ? '/?home' : '/'
+  const mounted = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  )
+  const shouldShow = mounted && !isSessionPending
   const [activeDropdown, setActiveDropdown] = useState<DropdownId>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -203,9 +214,11 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
           <div className='hidden flex-1 lg:block' />
 
           <div
+            aria-hidden={!shouldShow || undefined}
+            inert={!shouldShow || undefined}
             className={cn(
-              'hidden items-center gap-2 pr-16 pl-5 lg:flex',
-              isSessionPending && 'invisible'
+              'hidden items-center gap-2 pr-16 pl-5 transition-opacity duration-200 lg:flex',
+              shouldShow ? 'opacity-100' : 'pointer-events-none opacity-0'
             )}
           >
             {isAuthenticated ? (
@@ -225,30 +238,38 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
               </Link>
             ) : (
               <>
-                <Link
-                  href='/login'
-                  className='inline-flex h-[30px] items-center rounded-[5px] border border-[var(--landing-border-strong)] px-[9px] text-[13.5px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
-                  aria-label='Log in'
-                  onClick={() =>
-                    trackLandingCta({ label: 'Log in', section: 'navbar', destination: '/login' })
-                  }
-                >
-                  Log in
-                </Link>
-                <Link
-                  href='/signup'
-                  className='inline-flex h-[30px] items-center gap-[7px] rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-2.5 text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
-                  aria-label='Get started with Sim'
-                  onClick={() =>
-                    trackLandingCta({
-                      label: 'Get started',
-                      section: 'navbar',
-                      destination: '/signup',
-                    })
-                  }
-                >
-                  Get started
-                </Link>
+                <AuthModal defaultView='login' source='navbar'>
+                  <button
+                    type='button'
+                    className='inline-flex h-[30px] items-center rounded-[5px] border border-[var(--landing-border-strong)] px-[9px] text-[13.5px] text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
+                    aria-label='Log in'
+                    onClick={() =>
+                      trackLandingCta({
+                        label: 'Log in',
+                        section: 'navbar',
+                        destination: 'auth_modal',
+                      })
+                    }
+                  >
+                    Log in
+                  </button>
+                </AuthModal>
+                <AuthModal defaultView='signup' source='navbar'>
+                  <button
+                    type='button'
+                    className='inline-flex h-[30px] items-center gap-[7px] rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-2.5 text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+                    aria-label='Get started with Sim'
+                    onClick={() =>
+                      trackLandingCta({
+                        label: 'Get started',
+                        section: 'navbar',
+                        destination: 'auth_modal',
+                      })
+                    }
+                  >
+                    Get started
+                  </button>
+                </AuthModal>
               </>
             )}
           </div>
@@ -315,7 +336,12 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
             </ul>
 
             <div
-              className={cn('mt-auto flex flex-col gap-2.5 p-5', isSessionPending && 'invisible')}
+              aria-hidden={!shouldShow || undefined}
+              inert={!shouldShow || undefined}
+              className={cn(
+                'mt-auto flex flex-col gap-2.5 p-5 transition-opacity duration-200',
+                shouldShow ? 'opacity-100' : 'pointer-events-none opacity-0'
+              )}
             >
               {isAuthenticated ? (
                 <Link
@@ -335,32 +361,38 @@ export default function Navbar({ logoOnly = false, blogPosts = [] }: NavbarProps
                 </Link>
               ) : (
                 <>
-                  <Link
-                    href='/login'
-                    className='flex h-[32px] items-center justify-center rounded-[5px] border border-[var(--landing-border-strong)] text-[14px] text-[var(--landing-text)] transition-colors active:bg-[var(--landing-bg-elevated)]'
-                    onClick={() => {
-                      trackLandingCta({ label: 'Log in', section: 'navbar', destination: '/login' })
-                      setMobileMenuOpen(false)
-                    }}
-                    aria-label='Log in'
-                  >
-                    Log in
-                  </Link>
-                  <Link
-                    href='/signup'
-                    className='flex h-[32px] items-center justify-center rounded-[5px] border border-[var(--white)] bg-[var(--white)] text-[14px] text-black transition-colors active:bg-[#E0E0E0]'
-                    onClick={() => {
-                      trackLandingCta({
-                        label: 'Get started',
-                        section: 'navbar',
-                        destination: '/signup',
-                      })
-                      setMobileMenuOpen(false)
-                    }}
-                    aria-label='Get started with Sim'
-                  >
-                    Get started
-                  </Link>
+                  <AuthModal defaultView='login' source='mobile_navbar'>
+                    <button
+                      type='button'
+                      className='flex h-[32px] items-center justify-center rounded-[5px] border border-[var(--landing-border-strong)] text-[14px] text-[var(--landing-text)] transition-colors active:bg-[var(--landing-bg-elevated)]'
+                      onClick={() =>
+                        trackLandingCta({
+                          label: 'Log in',
+                          section: 'navbar',
+                          destination: 'auth_modal',
+                        })
+                      }
+                      aria-label='Log in'
+                    >
+                      Log in
+                    </button>
+                  </AuthModal>
+                  <AuthModal defaultView='signup' source='mobile_navbar'>
+                    <button
+                      type='button'
+                      className='flex h-[32px] items-center justify-center rounded-[5px] border border-[var(--white)] bg-[var(--white)] text-[14px] text-black transition-colors active:bg-[#E0E0E0]'
+                      onClick={() =>
+                        trackLandingCta({
+                          label: 'Get started',
+                          section: 'navbar',
+                          destination: 'auth_modal',
+                        })
+                      }
+                      aria-label='Get started with Sim'
+                    >
+                      Get started
+                    </button>
+                  </AuthModal>
                 </>
               )}
             </div>
@@ -375,11 +407,7 @@ interface NavChevronProps {
   open: boolean
 }
 
-/**
- * Animated chevron matching the exact geometry of the emcn ChevronDown SVG.
- * Each arm rotates around its midpoint so the center vertex travels up/down
- * while the outer endpoints adjust — producing a Stripe-style morph.
- */
+/** Matches the exact geometry of the emcn ChevronDown SVG — transform origins are intentional. */
 function NavChevron({ open }: NavChevronProps) {
   return (
     <svg width='9' height='6' viewBox='0 0 10 6' fill='none' className='mt-[1.5px] flex-shrink-0'>

@@ -11,6 +11,19 @@ import {
 } from '@/lib/credentials/environment'
 
 const logger = createLogger('EnvironmentUtils')
+const EFFECTIVE_ENV_CACHE_TTL_MS = 15_000
+
+type EffectiveEnvCacheEntry = {
+  expiresAt: number
+  value?: Record<string, string>
+  promise?: Promise<Record<string, string>>
+}
+
+const effectiveEnvCache = new Map<string, EffectiveEnvCacheEntry>()
+
+function getEffectiveEnvCacheKey(userId: string, workspaceId?: string) {
+  return `${userId}:${workspaceId ?? ''}`
+}
 
 /**
  * Get environment variable keys for a user
@@ -292,7 +305,7 @@ export async function upsertWorkspaceEnvVars(
       set: { variables: merged, updatedAt: new Date() },
     })
 
-  await syncWorkspaceEnvCredentials({ workspaceId, envKeys: Object.keys(newVars), actingUserId })
+  await syncWorkspaceEnvCredentials({ workspaceId, envKeys: Object.keys(merged), actingUserId })
 
   return updatedKeys
 }
@@ -301,9 +314,38 @@ export async function getEffectiveDecryptedEnv(
   userId: string,
   workspaceId?: string
 ): Promise<Record<string, string>> {
-  const { personalDecrypted, workspaceDecrypted } = await getPersonalAndWorkspaceEnv(
-    userId,
-    workspaceId
-  )
-  return { ...personalDecrypted, ...workspaceDecrypted }
+  const cacheKey = getEffectiveEnvCacheKey(userId, workspaceId)
+  const now = Date.now()
+  const cached = effectiveEnvCache.get(cacheKey)
+
+  if (cached?.value && cached.expiresAt > now) {
+    return { ...cached.value }
+  }
+
+  if (cached?.promise) {
+    const value = await cached.promise
+    return { ...value }
+  }
+
+  const promise = getPersonalAndWorkspaceEnv(userId, workspaceId)
+    .then(({ personalDecrypted, workspaceDecrypted }) => {
+      const value = { ...personalDecrypted, ...workspaceDecrypted }
+      effectiveEnvCache.set(cacheKey, {
+        value,
+        expiresAt: Date.now() + EFFECTIVE_ENV_CACHE_TTL_MS,
+      })
+      return value
+    })
+    .catch((error) => {
+      effectiveEnvCache.delete(cacheKey)
+      throw error
+    })
+
+  effectiveEnvCache.set(cacheKey, {
+    expiresAt: now + EFFECTIVE_ENV_CACHE_TTL_MS,
+    promise,
+  })
+
+  const value = await promise
+  return { ...value }
 }

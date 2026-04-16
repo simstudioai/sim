@@ -104,11 +104,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/public ./apps/sim/public
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/static ./apps/sim/.next/static
 
-# Copy the full dependency tree and app source so the BullMQ worker can run from source.
-# The standalone server continues to use server.js; the worker uses bun on worker/index.ts.
-COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nextjs:nodejs /app/apps/sim ./apps/sim
-COPY --from=builder --chown=nextjs:nodejs /app/packages ./packages
+# Copy blog/author content for runtime filesystem reads (not part of the JS bundle)
+COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/content ./apps/sim/content
 
 # Copy isolated-vm native module (compiled for Node.js in deps stage)
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/isolated-vm ./node_modules/isolated-vm
@@ -116,8 +113,9 @@ COPY --from=deps --chown=nextjs:nodejs /app/node_modules/isolated-vm ./node_modu
 # Copy the isolated-vm worker script
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-worker.cjs ./apps/sim/lib/execution/isolated-vm-worker.cjs
 
-# Copy the bundled PPTX worker artifact
+# Copy the bundled worker artifacts
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/dist/pptx-worker.cjs ./apps/sim/dist/pptx-worker.cjs
+COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/dist/doc-worker.cjs ./apps/sim/dist/doc-worker.cjs
 
 # Guardrails setup with pip caching
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/guardrails/requirements.txt ./apps/sim/lib/guardrails/requirements.txt

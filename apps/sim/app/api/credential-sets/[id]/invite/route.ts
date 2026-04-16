@@ -187,7 +187,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       actorEmail: session.user.email ?? undefined,
       resourceName: result.set.name,
       description: `Created invitation for credential set "${result.set.name}"${email ? ` to ${email}` : ''}`,
-      metadata: { targetEmail: email || undefined },
+      metadata: {
+        invitationId: invitation.id,
+        targetEmail: email || undefined,
+        providerId: result.set.providerId,
+        credentialSetName: result.set.name,
+      },
       request: req,
     })
 

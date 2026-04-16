@@ -8,7 +8,7 @@ import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
 
-Sim is an open-source visual workflow builder for building and deploying AI agent workflows. Design intelligent automation systems using a no-code interface—connect AI models, databases, APIs, and business tools through an intuitive drag-and-drop canvas. Whether you're building chatbots, automating business processes, or orchestrating complex data pipelines, Sim provides the tools to bring your AI workflows to life.
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Create agents visually with the workflow builder, conversationally through Mothership, or programmatically with the API. Connect AI models, databases, APIs, and 1,000+ business tools to build agents that automate real work — from chatbots and compliance agents to data pipelines and ITSM automation.
 
 <div className="flex justify-center">
   <Image
@@ -40,8 +40,8 @@ Orchestrate complex multi-service interactions. Create unified API endpoints, im
 
 ## How It Works
 
-**Visual Workflow Editor**  
-Design workflows using an intuitive drag-and-drop canvas. Connect AI models, databases, APIs, and third-party services through a visual, no-code interface that makes complex automation logic easy to understand and maintain.
+**Visual Workflow Builder**  
+Design agent logic using an intuitive drag-and-drop canvas. Connect AI models, databases, APIs, and third-party services through a visual interface that makes complex automation easy to understand and maintain.
 
 **Modular Block System**  
 Build with specialized components: processing blocks (AI agents, API calls, custom functions), logic blocks (conditional branching, loops, routers), and output blocks (responses, evaluators). Each block handles a specific task in your workflow.
@@ -58,7 +58,7 @@ Enable your team to build together. Multiple users can edit workflows simultaneo
 
 ## Integrations
 
-Sim provides native integrations with 160+ services across multiple categories:
+Sim provides native integrations with 1,000+ services across multiple categories:
 
 - **AI Models**: OpenAI, Anthropic, Google Gemini, Groq, Cerebras, local models via Ollama or VLLM
 - **Communication**: Gmail, Slack, Microsoft Teams, Telegram, WhatsApp  
@@ -100,17 +100,17 @@ Deploy on your own infrastructure using Docker Compose or Kubernetes. Maintain c
 
 ## Next Steps
 
-Ready to build your first AI workflow?
+Ready to build your first AI agent?
 
 <Cards>
   <Card title="Getting Started" href="/getting-started">
-    Create your first workflow in 10 minutes
+    Build your first agent in 10 minutes
   </Card>
-  <Card title="Workflow Blocks" href="/blocks">
+  <Card title="Blocks" href="/blocks">
     Learn about the building blocks
   </Card>
   <Card title="Tools & Integrations" href="/tools">
-    Explore 160+ built-in integrations
+    Explore 1,000+ integrations
   </Card>
   <Card title="Team Permissions" href="/permissions/roles-and-permissions">
     Set up workspace roles and permissions
@@ -121,9 +121,9 @@ Ready to build your first AI workflow?
   { question: "Is Sim free to use?", answer: "Sim offers a free Community plan with 1,000 one-time credits to get started. Paid plans start at $25/month (Pro) with 5,000 credits and go up to $100/month (Max) with 20,000 credits. Annual billing is available at a 15% discount. You can also self-host Sim for free on your own infrastructure." },
   { question: "Is Sim open source?", answer: "Yes. Sim is open source under the Apache 2.0 license. The full source code is available on GitHub and you can self-host it, contribute to development, or modify it for your own needs. Enterprise features (SSO, access control) have a separate license that requires a subscription for production use." },
   { question: "Which AI models and providers are supported?", answer: "Sim supports 15+ providers including OpenAI, Anthropic, Google Gemini, Groq, Cerebras, DeepSeek, Mistral, xAI, and OpenRouter. You can also run local models through Ollama or VLLM at no API cost. Bring Your Own Key (BYOK) is supported so you can use your own API keys at base provider pricing with no markup." },
-  { question: "Do I need coding experience to use Sim?", answer: "No. Sim is a no-code visual builder where you design workflows by dragging blocks onto a canvas and connecting them. For advanced use cases, the Function block lets you write custom JavaScript, but it is entirely optional." },
+  { question: "Do I need coding experience to use Sim?", answer: "No. Sim lets you build agents visually by dragging blocks onto a canvas and connecting them, or conversationally through Mothership using natural language. For advanced use cases, the Function block lets you write custom JavaScript, and the full API/SDK is available for programmatic access." },
   { question: "Can I self-host Sim?", answer: "Yes. Sim provides Docker Compose configurations for self-hosted deployments. The stack includes the Sim application, a PostgreSQL database with pgvector, and a realtime collaboration server. You can also integrate local AI models via Ollama for a fully offline setup." },
   { question: "Is there a limit on how many workflows I can create?", answer: "There is no limit on the number of workflows you can create on any plan. Usage limits apply to execution credits, rate limits, and file storage, which vary by plan tier." },
-  { question: "What integrations are available?", answer: "Sim offers 160+ native integrations across categories including AI models, communication tools (Gmail, Slack, Teams, Telegram), productivity apps (Notion, Google Workspace, Airtable), development tools (GitHub, Jira, Linear), search services (Google Search, Perplexity, Exa), and databases (PostgreSQL, Supabase, Pinecone). For anything not built in, you can use the MCP (Model Context Protocol) support to connect custom services." },
-  { question: "How does Sim compare to other workflow automation tools?", answer: "Sim is purpose-built for AI agent workflows rather than general task automation. It provides a visual canvas for orchestrating LLM-powered agents with built-in support for tool use, structured outputs, conditional branching, and real-time collaboration. The Copilot feature also lets you build and modify workflows using natural language." },
+  { question: "What integrations are available?", answer: "Sim offers 1,000+ native integrations across categories including AI models, communication tools (Gmail, Slack, Teams, Telegram), productivity apps (Notion, Google Workspace, Airtable), development tools (GitHub, Jira, Linear), search services (Google Search, Perplexity, Exa), and databases (PostgreSQL, Supabase, Pinecone). For anything not built in, you can use the MCP (Model Context Protocol) support to connect custom services." },
+  { question: "How does Sim compare to other AI agent builders?", answer: "Sim is an AI workspace — not just a workflow tool or an agent framework. It combines a visual workflow builder, Mothership for natural-language agent creation, knowledge bases, tables, and full observability in one environment. Teams build agents visually, conversationally, or with code, then deploy and manage them with enterprise governance, real-time collaboration, and staging-to-production workflows." },
 ]} />

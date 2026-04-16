@@ -118,6 +118,18 @@ export const isOrganizationsEnabled =
 export const isInboxEnabled = isTruthy(env.INBOX_ENABLED)
 
 /**
+ * Is whitelabeling enabled via env var override
+ * This bypasses hosted requirements for self-hosted deployments
+ */
+export const isWhitelabelingEnabled = isTruthy(env.WHITELABELING_ENABLED)
+
+/**
+ * Is audit logs enabled via env var override
+ * This bypasses hosted requirements for self-hosted deployments
+ */
+export const isAuditLogsEnabled = isTruthy(env.AUDIT_LOGS_ENABLED)
+
+/**
  * Is E2B enabled for remote code execution
  */
 export const isE2bEnabled = isTruthy(env.E2B_ENABLED)
@@ -184,6 +196,17 @@ export function getAllowedIntegrationsFromEnv(): string[] | null {
     .map((i) => i.trim().toLowerCase())
     .filter(Boolean)
   return parsed.length > 0 ? parsed : null
+}
+
+/**
+ * Returns the list of blacklisted provider IDs from the environment variable.
+ * If not set or empty, returns an empty array (meaning no providers are blacklisted).
+ */
+export function getBlacklistedProvidersFromEnv(): string[] {
+  if (!env.BLACKLISTED_PROVIDERS) return []
+  return env.BLACKLISTED_PROVIDERS.split(',')
+    .map((p) => p.trim().toLowerCase())
+    .filter(Boolean)
 }
 
 /**

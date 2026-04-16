@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
+import { cn } from '@/lib/core/utils/cn'
 import { FooterCTA } from '@/app/(landing)/components/footer/footer-cta'
 
 const LINK_CLASS =
@@ -9,25 +10,24 @@ interface FooterItem {
   label: string
   href: string
   external?: boolean
-  arrow?: boolean
   externalArrow?: boolean
 }
 
 const PRODUCT_LINKS: FooterItem[] = [
-  { label: 'Self Hosting', href: 'https://docs.sim.ai/self-hosting', external: true },
-  { label: 'MCP', href: 'https://docs.sim.ai/mcp', external: true },
+  { label: 'Mothership', href: 'https://docs.sim.ai', external: true },
+  { label: 'Workflows', href: 'https://docs.sim.ai', external: true },
   { label: 'Knowledge Base', href: 'https://docs.sim.ai/knowledgebase', external: true },
   { label: 'Tables', href: 'https://docs.sim.ai/tables', external: true },
+  { label: 'MCP', href: 'https://docs.sim.ai/mcp', external: true },
   { label: 'API', href: 'https://docs.sim.ai/api-reference/getting-started', external: true },
+  { label: 'Self Hosting', href: 'https://docs.sim.ai/self-hosting', external: true },
   { label: 'Status', href: 'https://status.sim.ai', external: true, externalArrow: true },
 ]
 
 const RESOURCES_LINKS: FooterItem[] = [
   { label: 'Blog', href: '/blog' },
-  // { label: 'Templates', href: '/templates' },
   { label: 'Docs', href: 'https://docs.sim.ai', external: true },
   { label: 'Models', href: '/models' },
-  // { label: 'Academy', href: '/academy' },
   { label: 'Partners', href: '/partners' },
   { label: 'Careers', href: 'https://jobs.ashbyhq.com/sim', external: true, externalArrow: true },
   { label: 'Changelog', href: '/changelog' },
@@ -47,7 +47,7 @@ const BLOCK_LINKS: FooterItem[] = [
 ]
 
 const INTEGRATION_LINKS: FooterItem[] = [
-  { label: 'All Integrations', href: '/integrations', arrow: true },
+  { label: 'All Integrations', href: '/integrations' },
   { label: 'Confluence', href: 'https://docs.sim.ai/tools/confluence', external: true },
   { label: 'Slack', href: 'https://docs.sim.ai/tools/slack', external: true },
   { label: 'GitHub', href: 'https://docs.sim.ai/tools/github', external: true },
@@ -93,7 +93,7 @@ const LEGAL_LINKS: FooterItem[] = [
 function ChevronArrow({ external }: { external?: boolean }) {
   return (
     <svg
-      className={`h-3 w-3 shrink-0${external ? ' -rotate-45' : ''}`}
+      className={cn('h-3 w-3 shrink-0', external && '-rotate-45')}
       viewBox='0 0 10 10'
       fill='none'
       xmlns='http://www.w3.org/2000/svg'
@@ -126,26 +126,24 @@ function FooterColumn({ title, items }: { title: string; items: FooterItem[] }) 
     <div>
       <h3 className='mb-4 font-medium text-[var(--landing-text)] text-sm'>{title}</h3>
       <div className='flex flex-col gap-2.5'>
-        {items.map(({ label, href, external, arrow, externalArrow }) =>
+        {items.map(({ label, href, external, externalArrow }) =>
           external ? (
             <a
               key={label}
               href={href}
               target='_blank'
               rel='noopener noreferrer'
-              className={`${LINK_CLASS}${externalArrow ? ' group/link inline-flex items-center gap-1' : ''}`}
+              className={cn(
+                LINK_CLASS,
+                externalArrow && 'group/link inline-flex items-center gap-1'
+              )}
             >
               {label}
               {externalArrow && <ChevronArrow external />}
             </a>
           ) : (
-            <Link
-              key={label}
-              href={href}
-              className={`${LINK_CLASS}${arrow ? ' group/link inline-flex items-center gap-1.5' : ''}`}
-            >
+            <Link key={label} href={href} className={LINK_CLASS}>
               {label}
-              {arrow && <ChevronArrow />}
             </Link>
           )
         )}
@@ -162,7 +160,10 @@ export default function Footer({ hideCTA }: FooterProps) {
   return (
     <footer
       role='contentinfo'
-      className={`bg-[var(--landing-bg)] pb-10 font-[430] font-season text-sm${hideCTA ? ' pt-10' : ''}`}
+      className={cn(
+        'bg-[var(--landing-bg)] pb-10 font-[430] font-season text-sm',
+        hideCTA && 'pt-10'
+      )}
     >
       {!hideCTA && <FooterCTA />}
       <div className='relative px-[1.6vw] sm:px-8 lg:px-16'>

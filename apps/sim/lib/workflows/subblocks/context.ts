@@ -17,6 +17,7 @@ export const SELECTOR_CONTEXT_FIELDS = new Set<keyof SelectorContext>([
   'siteId',
   'collectionId',
   'spreadsheetId',
+  'driveId',
   'fileId',
   'baseId',
   'datasetId',

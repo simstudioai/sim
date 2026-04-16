@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { Skeleton } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
+import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
 import { AdminSkeleton } from '@/app/workspace/[workspaceId]/settings/components/admin/admin-skeleton'
 import { ApiKeysSkeleton } from '@/app/workspace/[workspaceId]/settings/components/api-keys/api-key-skeleton'
@@ -27,6 +28,7 @@ import {
   isBillingEnabled,
   isCredentialSetsEnabled,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { AuditLogsSkeleton } from '@/ee/audit-logs/components/audit-logs-skeleton'
 
 /**
  * Generic skeleton fallback for sections without a dedicated skeleton.
@@ -142,6 +144,13 @@ const Admin = dynamic(
     import('@/app/workspace/[workspaceId]/settings/components/admin/admin').then((m) => m.Admin),
   { loading: () => <AdminSkeleton /> }
 )
+const Mothership = dynamic(
+  () =>
+    import('@/app/workspace/[workspaceId]/settings/components/mothership/mothership').then(
+      (m) => m.Mothership
+    ),
+  { loading: () => <SettingsSectionSkeleton /> }
+)
 const RecentlyDeleted = dynamic(
   () =>
     import(
@@ -152,6 +161,10 @@ const RecentlyDeleted = dynamic(
 const AccessControl = dynamic(
   () => import('@/ee/access-control/components/access-control').then((m) => m.AccessControl),
   { loading: () => <SettingsSectionSkeleton /> }
+)
+const AuditLogs = dynamic(
+  () => import('@/ee/audit-logs/components/audit-logs').then((m) => m.AuditLogs),
+  { loading: () => <AuditLogsSkeleton /> }
 )
 const SSO = dynamic(() => import('@/ee/sso/components/sso-settings').then((m) => m.SSO), {
   loading: () => <SettingsSectionSkeleton />,
@@ -182,7 +195,9 @@ export function SettingsPage({ section }: SettingsPageProps) {
         ? 'general'
         : section === 'admin' && !sessionLoading && !isAdminRole
           ? 'general'
-          : section
+          : section === 'mothership' && !sessionLoading && !isAdminRole
+            ? 'general'
+            : section
 
   const label =
     allNavigationItems.find((item) => item.id === effectiveSection)?.label ?? effectiveSection
@@ -193,7 +208,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
   }, [effectiveSection, sessionLoading, posthog])
 
   return (
-    <div>
+    <div className={cn(effectiveSection === 'access-control' && 'flex h-full flex-col')}>
       <h2 className='mb-7 font-medium text-[22px] text-[var(--text-primary)]'>{label}</h2>
       {effectiveSection === 'general' && <General />}
       {effectiveSection === 'integrations' && <Integrations />}
@@ -201,6 +216,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {/* {effectiveSection === 'template-profile' && <TemplateProfile />} */}
       {effectiveSection === 'credential-sets' && <CredentialSets />}
       {effectiveSection === 'access-control' && <AccessControl />}
+      {effectiveSection === 'audit-logs' && <AuditLogs />}
       {effectiveSection === 'apikeys' && <ApiKeys />}
       {isBillingEnabled && effectiveSection === 'subscription' && <Subscription />}
       {isBillingEnabled && effectiveSection === 'team' && <TeamManagement />}
@@ -215,6 +231,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'inbox' && <Inbox />}
       {effectiveSection === 'recently-deleted' && <RecentlyDeleted />}
       {effectiveSection === 'admin' && <Admin />}
+      {effectiveSection === 'mothership' && <Mothership />}
     </div>
   )
 }

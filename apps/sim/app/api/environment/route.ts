@@ -67,8 +67,13 @@ export async function POST(req: NextRequest) {
         actorEmail: session.user.email,
         action: AuditAction.ENVIRONMENT_UPDATED,
         resourceType: AuditResourceType.ENVIRONMENT,
-        description: 'Updated global environment variables',
-        metadata: { variableCount: Object.keys(variables).length },
+        resourceId: session.user.id,
+        description: `Updated ${Object.keys(variables).length} personal environment variable(s)`,
+        metadata: {
+          variableCount: Object.keys(variables).length,
+          updatedKeys: Object.keys(variables),
+          scope: 'personal',
+        },
         request: req,
       })
 

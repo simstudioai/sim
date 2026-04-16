@@ -2,12 +2,18 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import {
+  ASYNC_TOOL_CONFIRMATION_STATUS,
+  ASYNC_TOOL_STATUS,
+  type AsyncCompletionData,
+  type AsyncConfirmationStatus,
+} from '@/lib/copilot/async-runs/lifecycle'
+import {
   completeAsyncToolCall,
   getAsyncToolCall,
   getRunSegment,
   upsertAsyncToolCall,
 } from '@/lib/copilot/async-runs/repository'
-import { publishToolConfirmation } from '@/lib/copilot/orchestrator/persistence'
+import { publishToolConfirmation } from '@/lib/copilot/persistence/tool-confirm'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -15,44 +21,62 @@ import {
   createNotFoundResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-  type NotificationStatus,
-} from '@/lib/copilot/request-helpers'
+} from '@/lib/copilot/request/http'
 
 const logger = createLogger('CopilotConfirmAPI')
 
 // Schema for confirmation request
 const ConfirmationSchema = z.object({
   toolCallId: z.string().min(1, 'Tool call ID is required'),
-  status: z.enum(['success', 'error', 'accepted', 'rejected', 'background', 'cancelled'] as const, {
-    errorMap: () => ({ message: 'Invalid notification status' }),
-  }),
+  status: z.enum(
+    Object.values(ASYNC_TOOL_CONFIRMATION_STATUS) as [
+      AsyncConfirmationStatus,
+      ...AsyncConfirmationStatus[],
+    ],
+    {
+      errorMap: () => ({ message: 'Invalid notification status' }),
+    }
+  ),
   message: z.string().optional(),
-  data: z.record(z.unknown()).optional(),
+  data: z.unknown().optional(),
 })
 
 /**
- * Persist the durable tool status, then publish a wakeup event.
+ * Persist terminal durable tool status, then publish a wakeup event.
+ *
+ * `background` remains a live detach signal in the current browser workflow
+ * runtime, so it should not rewrite the durable async row.
  */
 async function updateToolCallStatus(
   existing: NonNullable<Awaited<ReturnType<typeof getAsyncToolCall>>>,
-  status: NotificationStatus,
+  status: AsyncConfirmationStatus,
   message?: string,
-  data?: Record<string, unknown>
+  data?: AsyncCompletionData
 ): Promise<boolean> {
   const toolCallId = existing.toolCallId
+  if (status === ASYNC_TOOL_CONFIRMATION_STATUS.background) {
+    publishToolConfirmation({
+      toolCallId,
+      status,
+      message: message || undefined,
+      timestamp: new Date().toISOString(),
+      data,
+    })
+    return true
+  }
   const durableStatus =
     status === 'success'
-      ? 'completed'
+      ? ASYNC_TOOL_STATUS.completed
       : status === 'cancelled'
-        ? 'cancelled'
-        : status === 'error' || status === 'rejected'
-          ? 'failed'
-          : 'pending'
+        ? ASYNC_TOOL_STATUS.cancelled
+        : status === 'error'
+          ? ASYNC_TOOL_STATUS.failed
+          : ASYNC_TOOL_STATUS.pending
   try {
     if (
-      durableStatus === 'completed' ||
-      durableStatus === 'failed' ||
-      durableStatus === 'cancelled'
+      durableStatus === ASYNC_TOOL_STATUS.completed ||
+      durableStatus === ASYNC_TOOL_STATUS.failed ||
+      durableStatus === ASYNC_TOOL_STATUS.cancelled
     ) {
       await completeAsyncToolCall({
         toolCallId,
@@ -70,12 +94,11 @@ async function updateToolCallStatus(
         status: durableStatus,
       })
     }
-    const timestamp = new Date().toISOString()
     publishToolConfirmation({
       toolCallId,
       status,
       message: message || undefined,
-      timestamp,
+      timestamp: new Date().toISOString(),
       data,
     })
     return true
@@ -91,7 +114,7 @@ async function updateToolCallStatus(
 
 /**
  * POST /api/copilot/confirm
- * Update tool call status (Accept/Reject)
+ * Accept client tool completion or detach confirmations.
  */
 export async function POST(req: NextRequest) {
   const tracker = createRequestTracker()
@@ -107,13 +130,25 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     const { toolCallId, status, message, data } = ConfirmationSchema.parse(body)
-    const existing = await getAsyncToolCall(toolCallId).catch(() => null)
+    const existing = await getAsyncToolCall(toolCallId).catch((err) => {
+      logger.warn('Failed to fetch async tool call', {
+        toolCallId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return null
+    })
 
     if (!existing) {
       return createNotFoundResponse('Tool call not found')
     }
 
-    const run = await getRunSegment(existing.runId).catch(() => null)
+    const run = await getRunSegment(existing.runId).catch((err) => {
+      logger.warn('Failed to fetch run segment', {
+        runId: existing.runId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+      return null
+    })
     if (!run) {
       return createNotFoundResponse('Tool call run not found')
     }

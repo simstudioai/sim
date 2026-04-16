@@ -47,6 +47,16 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
         { label: 'Get Form Templates', id: 'get_form_templates' },
         { label: 'Get Form Structure', id: 'get_form_structure' },
         { label: 'Get Issue Forms', id: 'get_issue_forms' },
+        { label: 'Attach Form', id: 'attach_form' },
+        { label: 'Save Form Answers', id: 'save_form_answers' },
+        { label: 'Submit Form', id: 'submit_form' },
+        { label: 'Get Form', id: 'get_form' },
+        { label: 'Get Form Answers', id: 'get_form_answers' },
+        { label: 'Reopen Form', id: 'reopen_form' },
+        { label: 'Delete Form', id: 'delete_form' },
+        { label: 'Externalise Form', id: 'externalise_form' },
+        { label: 'Internalise Form', id: 'internalise_form' },
+        { label: 'Copy Forms', id: 'copy_forms' },
       ],
       value: () => 'get_service_desks',
     },
@@ -195,6 +205,15 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
           'get_approvals',
           'answer_approval',
           'get_issue_forms',
+          'attach_form',
+          'save_form_answers',
+          'submit_form',
+          'get_form',
+          'get_form_answers',
+          'reopen_form',
+          'delete_form',
+          'externalise_form',
+          'internalise_form',
         ],
       },
     },
@@ -211,8 +230,54 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
       title: 'Form ID',
       type: 'short-input',
       required: true,
-      placeholder: 'Enter form ID (UUID from Get Form Templates)',
-      condition: { field: 'operation', value: 'get_form_structure' },
+      placeholder: 'Enter form ID (UUID from Get Form Templates or Attach Form)',
+      condition: {
+        field: 'operation',
+        value: [
+          'get_form_structure',
+          'save_form_answers',
+          'submit_form',
+          'get_form',
+          'get_form_answers',
+          'reopen_form',
+          'delete_form',
+          'externalise_form',
+          'internalise_form',
+        ],
+      },
+    },
+    {
+      id: 'formTemplateId',
+      title: 'Form Template ID',
+      type: 'short-input',
+      required: true,
+      placeholder: 'Enter form template UUID (from Get Form Templates)',
+      condition: { field: 'operation', value: 'attach_form' },
+    },
+    {
+      id: 'sourceIssueIdOrKey',
+      title: 'Source Issue ID or Key',
+      type: 'short-input',
+      required: true,
+      placeholder: 'Issue to copy forms from (e.g., SD-123)',
+      condition: { field: 'operation', value: 'copy_forms' },
+    },
+    {
+      id: 'targetIssueIdOrKey',
+      title: 'Target Issue ID or Key',
+      type: 'short-input',
+      required: true,
+      placeholder: 'Issue to copy forms to (e.g., SD-456)',
+      condition: { field: 'operation', value: 'copy_forms' },
+    },
+    {
+      id: 'formIds',
+      title: 'Form IDs to Copy',
+      type: 'long-input',
+      placeholder:
+        'JSON array of form UUIDs (e.g., ["uuid1", "uuid2"]). Leave empty to copy all forms.',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'copy_forms' },
     },
     {
       id: 'summary',
@@ -290,9 +355,9 @@ Return ONLY the description text - no explanations.`,
       title: 'Form Answers',
       type: 'long-input',
       placeholder:
-        'JSON object for form-based request types (e.g., {"summary": {"text": "Title"}, "customfield_10010": {"choices": ["10320"]}})',
-      mode: 'advanced',
-      condition: { field: 'operation', value: 'create_request' },
+        'JSON object using form question IDs as keys (e.g., {"1": {"text": "Title"}, "4": {"choices": ["5"]}, "14": {"text": "Details"}})',
+      required: { field: 'operation', value: 'save_form_answers' },
+      condition: { field: 'operation', value: ['create_request', 'save_form_answers'] },
     },
     {
       id: 'searchQuery',
@@ -526,6 +591,16 @@ Return ONLY the comment text - no explanations.`,
       'jsm_get_form_templates',
       'jsm_get_form_structure',
       'jsm_get_issue_forms',
+      'jsm_attach_form',
+      'jsm_save_form_answers',
+      'jsm_submit_form',
+      'jsm_get_form',
+      'jsm_get_form_answers',
+      'jsm_reopen_form',
+      'jsm_delete_form',
+      'jsm_externalise_form',
+      'jsm_internalise_form',
+      'jsm_copy_forms',
     ],
     config: {
       tool: (params) => {
@@ -578,6 +653,26 @@ Return ONLY the comment text - no explanations.`,
             return 'jsm_get_form_structure'
           case 'get_issue_forms':
             return 'jsm_get_issue_forms'
+          case 'attach_form':
+            return 'jsm_attach_form'
+          case 'save_form_answers':
+            return 'jsm_save_form_answers'
+          case 'submit_form':
+            return 'jsm_submit_form'
+          case 'get_form':
+            return 'jsm_get_form'
+          case 'get_form_answers':
+            return 'jsm_get_form_answers'
+          case 'reopen_form':
+            return 'jsm_reopen_form'
+          case 'delete_form':
+            return 'jsm_delete_form'
+          case 'externalise_form':
+            return 'jsm_externalise_form'
+          case 'internalise_form':
+            return 'jsm_internalise_form'
+          case 'copy_forms':
+            return 'jsm_copy_forms'
           default:
             return 'jsm_get_service_desks'
         }
@@ -865,6 +960,151 @@ Return ONLY the comment text - no explanations.`,
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
             }
+          case 'attach_form':
+            if (!params.issueIdOrKey) {
+              throw new Error('Issue ID or key is required')
+            }
+            if (!params.formTemplateId) {
+              throw new Error('Form template ID is required')
+            }
+            return {
+              ...baseParams,
+              issueIdOrKey: params.issueIdOrKey,
+              formTemplateId: params.formTemplateId,
+            }
+          case 'save_form_answers':
+            if (!params.issueIdOrKey) {
+              throw new Error('Issue ID or key is required')
+            }
+            if (!params.formId) {
+              throw new Error('Form ID is required')
+            }
+            if (!params.formAnswers) {
+              throw new Error('Form answers are required')
+            }
+            return {
+              ...baseParams,
+              issueIdOrKey: params.issueIdOrKey,
+              formId: params.formId,
+              answers: (() => {
+                try {
+                  return JSON.parse(params.formAnswers)
+                } catch {
+                  throw new Error('formAnswers must be valid JSON')
+                }
+              })(),
+            }
+          case 'submit_form':
+            if (!params.issueIdOrKey) {
+              throw new Error('Issue ID or key is required')
+            }
+            if (!params.formId) {
+              throw new Error('Form ID is required')
+            }
+            return {
+              ...baseParams,
+              issueIdOrKey: params.issueIdOrKey,
+              formId: params.formId,
+            }
+          case 'get_form_answers':
+            if (!params.issueIdOrKey) {
+              throw new Error('Issue ID or key is required')
+            }
+            if (!params.formId) {
+              throw new Error('Form ID is required')
+            }
+            return {
+              ...baseParams,
+              issueIdOrKey: params.issueIdOrKey,
+              formId: params.formId,
+            }
+          case 'reopen_form':
+            if (!params.issueIdOrKey) {
+              throw new Error('Issue ID or key is required')
+            }
+            if (!params.formId) {
+              throw new Error('Form ID is required')
+            }
+            return {
+              ...baseParams,
+              issueIdOrKey: params.issueIdOrKey,
+              formId: params.formId,
+            }
+          case 'get_form':
+            if (!params.issueIdOrKey) {
+              throw new Error('Issue ID or key is required')
+            }
+            if (!params.formId) {
+              throw new Error('Form ID is required')
+            }
+            return {
+              ...baseParams,
+              issueIdOrKey: params.issueIdOrKey,
+              formId: params.formId,
+            }
+          case 'delete_form':
+            if (!params.issueIdOrKey) {
+              throw new Error('Issue ID or key is required')
+            }
+            if (!params.formId) {
+              throw new Error('Form ID is required')
+            }
+            return {
+              ...baseParams,
+              issueIdOrKey: params.issueIdOrKey,
+              formId: params.formId,
+            }
+          case 'externalise_form':
+            if (!params.issueIdOrKey) {
+              throw new Error('Issue ID or key is required')
+            }
+            if (!params.formId) {
+              throw new Error('Form ID is required')
+            }
+            return {
+              ...baseParams,
+              issueIdOrKey: params.issueIdOrKey,
+              formId: params.formId,
+            }
+          case 'internalise_form':
+            if (!params.issueIdOrKey) {
+              throw new Error('Issue ID or key is required')
+            }
+            if (!params.formId) {
+              throw new Error('Form ID is required')
+            }
+            return {
+              ...baseParams,
+              issueIdOrKey: params.issueIdOrKey,
+              formId: params.formId,
+            }
+          case 'copy_forms':
+            if (!params.sourceIssueIdOrKey) {
+              throw new Error('Source issue ID or key is required')
+            }
+            if (!params.targetIssueIdOrKey) {
+              throw new Error('Target issue ID or key is required')
+            }
+            return {
+              ...baseParams,
+              sourceIssueIdOrKey: params.sourceIssueIdOrKey,
+              targetIssueIdOrKey: params.targetIssueIdOrKey,
+              formIds: params.formIds
+                ? (() => {
+                    try {
+                      const parsed = JSON.parse(params.formIds)
+                      if (!Array.isArray(parsed)) {
+                        throw new Error('formIds must be a JSON array')
+                      }
+                      return parsed
+                    } catch (e) {
+                      throw e instanceof Error && e.message === 'formIds must be a JSON array'
+                        ? e
+                        : new Error('formIds must be valid JSON array')
+                    }
+                  })()
+                : undefined,
+            }
           default:
             return baseParams
         }
@@ -916,6 +1156,10 @@ Return ONLY the comment text - no explanations.`,
     },
     projectIdOrKey: { type: 'string', description: 'Jira project ID or key' },
     formId: { type: 'string', description: 'Form ID (UUID)' },
+    formTemplateId: { type: 'string', description: 'Form template UUID' },
+    sourceIssueIdOrKey: { type: 'string', description: 'Source issue ID or key for copy' },
+    targetIssueIdOrKey: { type: 'string', description: 'Target issue ID or key for copy' },
+    formIds: { type: 'string', description: 'JSON array of form UUIDs to copy' },
     searchQuery: { type: 'string', description: 'Filter request types by name' },
     groupId: { type: 'string', description: 'Filter by request type group ID' },
     expand: { type: 'string', description: 'Comma-separated fields to expand' },
@@ -978,5 +1222,28 @@ Return ONLY the comment text - no explanations.`,
       description:
         'Array of forms attached to an issue (id, name, updated, submitted, lock, internal, formTemplateId)',
     },
+    formId: { type: 'string', description: 'Form instance UUID' },
+    formTemplateId: { type: 'string', description: 'Form template ID' },
+    submitted: { type: 'boolean', description: 'Whether the form has been submitted' },
+    lock: { type: 'boolean', description: 'Whether the form is locked' },
+    internal: { type: 'boolean', description: 'Whether the form is internal only' },
+    state: {
+      type: 'json',
+      description: 'Form state with status (open, submitted, locked)',
+    },
+    status: { type: 'string', description: 'Form status (open, submitted, locked)' },
+    answers: {
+      type: 'json',
+      description: 'Form answers as key-value pairs (question ID to answer)',
+    },
+    deleted: { type: 'boolean', description: 'Whether the form was successfully deleted' },
+    visibility: {
+      type: 'string',
+      description: 'Form visibility (internal or external)',
+    },
+    copiedForms: { type: 'json', description: 'Array of successfully copied forms' },
+    errors: { type: 'json', description: 'Array of errors from copy forms operation' },
+    sourceIssueIdOrKey: { type: 'string', description: 'Source issue ID or key' },
+    targetIssueIdOrKey: { type: 'string', description: 'Target issue ID or key' },
   },
 }

@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateId } from '@/lib/core/utils/uuid'
@@ -166,6 +167,23 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     updates.updatedAt = new Date()
     await db.update(credential).set(updates).where(eq(credential.id, id))
 
+    recordAudit({
+      workspaceId: access.credential.workspaceId,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.CREDENTIAL_UPDATED,
+      resourceType: AuditResourceType.CREDENTIAL,
+      resourceId: id,
+      resourceName: access.credential.displayName,
+      description: `Updated ${access.credential.type} credential "${access.credential.displayName}"`,
+      metadata: {
+        credentialType: access.credential.type,
+        updatedFields: Object.keys(updates).filter((k) => k !== 'updatedAt'),
+      },
+      request,
+    })
+
     const row = await getCredentialResponse(id, session.user.id)
     return NextResponse.json({ credential: row }, { status: 200 })
   } catch (error) {
@@ -249,6 +267,20 @@ export async function DELETE(
         { groups: { workspace: access.credential.workspaceId } }
       )
 
+      recordAudit({
+        workspaceId: access.credential.workspaceId,
+        actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
+        action: AuditAction.CREDENTIAL_DELETED,
+        resourceType: AuditResourceType.CREDENTIAL,
+        resourceId: id,
+        resourceName: access.credential.displayName,
+        description: `Deleted personal env credential "${access.credential.envKey}"`,
+        metadata: { credentialType: 'env_personal', envKey: access.credential.envKey },
+        request,
+      })
+
       return NextResponse.json({ success: true }, { status: 200 })
     }
 
@@ -302,6 +334,20 @@ export async function DELETE(
         { groups: { workspace: access.credential.workspaceId } }
       )
 
+      recordAudit({
+        workspaceId: access.credential.workspaceId,
+        actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
+        action: AuditAction.CREDENTIAL_DELETED,
+        resourceType: AuditResourceType.CREDENTIAL,
+        resourceId: id,
+        resourceName: access.credential.displayName,
+        description: `Deleted workspace env credential "${access.credential.envKey}"`,
+        metadata: { credentialType: 'env_workspace', envKey: access.credential.envKey },
+        request,
+      })
+
       return NextResponse.json({ success: true }, { status: 200 })
     }
 
@@ -317,6 +363,23 @@ export async function DELETE(
       },
       { groups: { workspace: access.credential.workspaceId } }
     )
+
+    recordAudit({
+      workspaceId: access.credential.workspaceId,
+      actorId: session.user.id,
+      actorName: session.user.name,
+      actorEmail: session.user.email,
+      action: AuditAction.CREDENTIAL_DELETED,
+      resourceType: AuditResourceType.CREDENTIAL,
+      resourceId: id,
+      resourceName: access.credential.displayName,
+      description: `Deleted ${access.credential.type} credential "${access.credential.displayName}"`,
+      metadata: {
+        credentialType: access.credential.type,
+        providerId: access.credential.providerId,
+      },
+      request,
+    })
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {

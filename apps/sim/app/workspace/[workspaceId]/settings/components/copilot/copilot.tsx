@@ -279,7 +279,6 @@ export function Copilot() {
                 }}
                 placeholder='e.g., Development, Production'
                 className='h-9'
-                autoFocus
               />
               {createError && (
                 <p className='text-[var(--text-error)] text-small leading-tight'>{createError}</p>

@@ -1,13 +1,10 @@
 import type { CopilotAsyncToolStatus } from '@sim/db/schema'
+import {
+  MothershipStreamV1AsyncToolRecordStatus,
+  MothershipStreamV1ToolOutcome,
+} from '@/lib/copilot/generated/mothership-stream-v1'
 
-export const ASYNC_TOOL_STATUS = {
-  pending: 'pending',
-  running: 'running',
-  completed: 'completed',
-  failed: 'failed',
-  cancelled: 'cancelled',
-  delivered: 'delivered',
-} as const
+export const ASYNC_TOOL_STATUS = MothershipStreamV1AsyncToolRecordStatus
 
 export type AsyncLifecycleStatus =
   | typeof ASYNC_TOOL_STATUS.pending
@@ -21,18 +18,67 @@ export type AsyncTerminalStatus =
   | typeof ASYNC_TOOL_STATUS.failed
   | typeof ASYNC_TOOL_STATUS.cancelled
 
-export type AsyncFinishedStatus = AsyncTerminalStatus | typeof ASYNC_TOOL_STATUS.delivered
+/**
+ * Confirmation statuses sent on the request-local async tool confirmation channel.
+ *
+ * `background` is still emitted by the current browser workflow runtime on `pagehide`.
+ */
+export const ASYNC_TOOL_CONFIRMATION_STATUS = {
+  background: 'background',
+  success: MothershipStreamV1ToolOutcome.success,
+  error: MothershipStreamV1ToolOutcome.error,
+  cancelled: MothershipStreamV1ToolOutcome.cancelled,
+} as const
+
+export type AsyncConfirmationStatus =
+  (typeof ASYNC_TOOL_CONFIRMATION_STATUS)[keyof typeof ASYNC_TOOL_CONFIRMATION_STATUS]
+
+export type AsyncTerminalConfirmationStatus = AsyncConfirmationStatus
+
+export type AsyncConfirmationProgressStatus =
+  | typeof ASYNC_TOOL_STATUS.pending
+  | typeof ASYNC_TOOL_STATUS.running
+
+export type AsyncEphemeralConfirmationStatus = typeof ASYNC_TOOL_CONFIRMATION_STATUS.background
+
+export type AsyncConfirmationStateStatus = AsyncConfirmationProgressStatus | AsyncConfirmationStatus
+
+export type AsyncPromiseStatus = typeof ASYNC_TOOL_STATUS.running | AsyncTerminalConfirmationStatus
+
+export type AsyncCompletionData = unknown
 
 export interface AsyncCompletionEnvelope {
   toolCallId: string
-  status: string
+  status: AsyncConfirmationStatus
   message?: string
-  data?: Record<string, unknown>
+  data?: AsyncCompletionData
   runId?: string
   checkpointId?: string
   executionId?: string
   chatId?: string
   timestamp?: string
+}
+
+export type AsyncCompletionSnapshot = Pick<
+  AsyncCompletionEnvelope,
+  'status' | 'message' | 'data' | 'timestamp'
+>
+
+export interface AsyncTerminalCompletionSnapshot extends AsyncCompletionSnapshot {
+  status: AsyncTerminalConfirmationStatus
+}
+
+export interface AsyncConfirmationState {
+  status: AsyncConfirmationStateStatus
+  message?: string
+  data?: AsyncCompletionData
+  timestamp?: string
+}
+
+export interface AsyncCompletionSignal {
+  status: AsyncPromiseStatus
+  message?: string
+  data?: AsyncCompletionData
 }
 
 export function isTerminalAsyncStatus(
@@ -51,15 +97,19 @@ export function isDeliveredAsyncStatus(
   return status === ASYNC_TOOL_STATUS.delivered
 }
 
-export function inferDeliveredAsyncSuccess(input: {
-  result?: Record<string, unknown> | null
-  error?: string | null
-}) {
-  if (input.error) return false
-  const result = input.result ?? undefined
-  if (!result) return true
-  if (result.cancelled === true || result.cancelledByUser === true) return false
-  if (typeof result.reason === 'string' && result.reason === 'user_cancelled') return false
-  if (typeof result.error === 'string') return false
-  return true
+export function isAsyncTerminalConfirmationStatus(
+  status: string | null | undefined
+): status is AsyncTerminalConfirmationStatus {
+  return (
+    status === ASYNC_TOOL_CONFIRMATION_STATUS.background ||
+    status === ASYNC_TOOL_CONFIRMATION_STATUS.success ||
+    status === ASYNC_TOOL_CONFIRMATION_STATUS.error ||
+    status === ASYNC_TOOL_CONFIRMATION_STATUS.cancelled
+  )
+}
+
+export function isAsyncEphemeralConfirmationStatus(
+  status: string | null | undefined
+): status is AsyncEphemeralConfirmationStatus {
+  return status === ASYNC_TOOL_CONFIRMATION_STATUS.background
 }

@@ -1,0 +1,100 @@
+---
+title: Custom Tools
+description: Extend your agents with your own functions — defined by a schema and executed as JavaScript
+---
+
+import { Image } from '@/components/ui/image'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Custom Tools let you define your own functions that agents can call, without needing an external MCP server. You write a JSON schema describing the function and the JavaScript code that runs when the agent invokes it.
+
+## What Is a Custom Tool?
+
+A custom tool has three parts:
+
+| Part | Description |
+|------|-------------|
+| **Schema** | OpenAI function-calling format — name, description, and parameters. This is what the agent sees when deciding whether to call the tool. |
+| **Code** | JavaScript that runs when the tool is called. Parameters come in as variables matching the schema. |
+| **Scope** | Custom tools are workspace-scoped and available to every agent in that workspace. |
+
+Use custom tools when you need tightly-scoped logic that doesn't warrant spinning up a full MCP server — one-off API calls, formatting helpers, internal utilities, etc.
+
+## Creating a Custom Tool
+
+1. Navigate to **Settings → Custom Tools**
+2. Click **Add**
+3. Fill out the **Schema** tab with your function definition
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/custom-tool-schema.png"
+    alt="Custom tool schema editor"
+    width={550}
+    height={500}
+    className="my-6"
+  />
+</div>
+
+<Callout type="info">
+Use the **Generate** button to have AI draft the schema from a plain-English description.
+</Callout>
+
+4. Write your implementation in the **Code** tab
+5. Click **Save**
+
+<Callout type="info">
+You can also create a custom tool directly from an Agent block — click **Add tool… → Create Tool** in the tool dropdown.
+</Callout>
+
+## Schema Format
+
+Custom tool schemas follow the OpenAI function-calling spec:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "get_weather",
+    "description": "Get the current weather for a city",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "type": "string",
+          "description": "The city to get weather for"
+        }
+      },
+      "required": ["city"]
+    }
+  }
+}
+```
+
+The `name` must be lowercase, use underscores, and match what your code expects as input.
+
+## Using Custom Tools in Agents
+
+Once created, your tools become available in any Agent block:
+
+1. Open an **Agent** block
+2. In the **Tools** section, click **Add tool…**
+3. Under **Custom Tools**, click the tool you want to add
+4. The agent can now call the tool the same way it calls MCP tools or built-in tools
+
+## Custom Tools vs MCP Tools
+
+| | **Custom Tools** | **MCP Tools** |
+|---|---|---|
+| **Defined** | Inline — schema + code in Sim | External MCP server |
+| **Hosting** | Runs inside Sim | Runs on your server |
+| **Best for** | Small, workspace-specific helpers | Shared tools, third-party services, complex integrations |
+| **Setup** | One modal | Deploy and register a server |
+
+## Permission Requirements
+
+| Action | Required Permission |
+|--------|-------------------|
+| Create or update custom tools | **Write** or **Admin** |
+| Delete custom tools | **Admin** |
+| Use custom tools in agents | **Read**, **Write**, or **Admin** |

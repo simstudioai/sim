@@ -142,6 +142,7 @@ export async function DELETE(request: NextRequest, { params }: FileRouteParams) 
       resourceId: fileId,
       resourceName: fileRecord.name,
       description: `Archived file "${fileRecord.name}" via API`,
+      metadata: { fileSize: fileRecord.size, fileType: fileRecord.type },
       request,
     })
 

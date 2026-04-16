@@ -141,6 +141,61 @@ describe('Tool Parameters Utils', () => {
       expect(schema.required).not.toContain('accessToken')
       expect(schema.properties).toHaveProperty('message')
     })
+
+    it.concurrent('keeps shared file params unchanged by default', () => {
+      const toolWithFileParam = {
+        ...mockToolConfig,
+        id: 'file_schema_tool',
+        params: {
+          attachment: {
+            type: 'file',
+            required: true,
+            visibility: 'user-or-llm' as ParameterVisibility,
+            description: 'Attachment file',
+          },
+        },
+      }
+
+      const schema = createUserToolSchema(toolWithFileParam)
+
+      expect(schema.properties.attachment).toMatchObject({
+        type: 'file',
+        description: 'Attachment file',
+      })
+    })
+
+    it.concurrent('expands file params for copilot-facing schemas', () => {
+      const toolWithFileParams = {
+        ...mockToolConfig,
+        id: 'copilot_file_schema_tool',
+        params: {
+          attachment: {
+            type: 'file',
+            required: true,
+            visibility: 'user-or-llm' as ParameterVisibility,
+            description: 'Attachment file',
+          },
+          attachments: {
+            type: 'file[]',
+            required: false,
+            visibility: 'user-or-llm' as ParameterVisibility,
+            description: 'Attachment files',
+          },
+        },
+      }
+
+      const schema = createUserToolSchema(toolWithFileParams, { surface: 'copilot' })
+
+      expect(schema.properties.attachment).toMatchObject({
+        type: 'object',
+        required: ['id', 'name', 'url', 'size', 'type', 'key'],
+      })
+      expect(schema.properties.attachment.description).toContain('canonical workspace file IDs')
+      expect(schema.properties.attachments).toMatchObject({
+        type: 'array',
+      })
+      expect(schema.properties.attachments.description).toContain('canonical workspace file IDs')
+    })
   })
 
   describe('createExecutionToolSchema', () => {

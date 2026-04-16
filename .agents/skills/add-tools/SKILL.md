@@ -14,6 +14,21 @@ When the user asks you to create tools for a service:
 2. Create the tools directory structure
 3. Generate properly typed tool configurations
 
+## Hard Rule: No Guessed Response Schemas
+
+If the docs do not clearly show the response JSON for a tool, you MUST tell the user exactly which outputs are unknown and stop short of guessing.
+
+- Do NOT invent response field names
+- Do NOT infer nested paths from nearby endpoints
+- Do NOT guess array item shapes
+- Do NOT write `transformResponse` against unverified payloads
+
+If the response shape is unknown, do one of these instead:
+1. Ask the user for sample responses
+2. Ask the user for test credentials so you can verify live responses
+3. Implement only the endpoints whose outputs are documented
+4. Leave the tool unimplemented and explicitly say why
+
 ## Directory Structure
 
 Create files in `apps/sim/tools/{service}/`:
@@ -186,6 +201,8 @@ items: {
 ```
 
 Only use bare `type: 'json'` without `properties` when the shape is truly dynamic or unknown.
+
+If the response shape is unknown because the docs do not provide it, you MUST tell the user and stop. Unknown is not the same as dynamic. Never guess outputs.
 
 ## Critical Rules for transformResponse
 
@@ -441,7 +458,9 @@ After creating all tools, you MUST validate every tool before finishing:
    - All output fields match what the API actually returns
    - No fields are missing from outputs that the API provides
    - No extra fields are defined in outputs that the API doesn't return
+   - Every output field and JSON path is backed by docs or live-verified sample responses
 3. **Verify consistency** across tools:
    - Shared types in `types.ts` match all tools that use them
    - Tool IDs in the barrel export match the tool file definitions
    - Error handling is consistent (error checks, meaningful messages)
+4. **If any response schema is still unknown**, explicitly tell the user instead of guessing

@@ -69,7 +69,9 @@ export async function PUT(
       action: AuditAction.FILE_UPDATED,
       resourceType: AuditResourceType.FILE,
       resourceId: fileId,
+      resourceName: updatedFile.name,
       description: `Updated content of file "${updatedFile.name}"`,
+      metadata: { contentSize: buffer.length },
       request,
     })
 

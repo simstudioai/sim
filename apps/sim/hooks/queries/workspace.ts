@@ -25,16 +25,22 @@ export interface Workspace {
   id: string
   name: string
   color?: string
+  logoUrl?: string | null
   ownerId: string
   role?: string
   membershipId?: string
   permissions?: 'admin' | 'write' | 'read' | null
 }
 
+interface WorkspacesResponse {
+  workspaces: Workspace[]
+  lastActiveWorkspaceId: string | null
+}
+
 async function fetchWorkspaces(
   scope: WorkspaceQueryScope = 'active',
   signal?: AbortSignal
-): Promise<Workspace[]> {
+): Promise<WorkspacesResponse> {
   const response = await fetch(`/api/workspaces?scope=${scope}`, { signal })
 
   if (!response.ok) {
@@ -42,20 +48,39 @@ async function fetchWorkspaces(
   }
 
   const data = await response.json()
-  return data.workspaces || []
+  return {
+    workspaces: data.workspaces || [],
+    lastActiveWorkspaceId:
+      typeof data.lastActiveWorkspaceId === 'string' ? data.lastActiveWorkspaceId : null,
+  }
 }
 
 /**
  * Fetches the current user's workspaces.
- * @param enabled - Whether the query should execute (defaults to true)
+ * Returns only the workspace array. Use `useWorkspacesWithMetadata` when
+ * you also need `lastActiveWorkspaceId`.
  */
 export function useWorkspacesQuery(enabled = true, scope: WorkspaceQueryScope = 'active') {
   return useQuery({
     queryKey: workspaceKeys.list(scope),
     queryFn: ({ signal }) => fetchWorkspaces(scope, signal),
+    select: (data) => data.workspaces,
     enabled,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
+  })
+}
+
+/**
+ * Fetches workspaces with the user's last active workspace ID.
+ * Used by the redirect page to determine which workspace to open.
+ */
+export function useWorkspacesWithMetadata(enabled = true) {
+  return useQuery({
+    queryKey: workspaceKeys.list('active'),
+    queryFn: ({ signal }) => fetchWorkspaces('active', signal),
+    enabled,
+    staleTime: 30 * 1000,
   })
 }
 
@@ -88,14 +113,14 @@ export function useCreateWorkspace() {
       return data.workspace as Workspace
     },
     onSuccess: (newWorkspace) => {
-      queryClient.setQueryData<Workspace[]>(workspaceKeys.list('active'), (previous) => {
-        if (!previous?.length) {
-          return [newWorkspace]
+      queryClient.setQueryData<WorkspacesResponse>(workspaceKeys.list('active'), (previous) => {
+        if (!previous) {
+          return { workspaces: [newWorkspace], lastActiveWorkspaceId: null }
         }
-        if (previous.some((w) => w.id === newWorkspace.id)) {
+        if (previous.workspaces.some((w) => w.id === newWorkspace.id)) {
           return previous
         }
-        return [newWorkspace, ...previous]
+        return { ...previous, workspaces: [newWorkspace, ...previous.workspaces] }
       })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.adminLists() })
@@ -141,6 +166,7 @@ interface UpdateWorkspaceParams {
   workspaceId: string
   name?: string
   color?: string
+  logoUrl?: string | null
 }
 
 /**

@@ -1,5 +1,6 @@
 import {
   Card,
+  ClipboardList,
   Connections,
   HexSimple,
   Key,
@@ -27,6 +28,7 @@ export type SettingsSection =
   | 'template-profile'
   | 'credential-sets'
   | 'access-control'
+  | 'audit-logs'
   | 'apikeys'
   | 'byok'
   | 'subscription'
@@ -40,6 +42,7 @@ export type SettingsSection =
   | 'workflow-mcp-servers'
   | 'inbox'
   | 'admin'
+  | 'mothership'
   | 'recently-deleted'
 
 export type NavigationSection =
@@ -72,6 +75,8 @@ const isSSOEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
 const isCredentialSetsEnabled = isTruthy(getEnv('NEXT_PUBLIC_CREDENTIAL_SETS_ENABLED'))
 const isAccessControlEnabled = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
 const isInboxEnabled = isTruthy(getEnv('NEXT_PUBLIC_INBOX_ENABLED'))
+const isWhitelabelingEnabled = isTruthy(getEnv('NEXT_PUBLIC_WHITELABELING_ENABLED'))
+const isAuditLogsEnabled = isTruthy(getEnv('NEXT_PUBLIC_AUDIT_LOGS_ENABLED'))
 
 export const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 export { isCredentialSetsEnabled }
@@ -96,6 +101,15 @@ export const allNavigationItems: NavigationItem[] = [
     requiresHosted: true,
     requiresEnterprise: true,
     selfHostedOverride: isAccessControlEnabled,
+  },
+  {
+    id: 'audit-logs',
+    label: 'Audit Logs',
+    icon: ClipboardList,
+    section: 'enterprise',
+    requiresHosted: true,
+    requiresEnterprise: true,
+    selfHostedOverride: isAuditLogsEnabled,
   },
   {
     id: 'subscription',
@@ -171,12 +185,19 @@ export const allNavigationItems: NavigationItem[] = [
     section: 'enterprise',
     requiresHosted: true,
     requiresEnterprise: true,
-    selfHostedOverride: isBillingEnabled,
+    selfHostedOverride: isWhitelabelingEnabled,
   },
   {
     id: 'admin',
     label: 'Admin',
     icon: Lock,
+    section: 'superuser',
+    requiresAdminRole: true,
+  },
+  {
+    id: 'mothership',
+    label: 'Mothership',
+    icon: Server,
     section: 'superuser',
     requiresAdminRole: true,
   },

@@ -39,18 +39,6 @@ export const calendlyRoutingFormSubmittedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'calendly_routing_form_submitted',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'calendly_routing_form_submitted',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

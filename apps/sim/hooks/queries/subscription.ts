@@ -303,6 +303,7 @@ export function useUpgradeSubscription() {
 interface PurchaseCreditsParams {
   amount: number
   requestId: string
+  orgId?: string
 }
 
 export function usePurchaseCredits() {
@@ -324,9 +325,13 @@ export function usePurchaseCredits() {
 
       return data
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() })
       queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() })
+      if (variables.orgId) {
+        queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
+        queryClient.invalidateQueries({ queryKey: organizationKeys.subscription(variables.orgId) })
+      }
     },
   })
 }

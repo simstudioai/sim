@@ -1,4 +1,9 @@
 import { env } from '@/lib/core/config/env'
+import {
+  extractTrelloErrorMessage,
+  mapTrelloCard,
+  TRELLO_API_BASE_URL,
+} from '@/tools/trello/shared'
 import type { TrelloUpdateCardParams, TrelloUpdateCardResponse } from '@/tools/trello/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -69,9 +74,17 @@ export const trelloUpdateCardTool: ToolConfig<TrelloUpdateCardParams, TrelloUpda
       if (!params.cardId) {
         throw new Error('Card ID is required')
       }
-      const apiKey = env.TRELLO_API_KEY || ''
-      const token = params.accessToken
-      return `https://api.trello.com/1/cards/${params.cardId}?key=${apiKey}&token=${token}`
+      const apiKey = env.TRELLO_API_KEY
+
+      if (!apiKey) {
+        throw new Error('TRELLO_API_KEY environment variable is not set')
+      }
+
+      const url = new URL(`${TRELLO_API_BASE_URL}/cards/${params.cardId.trim()}`)
+      url.searchParams.set('key', apiKey)
+      url.searchParams.set('token', params.accessToken)
+
+      return url.toString()
     },
     method: 'PUT',
     headers: () => ({
@@ -79,12 +92,12 @@ export const trelloUpdateCardTool: ToolConfig<TrelloUpdateCardParams, TrelloUpda
       Accept: 'application/json',
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
+      const body: Record<string, unknown> = {}
 
       if (params.name !== undefined) body.name = params.name
       if (params.desc !== undefined) body.desc = params.desc
       if (params.closed !== undefined) body.closed = params.closed
-      if (params.idList !== undefined) body.idList = params.idList
+      if (params.idList !== undefined) body.idList = params.idList.trim()
       if (params.due !== undefined) body.due = params.due
       if (params.dueComplete !== undefined) body.dueComplete = params.dueComplete
 
@@ -97,30 +110,91 @@ export const trelloUpdateCardTool: ToolConfig<TrelloUpdateCardParams, TrelloUpda
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
+    const data = await response.json().catch(() => null)
 
-    if (!data?.id) {
+    if (!response.ok) {
+      const error = extractTrelloErrorMessage(response, data, 'Failed to update card')
+
       return {
         success: false,
         output: {
-          error: data?.message || 'Failed to update card',
+          error,
         },
-        error: data?.message || 'Failed to update card',
+        error,
       }
     }
 
-    return {
-      success: true,
-      output: {
-        card: data,
-      },
+    try {
+      const card = mapTrelloCard(data)
+
+      return {
+        success: true,
+        output: {
+          card,
+        },
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to parse updated card'
+
+      return {
+        success: false,
+        output: {
+          error: message,
+        },
+        error: message,
+      }
     }
   },
 
   outputs: {
     card: {
-      type: 'object',
-      description: 'The updated card object with id, name, desc, url, and other properties',
+      type: 'json',
+      description:
+        'Updated card (id, name, desc, url, idBoard, idList, closed, labelIds, labels, due, dueComplete)',
+      optional: true,
+      properties: {
+        id: { type: 'string', description: 'Card ID' },
+        name: { type: 'string', description: 'Card name' },
+        desc: { type: 'string', description: 'Card description' },
+        url: { type: 'string', description: 'Full card URL' },
+        idBoard: { type: 'string', description: 'Board ID containing the card' },
+        idList: { type: 'string', description: 'List ID containing the card' },
+        closed: { type: 'boolean', description: 'Whether the card is archived' },
+        labelIds: {
+          type: 'array',
+          description: 'Label IDs applied to the card',
+          items: {
+            type: 'string',
+            description: 'A Trello label ID',
+          },
+        },
+        labels: {
+          type: 'array',
+          description: 'Labels applied to the card',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', description: 'Label ID' },
+              name: { type: 'string', description: 'Label name' },
+              color: {
+                type: 'string',
+                description: 'Label color',
+                optional: true,
+              },
+            },
+          },
+        },
+        due: {
+          type: 'string',
+          description: 'Card due date in ISO 8601 format',
+          optional: true,
+        },
+        dueComplete: {
+          type: 'boolean',
+          description: 'Whether the due date is complete',
+          optional: true,
+        },
+      },
     },
   },
 }

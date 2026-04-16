@@ -21,7 +21,10 @@ const configSchema = z.object({
   hideKnowledgeBaseTab: z.boolean().optional(),
   hideTablesTab: z.boolean().optional(),
   hideCopilot: z.boolean().optional(),
+  hideIntegrationsTab: z.boolean().optional(),
+  hideSecretsTab: z.boolean().optional(),
   hideApiKeysTab: z.boolean().optional(),
+  hideInboxTab: z.boolean().optional(),
   hideEnvironmentTab: z.boolean().optional(),
   hideFilesTab: z.boolean().optional(),
   disableMcpTools: z.boolean().optional(),
@@ -29,6 +32,7 @@ const configSchema = z.object({
   disableSkills: z.boolean().optional(),
   hideTemplates: z.boolean().optional(),
   disableInvitations: z.boolean().optional(),
+  disablePublicApi: z.boolean().optional(),
   hideDeployApi: z.boolean().optional(),
   hideDeployMcp: z.boolean().optional(),
   hideDeployA2a: z.boolean().optional(),
@@ -151,31 +155,34 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ? { ...currentConfig, ...updates.config }
       : currentConfig
 
-    // If setting autoAddNewMembers to true, unset it on other groups in the org first
-    if (updates.autoAddNewMembers === true) {
-      await db
-        .update(permissionGroup)
-        .set({ autoAddNewMembers: false, updatedAt: new Date() })
-        .where(
-          and(
-            eq(permissionGroup.organizationId, result.group.organizationId),
-            eq(permissionGroup.autoAddNewMembers, true)
-          )
-        )
-    }
+    const now = new Date()
 
-    await db
-      .update(permissionGroup)
-      .set({
-        ...(updates.name !== undefined && { name: updates.name }),
-        ...(updates.description !== undefined && { description: updates.description }),
-        ...(updates.autoAddNewMembers !== undefined && {
-          autoAddNewMembers: updates.autoAddNewMembers,
-        }),
-        config: newConfig,
-        updatedAt: new Date(),
-      })
-      .where(eq(permissionGroup.id, id))
+    await db.transaction(async (tx) => {
+      if (updates.autoAddNewMembers === true) {
+        await tx
+          .update(permissionGroup)
+          .set({ autoAddNewMembers: false, updatedAt: now })
+          .where(
+            and(
+              eq(permissionGroup.organizationId, result.group.organizationId),
+              eq(permissionGroup.autoAddNewMembers, true)
+            )
+          )
+      }
+
+      await tx
+        .update(permissionGroup)
+        .set({
+          ...(updates.name !== undefined && { name: updates.name }),
+          ...(updates.description !== undefined && { description: updates.description }),
+          ...(updates.autoAddNewMembers !== undefined && {
+            autoAddNewMembers: updates.autoAddNewMembers,
+          }),
+          config: newConfig,
+          updatedAt: now,
+        })
+        .where(eq(permissionGroup.id, id))
+    })
 
     const [updated] = await db
       .select()
@@ -193,6 +200,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       actorEmail: session.user.email ?? undefined,
       resourceName: updated.name,
       description: `Updated permission group "${updated.name}"`,
+      metadata: {
+        organizationId: result.group.organizationId,
+        updatedFields: Object.keys(updates).filter(
+          (k) => updates[k as keyof typeof updates] !== undefined
+        ),
+      },
       request: req,
     })
 
@@ -239,8 +252,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
     }
 
-    await db.delete(permissionGroupMember).where(eq(permissionGroupMember.permissionGroupId, id))
-    await db.delete(permissionGroup).where(eq(permissionGroup.id, id))
+    await db.transaction(async (tx) => {
+      await tx.delete(permissionGroupMember).where(eq(permissionGroupMember.permissionGroupId, id))
+      await tx.delete(permissionGroup).where(eq(permissionGroup.id, id))
+    })
 
     logger.info('Deleted permission group', { permissionGroupId: id, userId: session.user.id })
 
@@ -254,6 +269,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       actorEmail: session.user.email ?? undefined,
       resourceName: result.group.name,
       description: `Deleted permission group "${result.group.name}"`,
+      metadata: { organizationId: result.group.organizationId },
       request: req,
     })
 

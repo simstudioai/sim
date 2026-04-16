@@ -196,7 +196,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         ? `Upserted (replaced) document "${validatedData.filename}" in knowledge base "${knowledgeBaseId}"`
         : `Upserted (created) document "${validatedData.filename}" in knowledge base "${knowledgeBaseId}"`,
       metadata: {
+        knowledgeBaseName: accessCheck.knowledgeBase?.name,
         fileName: validatedData.filename,
+        fileType: validatedData.mimeType,
+        fileSize: validatedData.fileSize,
         previousDocumentId: existingDocumentId,
         isUpdate,
       },

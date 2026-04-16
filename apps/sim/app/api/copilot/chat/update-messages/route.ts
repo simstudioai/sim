@@ -4,15 +4,16 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getAccessibleCopilotChat } from '@/lib/copilot/chat-lifecycle'
-import { COPILOT_MODES } from '@/lib/copilot/models'
+import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
+import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
+import { COPILOT_MODES } from '@/lib/copilot/constants'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createRequestTracker,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request-helpers'
+} from '@/lib/copilot/request/http'
 
 const logger = createLogger('CopilotChatUpdateAPI')
 
@@ -78,12 +79,15 @@ export async function POST(req: NextRequest) {
     }
 
     const { chatId, messages, planArtifact, config } = UpdateMessagesSchema.parse(body)
+    const normalizedMessages: PersistedMessage[] = messages.map((message) =>
+      normalizeMessage(message as Record<string, unknown>)
+    )
 
     // Debug: Log what we're about to save
-    const lastMsgParsed = messages[messages.length - 1]
+    const lastMsgParsed = normalizedMessages[normalizedMessages.length - 1]
     if (lastMsgParsed?.role === 'assistant') {
       logger.info(`[${tracker.requestId}] Parsed messages to save`, {
-        messageCount: messages.length,
+        messageCount: normalizedMessages.length,
         lastMsgId: lastMsgParsed.id,
         lastMsgContentLength: lastMsgParsed.content?.length || 0,
         lastMsgContentBlockCount: lastMsgParsed.contentBlocks?.length || 0,
@@ -99,8 +103,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Update chat with new messages, plan artifact, and config
-    const updateData: Record<string, any> = {
-      messages: messages,
+    const updateData: Record<string, unknown> = {
+      messages: normalizedMessages,
       updatedAt: new Date(),
     }
 
@@ -116,14 +120,14 @@ export async function POST(req: NextRequest) {
 
     logger.info(`[${tracker.requestId}] Successfully updated chat`, {
       chatId,
-      newMessageCount: messages.length,
+      newMessageCount: normalizedMessages.length,
       hasPlanArtifact: !!planArtifact,
       hasConfig: !!config,
     })
 
     return NextResponse.json({
       success: true,
-      messageCount: messages.length,
+      messageCount: normalizedMessages.length,
     })
   } catch (error) {
     logger.error(`[${tracker.requestId}] Error updating chat messages:`, error)

@@ -59,7 +59,7 @@ function ModelLabel({ model }: ModelLabelProps) {
   const Icon = PROVIDER_ICON_MAP[model.providerId]
 
   return (
-    <div className='flex w-[140px] shrink-0 items-center justify-end gap-1.5 sm:w-[180px]'>
+    <div className='flex w-[90px] shrink-0 items-center justify-end gap-1.5 sm:w-[140px] lg:w-[180px]'>
       {Icon && <Icon className='h-3.5 w-3.5 shrink-0' />}
       <span className='truncate font-medium text-[13px] text-[var(--landing-text)] leading-none tracking-[-0.01em]'>
         {model.displayName}
@@ -116,7 +116,7 @@ function StackedCostChart({ models }: ChartProps) {
               <ModelLabel model={model} />
               <div className='relative flex h-7 min-w-0 flex-1 items-center'>
                 <div
-                  className='flex h-full overflow-hidden rounded-r-[3px]'
+                  className='hidden h-full overflow-hidden rounded-r-[3px] sm:flex'
                   style={{ width: `${Math.max(totalPct, 3)}%` }}
                 >
                   <div
@@ -136,7 +136,7 @@ function StackedCostChart({ models }: ChartProps) {
                     }}
                   />
                 </div>
-                <span className='ml-2.5 shrink-0 font-mono text-[var(--landing-text-muted)] text-xs'>
+                <span className='shrink-0 font-mono text-[11px] text-[var(--landing-text-muted)] sm:ml-2.5 sm:text-xs'>
                   {formatPrice(input)} input / {formatPrice(output)} output
                 </span>
               </div>
@@ -196,7 +196,7 @@ function ContextWindowChart({ models }: ChartProps) {
                     opacity: 0.8,
                   }}
                 />
-                <span className='ml-2.5 shrink-0 font-mono text-[var(--landing-text-muted)] text-xs'>
+                <span className='ml-2.5 shrink-0 font-mono text-[11px] text-[var(--landing-text-muted)] sm:text-xs'>
                   {formatTokenCount(value)}
                 </span>
               </div>

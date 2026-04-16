@@ -1,20 +1,20 @@
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
-export async function GET() {
+export function GET() {
   const baseUrl = getBaseUrl()
 
-  const llmsFullContent = `# Sim — Build AI Agents & Run Your Agentic Workforce
+  const llmsFullContent = `# Sim — The AI Workspace | Build, Deploy & Manage AI Agents
 
-> Sim is the open-source platform to build AI agents and run your agentic workforce. Connect 1,000+ integrations and LLMs to deploy and orchestrate agentic workflows.
+> Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work.
 
 ## Overview
 
-Sim lets teams create agents, workflows, knowledge bases, tables, and docs. Over 100,000 builders use Sim — from startups to Fortune 500 companies. Teams connect their tools and data, build agents that execute real workflows across systems, and manage them with full observability. SOC2 compliant.
+Sim is the AI workspace where teams create agents visually with the workflow builder, conversationally through Mothership, or programmatically with the API. Over 100,000 builders use Sim — from startups to Fortune 500 companies. Teams connect their tools and data, build agents that automate real work across systems, and manage them with full observability. SOC2 compliant.
 
 ## Product Details
 
 - **Product Name**: Sim
-- **Category**: AI Agent Platform / Agentic Workflow Orchestration
+- **Category**: AI Workspace / AI Agent Builder
 - **Deployment**: Cloud (SaaS) and Self-hosted options
 - **Pricing**: Free tier, Pro ($25/month, 6K credits), Max ($100/month, 25K credits), Team plans available, Enterprise (custom)
 - **Compliance**: SOC2 Type II
@@ -123,7 +123,7 @@ Built-in table creation and management:
 
 ### Frontend
 - Next.js 15 with App Router
-- React Flow for canvas visualization
+- React Flow for the visual builder
 - Tailwind CSS for styling
 - Zustand for state management
 
@@ -143,7 +143,7 @@ Built-in table creation and management:
 
 1. **Sign Up**: Create a free account at ${baseUrl}
 2. **Create Workspace**: Set up your first workspace
-3. **Build Workflow**: Drag blocks onto canvas and connect them
+3. **Build Workflow**: Drag blocks onto the workflow builder and connect them
 4. **Configure Blocks**: Set up LLM providers, tools, and integrations
 5. **Test**: Run the workflow manually to verify
 6. **Deploy**: Set up triggers for automated execution

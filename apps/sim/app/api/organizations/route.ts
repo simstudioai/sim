@@ -126,6 +126,7 @@ export async function POST(request: Request) {
       actorEmail: user.email ?? undefined,
       resourceName: organizationName ?? undefined,
       description: `Created organization "${organizationName}"`,
+      metadata: { organizationSlug },
       request,
     })
 

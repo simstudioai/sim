@@ -18,6 +18,7 @@ const {
   executorExecuteMock,
   onBlockStartPersistenceMock,
   executorConstructorMock,
+  findStartBlockMock,
 } = vi.hoisted(() => ({
   loadWorkflowFromNormalizedTablesMock: vi.fn(),
   loadDeployedWorkflowStateMock: vi.fn(),
@@ -36,6 +37,7 @@ const {
   executorExecuteMock: vi.fn(),
   onBlockStartPersistenceMock: vi.fn(),
   executorConstructorMock: vi.fn(),
+  findStartBlockMock: vi.fn(),
 }))
 
 vi.mock('@sim/logger', () => ({
@@ -70,11 +72,7 @@ vi.mock('@/lib/workflows/subblocks', () => ({
 
 vi.mock('@/lib/workflows/triggers/triggers', () => ({
   TriggerUtils: {
-    findStartBlock: vi.fn().mockReturnValue({
-      blockId: 'start-block',
-      block: { type: 'start_trigger' },
-      path: ['start-block'],
-    }),
+    findStartBlock: findStartBlockMock,
   },
 }))
 
@@ -180,6 +178,11 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     mergeSubblockStateWithValuesMock.mockImplementation((blocks) => blocks)
     serializeWorkflowMock.mockReturnValue({ loops: {}, parallels: {} })
     buildTraceSpansMock.mockReturnValue({ traceSpans: [{ id: 'span-1' }], totalDuration: 123 })
+    findStartBlockMock.mockReturnValue({
+      blockId: 'start-block',
+      block: { type: 'start_trigger' },
+      path: ['start-block'],
+    })
     safeStartMock.mockResolvedValue(true)
     safeCompleteMock.mockResolvedValue(undefined)
     safeCompleteWithErrorMock.mockResolvedValue(undefined)
@@ -219,6 +222,30 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       'api',
       expect.any(String)
     )
+  })
+
+  it('uses external trigger selection for webhook executions without an explicit triggerBlockId', async () => {
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: {
+        ...createSnapshot(),
+        metadata: {
+          ...createSnapshot().metadata,
+          triggerType: 'webhook',
+        },
+      } as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+
+    expect(findStartBlockMock).toHaveBeenCalledWith(expect.anything(), 'external', false)
   })
 
   it('does not await user block start callback after persistence completes', async () => {

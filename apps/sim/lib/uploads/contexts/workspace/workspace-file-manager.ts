@@ -437,17 +437,29 @@ export async function listWorkspaceFiles(
  */
 export function normalizeWorkspaceFileReference(fileReference: string): string {
   const trimmed = fileReference.trim().replace(/^\/+/, '')
+  const withoutDeletedPrefix = trimmed.startsWith('recently-deleted/')
+    ? trimmed.slice('recently-deleted/'.length)
+    : trimmed
 
-  if (trimmed.startsWith('files/by-id/')) {
-    const byIdRef = trimmed.slice('files/by-id/'.length)
+  if (withoutDeletedPrefix.startsWith('files/by-id/')) {
+    const byIdRef = withoutDeletedPrefix.slice('files/by-id/'.length)
     const match = byIdRef.match(/^([^/]+)(?:\/(?:meta\.json|content))?$/)
     if (match?.[1]) {
       return match[1]
     }
   }
 
-  if (trimmed.startsWith('files/')) {
-    const withoutPrefix = trimmed.slice('files/'.length)
+  if (withoutDeletedPrefix.startsWith('by-id/')) {
+    const match = withoutDeletedPrefix
+      .slice('by-id/'.length)
+      .match(/^([^/]+)(?:\/(?:meta\.json|content))?$/)
+    if (match?.[1]) {
+      return match[1]
+    }
+  }
+
+  if (withoutDeletedPrefix.startsWith('files/')) {
+    const withoutPrefix = withoutDeletedPrefix.slice('files/'.length)
     if (withoutPrefix.endsWith('/meta.json')) {
       return withoutPrefix.slice(0, -'/meta.json'.length)
     }
@@ -457,7 +469,7 @@ export function normalizeWorkspaceFileReference(fileReference: string): string {
     return withoutPrefix
   }
 
-  return trimmed
+  return withoutDeletedPrefix
 }
 
 /**

@@ -13,8 +13,6 @@ export const jsmGetApprovalsTool: ToolConfig<JsmGetApprovalsParams, JsmGetApprov
     provider: 'jira',
   },
 
-  errorExtractor: 'atlassian-errors',
-
   params: {
     accessToken: {
       type: 'string',

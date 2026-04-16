@@ -94,17 +94,6 @@ export const hubspotContactMergedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      mode: 'trigger',
-      triggerId: 'hubspot_contact_merged',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'hubspot_contact_merged',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       type: 'text',

@@ -1,7 +1,8 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import Link from 'next/link'
+import { cn } from '@/lib/core/utils/cn'
+import { AuthModal } from '@/app/(landing)/components/auth-modal/auth-modal'
 import { DemoRequestModal } from '@/app/(landing)/components/demo-request/demo-request-modal'
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 
@@ -16,7 +17,6 @@ const LandingPreview = dynamic(
   }
 )
 
-/** Shared base classes for CTA link buttons — matches Deploy/Run button styling in the preview panel. */
 const CTA_BASE =
   'inline-flex items-center h-[32px] rounded-[5px] border px-2.5 font-[430] font-season text-sm'
 
@@ -30,11 +30,11 @@ export default function Hero() {
       className='relative flex flex-col items-center overflow-hidden bg-[var(--landing-bg)] pt-[60px] lg:pt-[100px]'
     >
       <p className='sr-only'>
-        Sim is an open-source AI agent platform. Sim lets teams build AI agents and run an agentic
-        workforce by connecting 1,000+ integrations and LLMs — including OpenAI, Anthropic Claude,
-        Google Gemini, Mistral, and xAI Grok — to deploy and orchestrate agentic workflows. Users
-        create agents, workflows, knowledge bases, tables, and docs. Sim is trusted by over 100,000
-        builders at startups and Fortune 500 companies. Sim is SOC2 compliant.
+        Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect
+        1,000+ integrations and every major LLM — including OpenAI, Anthropic Claude, Google Gemini,
+        Mistral, and xAI Grok — to create agents that automate real work. Build agents visually with
+        the workflow builder, conversationally through Mothership, or programmatically with the API.
+        Trusted by over 100,000 builders at startups and Fortune 500 companies. SOC2 compliant.
       </p>
 
       <div className='relative z-10 flex flex-col items-center gap-3'>
@@ -56,7 +56,10 @@ export default function Hero() {
           <DemoRequestModal theme='light'>
             <button
               type='button'
-              className={`${CTA_BASE} border-[var(--landing-border-strong)] bg-transparent text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]`}
+              className={cn(
+                CTA_BASE,
+                'border-[var(--landing-border-strong)] bg-transparent text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
+              )}
               aria-label='Get a demo'
               onClick={() =>
                 trackLandingCta({ label: 'Get a demo', section: 'hero', destination: 'demo_modal' })
@@ -65,16 +68,25 @@ export default function Hero() {
               Get a demo
             </button>
           </DemoRequestModal>
-          <Link
-            href='/signup'
-            className={`${CTA_BASE} gap-2 border-white bg-white text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]`}
-            aria-label='Get started with Sim'
-            onClick={() =>
-              trackLandingCta({ label: 'Get started', section: 'hero', destination: '/signup' })
-            }
-          >
-            Get started
-          </Link>
+          <AuthModal defaultView='signup' source='hero'>
+            <button
+              type='button'
+              className={cn(
+                CTA_BASE,
+                'gap-2 border-white bg-white text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
+              )}
+              aria-label='Get started with Sim'
+              onClick={() =>
+                trackLandingCta({
+                  label: 'Get started',
+                  section: 'hero',
+                  destination: 'auth_modal',
+                })
+              }
+            >
+              Get started
+            </button>
+          </AuthModal>
         </div>
       </div>
 

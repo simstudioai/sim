@@ -278,8 +278,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           resourceName: `${createdDocuments.length} document(s)`,
           description: `Uploaded ${createdDocuments.length} document(s) to knowledge base "${knowledgeBaseId}"`,
           metadata: {
+            knowledgeBaseName: accessCheck.knowledgeBase?.name,
             fileCount: createdDocuments.length,
-            fileNames: createdDocuments.map((doc) => doc.filename),
           },
           request: req,
         })
@@ -358,6 +358,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           resourceName: validatedData.filename,
           description: `Uploaded document "${validatedData.filename}" to knowledge base "${knowledgeBaseId}"`,
           metadata: {
+            knowledgeBaseName: accessCheck.knowledgeBase?.name,
             fileName: validatedData.filename,
             fileType: validatedData.mimeType,
             fileSize: validatedData.fileSize,

@@ -47,8 +47,6 @@ export const confluenceListBlogPostsTool: ToolConfig<
     provider: 'confluence',
   },
 
-  errorExtractor: 'atlassian-errors',
-
   params: {
     accessToken: {
       type: 'string',

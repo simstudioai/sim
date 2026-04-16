@@ -1,9 +1,9 @@
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { createLogger } from '@sim/logger'
-import { getCopilotToolDescription } from '@/lib/copilot/tool-descriptions'
+import { z } from 'zod'
+import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
-import { GetBlocksMetadataInput, GetBlocksMetadataResult } from '@/lib/copilot/tools/shared/schemas'
 import { getAllowedIntegrationsFromEnv, isHosted } from '@/lib/core/config/feature-flags'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { registry as blockRegistry } from '@/blocks/registry'
@@ -100,17 +100,20 @@ export interface CopilotBlockMetadata {
   yamlDocumentation?: string
 }
 
+const GetBlocksMetadataInputSchema = z.object({ blockIds: z.array(z.string()).min(1) })
+const GetBlocksMetadataResultSchema = z.object({ metadata: z.record(z.any()) })
+
 export const getBlocksMetadataServerTool: BaseServerTool<
-  ReturnType<typeof GetBlocksMetadataInput.parse>,
-  ReturnType<typeof GetBlocksMetadataResult.parse>
+  z.infer<typeof GetBlocksMetadataInputSchema>,
+  z.infer<typeof GetBlocksMetadataResultSchema>
 > = {
   name: 'get_blocks_metadata',
-  inputSchema: GetBlocksMetadataInput,
-  outputSchema: GetBlocksMetadataResult,
+  inputSchema: GetBlocksMetadataInputSchema,
+  outputSchema: GetBlocksMetadataResultSchema,
   async execute(
-    { blockIds }: ReturnType<typeof GetBlocksMetadataInput.parse>,
+    { blockIds }: z.infer<typeof GetBlocksMetadataInputSchema>,
     context?: { userId: string }
-  ): Promise<ReturnType<typeof GetBlocksMetadataResult.parse>> {
+  ): Promise<z.infer<typeof GetBlocksMetadataResultSchema>> {
     const logger = createLogger('GetBlocksMetadataServerTool')
     logger.debug('Executing get_blocks_metadata', { count: blockIds?.length })
 
@@ -324,7 +327,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
       transformedResult[blockId] = transformBlockMetadata(metadata)
     }
 
-    return GetBlocksMetadataResult.parse({ metadata: transformedResult })
+    return GetBlocksMetadataResultSchema.parse({ metadata: transformedResult })
   },
 }
 

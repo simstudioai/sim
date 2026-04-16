@@ -44,18 +44,6 @@ export const linearCycleCreatedTrigger: TriggerConfig = {
       },
     },
     {
-      id: 'triggerSave',
-      title: '',
-      type: 'trigger-save',
-      hideFromPreview: true,
-      mode: 'trigger',
-      triggerId: 'linear_cycle_created',
-      condition: {
-        field: 'selectedTriggerId',
-        value: 'linear_cycle_created',
-      },
-    },
-    {
       id: 'triggerInstructions',
       title: 'Setup Instructions',
       hideFromPreview: true,

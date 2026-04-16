@@ -1,12 +1,20 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import {
-  getStreamMeta,
-  readStreamEvents,
-  type StreamMeta,
-} from '@/lib/copilot/orchestrator/stream/buffer'
-import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request-helpers'
-import { SSE_HEADERS } from '@/lib/core/utils/sse'
+  MothershipStreamV1CompletionStatus,
+  MothershipStreamV1EventType,
+} from '@/lib/copilot/generated/mothership-stream-v1'
+import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
+import {
+  checkForReplayGap,
+  createEvent,
+  encodeSSEEnvelope,
+  readEvents,
+  readFilePreviewSessions,
+  SSE_RESPONSE_HEADERS,
+} from '@/lib/copilot/request/session'
+import { toStreamBatchEvent } from '@/lib/copilot/request/session/types'
 
 export const maxDuration = 3600
 
@@ -14,8 +22,59 @@ const logger = createLogger('CopilotChatStreamAPI')
 const POLL_INTERVAL_MS = 250
 const MAX_STREAM_MS = 60 * 60 * 1000
 
-function encodeEvent(event: Record<string, any>): Uint8Array {
-  return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`)
+function isTerminalStatus(
+  status: string | null | undefined
+): status is MothershipStreamV1CompletionStatus {
+  return (
+    status === MothershipStreamV1CompletionStatus.complete ||
+    status === MothershipStreamV1CompletionStatus.error ||
+    status === MothershipStreamV1CompletionStatus.cancelled
+  )
+}
+
+function buildResumeTerminalEnvelopes(options: {
+  streamId: string
+  afterCursor: string
+  status: MothershipStreamV1CompletionStatus
+  message?: string
+  code: string
+  reason?: string
+}) {
+  const baseSeq = Number(options.afterCursor || '0')
+  const seq = Number.isFinite(baseSeq) ? baseSeq : 0
+  const envelopes: ReturnType<typeof createEvent>[] = []
+
+  if (options.status === MothershipStreamV1CompletionStatus.error) {
+    envelopes.push(
+      createEvent({
+        streamId: options.streamId,
+        cursor: String(seq + 1),
+        seq: seq + 1,
+        requestId: '',
+        type: MothershipStreamV1EventType.error,
+        payload: {
+          message: options.message || 'Stream recovery failed before completion.',
+          code: options.code,
+        },
+      })
+    )
+  }
+
+  envelopes.push(
+    createEvent({
+      streamId: options.streamId,
+      cursor: String(seq + envelopes.length + 1),
+      seq: seq + envelopes.length + 1,
+      requestId: '',
+      type: MothershipStreamV1EventType.complete,
+      payload: {
+        status: options.status,
+        ...(options.reason ? { reason: options.reason } : {}),
+      },
+    })
+  )
+
+  return envelopes
 }
 
 export async function GET(request: NextRequest) {
@@ -28,58 +87,56 @@ export async function GET(request: NextRequest) {
 
   const url = new URL(request.url)
   const streamId = url.searchParams.get('streamId') || ''
-  const fromParam = url.searchParams.get('from') || '0'
-  const fromEventId = Number(fromParam || 0)
-  // If batch=true, return buffered events as JSON instead of SSE
+  const afterCursor = url.searchParams.get('after') || ''
   const batchMode = url.searchParams.get('batch') === 'true'
-  const toParam = url.searchParams.get('to')
-  const toEventId = toParam ? Number(toParam) : undefined
-
-  const reqLogger = logger.withMetadata({ messageId: streamId || undefined })
-
-  reqLogger.info('[Resume] Received resume request', {
-    streamId: streamId || undefined,
-    fromEventId,
-    toEventId,
-    batchMode,
-  })
 
   if (!streamId) {
     return NextResponse.json({ error: 'streamId is required' }, { status: 400 })
   }
 
-  const meta = (await getStreamMeta(streamId)) as StreamMeta | null
-  reqLogger.info('[Resume] Stream lookup', {
-    streamId,
-    fromEventId,
-    toEventId,
-    batchMode,
-    hasMeta: !!meta,
-    metaStatus: meta?.status,
+  const run = await getLatestRunForStream(streamId, authenticatedUserId).catch((err) => {
+    logger.warn('Failed to fetch latest run for stream', {
+      streamId,
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return null
   })
-  if (!meta) {
+  logger.info('[Resume] Stream lookup', {
+    streamId,
+    afterCursor,
+    batchMode,
+    hasRun: !!run,
+    runStatus: run?.status,
+  })
+  if (!run) {
     return NextResponse.json({ error: 'Stream not found' }, { status: 404 })
   }
-  if (meta.userId && meta.userId !== authenticatedUserId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
-  }
 
-  // Batch mode: return all buffered events as JSON
   if (batchMode) {
-    const events = await readStreamEvents(streamId, fromEventId)
-    const filteredEvents = toEventId ? events.filter((e) => e.eventId <= toEventId) : events
-    reqLogger.info('[Resume] Batch response', {
+    const afterSeq = afterCursor || '0'
+    const [events, previewSessions] = await Promise.all([
+      readEvents(streamId, afterSeq),
+      readFilePreviewSessions(streamId).catch((error) => {
+        logger.warn('Failed to read preview sessions for stream batch', {
+          streamId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        return []
+      }),
+    ])
+    const batchEvents = events.map(toStreamBatchEvent)
+    logger.info('[Resume] Batch response', {
       streamId,
-      fromEventId,
-      toEventId,
-      eventCount: filteredEvents.length,
+      afterCursor: afterSeq,
+      eventCount: batchEvents.length,
+      previewSessionCount: previewSessions.length,
+      runStatus: run.status,
     })
     return NextResponse.json({
       success: true,
-      events: filteredEvents,
-      status: meta.status,
-      executionId: meta.executionId,
-      runId: meta.runId,
+      events: batchEvents,
+      previewSessions,
+      status: run.status,
     })
   }
 
@@ -87,9 +144,9 @@ export async function GET(request: NextRequest) {
 
   const stream = new ReadableStream({
     async start(controller) {
-      let lastEventId = Number.isFinite(fromEventId) ? fromEventId : 0
-      let latestMeta = meta
+      let cursor = afterCursor || '0'
       let controllerClosed = false
+      let sawTerminalEvent = false
 
       const closeController = () => {
         if (controllerClosed) return
@@ -97,14 +154,14 @@ export async function GET(request: NextRequest) {
         try {
           controller.close()
         } catch {
-          // Controller already closed by runtime/client - treat as normal.
+          // Controller already closed by runtime/client
         }
       }
 
-      const enqueueEvent = (payload: Record<string, any>) => {
+      const enqueueEvent = (payload: unknown) => {
         if (controllerClosed) return false
         try {
-          controller.enqueue(encodeEvent(payload))
+          controller.enqueue(encodeSSEEnvelope(payload))
           return true
         } catch {
           controllerClosed = true
@@ -118,47 +175,96 @@ export async function GET(request: NextRequest) {
       request.signal.addEventListener('abort', abortListener, { once: true })
 
       const flushEvents = async () => {
-        const events = await readStreamEvents(streamId, lastEventId)
+        const events = await readEvents(streamId, cursor)
         if (events.length > 0) {
-          reqLogger.info('[Resume] Flushing events', {
+          logger.info('[Resume] Flushing events', {
             streamId,
-            fromEventId: lastEventId,
+            afterCursor: cursor,
             eventCount: events.length,
           })
         }
-        for (const entry of events) {
-          lastEventId = entry.eventId
-          const payload = {
-            ...entry.event,
-            eventId: entry.eventId,
-            streamId: entry.streamId,
-            executionId: latestMeta?.executionId,
-            runId: latestMeta?.runId,
+        for (const envelope of events) {
+          cursor = envelope.stream.cursor ?? String(envelope.seq)
+          if (envelope.type === MothershipStreamV1EventType.complete) {
+            sawTerminalEvent = true
           }
-          if (!enqueueEvent(payload)) {
+          if (!enqueueEvent(envelope)) {
+            break
+          }
+        }
+      }
+
+      const emitTerminalIfMissing = (
+        status: MothershipStreamV1CompletionStatus,
+        options?: { message?: string; code: string; reason?: string }
+      ) => {
+        if (controllerClosed || sawTerminalEvent) {
+          return
+        }
+        for (const envelope of buildResumeTerminalEnvelopes({
+          streamId,
+          afterCursor: cursor,
+          status,
+          message: options?.message,
+          code: options?.code ?? 'resume_terminal',
+          reason: options?.reason,
+        })) {
+          cursor = envelope.stream.cursor ?? String(envelope.seq)
+          if (envelope.type === MothershipStreamV1EventType.complete) {
+            sawTerminalEvent = true
+          }
+          if (!enqueueEvent(envelope)) {
             break
           }
         }
       }
 
       try {
+        const gap = await checkForReplayGap(streamId, afterCursor)
+        if (gap) {
+          for (const envelope of gap.envelopes) {
+            enqueueEvent(envelope)
+          }
+          return
+        }
+
         await flushEvents()
 
         while (!controllerClosed && Date.now() - startTime < MAX_STREAM_MS) {
-          const currentMeta = await getStreamMeta(streamId)
-          if (!currentMeta) break
-          latestMeta = currentMeta
+          const currentRun = await getLatestRunForStream(streamId, authenticatedUserId).catch(
+            (err) => {
+              logger.warn('Failed to poll latest run for stream', {
+                streamId,
+                error: err instanceof Error ? err.message : String(err),
+              })
+              return null
+            }
+          )
+          if (!currentRun) {
+            emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
+              message: 'The stream could not be recovered because its run metadata is unavailable.',
+              code: 'resume_run_unavailable',
+              reason: 'run_unavailable',
+            })
+            break
+          }
 
           await flushEvents()
 
           if (controllerClosed) {
             break
           }
-          if (
-            currentMeta.status === 'complete' ||
-            currentMeta.status === 'error' ||
-            currentMeta.status === 'cancelled'
-          ) {
+          if (isTerminalStatus(currentRun.status)) {
+            emitTerminalIfMissing(currentRun.status, {
+              message:
+                currentRun.status === MothershipStreamV1CompletionStatus.error
+                  ? typeof currentRun.error === 'string'
+                    ? currentRun.error
+                    : 'The recovered stream ended with an error.'
+                  : undefined,
+              code: 'resume_terminal_status',
+              reason: 'terminal_status',
+            })
             break
           }
 
@@ -169,11 +275,23 @@ export async function GET(request: NextRequest) {
 
           await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
         }
+        if (!controllerClosed && Date.now() - startTime >= MAX_STREAM_MS) {
+          emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
+            message: 'The stream recovery timed out before completion.',
+            code: 'resume_timeout',
+            reason: 'timeout',
+          })
+        }
       } catch (error) {
         if (!controllerClosed && !request.signal.aborted) {
-          reqLogger.warn('Stream replay failed', {
+          logger.warn('Stream replay failed', {
             streamId,
             error: error instanceof Error ? error.message : String(error),
+          })
+          emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
+            message: 'The stream replay failed before completion.',
+            code: 'resume_internal',
+            reason: 'stream_replay_failed',
           })
         }
       } finally {
@@ -183,5 +301,5 @@ export async function GET(request: NextRequest) {
     },
   })
 
-  return new Response(stream, { headers: SSE_HEADERS })
+  return new Response(stream, { headers: SSE_RESPONSE_HEADERS })
 }

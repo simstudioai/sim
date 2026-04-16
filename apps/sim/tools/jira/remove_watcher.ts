@@ -15,8 +15,6 @@ export const jiraRemoveWatcherTool: ToolConfig<JiraRemoveWatcherParams, JiraRemo
       provider: 'jira',
     },
 
-    errorExtractor: 'atlassian-errors',
-
     params: {
       accessToken: {
         type: 'string',

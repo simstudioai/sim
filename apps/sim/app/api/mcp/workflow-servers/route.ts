@@ -208,6 +208,13 @@ export const POST = withMcpAuth('write')(
         resourceId: serverId,
         resourceName: body.name.trim(),
         description: `Published workflow MCP server "${body.name.trim()}" with ${addedTools.length} tool(s)`,
+        metadata: {
+          serverName: body.name.trim(),
+          isPublic: body.isPublic ?? false,
+          toolCount: addedTools.length,
+          toolNames: addedTools.map((t) => t.toolName),
+          workflowIds: addedTools.map((t) => t.workflowId),
+        },
         request,
       })
 

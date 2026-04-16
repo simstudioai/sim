@@ -2,7 +2,6 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { DispatchQueueFullError } from '@/lib/core/workspace-dispatch'
 import {
   checkWebhookPreprocessing,
   findAllWebhooksForPath,
@@ -156,29 +155,14 @@ async function handleWebhookPost(
     if (shouldSkipWebhookEvent(foundWebhook, body, requestId)) {
       continue
     }
-
-    try {
-      const response = await queueWebhookExecution(foundWebhook, foundWorkflow, body, request, {
-        requestId,
-        path,
-        actorUserId: preprocessResult.actorUserId,
-        executionId: preprocessResult.executionId,
-        correlation: preprocessResult.correlation,
-      })
-      responses.push(response)
-    } catch (error) {
-      if (error instanceof DispatchQueueFullError) {
-        return NextResponse.json(
-          {
-            error: 'Service temporarily at capacity',
-            message: error.message,
-            retryAfterSeconds: 10,
-          },
-          { status: 503, headers: { 'Retry-After': '10' } }
-        )
-      }
-      throw error
-    }
+    const response = await queueWebhookExecution(foundWebhook, foundWorkflow, body, request, {
+      requestId,
+      path,
+      actorUserId: preprocessResult.actorUserId,
+      executionId: preprocessResult.executionId,
+      correlation: preprocessResult.correlation,
+    })
+    responses.push(response)
   }
 
   if (responses.length === 0) {

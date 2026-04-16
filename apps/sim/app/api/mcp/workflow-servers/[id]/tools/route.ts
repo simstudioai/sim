@@ -224,7 +224,13 @@ export const POST = withMcpAuth<RouteParams>('write')(
         resourceType: AuditResourceType.MCP_SERVER,
         resourceId: serverId,
         description: `Added tool "${toolName}" to MCP server`,
-        metadata: { toolId, toolName, workflowId: body.workflowId },
+        metadata: {
+          toolId,
+          toolName,
+          toolDescription,
+          workflowId: body.workflowId,
+          workflowName: workflowRecord.name,
+        },
         request,
       })
 

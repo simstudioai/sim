@@ -111,8 +111,50 @@ export const DEFAULT_EXPORT_FORMATS: Record<string, string> = {
   'application/vnd.google-apps.spreadsheet': 'text/csv',
   'application/vnd.google-apps.presentation': 'text/plain',
   'application/vnd.google-apps.drawing': 'image/png',
-  'application/vnd.google-apps.form': 'application/pdf',
-  'application/vnd.google-apps.script': 'application/json',
+  'application/vnd.google-apps.form': 'application/zip',
+  'application/vnd.google-apps.script': 'application/vnd.google-apps.script+json',
+}
+
+/**
+ * Valid export formats per Google Workspace file type.
+ * See: https://developers.google.com/drive/api/guides/ref-export-formats
+ */
+export const VALID_EXPORT_FORMATS: Record<string, string[]> = {
+  'application/vnd.google-apps.document': [
+    'text/plain',
+    'text/html',
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.oasis.opendocument.text',
+    'application/rtf',
+    'application/epub+zip',
+    'text/markdown',
+  ],
+  'application/vnd.google-apps.spreadsheet': [
+    'text/csv',
+    'text/tab-separated-values',
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.oasis.opendocument.spreadsheet',
+    'application/zip',
+  ],
+  'application/vnd.google-apps.presentation': [
+    'text/plain',
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.oasis.opendocument.presentation',
+    'image/jpeg',
+    'image/png',
+    'image/svg+xml',
+  ],
+  'application/vnd.google-apps.drawing': [
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+    'image/svg+xml',
+  ],
+  'application/vnd.google-apps.form': ['application/zip'],
+  'application/vnd.google-apps.script': ['application/vnd.google-apps.script+json'],
 }
 
 export const SOURCE_MIME_TYPES: Record<string, string> = {

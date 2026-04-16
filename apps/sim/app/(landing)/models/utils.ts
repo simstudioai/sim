@@ -552,7 +552,7 @@ assertUniqueGeneratedRoutes(rawProviders)
 
 export const MODEL_CATALOG_PROVIDERS: CatalogProvider[] = rawProviders
 export const MODEL_PROVIDERS_WITH_CATALOGS = MODEL_CATALOG_PROVIDERS.filter(
-  (provider) => provider.models.length > 0
+  (provider) => provider.models.length > 0 && !provider.isReseller
 )
 export const MODEL_PROVIDERS_WITH_DYNAMIC_CATALOGS = MODEL_CATALOG_PROVIDERS.filter(
   (provider) => provider.models.length === 0
@@ -695,7 +695,7 @@ export function buildModelFaqs(provider: CatalogProvider, model: CatalogModel): 
     {
       question: `What is the context window for ${model.displayName}?`,
       answer: model.contextWindow
-        ? `${model.displayName} supports a context window of ${formatTokenCount(model.contextWindow)} tokens in Sim. In an agent workflow, this determines how much conversation history, tool outputs, and retrieved documents the model can hold in a single call.`
+        ? `${model.displayName} supports a context window of ${formatTokenCount(model.contextWindow)} tokens in Sim. In an agent, this determines how much conversation history, tool outputs, and retrieved documents the model can hold in a single call.`
         : `A public context window value is not currently tracked for ${model.displayName}.`,
     },
     {

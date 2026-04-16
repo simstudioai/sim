@@ -10,8 +10,8 @@ import {
   createInternalServerErrorResponse,
   createNotFoundResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request-helpers'
-import type { ChatResource, ResourceType } from '@/lib/copilot/resources'
+} from '@/lib/copilot/request/http'
+import type { ChatResource, ResourceType } from '@/lib/copilot/resources/persistence'
 
 const logger = createLogger('CopilotChatResourcesAPI')
 
@@ -21,13 +21,14 @@ const VALID_RESOURCE_TYPES = new Set<ResourceType>([
   'workflow',
   'knowledgebase',
   'folder',
+  'log',
 ])
-const GENERIC_TITLES = new Set(['Table', 'File', 'Workflow', 'Knowledge Base', 'Folder'])
+const GENERIC_TITLES = new Set(['Table', 'File', 'Workflow', 'Knowledge Base', 'Folder', 'Log'])
 
 const AddResourceSchema = z.object({
   chatId: z.string(),
   resource: z.object({
-    type: z.enum(['table', 'file', 'workflow', 'knowledgebase', 'folder']),
+    type: z.enum(['table', 'file', 'workflow', 'knowledgebase', 'folder', 'log']),
     id: z.string(),
     title: z.string(),
   }),
@@ -35,7 +36,7 @@ const AddResourceSchema = z.object({
 
 const RemoveResourceSchema = z.object({
   chatId: z.string(),
-  resourceType: z.enum(['table', 'file', 'workflow', 'knowledgebase', 'folder']),
+  resourceType: z.enum(['table', 'file', 'workflow', 'knowledgebase', 'folder', 'log']),
   resourceId: z.string(),
 })
 
@@ -43,7 +44,7 @@ const ReorderResourcesSchema = z.object({
   chatId: z.string(),
   resources: z.array(
     z.object({
-      type: z.enum(['table', 'file', 'workflow', 'knowledgebase', 'folder']),
+      type: z.enum(['table', 'file', 'workflow', 'knowledgebase', 'folder', 'log']),
       id: z.string(),
       title: z.string(),
     })
@@ -168,24 +169,24 @@ export async function DELETE(req: NextRequest) {
     const body = await req.json()
     const { chatId, resourceType, resourceId } = RemoveResourceSchema.parse(body)
 
-    const [chat] = await db
-      .select({ resources: copilotChats.resources })
-      .from(copilotChats)
+    const [updated] = await db
+      .update(copilotChats)
+      .set({
+        resources: sql`COALESCE((
+          SELECT jsonb_agg(elem)
+          FROM jsonb_array_elements(${copilotChats.resources}) elem
+          WHERE NOT (elem->>'type' = ${resourceType} AND elem->>'id' = ${resourceId})
+        ), '[]'::jsonb)`,
+        updatedAt: new Date(),
+      })
       .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
-      .limit(1)
+      .returning({ resources: copilotChats.resources })
 
-    if (!chat) {
+    if (!updated) {
       return createNotFoundResponse('Chat not found or unauthorized')
     }
 
-    const existing = Array.isArray(chat.resources) ? (chat.resources as ChatResource[]) : []
-    const key = `${resourceType}:${resourceId}`
-    const merged = existing.filter((r) => `${r.type}:${r.id}` !== key)
-
-    await db
-      .update(copilotChats)
-      .set({ resources: sql`${JSON.stringify(merged)}::jsonb`, updatedAt: new Date() })
-      .where(eq(copilotChats.id, chatId))
+    const merged = Array.isArray(updated.resources) ? (updated.resources as ChatResource[]) : []
 
     logger.info('Removed resource from chat', { chatId, resourceType, resourceId })
 

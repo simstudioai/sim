@@ -19,6 +19,7 @@
     "tables",
     "variables",
     "credentials",
+    "custom-tools",
     "---Platform---",
     "execution",
     "permissions",

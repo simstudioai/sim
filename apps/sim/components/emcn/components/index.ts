@@ -32,6 +32,7 @@ export {
   highlight,
   languages,
 } from './code/code'
+export { CopyCodeButton } from './code/copy-code-button'
 export {
   Combobox,
   type ComboboxOption,
@@ -61,6 +62,7 @@ export { FormField, type FormFieldProps } from './form-field/form-field'
 export { Input, type InputProps, inputVariants } from './input/input'
 export { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from './input-otp/input-otp'
 export { Label } from './label/label'
+export { focusFirstTextInput, focusFirstTextInputIn } from './modal/auto-focus'
 export {
   MODAL_SIZES,
   Modal,

@@ -91,7 +91,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Select Jira project',
       dependsOn: ['credential', 'domain'],
       mode: 'basic',
-      required: { field: 'operation', value: ['write', 'update', 'read-bulk'] },
+      required: { field: 'operation', value: ['write', 'read-bulk'] },
     },
     // Manual project ID input (advanced mode)
     {
@@ -102,7 +102,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Enter Jira project ID',
       dependsOn: ['credential', 'domain'],
       mode: 'advanced',
-      required: { field: 'operation', value: ['write', 'update', 'read-bulk'] },
+      required: { field: 'operation', value: ['write', 'read-bulk'] },
     },
     // Issue selector (basic mode)
     {
@@ -218,9 +218,8 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       id: 'summary',
       title: 'New Summary',
       type: 'short-input',
-      required: true,
+      required: { field: 'operation', value: 'write' },
       placeholder: 'Enter new summary for the issue',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['update', 'write'] },
       wandConfig: {
         enabled: true,
@@ -240,7 +239,6 @@ Return ONLY the summary text - no explanations.`,
       title: 'New Description',
       type: 'long-input',
       placeholder: 'Enter new description for the issue',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['update', 'write'] },
       wandConfig: {
         enabled: true,
@@ -279,7 +277,6 @@ Return ONLY the description text - no explanations.`,
       title: 'Assignee Account ID',
       type: 'short-input',
       placeholder: 'Assignee account ID (e.g., 5b109f2e9729b51b54dc274d)',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['write', 'update'] },
     },
     {
@@ -287,7 +284,6 @@ Return ONLY the description text - no explanations.`,
       title: 'Priority',
       type: 'short-input',
       placeholder: 'Priority ID or name (e.g., "10000" or "High")',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['write', 'update'] },
     },
     {
@@ -295,7 +291,6 @@ Return ONLY the description text - no explanations.`,
       title: 'Labels',
       type: 'short-input',
       placeholder: 'Comma-separated labels (e.g., bug, urgent)',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['write', 'update'] },
     },
     {
@@ -303,7 +298,6 @@ Return ONLY the description text - no explanations.`,
       title: 'Due Date',
       type: 'short-input',
       placeholder: 'YYYY-MM-DD (e.g., 2024-12-31)',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['write', 'update'] },
       wandConfig: {
         enabled: true,
@@ -332,7 +326,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'Environment',
       type: 'long-input',
       placeholder: 'Environment information (e.g., Production, Staging)',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['write', 'update'] },
     },
     {
@@ -340,7 +333,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'Custom Field ID',
       type: 'short-input',
       placeholder: 'e.g., customfield_10001 or 10001',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['write', 'update'] },
     },
     {
@@ -348,7 +340,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'Custom Field Value',
       type: 'short-input',
       placeholder: 'Value for the custom field',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['write', 'update'] },
     },
     {
@@ -356,7 +347,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'Components',
       type: 'short-input',
       placeholder: 'Comma-separated component names',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['write', 'update'] },
     },
     {
@@ -364,7 +354,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'Fix Versions',
       type: 'short-input',
       placeholder: 'Comma-separated fix version names',
-      dependsOn: ['projectId'],
       condition: { field: 'operation', value: ['write', 'update'] },
     },
     {

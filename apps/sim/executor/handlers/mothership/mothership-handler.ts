@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@/lib/core/utils/uuid'
+import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
@@ -7,6 +8,7 @@ import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executo
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('MothershipBlockHandler')
+const CANCELLATION_CHECK_INTERVAL_MS = 500
 
 /**
  * Handler for Mothership blocks that proxy requests to the Mothership AI agent.
@@ -31,6 +33,8 @@ export class MothershipBlockHandler implements BlockHandler {
     }
     const messages = [{ role: 'user' as const, content: prompt }]
     const chatId = generateId()
+    const messageId = generateId()
+    const requestId = generateId()
 
     const url = buildAPIUrl('/api/mothership/execute')
     const headers = await buildAuthHeaders(ctx.userId)
@@ -40,17 +44,76 @@ export class MothershipBlockHandler implements BlockHandler {
       workspaceId: ctx.workspaceId || '',
       userId: ctx.userId || '',
       chatId,
+      messageId,
+      requestId,
+      ...(ctx.workflowId ? { workflowId: ctx.workflowId } : {}),
+      ...(ctx.executionId ? { executionId: ctx.executionId } : {}),
     }
 
     logger.info('Executing Mothership block', {
       blockId: block.id,
+      messageId,
+      requestId,
+      workflowId: ctx.workflowId,
+      executionId: ctx.executionId,
     })
 
-    const response = await fetch(url.toString(), {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-    })
+    const abortController = new AbortController()
+    const onAbort = () => {
+      if (!abortController.signal.aborted) {
+        abortController.abort(ctx.abortSignal?.reason ?? 'workflow_abort')
+      }
+    }
+
+    if (ctx.abortSignal?.aborted) {
+      onAbort()
+    } else {
+      ctx.abortSignal?.addEventListener('abort', onAbort, { once: true })
+    }
+
+    const executionId = ctx.executionId
+    const useRedisCancellation = isRedisCancellationEnabled() && !!executionId
+    let pollInFlight = false
+    const cancellationPoller =
+      useRedisCancellation && executionId
+        ? setInterval(() => {
+            if (pollInFlight || abortController.signal.aborted) {
+              return
+            }
+            pollInFlight = true
+            void isExecutionCancelled(executionId)
+              .then((cancelled) => {
+                if (cancelled && !abortController.signal.aborted) {
+                  abortController.abort('workflow_execution_cancelled')
+                }
+              })
+              .catch((error) => {
+                logger.warn('Failed to poll workflow cancellation for Mothership block', {
+                  blockId: block.id,
+                  executionId,
+                  error: error instanceof Error ? error.message : String(error),
+                })
+              })
+              .finally(() => {
+                pollInFlight = false
+              })
+          }, CANCELLATION_CHECK_INTERVAL_MS)
+        : undefined
+
+    let response: Response
+    try {
+      response = await fetch(url.toString(), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: abortController.signal,
+      })
+    } finally {
+      if (cancellationPoller) {
+        clearInterval(cancellationPoller)
+      }
+      ctx.abortSignal?.removeEventListener('abort', onAbort)
+    }
 
     if (!response.ok) {
       const errorMsg = await extractAPIErrorMessage(response)

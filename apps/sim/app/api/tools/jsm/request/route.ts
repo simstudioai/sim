@@ -6,25 +6,12 @@ import {
   validateJiraCloudId,
   validateJiraIssueKey,
 } from '@/lib/core/security/input-validation'
-import { getJiraCloudId, getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
+import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
+import { getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JsmRequestAPI')
-
-function parseJsmErrorMessage(status: number, statusText: string, errorText: string): string {
-  try {
-    const errorData = JSON.parse(errorText)
-    if (errorData.errorMessage) {
-      return `JSM API error: ${errorData.errorMessage}`
-    }
-  } catch {
-    if (errorText) {
-      return `JSM API error: ${errorText}`
-    }
-  }
-  return `JSM API error: ${status} ${statusText}`
-}
 
 export async function POST(request: NextRequest) {
   const auth = await checkInternalAuth(request)
@@ -91,7 +78,18 @@ export async function POST(request: NextRequest) {
         requestTypeId,
       }
 
-      if (summary || description || requestFieldValues) {
+      if (formAnswers && typeof formAnswers === 'object') {
+        // When form answers are provided, use them as the primary data source.
+        // Per Atlassian docs, fields linked to form questions must NOT also appear
+        // in requestFieldValues — doing so causes a 400 error.
+        requestBody.form = { answers: formAnswers }
+
+        // Only include explicit requestFieldValues if the caller provided them
+        // (they know which fields are safe to include alongside form answers).
+        if (requestFieldValues && typeof requestFieldValues === 'object') {
+          requestBody.requestFieldValues = requestFieldValues
+        }
+      } else if (summary || description || requestFieldValues) {
         const fieldValues =
           requestFieldValues && typeof requestFieldValues === 'object'
             ? {
@@ -104,10 +102,6 @@ export async function POST(request: NextRequest) {
                 ...(description && { description }),
               }
         requestBody.requestFieldValues = fieldValues
-      }
-
-      if (formAnswers && typeof formAnswers === 'object') {
-        requestBody.form = { answers: formAnswers }
       }
 
       if (raiseOnBehalfOf) {
@@ -143,7 +137,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json(
           {
-            error: parseJsmErrorMessage(response.status, response.statusText, errorText),
+            error: parseAtlassianErrorMessage(response.status, response.statusText, errorText),
             details: errorText,
           },
           { status: response.status }
@@ -212,7 +206,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json(
         {
-          error: parseJsmErrorMessage(response.status, response.statusText, errorText),
+          error: parseAtlassianErrorMessage(response.status, response.statusText, errorText),
           details: errorText,
         },
         { status: response.status }

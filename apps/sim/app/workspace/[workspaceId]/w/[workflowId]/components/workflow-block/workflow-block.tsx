@@ -10,7 +10,8 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createMcpToolId } from '@/lib/mcp/shared'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import type { FilterRule, SortRule } from '@/lib/table/types'
-import { BLOCK_DIMENSIONS, HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
+import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
+import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
 import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
 import {
   buildCanonicalIndex,
@@ -639,7 +640,7 @@ const SubBlockRow = memo(function SubBlockRow({
   }, [subBlock?.id, rawValue, tables])
 
   const webhookUrlDisplayValue = useMemo(() => {
-    if (subBlock?.id !== 'webhookUrlDisplay' || !blockId) {
+    if (!subBlock?.id?.startsWith('webhookUrlDisplay') || !blockId) {
       return null
     }
     const baseUrl = getBaseUrl()
@@ -1145,33 +1146,14 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   useBlockDimensions({
     blockId: id,
     calculateDimensions: () => {
-      const shouldShowDefaultHandles =
-        config.category !== 'triggers' && type !== 'starter' && !displayTriggerMode
-      const hasContentBelowHeader = subBlockRows.length > 0 || shouldShowDefaultHandles
-
-      const defaultHandlesRow = shouldShowDefaultHandles ? 1 : 0
-
-      let rowsCount = 0
-      if (type === 'condition') {
-        rowsCount = conditionRows.length + defaultHandlesRow
-      } else if (type === 'router_v2') {
-        // +1 for context row, plus route rows
-        rowsCount = 1 + routerRows.length + defaultHandlesRow
-      } else {
-        const subblockRowCount = subBlockRows.reduce((acc, row) => acc + row.length, 0)
-        rowsCount = subblockRowCount + defaultHandlesRow
-      }
-
-      const contentHeight = hasContentBelowHeader
-        ? BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING +
-          rowsCount * BLOCK_DIMENSIONS.WORKFLOW_ROW_HEIGHT
-        : 0
-      const calculatedHeight = Math.max(
-        BLOCK_DIMENSIONS.HEADER_HEIGHT + contentHeight,
-        BLOCK_DIMENSIONS.MIN_HEIGHT
-      )
-
-      return { width: BLOCK_DIMENSIONS.FIXED_WIDTH, height: calculatedHeight }
+      return calculateWorkflowBlockDimensions({
+        blockType: type,
+        category: config.category,
+        displayTriggerMode,
+        visibleSubBlockCount: subBlockRows.reduce((acc, row) => acc + row.length, 0),
+        conditionRowCount: conditionRows.length,
+        routerRowCount: routerRows.length,
+      })
     },
     dependencies: [
       type,

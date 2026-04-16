@@ -204,6 +204,49 @@ const EXTENSION_TO_MIME: Record<string, string> = {
   yml: 'application/x-yaml',
   rtf: 'application/rtf',
 
+  // Code / plain-text source
+  py: 'text/x-python',
+  js: 'text/javascript',
+  mjs: 'text/javascript',
+  cjs: 'text/javascript',
+  ts: 'text/typescript',
+  tsx: 'text/typescript',
+  jsx: 'text/javascript',
+  go: 'text/x-go',
+  rs: 'text/x-rust',
+  java: 'text/x-java',
+  kt: 'text/x-kotlin',
+  c: 'text/x-c',
+  cpp: 'text/x-c++',
+  h: 'text/x-c',
+  hpp: 'text/x-c++',
+  cs: 'text/x-csharp',
+  rb: 'text/x-ruby',
+  php: 'text/x-php',
+  swift: 'text/x-swift',
+  sh: 'text/x-shellscript',
+  bash: 'text/x-shellscript',
+  zsh: 'text/x-shellscript',
+  r: 'text/x-r',
+  sql: 'text/x-sql',
+  scala: 'text/x-scala',
+  lua: 'text/x-lua',
+  pl: 'text/x-perl',
+  toml: 'text/x-toml',
+  ini: 'text/plain',
+  cfg: 'text/plain',
+  conf: 'text/plain',
+  env: 'text/plain',
+  log: 'text/plain',
+  makefile: 'text/x-makefile',
+  dockerfile: 'text/x-dockerfile',
+  css: 'text/css',
+  scss: 'text/x-scss',
+  less: 'text/x-less',
+  graphql: 'text/x-graphql',
+  gql: 'text/x-graphql',
+  proto: 'text/x-protobuf',
+
   // Audio
   mp3: 'audio/mpeg',
   m4a: 'audio/mp4',
@@ -420,10 +463,11 @@ export function inferContextFromKey(key: string): StorageContext {
   if (key.startsWith('workspace/')) return 'workspace'
   if (key.startsWith('profile-pictures/')) return 'profile-pictures'
   if (key.startsWith('og-images/')) return 'og-images'
+  if (key.startsWith('workspace-logos/')) return 'workspace-logos'
   if (key.startsWith('logs/')) return 'logs'
 
   throw new Error(
-    `File key must start with a context prefix (kb/, chat/, copilot/, execution/, workspace/, profile-pictures/, og-images/, or logs/). Got: ${key}`
+    `File key must start with a context prefix (kb/, chat/, copilot/, execution/, workspace/, profile-pictures/, og-images/, workspace-logos/, or logs/). Got: ${key}`
   )
 }
 

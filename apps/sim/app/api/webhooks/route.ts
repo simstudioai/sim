@@ -687,7 +687,12 @@ export async function POST(request: NextRequest) {
         resourceId: savedWebhook.id,
         resourceName: provider || 'generic',
         description: `Created ${provider || 'generic'} webhook`,
-        metadata: { provider, workflowId },
+        metadata: {
+          provider: provider || 'generic',
+          workflowId,
+          webhookPath: finalPath,
+          blockId: blockId || undefined,
+        },
         request,
       })
 

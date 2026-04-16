@@ -11,6 +11,7 @@ import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { WebhookAttachmentProcessor } from '@/lib/webhooks/attachment-processor'
+import { resolveWebhookRecordProviderConfig } from '@/lib/webhooks/env-resolver'
 import { getProviderHandler } from '@/lib/webhooks/providers'
 import {
   executeWorkflowCore,
@@ -168,6 +169,24 @@ export async function executeWebhookJob(payload: WebhookExecutionPayload) {
   )
 }
 
+export async function resolveWebhookExecutionProviderConfig<
+  T extends { id: string; providerConfig?: unknown },
+>(
+  webhookRecord: T,
+  provider: string,
+  userId: string,
+  workspaceId?: string
+): Promise<T & { providerConfig: Record<string, unknown> }> {
+  try {
+    return await resolveWebhookRecordProviderConfig(webhookRecord, userId, workspaceId)
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      `Failed to resolve webhook provider config for ${provider} webhook ${webhookRecord.id}: ${errorMessage}`
+    )
+  }
+}
+
 async function resolveCredentialAccountUserId(credentialId: string): Promise<string | undefined> {
   const resolved = await resolveOAuthAccountId(credentialId)
   if (!resolved) {
@@ -300,9 +319,16 @@ async function executeWebhookJobInternal(
       throw new Error(`Webhook record not found: ${payload.webhookId}`)
     }
 
+    const resolvedWebhookRecord = await resolveWebhookExecutionProviderConfig(
+      webhookRecord,
+      payload.provider,
+      workflowRecord.userId,
+      workspaceId
+    )
+
     if (handler.formatInput) {
       const result = await handler.formatInput({
-        webhook: webhookRecord,
+        webhook: resolvedWebhookRecord,
         workflow: { id: payload.workflowId, userId: payload.userId },
         body: payload.body,
         headers: payload.headers,

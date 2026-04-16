@@ -121,8 +121,12 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       action: AuditAction.MEMBER_REMOVED,
       resourceType: AuditResourceType.WORKSPACE,
       resourceId: workspaceId,
-      description: isSelf ? 'Left the workspace' : 'Removed a member from the workspace',
-      metadata: { removedUserId: userId, selfRemoval: isSelf },
+      description: isSelf ? 'Left the workspace' : `Removed member ${userId} from the workspace`,
+      metadata: {
+        removedUserId: userId,
+        removedUserRole: userPermission.permissionType,
+        selfRemoval: isSelf,
+      },
       request: req,
     })
 
