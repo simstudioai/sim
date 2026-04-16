@@ -334,7 +334,10 @@ export function ResourceTabs({
     anchorIdRef.current = null
   }
 
-  const existingKeys = new Set(resources.map((r) => `${r.type}:${r.id}`))
+  const existingKeys = useMemo(
+    () => new Set(resources.map((r) => `${r.type}:${r.id}`)),
+    [resources]
+  )
 
   const handleAdd = useCallback(
     (resource: MothershipResource) => {
