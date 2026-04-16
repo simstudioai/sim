@@ -5,156 +5,21 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { generateId } from '@/lib/core/utils/uuid'
 import {
   batchInsertRows,
+  CSV_MAX_BATCH_SIZE,
+  CSV_MAX_FILE_SIZE_BYTES,
+  coerceRowsForTable,
   createTable,
   deleteTable,
   getWorkspaceTableLimits,
+  inferSchemaFromCsv,
+  parseCsvBuffer,
+  sanitizeName,
   type TableSchema,
 } from '@/lib/table'
-import type { ColumnDefinition, RowData } from '@/lib/table/types'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { normalizeColumn } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportCSV')
-
-const MAX_CSV_FILE_SIZE = 50 * 1024 * 1024
-const MAX_BATCH_SIZE = 1000
-const SCHEMA_SAMPLE_SIZE = 100
-
-type ColumnType = 'string' | 'number' | 'boolean' | 'date'
-
-async function parseCsvBuffer(
-  buffer: Buffer,
-  delimiter = ','
-): Promise<{ headers: string[]; rows: Record<string, unknown>[] }> {
-  const { parse } = await import('csv-parse/sync')
-  const parsed = parse(buffer.toString('utf-8'), {
-    columns: true,
-    skip_empty_lines: true,
-    trim: true,
-    relax_column_count: true,
-    relax_quotes: true,
-    skip_records_with_error: true,
-    cast: false,
-    delimiter,
-  }) as Record<string, unknown>[]
-
-  if (parsed.length === 0) {
-    throw new Error('CSV file has no data rows')
-  }
-
-  const headers = Object.keys(parsed[0])
-  if (headers.length === 0) {
-    throw new Error('CSV file has no headers')
-  }
-
-  return { headers, rows: parsed }
-}
-
-function inferColumnType(values: unknown[]): ColumnType {
-  const nonEmpty = values.filter((v) => v !== null && v !== undefined && v !== '')
-  if (nonEmpty.length === 0) return 'string'
-
-  const allNumber = nonEmpty.every((v) => {
-    const n = Number(v)
-    return !Number.isNaN(n) && String(v).trim() !== ''
-  })
-  if (allNumber) return 'number'
-
-  const allBoolean = nonEmpty.every((v) => {
-    const s = String(v).toLowerCase()
-    return s === 'true' || s === 'false'
-  })
-  if (allBoolean) return 'boolean'
-
-  const isoDatePattern = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?/
-  const allDate = nonEmpty.every((v) => {
-    const s = String(v)
-    return isoDatePattern.test(s) && !Number.isNaN(Date.parse(s))
-  })
-  if (allDate) return 'date'
-
-  return 'string'
-}
-
-function inferSchema(headers: string[], rows: Record<string, unknown>[]): ColumnDefinition[] {
-  const sample = rows.slice(0, SCHEMA_SAMPLE_SIZE)
-  const seen = new Set<string>()
-
-  return headers.map((name) => {
-    let colName = sanitizeName(name)
-    let suffix = 2
-    while (seen.has(colName.toLowerCase())) {
-      colName = `${sanitizeName(name)}_${suffix}`
-      suffix++
-    }
-    seen.add(colName.toLowerCase())
-
-    return {
-      name: colName,
-      type: inferColumnType(sample.map((r) => r[name])),
-    }
-  })
-}
-
-/**
- * Strips non-alphanumeric characters (except underscore), collapses runs of
- * underscores, and ensures the name starts with a letter or underscore.
- * Used for both table names and column names to satisfy NAME_PATTERN.
- */
-function sanitizeName(raw: string, fallbackPrefix = 'col'): string {
-  let name = raw
-    .trim()
-    .replace(/[^a-zA-Z0-9_]/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '')
-
-  if (!name || /^\d/.test(name)) {
-    name = `${fallbackPrefix}_${name}`
-  }
-
-  return name
-}
-
-function coerceValue(value: unknown, colType: ColumnType): string | number | boolean | null {
-  if (value === null || value === undefined || value === '') return null
-  switch (colType) {
-    case 'number': {
-      const n = Number(value)
-      return Number.isNaN(n) ? null : n
-    }
-    case 'boolean': {
-      const s = String(value).toLowerCase()
-      if (s === 'true') return true
-      if (s === 'false') return false
-      return null
-    }
-    case 'date': {
-      const d = new Date(String(value))
-      return Number.isNaN(d.getTime()) ? String(value) : d.toISOString()
-    }
-    default:
-      return String(value)
-  }
-}
-
-function coerceRows(
-  rows: Record<string, unknown>[],
-  columns: ColumnDefinition[],
-  headerToColumn: Map<string, string>
-): RowData[] {
-  const colTypeMap = new Map(columns.map((c) => [c.name, c.type as ColumnType]))
-
-  return rows.map((row) => {
-    const coerced: RowData = {}
-    for (const [header, value] of Object.entries(row)) {
-      const colName = headerToColumn.get(header)
-      if (colName) {
-        coerced[colName] = coerceValue(value, colTypeMap.get(colName) ?? 'string')
-      }
-    }
-    return coerced
-  })
-}
 
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()
@@ -173,9 +38,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'CSV file is required' }, { status: 400 })
     }
 
-    if (file.size > MAX_CSV_FILE_SIZE) {
+    if (file.size > CSV_MAX_FILE_SIZE_BYTES) {
       return NextResponse.json(
-        { error: `File exceeds maximum allowed size of ${MAX_CSV_FILE_SIZE / (1024 * 1024)} MB` },
+        {
+          error: `File exceeds maximum allowed size of ${CSV_MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB`,
+        },
         { status: 400 }
       )
     }
@@ -198,9 +65,7 @@ export async function POST(request: NextRequest) {
     const delimiter = ext === 'tsv' ? '\t' : ','
     const { headers, rows } = await parseCsvBuffer(buffer, delimiter)
 
-    const columns = inferSchema(headers, rows)
-    const headerToColumn = new Map(headers.map((h, i) => [h, columns[i].name]))
-
+    const { columns, headerToColumn } = inferSchemaFromCsv(headers, rows)
     const tableName = sanitizeName(file.name.replace(/\.[^.]+$/, ''), 'imported_table')
     const planLimits = await getWorkspaceTableLimits(workspaceId)
 
@@ -222,10 +87,10 @@ export async function POST(request: NextRequest) {
     )
 
     try {
-      const coerced = coerceRows(rows, columns, headerToColumn)
+      const coerced = coerceRowsForTable(rows, normalizedSchema, headerToColumn)
       let inserted = 0
-      for (let i = 0; i < coerced.length; i += MAX_BATCH_SIZE) {
-        const batch = coerced.slice(i, i + MAX_BATCH_SIZE)
+      for (let i = 0; i < coerced.length; i += CSV_MAX_BATCH_SIZE) {
+        const batch = coerced.slice(i, i + CSV_MAX_BATCH_SIZE)
         const batchRequestId = generateId().slice(0, 8)
         const result = await batchInsertRows(
           { tableId: table.id, rows: batch, workspaceId, userId: authResult.userId },
