@@ -17,6 +17,8 @@ Describe the schema and Mothership creates the table:
 - "Create a leads table with columns for name, email, company, status, and created date"
 - "Create a table that matches the structure of this CSV [attach file]"
 - "Set up an errors table with: id (text), message (text), workflow (text), timestamp (date), resolved (boolean)"
+- "Create a prospect table for outbound — company, domain, employee count, industry, ICP score, and last contacted date"
+- "Set up an enrichment results table to store output from the lead enrichment workflow: email, company, title, LinkedIn URL, fit score"
 
 ## Querying Data
 
@@ -26,10 +28,14 @@ Ask questions about table contents in plain language:
 - "Show me all records from the past 7 days where score is above 0.8"
 - "What are the top 5 most common error messages in the failures table?"
 - "Are there any duplicate emails in the contacts table?"
+- "How many prospects have an ICP score above 0.75 and haven't been contacted in the past 30 days?"
+- "What's the conversion rate from 'contacted' to 'meeting booked' in the pipeline table this month?"
 
 Mothership translates the question into a structured query and returns the results.
 
 ## Adding and Updating Rows
+
+Add individual rows, bulk-update based on a condition, or delete records — all in plain language:
 
 - "Add a row to the leads table: Acme Corp, jane@acme.com, status pending"
 - "Mark all rows in the queue table as processed where created_at is before today"
@@ -38,10 +44,10 @@ Mothership translates the question into a structured query and returns the resul
 
 ## Exporting
 
+Export a full table or a filtered subset as a CSV. The file is saved to your workspace and can be downloaded or referenced in other workflows:
+
 - "Export the leads table to a CSV"
 - "Export all rows where status is 'closed' and save as a file"
-
-Exported files are saved to your workspace.
 
 ## Using Tables in Workflows
 
