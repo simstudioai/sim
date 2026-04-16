@@ -410,7 +410,7 @@ export async function emitSubflowSuccessEvents(
   blockType: 'loop' | 'parallel',
   output: { results: any[] },
   contextExtensions: ContextExtensions | null
-): Promise<string> {
+): Promise<void> {
   const now = new Date().toISOString()
   const executionOrder = getNextExecutionOrder(ctx)
   const block = ctx.workflow?.blocks.find((b) => b.id === blockId)
@@ -452,6 +452,4 @@ export async function emitSubflowSuccessEvents(
       })
     }
   }
-
-  return blockName
 }
