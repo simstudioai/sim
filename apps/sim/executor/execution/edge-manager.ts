@@ -128,12 +128,21 @@ export class EdgeManager {
 
   /**
    * Clear deactivated edges for a set of nodes (used when restoring loop state for next iteration).
+   *
+   * Only clears edges whose SOURCE is in the provided set. Edges pointing INTO a node in the set
+   * whose source lives outside (e.g. an external branch whose path was cascade-deactivated) must
+   * remain deactivated — otherwise `countActiveIncomingEdges` would count a source that will never
+   * fire again, stalling the loop on its next iteration.
+   *
+   * Edge-key format is `${sourceId}-${targetId}-${handle}`, so `startsWith("${nodeId}-")` uniquely
+   * matches "node is source". An `includes("-${nodeId}-")` check would also match "node is target"
+   * and is unsafe for the reset semantics.
    */
   clearDeactivatedEdgesForNodes(nodeIds: Set<string>): void {
     const edgesToRemove: string[] = []
     for (const edgeKey of this.deactivatedEdges) {
       for (const nodeId of nodeIds) {
-        if (edgeKey.startsWith(`${nodeId}-`) || edgeKey.includes(`-${nodeId}-`)) {
+        if (edgeKey.startsWith(`${nodeId}-`)) {
           edgesToRemove.push(edgeKey)
           break
         }
@@ -142,7 +151,6 @@ export class EdgeManager {
     for (const edgeKey of edgesToRemove) {
       this.deactivatedEdges.delete(edgeKey)
     }
-    // Also clear activated edge tracking for these nodes
     for (const nodeId of nodeIds) {
       this.nodesWithActivatedEdge.delete(nodeId)
     }
