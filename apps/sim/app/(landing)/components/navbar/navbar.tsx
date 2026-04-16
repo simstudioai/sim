@@ -17,8 +17,9 @@ import { GitHubStars } from '@/app/(landing)/components/navbar/components/github
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
-const AuthModal = dynamic(() =>
-  import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal)
+const AuthModal = dynamic(
+  () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
+  { loading: () => null }
 )
 
 type DropdownId = 'docs' | 'blog' | null

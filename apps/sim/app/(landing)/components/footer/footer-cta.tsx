@@ -9,8 +9,9 @@ import { useLandingSubmit } from '@/app/(landing)/components/landing-preview/com
 import { trackLandingCta } from '@/app/(landing)/landing-analytics'
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
 
-const AuthModal = dynamic(() =>
-  import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal)
+const AuthModal = dynamic(
+  () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
+  { loading: () => null }
 )
 
 const MAX_HEIGHT = 120

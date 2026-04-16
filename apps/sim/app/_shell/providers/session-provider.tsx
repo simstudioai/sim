@@ -94,6 +94,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
             })
             if (
               typeof posthog.startSessionRecording === 'function' &&
+              typeof posthog.sessionRecordingStarted === 'function' &&
               !posthog.sessionRecordingStarted()
             ) {
               posthog.startSessionRecording()
