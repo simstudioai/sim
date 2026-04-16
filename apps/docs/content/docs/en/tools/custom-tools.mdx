@@ -145,13 +145,22 @@ From **Settings → Custom Tools** you can:
   Deleting a custom tool removes it from all Agent blocks that reference it. Make sure no active workflows depend on the tool before deleting.
 </Callout>
 
+## Custom Tools vs MCP Tools
+
+| | **Custom Tools** | **MCP Tools** |
+|---|---|---|
+| **Defined** | Inline — schema + code in Sim | External MCP server |
+| **Hosting** | Runs inside Sim | Runs on your server |
+| **Best for** | Small, workspace-specific helpers | Shared tools, third-party services, complex integrations |
+| **Setup** | One modal | Deploy and register a server |
+
 ## Permissions
 
 | Action | Required Permission |
 |--------|-------------------|
 | View custom tools | **Read**, **Write**, or **Admin** |
 | Create or edit tools | **Write** or **Admin** |
-| Delete tools | **Write** or **Admin** |
+| Delete tools | **Admin** |
 
 <FAQ items={[
   { question: "Can I use custom tools in standalone blocks (not agents)?", answer: "No. Custom tools are designed for use within Agent blocks, where the AI model decides when to call them. For deterministic tool execution, use the Function block instead." },

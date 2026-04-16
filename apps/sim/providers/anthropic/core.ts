@@ -12,6 +12,7 @@ import {
   getMaxOutputTokensForModel,
   getThinkingCapability,
   supportsNativeStructuredOutputs,
+  supportsTemperature,
 } from '@/providers/models'
 import type { ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'
 import { ProviderError } from '@/providers/types'
@@ -298,7 +299,9 @@ export async function executeAnthropicProviderRequest(
     system: systemPrompt,
     max_tokens:
       Number.parseInt(String(request.maxTokens)) || getMaxOutputTokensForModel(request.model),
-    temperature: Number.parseFloat(String(request.temperature ?? 0.7)),
+    ...(supportsTemperature(request.model) && {
+      temperature: Number.parseFloat(String(request.temperature ?? 0.7)),
+    }),
   }
 
   if (request.responseFormat) {
