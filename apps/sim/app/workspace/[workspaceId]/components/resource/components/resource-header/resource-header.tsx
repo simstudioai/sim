@@ -106,6 +106,7 @@ export const ResourceHeader = memo(function ResourceHeader({
                 variant='subtle'
                 className={cn(
                   'px-2 py-1 text-caption',
+                  action.active !== undefined && 'rounded-lg',
                   action.active === true &&
                     'bg-[var(--surface-active)] hover-hover:bg-[var(--surface-active)]',
                   action.active === false && 'hover-hover:bg-[var(--surface-hover)]'
