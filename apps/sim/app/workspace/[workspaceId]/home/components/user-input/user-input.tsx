@@ -1,7 +1,16 @@
 'use client'
 
 import type React from 'react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useParams } from 'next/navigation'
 import { useSession } from '@/lib/auth/auth-client'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
@@ -26,6 +35,7 @@ import {
 import type {
   FileAttachmentForApi,
   MothershipResource,
+  QueuedMessage,
 } from '@/app/workspace/[workspaceId]/home/types'
 import {
   useContextManagement,
@@ -91,8 +101,6 @@ function getCaretAnchor(
 
 interface UserInputProps {
   defaultValue?: string
-  editValue?: string
-  onEditValueConsumed?: () => void
   onSubmit: (
     text: string,
     fileAttachments?: FileAttachmentForApi[],
@@ -105,21 +113,28 @@ interface UserInputProps {
   onContextAdd?: (context: ChatContext) => void
   onContextRemove?: (context: ChatContext) => void
   onSendQueuedHead?: () => void
+  onEditQueuedTail?: () => void
 }
 
-export function UserInput({
-  defaultValue = '',
-  editValue,
-  onEditValueConsumed,
-  onSubmit,
-  isSending,
-  onStopGeneration,
-  isInitialView = true,
-  userId,
-  onContextAdd,
-  onContextRemove,
-  onSendQueuedHead,
-}: UserInputProps) {
+export interface UserInputHandle {
+  loadQueuedMessage: (msg: QueuedMessage) => void
+}
+
+export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function UserInput(
+  {
+    defaultValue = '',
+    onSubmit,
+    isSending,
+    onStopGeneration,
+    isInitialView = true,
+    userId,
+    onContextAdd,
+    onContextRemove,
+    onSendQueuedHead,
+    onEditQueuedTail,
+  },
+  ref
+) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { navigateToSettings } = useSettingsNavigation()
   const { data: workflowsById = {} } = useWorkflowMap(workspaceId)
@@ -135,18 +150,6 @@ export function UserInput({
   } else if (!defaultValue && prevDefaultValue) {
     setPrevDefaultValue(defaultValue)
   }
-
-  const [prevEditValue, setPrevEditValue] = useState(editValue)
-  if (editValue && editValue !== prevEditValue) {
-    setPrevEditValue(editValue)
-    setValue(editValue)
-  } else if (!editValue && prevEditValue) {
-    setPrevEditValue(editValue)
-  }
-
-  useEffect(() => {
-    if (editValue) onEditValueConsumed?.()
-  }, [editValue, onEditValueConsumed])
 
   const files = useFileAttachments({
     userId: userId || session?.user?.id,
@@ -269,6 +272,8 @@ export function UserInput({
   contextRef.current = contextManagement
   const onSendQueuedHeadRef = useRef(onSendQueuedHead)
   onSendQueuedHeadRef.current = onSendQueuedHead
+  const onEditQueuedTailRef = useRef(onEditQueuedTail)
+  onEditQueuedTailRef.current = onEditQueuedTail
   const isSendingRef = useRef(isSending)
   isSendingRef.current = isSending
 
@@ -276,6 +281,34 @@ export function UserInput({
   const wasSendingRef = useRef(false)
   const atInsertPosRef = useRef<number | null>(null)
   const pendingCursorRef = useRef<number | null>(null)
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      loadQueuedMessage: (msg: QueuedMessage) => {
+        setValue(msg.content)
+        const restored: AttachedFile[] = (msg.fileAttachments ?? []).map((a) => ({
+          id: a.id,
+          name: a.filename,
+          size: a.size,
+          type: a.media_type,
+          path: a.path ?? '',
+          key: a.key,
+          uploading: false,
+        }))
+        files.restoreAttachedFiles(restored)
+        contextManagement.setSelectedContexts(msg.contexts ?? [])
+        requestAnimationFrame(() => {
+          const textarea = textareaRef.current
+          if (!textarea) return
+          textarea.focus()
+          const end = textarea.value.length
+          textarea.setSelectionRange(end, end)
+        })
+      },
+    }),
+    [files.restoreAttachedFiles, contextManagement.setSelectedContexts, textareaRef]
+  )
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current
@@ -430,6 +463,7 @@ export function UserInput({
         filename: f.name,
         media_type: f.type,
         size: f.size,
+        ...(f.path ? { path: f.path } : {}),
       }))
 
     onSubmit(
@@ -452,6 +486,15 @@ export function UserInput({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'ArrowUp' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const isEmpty = valueRef.current.length === 0 && filesRef.current.attachedFiles.length === 0
+        if (isEmpty && onEditQueuedTailRef.current) {
+          e.preventDefault()
+          onEditQueuedTailRef.current()
+          return
+        }
+      }
+
       if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
         e.preventDefault()
         const hasSubmitPayload =
@@ -763,4 +806,4 @@ export function UserInput({
       {files.isDragging && <DropOverlay />}
     </div>
   )
-}
+})
