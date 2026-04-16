@@ -1,4 +1,4 @@
-import { SpanStatusCode, trace, type Span } from '@opentelemetry/api'
+import { type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -63,9 +63,9 @@ function detectImageMime(buf: Buffer, claimed: string): string {
 }
 
 interface PreparedVisionImage {
-	buffer: Buffer
-	mediaType: string
-	resized: boolean
+  buffer: Buffer
+  mediaType: string
+  resized: boolean
 }
 
 /**
@@ -79,178 +79,174 @@ interface PreparedVisionImage {
  * dimension/quality chosen.
  */
 async function prepareImageForVision(
-	buffer: Buffer,
-	claimedType: string
+  buffer: Buffer,
+  claimedType: string
 ): Promise<PreparedVisionImage | null> {
-	return getVfsTracer().startActiveSpan(
-		TraceSpan.CopilotVfsPrepareImage,
-		{
-			attributes: {
-				'copilot.vfs.input.bytes': buffer.length,
-				'copilot.vfs.input.media_type_claimed': claimedType,
-			},
-		},
-		async (span) => {
-			try {
-				const mediaType = detectImageMime(buffer, claimedType)
-				span.setAttribute('copilot.vfs.input.media_type_detected', mediaType)
+  return getVfsTracer().startActiveSpan(
+    TraceSpan.CopilotVfsPrepareImage,
+    {
+      attributes: {
+        'copilot.vfs.input.bytes': buffer.length,
+        'copilot.vfs.input.media_type_claimed': claimedType,
+      },
+    },
+    async (span) => {
+      try {
+        const mediaType = detectImageMime(buffer, claimedType)
+        span.setAttribute('copilot.vfs.input.media_type_detected', mediaType)
 
-				let sharpModule: typeof import('sharp').default
-				try {
-					sharpModule = (await import('sharp')).default
-				} catch (err) {
-					logger.warn('Failed to load sharp for image preparation', {
-						mediaType,
-						error: err instanceof Error ? err.message : String(err),
-					})
-					span.setAttribute('copilot.vfs.sharp.load_failed', true)
-					const fitsWithoutSharp = buffer.length <= MAX_IMAGE_READ_BYTES
-					span.setAttribute(
-						'copilot.vfs.outcome',
-						fitsWithoutSharp ? 'passthrough_no_sharp' : 'rejected_no_sharp',
-					)
-					return fitsWithoutSharp ? { buffer, mediaType, resized: false } : null
-				}
+        let sharpModule: typeof import('sharp').default
+        try {
+          sharpModule = (await import('sharp')).default
+        } catch (err) {
+          logger.warn('Failed to load sharp for image preparation', {
+            mediaType,
+            error: err instanceof Error ? err.message : String(err),
+          })
+          span.setAttribute('copilot.vfs.sharp.load_failed', true)
+          const fitsWithoutSharp = buffer.length <= MAX_IMAGE_READ_BYTES
+          span.setAttribute(
+            'copilot.vfs.outcome',
+            fitsWithoutSharp ? 'passthrough_no_sharp' : 'rejected_no_sharp'
+          )
+          return fitsWithoutSharp ? { buffer, mediaType, resized: false } : null
+        }
 
-				let metadata: Awaited<ReturnType<ReturnType<typeof sharpModule>['metadata']>>
-				try {
-					metadata = await sharpModule(buffer, { limitInputPixels: false }).metadata()
-				} catch (err) {
-					logger.warn('Failed to read image metadata for VFS read', {
-						mediaType,
-						error: err instanceof Error ? err.message : String(err),
-					})
-					span.setAttribute('copilot.vfs.metadata.failed', true)
-					const fitsWithoutSharp = buffer.length <= MAX_IMAGE_READ_BYTES
-					span.setAttribute(
-						'copilot.vfs.outcome',
-						fitsWithoutSharp ? 'passthrough_no_metadata' : 'rejected_no_metadata',
-					)
-					return fitsWithoutSharp ? { buffer, mediaType, resized: false } : null
-				}
+        let metadata: Awaited<ReturnType<ReturnType<typeof sharpModule>['metadata']>>
+        try {
+          metadata = await sharpModule(buffer, { limitInputPixels: false }).metadata()
+        } catch (err) {
+          logger.warn('Failed to read image metadata for VFS read', {
+            mediaType,
+            error: err instanceof Error ? err.message : String(err),
+          })
+          span.setAttribute('copilot.vfs.metadata.failed', true)
+          const fitsWithoutSharp = buffer.length <= MAX_IMAGE_READ_BYTES
+          span.setAttribute(
+            'copilot.vfs.outcome',
+            fitsWithoutSharp ? 'passthrough_no_metadata' : 'rejected_no_metadata'
+          )
+          return fitsWithoutSharp ? { buffer, mediaType, resized: false } : null
+        }
 
-				const width = metadata.width ?? 0
-				const height = metadata.height ?? 0
-				span.setAttributes({
-					'copilot.vfs.input.width': width,
-					'copilot.vfs.input.height': height,
-				})
+        const width = metadata.width ?? 0
+        const height = metadata.height ?? 0
+        span.setAttributes({
+          'copilot.vfs.input.width': width,
+          'copilot.vfs.input.height': height,
+        })
 
-				const needsResize =
-					buffer.length > MAX_IMAGE_READ_BYTES ||
-					width > MAX_IMAGE_DIMENSION ||
-					height > MAX_IMAGE_DIMENSION
-				if (!needsResize) {
-					span.setAttributes({
-						'copilot.vfs.resized': false,
-						'copilot.vfs.outcome': 'passthrough_fits_budget',
-						'copilot.vfs.output.bytes': buffer.length,
-						'copilot.vfs.output.media_type': mediaType,
-					})
-					return { buffer, mediaType, resized: false }
-				}
+        const needsResize =
+          buffer.length > MAX_IMAGE_READ_BYTES ||
+          width > MAX_IMAGE_DIMENSION ||
+          height > MAX_IMAGE_DIMENSION
+        if (!needsResize) {
+          span.setAttributes({
+            'copilot.vfs.resized': false,
+            'copilot.vfs.outcome': 'passthrough_fits_budget',
+            'copilot.vfs.output.bytes': buffer.length,
+            'copilot.vfs.output.media_type': mediaType,
+          })
+          return { buffer, mediaType, resized: false }
+        }
 
-				const hasAlpha = Boolean(
-					metadata.hasAlpha ||
-						mediaType === 'image/png' ||
-						mediaType === 'image/webp' ||
-						mediaType === 'image/gif'
-				)
-				span.setAttribute('copilot.vfs.has_alpha', hasAlpha)
+        const hasAlpha = Boolean(
+          metadata.hasAlpha ||
+            mediaType === 'image/png' ||
+            mediaType === 'image/webp' ||
+            mediaType === 'image/gif'
+        )
+        span.setAttribute('copilot.vfs.has_alpha', hasAlpha)
 
-				let attempts = 0
-				for (const dimension of IMAGE_RESIZE_DIMENSIONS) {
-					for (const quality of IMAGE_QUALITY_STEPS) {
-						attempts += 1
-						try {
-							const pipeline = sharpModule(buffer, { limitInputPixels: false })
-								.rotate()
-								.resize({
-									width: dimension,
-									height: dimension,
-									fit: 'inside',
-									withoutEnlargement: true,
-								})
+        let attempts = 0
+        for (const dimension of IMAGE_RESIZE_DIMENSIONS) {
+          for (const quality of IMAGE_QUALITY_STEPS) {
+            attempts += 1
+            try {
+              const pipeline = sharpModule(buffer, { limitInputPixels: false }).rotate().resize({
+                width: dimension,
+                height: dimension,
+                fit: 'inside',
+                withoutEnlargement: true,
+              })
 
-							const transformed = hasAlpha
-								? {
-										buffer: await pipeline
-											.webp({ quality, alphaQuality: quality, effort: 4 })
-											.toBuffer(),
-										mediaType: 'image/webp',
-									}
-								: {
-										buffer: await pipeline
-											.jpeg({ quality, mozjpeg: true, chromaSubsampling: '4:4:4' })
-											.toBuffer(),
-										mediaType: 'image/jpeg',
-									}
+              const transformed = hasAlpha
+                ? {
+                    buffer: await pipeline
+                      .webp({ quality, alphaQuality: quality, effort: 4 })
+                      .toBuffer(),
+                    mediaType: 'image/webp',
+                  }
+                : {
+                    buffer: await pipeline
+                      .jpeg({ quality, mozjpeg: true, chromaSubsampling: '4:4:4' })
+                      .toBuffer(),
+                    mediaType: 'image/jpeg',
+                  }
 
-							span.addEvent('copilot.vfs.resize_attempt', {
-								'copilot.vfs.resize.dimension': dimension,
-								'copilot.vfs.resize.quality': quality,
-								'copilot.vfs.resize.output_bytes': transformed.buffer.length,
-								'copilot.vfs.resize.fits_budget':
-									transformed.buffer.length <= MAX_IMAGE_READ_BYTES,
-							})
+              span.addEvent('copilot.vfs.resize_attempt', {
+                'copilot.vfs.resize.dimension': dimension,
+                'copilot.vfs.resize.quality': quality,
+                'copilot.vfs.resize.output_bytes': transformed.buffer.length,
+                'copilot.vfs.resize.fits_budget': transformed.buffer.length <= MAX_IMAGE_READ_BYTES,
+              })
 
-							if (transformed.buffer.length <= MAX_IMAGE_READ_BYTES) {
-								logger.info('Resized image for VFS read', {
-									originalBytes: buffer.length,
-									outputBytes: transformed.buffer.length,
-									originalWidth: width || undefined,
-									originalHeight: height || undefined,
-									maxDimension: dimension,
-									quality,
-									originalMediaType: mediaType,
-									outputMediaType: transformed.mediaType,
-								})
-								span.setAttributes({
-									'copilot.vfs.resized': true,
-									'copilot.vfs.resize.attempts': attempts,
-									'copilot.vfs.resize.chosen_dimension': dimension,
-									'copilot.vfs.resize.chosen_quality': quality,
-									'copilot.vfs.output.bytes': transformed.buffer.length,
-									'copilot.vfs.output.media_type': transformed.mediaType,
-									'copilot.vfs.outcome': 'resized',
-								})
-								return {
-									buffer: transformed.buffer,
-									mediaType: transformed.mediaType,
-									resized: true,
-								}
-							}
-						} catch (err) {
-							logger.warn('Failed image resize attempt for VFS read', {
-								mediaType,
-								dimension,
-								quality,
-								error: err instanceof Error ? err.message : String(err),
-							})
-							span.addEvent('copilot.vfs.resize_attempt_failed', {
-								'copilot.vfs.resize.dimension': dimension,
-								'copilot.vfs.resize.quality': quality,
-								'error.message':
-									err instanceof Error ? err.message : String(err).slice(0, 500),
-							})
-						}
-					}
-				}
+              if (transformed.buffer.length <= MAX_IMAGE_READ_BYTES) {
+                logger.info('Resized image for VFS read', {
+                  originalBytes: buffer.length,
+                  outputBytes: transformed.buffer.length,
+                  originalWidth: width || undefined,
+                  originalHeight: height || undefined,
+                  maxDimension: dimension,
+                  quality,
+                  originalMediaType: mediaType,
+                  outputMediaType: transformed.mediaType,
+                })
+                span.setAttributes({
+                  'copilot.vfs.resized': true,
+                  'copilot.vfs.resize.attempts': attempts,
+                  'copilot.vfs.resize.chosen_dimension': dimension,
+                  'copilot.vfs.resize.chosen_quality': quality,
+                  'copilot.vfs.output.bytes': transformed.buffer.length,
+                  'copilot.vfs.output.media_type': transformed.mediaType,
+                  'copilot.vfs.outcome': 'resized',
+                })
+                return {
+                  buffer: transformed.buffer,
+                  mediaType: transformed.mediaType,
+                  resized: true,
+                }
+              }
+            } catch (err) {
+              logger.warn('Failed image resize attempt for VFS read', {
+                mediaType,
+                dimension,
+                quality,
+                error: err instanceof Error ? err.message : String(err),
+              })
+              span.addEvent('copilot.vfs.resize_attempt_failed', {
+                'copilot.vfs.resize.dimension': dimension,
+                'copilot.vfs.resize.quality': quality,
+                'error.message': err instanceof Error ? err.message : String(err).slice(0, 500),
+              })
+            }
+          }
+        }
 
-				span.setAttributes({
-					'copilot.vfs.resized': false,
-					'copilot.vfs.resize.attempts': attempts,
-					'copilot.vfs.outcome': 'rejected_too_large_after_resize',
-				})
-				return null
-			} catch (err) {
-				recordSpanError(span, err)
-				throw err
-			} finally {
-				span.end()
-			}
-		},
-	)
+        span.setAttributes({
+          'copilot.vfs.resized': false,
+          'copilot.vfs.resize.attempts': attempts,
+          'copilot.vfs.outcome': 'rejected_too_large_after_resize',
+        })
+        return null
+      } catch (err) {
+        recordSpanError(span, err)
+        throw err
+      } finally {
+        span.end()
+      }
+    }
+  )
 }
 
 export interface FileReadResult {
@@ -366,9 +362,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
             })
             span.addEvent('copilot.vfs.parse_failed', {
               'error.message':
-                parseErr instanceof Error
-                  ? parseErr.message
-                  : String(parseErr).slice(0, 500),
+                parseErr instanceof Error ? parseErr.message : String(parseErr).slice(0, 500),
             })
             span.setAttribute('copilot.vfs.read.outcome', 'parse_failed')
             return {
@@ -397,6 +391,6 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
       } finally {
         span.end()
       }
-    },
+    }
   )
 }

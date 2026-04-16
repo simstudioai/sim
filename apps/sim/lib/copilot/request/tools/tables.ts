@@ -138,15 +138,14 @@ export async function maybeWriteOutputToTable(
         })
         span.setAttribute('copilot.table.outcome', 'failed')
         span.addEvent('copilot.table.error', {
-          'error.message':
-            (err instanceof Error ? err.message : String(err)).slice(0, 500),
+          'error.message': (err instanceof Error ? err.message : String(err)).slice(0, 500),
         })
         return {
           success: false,
           error: `Failed to write to table: ${err instanceof Error ? err.message : String(err)}`,
         }
       }
-    },
+    }
   )
 }
 
@@ -286,14 +285,13 @@ export async function maybeWriteReadCsvToTable(
         })
         span.setAttribute('copilot.table.outcome', 'failed')
         span.addEvent('copilot.table.error', {
-          'error.message':
-            (err instanceof Error ? err.message : String(err)).slice(0, 500),
+          'error.message': (err instanceof Error ? err.message : String(err)).slice(0, 500),
         })
         return {
           success: false,
           error: `Failed to import into table: ${err instanceof Error ? err.message : String(err)}`,
         }
       }
-    },
+    }
   )
 }

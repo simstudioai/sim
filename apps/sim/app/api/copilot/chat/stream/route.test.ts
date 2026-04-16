@@ -2,12 +2,12 @@
  * @vitest-environment node
  */
 
-import { NextRequest } from "next/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from 'next/server'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
-} from "@/lib/copilot/generated/mothership-stream-v1";
+} from '@/lib/copilot/generated/mothership-stream-v1'
 
 const {
   getLatestRunForStream,
@@ -21,13 +21,13 @@ const {
   readFilePreviewSessions: vi.fn(),
   checkForReplayGap: vi.fn(),
   authenticateCopilotRequestSessionOnly: vi.fn(),
-}));
+}))
 
-vi.mock("@/lib/copilot/async-runs/repository", () => ({
+vi.mock('@/lib/copilot/async-runs/repository', () => ({
   getLatestRunForStream,
-}));
+}))
 
-vi.mock("@/lib/copilot/request/session", () => ({
+vi.mock('@/lib/copilot/request/session', () => ({
   readEvents,
   readFilePreviewSessions,
   checkForReplayGap,
@@ -37,180 +37,172 @@ vi.mock("@/lib/copilot/request/session", () => ({
       cursor: event.cursor,
     },
     seq: event.seq,
-    trace: { requestId: event.requestId ?? "" },
+    trace: { requestId: event.requestId ?? '' },
     type: event.type,
     payload: event.payload,
   }),
   encodeSSEEnvelope: (event: Record<string, unknown>) =>
     new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`),
   SSE_RESPONSE_HEADERS: {
-    "Content-Type": "text/event-stream",
+    'Content-Type': 'text/event-stream',
   },
-}));
+}))
 
-vi.mock("@/lib/copilot/request/http", () => ({
+vi.mock('@/lib/copilot/request/http', () => ({
   authenticateCopilotRequestSessionOnly,
-}));
+}))
 
-import { GET } from "./route";
+import { GET } from './route'
 
 async function readAllChunks(response: Response): Promise<string[]> {
-  const reader = response.body?.getReader();
-  expect(reader).toBeTruthy();
+  const reader = response.body?.getReader()
+  expect(reader).toBeTruthy()
 
-  const chunks: string[] = [];
+  const chunks: string[] = []
   while (true) {
-    const { done, value } = await reader!.read();
+    const { done, value } = await reader!.read()
     if (done) {
-      break;
+      break
     }
-    chunks.push(new TextDecoder().decode(value));
+    chunks.push(new TextDecoder().decode(value))
   }
-  return chunks;
+  return chunks
 }
 
-describe("copilot chat stream replay route", () => {
+describe('copilot chat stream replay route', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.clearAllMocks()
     authenticateCopilotRequestSessionOnly.mockResolvedValue({
-      userId: "user-1",
+      userId: 'user-1',
       isAuthenticated: true,
-    });
-    readEvents.mockResolvedValue([]);
-    readFilePreviewSessions.mockResolvedValue([]);
-    checkForReplayGap.mockResolvedValue(null);
-  });
+    })
+    readEvents.mockResolvedValue([])
+    readFilePreviewSessions.mockResolvedValue([])
+    checkForReplayGap.mockResolvedValue(null)
+  })
 
-  it("returns preview sessions in batch mode", async () => {
+  it('returns preview sessions in batch mode', async () => {
     getLatestRunForStream.mockResolvedValue({
-      status: "active",
-      executionId: "exec-1",
-      id: "run-1",
-    });
+      status: 'active',
+      executionId: 'exec-1',
+      id: 'run-1',
+    })
     readFilePreviewSessions.mockResolvedValue([
       {
         schemaVersion: 1,
-        id: "preview-1",
-        streamId: "stream-1",
-        toolCallId: "preview-1",
-        status: "streaming",
-        fileName: "draft.md",
-        previewText: "hello",
+        id: 'preview-1',
+        streamId: 'stream-1',
+        toolCallId: 'preview-1',
+        status: 'streaming',
+        fileName: 'draft.md',
+        previewText: 'hello',
         previewVersion: 2,
-        updatedAt: "2026-04-10T00:00:00.000Z",
+        updatedAt: '2026-04-10T00:00:00.000Z',
       },
-    ]);
+    ])
 
     const response = await GET(
       new NextRequest(
-        "http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0&batch=true",
-      ),
-    );
+        'http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0&batch=true'
+      )
+    )
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(200)
     await expect(response.json()).resolves.toMatchObject({
       success: true,
       previewSessions: [
         expect.objectContaining({
-          id: "preview-1",
-          previewText: "hello",
+          id: 'preview-1',
+          previewText: 'hello',
           previewVersion: 2,
         }),
       ],
-      status: "active",
-    });
-  });
+      status: 'active',
+    })
+  })
 
-  it("stops replay polling when run becomes cancelled", async () => {
+  it('stops replay polling when run becomes cancelled', async () => {
     getLatestRunForStream
       .mockResolvedValueOnce({
-        status: "active",
-        executionId: "exec-1",
-        id: "run-1",
+        status: 'active',
+        executionId: 'exec-1',
+        id: 'run-1',
       })
       .mockResolvedValueOnce({
-        status: "cancelled",
-        executionId: "exec-1",
-        id: "run-1",
-      });
+        status: 'cancelled',
+        executionId: 'exec-1',
+        id: 'run-1',
+      })
 
     const response = await GET(
-      new NextRequest(
-        "http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0",
-      ),
-    );
+      new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0')
+    )
 
-    const chunks = await readAllChunks(response);
-    expect(chunks.join("")).toContain(
+    const chunks = await readAllChunks(response)
+    expect(chunks.join('')).toContain(
       JSON.stringify({
         status: MothershipStreamV1CompletionStatus.cancelled,
-        reason: "terminal_status",
-      }),
-    );
-    expect(getLatestRunForStream).toHaveBeenCalledTimes(2);
-  });
+        reason: 'terminal_status',
+      })
+    )
+    expect(getLatestRunForStream).toHaveBeenCalledTimes(2)
+  })
 
-  it("emits structured terminal replay error when run metadata disappears", async () => {
+  it('emits structured terminal replay error when run metadata disappears', async () => {
     getLatestRunForStream
       .mockResolvedValueOnce({
-        status: "active",
-        executionId: "exec-1",
-        id: "run-1",
+        status: 'active',
+        executionId: 'exec-1',
+        id: 'run-1',
       })
-      .mockResolvedValueOnce(null);
+      .mockResolvedValueOnce(null)
 
     const response = await GET(
-      new NextRequest(
-        "http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0",
-      ),
-    );
+      new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0')
+    )
 
-    const chunks = await readAllChunks(response);
-    const body = chunks.join("");
-    expect(body).toContain(`"type":"${MothershipStreamV1EventType.error}"`);
-    expect(body).toContain('"code":"resume_run_unavailable"');
-    expect(body).toContain(`"type":"${MothershipStreamV1EventType.complete}"`);
-  });
+    const chunks = await readAllChunks(response)
+    const body = chunks.join('')
+    expect(body).toContain(`"type":"${MothershipStreamV1EventType.error}"`)
+    expect(body).toContain('"code":"resume_run_unavailable"')
+    expect(body).toContain(`"type":"${MothershipStreamV1EventType.complete}"`)
+  })
 
-  it("uses the latest live request id for synthetic terminal replay events", async () => {
+  it('uses the latest live request id for synthetic terminal replay events', async () => {
     getLatestRunForStream
       .mockResolvedValueOnce({
-        status: "active",
-        executionId: "exec-1",
-        id: "run-1",
+        status: 'active',
+        executionId: 'exec-1',
+        id: 'run-1',
       })
       .mockResolvedValueOnce({
-        status: "cancelled",
-        executionId: "exec-1",
-        id: "run-1",
-      });
+        status: 'cancelled',
+        executionId: 'exec-1',
+        id: 'run-1',
+      })
     readEvents
       .mockResolvedValueOnce([
         {
-          stream: { streamId: "stream-1", cursor: "1" },
+          stream: { streamId: 'stream-1', cursor: '1' },
           seq: 1,
-          trace: { requestId: "req-live-123" },
+          trace: { requestId: 'req-live-123' },
           type: MothershipStreamV1EventType.text,
           payload: {
-            channel: "assistant",
-            text: "hello",
+            channel: 'assistant',
+            text: 'hello',
           },
         },
       ])
-      .mockResolvedValueOnce([]);
+      .mockResolvedValueOnce([])
 
     const response = await GET(
-      new NextRequest(
-        "http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0",
-      ),
-    );
+      new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0')
+    )
 
-    const chunks = await readAllChunks(response);
-    const terminalChunk = chunks[chunks.length - 1] ?? "";
-    expect(terminalChunk).toContain(
-      `"type":"${MothershipStreamV1EventType.complete}"`,
-    );
-    expect(terminalChunk).toContain('"requestId":"req-live-123"');
-    expect(terminalChunk).toContain('"status":"cancelled"');
-  });
-});
+    const chunks = await readAllChunks(response)
+    const terminalChunk = chunks[chunks.length - 1] ?? ''
+    expect(terminalChunk).toContain(`"type":"${MothershipStreamV1EventType.complete}"`)
+    expect(terminalChunk).toContain('"requestId":"req-live-123"')
+    expect(terminalChunk).toContain('"status":"cancelled"')
+  })
+})

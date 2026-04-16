@@ -1,93 +1,82 @@
-import type { Context } from "@opentelemetry/api";
-import { createLogger } from "@sim/logger";
-import { ORCHESTRATION_TIMEOUT_MS } from "@/lib/copilot/constants";
-import { fetchGo } from "@/lib/copilot/request/go/fetch";
-import { MothershipStreamV1SpanLifecycleEvent } from "@/lib/copilot/generated/mothership-stream-v1";
+import type { Context } from '@opentelemetry/api'
+import { createLogger } from '@sim/logger'
+import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/copilot/constants'
+import { MothershipStreamV1SpanLifecycleEvent } from '@/lib/copilot/generated/mothership-stream-v1'
+import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import {
   buildPreviewContentUpdate,
   createFilePreviewAdapterState,
   decodeJsonStringPrefix,
   extractEditContent,
   processFilePreviewStreamEvent,
-} from "@/lib/copilot/request/go/file-preview-adapter";
-import {
-  FatalSseEventError,
-  processSSEStream,
-} from "@/lib/copilot/request/go/parser";
+} from '@/lib/copilot/request/go/file-preview-adapter'
+import { FatalSseEventError, processSSEStream } from '@/lib/copilot/request/go/parser'
 import {
   handleSubagentRouting,
   sseHandlers,
   subAgentHandlers,
-} from "@/lib/copilot/request/handlers";
+} from '@/lib/copilot/request/handlers'
 import {
   eventToStreamEvent,
   isSubagentSpanStreamEvent,
   parsePersistedStreamEventEnvelope,
-} from "@/lib/copilot/request/session";
-import {
-  shouldSkipToolCallEvent,
-  shouldSkipToolResultEvent,
-} from "@/lib/copilot/request/sse-utils";
+} from '@/lib/copilot/request/session'
+import { shouldSkipToolCallEvent, shouldSkipToolResultEvent } from '@/lib/copilot/request/sse-utils'
 import type {
   ExecutionContext,
   OrchestratorOptions,
   StreamEvent,
   StreamingContext,
-} from "@/lib/copilot/request/types";
+} from '@/lib/copilot/request/types'
 
-const logger = createLogger("CopilotGoStream");
+const logger = createLogger('CopilotGoStream')
 
-export {
-  buildPreviewContentUpdate,
-  decodeJsonStringPrefix,
-  extractEditContent,
-};
+export { buildPreviewContentUpdate, decodeJsonStringPrefix, extractEditContent }
 
-type JsonRecord = Record<string, unknown>;
+type JsonRecord = Record<string, unknown>
 
 type SubagentSpanData = {
-  pending?: boolean;
-  toolCallId?: string;
-};
+  pending?: boolean
+  toolCallId?: string
+}
 
 function asJsonRecord(value: unknown): JsonRecord | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
+  return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as JsonRecord)
-    : undefined;
+    : undefined
 }
 
 function parseSubagentSpanData(value: unknown): SubagentSpanData | undefined {
-  const data = asJsonRecord(value);
+  const data = asJsonRecord(value)
   if (!data) {
-    return undefined;
+    return undefined
   }
 
-  const toolCallId =
-    typeof data.tool_call_id === "string" ? data.tool_call_id : undefined;
-  const pending = typeof data.pending === "boolean" ? data.pending : undefined;
+  const toolCallId = typeof data.tool_call_id === 'string' ? data.tool_call_id : undefined
+  const pending = typeof data.pending === 'boolean' ? data.pending : undefined
 
   return {
     ...(toolCallId ? { toolCallId } : {}),
     ...(pending !== undefined ? { pending } : {}),
-  };
+  }
 }
 
 export class CopilotBackendError extends Error {
-  status?: number;
-  body?: string;
+  status?: number
+  body?: string
 
   constructor(message: string, options?: { status?: number; body?: string }) {
-    super(message);
-    this.name = "CopilotBackendError";
-    this.status = options?.status;
-    this.body = options?.body;
+    super(message)
+    this.name = 'CopilotBackendError'
+    this.status = options?.status
+    this.body = options?.body
   }
 }
 
 export class BillingLimitError extends Error {
   constructor(public readonly userId: string) {
-    super("Usage limit reached");
-    this.name = "BillingLimitError";
+    super('Usage limit reached')
+    this.name = 'BillingLimitError'
   }
 }
 
@@ -99,15 +88,12 @@ export interface StreamLoopOptions extends OrchestratorOptions {
    * Called for each normalized event BEFORE standard handler dispatch.
    * Return true to skip the default handler for this event.
    */
-  onBeforeDispatch?: (
-    event: StreamEvent,
-    context: StreamingContext,
-  ) => boolean | undefined;
+  onBeforeDispatch?: (event: StreamEvent, context: StreamingContext) => boolean | undefined
   /**
    * Called when the Go backend's trace ID (go_trace_id) is first received via SSE.
    */
-  onGoTraceId?: (goTraceId: string) => void;
-  otelContext?: Context;
+  onGoTraceId?: (goTraceId: string) => void
+  otelContext?: Context
 }
 
 /**
@@ -122,132 +108,119 @@ export async function runStreamLoop(
   fetchOptions: RequestInit,
   context: StreamingContext,
   execContext: ExecutionContext,
-  options: StreamLoopOptions,
+  options: StreamLoopOptions
 ): Promise<void> {
-  const { timeout = ORCHESTRATION_TIMEOUT_MS, abortSignal } = options;
-  const filePreviewAdapterState = createFilePreviewAdapterState();
+  const { timeout = ORCHESTRATION_TIMEOUT_MS, abortSignal } = options
+  const filePreviewAdapterState = createFilePreviewAdapterState()
 
-  const pathname = new URL(fetchUrl).pathname;
-  const requestBodyBytes = estimateBodyBytes(fetchOptions.body);
-  const fetchSpan = context.trace.startSpan(
-    `HTTP Request → ${pathname}`,
-    "sim.http.fetch",
-    {
-      url: fetchUrl,
-      method: fetchOptions.method ?? "GET",
-      requestBodyBytes,
-    },
-  );
-  const fetchStart = performance.now();
+  const pathname = new URL(fetchUrl).pathname
+  const requestBodyBytes = estimateBodyBytes(fetchOptions.body)
+  const fetchSpan = context.trace.startSpan(`HTTP Request → ${pathname}`, 'sim.http.fetch', {
+    url: fetchUrl,
+    method: fetchOptions.method ?? 'GET',
+    requestBodyBytes,
+  })
+  const fetchStart = performance.now()
   const response = await fetchGo(fetchUrl, {
     ...fetchOptions,
     signal: abortSignal,
     otelContext: options.otelContext,
     spanName: `sim → go ${pathname}`,
-    operation: "stream",
+    operation: 'stream',
     attributes: {
-      "copilot.stream": true,
-      ...(requestBodyBytes
-        ? { "http.request.content_length": requestBodyBytes }
-        : {}),
+      'copilot.stream': true,
+      ...(requestBodyBytes ? { 'http.request.content_length': requestBodyBytes } : {}),
     },
-  });
-  const headersElapsedMs = Math.round(performance.now() - fetchStart);
+  })
+  const headersElapsedMs = Math.round(performance.now() - fetchStart)
   fetchSpan.attributes = {
     ...(fetchSpan.attributes ?? {}),
     status: response.status,
     headersMs: headersElapsedMs,
-  };
+  }
 
   if (!response.ok) {
-    context.trace.endSpan(fetchSpan, "error");
-    const errorText = await response.text().catch(() => "");
+    context.trace.endSpan(fetchSpan, 'error')
+    const errorText = await response.text().catch(() => '')
 
     if (response.status === 402) {
-      throw new BillingLimitError(execContext.userId);
+      throw new BillingLimitError(execContext.userId)
     }
 
     throw new CopilotBackendError(
       `Copilot backend error (${response.status}): ${errorText || response.statusText}`,
-      { status: response.status, body: errorText || response.statusText },
-    );
+      { status: response.status, body: errorText || response.statusText }
+    )
   }
 
   if (!response.body) {
-    context.trace.endSpan(fetchSpan, "error");
-    throw new CopilotBackendError("Copilot backend response missing body");
+    context.trace.endSpan(fetchSpan, 'error')
+    throw new CopilotBackendError('Copilot backend response missing body')
   }
 
-  context.trace.endSpan(fetchSpan);
+  context.trace.endSpan(fetchSpan)
 
-  const bodySpan = context.trace.startSpan(
-    `SSE Body → ${pathname}`,
-    "sim.http.stream_body",
-    {
-      url: fetchUrl,
-      method: fetchOptions.method ?? "GET",
-    },
-  );
-  const bodyStart = performance.now();
-  let firstEventMs: number | undefined;
-  let eventsReceived = 0;
-  let bytesReceived = 0;
-  let endedOn: string = "terminal";
+  const bodySpan = context.trace.startSpan(`SSE Body → ${pathname}`, 'sim.http.stream_body', {
+    url: fetchUrl,
+    method: fetchOptions.method ?? 'GET',
+  })
+  const bodyStart = performance.now()
+  let firstEventMs: number | undefined
+  let eventsReceived = 0
+  let bytesReceived = 0
+  let endedOn = 'terminal'
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
 
   const timeoutId = setTimeout(() => {
-    context.errors.push("Request timed out");
-    context.streamComplete = true;
-    endedOn = "timeout";
-    reader.cancel().catch(() => {});
-  }, timeout);
+    context.errors.push('Request timed out')
+    context.streamComplete = true
+    endedOn = 'timeout'
+    reader.cancel().catch(() => {})
+  }, timeout)
 
   try {
     await processSSEStream(reader, decoder, abortSignal, async (raw) => {
       if (eventsReceived === 0) {
-        firstEventMs = Math.round(performance.now() - bodyStart);
+        firstEventMs = Math.round(performance.now() - bodyStart)
       }
-      eventsReceived += 1;
+      eventsReceived += 1
       try {
-        bytesReceived += JSON.stringify(raw ?? null).length;
+        bytesReceived += JSON.stringify(raw ?? null).length
       } catch {
         // non-serializable event; skip byte accounting
       }
       if (abortSignal?.aborted) {
-        context.wasAborted = true;
-        return true;
+        context.wasAborted = true
+        return true
       }
 
-      const parsedEvent = parsePersistedStreamEventEnvelope(raw);
+      const parsedEvent = parsePersistedStreamEventEnvelope(raw)
       if (!parsedEvent.ok) {
         const detail = [parsedEvent.message, ...(parsedEvent.errors ?? [])]
           .filter(Boolean)
-          .join("; ");
-        const failureMessage = `Received invalid stream event on shared path: ${detail}`;
-        context.errors.push(failureMessage);
-        logger.error("Received invalid stream event on shared path", {
+          .join('; ')
+        const failureMessage = `Received invalid stream event on shared path: ${detail}`
+        context.errors.push(failureMessage)
+        logger.error('Received invalid stream event on shared path', {
           reason: parsedEvent.reason,
           message: parsedEvent.message,
           errors: parsedEvent.errors,
-        });
-        throw new FatalSseEventError(failureMessage);
+        })
+        throw new FatalSseEventError(failureMessage)
       }
 
-      const envelope = parsedEvent.event;
-      const streamEvent = eventToStreamEvent(envelope);
+      const envelope = parsedEvent.event
+      const streamEvent = eventToStreamEvent(envelope)
       if (envelope.trace?.requestId) {
-        const goTraceId = envelope.trace.goTraceId || envelope.trace.requestId;
-        context.trace.setGoTraceId(goTraceId);
-        options.onGoTraceId?.(goTraceId);
+        const goTraceId = envelope.trace.goTraceId || envelope.trace.requestId
+        context.trace.setGoTraceId(goTraceId)
+        options.onGoTraceId?.(goTraceId)
       }
 
-      if (
-        shouldSkipToolCallEvent(streamEvent) ||
-        shouldSkipToolResultEvent(streamEvent)
-      ) {
-        return;
+      if (shouldSkipToolCallEvent(streamEvent) || shouldSkipToolResultEvent(streamEvent)) {
+        return
       }
 
       await processFilePreviewStreamEvent({
@@ -257,139 +230,127 @@ export async function runStreamLoop(
         execContext,
         options,
         state: filePreviewAdapterState,
-      });
+      })
 
       try {
-        await options.onEvent?.(streamEvent);
+        await options.onEvent?.(streamEvent)
       } catch (error) {
-        logger.warn("Failed to forward stream event", {
+        logger.warn('Failed to forward stream event', {
           type: streamEvent.type,
           error: error instanceof Error ? error.message : String(error),
-        });
+        })
       }
 
       // Yield a macrotask so Node.js flushes the HTTP response buffer to
       // the browser. Microtask yields (await Promise.resolve()) are not
       // enough — the I/O layer needs a full event loop tick to write.
-      await new Promise<void>((resolve) => setImmediate(resolve));
+      await new Promise<void>((resolve) => setImmediate(resolve))
 
       if (options.onBeforeDispatch?.(streamEvent, context)) {
-        return context.streamComplete || undefined;
+        return context.streamComplete || undefined
       }
 
       if (isSubagentSpanStreamEvent(streamEvent)) {
-        const spanData = parseSubagentSpanData(streamEvent.payload.data);
-        const toolCallId =
-          streamEvent.scope?.parentToolCallId || spanData?.toolCallId;
-        const subagentName = streamEvent.payload.agent;
-        const spanEvt = streamEvent.payload.event;
-        const isPendingPause = spanData?.pending === true;
+        const spanData = parseSubagentSpanData(streamEvent.payload.data)
+        const toolCallId = streamEvent.scope?.parentToolCallId || spanData?.toolCallId
+        const subagentName = streamEvent.payload.agent
+        const spanEvt = streamEvent.payload.event
+        const isPendingPause = spanData?.pending === true
         if (spanEvt === MothershipStreamV1SpanLifecycleEvent.start) {
-          const lastParent =
-            context.subAgentParentStack[context.subAgentParentStack.length - 1];
-          const lastBlock =
-            context.contentBlocks[context.contentBlocks.length - 1];
+          const lastParent = context.subAgentParentStack[context.subAgentParentStack.length - 1]
+          const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
           if (toolCallId) {
             if (lastParent !== toolCallId) {
-              context.subAgentParentStack.push(toolCallId);
+              context.subAgentParentStack.push(toolCallId)
             }
-            context.subAgentParentToolCallId = toolCallId;
-            context.subAgentContent[toolCallId] ??= "";
-            context.subAgentToolCalls[toolCallId] ??= [];
+            context.subAgentParentToolCallId = toolCallId
+            context.subAgentContent[toolCallId] ??= ''
+            context.subAgentToolCalls[toolCallId] ??= []
           }
           if (
             subagentName &&
             !(
               lastParent === toolCallId &&
-              lastBlock?.type === "subagent" &&
+              lastBlock?.type === 'subagent' &&
               lastBlock.content === subagentName
             )
           ) {
             context.contentBlocks.push({
-              type: "subagent",
+              type: 'subagent',
               content: subagentName,
               timestamp: Date.now(),
-            });
+            })
           }
-          return;
+          return
         }
         if (spanEvt === MothershipStreamV1SpanLifecycleEvent.end) {
           if (isPendingPause) {
-            return;
+            return
           }
           if (context.subAgentParentStack.length > 0) {
-            context.subAgentParentStack.pop();
+            context.subAgentParentStack.pop()
           } else {
-            logger.warn("subagent end without matching start");
+            logger.warn('subagent end without matching start')
           }
           context.subAgentParentToolCallId =
             context.subAgentParentStack.length > 0
-              ? context.subAgentParentStack[
-                  context.subAgentParentStack.length - 1
-                ]
-              : undefined;
-          return;
+              ? context.subAgentParentStack[context.subAgentParentStack.length - 1]
+              : undefined
+          return
         }
       }
 
       if (handleSubagentRouting(streamEvent, context)) {
-        const handler = subAgentHandlers[streamEvent.type];
+        const handler = subAgentHandlers[streamEvent.type]
         if (handler) {
-          await handler(streamEvent, context, execContext, options);
+          await handler(streamEvent, context, execContext, options)
         }
-        return context.streamComplete || undefined;
+        return context.streamComplete || undefined
       }
 
-      const handler = sseHandlers[streamEvent.type];
+      const handler = sseHandlers[streamEvent.type]
       if (handler) {
-        await handler(streamEvent, context, execContext, options);
+        await handler(streamEvent, context, execContext, options)
       }
-      return context.streamComplete || undefined;
-    });
+      return context.streamComplete || undefined
+    })
 
-    if (
-      !context.streamComplete &&
-      !abortSignal?.aborted &&
-      !context.wasAborted
-    ) {
-      const streamPath = new URL(fetchUrl).pathname;
-      const message = `Copilot backend stream ended before a terminal event on ${streamPath}`;
-      context.errors.push(message);
-      logger.error("Copilot backend stream ended before a terminal event", {
+    if (!context.streamComplete && !abortSignal?.aborted && !context.wasAborted) {
+      const streamPath = new URL(fetchUrl).pathname
+      const message = `Copilot backend stream ended before a terminal event on ${streamPath}`
+      context.errors.push(message)
+      logger.error('Copilot backend stream ended before a terminal event', {
         path: streamPath,
         requestId: context.requestId,
         messageId: context.messageId,
-      });
-      endedOn = "closed_no_terminal";
-      throw new CopilotBackendError(message, { status: 503 });
+      })
+      endedOn = 'closed_no_terminal'
+      throw new CopilotBackendError(message, { status: 503 })
     }
   } catch (error) {
-    if (
-      error instanceof FatalSseEventError &&
-      !context.errors.includes(error.message)
-    ) {
-      context.errors.push(error.message);
+    if (error instanceof FatalSseEventError && !context.errors.includes(error.message)) {
+      context.errors.push(error.message)
     }
-    if (endedOn === "terminal") {
+    if (endedOn === 'terminal') {
       endedOn =
         error instanceof CopilotBackendError
-          ? "backend_error"
+          ? 'backend_error'
           : error instanceof BillingLimitError
-            ? "billing_limit"
-            : "error";
+            ? 'billing_limit'
+            : 'error'
     }
-    throw error;
+    throw error
   } finally {
     if (abortSignal?.aborted) {
-      context.wasAborted = true;
-      await reader.cancel().catch(() => {});
-      if (endedOn === "terminal") {
-        endedOn = "aborted";
+      context.wasAborted = true
+      await reader.cancel().catch(() => {})
+      if (endedOn === 'terminal') {
+        endedOn = 'aborted'
       }
     }
-    clearTimeout(timeoutId);
+    clearTimeout(timeoutId)
 
-    const bodyDurationMs = Math.round(performance.now() - bodyStart);
+    const bodyDurationMs = Math.round(performance.now() - bodyStart)
     bodySpan.attributes = {
       ...(bodySpan.attributes ?? {}),
       eventsReceived,
@@ -397,26 +358,26 @@ export async function runStreamLoop(
       firstEventMs,
       endedOn,
       durationMs: bodyDurationMs,
-    };
+    }
     context.trace.endSpan(
       bodySpan,
-      endedOn === "terminal" ? "ok" : endedOn === "aborted" ? "cancelled" : "error",
-    );
+      endedOn === 'terminal' ? 'ok' : endedOn === 'aborted' ? 'cancelled' : 'error'
+    )
   }
 }
 
 function estimateBodyBytes(body: BodyInit | null | undefined): number {
   if (!body) {
-    return 0;
+    return 0
   }
-  if (typeof body === "string") {
-    return body.length;
+  if (typeof body === 'string') {
+    return body.length
   }
   if (body instanceof ArrayBuffer) {
-    return body.byteLength;
+    return body.byteLength
   }
   if (ArrayBuffer.isView(body)) {
-    return body.byteLength;
+    return body.byteLength
   }
-  return 0;
+  return 0
 }

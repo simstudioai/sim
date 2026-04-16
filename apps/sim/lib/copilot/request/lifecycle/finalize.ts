@@ -41,7 +41,10 @@ export async function finalizeStream(
     if (aborted) {
       await handleAborted(result, publisher, runId, requestId)
     } else if (!result.success) {
-      span.setStatus({ code: SpanStatusCode.ERROR, message: result.error || 'orchestration failed' })
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: result.error || 'orchestration failed',
+      })
       await handleError(result, publisher, runId, requestId)
     } else {
       await handleSuccess(publisher, runId, requestId)

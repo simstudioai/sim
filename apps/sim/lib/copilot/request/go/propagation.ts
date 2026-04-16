@@ -1,25 +1,25 @@
-import { context, type Context } from "@opentelemetry/api";
-import { W3CTraceContextPropagator } from "@opentelemetry/core";
+import { type Context, context } from '@opentelemetry/api'
+import { W3CTraceContextPropagator } from '@opentelemetry/core'
 
-const propagator = new W3CTraceContextPropagator();
+const propagator = new W3CTraceContextPropagator()
 const headerSetter = {
   set(carrier: Record<string, string>, key: string, value: string) {
-    carrier[key] = value;
+    carrier[key] = value
   },
-};
+}
 
 const headerGetter = {
   keys(carrier: Headers): string[] {
-    const out: string[] = [];
+    const out: string[] = []
     carrier.forEach((_, key) => {
-      out.push(key);
-    });
-    return out;
+      out.push(key)
+    })
+    return out
   },
   get(carrier: Headers, key: string): string | undefined {
-    return carrier.get(key) ?? undefined;
+    return carrier.get(key) ?? undefined
   },
-};
+}
 
 /**
  * Injects W3C trace context (traceparent, tracestate) into outbound HTTP
@@ -31,11 +31,11 @@ const headerGetter = {
  */
 export function traceHeaders(
   carrier?: Record<string, string>,
-  otelContext?: Context,
+  otelContext?: Context
 ): Record<string, string> {
-  const headers: Record<string, string> = carrier ?? {};
-  propagator.inject(otelContext ?? context.active(), headers, headerSetter);
-  return headers;
+  const headers: Record<string, string> = carrier ?? {}
+  propagator.inject(otelContext ?? context.active(), headers, headerSetter)
+  return headers
 }
 
 /**
@@ -53,5 +53,5 @@ export function traceHeaders(
  * behavior as before this helper existed.
  */
 export function contextFromRequestHeaders(headers: Headers): Context {
-  return propagator.extract(context.active(), headers, headerGetter);
+  return propagator.extract(context.active(), headers, headerGetter)
 }

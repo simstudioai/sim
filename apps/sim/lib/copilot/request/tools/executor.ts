@@ -18,6 +18,7 @@ import {
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import { CreateWorkflow } from '@/lib/copilot/generated/tool-catalog-v1'
 import { publishToolConfirmation } from '@/lib/copilot/persistence/tool-confirm'
+import { withCopilotToolSpan } from '@/lib/copilot/request/otel'
 import { markToolResultSeen } from '@/lib/copilot/request/sse-utils'
 import {
   getToolCallStateOutput,
@@ -39,7 +40,6 @@ import {
   type StreamingContext,
   type ToolCallState,
 } from '@/lib/copilot/request/types'
-import { withCopilotToolSpan } from '@/lib/copilot/request/otel'
 import { ensureHandlersRegistered, executeTool } from '@/lib/copilot/tool-executor'
 
 export { waitForToolCompletion } from '@/lib/copilot/request/tools/client'
@@ -107,18 +107,20 @@ function summarizeToolResultForSpan(result: {
 }
 
 function extractAttachmentShape(
-  output: unknown,
+  output: unknown
 ): { imageCount: number; imageBytes: number; mediaType?: string } | null {
   if (!isRecord(output)) return null
   const candidate = (output as Record<string, unknown>).attachment
   if (!isRecord(candidate)) return null
   const source = (candidate as Record<string, unknown>).source
   if (!isRecord(source)) return null
-  const type = typeof (candidate as Record<string, unknown>).type === 'string'
-    ? ((candidate as Record<string, unknown>).type as string)
-    : ''
+  const type =
+    typeof (candidate as Record<string, unknown>).type === 'string'
+      ? ((candidate as Record<string, unknown>).type as string)
+      : ''
   if (type !== 'image') return null
-  const mediaType = typeof source.media_type === 'string' ? (source.media_type as string) : undefined
+  const mediaType =
+    typeof source.media_type === 'string' ? (source.media_type as string) : undefined
   const data = typeof source.data === 'string' ? (source.data as string) : ''
   return {
     imageCount: 1,
@@ -237,13 +239,15 @@ export async function executeToolAndReport(
       message: 'Tool call not found',
     })
 
-  const argsPayload = toolCall.params ? (() => {
-    try {
-      return JSON.stringify(toolCall.params)
-    } catch {
-      return undefined
-    }
-  })() : undefined
+  const argsPayload = toolCall.params
+    ? (() => {
+        try {
+          return JSON.stringify(toolCall.params)
+        } catch {
+          return undefined
+        }
+      })()
+    : undefined
   return withCopilotToolSpan(
     {
       toolName: toolCall.name,
@@ -260,7 +264,7 @@ export async function executeToolAndReport(
         otelSpan.setAttribute('tool.outcome.message', String(completion.message).slice(0, 500))
       }
       return completion
-    },
+    }
   )
 }
 
@@ -268,9 +272,8 @@ async function executeToolAndReportInner(
   toolCall: ToolCallState,
   context: StreamingContext,
   execContext: ExecutionContext,
-  options?: OrchestratorOptions,
+  options?: OrchestratorOptions
 ): Promise<AsyncToolCompletion> {
-
   if (toolCall.status === 'executing') {
     return buildCompletionSignal({
       status: MothershipStreamV1AsyncToolRecordStatus.running,

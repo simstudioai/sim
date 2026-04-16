@@ -1,43 +1,38 @@
-import { createLogger } from "@sim/logger";
-import type { RequestTraceV1Outcome as RequestTraceOutcome } from "@/lib/copilot/generated/request-trace-v1";
+import { createLogger } from '@sim/logger'
+import type { RequestTraceV1Outcome as RequestTraceOutcome } from '@/lib/copilot/generated/request-trace-v1'
 import {
   RequestTraceV1Outcome,
   RequestTraceV1SpanStatus,
-} from "@/lib/copilot/generated/request-trace-v1";
-import type { CopilotLifecycleOptions } from "@/lib/copilot/request/lifecycle/run";
-import { runCopilotLifecycle } from "@/lib/copilot/request/lifecycle/run";
-import { withCopilotOtelContext } from "@/lib/copilot/request/otel";
-import { reportTrace, TraceCollector } from "@/lib/copilot/request/trace";
-import type { OrchestratorResult } from "@/lib/copilot/request/types";
-import { generateId } from "@/lib/core/utils/uuid";
+} from '@/lib/copilot/generated/request-trace-v1'
+import type { CopilotLifecycleOptions } from '@/lib/copilot/request/lifecycle/run'
+import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
+import { withCopilotOtelContext } from '@/lib/copilot/request/otel'
+import { reportTrace, TraceCollector } from '@/lib/copilot/request/trace'
+import type { OrchestratorResult } from '@/lib/copilot/request/types'
+import { generateId } from '@/lib/core/utils/uuid'
 
-const logger = createLogger("CopilotHeadlessLifecycle");
+const logger = createLogger('CopilotHeadlessLifecycle')
 
 export async function runHeadlessCopilotLifecycle(
   requestPayload: Record<string, unknown>,
-  options: CopilotLifecycleOptions,
+  options: CopilotLifecycleOptions
 ): Promise<OrchestratorResult> {
   const simRequestId =
-    typeof options.simRequestId === "string" && options.simRequestId.length > 0
+    typeof options.simRequestId === 'string' && options.simRequestId.length > 0
       ? options.simRequestId
-      : typeof requestPayload.messageId === "string" &&
-          requestPayload.messageId.length > 0
+      : typeof requestPayload.messageId === 'string' && requestPayload.messageId.length > 0
         ? requestPayload.messageId
-        : generateId();
-  const trace = new TraceCollector();
-  const requestSpan = trace.startSpan(
-    "Headless Mothership Request",
-    "request",
-    {
-      route: options.goRoute,
-      workflowId: options.workflowId,
-      workspaceId: options.workspaceId,
-      chatId: options.chatId,
-    },
-  );
+        : generateId()
+  const trace = new TraceCollector()
+  const requestSpan = trace.startSpan('Headless Mothership Request', 'request', {
+    route: options.goRoute,
+    workflowId: options.workflowId,
+    workspaceId: options.workspaceId,
+    chatId: options.chatId,
+  })
 
-  let result: OrchestratorResult | undefined;
-  let outcome: RequestTraceOutcome = RequestTraceV1Outcome.error;
+  let result: OrchestratorResult | undefined
+  let outcome: RequestTraceOutcome = RequestTraceV1Outcome.error
 
   return withCopilotOtelContext(
     {
@@ -47,7 +42,7 @@ export async function runHeadlessCopilotLifecycle(
       workflowId: options.workflowId,
       executionId: options.executionId,
       runId: options.runId,
-      transport: "headless",
+      transport: 'headless',
     },
     async (otelContext) => {
       try {
@@ -56,18 +51,18 @@ export async function runHeadlessCopilotLifecycle(
           trace,
           simRequestId,
           otelContext,
-        });
+        })
         outcome = options.abortSignal?.aborted
           ? RequestTraceV1Outcome.cancelled
           : result.success
             ? RequestTraceV1Outcome.success
-            : RequestTraceV1Outcome.error;
-        return result;
+            : RequestTraceV1Outcome.error
+        return result
       } catch (error) {
         outcome = options.abortSignal?.aborted
           ? RequestTraceV1Outcome.cancelled
-          : RequestTraceV1Outcome.error;
-        throw error;
+          : RequestTraceV1Outcome.error
+        throw error
       } finally {
         trace.endSpan(
           requestSpan,
@@ -75,8 +70,8 @@ export async function runHeadlessCopilotLifecycle(
             ? RequestTraceV1SpanStatus.ok
             : outcome === RequestTraceV1Outcome.cancelled
               ? RequestTraceV1SpanStatus.cancelled
-              : RequestTraceV1SpanStatus.error,
-        );
+              : RequestTraceV1SpanStatus.error
+        )
 
         try {
           await reportTrace(
@@ -89,16 +84,16 @@ export async function runHeadlessCopilotLifecycle(
               usage: result?.usage,
               cost: result?.cost,
             }),
-            otelContext,
-          );
+            otelContext
+          )
         } catch (error) {
-          logger.warn("Failed to report headless trace", {
+          logger.warn('Failed to report headless trace', {
             simRequestId,
             chatId: result?.chatId ?? options.chatId,
             error: error instanceof Error ? error.message : String(error),
-          });
+          })
         }
       }
-    },
-  );
+    }
+  )
 }

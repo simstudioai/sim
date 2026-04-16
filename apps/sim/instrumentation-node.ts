@@ -16,7 +16,7 @@
  */
 
 import type { Attributes, Context, Link, SpanKind } from '@opentelemetry/api'
-import { DiagConsoleLogger, DiagLogLevel, TraceFlags, diag, trace } from '@opentelemetry/api'
+import { DiagConsoleLogger, DiagLogLevel, diag, TraceFlags, trace } from '@opentelemetry/api'
 import type {
   ReadableSpan,
   Sampler,
@@ -60,13 +60,7 @@ const DEFAULT_TELEMETRY_CONFIG = {
  * explicitly creates; adding a broad prefix (e.g. `http.`) risks
  * silently re-enabling non-copilot tracing.
  */
-const ALLOWED_SPAN_PREFIXES = [
-  'gen_ai.',
-  'copilot.',
-  'sim →',
-  'sim.',
-  'tool.execute',
-]
+const ALLOWED_SPAN_PREFIXES = ['gen_ai.', 'copilot.', 'sim →', 'sim.', 'tool.execute']
 
 function isBusinessSpan(spanName: string): boolean {
   return ALLOWED_SPAN_PREFIXES.some((prefix) => spanName.startsWith(prefix))

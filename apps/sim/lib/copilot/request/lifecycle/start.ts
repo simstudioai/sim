@@ -1,18 +1,19 @@
-import { context as otelContextApi, type Context } from "@opentelemetry/api";
-import { db } from "@sim/db";
-import { copilotChats } from "@sim/db/schema";
-import { createLogger } from "@sim/logger";
-import { eq } from "drizzle-orm";
-import { createRunSegment } from "@/lib/copilot/async-runs/repository";
-import { SIM_AGENT_API_URL } from "@/lib/copilot/constants";
+import { type Context, context as otelContextApi } from '@opentelemetry/api'
+import { db } from '@sim/db'
+import { copilotChats } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { eq } from 'drizzle-orm'
+import { createRunSegment } from '@/lib/copilot/async-runs/repository'
+import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1SessionKind,
-} from "@/lib/copilot/generated/mothership-stream-v1";
-import { RequestTraceV1Outcome } from "@/lib/copilot/generated/request-trace-v1";
-import { finalizeStream } from "@/lib/copilot/request/lifecycle/finalize";
-import type { CopilotLifecycleOptions } from "@/lib/copilot/request/lifecycle/run";
-import { runCopilotLifecycle } from "@/lib/copilot/request/lifecycle/run";
+} from '@/lib/copilot/generated/mothership-stream-v1'
+import { RequestTraceV1Outcome } from '@/lib/copilot/generated/request-trace-v1'
+import { finalizeStream } from '@/lib/copilot/request/lifecycle/finalize'
+import type { CopilotLifecycleOptions } from '@/lib/copilot/request/lifecycle/run'
+import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
+import { type CopilotLifecycleOutcome, startCopilotOtelRoot } from '@/lib/copilot/request/otel'
 import {
   cleanupAbortMarker,
   clearFilePreviewSessions,
@@ -24,39 +25,35 @@ import {
   scheduleFilePreviewSessionCleanup,
   startAbortPoller,
   unregisterActiveStream,
-} from "@/lib/copilot/request/session";
-import { SSE_RESPONSE_HEADERS } from "@/lib/copilot/request/session/sse";
-import {
-  type CopilotLifecycleOutcome,
-  startCopilotOtelRoot,
-} from "@/lib/copilot/request/otel";
-import { reportTrace, TraceCollector } from "@/lib/copilot/request/trace";
-import { taskPubSub } from "@/lib/copilot/tasks";
-import { env } from "@/lib/core/config/env";
+} from '@/lib/copilot/request/session'
+import { SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/session/sse'
+import { reportTrace, TraceCollector } from '@/lib/copilot/request/trace'
+import { taskPubSub } from '@/lib/copilot/tasks'
+import { env } from '@/lib/core/config/env'
 
-export { SSE_RESPONSE_HEADERS };
+export { SSE_RESPONSE_HEADERS }
 
-const logger = createLogger("CopilotChatStreaming");
+const logger = createLogger('CopilotChatStreaming')
 
 type CurrentChatSummary = {
-  title?: string | null;
-} | null;
+  title?: string | null
+} | null
 
 export interface StreamingOrchestrationParams {
-  requestPayload: Record<string, unknown>;
-  userId: string;
-  streamId: string;
-  executionId: string;
-  runId: string;
-  chatId?: string;
-  currentChat: CurrentChatSummary;
-  isNewChat: boolean;
-  message: string;
-  titleModel: string;
-  titleProvider?: string;
-  requestId: string;
-  workspaceId?: string;
-  orchestrateOptions: Omit<CopilotLifecycleOptions, "onEvent">;
+  requestPayload: Record<string, unknown>
+  userId: string
+  streamId: string
+  executionId: string
+  runId: string
+  chatId?: string
+  currentChat: CurrentChatSummary
+  isNewChat: boolean
+  message: string
+  titleModel: string
+  titleProvider?: string
+  requestId: string
+  workspaceId?: string
+  orchestrateOptions: Omit<CopilotLifecycleOptions, 'onEvent'>
   /**
    * Pre-started gen_ai.agent.execute root returned by
    * `startCopilotOtelRoot`. When provided, this stream binds every nested
@@ -64,12 +61,10 @@ export interface StreamingOrchestrationParams {
    * this function starts its own root internally (kept for back-compat
    * with the headless path).
    */
-  otelRoot?: ReturnType<typeof startCopilotOtelRoot>;
+  otelRoot?: ReturnType<typeof startCopilotOtelRoot>
 }
 
-export function createSSEStream(
-  params: StreamingOrchestrationParams,
-): ReadableStream {
+export function createSSEStream(params: StreamingOrchestrationParams): ReadableStream {
   const {
     requestPayload,
     userId,
@@ -86,7 +81,7 @@ export function createSSEStream(
     workspaceId,
     orchestrateOptions,
     otelRoot,
-  } = params;
+  } = params
 
   // If the caller (POST handler) already started the gen_ai.agent.execute
   // root so that pre-stream setup work (persistUserMessage, resource
@@ -103,51 +98,43 @@ export function createSSEStream(
       executionId,
       runId,
       streamId,
-      transport: "stream",
-    });
+      transport: 'stream',
+    })
 
-  const abortController = new AbortController();
-  registerActiveStream(streamId, abortController);
+  const abortController = new AbortController()
+  registerActiveStream(streamId, abortController)
 
-  const publisher = new StreamWriter({ streamId, chatId, requestId });
+  const publisher = new StreamWriter({ streamId, chatId, requestId })
 
-  const collector = new TraceCollector();
+  const collector = new TraceCollector()
 
   return new ReadableStream({
     async start(controller) {
-      publisher.attach(controller);
+      publisher.attach(controller)
 
       // Re-enter the root OTel context. Node's AsyncLocalStorage does
       // not survive the Next.js handler -> ReadableStream.start boundary,
       // so nested `withCopilotSpan` / `withDbSpan` calls would otherwise
       // orphan into new traces.
       await otelContextApi.with(activeOtelRoot.context, async () => {
-        const otelContext = activeOtelRoot.context;
-        let rootOutcome: CopilotLifecycleOutcome =
-          RequestTraceV1Outcome.error;
-        let rootError: unknown = undefined;
+        const otelContext = activeOtelRoot.context
+        let rootOutcome: CopilotLifecycleOutcome = RequestTraceV1Outcome.error
+        let rootError: unknown
         try {
-          const requestSpan = collector.startSpan(
-            "Mothership Request",
-            "request",
-            {
-              streamId,
-              chatId,
-              runId,
-            },
-          );
-          let outcome: CopilotLifecycleOutcome = RequestTraceV1Outcome.error;
+          const requestSpan = collector.startSpan('Mothership Request', 'request', {
+            streamId,
+            chatId,
+            runId,
+          })
+          let outcome: CopilotLifecycleOutcome = RequestTraceV1Outcome.error
           let lifecycleResult:
             | {
-                usage?: { prompt: number; completion: number };
-                cost?: { input: number; output: number; total: number };
+                usage?: { prompt: number; completion: number }
+                cost?: { input: number; output: number; total: number }
               }
-            | undefined;
+            | undefined
 
-          await Promise.all([
-            resetBuffer(streamId),
-            clearFilePreviewSessions(streamId),
-          ]);
+          await Promise.all([resetBuffer(streamId), clearFilePreviewSessions(streamId)])
 
           if (chatId) {
             createRunSegment({
@@ -155,27 +142,23 @@ export function createSSEStream(
               executionId,
               chatId,
               userId,
-              workflowId:
-                (requestPayload.workflowId as string | undefined) || null,
+              workflowId: (requestPayload.workflowId as string | undefined) || null,
               workspaceId,
               streamId,
               model: (requestPayload.model as string | undefined) || null,
               provider: (requestPayload.provider as string | undefined) || null,
               requestContext: { requestId },
             }).catch((error) => {
-              logger.warn(
-                `[${requestId}] Failed to create copilot run segment`,
-                {
-                  error: error instanceof Error ? error.message : String(error),
-                },
-              );
-            });
+              logger.warn(`[${requestId}] Failed to create copilot run segment`, {
+                error: error instanceof Error ? error.message : String(error),
+              })
+            })
           }
 
           const abortPoller = startAbortPoller(streamId, abortController, {
             requestId,
-          });
-          publisher.startKeepalive();
+          })
+          publisher.startKeepalive()
 
           if (chatId) {
             publisher.publish({
@@ -184,7 +167,7 @@ export function createSSEStream(
                 kind: MothershipStreamV1SessionKind.chat,
                 chatId,
               },
-            });
+            })
           }
 
           fireTitleGeneration({
@@ -198,7 +181,7 @@ export function createSSEStream(
             requestId,
             publisher,
             otelContext,
-          });
+          })
 
           try {
             const result = await runCopilotLifecycle(requestPayload, {
@@ -210,84 +193,73 @@ export function createSSEStream(
               otelContext,
               abortSignal: abortController.signal,
               onEvent: async (event) => {
-                await publisher.publish(event);
+                await publisher.publish(event)
               },
-            });
+            })
 
-            lifecycleResult = result;
+            lifecycleResult = result
             outcome = abortController.signal.aborted
               ? RequestTraceV1Outcome.cancelled
               : result.success
                 ? RequestTraceV1Outcome.success
-                : RequestTraceV1Outcome.error;
+                : RequestTraceV1Outcome.error
             await finalizeStream(
               result,
               publisher,
               runId,
               abortController.signal.aborted,
-              requestId,
-            );
+              requestId
+            )
           } catch (error) {
             outcome = abortController.signal.aborted
               ? RequestTraceV1Outcome.cancelled
-              : RequestTraceV1Outcome.error;
+              : RequestTraceV1Outcome.error
             if (publisher.clientDisconnected) {
-              logger.info(
-                `[${requestId}] Stream errored after client disconnect`,
-                {
-                  error:
-                    error instanceof Error ? error.message : "Stream error",
-                },
-              );
+              logger.info(`[${requestId}] Stream errored after client disconnect`, {
+                error: error instanceof Error ? error.message : 'Stream error',
+              })
             }
-            logger.error(
-              `[${requestId}] Unexpected orchestration error:`,
-              error,
-            );
+            logger.error(`[${requestId}] Unexpected orchestration error:`, error)
 
             const syntheticResult = {
               success: false as const,
-              content: "",
+              content: '',
               contentBlocks: [],
               toolCalls: [],
-              error:
-                "An unexpected error occurred while processing the response.",
-            };
+              error: 'An unexpected error occurred while processing the response.',
+            }
             await finalizeStream(
               syntheticResult,
               publisher,
               runId,
               abortController.signal.aborted,
-              requestId,
-            );
+              requestId
+            )
           } finally {
             collector.endSpan(
               requestSpan,
               outcome === RequestTraceV1Outcome.success
-                ? "ok"
+                ? 'ok'
                 : outcome === RequestTraceV1Outcome.cancelled
-                  ? "cancelled"
-                  : "error",
-            );
+                  ? 'cancelled'
+                  : 'error'
+            )
 
-            clearInterval(abortPoller);
+            clearInterval(abortPoller)
             try {
-              await publisher.close();
+              await publisher.close()
             } catch (error) {
-              logger.warn(
-                `[${requestId}] Failed to flush stream persistence during close`,
-                {
-                  error: error instanceof Error ? error.message : String(error),
-                },
-              );
+              logger.warn(`[${requestId}] Failed to flush stream persistence during close`, {
+                error: error instanceof Error ? error.message : String(error),
+              })
             }
-            unregisterActiveStream(streamId);
+            unregisterActiveStream(streamId)
             if (chatId) {
-              await releasePendingChatStream(chatId, streamId);
+              await releasePendingChatStream(chatId, streamId)
             }
-            await scheduleBufferCleanup(streamId);
-            await scheduleFilePreviewSessionCleanup(streamId);
-            await cleanupAbortMarker(streamId);
+            await scheduleBufferCleanup(streamId)
+            await scheduleFilePreviewSessionCleanup(streamId)
+            await cleanupAbortMarker(streamId)
 
             const trace = collector.build({
               outcome,
@@ -298,40 +270,39 @@ export function createSSEStream(
               executionId,
               usage: lifecycleResult?.usage,
               cost: lifecycleResult?.cost,
-            });
-            reportTrace(trace, otelContext).catch(() => {});
-            rootOutcome = outcome;
+            })
+            reportTrace(trace, otelContext).catch(() => {})
+            rootOutcome = outcome
             if (lifecycleResult?.usage) {
               activeOtelRoot.span.setAttributes({
-                "gen_ai.usage.input_tokens": lifecycleResult.usage.prompt ?? 0,
-                "gen_ai.usage.output_tokens":
-                  lifecycleResult.usage.completion ?? 0,
-              });
+                'gen_ai.usage.input_tokens': lifecycleResult.usage.prompt ?? 0,
+                'gen_ai.usage.output_tokens': lifecycleResult.usage.completion ?? 0,
+              })
             }
             if (lifecycleResult?.cost) {
               activeOtelRoot.span.setAttributes({
-                "billing.cost.input_usd": lifecycleResult.cost.input ?? 0,
-                "billing.cost.output_usd": lifecycleResult.cost.output ?? 0,
-                "billing.cost.total_usd": lifecycleResult.cost.total ?? 0,
-              });
+                'billing.cost.input_usd': lifecycleResult.cost.input ?? 0,
+                'billing.cost.output_usd': lifecycleResult.cost.output ?? 0,
+                'billing.cost.total_usd': lifecycleResult.cost.total ?? 0,
+              })
             }
           }
         } catch (error) {
-          rootOutcome = RequestTraceV1Outcome.error;
-          rootError = error;
-          throw error;
+          rootOutcome = RequestTraceV1Outcome.error
+          rootError = error
+          throw error
         } finally {
           // `finish` is idempotent, so it's safe whether the POST
           // handler started the root (and may also call finish on an
           // error path before the stream ran) or we did.
-          activeOtelRoot.finish(rootOutcome, rootError);
+          activeOtelRoot.finish(rootOutcome, rootError)
         }
-      });
+      })
     },
     cancel() {
-      publisher.markDisconnected();
+      publisher.markDisconnected()
     },
-  });
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -339,16 +310,16 @@ export function createSSEStream(
 // ---------------------------------------------------------------------------
 
 function fireTitleGeneration(params: {
-  chatId?: string;
-  currentChat: CurrentChatSummary;
-  isNewChat: boolean;
-  message: string;
-  titleModel: string;
-  titleProvider?: string;
-  workspaceId?: string;
-  requestId: string;
-  publisher: StreamWriter;
-  otelContext?: Context;
+  chatId?: string
+  currentChat: CurrentChatSummary
+  isNewChat: boolean
+  message: string
+  titleModel: string
+  titleProvider?: string
+  workspaceId?: string
+  requestId: string
+  publisher: StreamWriter
+  otelContext?: Context
 }): void {
   const {
     chatId,
@@ -361,8 +332,8 @@ function fireTitleGeneration(params: {
     requestId,
     publisher,
     otelContext,
-  } = params;
-  if (!chatId || currentChat?.title || !isNewChat) return;
+  } = params
+  if (!chatId || currentChat?.title || !isNewChat) return
 
   requestChatTitle({
     message,
@@ -371,26 +342,23 @@ function fireTitleGeneration(params: {
     otelContext,
   })
     .then(async (title) => {
-      if (!title) return;
-      await db
-        .update(copilotChats)
-        .set({ title })
-        .where(eq(copilotChats.id, chatId));
+      if (!title) return
+      await db.update(copilotChats).set({ title }).where(eq(copilotChats.id, chatId))
       await publisher.publish({
         type: MothershipStreamV1EventType.session,
         payload: { kind: MothershipStreamV1SessionKind.title, title },
-      });
+      })
       if (workspaceId) {
         taskPubSub?.publishStatusChanged({
           workspaceId,
           chatId,
-          type: "renamed",
-        });
+          type: 'renamed',
+        })
       }
     })
     .catch((error) => {
-      logger.error(`[${requestId}] Title generation failed:`, error);
-    });
+      logger.error(`[${requestId}] Title generation failed:`, error)
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -398,57 +366,53 @@ function fireTitleGeneration(params: {
 // ---------------------------------------------------------------------------
 
 export async function requestChatTitle(params: {
-  message: string;
-  model: string;
-  provider?: string;
-  otelContext?: Context;
+  message: string
+  model: string
+  provider?: string
+  otelContext?: Context
 }): Promise<string | null> {
-  const { message, model, provider, otelContext } = params;
-  if (!message || !model) return null;
+  const { message, model, provider, otelContext } = params
+  if (!message || !model) return null
 
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
+    'Content-Type': 'application/json',
+  }
   if (env.COPILOT_API_KEY) {
-    headers["x-api-key"] = env.COPILOT_API_KEY;
+    headers['x-api-key'] = env.COPILOT_API_KEY
   }
 
   try {
-    const { fetchGo } = await import("@/lib/copilot/request/go/fetch");
-    const response = await fetchGo(
-      `${SIM_AGENT_API_URL}/api/generate-chat-title`,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          message,
-          model,
-          ...(provider ? { provider } : {}),
-        }),
-        otelContext,
-        spanName: "sim → go /api/generate-chat-title",
-        operation: "generate_chat_title",
-        attributes: {
-          "gen_ai.request.model": model,
-          ...(provider ? { "gen_ai.system": provider } : {}),
-        },
+    const { fetchGo } = await import('@/lib/copilot/request/go/fetch')
+    const response = await fetchGo(`${SIM_AGENT_API_URL}/api/generate-chat-title`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        message,
+        model,
+        ...(provider ? { provider } : {}),
+      }),
+      otelContext,
+      spanName: 'sim → go /api/generate-chat-title',
+      operation: 'generate_chat_title',
+      attributes: {
+        'gen_ai.request.model': model,
+        ...(provider ? { 'gen_ai.system': provider } : {}),
       },
-    );
+    })
 
-    const payload = await response.json().catch(() => ({}));
+    const payload = await response.json().catch(() => ({}))
     if (!response.ok) {
-      logger.warn("Failed to generate chat title via copilot backend", {
+      logger.warn('Failed to generate chat title via copilot backend', {
         status: response.status,
         error: payload,
-      });
-      return null;
+      })
+      return null
     }
 
-    const title =
-      typeof payload?.title === "string" ? payload.title.trim() : "";
-    return title || null;
+    const title = typeof payload?.title === 'string' ? payload.title.trim() : ''
+    return title || null
   } catch (error) {
-    logger.error("Error generating chat title:", error);
-    return null;
+    logger.error('Error generating chat title:', error)
+    return null
   }
 }

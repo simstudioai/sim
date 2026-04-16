@@ -1,17 +1,13 @@
-import {
-  context as otelContext,
-  SpanStatusCode,
-  trace,
-} from "@opentelemetry/api";
-import { createLogger } from "@sim/logger";
-import { type NextRequest, NextResponse } from "next/server";
-import { getLatestRunForStream } from "@/lib/copilot/async-runs/repository";
+import { context as otelContext, SpanStatusCode, trace } from '@opentelemetry/api'
+import { createLogger } from '@sim/logger'
+import { type NextRequest, NextResponse } from 'next/server'
+import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
-} from "@/lib/copilot/generated/mothership-stream-v1";
-import { authenticateCopilotRequestSessionOnly } from "@/lib/copilot/request/http";
-import { getCopilotTracer } from "@/lib/copilot/request/otel";
+} from '@/lib/copilot/generated/mothership-stream-v1'
+import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
+import { getCopilotTracer } from '@/lib/copilot/request/otel'
 import {
   checkForReplayGap,
   createEvent,
@@ -19,65 +15,57 @@ import {
   readEvents,
   readFilePreviewSessions,
   SSE_RESPONSE_HEADERS,
-} from "@/lib/copilot/request/session";
-import { toStreamBatchEvent } from "@/lib/copilot/request/session/types";
+} from '@/lib/copilot/request/session'
+import { toStreamBatchEvent } from '@/lib/copilot/request/session/types'
 
-export const maxDuration = 3600;
+export const maxDuration = 3600
 
-const logger = createLogger("CopilotChatStreamAPI");
-const POLL_INTERVAL_MS = 250;
-const MAX_STREAM_MS = 60 * 60 * 1000;
+const logger = createLogger('CopilotChatStreamAPI')
+const POLL_INTERVAL_MS = 250
+const MAX_STREAM_MS = 60 * 60 * 1000
 
 function extractCanonicalRequestId(value: unknown): string {
-  return typeof value === "string" && value.length > 0 ? value : "";
+  return typeof value === 'string' && value.length > 0 ? value : ''
 }
 
-function extractRunRequestId(
-  run: { requestContext?: unknown } | null | undefined,
-): string {
-  if (
-    !run ||
-    typeof run.requestContext !== "object" ||
-    run.requestContext === null
-  ) {
-    return "";
+function extractRunRequestId(run: { requestContext?: unknown } | null | undefined): string {
+  if (!run || typeof run.requestContext !== 'object' || run.requestContext === null) {
+    return ''
   }
-  const requestContext = run.requestContext as Record<string, unknown>;
+  const requestContext = run.requestContext as Record<string, unknown>
   return (
     extractCanonicalRequestId(requestContext.requestId) ||
     extractCanonicalRequestId(requestContext.simRequestId)
-  );
+  )
 }
 
-function extractEnvelopeRequestId(envelope: {
-  trace?: { requestId?: unknown };
-}): string {
-  return extractCanonicalRequestId(envelope.trace?.requestId);
+function extractEnvelopeRequestId(envelope: { trace?: { requestId?: unknown } }): string {
+  return extractCanonicalRequestId(envelope.trace?.requestId)
 }
 
 function isTerminalStatus(
-  status: string | null | undefined,
+  status: string | null | undefined
 ): status is MothershipStreamV1CompletionStatus {
   return (
     status === MothershipStreamV1CompletionStatus.complete ||
     status === MothershipStreamV1CompletionStatus.error ||
     status === MothershipStreamV1CompletionStatus.cancelled
-  );
+  )
 }
 
 function buildResumeTerminalEnvelopes(options: {
-  streamId: string;
-  afterCursor: string;
-  status: MothershipStreamV1CompletionStatus;
-  message?: string;
-  code: string;
-  reason?: string;
-  requestId?: string;
+  streamId: string
+  afterCursor: string
+  status: MothershipStreamV1CompletionStatus
+  message?: string
+  code: string
+  reason?: string
+  requestId?: string
 }) {
-  const baseSeq = Number(options.afterCursor || "0");
-  const seq = Number.isFinite(baseSeq) ? baseSeq : 0;
-  const envelopes: ReturnType<typeof createEvent>[] = [];
-  const rid = options.requestId ?? "";
+  const baseSeq = Number(options.afterCursor || '0')
+  const seq = Number.isFinite(baseSeq) ? baseSeq : 0
+  const envelopes: ReturnType<typeof createEvent>[] = []
+  const rid = options.requestId ?? ''
 
   if (options.status === MothershipStreamV1CompletionStatus.error) {
     envelopes.push(
@@ -88,12 +76,11 @@ function buildResumeTerminalEnvelopes(options: {
         requestId: rid,
         type: MothershipStreamV1EventType.error,
         payload: {
-          message:
-            options.message || "Stream recovery failed before completion.",
+          message: options.message || 'Stream recovery failed before completion.',
           code: options.code,
         },
-      }),
-    );
+      })
+    )
   }
 
   envelopes.push(
@@ -107,30 +94,27 @@ function buildResumeTerminalEnvelopes(options: {
         status: options.status,
         ...(options.reason ? { reason: options.reason } : {}),
       },
-    }),
-  );
+    })
+  )
 
-  return envelopes;
+  return envelopes
 }
 
 export async function GET(request: NextRequest) {
   const { userId: authenticatedUserId, isAuthenticated } =
-    await authenticateCopilotRequestSessionOnly();
+    await authenticateCopilotRequestSessionOnly()
 
   if (!isAuthenticated || !authenticatedUserId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const url = new URL(request.url);
-  const streamId = url.searchParams.get("streamId") || "";
-  const afterCursor = url.searchParams.get("after") || "";
-  const batchMode = url.searchParams.get("batch") === "true";
+  const url = new URL(request.url)
+  const streamId = url.searchParams.get('streamId') || ''
+  const afterCursor = url.searchParams.get('after') || ''
+  const batchMode = url.searchParams.get('batch') === 'true'
 
   if (!streamId) {
-    return NextResponse.json(
-      { error: "streamId is required" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: 'streamId is required' }, { status: 400 })
   }
 
   // Root span for the whole resume/reconnect request. In stream mode the
@@ -140,15 +124,15 @@ export async function GET(request: NextRequest) {
   // manually, capture its context, and re-enter that context inside the
   // stream callback so every nested `withCopilotSpan` / `withDbSpan` call
   // attaches to this root.
-  const rootSpan = getCopilotTracer().startSpan("copilot.resume.request", {
+  const rootSpan = getCopilotTracer().startSpan('copilot.resume.request', {
     attributes: {
-      "copilot.transport": batchMode ? "batch" : "stream",
-      "stream.id": streamId,
-      "user.id": authenticatedUserId,
-      "copilot.resume.after_cursor": afterCursor || "0",
+      'copilot.transport': batchMode ? 'batch' : 'stream',
+      'stream.id': streamId,
+      'user.id': authenticatedUserId,
+      'copilot.resume.after_cursor': afterCursor || '0',
     },
-  });
-  const rootContext = trace.setSpan(otelContext.active(), rootSpan);
+  })
+  const rootContext = trace.setSpan(otelContext.active(), rootSpan)
 
   try {
     return await otelContext.with(rootContext, () =>
@@ -160,16 +144,16 @@ export async function GET(request: NextRequest) {
         authenticatedUserId,
         rootSpan,
         rootContext,
-      }),
-    );
+      })
+    )
   } catch (err) {
     rootSpan.setStatus({
       code: SpanStatusCode.ERROR,
       message: err instanceof Error ? err.message : String(err),
-    });
-    rootSpan.recordException(err instanceof Error ? err : new Error(String(err)));
-    rootSpan.end();
-    throw err;
+    })
+    rootSpan.recordException(err instanceof Error ? err : new Error(String(err)))
+    rootSpan.end()
+    throw err
   }
 }
 
@@ -182,274 +166,261 @@ async function handleResumeRequestBody({
   rootSpan,
   rootContext,
 }: {
-  request: NextRequest;
-  streamId: string;
-  afterCursor: string;
-  batchMode: boolean;
-  authenticatedUserId: string;
-  rootSpan: import("@opentelemetry/api").Span;
-  rootContext: import("@opentelemetry/api").Context;
+  request: NextRequest
+  streamId: string
+  afterCursor: string
+  batchMode: boolean
+  authenticatedUserId: string
+  rootSpan: import('@opentelemetry/api').Span
+  rootContext: import('@opentelemetry/api').Context
 }) {
-
-  const run = await getLatestRunForStream(streamId, authenticatedUserId).catch(
-    (err) => {
-      logger.warn("Failed to fetch latest run for stream", {
-        streamId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      return null;
-    },
-  );
-  logger.info("[Resume] Stream lookup", {
+  const run = await getLatestRunForStream(streamId, authenticatedUserId).catch((err) => {
+    logger.warn('Failed to fetch latest run for stream', {
+      streamId,
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return null
+  })
+  logger.info('[Resume] Stream lookup', {
     streamId,
     afterCursor,
     batchMode,
     hasRun: !!run,
     runStatus: run?.status,
-  });
+  })
   if (!run) {
-    rootSpan.setAttribute("copilot.resume.outcome", "stream_not_found");
-    rootSpan.end();
-    return NextResponse.json({ error: "Stream not found" }, { status: 404 });
+    rootSpan.setAttribute('copilot.resume.outcome', 'stream_not_found')
+    rootSpan.end()
+    return NextResponse.json({ error: 'Stream not found' }, { status: 404 })
   }
-  rootSpan.setAttribute("copilot.run.status", run.status);
+  rootSpan.setAttribute('copilot.run.status', run.status)
 
   if (batchMode) {
-    const afterSeq = afterCursor || "0";
+    const afterSeq = afterCursor || '0'
     const [events, previewSessions] = await Promise.all([
       readEvents(streamId, afterSeq),
       readFilePreviewSessions(streamId).catch((error) => {
-        logger.warn("Failed to read preview sessions for stream batch", {
+        logger.warn('Failed to read preview sessions for stream batch', {
           streamId,
           error: error instanceof Error ? error.message : String(error),
-        });
-        return [];
+        })
+        return []
       }),
-    ]);
-    const batchEvents = events.map(toStreamBatchEvent);
-    logger.info("[Resume] Batch response", {
+    ])
+    const batchEvents = events.map(toStreamBatchEvent)
+    logger.info('[Resume] Batch response', {
       streamId,
       afterCursor: afterSeq,
       eventCount: batchEvents.length,
       previewSessionCount: previewSessions.length,
       runStatus: run.status,
-    });
+    })
     rootSpan.setAttributes({
-      "copilot.resume.outcome": "batch_delivered",
-      "copilot.resume.event_count": batchEvents.length,
-      "copilot.resume.preview_session_count": previewSessions.length,
-    });
-    rootSpan.end();
+      'copilot.resume.outcome': 'batch_delivered',
+      'copilot.resume.event_count': batchEvents.length,
+      'copilot.resume.preview_session_count': previewSessions.length,
+    })
+    rootSpan.end()
     return NextResponse.json({
       success: true,
       events: batchEvents,
       previewSessions,
       status: run.status,
-    });
+    })
   }
 
-  const startTime = Date.now();
-  let totalEventsFlushed = 0;
-  let pollIterations = 0;
+  const startTime = Date.now()
+  let totalEventsFlushed = 0
+  let pollIterations = 0
 
   const stream = new ReadableStream({
     async start(controller) {
       // Re-enter the root OTel context so any `withCopilotSpan` call below
       // (inside flushEvents/checkForReplayGap/etc.) parents under
       // copilot.resume.request instead of becoming an orphan.
-      return otelContext.with(rootContext, () => startInner(controller));
+      return otelContext.with(rootContext, () => startInner(controller))
     },
-  });
+  })
 
   async function startInner(controller: ReadableStreamDefaultController) {
-      let cursor = afterCursor || "0";
-      let controllerClosed = false;
-      let sawTerminalEvent = false;
-      let currentRequestId = extractRunRequestId(run);
+    let cursor = afterCursor || '0'
+    let controllerClosed = false
+    let sawTerminalEvent = false
+    let currentRequestId = extractRunRequestId(run)
 
-      const closeController = () => {
-        if (controllerClosed) return;
-        controllerClosed = true;
-        try {
-          controller.close();
-        } catch {
-          // Controller already closed by runtime/client
-        }
-      };
+    const closeController = () => {
+      if (controllerClosed) return
+      controllerClosed = true
+      try {
+        controller.close()
+      } catch {
+        // Controller already closed by runtime/client
+      }
+    }
 
-      const enqueueEvent = (payload: unknown) => {
-        if (controllerClosed) return false;
-        try {
-          controller.enqueue(encodeSSEEnvelope(payload));
-          return true;
-        } catch {
-          controllerClosed = true;
-          return false;
-        }
-      };
+    const enqueueEvent = (payload: unknown) => {
+      if (controllerClosed) return false
+      try {
+        controller.enqueue(encodeSSEEnvelope(payload))
+        return true
+      } catch {
+        controllerClosed = true
+        return false
+      }
+    }
 
-      const abortListener = () => {
-        controllerClosed = true;
-      };
-      request.signal.addEventListener("abort", abortListener, { once: true });
+    const abortListener = () => {
+      controllerClosed = true
+    }
+    request.signal.addEventListener('abort', abortListener, { once: true })
 
-      const flushEvents = async () => {
-        const events = await readEvents(streamId, cursor);
-        if (events.length > 0) {
-          totalEventsFlushed += events.length;
-          logger.info("[Resume] Flushing events", {
-            streamId,
-            afterCursor: cursor,
-            eventCount: events.length,
-          });
-        }
-        for (const envelope of events) {
-          cursor = envelope.stream.cursor ?? String(envelope.seq);
-          currentRequestId =
-            extractEnvelopeRequestId(envelope) || currentRequestId;
-          if (envelope.type === MothershipStreamV1EventType.complete) {
-            sawTerminalEvent = true;
-          }
-          if (!enqueueEvent(envelope)) {
-            break;
-          }
-        }
-      };
-
-      const emitTerminalIfMissing = (
-        status: MothershipStreamV1CompletionStatus,
-        options?: { message?: string; code: string; reason?: string },
-      ) => {
-        if (controllerClosed || sawTerminalEvent) {
-          return;
-        }
-        for (const envelope of buildResumeTerminalEnvelopes({
+    const flushEvents = async () => {
+      const events = await readEvents(streamId, cursor)
+      if (events.length > 0) {
+        totalEventsFlushed += events.length
+        logger.info('[Resume] Flushing events', {
           streamId,
           afterCursor: cursor,
-          status,
-          message: options?.message,
-          code: options?.code ?? "resume_terminal",
-          reason: options?.reason,
-          requestId: currentRequestId,
-        })) {
-          cursor = envelope.stream.cursor ?? String(envelope.seq);
-          if (envelope.type === MothershipStreamV1EventType.complete) {
-            sawTerminalEvent = true;
-          }
-          if (!enqueueEvent(envelope)) {
-            break;
-          }
+          eventCount: events.length,
+        })
+      }
+      for (const envelope of events) {
+        cursor = envelope.stream.cursor ?? String(envelope.seq)
+        currentRequestId = extractEnvelopeRequestId(envelope) || currentRequestId
+        if (envelope.type === MothershipStreamV1EventType.complete) {
+          sawTerminalEvent = true
         }
-      };
-
-      try {
-        const gap = await checkForReplayGap(
-          streamId,
-          afterCursor,
-          currentRequestId,
-        );
-        if (gap) {
-          for (const envelope of gap.envelopes) {
-            enqueueEvent(envelope);
-          }
-          return;
+        if (!enqueueEvent(envelope)) {
+          break
         }
+      }
+    }
 
-        await flushEvents();
+    const emitTerminalIfMissing = (
+      status: MothershipStreamV1CompletionStatus,
+      options?: { message?: string; code: string; reason?: string }
+    ) => {
+      if (controllerClosed || sawTerminalEvent) {
+        return
+      }
+      for (const envelope of buildResumeTerminalEnvelopes({
+        streamId,
+        afterCursor: cursor,
+        status,
+        message: options?.message,
+        code: options?.code ?? 'resume_terminal',
+        reason: options?.reason,
+        requestId: currentRequestId,
+      })) {
+        cursor = envelope.stream.cursor ?? String(envelope.seq)
+        if (envelope.type === MothershipStreamV1EventType.complete) {
+          sawTerminalEvent = true
+        }
+        if (!enqueueEvent(envelope)) {
+          break
+        }
+      }
+    }
 
-        while (!controllerClosed && Date.now() - startTime < MAX_STREAM_MS) {
-          pollIterations += 1;
-          const currentRun = await getLatestRunForStream(
-            streamId,
-            authenticatedUserId,
-          ).catch((err) => {
-            logger.warn("Failed to poll latest run for stream", {
+    try {
+      const gap = await checkForReplayGap(streamId, afterCursor, currentRequestId)
+      if (gap) {
+        for (const envelope of gap.envelopes) {
+          enqueueEvent(envelope)
+        }
+        return
+      }
+
+      await flushEvents()
+
+      while (!controllerClosed && Date.now() - startTime < MAX_STREAM_MS) {
+        pollIterations += 1
+        const currentRun = await getLatestRunForStream(streamId, authenticatedUserId).catch(
+          (err) => {
+            logger.warn('Failed to poll latest run for stream', {
               streamId,
               error: err instanceof Error ? err.message : String(err),
-            });
-            return null;
-          });
-          if (!currentRun) {
-            emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
-              message:
-                "The stream could not be recovered because its run metadata is unavailable.",
-              code: "resume_run_unavailable",
-              reason: "run_unavailable",
-            });
-            break;
+            })
+            return null
           }
-
-          currentRequestId =
-            extractRunRequestId(currentRun) || currentRequestId;
-
-          await flushEvents();
-
-          if (controllerClosed) {
-            break;
-          }
-          if (isTerminalStatus(currentRun.status)) {
-            emitTerminalIfMissing(currentRun.status, {
-              message:
-                currentRun.status === MothershipStreamV1CompletionStatus.error
-                  ? typeof currentRun.error === "string"
-                    ? currentRun.error
-                    : "The recovered stream ended with an error."
-                  : undefined,
-              code: "resume_terminal_status",
-              reason: "terminal_status",
-            });
-            break;
-          }
-
-          if (request.signal.aborted) {
-            controllerClosed = true;
-            break;
-          }
-
-          await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-        }
-        if (!controllerClosed && Date.now() - startTime >= MAX_STREAM_MS) {
+        )
+        if (!currentRun) {
           emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
-            message: "The stream recovery timed out before completion.",
-            code: "resume_timeout",
-            reason: "timeout",
-          });
+            message: 'The stream could not be recovered because its run metadata is unavailable.',
+            code: 'resume_run_unavailable',
+            reason: 'run_unavailable',
+          })
+          break
         }
-      } catch (error) {
-        if (!controllerClosed && !request.signal.aborted) {
-          logger.warn("Stream replay failed", {
-            streamId,
-            error: error instanceof Error ? error.message : String(error),
-          });
-          emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
-            message: "The stream replay failed before completion.",
-            code: "resume_internal",
-            reason: "stream_replay_failed",
-          });
+
+        currentRequestId = extractRunRequestId(currentRun) || currentRequestId
+
+        await flushEvents()
+
+        if (controllerClosed) {
+          break
         }
-        rootSpan.setStatus({
-          code: SpanStatusCode.ERROR,
-          message: error instanceof Error ? error.message : String(error),
-        });
-        rootSpan.recordException(
-          error instanceof Error ? error : new Error(String(error)),
-        );
-      } finally {
-        request.signal.removeEventListener("abort", abortListener);
-        closeController();
-        rootSpan.setAttributes({
-          "copilot.resume.outcome": sawTerminalEvent
-            ? "terminal_delivered"
-            : controllerClosed
-              ? "client_disconnected"
-              : "ended_without_terminal",
-          "copilot.resume.event_count": totalEventsFlushed,
-          "copilot.resume.poll_iterations": pollIterations,
-          "copilot.resume.duration_ms": Date.now() - startTime,
-        });
-        rootSpan.end();
+        if (isTerminalStatus(currentRun.status)) {
+          emitTerminalIfMissing(currentRun.status, {
+            message:
+              currentRun.status === MothershipStreamV1CompletionStatus.error
+                ? typeof currentRun.error === 'string'
+                  ? currentRun.error
+                  : 'The recovered stream ended with an error.'
+                : undefined,
+            code: 'resume_terminal_status',
+            reason: 'terminal_status',
+          })
+          break
+        }
+
+        if (request.signal.aborted) {
+          controllerClosed = true
+          break
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
       }
+      if (!controllerClosed && Date.now() - startTime >= MAX_STREAM_MS) {
+        emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
+          message: 'The stream recovery timed out before completion.',
+          code: 'resume_timeout',
+          reason: 'timeout',
+        })
+      }
+    } catch (error) {
+      if (!controllerClosed && !request.signal.aborted) {
+        logger.warn('Stream replay failed', {
+          streamId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
+          message: 'The stream replay failed before completion.',
+          code: 'resume_internal',
+          reason: 'stream_replay_failed',
+        })
+      }
+      rootSpan.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: error instanceof Error ? error.message : String(error),
+      })
+      rootSpan.recordException(error instanceof Error ? error : new Error(String(error)))
+    } finally {
+      request.signal.removeEventListener('abort', abortListener)
+      closeController()
+      rootSpan.setAttributes({
+        'copilot.resume.outcome': sawTerminalEvent
+          ? 'terminal_delivered'
+          : controllerClosed
+            ? 'client_disconnected'
+            : 'ended_without_terminal',
+        'copilot.resume.event_count': totalEventsFlushed,
+        'copilot.resume.poll_iterations': pollIterations,
+        'copilot.resume.duration_ms': Date.now() - startTime,
+      })
+      rootSpan.end()
+    }
   }
 
-  return new Response(stream, { headers: SSE_RESPONSE_HEADERS });
+  return new Response(stream, { headers: SSE_RESPONSE_HEADERS })
 }

@@ -75,8 +75,8 @@ export async function finalizeAssistantTurn({
           ? alreadyHasResponse
             ? 'assistant_already_persisted'
             : 'stale_user_message'
-          : 'cleared_stream_marker_only',
+          : 'cleared_stream_marker_only'
       )
-    },
+    }
   )
 }

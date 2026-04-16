@@ -42,13 +42,13 @@ export async function POST(req: NextRequest) {
       'http.method': 'POST',
       'http.route': '/api/billing/update-cost',
     },
-    async (span) => updateCostInner(req, span),
+    async (span) => updateCostInner(req, span)
   )
 }
 
 async function updateCostInner(
   req: NextRequest,
-  span: import('@opentelemetry/api').Span,
+  span: import('@opentelemetry/api').Span
 ): Promise<NextResponse> {
   const requestId = generateRequestId()
   const startTime = Date.now()

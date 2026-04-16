@@ -31,18 +31,14 @@ export const handleSpanEvent: StreamHandler = (event, context) => {
     const scopeAgent =
       typeof payload.agent === 'string' && payload.agent ? payload.agent : 'subagent'
     if (evt === MothershipStreamV1SpanLifecycleEvent.start) {
-      const span = context.trace.startSpan(
-        `subagent:${scopeAgent}`,
-        'go.subagent',
-        {
-          agent: scopeAgent,
-          parentToolCallId: event.scope?.parentToolCallId,
-        },
-      )
+      const span = context.trace.startSpan(`subagent:${scopeAgent}`, 'go.subagent', {
+        agent: scopeAgent,
+        parentToolCallId: event.scope?.parentToolCallId,
+      })
       context.subAgentTraceSpans ??= new Map()
-      context.subAgentTraceSpans.set(scopeAgent + ':' + (event.scope?.parentToolCallId || ''), span)
+      context.subAgentTraceSpans.set(`${scopeAgent}:${event.scope?.parentToolCallId || ''}`, span)
     } else if (evt === MothershipStreamV1SpanLifecycleEvent.end) {
-      const key = scopeAgent + ':' + (event.scope?.parentToolCallId || '')
+      const key = `${scopeAgent}:${event.scope?.parentToolCallId || ''}`
       const span = context.subAgentTraceSpans?.get(key)
       if (span) {
         context.trace.endSpan(span, 'ok')
@@ -56,14 +52,10 @@ export const handleSpanEvent: StreamHandler = (event, context) => {
     kind === MothershipStreamV1SpanPayloadKind.structured_result ||
     kind === MothershipStreamV1SpanPayloadKind.subagent_result
   ) {
-    const span = context.trace.startSpan(
-      `${kind}:${payload.agent ?? 'main'}`,
-      `go.${kind}`,
-      {
-        agent: payload.agent,
-        hasData: payload.data !== undefined,
-      },
-    )
+    const span = context.trace.startSpan(`${kind}:${payload.agent ?? 'main'}`, `go.${kind}`, {
+      agent: payload.agent,
+      hasData: payload.data !== undefined,
+    })
     context.trace.endSpan(span, 'ok')
     return
   }

@@ -93,6 +93,6 @@ export async function POST(req: NextRequest) {
         span.setAttribute('http.status_code', 500)
         return NextResponse.json({ error: 'Failed to validate usage' }, { status: 500 })
       }
-    },
+    }
   )
 }

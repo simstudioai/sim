@@ -32,16 +32,14 @@ async function withDbSpan<T>(
   op: string,
   table: string,
   attrs: Record<string, string | number | boolean | undefined>,
-  fn: () => Promise<T>,
+  fn: () => Promise<T>
 ): Promise<T> {
   const span = getAsyncRunsTracer().startSpan(name, {
     attributes: {
       'db.system': 'postgresql',
       'db.operation': op,
       'db.sql.table': table,
-      ...Object.fromEntries(
-        Object.entries(attrs).filter(([, v]) => v !== undefined),
-      ),
+      ...Object.fromEntries(Object.entries(attrs).filter(([, v]) => v !== undefined)),
     },
   })
   try {
@@ -111,7 +109,7 @@ export async function createRunSegment(input: CreateRunSegmentInput) {
         })
         .returning()
       return run
-    },
+    }
   )
 }
 
@@ -147,7 +145,7 @@ export async function updateRunStatus(
         .where(eq(copilotRuns.id, runId))
         .returning()
       return run ?? null
-    },
+    }
   )
 }
 
@@ -165,7 +163,7 @@ export async function getLatestRunForExecution(executionId: string) {
         .orderBy(desc(copilotRuns.startedAt))
         .limit(1)
       return run ?? null
-    },
+    }
   )
 }
 
@@ -189,7 +187,7 @@ export async function getLatestRunForStream(streamId: string, userId?: string) {
         .orderBy(desc(copilotRuns.startedAt))
         .limit(1)
       return run ?? null
-    },
+    }
   )
 }
 
@@ -202,7 +200,7 @@ export async function getRunSegment(runId: string) {
     async () => {
       const [run] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId)).limit(1)
       return run ?? null
-    },
+    }
   )
 }
 
@@ -234,7 +232,7 @@ export async function createRunCheckpoint(input: {
         .returning()
 
       return checkpoint
-    },
+    }
   )
 }
 
@@ -308,7 +306,7 @@ export async function upsertAsyncToolCall(input: {
         .returning()
 
       return row
-    },
+    }
   )
 }
 
@@ -325,7 +323,7 @@ export async function getAsyncToolCall(toolCallId: string) {
         .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
         .limit(1)
       return row ?? null
-    },
+    }
   )
 }
 
@@ -373,7 +371,7 @@ export async function markAsyncToolStatus(
         .returning()
 
       return row ?? null
-    },
+    }
   )
 }
 
@@ -428,7 +426,7 @@ export async function listAsyncToolCallsForRun(runId: string) {
         .select()
         .from(copilotAsyncToolCalls)
         .where(eq(copilotAsyncToolCalls.runId, runId))
-        .orderBy(desc(copilotAsyncToolCalls.createdAt)),
+        .orderBy(desc(copilotAsyncToolCalls.createdAt))
   )
 }
 
@@ -443,7 +441,7 @@ export async function getAsyncToolCalls(toolCallIds: string[]) {
       db
         .select()
         .from(copilotAsyncToolCalls)
-        .where(inArray(copilotAsyncToolCalls.toolCallId, toolCallIds)),
+        .where(inArray(copilotAsyncToolCalls.toolCallId, toolCallIds))
   )
 }
 
@@ -473,7 +471,7 @@ export async function claimCompletedAsyncToolCall(toolCallId: string, workerId: 
         )
         .returning()
       return row ?? null
-    },
+    }
   )
 }
 
@@ -503,6 +501,6 @@ export async function releaseCompletedAsyncToolClaim(toolCallId: string, workerI
         )
         .returning()
       return row ?? null
-    },
+    }
   )
 }

@@ -34,7 +34,11 @@ export async function handleResourceSideEffects(
   // Cheap early exit so we don't emit a span for tools that can never
   // produce resources (most of them). The span only shows up for tools
   // that might actually do resource work.
-  if (!hasDeleteCapability(toolName) && !isResourceToolName(toolName) && !(result.resources && result.resources.length > 0)) {
+  if (
+    !hasDeleteCapability(toolName) &&
+    !isResourceToolName(toolName) &&
+    !(result.resources && result.resources.length > 0)
+  ) {
     return
   }
 
@@ -119,6 +123,6 @@ export async function handleResourceSideEffects(
         'copilot.resources.upserted_count': upsertedCount,
         'copilot.resources.aborted': isAborted(),
       })
-    },
+    }
   )
 }

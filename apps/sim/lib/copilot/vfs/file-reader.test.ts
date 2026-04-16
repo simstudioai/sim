@@ -23,7 +23,9 @@ async function makeNoisePng(width: number, height: number): Promise<Buffer> {
   const sharp = (await import('sharp')).default
   const raw = Buffer.alloc(width * height * 3)
   randomFillSync(raw)
-  return sharp(raw, { raw: { width, height, channels: 3 } }).png().toBuffer()
+  return sharp(raw, { raw: { width, height, channels: 3 } })
+    .png()
+    .toBuffer()
 }
 
 describe('readFileRecord', () => {

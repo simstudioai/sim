@@ -222,6 +222,6 @@ export async function maybeWriteOutputToFile(
           error: `Failed to write output file: ${message}`,
         }
       }
-    },
+    }
   )
 }
