@@ -3,6 +3,7 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { JsmResponse } from '@/tools/jsm/types'
+import { getTrigger } from '@/triggers'
 
 export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
   type: 'jira_service_management',
@@ -564,6 +565,11 @@ Return ONLY the comment text - no explanations.`,
         ],
       },
     },
+    ...getTrigger('jsm_request_created').subBlocks,
+    ...getTrigger('jsm_request_updated').subBlocks,
+    ...getTrigger('jsm_request_commented').subBlocks,
+    ...getTrigger('jsm_request_resolved').subBlocks,
+    ...getTrigger('jsm_webhook').subBlocks,
   ],
   tools: {
     access: [
@@ -1245,5 +1251,15 @@ Return ONLY the comment text - no explanations.`,
     errors: { type: 'json', description: 'Array of errors from copy forms operation' },
     sourceIssueIdOrKey: { type: 'string', description: 'Source issue ID or key' },
     targetIssueIdOrKey: { type: 'string', description: 'Target issue ID or key' },
+  },
+  triggers: {
+    enabled: true,
+    available: [
+      'jsm_request_created',
+      'jsm_request_updated',
+      'jsm_request_commented',
+      'jsm_request_resolved',
+      'jsm_webhook',
+    ],
   },
 }
