@@ -397,11 +397,13 @@ export const AgiloftBlock: BlockConfig = {
       type: 'string',
       description: 'Username of the user who locked the record',
       condition: { field: 'operation', value: 'lock_record' },
+      optional: true,
     },
     lockExpiresInMinutes: {
       type: 'number',
       description: 'Minutes until the lock expires',
       condition: { field: 'operation', value: 'lock_record' },
+      optional: true,
     },
   },
 }
