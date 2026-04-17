@@ -55,14 +55,25 @@ export function getDisplayStatus(status: string | null | undefined): LogStatus {
 
 export const STATUS_CONFIG: Record<
   LogStatus,
-  { variant: React.ComponentProps<typeof Badge>['variant']; label: string; color: string }
+  {
+    variant: React.ComponentProps<typeof Badge>['variant']
+    label: string
+    color: string
+    /** Whether this status appears as a filter option. Intermediary states (e.g. cancelling) are excluded. */
+    filterable: boolean
+  }
 > = {
-  error: { variant: 'red', label: 'Error', color: 'var(--text-error)' },
-  pending: { variant: 'amber', label: 'Pending', color: '#f59e0b' },
-  running: { variant: 'amber', label: 'Running', color: '#f59e0b' },
-  cancelling: { variant: 'amber', label: 'Cancelling...', color: '#f59e0b' },
-  cancelled: { variant: 'orange', label: 'Cancelled', color: '#f97316' },
-  info: { variant: 'gray', label: 'Info', color: 'var(--terminal-status-info-color)' },
+  error: { variant: 'red', label: 'Error', color: 'var(--text-error)', filterable: true },
+  pending: { variant: 'amber', label: 'Pending', color: '#f59e0b', filterable: true },
+  running: { variant: 'amber', label: 'Running', color: '#f59e0b', filterable: true },
+  cancelling: { variant: 'amber', label: 'Cancelling...', color: '#f59e0b', filterable: false },
+  cancelled: { variant: 'orange', label: 'Cancelled', color: '#f97316', filterable: true },
+  info: {
+    variant: 'gray',
+    label: 'Info',
+    color: 'var(--terminal-status-info-color)',
+    filterable: true,
+  },
 }
 
 const TRIGGER_VARIANT_MAP: Record<string, React.ComponentProps<typeof Badge>['variant']> = {
@@ -87,16 +98,14 @@ interface StatusBadgeProps {
  * @param props - Component props containing the status
  * @returns A Badge with dot indicator and status label
  */
-export const StatusBadge = React.memo(({ status }: StatusBadgeProps) => {
+export function StatusBadge({ status }: StatusBadgeProps) {
   const config = STATUS_CONFIG[status]
   return React.createElement(
     Badge,
     { variant: config.variant, dot: true, size: 'sm' },
     config.label
   )
-})
-
-StatusBadge.displayName = 'StatusBadge'
+}
 
 interface TriggerBadgeProps {
   trigger: string
@@ -108,7 +117,7 @@ interface TriggerBadgeProps {
  * @param props - Component props containing the trigger type
  * @returns A Badge with appropriate styling for the trigger type
  */
-export const TriggerBadge = React.memo(({ trigger }: TriggerBadgeProps) => {
+export function TriggerBadge({ trigger }: TriggerBadgeProps) {
   const metadata = getIntegrationMetadata(trigger)
   const isIntegration = !(CORE_TRIGGER_TYPES as readonly string[]).includes(trigger)
   const block = isIntegration ? getBlock(trigger) : null
@@ -116,21 +125,32 @@ export const TriggerBadge = React.memo(({ trigger }: TriggerBadgeProps) => {
 
   const coreVariant = TRIGGER_VARIANT_MAP[trigger]
   if (coreVariant) {
-    return React.createElement(Badge, { variant: coreVariant, size: 'sm' }, metadata.label)
+    return React.createElement(
+      Badge,
+      { variant: coreVariant, size: 'sm', className: 'whitespace-nowrap' },
+      metadata.label
+    )
   }
 
   if (IconComponent) {
     return React.createElement(
       Badge,
-      { variant: 'gray-secondary', size: 'sm', icon: IconComponent },
+      {
+        variant: 'gray-secondary',
+        size: 'sm',
+        icon: IconComponent,
+        className: 'whitespace-nowrap',
+      },
       metadata.label
     )
   }
 
-  return React.createElement(Badge, { variant: 'gray-secondary', size: 'sm' }, metadata.label)
-})
-
-TriggerBadge.displayName = 'TriggerBadge'
+  return React.createElement(
+    Badge,
+    { variant: 'gray-secondary', size: 'sm', className: 'whitespace-nowrap' },
+    metadata.label
+  )
+}
 
 interface LogWithDuration {
   totalDurationMs?: number | string
