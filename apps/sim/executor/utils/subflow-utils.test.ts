@@ -1,9 +1,13 @@
+/**
+ * @vitest-environment node
+ */
 import { describe, expect, it, vi } from 'vitest'
+import type { ExecutionContext } from '@/executor/types'
 import type { VariableResolver } from '@/executor/variables/resolver'
 import { resolveArrayInput } from './subflow-utils'
 
 describe('resolveArrayInput', () => {
-  const fakeCtx = {} as any
+  const fakeCtx = {} as unknown as ExecutionContext
 
   it('returns arrays as-is', () => {
     expect(resolveArrayInput(fakeCtx, [1, 2, 3], null)).toEqual([1, 2, 3])
