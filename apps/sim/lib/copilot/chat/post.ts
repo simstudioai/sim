@@ -374,10 +374,34 @@ function buildOnComplete(params: {
   requestId: string
   workspaceId?: string
   notifyWorkspaceStatus: boolean
+  /**
+   * Root agent span for this request. When present, the final
+   * assistant message + invoked tool calls are recorded as
+   * `gen_ai.output.messages` on it before persistence runs. Keeps
+   * the Honeycomb Gen AI view complete across both the Sim root
+   * span and the Go-side `llm.stream` spans.
+   */
+  otelRoot?: {
+    setOutputMessages: (output: {
+      assistantText?: string
+      toolCalls?: Array<{ id: string; name: string; arguments?: Record<string, unknown> }>
+    }) => void
+  }
 }) {
-  const { chatId, userMessageId, requestId, workspaceId, notifyWorkspaceStatus } = params
+  const { chatId, userMessageId, requestId, workspaceId, notifyWorkspaceStatus, otelRoot } = params
 
   return async (result: OrchestratorResult) => {
+    if (otelRoot && result.success) {
+      otelRoot.setOutputMessages({
+        assistantText: result.content,
+        toolCalls: result.toolCalls?.map((tc) => ({
+          id: tc.id,
+          name: tc.name,
+          arguments: tc.params,
+        })),
+      })
+    }
+
     if (!chatId) return
 
     try {
@@ -601,6 +625,11 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       runId,
       transport: 'stream',
     })
+    // Emit `gen_ai.input.messages` on the root agent span for OTel
+    // GenAI spec compliance (Honeycomb's Gen AI view keys off this).
+    // Gated on OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
+    // internally — safe to always call.
+    otelRoot.setInputMessages({ userMessage: body.message })
 
     // Wrap the rest of the handler so every nested withCopilotSpan /
     // withDbSpan (persistUserMessage, createRunSegment, resolveBranch DB
@@ -799,6 +828,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             requestId: tracker.requestId,
             workspaceId,
             notifyWorkspaceStatus: branch.notifyWorkspaceStatus,
+            otelRoot,
           }),
           onError: buildOnError({
             chatId: actualChatId,

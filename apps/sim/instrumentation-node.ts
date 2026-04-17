@@ -7,12 +7,21 @@
  * OTel `service.name = "mothership"` so every request shows up as one
  * service in the OTLP backend. To keep the two halves distinguishable:
  *
- *   - Every span emitted by this process is prefixed with `sim: ` on
- *     start, and gets a `mothership.origin = "sim"` attribute.
- *   - The Go side does the same with `go: ` / `mothership.origin = "go"`.
+ *   - Every span emitted by the mothership lifecycle on this process is
+ *     prefixed with `sim-mothership: ` on start, and gets a
+ *     `mothership.origin = "sim-mothership"` attribute.
+ *   - The Go side does the same with `go-mothership: ` /
+ *     `mothership.origin = "go-mothership"`.
  *
- * So in Jaeger/Tempo, filtering by `mothership.origin` (exact) or by
- * operation name prefix (`sim:` / `go:`) cleanly splits the two halves.
+ * The `-mothership` suffix on the origin is deliberate: this Sim process
+ * hosts plenty of non-mothership code (workflow executor, block runtime,
+ * indexer clients) that may emit its own traces in the future. Making
+ * the origin value explicit means a later "sim" origin can't collide
+ * with the mothership side.
+ *
+ * So in any OTLP backend, filter by `mothership.origin` (exact) or by
+ * operation name prefix (`sim-mothership:` / `go-mothership:`) to
+ * cleanly split the two halves.
  */
 
 import type { Attributes, Context, Link, SpanKind } from '@opentelemetry/api'
@@ -31,8 +40,17 @@ diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.ERROR)
 
 const logger = createLogger('OTelInstrumentation')
 
-const MOTHERSHIP_ORIGIN = 'sim' as const
+// Origin value lives on every mothership span as `mothership.origin`.
+// Longer form intentionally used (vs. plain "sim") so non-mothership
+// code running in this same Sim process can't collide if it later
+// starts emitting its own traces.
+const MOTHERSHIP_ORIGIN = 'sim-mothership' as const
 const SPAN_NAME_PREFIX = `${MOTHERSHIP_ORIGIN}: `
+
+// Short slug used only for `service.instance.id`. Kept as plain "sim"
+// so the instance id reads as `mothership-sim` — concise, already
+// scoped by `service.name = "mothership"` as the container.
+const SERVICE_INSTANCE_SLUG = 'sim' as const
 
 const DEFAULT_TELEMETRY_CONFIG = {
   endpoint: env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces',
@@ -147,18 +165,29 @@ function resolveSamplingRatio(isLocalEndpoint: boolean): number {
 }
 
 /**
- * MothershipOriginSpanProcessor tags every span this process creates with
- * `mothership.origin` and prepends a `sim: ` prefix to the span name on
- * start, before any downstream processor (BatchSpanProcessor) reads it.
+ * MothershipOriginSpanProcessor tags mothership-lifecycle spans with
+ * `mothership.origin` and prepends the origin prefix to the span name
+ * on start, before any downstream processor (BatchSpanProcessor)
+ * reads it.
  *
- * Implemented as its own processor rather than a resource attribute so
- * the backend span/operation list (which keys on span name) is visually
- * split between sim and go even when both share service.name.
+ * Gated on `isBusinessSpan(name)` so only spans that already match
+ * the mothership allowlist get the label. The sampler drops
+ * non-mothership roots anyway, but keeping the tagger conditional
+ * means that if the sampler is ever relaxed (or a different
+ * instrumentation stream is added alongside mothership), unrelated
+ * spans won't accidentally inherit the mothership origin.
+ *
+ * Implemented as its own processor rather than a resource attribute
+ * so the backend span/operation list (which keys on span name) is
+ * visually split between sim and go even when both share service.name.
  */
 class MothershipOriginSpanProcessor implements SpanProcessor {
   onStart(span: Span): void {
-    span.setAttribute('mothership.origin', MOTHERSHIP_ORIGIN)
     const name = span.name
+    if (!isBusinessSpan(name)) {
+      return
+    }
+    span.setAttribute('mothership.origin', MOTHERSHIP_ORIGIN)
     if (!name.startsWith(SPAN_NAME_PREFIX)) {
       span.updateName(`${SPAN_NAME_PREFIX}${name}`)
     }
@@ -326,10 +355,12 @@ async function initializeOpenTelemetry() {
     // multi-second cross-machine clock drift within one group, and its
     // adjuster emits spurious "parent is not in the trace; skipping
     // clock skew adjustment" warnings on every cross-process child.
-    // Stable per-origin instance ID (`mothership-sim` / `mothership-go`)
-    // is enough to split the groups cleanly; Jaeger still shows both
-    // under the single `mothership` service in its service picker.
-    const serviceInstanceId = `${telemetryConfig.serviceName}-${MOTHERSHIP_ORIGIN}`
+    // Using the short slug (`sim` / `go`) keeps the instance id as
+    // `mothership-sim` / `mothership-go` — already scoped by
+    // `service.name = "mothership"` as the container. The longer
+    // `mothership.origin = "sim-mothership"` value does the
+    // disambiguation at the attribute level.
+    const serviceInstanceId = `${telemetryConfig.serviceName}-${SERVICE_INSTANCE_SLUG}`
     const resource = defaultResource().merge(
       resourceFromAttributes({
         [ATTR_SERVICE_NAME]: telemetryConfig.serviceName,

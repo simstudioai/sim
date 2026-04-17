@@ -15,6 +15,136 @@ import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { contextFromRequestHeaders } from '@/lib/copilot/request/go/propagation'
 
 /**
+ * OTel GenAI experimental semantic conventions env var. When set to a
+ * truthy value, each `gen_ai.*` span carries the full input and
+ * output conversation content as attributes. Mirrors the Go-side
+ * gate in `copilot/internal/providers/telemetry.go` so operators
+ * control both halves with one variable.
+ *
+ * Spec: https://opentelemetry.io/docs/specs/semconv/gen-ai/
+ */
+const GENAI_CAPTURE_ENV = 'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT'
+
+/**
+ * Attribute-size cap for `gen_ai.{input,output}.messages`. Most OTLP
+ * backends reject attributes larger than ~64 KiB, so we truncate
+ * proactively to keep the rest of the span alive if a conversation
+ * runs long. Matches the Go-side cap to keep truncation behavior
+ * symmetrical between the two halves.
+ */
+const GENAI_MESSAGE_ATTR_MAX_BYTES = 60 * 1024
+
+function isGenAIMessageCaptureEnabled(): boolean {
+  const raw = (process.env[GENAI_CAPTURE_ENV] || '').toLowerCase().trim()
+  return raw === 'true' || raw === '1' || raw === 'yes'
+}
+
+/**
+ * Canonical OTel GenAI message shape used for both input and output
+ * attributes. Kept minimal — only the three part types we actually
+ * emit: `text`, `tool_call`, and `tool_call_response`. Adding more
+ * part types is cheap, but every additional shape here has to be
+ * mirrored in the Go serializer.
+ */
+interface GenAIAgentPart {
+  type: 'text' | 'tool_call' | 'tool_call_response'
+  content?: string
+  id?: string
+  name?: string
+  arguments?: Record<string, unknown>
+  response?: string
+}
+
+interface GenAIAgentMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool'
+  parts: GenAIAgentPart[]
+}
+
+function marshalAgentMessages(messages: GenAIAgentMessage[]): string | undefined {
+  if (messages.length === 0) return undefined
+  const json = JSON.stringify(messages)
+  if (json.length <= GENAI_MESSAGE_ATTR_MAX_BYTES) return json
+  // Simple tail-preserving truncation: drop from the front until we
+  // fit. Matches the Go side's behavior. The last message is
+  // usually the most diagnostic for span-level outcome.
+  let remaining = messages.slice()
+  while (remaining.length > 1) {
+    remaining = remaining.slice(1)
+    const candidate = JSON.stringify(remaining)
+    if (candidate.length <= GENAI_MESSAGE_ATTR_MAX_BYTES) return candidate
+  }
+  // Single message still over cap — truncate the text part in place
+  // with a marker so the partial content is still readable.
+  const only = remaining[0]
+  for (const part of only.parts) {
+    if (part.type === 'text' && part.content) {
+      const headroom = GENAI_MESSAGE_ATTR_MAX_BYTES - 1024
+      if (part.content.length > headroom) {
+        part.content = `${part.content.slice(0, headroom)}\n\n[truncated: capture cap ${GENAI_MESSAGE_ATTR_MAX_BYTES} bytes]`
+      }
+    }
+  }
+  const final = JSON.stringify([only])
+  return final.length <= GENAI_MESSAGE_ATTR_MAX_BYTES ? final : undefined
+}
+
+export interface CopilotAgentInputMessages {
+  userMessage?: string
+  systemPrompt?: string
+}
+
+export interface CopilotAgentOutputMessages {
+  assistantText?: string
+  toolCalls?: Array<{
+    id: string
+    name: string
+    arguments?: Record<string, unknown>
+  }>
+}
+
+function setAgentInputMessages(span: Span, input: CopilotAgentInputMessages): void {
+  if (!isGenAIMessageCaptureEnabled()) return
+  const messages: GenAIAgentMessage[] = []
+  if (input.systemPrompt) {
+    messages.push({
+      role: 'system',
+      parts: [{ type: 'text', content: input.systemPrompt }],
+    })
+  }
+  if (input.userMessage) {
+    messages.push({
+      role: 'user',
+      parts: [{ type: 'text', content: input.userMessage }],
+    })
+  }
+  const serialized = marshalAgentMessages(messages)
+  if (serialized) {
+    span.setAttribute('gen_ai.input.messages', serialized)
+  }
+}
+
+function setAgentOutputMessages(span: Span, output: CopilotAgentOutputMessages): void {
+  if (!isGenAIMessageCaptureEnabled()) return
+  const parts: GenAIAgentPart[] = []
+  if (output.assistantText) {
+    parts.push({ type: 'text', content: output.assistantText })
+  }
+  for (const tc of output.toolCalls ?? []) {
+    parts.push({
+      type: 'tool_call',
+      id: tc.id,
+      name: tc.name,
+      ...(tc.arguments ? { arguments: tc.arguments } : {}),
+    })
+  }
+  if (parts.length === 0) return
+  const serialized = marshalAgentMessages([{ role: 'assistant', parts }])
+  if (serialized) {
+    span.setAttribute('gen_ai.output.messages', serialized)
+  }
+}
+
+/**
  * Reuse the generated RequestTraceV1Outcome string values for every
  * lifecycle outcome field. This keeps our OTel attributes, internal
  * TraceCollector outcomes, and the trace-ingestion wire contract all
@@ -262,6 +392,20 @@ export interface CopilotOtelRoot {
   span: Span
   context: Context
   finish: (outcome?: CopilotLifecycleOutcome, error?: unknown) => void
+  /**
+   * Record `gen_ai.input.messages` on the root agent span. Gated on
+   * `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` — no-op when
+   * capture is disabled. Safe to call multiple times; the latest
+   * call wins.
+   */
+  setInputMessages: (input: CopilotAgentInputMessages) => void
+  /**
+   * Record `gen_ai.output.messages` on the root agent span. Gated on
+   * the same env var as `setInputMessages`. Typically called from the
+   * stream finalize callback once the assistant's final content and
+   * invoked tool calls are known.
+   */
+  setOutputMessages: (output: CopilotAgentOutputMessages) => void
 }
 
 export function startCopilotOtelRoot(scope: CopilotOtelScope): CopilotOtelRoot {
@@ -300,7 +444,13 @@ export function startCopilotOtelRoot(scope: CopilotOtelScope): CopilotOtelRoot {
     span.end()
   }
 
-  return { span, context: rootContext, finish }
+  return {
+    span,
+    context: rootContext,
+    finish,
+    setInputMessages: (input) => setAgentInputMessages(span, input),
+    setOutputMessages: (output) => setAgentOutputMessages(span, output),
+  }
 }
 
 export async function withCopilotOtelContext<T>(
