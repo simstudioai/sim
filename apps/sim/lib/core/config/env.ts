@@ -72,7 +72,7 @@ export const env = createEnv({
     STRIPE_PRICE_TEAM_25_YR:               z.string().min(1).optional(),           // Team Pro: $255/seat/yr
     STRIPE_PRICE_TEAM_100_MO:              z.string().min(1).optional(),           // Team Max: $100/seat/mo
     STRIPE_PRICE_TEAM_100_YR:              z.string().min(1).optional(),           // Team Max: $1,020/seat/yr
-    OVERAGE_THRESHOLD_DOLLARS:             z.number().optional().default(50),      // Dollar threshold for incremental overage billing (default: $50)
+    OVERAGE_THRESHOLD_DOLLARS:             z.number().optional().default(100),     // Dollar threshold for incremental overage billing (default: $100)
 
     // Email & Communication
     EMAIL_VERIFICATION_ENABLED:            z.boolean().optional(),                 // Enable email verification for user registration and login (defaults to false)
