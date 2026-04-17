@@ -38,7 +38,7 @@ const logger = createLogger('DeployOrchestration')
 export async function notifySocketDeploymentChanged(workflowId: string): Promise<void> {
   try {
     const socketServerUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
-    await fetch(`${socketServerUrl}/api/workflow-deployed`, {
+    const response = await fetch(`${socketServerUrl}/api/workflow-deployed`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -46,6 +46,9 @@ export async function notifySocketDeploymentChanged(workflowId: string): Promise
       },
       body: JSON.stringify({ workflowId }),
     })
+    if (!response.ok) {
+      logger.warn(`Socket deployment notification failed (${response.status}) for workflow ${workflowId}`)
+    }
   } catch (error) {
     logger.error('Error sending workflow deployed event to socket server', error)
   }
