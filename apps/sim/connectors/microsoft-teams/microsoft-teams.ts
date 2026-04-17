@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { MicrosoftTeamsIcon } from '@/components/icons'
+import { toError } from '@/lib/core/utils/helpers'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { computeContentHash, htmlToPlainText, parseTagDate } from '@/connectors/utils'
@@ -359,7 +360,7 @@ export const microsoftTeamsConnector: ConnectorConfig = {
     } catch (error) {
       logger.warn('Failed to get Microsoft Teams channel document', {
         externalId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return null
     }

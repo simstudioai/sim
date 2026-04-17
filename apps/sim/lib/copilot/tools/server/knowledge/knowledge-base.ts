@@ -9,6 +9,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { toError } from '@/lib/core/utils/helpers'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { generateId } from '@/lib/core/utils/uuid'
 import {
@@ -307,7 +308,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             ).catch((err) => {
               logger.error('Background document processing failed', {
                 documentId: doc.id,
-                error: err instanceof Error ? err.message : String(err),
+                error: toError(err).message,
               })
             })
 

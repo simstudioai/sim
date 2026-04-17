@@ -5,6 +5,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { toError } from '@/lib/core/utils/helpers'
 import {
   generateDocxFromCode,
   generatePdfFromCode,
@@ -203,7 +204,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             try {
               await docInfo.generator!(content, workspaceId)
             } catch (err) {
-              const msg = err instanceof Error ? err.message : String(err)
+              const msg = toError(err).message
               return {
                 success: false,
                 message: `${docInfo.formatName} generation failed: ${msg}. Fix the code and retry.`,

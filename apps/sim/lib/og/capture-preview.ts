@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { sleep } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('OGCapturePreview')
 
@@ -65,7 +66,7 @@ export async function captureWorkflowPreview(
     }
 
     if (attempt < retries) {
-      await new Promise((resolve) => setTimeout(resolve, 500 * attempt))
+      await sleep(500 * attempt)
     }
   }
 

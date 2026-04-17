@@ -11,6 +11,7 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import { toError } from '@/lib/core/utils/helpers'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import {
   getCredentialOwner,
@@ -93,7 +94,7 @@ async function fetchWithDNSPinning(
     return response
   } catch (error) {
     logger.error(`[${requestId}] Error fetching URL with DNS pinning`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       url: sanitizeUrlForLog(url),
     })
     return null

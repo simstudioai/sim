@@ -1,5 +1,6 @@
 import { type Attributes, Client, type ConnectConfig, type SFTPWrapper } from 'ssh2'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
+import { toError } from '@/lib/core/utils/helpers'
 
 const S_IFMT = 0o170000
 const S_IFDIR = 0o040000
@@ -151,7 +152,7 @@ export async function createSftpConnection(config: SftpConnectionConfig): Promis
     try {
       client.connect(connectConfig)
     } catch (err) {
-      reject(formatSftpError(err instanceof Error ? err : new Error(String(err)), { host, port }))
+      reject(formatSftpError(toError(err), { host, port }))
     }
   })
 }

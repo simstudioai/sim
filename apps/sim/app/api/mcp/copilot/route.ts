@@ -26,6 +26,7 @@ import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { DIRECT_TOOL_DEFS, SUBAGENT_TOOL_DEFS } from '@/lib/copilot/tools/mcp/definitions'
 import { env } from '@/lib/core/config/env'
 import { RateLimiter } from '@/lib/core/rate-limiter'
+import { toError } from '@/lib/core/utils/helpers'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { generateId } from '@/lib/core/utils/uuid'
 import {
@@ -231,7 +232,7 @@ class NextResponseCapture {
       try {
         handler()
       } catch (error) {
-        this.triggerErrorHandlers(error instanceof Error ? error : new Error(String(error)))
+        this.triggerErrorHandlers(toError(error))
       }
     }
   }
@@ -290,7 +291,7 @@ class NextResponseCapture {
       try {
         this._controller.enqueue(normalized)
       } catch (error) {
-        this.triggerErrorHandlers(error instanceof Error ? error : new Error(String(error)))
+        this.triggerErrorHandlers(toError(error))
       }
     } else {
       this._pendingChunks.push(normalized)
@@ -311,7 +312,7 @@ class NextResponseCapture {
       try {
         this._controller.close()
       } catch (error) {
-        this.triggerErrorHandlers(error instanceof Error ? error : new Error(String(error)))
+        this.triggerErrorHandlers(toError(error))
       }
     }
 
@@ -659,7 +660,7 @@ async function handleDirectToolCall(
       content: [
         {
           type: 'text',
-          text: `Tool execution failed: ${error instanceof Error ? error.message : String(error)}`,
+          text: `Tool execution failed: ${toError(error).message}`,
         },
       ],
       isError: true,
@@ -740,7 +741,7 @@ async function handleBuildToolCall(
         logger.warn('Failed to generate workspace context for build tool call', {
           workflowId: resolved.workflowId,
           workspaceId: resolvedWorkspaceId,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
     }
@@ -789,7 +790,7 @@ async function handleBuildToolCall(
       content: [
         {
           type: 'text',
-          text: `Build failed: ${error instanceof Error ? error.message : String(error)}`,
+          text: `Build failed: ${toError(error).message}`,
         },
       ],
       isError: true,
@@ -880,7 +881,7 @@ async function handleSubagentToolCall(
       content: [
         {
           type: 'text',
-          text: `Subagent call failed: ${error instanceof Error ? error.message : String(error)}`,
+          text: `Subagent call failed: ${toError(error).message}`,
         },
       ],
       isError: true,

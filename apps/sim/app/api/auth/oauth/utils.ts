@@ -4,6 +4,7 @@ import { account, credential, credentialSetMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { toError } from '@/lib/core/utils/helpers'
 import { refreshOAuthToken } from '@/lib/oauth'
 import {
   getMicrosoftRefreshTokenExpiry,
@@ -331,7 +332,7 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
       return accessToken
     } catch (error) {
       logger.error(`Error refreshing token for user ${userId}, provider ${providerId}`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
         stack: error instanceof Error ? error.stack : undefined,
         providerId,
         userId,
@@ -460,7 +461,7 @@ export async function refreshAccessTokenIfNeeded(
       return refreshedToken.accessToken
     } catch (error) {
       logger.error(`[${requestId}] Error refreshing token for credential`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
         stack: error instanceof Error ? error.stack : undefined,
         providerId: credential.providerId,
         credentialId,
@@ -664,7 +665,7 @@ export async function getCredentialsForCredentialSet(
         }
       } catch (error) {
         logger.error(`Failed to refresh token for user ${cred.userId}, provider ${providerId}`, {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
         continue
       }

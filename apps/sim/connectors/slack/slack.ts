@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { SlackIcon } from '@/components/icons'
+import { toError } from '@/lib/core/utils/helpers'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { computeContentHash, parseTagDate } from '@/connectors/utils'
@@ -108,7 +109,7 @@ async function resolveUserName(
   } catch (error) {
     logger.warn('Failed to resolve Slack user name', {
       userId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return userId
   }
@@ -413,7 +414,7 @@ export const slackConnector: ConnectorConfig = {
     } catch (error) {
       logger.warn('Failed to get Slack channel document', {
         externalId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return null
     }

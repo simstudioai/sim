@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { toError } from '@/lib/core/utils/helpers'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
@@ -63,11 +64,7 @@ export const GET = withMcpAuth<RouteParams>('read')(
       return createMcpSuccessResponse({ tool })
     } catch (error) {
       logger.error(`[${requestId}] Error getting tool:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to get tool'),
-        'Failed to get tool',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to get tool', 500)
     }
   }
 )
@@ -164,11 +161,7 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
       return createMcpSuccessResponse({ tool: updatedTool })
     } catch (error) {
       logger.error(`[${requestId}] Error updating tool:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to update tool'),
-        'Failed to update tool',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to update tool', 500)
     }
   }
 )
@@ -232,11 +225,7 @@ export const DELETE = withMcpAuth<RouteParams>('write')(
       return createMcpSuccessResponse({ message: `Tool ${toolId} deleted successfully` })
     } catch (error) {
       logger.error(`[${requestId}] Error deleting tool:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to delete tool'),
-        'Failed to delete tool',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to delete tool', 500)
     }
   }
 )

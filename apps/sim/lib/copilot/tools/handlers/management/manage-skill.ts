@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { toError } from '@/lib/core/utils/helpers'
 import { deleteSkill, listSkills, upsertSkills } from '@/lib/workflows/skills/operations'
 
 const logger = createLogger('CopilotToolExecutor')
@@ -162,7 +163,7 @@ export async function executeManageSkill(
       {
         operation,
         workspaceId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       }
     )
     return {

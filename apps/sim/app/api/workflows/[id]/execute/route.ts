@@ -9,6 +9,7 @@ import {
   getTimeoutErrorMessage,
   isTimeoutError,
 } from '@/lib/core/execution-limits'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -218,7 +219,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
           const output = await executeWorkflowJob(payload)
           await jobQueue.completeJob(jobId, output)
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error)
+          const errorMessage = toError(error).message
           asyncLogger.error('Async workflow execution failed', {
             jobId,
             error: errorMessage,
@@ -228,10 +229,7 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
           } catch (markFailedError) {
             asyncLogger.error('Failed to mark job as failed', {
               jobId,
-              error:
-                markFailedError instanceof Error
-                  ? markFailedError.message
-                  : String(markFailedError),
+              error: toError(markFailedError).message,
             })
           }
         }
@@ -1294,7 +1292,7 @@ async function handleExecutePost(
             await eventWriter.close()
           } catch (closeError) {
             reqLogger.warn('Failed to close event writer', {
-              error: closeError instanceof Error ? closeError.message : String(closeError),
+              error: toError(closeError).message,
             })
           }
           if (finalMetaStatus) {

@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { JOB_RETENTION_HOURS, JOB_STATUS } from '@/lib/core/async-jobs'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('CleanupStaleExecutions')
 
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
         cleaned++
       } catch (error) {
         logger.error(`Failed to clean up execution ${execution.executionId}:`, {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
         failed++
       }
@@ -104,7 +105,7 @@ export async function GET(request: NextRequest) {
       }
     } catch (error) {
       logger.error('Failed to clean up stale async jobs:', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
 
@@ -131,7 +132,7 @@ export async function GET(request: NextRequest) {
       }
     } catch (error) {
       logger.error('Failed to clean up stale pending jobs:', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
 
@@ -158,7 +159,7 @@ export async function GET(request: NextRequest) {
       }
     } catch (error) {
       logger.error('Failed to delete old async jobs:', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
 

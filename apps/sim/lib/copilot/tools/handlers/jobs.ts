@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import { parseCronToHumanReadable, validateCronExpression } from '@/lib/workflows/schedules/utils'
 
@@ -59,7 +60,7 @@ export async function executeCreateJob(
     } catch (err) {
       logger.warn('Failed to look up chat title for job', {
         chatId: context.chatId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
     }
   }
@@ -174,7 +175,7 @@ export async function executeCreateJob(
     }
   } catch (err) {
     logger.error('Failed to create job', {
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
     return { success: false, error: 'Failed to create job' }
   }
@@ -271,7 +272,7 @@ export async function executeManageJob(
         }
       } catch (err) {
         logger.error('Failed to list jobs', {
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
         return { success: false, error: 'Failed to list jobs' }
       }
@@ -317,7 +318,7 @@ export async function executeManageJob(
         }
       } catch (err) {
         logger.error('Failed to get job', {
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
         return { success: false, error: 'Failed to get job' }
       }
@@ -417,7 +418,7 @@ export async function executeManageJob(
         }
       } catch (err) {
         logger.error('Failed to update job', {
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
         return { success: false, error: 'Failed to update job' }
       }
@@ -467,7 +468,7 @@ export async function executeManageJob(
         }
       } catch (err) {
         logger.error('Failed to delete job', {
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
         return { success: false, error: 'Failed to delete job' }
       }
@@ -547,7 +548,7 @@ export async function executeCompleteJob(
     }
   } catch (err) {
     logger.error('Failed to complete job', {
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
     return { success: false, error: 'Failed to complete job' }
   }
@@ -597,7 +598,7 @@ export async function executeUpdateJobHistory(
     }
   } catch (err) {
     logger.error('Failed to update job history', {
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
     return { success: false, error: 'Failed to update job history' }
   }

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
+import { toError } from '@/lib/core/utils/helpers'
 import { getProviderHandler } from '@/lib/webhooks/providers'
 
 const logger = createLogger('WebhookProviderSubscriptions')
@@ -138,7 +139,7 @@ export async function cleanupExternalWebhook(
     logger.warn(`[${requestId}] Error cleaning up external webhook (non-fatal)`, {
       provider,
       webhookId: webhook.id,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
   }
 }

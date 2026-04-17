@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { EvernoteIcon } from '@/components/icons'
+import { toError } from '@/lib/core/utils/helpers'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import {
   ThriftReader,
@@ -509,7 +510,7 @@ export const evernoteConnector: ConnectorConfig = {
     } catch (error) {
       logger.warn('Failed to get Evernote note', {
         externalId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return null
     }

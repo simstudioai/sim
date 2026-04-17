@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
@@ -72,11 +73,7 @@ export const GET = withMcpAuth<RouteParams>('read')(
       return createMcpSuccessResponse({ tools })
     } catch (error) {
       logger.error(`[${requestId}] Error listing tools:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to list tools'),
-        'Failed to list tools',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to list tools', 500)
     }
   }
 )
@@ -237,11 +234,7 @@ export const POST = withMcpAuth<RouteParams>('write')(
       return createMcpSuccessResponse({ tool }, 201)
     } catch (error) {
       logger.error(`[${requestId}] Error adding tool:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to add tool'),
-        'Failed to add tool',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to add tool', 500)
     }
   }
 )

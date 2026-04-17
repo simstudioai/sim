@@ -2,6 +2,7 @@ import type {
   SupabaseVectorSearchParams,
   SupabaseVectorSearchResponse,
 } from '@/tools/supabase/types'
+import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const vectorSearchTool: ToolConfig<
@@ -56,7 +57,7 @@ export const vectorSearchTool: ToolConfig<
   request: {
     url: (params) => {
       // Use RPC endpoint for calling PostgreSQL functions
-      return `https://${params.projectId}.supabase.co/rest/v1/rpc/${params.functionName}`
+      return `${supabaseBaseUrl(params.projectId)}/rest/v1/rpc/${params.functionName}`
     },
     method: 'POST',
     headers: (params) => ({

@@ -6,6 +6,7 @@ import {
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { StreamWriter } from '@/lib/copilot/request/session'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
+import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('CopilotStreamFinalize')
 
@@ -127,7 +128,7 @@ async function loggedRunStatusUpdate(
   } catch (error) {
     logger.warn(`[${requestId}] Failed to update run status to ${status}`, {
       runId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
   }
 }

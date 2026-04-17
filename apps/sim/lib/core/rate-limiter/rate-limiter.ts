@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { isOrgPlan } from '@/lib/billing/plan-helpers'
+import { toError } from '@/lib/core/utils/helpers'
 import { createStorageAdapter, type RateLimitStorageAdapter } from './storage'
 import {
   getRateLimit,
@@ -101,7 +102,7 @@ export class RateLimiter {
       }
     } catch (error) {
       logger.error('Rate limit storage error - failing open (allowing request)', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
         userId,
         triggerType,
         isAsync,
@@ -147,7 +148,7 @@ export class RateLimiter {
       }
     } catch (error) {
       logger.error('Error getting rate limit status - returning default config', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
         userId,
         triggerType,
         isAsync,
@@ -181,7 +182,7 @@ export class RateLimiter {
       }
     } catch (error) {
       logger.error('Rate limit storage error - failing open (allowing request)', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
         storageKey,
       })
       return {

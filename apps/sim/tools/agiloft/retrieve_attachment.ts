@@ -2,7 +2,6 @@ import type {
   AgiloftRetrieveAttachmentParams,
   AgiloftRetrieveAttachmentResponse,
 } from '@/tools/agiloft/types'
-import { buildRetrieveAttachmentUrl, executeAgiloftRequest } from '@/tools/agiloft/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftRetrieveAttachmentTool: ToolConfig<
@@ -66,57 +65,47 @@ export const agiloftRetrieveAttachmentTool: ToolConfig<
   },
 
   request: {
-    url: 'https://placeholder.agiloft.com',
-    method: 'GET',
-    headers: () => ({}),
+    url: '/api/tools/agiloft/retrieve',
+    method: 'POST',
+    headers: () => ({
+      'Content-Type': 'application/json',
+    }),
+    body: (params) => ({
+      instanceUrl: params.instanceUrl,
+      knowledgeBase: params.knowledgeBase,
+      login: params.login,
+      password: params.password,
+      table: params.table,
+      recordId: params.recordId,
+      fieldName: params.fieldName,
+      position: params.position,
+    }),
   },
 
-  directExecution: async (params) => {
-    return executeAgiloftRequest<AgiloftRetrieveAttachmentResponse>(
-      params,
-      (base) => ({
-        url: buildRetrieveAttachmentUrl(base, params),
-        method: 'GET',
-      }),
-      async (response) => {
-        if (!response.ok) {
-          const errorText = await response.text()
-          return {
-            success: false,
-            output: {
-              file: { name: '', mimeType: '', data: '', size: 0 },
-            },
-            error: `Agiloft error: ${response.status} - ${errorText}`,
-          }
-        }
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
 
-        const contentType = response.headers.get('content-type') || 'application/octet-stream'
-        const contentDisposition = response.headers.get('content-disposition')
-        let fileName = 'attachment'
-
-        if (contentDisposition) {
-          const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
-          if (match?.[1]) {
-            fileName = match[1].replace(/['"]/g, '')
-          }
-        }
-
-        const arrayBuffer = await response.arrayBuffer()
-        const buffer = Buffer.from(arrayBuffer)
-
-        return {
-          success: true,
-          output: {
-            file: {
-              name: fileName,
-              mimeType: contentType,
-              data: buffer.toString('base64'),
-              size: buffer.length,
-            },
-          },
-        }
+    if (!data.success) {
+      return {
+        success: false,
+        output: {
+          file: { name: '', mimeType: '', data: '', size: 0 },
+        },
+        error: data.error || 'Failed to retrieve attachment',
       }
-    )
+    }
+
+    return {
+      success: true,
+      output: {
+        file: {
+          name: data.output.file.name,
+          mimeType: data.output.file.mimeType,
+          data: data.output.file.data,
+          size: data.output.file.size,
+        },
+      },
+    }
   },
 
   outputs: {

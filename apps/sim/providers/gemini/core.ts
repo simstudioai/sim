@@ -12,6 +12,7 @@ import {
   type ToolConfig,
 } from '@google/genai'
 import { createLogger } from '@sim/logger'
+import { toError } from '@/lib/core/utils/helpers'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {
@@ -145,7 +146,7 @@ async function executeToolCallsBatch(
     } catch (error) {
       const toolCallEndTime = Date.now()
       logger.error('Error processing function call:', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
         functionName: toolName,
       })
       return {
@@ -621,7 +622,7 @@ function createDeepResearchStream(
         controller.close()
       } catch (error) {
         streamLogger.error('Error reading deep research stream', {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
         controller.error(error)
       }
@@ -861,11 +862,11 @@ export async function executeDeepResearchRequest(
     const duration = providerEndTime - providerStartTime
 
     logger.error('Error in deep research request:', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
 
-    const enhancedError = error instanceof Error ? error : new Error(String(error))
+    const enhancedError = toError(error)
     Object.assign(enhancedError, {
       timing: {
         startTime: providerStartTimeISO,
@@ -1241,11 +1242,11 @@ export async function executeGeminiRequest(
     const duration = providerEndTime - providerStartTime
 
     logger.error('Error in Gemini request:', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
 
-    const enhancedError = error instanceof Error ? error : new Error(String(error))
+    const enhancedError = toError(error)
     Object.assign(enhancedError, {
       timing: {
         startTime: providerStartTimeISO,

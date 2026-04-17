@@ -73,6 +73,7 @@ import {
   isSignupEmailValidationEnabled,
 } from '@/lib/core/config/feature-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { toError } from '@/lib/core/utils/helpers'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { generateId } from '@/lib/core/utils/uuid'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
@@ -796,7 +797,7 @@ export const auth = betterAuth({
           } catch (err) {
             logger.warn('CIMD resolution failed', {
               clientId,
-              error: err instanceof Error ? err.message : String(err),
+              error: toError(err).message,
             })
           }
         }
@@ -2920,7 +2921,7 @@ export const auth = betterAuth({
                       referenceId: subscription.referenceId,
                       dbPlan: subscription.plan,
                       planFromStripe,
-                      error: orgError instanceof Error ? orgError.message : String(orgError),
+                      error: toError(orgError).message,
                       stack: orgError instanceof Error ? orgError.stack : undefined,
                     }
                   )
@@ -3010,7 +3011,7 @@ export const auth = betterAuth({
                       dbPlan: subscription.plan,
                       planFromStripe,
                       isUpgradeToTeam,
-                      error: orgError instanceof Error ? orgError.message : String(orgError),
+                      error: toError(orgError).message,
                       stack: orgError instanceof Error ? orgError.stack : undefined,
                     }
                   )

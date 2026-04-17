@@ -5,6 +5,7 @@ import { parse as csvParse } from 'csv-parse/sync'
 import { eq } from 'drizzle-orm'
 import { FunctionExecute, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { toError } from '@/lib/core/utils/helpers'
 import { getTableById } from '@/lib/table/service'
 
 const logger = createLogger('CopilotToolResultTables')
@@ -117,11 +118,11 @@ export async function maybeWriteOutputToTable(
     logger.warn('Failed to write tool output to table', {
       toolName,
       outputTable,
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
     return {
       success: false,
-      error: `Failed to write to table: ${err instanceof Error ? err.message : String(err)}`,
+      error: `Failed to write to table: ${toError(err).message}`,
     }
   }
 }
@@ -238,11 +239,11 @@ export async function maybeWriteReadCsvToTable(
     logger.warn('Failed to write read output to table', {
       toolName,
       outputTable,
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
     return {
       success: false,
-      error: `Failed to import into table: ${err instanceof Error ? err.message : String(err)}`,
+      error: `Failed to import into table: ${toError(err).message}`,
     }
   }
 }

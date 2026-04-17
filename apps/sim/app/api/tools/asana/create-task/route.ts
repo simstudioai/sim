@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
+import { toError } from '@/lib/core/utils/helpers'
 
 export const dynamic = 'force-dynamic'
 
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
     })
   } catch (error: any) {
     logger.error('Error creating Asana task:', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
 

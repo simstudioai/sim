@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { NotionIcon } from '@/components/icons'
+import { toError } from '@/lib/core/utils/helpers'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { joinTagArray, parseTagDate } from '@/connectors/utils'
@@ -292,7 +293,7 @@ export const notionConnector: ConnectorConfig = {
       return { ...stub, content, contentDeferred: false }
     } catch (error) {
       logger.warn(`Failed to fetch content for Notion page: ${externalId}`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return null
     }
@@ -594,7 +595,7 @@ async function listFromParentPage(
           return pageToStub(page)
         } catch (error) {
           logger.warn(`Failed to process child page ${pageId}`, {
-            error: error instanceof Error ? error.message : String(error),
+            error: toError(error).message,
           })
           return null
         }
