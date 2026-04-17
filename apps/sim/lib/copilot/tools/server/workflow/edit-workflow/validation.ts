@@ -352,17 +352,16 @@ export function validateValueForSubBlockType(
     case 'short-input':
     case 'long-input':
     case 'combobox': {
-      let stringValue: string
-      if (typeof value !== 'string' && typeof value !== 'number') {
-        stringValue = String(value)
-      } else {
-        stringValue = typeof value === 'number' ? String(value) : value
-      }
-
       const usesProviderCatalog =
         fieldName === 'model' && subBlockConfig.options === getModelOptions
 
       if (usesProviderCatalog) {
+        const stringValue =
+          typeof value === 'string'
+            ? value
+            : typeof value === 'number'
+              ? String(value)
+              : String(value)
         const trimmed = stringValue.trim()
         if (trimmed !== '' && !isKnownModelId(trimmed)) {
           const suggestions = suggestModelIdsForUnknownModel(trimmed)
@@ -382,7 +381,10 @@ export function validateValueForSubBlockType(
         return { valid: true, value: trimmed }
       }
 
-      return { valid: true, value: typeof value === 'string' ? value : stringValue }
+      if (typeof value !== 'string' && typeof value !== 'number') {
+        return { valid: true, value: String(value) }
+      }
+      return { valid: true, value }
     }
 
     // Selector types - allow strings (IDs) or arrays of strings

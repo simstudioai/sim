@@ -2711,7 +2711,7 @@ export function getProviderModels(providerId: string): string[] {
 
 export const DYNAMIC_MODEL_PROVIDERS = ['ollama', 'vllm', 'openrouter', 'fireworks'] as const
 
-export function getAllStaticModelIds(): string[] {
+function getAllStaticModelIds(): string[] {
   const ids: string[] = []
   for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
     if ((DYNAMIC_MODEL_PROVIDERS as readonly string[]).includes(providerId)) continue
@@ -2737,7 +2737,7 @@ export function isKnownModelId(modelId: string): boolean {
   return false
 }
 
-export function getRecommendedModels(): string[] {
+function getRecommendedModels(): string[] {
   const models: string[] = []
   for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
     if ((DYNAMIC_MODEL_PROVIDERS as readonly string[]).includes(providerId)) continue
