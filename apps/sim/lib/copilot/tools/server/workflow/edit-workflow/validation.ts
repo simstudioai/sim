@@ -3,7 +3,9 @@ import { validateSelectorIds } from '@/lib/copilot/validation/selector-validator
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
+import { getModelOptions } from '@/blocks/utils'
 import { EDGE, normalizeName } from '@/executor/constants'
+import { isKnownModelId, suggestModelIdsForUnknownModel } from '@/providers/models'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
 import type {
   EdgeHandleValidationResult,
@@ -350,12 +352,37 @@ export function validateValueForSubBlockType(
     case 'short-input':
     case 'long-input':
     case 'combobox': {
-      // Should be string (combobox allows custom values)
+      let stringValue: string
       if (typeof value !== 'string' && typeof value !== 'number') {
-        // Convert to string but don't error
-        return { valid: true, value: String(value) }
+        stringValue = String(value)
+      } else {
+        stringValue = typeof value === 'number' ? String(value) : value
       }
-      return { valid: true, value }
+
+      const usesProviderCatalog =
+        fieldName === 'model' && subBlockConfig.options === getModelOptions
+
+      if (usesProviderCatalog) {
+        const trimmed = stringValue.trim()
+        if (trimmed !== '' && !isKnownModelId(trimmed)) {
+          const suggestions = suggestModelIdsForUnknownModel(trimmed)
+          const suggestionText =
+            suggestions.length > 0 ? ` Valid options include: ${suggestions.join(', ')}.` : ''
+          return {
+            valid: false,
+            error: {
+              blockId,
+              blockType,
+              field: fieldName,
+              value,
+              error: `Unknown model id "${trimmed}" for block "${blockType}". Read components/blocks/${blockType}.json (the model.options array) for valid ids; prefer entries with recommended: true and avoid deprecated: true.${suggestionText}`,
+            },
+          }
+        }
+        return { valid: true, value: trimmed }
+      }
+
+      return { valid: true, value: typeof value === 'string' ? value : stringValue }
     }
 
     // Selector types - allow strings (IDs) or arrays of strings

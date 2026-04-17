@@ -320,24 +320,75 @@ export function serializeTableMeta(table: {
  * Excludes dynamic providers (ollama, vllm, openrouter) whose models are user-configured.
  * Includes provider ID and whether the model is hosted by Sim (no API key required).
  */
-function getStaticModelOptionsForVFS(): Array<{
+interface StaticModelOption {
   id: string
   provider: string
   hosted: boolean
-}> {
+  recommended?: boolean
+  speedOptimized?: boolean
+  deprecated?: boolean
+}
+
+interface TierFlags {
+  recommended?: boolean
+  speedOptimized?: boolean
+  deprecated?: boolean
+}
+
+const RESELLER_BASE_PREFIX: Record<string, string> = {
+  'azure-openai': 'azure/',
+  'azure-anthropic': 'azure-anthropic/',
+  vertex: 'vertex/',
+}
+
+const DYNAMIC_PROVIDERS_NOTE = {
+  note: 'The options array above lists Sim\'s static provider catalog. These four providers also accept user-configured models that are NOT enumerated here: the user may have additional ids available at runtime. Any model id prefixed with one of the slashes below is accepted by the server, as is any bare id that does not match a static provider pattern (typically a local Ollama tag like "llama3.1:8b"). The UI dropdown shows the user\'s actual installed models; if the user references one by name, use that id verbatim.',
+  prefixes: ['ollama/', 'vllm/', 'openrouter/', 'fireworks/'],
+} as const
+
+function getStaticModelOptionsForVFS(): StaticModelOption[] {
   const hostedProviders = new Set(['openai', 'anthropic', 'google'])
   const dynamicProviders = new Set(['ollama', 'vllm', 'openrouter', 'fireworks'])
 
-  const models: Array<{ id: string; provider: string; hosted: boolean }> = []
+  const baseTierFlags = new Map<string, TierFlags>()
+  for (const providerId of hostedProviders) {
+    const def = PROVIDER_DEFINITIONS[providerId]
+    if (!def) continue
+    for (const model of def.models) {
+      if (model.recommended || model.speedOptimized || model.deprecated) {
+        baseTierFlags.set(model.id, {
+          ...(model.recommended && { recommended: true }),
+          ...(model.speedOptimized && { speedOptimized: true }),
+          ...(model.deprecated && { deprecated: true }),
+        })
+      }
+    }
+  }
+
+  const models: StaticModelOption[] = []
 
   for (const [providerId, def] of Object.entries(PROVIDER_DEFINITIONS)) {
     if (dynamicProviders.has(providerId)) continue
     for (const model of def.models) {
-      models.push({
+      const option: StaticModelOption = {
         id: model.id,
         provider: providerId,
         hosted: hostedProviders.has(providerId),
-      })
+      }
+      if (model.recommended) option.recommended = true
+      if (model.speedOptimized) option.speedOptimized = true
+      if (model.deprecated) option.deprecated = true
+
+      if (!option.recommended && !option.speedOptimized && !option.deprecated) {
+        const prefix = RESELLER_BASE_PREFIX[providerId]
+        if (prefix && model.id.startsWith(prefix)) {
+          const baseId = model.id.slice(prefix.length)
+          const inherited = baseTierFlags.get(baseId)
+          if (inherited) Object.assign(option, inherited)
+        }
+      }
+
+      models.push(option)
     }
   }
 
@@ -378,9 +429,9 @@ export function serializeBlockSchema(block: BlockConfig): string {
     .map((sb) => {
       const serialized = serializeSubBlock(sb)
 
-      // For model comboboxes with function options, inject static model data with hosting info
       if (sb.id === 'model' && sb.type === 'combobox' && typeof sb.options === 'function') {
         serialized.options = getStaticModelOptionsForVFS()
+        serialized.dynamicProviders = DYNAMIC_PROVIDERS_NOTE
       }
 
       return serialized
