@@ -1,4 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
+import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import { acquireLock, getRedisClient, releaseLock } from '@/lib/core/config/redis'
 import { clearAbortMarker, hasAbortMarker, writeAbortMarker } from './buffer'
 
@@ -120,59 +123,80 @@ export async function acquirePendingChatStream(
   streamId: string,
   timeoutMs = 5_000
 ): Promise<boolean> {
-  const redis = getRedisClient()
-  if (redis) {
-    const deadline = Date.now() + timeoutMs
-    for (;;) {
-      try {
-        const acquired = await acquireLock(
-          getChatStreamLockKey(chatId),
-          streamId,
-          CHAT_STREAM_LOCK_TTL_SECONDS
-        )
-        if (acquired) {
+  // Span records wall time spent waiting for the per-chat stream lock.
+  // Typical case: sub-10ms uncontested acquire. Worst case: up to
+  // `timeoutMs` spent polling while a prior stream finishes. Previously
+  // this time looked like "unexplained gap before llm.stream".
+  return withCopilotSpan(
+    TraceSpan.CopilotChatAcquirePendingStreamLock,
+    {
+      'chat.id': chatId,
+      'stream.id': streamId,
+      'lock.timeout_ms': timeoutMs,
+    },
+    async (span) => {
+      const redis = getRedisClient()
+      span.setAttribute(TraceAttr.LockBackend, redis ? 'redis' : 'in_process')
+      if (redis) {
+        const deadline = Date.now() + timeoutMs
+        for (;;) {
+          try {
+            const acquired = await acquireLock(
+              getChatStreamLockKey(chatId),
+              streamId,
+              CHAT_STREAM_LOCK_TTL_SECONDS
+            )
+            if (acquired) {
+              registerPendingChatStream(chatId, streamId)
+              span.setAttribute(TraceAttr.LockAcquired, true)
+              return true
+            }
+            if (!pendingChatStreams.has(chatId)) {
+              const ownerStreamId = await redis.get(getChatStreamLockKey(chatId))
+              if (ownerStreamId) {
+                const settled = await waitForPendingChatStream(chatId, 0, ownerStreamId)
+                if (settled) {
+                  continue
+                }
+              }
+            }
+          } catch (error) {
+            logger.warn('Failed to acquire chat stream lock', {
+              chatId,
+              streamId,
+              error: error instanceof Error ? error.message : String(error),
+            })
+          }
+
+          if (Date.now() >= deadline) {
+            span.setAttribute(TraceAttr.LockAcquired, false)
+            span.setAttribute(TraceAttr.LockTimedOut, true)
+            return false
+          }
+          await new Promise((resolve) => setTimeout(resolve, 200))
+        }
+      }
+
+      for (;;) {
+        const existing = pendingChatStreams.get(chatId)
+        if (!existing) {
           registerPendingChatStream(chatId, streamId)
+          span.setAttribute(TraceAttr.LockAcquired, true)
           return true
         }
-        if (!pendingChatStreams.has(chatId)) {
-          const ownerStreamId = await redis.get(getChatStreamLockKey(chatId))
-          if (ownerStreamId) {
-            const settled = await waitForPendingChatStream(chatId, 0, ownerStreamId)
-            if (settled) {
-              continue
-            }
-          }
+
+        const settled = await Promise.race([
+          existing.promise.then(() => true),
+          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeoutMs)),
+        ])
+        if (!settled) {
+          span.setAttribute(TraceAttr.LockAcquired, false)
+          span.setAttribute(TraceAttr.LockTimedOut, true)
+          return false
         }
-      } catch (error) {
-        logger.warn('Failed to acquire chat stream lock', {
-          chatId,
-          streamId,
-          error: error instanceof Error ? error.message : String(error),
-        })
       }
-
-      if (Date.now() >= deadline) {
-        return false
-      }
-      await new Promise((resolve) => setTimeout(resolve, 200))
     }
-  }
-
-  for (;;) {
-    const existing = pendingChatStreams.get(chatId)
-    if (!existing) {
-      registerPendingChatStream(chatId, streamId)
-      return true
-    }
-
-    const settled = await Promise.race([
-      existing.promise.then(() => true),
-      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeoutMs)),
-    ])
-    if (!settled) {
-      return false
-    }
-  }
+  )
 }
 
 /**

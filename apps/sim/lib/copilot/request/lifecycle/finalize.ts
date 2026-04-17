@@ -5,6 +5,7 @@ import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import type { StreamWriter } from '@/lib/copilot/request/session'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
 
@@ -27,14 +28,14 @@ export async function finalizeStream(
   const outcome = aborted ? 'aborted' : result.success ? 'success' : 'error'
   const span = getTracer().startSpan('copilot.finalize_stream', {
     attributes: {
-      'copilot.finalize.outcome': outcome,
+      [TraceAttr.CopilotFinalizeOutcome]: outcome,
       'copilot.run.id': runId,
       'copilot.request.id': requestId,
-      'copilot.result.tool_calls': result.toolCalls?.length ?? 0,
-      'copilot.result.content_blocks': result.contentBlocks?.length ?? 0,
-      'copilot.result.content_length': result.content?.length ?? 0,
-      'copilot.publisher.saw_complete': publisher.sawComplete,
-      'copilot.publisher.client_disconnected': publisher.clientDisconnected,
+      [TraceAttr.CopilotResultToolCalls]: result.toolCalls?.length ?? 0,
+      [TraceAttr.CopilotResultContentBlocks]: result.contentBlocks?.length ?? 0,
+      [TraceAttr.CopilotResultContentLength]: result.content?.length ?? 0,
+      [TraceAttr.CopilotPublisherSawComplete]: publisher.sawComplete,
+      [TraceAttr.CopilotPublisherClientDisconnected]: publisher.clientDisconnected,
     },
   })
   try {

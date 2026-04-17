@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
@@ -31,8 +32,8 @@ export async function POST(req: NextRequest) {
       try {
         const auth = checkInternalApiKey(req)
         if (!auth.success) {
-          span.setAttribute('copilot.validate.outcome', 'internal_auth_failed')
-          span.setAttribute('http.status_code', 401)
+          span.setAttribute(TraceAttr.CopilotValidateOutcome, 'internal_auth_failed')
+          span.setAttribute(TraceAttr.HttpStatusCode, 401)
           return new NextResponse(null, { status: 401 })
         }
 
@@ -40,8 +41,8 @@ export async function POST(req: NextRequest) {
         const validationResult = ValidateApiKeySchema.safeParse(body)
         if (!validationResult.success) {
           logger.warn('Invalid validation request', { errors: validationResult.error.errors })
-          span.setAttribute('copilot.validate.outcome', 'invalid_body')
-          span.setAttribute('http.status_code', 400)
+          span.setAttribute(TraceAttr.CopilotValidateOutcome, 'invalid_body')
+          span.setAttribute(TraceAttr.HttpStatusCode, 400)
           return NextResponse.json(
             {
               error: 'userId is required',
@@ -52,22 +53,22 @@ export async function POST(req: NextRequest) {
         }
 
         const { userId } = validationResult.data
-        span.setAttribute('user.id', userId)
+        span.setAttribute(TraceAttr.UserId, userId)
 
         const [existingUser] = await db.select().from(user).where(eq(user.id, userId)).limit(1)
         if (!existingUser) {
           logger.warn('[API VALIDATION] userId does not exist', { userId })
-          span.setAttribute('copilot.validate.outcome', 'user_not_found')
-          span.setAttribute('http.status_code', 403)
+          span.setAttribute(TraceAttr.CopilotValidateOutcome, 'user_not_found')
+          span.setAttribute(TraceAttr.HttpStatusCode, 403)
           return NextResponse.json({ error: 'User not found' }, { status: 403 })
         }
 
         logger.info('[API VALIDATION] Validating usage limit', { userId })
         const { isExceeded, currentUsage, limit } = await checkServerSideUsageLimits(userId)
         span.setAttributes({
-          'billing.usage.current': currentUsage,
-          'billing.usage.limit': limit,
-          'billing.usage.exceeded': isExceeded,
+          [TraceAttr.BillingUsageCurrent]: currentUsage,
+          [TraceAttr.BillingUsageLimit]: limit,
+          [TraceAttr.BillingUsageExceeded]: isExceeded,
         })
 
         logger.info('[API VALIDATION] Usage limit validated', {
@@ -79,18 +80,18 @@ export async function POST(req: NextRequest) {
 
         if (isExceeded) {
           logger.info('[API VALIDATION] Usage exceeded', { userId, currentUsage, limit })
-          span.setAttribute('copilot.validate.outcome', 'usage_exceeded')
-          span.setAttribute('http.status_code', 402)
+          span.setAttribute(TraceAttr.CopilotValidateOutcome, 'usage_exceeded')
+          span.setAttribute(TraceAttr.HttpStatusCode, 402)
           return new NextResponse(null, { status: 402 })
         }
 
-        span.setAttribute('copilot.validate.outcome', 'ok')
-        span.setAttribute('http.status_code', 200)
+        span.setAttribute(TraceAttr.CopilotValidateOutcome, 'ok')
+        span.setAttribute(TraceAttr.HttpStatusCode, 200)
         return new NextResponse(null, { status: 200 })
       } catch (error) {
         logger.error('Error validating usage limit', { error })
-        span.setAttribute('copilot.validate.outcome', 'internal_error')
-        span.setAttribute('http.status_code', 500)
+        span.setAttribute(TraceAttr.CopilotValidateOutcome, 'internal_error')
+        span.setAttribute(TraceAttr.HttpStatusCode, 500)
         return NextResponse.json({ error: 'Failed to validate usage' }, { status: 500 })
       }
     }

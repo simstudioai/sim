@@ -1,5 +1,6 @@
 import { type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -86,14 +87,14 @@ async function prepareImageForVision(
     TraceSpan.CopilotVfsPrepareImage,
     {
       attributes: {
-        'copilot.vfs.input.bytes': buffer.length,
-        'copilot.vfs.input.media_type_claimed': claimedType,
+        [TraceAttr.CopilotVfsInputBytes]: buffer.length,
+        [TraceAttr.CopilotVfsInputMediaTypeClaimed]: claimedType,
       },
     },
     async (span) => {
       try {
         const mediaType = detectImageMime(buffer, claimedType)
-        span.setAttribute('copilot.vfs.input.media_type_detected', mediaType)
+        span.setAttribute(TraceAttr.CopilotVfsInputMediaTypeDetected, mediaType)
 
         let sharpModule: typeof import('sharp').default
         try {
@@ -103,10 +104,10 @@ async function prepareImageForVision(
             mediaType,
             error: err instanceof Error ? err.message : String(err),
           })
-          span.setAttribute('copilot.vfs.sharp.load_failed', true)
+          span.setAttribute(TraceAttr.CopilotVfsSharpLoadFailed, true)
           const fitsWithoutSharp = buffer.length <= MAX_IMAGE_READ_BYTES
           span.setAttribute(
-            'copilot.vfs.outcome',
+            TraceAttr.CopilotVfsOutcome,
             fitsWithoutSharp ? 'passthrough_no_sharp' : 'rejected_no_sharp'
           )
           return fitsWithoutSharp ? { buffer, mediaType, resized: false } : null
@@ -120,10 +121,10 @@ async function prepareImageForVision(
             mediaType,
             error: err instanceof Error ? err.message : String(err),
           })
-          span.setAttribute('copilot.vfs.metadata.failed', true)
+          span.setAttribute(TraceAttr.CopilotVfsMetadataFailed, true)
           const fitsWithoutSharp = buffer.length <= MAX_IMAGE_READ_BYTES
           span.setAttribute(
-            'copilot.vfs.outcome',
+            TraceAttr.CopilotVfsOutcome,
             fitsWithoutSharp ? 'passthrough_no_metadata' : 'rejected_no_metadata'
           )
           return fitsWithoutSharp ? { buffer, mediaType, resized: false } : null
@@ -132,8 +133,8 @@ async function prepareImageForVision(
         const width = metadata.width ?? 0
         const height = metadata.height ?? 0
         span.setAttributes({
-          'copilot.vfs.input.width': width,
-          'copilot.vfs.input.height': height,
+          [TraceAttr.CopilotVfsInputWidth]: width,
+          [TraceAttr.CopilotVfsInputHeight]: height,
         })
 
         const needsResize =
@@ -142,10 +143,10 @@ async function prepareImageForVision(
           height > MAX_IMAGE_DIMENSION
         if (!needsResize) {
           span.setAttributes({
-            'copilot.vfs.resized': false,
-            'copilot.vfs.outcome': 'passthrough_fits_budget',
-            'copilot.vfs.output.bytes': buffer.length,
-            'copilot.vfs.output.media_type': mediaType,
+            [TraceAttr.CopilotVfsResized]: false,
+            [TraceAttr.CopilotVfsOutcome]: 'passthrough_fits_budget',
+            [TraceAttr.CopilotVfsOutputBytes]: buffer.length,
+            [TraceAttr.CopilotVfsOutputMediaType]: mediaType,
           })
           return { buffer, mediaType, resized: false }
         }
@@ -156,7 +157,7 @@ async function prepareImageForVision(
             mediaType === 'image/webp' ||
             mediaType === 'image/gif'
         )
-        span.setAttribute('copilot.vfs.has_alpha', hasAlpha)
+        span.setAttribute(TraceAttr.CopilotVfsHasAlpha, hasAlpha)
 
         let attempts = 0
         for (const dimension of IMAGE_RESIZE_DIMENSIONS) {
@@ -203,13 +204,13 @@ async function prepareImageForVision(
                   outputMediaType: transformed.mediaType,
                 })
                 span.setAttributes({
-                  'copilot.vfs.resized': true,
-                  'copilot.vfs.resize.attempts': attempts,
-                  'copilot.vfs.resize.chosen_dimension': dimension,
-                  'copilot.vfs.resize.chosen_quality': quality,
-                  'copilot.vfs.output.bytes': transformed.buffer.length,
-                  'copilot.vfs.output.media_type': transformed.mediaType,
-                  'copilot.vfs.outcome': 'resized',
+                  [TraceAttr.CopilotVfsResized]: true,
+                  [TraceAttr.CopilotVfsResizeAttempts]: attempts,
+                  [TraceAttr.CopilotVfsResizeChosenDimension]: dimension,
+                  [TraceAttr.CopilotVfsResizeChosenQuality]: quality,
+                  [TraceAttr.CopilotVfsOutputBytes]: transformed.buffer.length,
+                  [TraceAttr.CopilotVfsOutputMediaType]: transformed.mediaType,
+                  [TraceAttr.CopilotVfsOutcome]: 'resized',
                 })
                 return {
                   buffer: transformed.buffer,
@@ -234,9 +235,9 @@ async function prepareImageForVision(
         }
 
         span.setAttributes({
-          'copilot.vfs.resized': false,
-          'copilot.vfs.resize.attempts': attempts,
-          'copilot.vfs.outcome': 'rejected_too_large_after_resize',
+          [TraceAttr.CopilotVfsResized]: false,
+          [TraceAttr.CopilotVfsResizeAttempts]: attempts,
+          [TraceAttr.CopilotVfsOutcome]: 'rejected_too_large_after_resize',
         })
         return null
       } catch (err) {
@@ -277,20 +278,20 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
     TraceSpan.CopilotVfsReadFile,
     {
       attributes: {
-        'copilot.vfs.file.name': record.name,
-        'copilot.vfs.file.media_type': record.type,
-        'copilot.vfs.file.size_bytes': record.size,
-        'copilot.vfs.file.extension': getExtension(record.name),
+        [TraceAttr.CopilotVfsFileName]: record.name,
+        [TraceAttr.CopilotVfsFileMediaType]: record.type,
+        [TraceAttr.CopilotVfsFileSizeBytes]: record.size,
+        [TraceAttr.CopilotVfsFileExtension]: getExtension(record.name),
       },
     },
     async (span) => {
       try {
         if (isImageFileType(record.type)) {
-          span.setAttribute('copilot.vfs.read.path', 'image')
+          span.setAttribute(TraceAttr.CopilotVfsReadPath, 'image')
           const originalBuffer = await downloadWorkspaceFile(record)
           const prepared = await prepareImageForVision(originalBuffer, record.type)
           if (!prepared) {
-            span.setAttribute('copilot.vfs.read.outcome', 'image_too_large')
+            span.setAttribute(TraceAttr.CopilotVfsReadOutcome, 'image_too_large')
             return {
               content: `[Image too large: ${record.name} (${(record.size / 1024 / 1024).toFixed(1)}MB, limit 5MB after resize/compression)]`,
               totalLines: 1,
@@ -299,10 +300,10 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
           const sizeKb = (prepared.buffer.length / 1024).toFixed(1)
           const resizeNote = prepared.resized ? ', resized for vision' : ''
           span.setAttributes({
-            'copilot.vfs.read.outcome': 'image_prepared',
-            'copilot.vfs.read.output.bytes': prepared.buffer.length,
-            'copilot.vfs.read.output.media_type': prepared.mediaType,
-            'copilot.vfs.read.image.resized': prepared.resized,
+            [TraceAttr.CopilotVfsReadOutcome]: 'image_prepared',
+            [TraceAttr.CopilotVfsReadOutputBytes]: prepared.buffer.length,
+            [TraceAttr.CopilotVfsReadOutputMediaType]: prepared.mediaType,
+            [TraceAttr.CopilotVfsReadImageResized]: prepared.resized,
           })
           return {
             content: `Image: ${record.name} (${sizeKb}KB, ${prepared.mediaType}${resizeNote})`,
@@ -319,9 +320,9 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
         }
 
         if (isReadableType(record.type)) {
-          span.setAttribute('copilot.vfs.read.path', 'text')
+          span.setAttribute(TraceAttr.CopilotVfsReadPath, 'text')
           if (record.size > MAX_TEXT_READ_BYTES) {
-            span.setAttribute('copilot.vfs.read.outcome', 'text_too_large')
+            span.setAttribute(TraceAttr.CopilotVfsReadOutcome, 'text_too_large')
             return {
               content: `[File too large to display inline: ${record.name} (${record.size} bytes, limit ${MAX_TEXT_READ_BYTES})]`,
               totalLines: 1,
@@ -332,16 +333,16 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
           const content = buffer.toString('utf-8')
           const lines = content.split('\n').length
           span.setAttributes({
-            'copilot.vfs.read.outcome': 'text_read',
-            'copilot.vfs.read.output.bytes': buffer.length,
-            'copilot.vfs.read.output.lines': lines,
+            [TraceAttr.CopilotVfsReadOutcome]: 'text_read',
+            [TraceAttr.CopilotVfsReadOutputBytes]: buffer.length,
+            [TraceAttr.CopilotVfsReadOutputLines]: lines,
           })
           return { content, totalLines: lines }
         }
 
         const ext = getExtension(record.name)
         if (PARSEABLE_EXTENSIONS.has(ext)) {
-          span.setAttribute('copilot.vfs.read.path', 'parseable_document')
+          span.setAttribute(TraceAttr.CopilotVfsReadPath, 'parseable_document')
           const buffer = await downloadWorkspaceFile(record)
           try {
             const { parseBuffer } = await import('@/lib/file-parsers')
@@ -349,9 +350,9 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
             const content = result.content || ''
             const lines = content.split('\n').length
             span.setAttributes({
-              'copilot.vfs.read.outcome': 'document_parsed',
-              'copilot.vfs.read.output.bytes': content.length,
-              'copilot.vfs.read.output.lines': lines,
+              [TraceAttr.CopilotVfsReadOutcome]: 'document_parsed',
+              [TraceAttr.CopilotVfsReadOutputBytes]: content.length,
+              [TraceAttr.CopilotVfsReadOutputLines]: lines,
             })
             return { content, totalLines: lines }
           } catch (parseErr) {
@@ -364,7 +365,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
               'error.message':
                 parseErr instanceof Error ? parseErr.message : String(parseErr).slice(0, 500),
             })
-            span.setAttribute('copilot.vfs.read.outcome', 'parse_failed')
+            span.setAttribute(TraceAttr.CopilotVfsReadOutcome, 'parse_failed')
             return {
               content: `[Could not parse ${record.name} (${record.type}, ${record.size} bytes)]`,
               totalLines: 1,
@@ -373,8 +374,8 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
         }
 
         span.setAttributes({
-          'copilot.vfs.read.path': 'binary',
-          'copilot.vfs.read.outcome': 'binary_placeholder',
+          [TraceAttr.CopilotVfsReadPath]: 'binary',
+          [TraceAttr.CopilotVfsReadOutcome]: 'binary_placeholder',
         })
         return {
           content: `[Binary file: ${record.name} (${record.type}, ${record.size} bytes). Cannot display as text.]`,
@@ -386,7 +387,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
           error: err instanceof Error ? err.message : String(err),
         })
         recordSpanError(span, err)
-        span.setAttribute('copilot.vfs.read.outcome', 'read_failed')
+        span.setAttribute(TraceAttr.CopilotVfsReadOutcome, 'read_failed')
         return null
       } finally {
         span.end()

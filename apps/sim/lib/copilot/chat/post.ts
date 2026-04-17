@@ -19,6 +19,7 @@ import {
 import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import {
   createBadRequestResponse,
@@ -314,8 +315,8 @@ async function persistUserMessage(params: {
 
       const messagesAfter = Array.isArray(updated?.messages) ? updated.messages : undefined
       span.setAttributes({
-        'chat.persist.outcome': updated ? 'appended' : 'chat_not_found',
-        'chat.messages_after': messagesAfter?.length ?? 0,
+        [TraceAttr.ChatPersistOutcome]: updated ? 'appended' : 'chat_not_found',
+        [TraceAttr.ChatMessagesAfter]: messagesAfter?.length ?? 0,
       })
 
       if (notifyWorkspaceStatus && updated && workspaceId) {
@@ -615,7 +616,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     const authenticatedUserId = session.user.id
 
     const body = ChatMessageSchema.parse(await req.json())
-    const normalizedContexts = normalizeContexts(body.contexts)
+    const normalizedContexts = normalizeContexts(body.contexts) ?? []
     userMessageId = body.userMessageId || crypto.randomUUID()
 
     otelRoot = startCopilotOtelRoot({
@@ -624,6 +625,11 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       executionId,
       runId,
       transport: 'stream',
+      // Truncated prompt for the dashboard "user message" column.
+      // Unconditional (no PII env gate) — a preview snippet is
+      // cheap and widely useful; full content is gated separately
+      // by setInputMessages above.
+      userMessagePreview: body.message,
     })
     // Emit `gen_ai.input.messages` on the root agent span for OTel
     // GenAI spec compliance (Honeycomb's Gen AI view keys off this).
@@ -637,15 +643,24 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     // wrapper those spans became orphan roots and each showed up as a
     // separate trace in Jaeger.
     return await otelContextApi.with(otelRoot.context, async () => {
-      const branch = await resolveBranch({
-        authenticatedUserId,
-        workflowId: body.workflowId,
-        workflowName: body.workflowName,
-        workspaceId: body.workspaceId,
-        model: body.model,
-        mode: body.mode,
-        provider: body.provider,
-      })
+      const branch = await withCopilotSpan(
+        TraceSpan.CopilotChatResolveBranch,
+        {
+          'branch.workflow_id': body.workflowId ?? '',
+          'branch.workspace_id': body.workspaceId ?? '',
+        },
+        () =>
+          resolveBranch({
+            authenticatedUserId,
+            workflowId: body.workflowId,
+            workflowName: body.workflowName,
+            workspaceId: body.workspaceId,
+            model: body.model,
+            mode: body.mode,
+            provider: body.provider,
+          }),
+        otelRoot!.context
+      )
       if (branch instanceof NextResponse) {
         return branch
       }
@@ -656,14 +671,23 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       actualChatId = body.chatId
 
       if (body.chatId || body.createNewChat) {
-        const chatResult = await resolveOrCreateChat({
-          chatId: body.chatId,
-          userId: authenticatedUserId,
-          ...(branch.kind === 'workflow' ? { workflowId: branch.workflowId } : {}),
-          workspaceId: branch.workspaceId,
-          model: branch.titleModel,
-          type: branch.kind === 'workflow' ? 'copilot' : 'mothership',
-        })
+        const chatResult = await withCopilotSpan(
+          TraceSpan.CopilotChatResolveOrCreateChat,
+          {
+            'chat.preexisting': !!body.chatId,
+            'chat.create_new': !!body.createNewChat,
+          },
+          () =>
+            resolveOrCreateChat({
+              chatId: body.chatId,
+              userId: authenticatedUserId,
+              ...(branch.kind === 'workflow' ? { workflowId: branch.workflowId } : {}),
+              workspaceId: branch.workspaceId,
+              model: branch.titleModel,
+              type: branch.kind === 'workflow' ? 'copilot' : 'mothership',
+            }),
+          otelRoot!.context
+        )
         currentChat = chatResult.chat
         actualChatId = chatResult.chatId || body.chatId
         chatIsNew = chatResult.isNew
@@ -687,8 +711,11 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         )
       }
 
+      let pendingStreamWaitMs = 0
       if (actualChatId) {
+        const lockStart = Date.now()
         chatStreamLockAcquired = await acquirePendingChatStream(actualChatId, userMessageId)
+        pendingStreamWaitMs = Date.now() - lockStart
         if (!chatStreamLockAcquired) {
           const activeStreamId = await getPendingChatStreamId(actualChatId)
           return NextResponse.json(
@@ -701,6 +728,25 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         }
       }
 
+      // Stamp request-shape metadata on the root `gen_ai.agent.execute`
+      // span now that `branch`, attachment counts, and the pending-stream
+      // wait are all known. This turns dashboard slicing by
+      // `copilot.surface` / `copilot.mode` / `copilot.interrupted_prior_stream`
+      // into a simple TraceQL filter.
+      otelRoot!.setRequestShape({
+        branchKind: branch.kind,
+        mode: body.mode,
+        model: body.model,
+        provider: body.provider,
+        createNewChat: body.createNewChat,
+        prefetch: body.prefetch,
+        fileAttachmentsCount: body.fileAttachments?.length ?? 0,
+        resourceAttachmentsCount: body.resourceAttachments?.length ?? 0,
+        contextsCount: normalizedContexts.length,
+        commandsCount: body.commands?.length ?? 0,
+        pendingStreamWaitMs,
+      })
+
       const workspaceId = branch.workspaceId
       const userPermissionPromise = workspaceId
         ? getUserEntityPermissions(authenticatedUserId, 'workspace', workspaceId).catch((error) => {
@@ -711,19 +757,38 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             return null
           })
         : Promise.resolve(null)
+      // Wrap the pre-LLM prep work in spans so the trace waterfall shows
+      // where time is going between "request received" and "llm.stream
+      // opens". Previously these ran bare under the root and inflated the
+      // apparent "gap" before the model call. Each promise is its own
+      // span; they run concurrently under Promise.all below.
       const workspaceContextPromise =
         branch.kind === 'workspace'
-          ? generateWorkspaceContext(branch.workspaceId, authenticatedUserId)
+          ? withCopilotSpan(
+              TraceSpan.CopilotChatBuildWorkspaceContext,
+              { 'workspace.id': branch.workspaceId },
+              () => generateWorkspaceContext(branch.workspaceId, authenticatedUserId),
+              otelRoot!.context
+            )
           : Promise.resolve(undefined)
-      const agentContextsPromise = resolveAgentContexts({
-        contexts: normalizedContexts,
-        resourceAttachments: body.resourceAttachments,
-        userId: authenticatedUserId,
-        message: body.message,
-        workspaceId,
-        chatId: actualChatId,
-        requestId: tracker.requestId,
-      })
+      const agentContextsPromise = withCopilotSpan(
+        TraceSpan.CopilotChatResolveAgentContexts,
+        {
+          'contexts.count': normalizedContexts.length,
+          'attachments.count': body.resourceAttachments?.length ?? 0,
+        },
+        () =>
+          resolveAgentContexts({
+            contexts: normalizedContexts,
+            resourceAttachments: body.resourceAttachments,
+            userId: authenticatedUserId,
+            message: body.message,
+            workspaceId,
+            chatId: actualChatId,
+            requestId: tracker.requestId,
+          }),
+        otelRoot!.context
+      )
       const persistedMessagesPromise = persistUserMessage({
         chatId: actualChatId,
         userMessageId,
@@ -734,12 +799,18 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         notifyWorkspaceStatus: branch.notifyWorkspaceStatus,
         parentOtelContext: otelRoot!.context,
       })
-      const executionContextPromise = branch.buildExecutionContext({
-        userId: authenticatedUserId,
-        chatId: actualChatId,
-        userTimezone: body.userTimezone,
-        messageId: userMessageId,
-      })
+      const executionContextPromise = withCopilotSpan(
+        TraceSpan.CopilotChatBuildExecutionContext,
+        { 'branch.kind': branch.kind },
+        () =>
+          branch.buildExecutionContext({
+            userId: authenticatedUserId,
+            chatId: actualChatId,
+            userTimezone: body.userTimezone,
+            messageId: userMessageId,
+          }),
+        otelRoot!.context
+      )
 
       const [agentContexts, userPermission, workspaceContext, persistedMessages, executionContext] =
         await Promise.all([
@@ -757,43 +828,57 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         })
       }
 
-      const requestPayload =
-        branch.kind === 'workflow'
-          ? await branch.buildPayload({
-              message: body.message,
-              userId: authenticatedUserId,
-              userMessageId,
-              chatId: actualChatId,
-              contexts: agentContexts,
-              fileAttachments: body.fileAttachments,
-              userPermission: userPermission ?? undefined,
-              userTimezone: body.userTimezone,
-              workflowId: branch.workflowId,
-              workflowName: branch.workflowName,
-              workspaceId: branch.workspaceId,
-              mode: branch.mode,
-              provider: branch.provider,
-              commands: body.commands,
-              prefetch: body.prefetch,
-              implicitFeedback: body.implicitFeedback,
-            })
-          : await branch.buildPayload({
-              message: body.message,
-              userId: authenticatedUserId,
-              userMessageId,
-              chatId: actualChatId,
-              contexts: agentContexts,
-              fileAttachments: body.fileAttachments,
-              userPermission: userPermission ?? undefined,
-              userTimezone: body.userTimezone,
-              workspaceContext,
-            })
+      // buildPayload is the last synchronous step before the outbound
+      // Sim → Go HTTP call. It runs per-tool schema generation (subscription
+      // lookup + registry iteration, cached 30s) and file upload tracking
+      // per attachment. Wrapping it so we can see how much of the
+      // "before llm.stream" gap lives here vs elsewhere.
+      const requestPayload = await withCopilotSpan(
+        TraceSpan.CopilotChatBuildPayload,
+        {
+          'branch.kind': branch.kind,
+          'attachments.count': body.fileAttachments?.length ?? 0,
+          'contexts.count': normalizedContexts.length,
+        },
+        () =>
+          branch.kind === 'workflow'
+            ? branch.buildPayload({
+                message: body.message,
+                userId: authenticatedUserId,
+                userMessageId,
+                chatId: actualChatId,
+                contexts: agentContexts,
+                fileAttachments: body.fileAttachments,
+                userPermission: userPermission ?? undefined,
+                userTimezone: body.userTimezone,
+                workflowId: branch.workflowId,
+                workflowName: branch.workflowName,
+                workspaceId: branch.workspaceId,
+                mode: branch.mode,
+                provider: branch.provider,
+                commands: body.commands,
+                prefetch: body.prefetch,
+                implicitFeedback: body.implicitFeedback,
+              })
+            : branch.buildPayload({
+                message: body.message,
+                userId: authenticatedUserId,
+                userMessageId,
+                chatId: actualChatId,
+                contexts: agentContexts,
+                fileAttachments: body.fileAttachments,
+                userPermission: userPermission ?? undefined,
+                userTimezone: body.userTimezone,
+                workspaceContext,
+              }),
+        otelRoot!.context
+      )
 
       if (actualChatId) {
-        otelRoot!.span.setAttribute('chat.id', actualChatId)
+        otelRoot!.span.setAttribute(TraceAttr.ChatId, actualChatId)
       }
       if (workspaceId) {
-        otelRoot!.span.setAttribute('workspace.id', workspaceId)
+        otelRoot!.span.setAttribute(TraceAttr.WorkspaceId, workspaceId)
       }
 
       const stream = createSSEStream({

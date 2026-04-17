@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { parse as csvParse } from 'csv-parse/sync'
 import { eq } from 'drizzle-orm'
 import { FunctionExecute, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
@@ -38,7 +39,7 @@ export async function maybeWriteOutputToTable(
       try {
         const table = await getTableById(outputTable)
         if (!table) {
-          span.setAttribute('copilot.table.outcome', 'table_not_found')
+          span.setAttribute(TraceAttr.CopilotTableOutcome, 'table_not_found')
           return {
             success: false,
             error: `Table "${outputTable}" not found`,
@@ -53,7 +54,7 @@ export async function maybeWriteOutputToTable(
           if (Array.isArray(inner)) {
             rows = inner
           } else {
-            span.setAttribute('copilot.table.outcome', 'invalid_shape')
+            span.setAttribute(TraceAttr.CopilotTableOutcome, 'invalid_shape')
             return {
               success: false,
               error: 'outputTable requires the code to return an array of objects',
@@ -62,17 +63,17 @@ export async function maybeWriteOutputToTable(
         } else if (Array.isArray(rawOutput)) {
           rows = rawOutput
         } else {
-          span.setAttribute('copilot.table.outcome', 'invalid_shape')
+          span.setAttribute(TraceAttr.CopilotTableOutcome, 'invalid_shape')
           return {
             success: false,
             error: 'outputTable requires the code to return an array of objects',
           }
         }
 
-        span.setAttribute('copilot.table.row_count', rows.length)
+        span.setAttribute(TraceAttr.CopilotTableRowCount, rows.length)
 
         if (rows.length > MAX_OUTPUT_TABLE_ROWS) {
-          span.setAttribute('copilot.table.outcome', 'row_limit_exceeded')
+          span.setAttribute(TraceAttr.CopilotTableOutcome, 'row_limit_exceeded')
           return {
             success: false,
             error: `outputTable row limit exceeded: got ${rows.length}, max is ${MAX_OUTPUT_TABLE_ROWS}`,
@@ -80,7 +81,7 @@ export async function maybeWriteOutputToTable(
         }
 
         if (rows.length === 0) {
-          span.setAttribute('copilot.table.outcome', 'empty_rows')
+          span.setAttribute(TraceAttr.CopilotTableOutcome, 'empty_rows')
           return {
             success: false,
             error: 'outputTable requires at least one row — code returned an empty array',
@@ -121,7 +122,7 @@ export async function maybeWriteOutputToTable(
           tableId: outputTable,
           rowCount: rows.length,
         })
-        span.setAttribute('copilot.table.outcome', 'wrote')
+        span.setAttribute(TraceAttr.CopilotTableOutcome, 'wrote')
         return {
           success: true,
           output: {
@@ -136,7 +137,7 @@ export async function maybeWriteOutputToTable(
           outputTable,
           error: err instanceof Error ? err.message : String(err),
         })
-        span.setAttribute('copilot.table.outcome', 'failed')
+        span.setAttribute(TraceAttr.CopilotTableOutcome, 'failed')
         span.addEvent('copilot.table.error', {
           'error.message': (err instanceof Error ? err.message : String(err)).slice(0, 500),
         })
@@ -173,23 +174,23 @@ export async function maybeWriteReadCsvToTable(
       try {
         const table = await getTableById(outputTable)
         if (!table) {
-          span.setAttribute('copilot.table.outcome', 'table_not_found')
+          span.setAttribute(TraceAttr.CopilotTableOutcome, 'table_not_found')
           return { success: false, error: `Table "${outputTable}" not found` }
         }
 
         const output = result.output as Record<string, unknown>
         const content = (output.content as string) || ''
         if (!content.trim()) {
-          span.setAttribute('copilot.table.outcome', 'empty_content')
+          span.setAttribute(TraceAttr.CopilotTableOutcome, 'empty_content')
           return { success: false, error: 'File has no content to import into table' }
         }
 
         const filePath = (params?.path as string) || ''
         const ext = filePath.split('.').pop()?.toLowerCase()
         span.setAttributes({
-          'copilot.table.source.path': filePath,
-          'copilot.table.source.format': ext === 'json' ? 'json' : 'csv',
-          'copilot.table.source.content_bytes': content.length,
+          [TraceAttr.CopilotTableSourcePath]: filePath,
+          [TraceAttr.CopilotTableSourceFormat]: ext === 'json' ? 'json' : 'csv',
+          [TraceAttr.CopilotTableSourceContentBytes]: content.length,
         })
 
         let rows: Record<string, unknown>[]
@@ -197,7 +198,7 @@ export async function maybeWriteReadCsvToTable(
         if (ext === 'json') {
           const parsed = JSON.parse(content)
           if (!Array.isArray(parsed)) {
-            span.setAttribute('copilot.table.outcome', 'invalid_json_shape')
+            span.setAttribute(TraceAttr.CopilotTableOutcome, 'invalid_json_shape')
             return {
               success: false,
               error: 'JSON file must contain an array of objects for table import',
@@ -216,15 +217,15 @@ export async function maybeWriteReadCsvToTable(
           }) as Record<string, unknown>[]
         }
 
-        span.setAttribute('copilot.table.row_count', rows.length)
+        span.setAttribute(TraceAttr.CopilotTableRowCount, rows.length)
 
         if (rows.length === 0) {
-          span.setAttribute('copilot.table.outcome', 'empty_rows')
+          span.setAttribute(TraceAttr.CopilotTableOutcome, 'empty_rows')
           return { success: false, error: 'File has no data rows to import' }
         }
 
         if (rows.length > MAX_OUTPUT_TABLE_ROWS) {
-          span.setAttribute('copilot.table.outcome', 'row_limit_exceeded')
+          span.setAttribute(TraceAttr.CopilotTableOutcome, 'row_limit_exceeded')
           return {
             success: false,
             error: `Row limit exceeded: got ${rows.length}, max is ${MAX_OUTPUT_TABLE_ROWS}`,
@@ -267,7 +268,7 @@ export async function maybeWriteReadCsvToTable(
           rowCount: rows.length,
           filePath,
         })
-        span.setAttribute('copilot.table.outcome', 'imported')
+        span.setAttribute(TraceAttr.CopilotTableOutcome, 'imported')
         return {
           success: true,
           output: {
@@ -283,7 +284,7 @@ export async function maybeWriteReadCsvToTable(
           outputTable,
           error: err instanceof Error ? err.message : String(err),
         })
-        span.setAttribute('copilot.table.outcome', 'failed')
+        span.setAttribute(TraceAttr.CopilotTableOutcome, 'failed')
         span.addEvent('copilot.table.error', {
           'error.message': (err instanceof Error ? err.message : String(err)).slice(0, 500),
         })

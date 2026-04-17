@@ -1,4 +1,5 @@
 import { type Context, context, SpanStatusCode, trace } from '@opentelemetry/api'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { traceHeaders } from '@/lib/copilot/request/go/propagation'
 
 // Lazy tracer resolution: module-level `trace.getTracer()` can be evaluated
@@ -42,12 +43,12 @@ export async function fetchGo(url: string, options: OutboundFetchOptions = {}): 
     spanName ?? `sim → go ${pathname}`,
     {
       attributes: {
-        'http.method': method,
-        'http.url': url,
-        'http.target': pathname,
-        'net.peer.name': parsed?.host ?? '',
-        'copilot.leg': 'sim_to_go',
-        ...(operation ? { 'copilot.operation': operation } : {}),
+        [TraceAttr.HttpMethod]: method,
+        [TraceAttr.HttpUrl]: url,
+        [TraceAttr.HttpTarget]: pathname,
+        [TraceAttr.NetPeerName]: parsed?.host ?? '',
+        [TraceAttr.CopilotLeg]: 'sim_to_go',
+        ...(operation ? { [TraceAttr.CopilotOperation]: operation } : {}),
         ...(attributes ?? {}),
       },
     },
@@ -72,10 +73,10 @@ export async function fetchGo(url: string, options: OutboundFetchOptions = {}): 
     )
     const elapsedMs = performance.now() - start
     const contentLength = Number(response.headers.get('content-length') ?? 0)
-    span.setAttribute('http.status_code', response.status)
-    span.setAttribute('http.response.headers_ms', Math.round(elapsedMs))
+    span.setAttribute(TraceAttr.HttpStatusCode, response.status)
+    span.setAttribute(TraceAttr.HttpResponseHeadersMs, Math.round(elapsedMs))
     if (contentLength > 0) {
-      span.setAttribute('http.response.content_length', contentLength)
+      span.setAttribute(TraceAttr.HttpResponseContentLength, contentLength)
     }
     if (response.status >= 400) {
       span.setStatus({
@@ -87,7 +88,7 @@ export async function fetchGo(url: string, options: OutboundFetchOptions = {}): 
     }
     return response
   } catch (error) {
-    span.setAttribute('http.response.headers_ms', Math.round(performance.now() - start))
+    span.setAttribute(TraceAttr.HttpResponseHeadersMs, Math.round(performance.now() - start))
     span.setStatus({
       code: SpanStatusCode.ERROR,
       message: error instanceof Error ? error.message : String(error),

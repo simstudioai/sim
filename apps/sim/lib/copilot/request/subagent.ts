@@ -5,6 +5,7 @@ import {
   MothershipStreamV1EventType,
   MothershipStreamV1SpanPayloadKind,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { createStreamingContext } from '@/lib/copilot/request/context/request-context'
 import { buildToolCallSummaries } from '@/lib/copilot/request/context/result'
@@ -66,13 +67,15 @@ export async function orchestrateSubagentStream(
     async (otelSpan) => {
       const result = await orchestrateSubagentStreamInner(agentId, requestPayload, options)
       otelSpan.setAttributes({
-        'subagent.outcome.success': result.success,
-        'subagent.outcome.tool_call_count': result.toolCalls.length,
-        'subagent.outcome.content_bytes': result.content?.length ?? 0,
+        [TraceAttr.SubagentOutcomeSuccess]: result.success,
+        [TraceAttr.SubagentOutcomeToolCallCount]: result.toolCalls.length,
+        [TraceAttr.SubagentOutcomeContentBytes]: result.content?.length ?? 0,
         ...(result.structuredResult?.type
-          ? { 'subagent.outcome.structured_type': result.structuredResult.type }
+          ? { [TraceAttr.SubagentOutcomeStructuredType]: result.structuredResult.type }
           : {}),
-        ...(result.error ? { 'subagent.outcome.error': String(result.error).slice(0, 500) } : {}),
+        ...(result.error
+          ? { [TraceAttr.SubagentOutcomeError]: String(result.error).slice(0, 500) }
+          : {}),
       })
       return result
     }

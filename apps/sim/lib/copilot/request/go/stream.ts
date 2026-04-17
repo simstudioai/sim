@@ -2,6 +2,7 @@ import type { Context } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/copilot/constants'
 import { MothershipStreamV1SpanLifecycleEvent } from '@/lib/copilot/generated/mothership-stream-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import {
   buildPreviewContentUpdate,
@@ -128,8 +129,8 @@ export async function runStreamLoop(
     spanName: `sim → go ${pathname}`,
     operation: 'stream',
     attributes: {
-      'copilot.stream': true,
-      ...(requestBodyBytes ? { 'http.request.content_length': requestBodyBytes } : {}),
+      [TraceAttr.CopilotStream]: true,
+      ...(requestBodyBytes ? { [TraceAttr.HttpRequestContentLength]: requestBodyBytes } : {}),
     },
   })
   const headersElapsedMs = Math.round(performance.now() - fetchStart)

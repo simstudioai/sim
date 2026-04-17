@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 
@@ -38,7 +39,7 @@ export async function finalizeAssistantTurn({
         .limit(1)
 
       const messages: Record<string, unknown>[] = Array.isArray(row?.messages) ? row.messages : []
-      span.setAttribute('chat.existing_message_count', messages.length)
+      span.setAttribute(TraceAttr.ChatExistingMessageCount, messages.length)
       const userIdx = messages.findIndex((message) => message.id === userMessageId)
       const alreadyHasResponse =
         userIdx >= 0 &&
@@ -64,13 +65,13 @@ export async function finalizeAssistantTurn({
             messages: sql`${copilotChats.messages} || ${JSON.stringify([assistantMessage])}::jsonb`,
           })
           .where(updateWhere)
-        span.setAttribute('chat.finalize.outcome', 'appended_assistant')
+        span.setAttribute(TraceAttr.ChatFinalizeOutcome, 'appended_assistant')
         return
       }
 
       await db.update(copilotChats).set(baseUpdate).where(updateWhere)
       span.setAttribute(
-        'chat.finalize.outcome',
+        TraceAttr.ChatFinalizeOutcome,
         assistantMessage
           ? alreadyHasResponse
             ? 'assistant_already_persisted'

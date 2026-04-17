@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import { env } from '@/lib/core/config/env'
 
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({ userId, name }),
       spanName: 'sim → go /api/validate-key/generate',
       operation: 'generate_api_key',
-      attributes: { 'user.id': userId },
+      attributes: { [TraceAttr.UserId]: userId },
     })
 
     if (!res.ok) {

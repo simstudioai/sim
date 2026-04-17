@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
@@ -59,8 +60,8 @@ async function updateCostInner(
     logger.info(`[${requestId}] Update cost request started`)
 
     if (!isBillingEnabled) {
-      span.setAttribute('billing.outcome', 'billing_disabled')
-      span.setAttribute('http.status_code', 200)
+      span.setAttribute(TraceAttr.BillingOutcome, 'billing_disabled')
+      span.setAttribute(TraceAttr.HttpStatusCode, 200)
       return NextResponse.json({
         success: true,
         message: 'Billing disabled, cost update skipped',
@@ -76,8 +77,8 @@ async function updateCostInner(
     const authResult = checkInternalApiKey(req)
     if (!authResult.success) {
       logger.warn(`[${requestId}] Authentication failed: ${authResult.error}`)
-      span.setAttribute('billing.outcome', 'auth_failed')
-      span.setAttribute('http.status_code', 401)
+      span.setAttribute(TraceAttr.BillingOutcome, 'auth_failed')
+      span.setAttribute(TraceAttr.HttpStatusCode, 401)
       return NextResponse.json(
         {
           success: false,
@@ -95,8 +96,8 @@ async function updateCostInner(
         errors: validation.error.issues,
         body,
       })
-      span.setAttribute('billing.outcome', 'invalid_body')
-      span.setAttribute('http.status_code', 400)
+      span.setAttribute(TraceAttr.BillingOutcome, 'invalid_body')
+      span.setAttribute(TraceAttr.HttpStatusCode, 400)
       return NextResponse.json(
         {
           success: false,
@@ -112,14 +113,14 @@ async function updateCostInner(
     const isMcp = source === 'mcp_copilot'
 
     span.setAttributes({
-      'user.id': userId,
-      'gen_ai.request.model': model,
-      'billing.source': source,
-      'billing.cost_usd': cost,
-      'gen_ai.usage.input_tokens': inputTokens,
-      'gen_ai.usage.output_tokens': outputTokens,
-      'billing.is_mcp': isMcp,
-      ...(idempotencyKey ? { 'billing.idempotency_key': idempotencyKey } : {}),
+      [TraceAttr.UserId]: userId,
+      [TraceAttr.GenAiRequestModel]: model,
+      [TraceAttr.BillingSource]: source,
+      [TraceAttr.BillingCostUsd]: cost,
+      [TraceAttr.GenAiUsageInputTokens]: inputTokens,
+      [TraceAttr.GenAiUsageOutputTokens]: outputTokens,
+      [TraceAttr.BillingIsMcp]: isMcp,
+      ...(idempotencyKey ? { [TraceAttr.BillingIdempotencyKey]: idempotencyKey } : {}),
     })
 
     claim = idempotencyKey
@@ -132,8 +133,8 @@ async function updateCostInner(
         userId,
         source,
       })
-      span.setAttribute('billing.outcome', 'duplicate_idempotency_key')
-      span.setAttribute('http.status_code', 409)
+      span.setAttribute(TraceAttr.BillingOutcome, 'duplicate_idempotency_key')
+      span.setAttribute(TraceAttr.HttpStatusCode, 409)
       return NextResponse.json(
         {
           success: false,
@@ -198,9 +199,9 @@ async function updateCostInner(
       cost,
     })
 
-    span.setAttribute('billing.outcome', 'billed')
-    span.setAttribute('http.status_code', 200)
-    span.setAttribute('billing.duration_ms', duration)
+    span.setAttribute(TraceAttr.BillingOutcome, 'billed')
+    span.setAttribute(TraceAttr.HttpStatusCode, 200)
+    span.setAttribute(TraceAttr.BillingDurationMs, duration)
     return NextResponse.json({
       success: true,
       data: {
@@ -235,9 +236,9 @@ async function updateCostInner(
       )
     }
 
-    span.setAttribute('billing.outcome', 'internal_error')
-    span.setAttribute('http.status_code', 500)
-    span.setAttribute('billing.duration_ms', duration)
+    span.setAttribute(TraceAttr.BillingOutcome, 'internal_error')
+    span.setAttribute(TraceAttr.HttpStatusCode, 500)
+    span.setAttribute(TraceAttr.BillingDurationMs, duration)
     return NextResponse.json(
       {
         success: false,

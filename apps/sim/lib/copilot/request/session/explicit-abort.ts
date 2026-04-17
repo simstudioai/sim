@@ -1,5 +1,6 @@
 import type { Context } from '@opentelemetry/api'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import { env } from '@/lib/core/config/env'
 
@@ -45,7 +46,7 @@ export async function requestExplicitStreamAbort(params: {
       operation: 'explicit_abort',
       attributes: {
         'copilot.stream.id': streamId,
-        ...(chatId ? { 'chat.id': chatId } : {}),
+        ...(chatId ? { [TraceAttr.ChatId]: chatId } : {}),
       },
     })
 

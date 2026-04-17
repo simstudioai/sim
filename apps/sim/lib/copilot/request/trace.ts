@@ -10,6 +10,7 @@ import {
   RequestTraceV1SpanStatus,
   type RequestTraceV1UsageSummary,
 } from '@/lib/copilot/generated/request-trace-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { env } from '@/lib/core/config/env'
 
 const logger = createLogger('RequestTrace')
@@ -126,8 +127,8 @@ export async function reportTrace(
     operation: 'report_trace',
     attributes: {
       'copilot.request.id': trace.simRequestId ?? '',
-      'http.request.content_length': body.length,
-      'copilot.trace.span_count': trace.spans?.length ?? 0,
+      [TraceAttr.HttpRequestContentLength]: body.length,
+      [TraceAttr.CopilotTraceSpanCount]: trace.spans?.length ?? 0,
     },
   })
 

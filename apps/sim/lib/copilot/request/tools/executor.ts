@@ -17,6 +17,7 @@ import {
   MothershipStreamV1ToolPhase,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import { CreateWorkflow } from '@/lib/copilot/generated/tool-catalog-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { publishToolConfirmation } from '@/lib/copilot/persistence/tool-confirm'
 import { withCopilotToolSpan } from '@/lib/copilot/request/otel'
 import { markToolResultSeen } from '@/lib/copilot/request/sse-utils'
@@ -259,9 +260,12 @@ export async function executeToolAndReport(
     },
     async (otelSpan) => {
       const completion = await executeToolAndReportInner(toolCall, context, execContext, options)
-      otelSpan.setAttribute('tool.outcome', completion.status)
+      otelSpan.setAttribute(TraceAttr.ToolOutcome, completion.status)
       if (completion.message) {
-        otelSpan.setAttribute('tool.outcome.message', String(completion.message).slice(0, 500))
+        otelSpan.setAttribute(
+          TraceAttr.ToolOutcomeMessage,
+          String(completion.message).slice(0, 500)
+        )
       }
       return completion
     }

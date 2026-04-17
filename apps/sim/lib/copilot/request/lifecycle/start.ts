@@ -10,6 +10,7 @@ import {
   MothershipStreamV1SessionKind,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import { RequestTraceV1Outcome } from '@/lib/copilot/generated/request-trace-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { finalizeStream } from '@/lib/copilot/request/lifecycle/finalize'
 import type { CopilotLifecycleOptions } from '@/lib/copilot/request/lifecycle/run'
 import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
@@ -275,15 +276,15 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             rootOutcome = outcome
             if (lifecycleResult?.usage) {
               activeOtelRoot.span.setAttributes({
-                'gen_ai.usage.input_tokens': lifecycleResult.usage.prompt ?? 0,
-                'gen_ai.usage.output_tokens': lifecycleResult.usage.completion ?? 0,
+                [TraceAttr.GenAiUsageInputTokens]: lifecycleResult.usage.prompt ?? 0,
+                [TraceAttr.GenAiUsageOutputTokens]: lifecycleResult.usage.completion ?? 0,
               })
             }
             if (lifecycleResult?.cost) {
               activeOtelRoot.span.setAttributes({
-                'billing.cost.input_usd': lifecycleResult.cost.input ?? 0,
-                'billing.cost.output_usd': lifecycleResult.cost.output ?? 0,
-                'billing.cost.total_usd': lifecycleResult.cost.total ?? 0,
+                [TraceAttr.BillingCostInputUsd]: lifecycleResult.cost.input ?? 0,
+                [TraceAttr.BillingCostOutputUsd]: lifecycleResult.cost.output ?? 0,
+                [TraceAttr.BillingCostTotalUsd]: lifecycleResult.cost.total ?? 0,
               })
             }
           }
@@ -395,8 +396,8 @@ export async function requestChatTitle(params: {
       spanName: 'sim → go /api/generate-chat-title',
       operation: 'generate_chat_title',
       attributes: {
-        'gen_ai.request.model': model,
-        ...(provider ? { 'gen_ai.system': provider } : {}),
+        [TraceAttr.GenAiRequestModel]: model,
+        ...(provider ? { [TraceAttr.GenAiSystem]: provider } : {}),
       },
     })
 

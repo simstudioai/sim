@@ -3,6 +3,7 @@ import {
   MothershipStreamV1EventType,
   MothershipStreamV1ResourceOp,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import type { StreamEvent, ToolCallResult } from '@/lib/copilot/request/types'
@@ -118,10 +119,14 @@ export async function handleResourceSideEffects(
       }
 
       span.setAttributes({
-        'copilot.resources.op': isDeleteOp ? 'delete' : upsertedCount > 0 ? 'upsert' : 'none',
-        'copilot.resources.removed_count': removedCount,
-        'copilot.resources.upserted_count': upsertedCount,
-        'copilot.resources.aborted': isAborted(),
+        [TraceAttr.CopilotResourcesOp]: isDeleteOp
+          ? 'delete'
+          : upsertedCount > 0
+            ? 'upsert'
+            : 'none',
+        [TraceAttr.CopilotResourcesRemovedCount]: removedCount,
+        [TraceAttr.CopilotResourcesUpsertedCount]: upsertedCount,
+        [TraceAttr.CopilotResourcesAborted]: isAborted(),
       })
     }
   )

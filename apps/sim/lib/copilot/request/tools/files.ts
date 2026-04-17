@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { FunctionExecute, UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
@@ -162,8 +163,8 @@ export async function maybeWriteOutputToFile(
         const fileName = normalizeOutputWorkspaceFileName(outputPath)
         const format = resolveOutputFormat(fileName, explicitFormat)
         span.setAttributes({
-          'copilot.output_file.name': fileName,
-          'copilot.output_file.format': format,
+          [TraceAttr.CopilotOutputFileName]: fileName,
+          [TraceAttr.CopilotOutputFileFormat]: format,
         })
         if (context.abortSignal?.aborted) {
           throw new Error('Request aborted before tool mutation could be applied')
@@ -172,7 +173,7 @@ export async function maybeWriteOutputToFile(
         const contentType = FORMAT_TO_CONTENT_TYPE[format]
 
         const buffer = Buffer.from(content, 'utf-8')
-        span.setAttribute('copilot.output_file.bytes', buffer.length)
+        span.setAttribute(TraceAttr.CopilotOutputFileBytes, buffer.length)
         if (context.abortSignal?.aborted) {
           throw new Error('Request aborted before tool mutation could be applied')
         }
@@ -184,8 +185,8 @@ export async function maybeWriteOutputToFile(
           contentType
         )
         span.setAttributes({
-          'copilot.output_file.id': uploaded.id,
-          'copilot.output_file.outcome': 'uploaded',
+          [TraceAttr.CopilotOutputFileId]: uploaded.id,
+          [TraceAttr.CopilotOutputFileOutcome]: 'uploaded',
         })
 
         logger.info('Tool output written to file', {
@@ -213,7 +214,7 @@ export async function maybeWriteOutputToFile(
           outputPath,
           error: message,
         })
-        span.setAttribute('copilot.output_file.outcome', 'failed')
+        span.setAttribute(TraceAttr.CopilotOutputFileOutcome, 'failed')
         span.addEvent('copilot.output_file.error', {
           'error.message': message.slice(0, 500),
         })

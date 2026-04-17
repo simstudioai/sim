@@ -6,6 +6,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
+import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { generateId } from '@/lib/core/utils/uuid'
 
@@ -62,87 +65,112 @@ const StopSchema = z.object({
  * Clears conversationId so the server-side onComplete won't duplicate the message.
  * The chat stream lock is intentionally left alone here; it is released only once
  * the aborted server stream actually unwinds.
+ *
+ * Hang-critical: runs a DB SELECT + UPDATE + pubsub publish. A slow DB
+ * here makes the UI look frozen after the user clicks Stop. The root
+ * span lets us tell whether stalls are DB-bound or pubsub-bound.
  */
 export async function POST(req: NextRequest) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  return withIncomingGoSpan(
+    req.headers,
+    TraceSpan.CopilotChatStopStream,
+    undefined,
+    async (span) => {
+      try {
+        const session = await getSession()
+        if (!session?.user?.id) {
+          span.setAttribute(TraceAttr.CopilotStopOutcome, 'unauthorized')
+          return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        const { chatId, streamId, content, contentBlocks } = StopSchema.parse(await req.json())
+        span.setAttributes({
+          [TraceAttr.ChatId]: chatId,
+          [TraceAttr.StreamId]: streamId,
+          [TraceAttr.UserId]: session.user.id,
+          [TraceAttr.CopilotStopContentLength]: content.length,
+          [TraceAttr.CopilotStopBlocksCount]: contentBlocks?.length ?? 0,
+        })
+
+        const [row] = await db
+          .select({
+            workspaceId: copilotChats.workspaceId,
+            messages: copilotChats.messages,
+          })
+          .from(copilotChats)
+          .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, session.user.id)))
+          .limit(1)
+
+        if (!row) {
+          span.setAttribute(TraceAttr.CopilotStopOutcome, 'chat_not_found')
+          return NextResponse.json({ success: true })
+        }
+
+        const messages: Record<string, unknown>[] = Array.isArray(row.messages) ? row.messages : []
+        const userIdx = messages.findIndex((message) => message.id === streamId)
+        const alreadyHasResponse =
+          userIdx >= 0 &&
+          userIdx + 1 < messages.length &&
+          (messages[userIdx + 1] as Record<string, unknown>)?.role === 'assistant'
+        const canAppendAssistant =
+          userIdx >= 0 && userIdx === messages.length - 1 && !alreadyHasResponse
+
+        const updateWhere = and(
+          eq(copilotChats.id, chatId),
+          eq(copilotChats.userId, session.user.id),
+          eq(copilotChats.conversationId, streamId)
+        )
+
+        const setClause: Record<string, unknown> = {
+          conversationId: null,
+          updatedAt: new Date(),
+        }
+
+        const hasContent = content.trim().length > 0
+        const hasBlocks = Array.isArray(contentBlocks) && contentBlocks.length > 0
+        const synthesizedStoppedBlocks = hasBlocks
+          ? contentBlocks
+          : hasContent
+            ? [{ type: 'text', channel: 'assistant', content }, { type: 'stopped' }]
+            : [{ type: 'stopped' }]
+        if (canAppendAssistant) {
+          const normalized = normalizeMessage({
+            id: generateId(),
+            role: 'assistant',
+            content,
+            timestamp: new Date().toISOString(),
+            contentBlocks: synthesizedStoppedBlocks,
+          })
+          const assistantMessage: PersistedMessage = normalized
+          setClause.messages = sql`${copilotChats.messages} || ${JSON.stringify([assistantMessage])}::jsonb`
+        }
+        span.setAttribute(TraceAttr.CopilotStopAppendedAssistant, canAppendAssistant)
+
+        const [updated] = await db
+          .update(copilotChats)
+          .set(setClause)
+          .where(updateWhere)
+          .returning({ workspaceId: copilotChats.workspaceId })
+
+        if (updated?.workspaceId) {
+          taskPubSub?.publishStatusChanged({
+            workspaceId: updated.workspaceId,
+            chatId,
+            type: 'completed',
+          })
+        }
+
+        span.setAttribute(TraceAttr.CopilotStopOutcome, updated ? 'persisted' : 'no_matching_row')
+        return NextResponse.json({ success: true })
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          span.setAttribute(TraceAttr.CopilotStopOutcome, 'validation_error')
+          return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+        }
+        logger.error('Error stopping chat stream:', error)
+        span.setAttribute(TraceAttr.CopilotStopOutcome, 'internal_error')
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+      }
     }
-
-    const { chatId, streamId, content, contentBlocks } = StopSchema.parse(await req.json())
-    const [row] = await db
-      .select({
-        workspaceId: copilotChats.workspaceId,
-        messages: copilotChats.messages,
-      })
-      .from(copilotChats)
-      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, session.user.id)))
-      .limit(1)
-
-    if (!row) {
-      return NextResponse.json({ success: true })
-    }
-
-    const messages: Record<string, unknown>[] = Array.isArray(row.messages) ? row.messages : []
-    const userIdx = messages.findIndex((message) => message.id === streamId)
-    const alreadyHasResponse =
-      userIdx >= 0 &&
-      userIdx + 1 < messages.length &&
-      (messages[userIdx + 1] as Record<string, unknown>)?.role === 'assistant'
-    const canAppendAssistant =
-      userIdx >= 0 && userIdx === messages.length - 1 && !alreadyHasResponse
-
-    const updateWhere = and(
-      eq(copilotChats.id, chatId),
-      eq(copilotChats.userId, session.user.id),
-      eq(copilotChats.conversationId, streamId)
-    )
-
-    const setClause: Record<string, unknown> = {
-      conversationId: null,
-      updatedAt: new Date(),
-    }
-
-    const hasContent = content.trim().length > 0
-    const hasBlocks = Array.isArray(contentBlocks) && contentBlocks.length > 0
-    const synthesizedStoppedBlocks = hasBlocks
-      ? contentBlocks
-      : hasContent
-        ? [{ type: 'text', channel: 'assistant', content }, { type: 'stopped' }]
-        : [{ type: 'stopped' }]
-    if (canAppendAssistant) {
-      const normalized = normalizeMessage({
-        id: generateId(),
-        role: 'assistant',
-        content,
-        timestamp: new Date().toISOString(),
-        contentBlocks: synthesizedStoppedBlocks,
-      })
-      const assistantMessage: PersistedMessage = normalized
-      setClause.messages = sql`${copilotChats.messages} || ${JSON.stringify([assistantMessage])}::jsonb`
-    }
-
-    const [updated] = await db
-      .update(copilotChats)
-      .set(setClause)
-      .where(updateWhere)
-      .returning({ workspaceId: copilotChats.workspaceId })
-
-    if (updated?.workspaceId) {
-      taskPubSub?.publishStatusChanged({
-        workspaceId: updated.workspaceId,
-        chatId,
-        type: 'completed',
-      })
-    }
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
-    }
-    logger.error('Error stopping chat stream:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
+  )
 }

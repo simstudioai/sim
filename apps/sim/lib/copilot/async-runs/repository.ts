@@ -9,6 +9,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import {
   ASYNC_TOOL_STATUS,
   type AsyncCompletionData,
@@ -36,9 +37,9 @@ async function withDbSpan<T>(
 ): Promise<T> {
   const span = getAsyncRunsTracer().startSpan(name, {
     attributes: {
-      'db.system': 'postgresql',
-      'db.operation': op,
-      'db.sql.table': table,
+      [TraceAttr.DbSystem]: 'postgresql',
+      [TraceAttr.DbOperation]: op,
+      [TraceAttr.DbSqlTable]: table,
       ...Object.fromEntries(Object.entries(attrs).filter(([, v]) => v !== undefined)),
     },
   })

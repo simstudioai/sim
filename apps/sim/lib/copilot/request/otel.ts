@@ -11,6 +11,7 @@ import {
   trace,
 } from '@opentelemetry/api'
 import type { RequestTraceV1Outcome } from '@/lib/copilot/generated/request-trace-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { contextFromRequestHeaders } from '@/lib/copilot/request/go/propagation'
 
@@ -119,7 +120,7 @@ function setAgentInputMessages(span: Span, input: CopilotAgentInputMessages): vo
   }
   const serialized = marshalAgentMessages(messages)
   if (serialized) {
-    span.setAttribute('gen_ai.input.messages', serialized)
+    span.setAttribute(TraceAttr.GenAiInputMessages, serialized)
   }
 }
 
@@ -140,7 +141,7 @@ function setAgentOutputMessages(span: Span, output: CopilotAgentOutputMessages):
   if (parts.length === 0) return
   const serialized = marshalAgentMessages([{ role: 'assistant', parts }])
   if (serialized) {
-    span.setAttribute('gen_ai.output.messages', serialized)
+    span.setAttribute(TraceAttr.GenAiOutputMessages, serialized)
   }
 }
 
@@ -289,13 +290,15 @@ export async function withCopilotToolSpan<T>(
     `tool.execute ${input.toolName}`,
     {
       attributes: {
-        'tool.name': input.toolName,
-        'tool.call_id': input.toolCallId,
-        'tool.executor': 'sim',
-        ...(input.runId ? { 'run.id': input.runId } : {}),
-        ...(input.chatId ? { 'chat.id': input.chatId } : {}),
-        ...(typeof input.argsBytes === 'number' ? { 'tool.args.bytes': input.argsBytes } : {}),
-        ...(input.argsPreview ? { 'tool.args.preview': input.argsPreview } : {}),
+        [TraceAttr.ToolName]: input.toolName,
+        [TraceAttr.ToolCallId]: input.toolCallId,
+        [TraceAttr.ToolExecutor]: 'sim',
+        ...(input.runId ? { [TraceAttr.RunId]: input.runId } : {}),
+        ...(input.chatId ? { [TraceAttr.ChatId]: input.chatId } : {}),
+        ...(typeof input.argsBytes === 'number'
+          ? { [TraceAttr.ToolArgsBytes]: input.argsBytes }
+          : {}),
+        ...(input.argsPreview ? { [TraceAttr.ToolArgsPreview]: input.argsPreview } : {}),
       },
     },
     async (span) => {
@@ -343,7 +346,25 @@ export interface CopilotOtelScope {
   runId?: string
   streamId?: string
   transport: 'headless' | 'stream'
+  /**
+   * First ~500 chars of the user's prompt, surfaced as
+   * `copilot.user.message_preview` on the root span. Lets dashboards
+   * show a "what was this request about" column without having to
+   * parse the full `gen_ai.input.messages` JSON attribute (which is
+   * also gated on a separate env var). Safe even when full-content
+   * capture is off — a preview snippet is useful for operators
+   * scanning trace lists, low-risk relative to full prompts.
+   */
+  userMessagePreview?: string
 }
+
+/**
+ * Max characters kept in `copilot.user.message_preview`. Chosen to
+ * fit in a dashboard table cell without truncation (most Grafana
+ * table cells render ~300 chars before wrapping), but long enough
+ * to disambiguate requests in triage.
+ */
+const USER_MESSAGE_PREVIEW_MAX_CHARS = 500
 
 /**
  * Build the canonical `gen_ai.agent.execute` attribute set from a scope.
@@ -354,6 +375,7 @@ export interface CopilotOtelScope {
 function buildAgentSpanAttributes(
   scope: CopilotOtelScope
 ): Record<string, string | number | boolean> {
+  const preview = truncateUserMessagePreview(scope.userMessagePreview)
   return {
     'gen_ai.agent.name': 'mothership',
     'gen_ai.agent.id': scope.transport === 'stream' ? 'mothership-stream' : 'mothership-headless',
@@ -367,7 +389,22 @@ function buildAgentSpanAttributes(
     ...(scope.executionId ? { 'workflow.execution_id': scope.executionId } : {}),
     ...(scope.runId ? { 'run.id': scope.runId } : {}),
     ...(scope.streamId ? { 'stream.id': scope.streamId } : {}),
+    ...(preview ? { 'copilot.user.message_preview': preview } : {}),
   }
+}
+
+/**
+ * Collapse newlines and trim the user's prompt to a fixed length so
+ * it fits cleanly in a single dashboard table cell. Non-strings are
+ * ignored (the chat schema enforces string, but this is defensive
+ * against upstream shape changes).
+ */
+function truncateUserMessagePreview(raw: unknown): string | undefined {
+  if (typeof raw !== 'string') return undefined
+  const collapsed = raw.replace(/\s+/g, ' ').trim()
+  if (!collapsed) return undefined
+  if (collapsed.length <= USER_MESSAGE_PREVIEW_MAX_CHARS) return collapsed
+  return `${collapsed.slice(0, USER_MESSAGE_PREVIEW_MAX_CHARS - 1)}…`
 }
 
 /**
@@ -388,6 +425,52 @@ function buildAgentSpanAttributes(
  * async function (e.g. headless invoke) — it handles the lifecycle for
  * you.
  */
+/**
+ * Request-shape metadata that's only known AFTER the branch resolves
+ * (can't be set at startCopilotOtelRoot time). Stamped on the root
+ * `gen_ai.agent.execute` span so dashboards can slice requests by how
+ * they were sent: which product surface, which mode, which model, with
+ * attachments or not, and whether the request arrived while a prior
+ * stream was still alive (i.e. user hit send-to-interrupt).
+ */
+export interface CopilotOtelRequestShape {
+  /**
+   * Product surface. Derived from `branch.kind` — "workflow" means the
+   * copilot sidebar (attached to a specific workflow), "workspace"
+   * means the mothership workspace-level chat. Also stamped as a
+   * human-friendly `copilot.surface` (`copilot` | `mothership`).
+   */
+  branchKind?: 'workflow' | 'workspace'
+  /** Mothership request mode — `agent`, `ask`, `build`, etc. */
+  mode?: string
+  /** LLM model identifier the caller selected. */
+  model?: string
+  /** LLM provider the caller selected (`anthropic`, `openai`, …). */
+  provider?: string
+  /** Whether this POST created a brand-new chat. */
+  createNewChat?: boolean
+  /** `true` when the caller sent `prefetch: true` (UI speculative send). */
+  prefetch?: boolean
+  /** How many file attachments were present. */
+  fileAttachmentsCount?: number
+  /** How many resource attachments (workspace files, knowledge, …). */
+  resourceAttachmentsCount?: number
+  /** Free-form context blocks the caller attached. */
+  contextsCount?: number
+  /** Explicit commands (e.g. slash commands) present in the request. */
+  commandsCount?: number
+  /**
+   * Time spent waiting for the per-chat stream lock, in ms. Values
+   * above ~50ms strongly imply this request arrived while a prior
+   * stream for the same chat was still in flight (i.e. user pressed
+   * send-to-interrupt, or a tab refresh overlapped with an active
+   * request).
+   */
+  pendingStreamWaitMs?: number
+  /** True if `pendingStreamWaitMs` was non-trivially long. */
+  interruptedPriorStream?: boolean
+}
+
 export interface CopilotOtelRoot {
   span: Span
   context: Context
@@ -406,6 +489,13 @@ export interface CopilotOtelRoot {
    * invoked tool calls are known.
    */
   setOutputMessages: (output: CopilotAgentOutputMessages) => void
+  /**
+   * Stamp request-shape attributes that are only known after the
+   * branch resolves (mode, provider, model, surface, attachment
+   * counts, interrupt signal). Safe to call multiple times — later
+   * calls override earlier ones for the same key.
+   */
+  setRequestShape: (shape: CopilotOtelRequestShape) => void
 }
 
 export function startCopilotOtelRoot(scope: CopilotOtelScope): CopilotOtelRoot {
@@ -431,7 +521,7 @@ export function startCopilotOtelRoot(scope: CopilotOtelScope): CopilotOtelRoot {
   const finish: CopilotOtelRoot['finish'] = (outcome, error) => {
     if (finished) return
     finished = true
-    span.setAttribute('copilot.request.outcome', outcome)
+    span.setAttribute(TraceAttr.CopilotRequestOutcome, outcome ?? 'success')
     if (error) {
       span.setStatus({
         code: SpanStatusCode.ERROR,
@@ -450,6 +540,57 @@ export function startCopilotOtelRoot(scope: CopilotOtelScope): CopilotOtelRoot {
     finish,
     setInputMessages: (input) => setAgentInputMessages(span, input),
     setOutputMessages: (output) => setAgentOutputMessages(span, output),
+    setRequestShape: (shape) => applyRequestShape(span, shape),
+  }
+}
+
+/**
+ * Threshold (ms) above which we consider a pending-stream-lock wait
+ * to indicate this request interrupted a prior in-flight stream. Well
+ * above the typical uncontested acquire (<10ms) but below any normal
+ * human-caused delay. Tuned to flag overlap cases — not perfect, but
+ * useful for filtering dashboards.
+ */
+const INTERRUPT_WAIT_MS_THRESHOLD = 50
+
+function applyRequestShape(span: Span, shape: CopilotOtelRequestShape): void {
+  if (shape.branchKind) {
+    span.setAttribute(TraceAttr.CopilotBranchKind, shape.branchKind)
+    span.setAttribute(
+      TraceAttr.CopilotSurface,
+      shape.branchKind === 'workflow' ? 'copilot' : 'mothership'
+    )
+  }
+  if (shape.mode) span.setAttribute(TraceAttr.CopilotMode, shape.mode)
+  if (shape.model) span.setAttribute(TraceAttr.GenAiRequestModel, shape.model)
+  if (shape.provider) span.setAttribute(TraceAttr.GenAiSystem, shape.provider)
+  if (typeof shape.createNewChat === 'boolean') {
+    span.setAttribute(TraceAttr.CopilotChatIsNew, shape.createNewChat)
+  }
+  if (typeof shape.prefetch === 'boolean') {
+    span.setAttribute(TraceAttr.CopilotPrefetch, shape.prefetch)
+  }
+  if (typeof shape.fileAttachmentsCount === 'number') {
+    span.setAttribute(TraceAttr.CopilotFileAttachmentsCount, shape.fileAttachmentsCount)
+  }
+  if (typeof shape.resourceAttachmentsCount === 'number') {
+    span.setAttribute(TraceAttr.CopilotResourceAttachmentsCount, shape.resourceAttachmentsCount)
+  }
+  if (typeof shape.contextsCount === 'number') {
+    span.setAttribute(TraceAttr.CopilotContextsCount, shape.contextsCount)
+  }
+  if (typeof shape.commandsCount === 'number') {
+    span.setAttribute(TraceAttr.CopilotCommandsCount, shape.commandsCount)
+  }
+  if (typeof shape.pendingStreamWaitMs === 'number') {
+    span.setAttribute(TraceAttr.CopilotPendingStreamWaitMs, shape.pendingStreamWaitMs)
+    const interrupted =
+      typeof shape.interruptedPriorStream === 'boolean'
+        ? shape.interruptedPriorStream
+        : shape.pendingStreamWaitMs > INTERRUPT_WAIT_MS_THRESHOLD
+    span.setAttribute(TraceAttr.CopilotInterruptedPriorStream, interrupted)
+  } else if (typeof shape.interruptedPriorStream === 'boolean') {
+    span.setAttribute(TraceAttr.CopilotInterruptedPriorStream, shape.interruptedPriorStream)
   }
 }
 

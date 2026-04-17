@@ -7,6 +7,9 @@ import {
   MothershipStreamV1ToolOutcome,
   type MothershipStreamV1ToolResultPayload,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
+import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import {
   isToolArgsDeltaStreamEvent,
   isToolCallStreamEvent,
@@ -362,35 +365,56 @@ async function dispatchToolExecution(
       }
     } else {
       toolCall.status = 'executing'
-      const pendingPromise = (async () => {
-        await upsertAsyncToolCall({
-          runId: context.runId,
-          toolCallId,
-          toolName,
-          args,
-          status: MothershipStreamV1AsyncToolRecordStatus.running,
-        }).catch((err) => {
-          logger.warn(`Failed to persist async tool row for client-executable ${scopeLabel}tool`, {
+      // Span covers the entire "wait for browser/client to execute this
+      // tool and report back" window — typically the single largest
+      // non-LLM latency contributor for mothership requests that use
+      // client-side tools. Before this, the wait was uninstrumented and
+      // only visible as a gap in the waterfall.
+      const pendingPromise = withCopilotSpan(
+        TraceSpan.CopilotToolWaitForClientResult,
+        {
+          'tool.name': toolName,
+          'tool.call_id': toolCallId,
+          'tool.timeout_ms': options.timeout || STREAM_TIMEOUT_MS,
+          ...(context.runId ? { 'run.id': context.runId } : {}),
+        },
+        async (span) => {
+          await upsertAsyncToolCall({
+            runId: context.runId,
             toolCallId,
             toolName,
-            error: err instanceof Error ? err.message : String(err),
+            args,
+            status: MothershipStreamV1AsyncToolRecordStatus.running,
+          }).catch((err) => {
+            logger.warn(
+              `Failed to persist async tool row for client-executable ${scopeLabel}tool`,
+              {
+                toolCallId,
+                toolName,
+                error: err instanceof Error ? err.message : String(err),
+              }
+            )
           })
-        })
-        const completion = await waitForToolCompletion(
-          toolCallId,
-          options.timeout || STREAM_TIMEOUT_MS,
-          options.abortSignal
-        )
-        handleClientCompletion(toolCall, toolCallId, completion)
-        await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
-        return (
-          completion ?? {
-            status: MothershipStreamV1ToolOutcome.error,
-            message: 'Tool completion missing',
-            data: { error: 'Tool completion missing' },
+          const completion = await waitForToolCompletion(
+            toolCallId,
+            options.timeout || STREAM_TIMEOUT_MS,
+            options.abortSignal
+          )
+          span.setAttribute(TraceAttr.ToolCompletionReceived, completion !== undefined)
+          if (completion) {
+            span.setAttribute(TraceAttr.ToolOutcome, completion.status)
           }
-        )
-      })().catch((err) => {
+          handleClientCompletion(toolCall, toolCallId, completion)
+          await emitSyntheticToolResult(toolCallId, toolCall.name, completion, options)
+          return (
+            completion ?? {
+              status: MothershipStreamV1ToolOutcome.error,
+              message: 'Tool completion missing',
+              data: { error: 'Tool completion missing' },
+            }
+          )
+        }
+      ).catch((err) => {
         logger.error(`Client-executable ${scopeLabel}tool wait failed`, {
           toolCallId,
           toolName,

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import { env } from '@/lib/core/config/env'
 
@@ -38,7 +39,7 @@ export async function GET() {
         headers: copilotHeaders(),
         spanName: 'sim → go /api/tool-preferences/auto-allowed',
         operation: 'list_auto_allowed_tools',
-        attributes: { 'user.id': userId },
+        attributes: { [TraceAttr.UserId]: userId },
       }
     )
 
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({ userId, toolId: body.toolId }),
       spanName: 'sim → go /api/tool-preferences/auto-allowed',
       operation: 'add_auto_allowed_tool',
-      attributes: { 'user.id': userId, 'tool.id': body.toolId },
+      attributes: { [TraceAttr.UserId]: userId, [TraceAttr.ToolId]: body.toolId },
     })
 
     if (!res.ok) {
@@ -124,7 +125,7 @@ export async function DELETE(request: NextRequest) {
         headers: copilotHeaders(),
         spanName: 'sim → go /api/tool-preferences/auto-allowed',
         operation: 'remove_auto_allowed_tool',
-        attributes: { 'user.id': userId, 'tool.id': toolId },
+        attributes: { [TraceAttr.UserId]: userId, [TraceAttr.ToolId]: toolId },
       }
     )
 

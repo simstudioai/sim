@@ -34,6 +34,7 @@ import type {
   SpanProcessor,
 } from '@opentelemetry/sdk-trace-base'
 import { createLogger } from '@sim/logger'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { env } from './lib/core/config/env'
 
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.ERROR)
@@ -118,24 +119,33 @@ function parseOtlpHeadersEnv(raw: string): Record<string, string> {
  * Normalize an OTLP base URL to the full traces-signal endpoint.
  *
  * The OTel HTTP exporter sends to whatever URL you give it verbatim
- * — no signal-path appending. That's a footgun when the same env
- * var also flows into the Go side, where the SDK *does* append
- * `/v1/traces` automatically. We bridge the gap here so both halves
- * of the mothership can share one endpoint value.
+ * — no signal-path appending. Meanwhile, the OTel spec says
+ * `OTEL_EXPORTER_OTLP_ENDPOINT` is a *base* URL and the SDK should
+ * append `/v1/traces`. We reconcile by always ensuring the final
+ * URL ends with `/v1/traces` unless the operator already put it
+ * there.
  *
  * Rules:
- *   - If the URL already has a non-root path, respect it (operator
- *     intent: "post to exactly this URL").
- *   - Otherwise, append `/v1/traces`.
+ *   - If the URL already ends with `/v1/traces`, respect it.
+ *   - Otherwise, append `/v1/traces` (dropping any trailing slash
+ *     on the base first).
  *   - Malformed URLs pass through unchanged; the exporter will
  *     surface the error at first export.
+ *
+ * Examples:
+ *   https://api.honeycomb.io                → https://api.honeycomb.io/v1/traces
+ *   https://api.honeycomb.io/v1/traces      → https://api.honeycomb.io/v1/traces
+ *   https://otlp-gateway-prod-us-east-3.grafana.net/otlp
+ *                                           → …/otlp/v1/traces
+ *   http://localhost:4318                   → http://localhost:4318/v1/traces
  */
 function normalizeOtlpTracesUrl(url: string): string {
   if (!url) return url
   try {
     const u = new URL(url)
-    if (u.pathname && u.pathname !== '/') return url
-    return `${url.replace(/\/$/, '')}/v1/traces`
+    if (u.pathname.endsWith('/v1/traces')) return url
+    const base = url.replace(/\/$/, '')
+    return `${base}/v1/traces`
   } catch {
     return url
   }
@@ -187,7 +197,7 @@ class MothershipOriginSpanProcessor implements SpanProcessor {
     if (!isBusinessSpan(name)) {
       return
     }
-    span.setAttribute('mothership.origin', MOTHERSHIP_ORIGIN)
+    span.setAttribute(TraceAttr.MothershipOrigin, MOTHERSHIP_ORIGIN)
     if (!name.startsWith(SPAN_NAME_PREFIX)) {
       span.updateName(`${SPAN_NAME_PREFIX}${name}`)
     }
@@ -365,7 +375,17 @@ async function initializeOpenTelemetry() {
       resourceFromAttributes({
         [ATTR_SERVICE_NAME]: telemetryConfig.serviceName,
         [ATTR_SERVICE_VERSION]: telemetryConfig.serviceVersion,
-        [ATTR_DEPLOYMENT_ENVIRONMENT]: env.NODE_ENV || 'development',
+        // Explicit OTel env var wins; fall back to `DEPLOYMENT_ENVIRONMENT`
+        // for alt spellings; finally fall back to `NODE_ENV` so local dev
+        // (which rarely sets the otel vars) still produces a reasonable
+        // label. Matches the Go side's `resourceEnvFromEnv()` so Sim and
+        // Go always tag the same `deployment.environment` value for the
+        // same deploy.
+        [ATTR_DEPLOYMENT_ENVIRONMENT]:
+          process.env.OTEL_DEPLOYMENT_ENVIRONMENT ||
+          process.env.DEPLOYMENT_ENVIRONMENT ||
+          env.NODE_ENV ||
+          'development',
         'service.namespace': 'mothership',
         'service.instance.id': serviceInstanceId,
         'mothership.origin': MOTHERSHIP_ORIGIN,

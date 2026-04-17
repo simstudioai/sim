@@ -6,6 +6,7 @@ import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
 import { getCopilotTracer } from '@/lib/copilot/request/otel'
 import {
@@ -126,10 +127,10 @@ export async function GET(request: NextRequest) {
   // attaches to this root.
   const rootSpan = getCopilotTracer().startSpan('copilot.resume.request', {
     attributes: {
-      'copilot.transport': batchMode ? 'batch' : 'stream',
-      'stream.id': streamId,
-      'user.id': authenticatedUserId,
-      'copilot.resume.after_cursor': afterCursor || '0',
+      [TraceAttr.CopilotTransport]: batchMode ? 'batch' : 'stream',
+      [TraceAttr.StreamId]: streamId,
+      [TraceAttr.UserId]: authenticatedUserId,
+      [TraceAttr.CopilotResumeAfterCursor]: afterCursor || '0',
     },
   })
   const rootContext = trace.setSpan(otelContext.active(), rootSpan)
@@ -189,11 +190,11 @@ async function handleResumeRequestBody({
     runStatus: run?.status,
   })
   if (!run) {
-    rootSpan.setAttribute('copilot.resume.outcome', 'stream_not_found')
+    rootSpan.setAttribute(TraceAttr.CopilotResumeOutcome, 'stream_not_found')
     rootSpan.end()
     return NextResponse.json({ error: 'Stream not found' }, { status: 404 })
   }
-  rootSpan.setAttribute('copilot.run.status', run.status)
+  rootSpan.setAttribute(TraceAttr.CopilotRunStatus, run.status)
 
   if (batchMode) {
     const afterSeq = afterCursor || '0'
@@ -216,9 +217,9 @@ async function handleResumeRequestBody({
       runStatus: run.status,
     })
     rootSpan.setAttributes({
-      'copilot.resume.outcome': 'batch_delivered',
-      'copilot.resume.event_count': batchEvents.length,
-      'copilot.resume.preview_session_count': previewSessions.length,
+      [TraceAttr.CopilotResumeOutcome]: 'batch_delivered',
+      [TraceAttr.CopilotResumeEventCount]: batchEvents.length,
+      [TraceAttr.CopilotResumePreviewSessionCount]: previewSessions.length,
     })
     rootSpan.end()
     return NextResponse.json({
@@ -409,14 +410,14 @@ async function handleResumeRequestBody({
       request.signal.removeEventListener('abort', abortListener)
       closeController()
       rootSpan.setAttributes({
-        'copilot.resume.outcome': sawTerminalEvent
+        [TraceAttr.CopilotResumeOutcome]: sawTerminalEvent
           ? 'terminal_delivered'
           : controllerClosed
             ? 'client_disconnected'
             : 'ended_without_terminal',
-        'copilot.resume.event_count': totalEventsFlushed,
-        'copilot.resume.poll_iterations': pollIterations,
-        'copilot.resume.duration_ms': Date.now() - startTime,
+        [TraceAttr.CopilotResumeEventCount]: totalEventsFlushed,
+        [TraceAttr.CopilotResumePollIterations]: pollIterations,
+        [TraceAttr.CopilotResumeDurationMs]: Date.now() - startTime,
       })
       rootSpan.end()
     }
