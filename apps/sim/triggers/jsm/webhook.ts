@@ -47,8 +47,9 @@ export const jsmWebhookTrigger: TriggerConfig = {
         description: 'Comment ID',
       },
       body: {
-        type: 'string',
-        description: 'Comment text/body',
+        type: 'json',
+        description:
+          'Comment body in Atlassian Document Format (ADF). On Jira Server this may be a plain string.',
       },
       author: {
         displayName: {

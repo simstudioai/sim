@@ -154,7 +154,7 @@ function buildBaseWebhookOutputs(): Record<string, TriggerOutput> {
           type: 'json',
           description:
             'Issue description in Atlassian Document Format (ADF). On Jira Server this may be a plain string.',
-        } as unknown as string,
+        },
         updated: {
           type: 'string',
           description: 'Last updated date (ISO format)',
@@ -670,7 +670,7 @@ export function buildVersionReleasedOutputs(): Record<string, TriggerOutput> {
       description: {
         type: 'string',
         description: 'Version description',
-      } as unknown as string,
+      },
       archived: {
         type: 'boolean',
         description: 'Whether the version is archived',
