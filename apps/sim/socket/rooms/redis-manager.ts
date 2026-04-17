@@ -455,8 +455,6 @@ export class RedisRoomManager implements IRoomManager {
     })
 
     const userCount = await this.getUniqueUserCount(workflowId)
-    logger.info(
-      `Notified ${userCount} users about workflow deployment change: ${workflowId}`
-    )
+    logger.info(`Notified ${userCount} users about workflow deployment change: ${workflowId}`)
   }
 }
