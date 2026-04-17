@@ -29,7 +29,7 @@ export const mondayListBoardsTool: ToolConfig<MondayListBoardsParams, MondayList
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of boards to return (default 25, max 100)',
+      description: 'Maximum number of boards to return (default 25, max 500)',
     },
     page: {
       type: 'number',
