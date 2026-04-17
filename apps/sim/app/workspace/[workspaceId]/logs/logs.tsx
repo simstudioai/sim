@@ -10,9 +10,6 @@ import {
   Combobox,
   type ComboboxOption,
   Download,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
   Library,
   RefreshCw,
 } from '@/components/emcn'
@@ -47,6 +44,7 @@ import {
   ResourceOptionsBar,
   ResourceTable,
 } from '@/app/workspace/[workspaceId]/components'
+import { DEV_MOCK_LOGS } from '@/app/workspace/[workspaceId]/logs/__dev__/mock-logs'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
 import type { Suggestion } from '@/app/workspace/[workspaceId]/logs/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -361,8 +359,11 @@ export default function Logs() {
   })
 
   const logs = useMemo(() => {
-    if (!logsQuery.data?.pages) return []
-    return logsQuery.data.pages.flatMap((page) => page.logs)
+    const realLogs = logsQuery.data?.pages?.flatMap((page) => page.logs) ?? []
+    if (process.env.NODE_ENV === 'development') {
+      return [...DEV_MOCK_LOGS, ...realLogs]
+    }
+    return realLogs
   }, [logsQuery.data?.pages])
 
   const sortedLogs = useMemo(() => {
@@ -570,18 +571,22 @@ export default function Logs() {
 
   const effectiveSidebarOpen = isSidebarOpen && selectedLogIndex !== -1
 
-  const handleRefresh = useCallback(() => {
+  const triggerVisualRefresh = useCallback(() => {
     setIsVisuallyRefreshing(true)
     const timerId = window.setTimeout(() => {
       setIsVisuallyRefreshing(false)
       refreshTimersRef.current.delete(timerId)
     }, REFRESH_SPINNER_DURATION_MS)
     refreshTimersRef.current.add(timerId)
+  }, [])
+
+  const handleRefresh = useCallback(() => {
+    triggerVisualRefresh()
     logsRefetchRef.current()
     if (selectedLogIdRef.current) {
       activeLogRefetchRef.current()
     }
-  }, [])
+  }, [triggerVisualRefresh])
 
   const prevIsFetchingRef = useRef(logsQuery.isFetching)
   useEffect(() => {
@@ -590,14 +595,9 @@ export default function Logs() {
     prevIsFetchingRef.current = isFetching
 
     if (isLive && !wasFetching && isFetching) {
-      setIsVisuallyRefreshing(true)
-      const timerId = window.setTimeout(() => {
-        setIsVisuallyRefreshing(false)
-        refreshTimersRef.current.delete(timerId)
-      }, REFRESH_SPINNER_DURATION_MS)
-      refreshTimersRef.current.add(timerId)
+      triggerVisualRefresh()
     }
-  }, [logsQuery.isFetching, isLive])
+  }, [logsQuery.isFetching, isLive, triggerVisualRefresh])
 
   const handleExport = useCallback(async () => {
     setIsExporting(true)
@@ -898,6 +898,11 @@ export default function Logs() {
     setSearchQuery(fullQuery)
   }, [])
 
+  const getSuggestions = useCallback(
+    (input: string) => suggestionEngine.getSuggestions(input),
+    [suggestionEngine]
+  )
+
   const {
     appliedFilters,
     currentInput,
@@ -920,7 +925,7 @@ export default function Logs() {
     initializeFromQuery,
   } = useSearchState({
     onFiltersChange: handleFiltersChange,
-    getSuggestions: (input) => suggestionEngine.getSuggestions(input),
+    getSuggestions,
   })
 
   const lastExternalSearchValue = useRef(searchQuery)
@@ -1269,11 +1274,13 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
 
   const statusOptions: ComboboxOption[] = useMemo(
     () =>
-      (Object.keys(STATUS_CONFIG) as LogStatus[]).map((status) => ({
-        value: status,
-        label: STATUS_CONFIG[status].label,
-        icon: getColorIcon(STATUS_CONFIG[status].color),
-      })),
+      (Object.keys(STATUS_CONFIG) as LogStatus[])
+        .filter((status) => STATUS_CONFIG[status].filterable)
+        .map((status) => ({
+          value: status,
+          label: STATUS_CONFIG[status].label,
+          icon: getColorIcon(STATUS_CONFIG[status].color),
+        })),
     []
   )
 
@@ -1482,39 +1489,31 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
 
       <div className='flex flex-col gap-1.5'>
         <span className='font-medium text-[var(--text-secondary)] text-caption'>Time Range</span>
-        <DropdownMenu open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-          <DropdownMenuTrigger asChild>
-            <div>
-              <Combobox
-                options={TIME_RANGE_OPTIONS as unknown as ComboboxOption[]}
-                value={timeRange}
-                onChange={handleTimeRangeChange}
-                placeholder='All time'
-                overlayContent={
-                  <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
-                }
-                size='sm'
-                className='h-[32px] w-full rounded-md'
-              />
-            </div>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            side='bottom'
-            align='end'
-            sideOffset={4}
-            collisionPadding={16}
-            className='w-auto p-0'
-          >
-            <DatePicker
-              mode='range'
-              startDate={startDate}
-              endDate={endDate}
-              onRangeChange={handleDateRangeApply}
-              onCancel={handleDatePickerCancel}
-              inline
-            />
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className='relative'>
+          <Combobox
+            options={TIME_RANGE_OPTIONS as unknown as ComboboxOption[]}
+            value={timeRange}
+            onChange={handleTimeRangeChange}
+            placeholder='All time'
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
+            }
+            size='sm'
+            className='h-[32px] w-full rounded-md'
+          />
+          <DatePicker
+            mode='range'
+            showTrigger={false}
+            open={datePickerOpen}
+            onOpenChange={(isOpen) => {
+              if (!isOpen) handleDatePickerCancel()
+            }}
+            startDate={startDate}
+            endDate={endDate}
+            onRangeChange={handleDateRangeApply}
+            onCancel={handleDatePickerCancel}
+          />
+        </div>
       </div>
 
       {filtersActive && (
