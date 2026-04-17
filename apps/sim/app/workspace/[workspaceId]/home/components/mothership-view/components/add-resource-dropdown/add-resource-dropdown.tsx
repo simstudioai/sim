@@ -153,14 +153,15 @@ export function buildWorkflowFolderTree(
     )
     const childWorkflows = byFolder.get(parentId) ?? []
 
-    const mixed: Array<{ sortOrder: number; name: string; node: WorkflowTreeNode }> = []
+    const mixed: Array<{ sortOrder: number; id: string; node: WorkflowTreeNode }> = []
 
     for (const f of childFolders) {
       const children = buildLevel(f.id)
+      // Folders with no descendant workflows are intentionally omitted; they are still reachable via search.
       if (children.length === 0) continue
       mixed.push({
         sortOrder: (f.sortOrder as number) ?? 0,
-        name: f.name,
+        id: f.id,
         node: { kind: 'folder', id: f.id, name: f.name, children },
       })
     }
@@ -168,13 +169,13 @@ export function buildWorkflowFolderTree(
     for (const w of childWorkflows) {
       mixed.push({
         sortOrder: (w.sortOrder as number) ?? 0,
-        name: w.name,
+        id: w.id,
         node: toWorkflowNode(w),
       })
     }
 
     mixed.sort((a, b) =>
-      a.sortOrder !== b.sortOrder ? a.sortOrder - b.sortOrder : a.name.localeCompare(b.name)
+      a.sortOrder !== b.sortOrder ? a.sortOrder - b.sortOrder : a.id.localeCompare(b.id)
     )
     return mixed.map((m) => m.node)
   }
