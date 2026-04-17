@@ -36,13 +36,6 @@ Use shared helpers from `@/lib/core/utils/helpers` instead of writing inline imp
 - `sleep(ms)` — async delay. Never write `new Promise(resolve => setTimeout(resolve, ms))`
 - `toError(value)` — normalize unknown caught values to `Error`. Never write `e instanceof Error ? e : new Error(String(e))`
 - `toError(value).message` — get error message safely. Never write `e instanceof Error ? e.message : String(e)`
-- `safeJsonParse(str, fallback?)` — parse JSON without throwing. Never write `try { JSON.parse(str) } catch { return default }`
-- `isNonNull(value)` — type-narrowing filter predicate for null/undefined
-
-Use assertion utilities from `@/lib/core/utils/asserts`:
-
-- `invariant(condition, message)` — assert a condition is truthy, throws if not
-- `assertNever(value)` — exhaustive switch/if-else check, TypeScript errors at compile time if a case is unhandled
 
 ```typescript
 // ✗ Bad
