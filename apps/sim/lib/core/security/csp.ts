@@ -1,10 +1,16 @@
 import { env, getEnv } from '../config/env'
 import { isDev, isHosted, isReactGrabEnabled } from '../config/feature-flags'
-import { getOllamaUrl, getSocketUrl } from '../utils/urls'
 
 /**
  * Content Security Policy (CSP) configuration builder
+ *
+ * NOTE: This file is loaded by next.config.ts at build time, before @/ path
+ * aliases are resolved. Do NOT import from ../utils/urls (which uses @/ imports).
+ * Keep all URL constants local to this file.
  */
+
+const DEFAULT_SOCKET_URL = 'http://localhost:3002'
+const DEFAULT_OLLAMA_URL = 'http://localhost:11434'
 
 function toWebSocketUrl(httpUrl: string): string {
   return httpUrl.replace('http://', 'ws://').replace('https://', 'wss://')
@@ -161,11 +167,11 @@ export const buildTimeCSPDirectives: CSPDirectives = {
   'connect-src': [
     ...STATIC_CONNECT_SRC,
     env.NEXT_PUBLIC_APP_URL || '',
-    ...(env.OLLAMA_URL ? [env.OLLAMA_URL] : isDev ? [getOllamaUrl()] : []),
+    ...(env.OLLAMA_URL ? [env.OLLAMA_URL] : isDev ? [DEFAULT_OLLAMA_URL] : []),
     ...(env.NEXT_PUBLIC_SOCKET_URL
       ? [env.NEXT_PUBLIC_SOCKET_URL, toWebSocketUrl(env.NEXT_PUBLIC_SOCKET_URL)]
       : isDev
-        ? [getSocketUrl(), toWebSocketUrl(getSocketUrl())]
+        ? [DEFAULT_SOCKET_URL, toWebSocketUrl(DEFAULT_SOCKET_URL)]
         : []),
     ...getHostnameFromUrl(env.NEXT_PUBLIC_BRAND_LOGO_URL),
     ...getHostnameFromUrl(env.NEXT_PUBLIC_PRIVACY_URL),
@@ -203,9 +209,9 @@ export function buildCSPString(directives: CSPDirectives): string {
 export function generateRuntimeCSP(): string {
   const appUrl = getEnv('NEXT_PUBLIC_APP_URL') || ''
 
-  const socketUrl = getEnv('NEXT_PUBLIC_SOCKET_URL') || (isDev ? getSocketUrl() : '')
+  const socketUrl = getEnv('NEXT_PUBLIC_SOCKET_URL') || (isDev ? DEFAULT_SOCKET_URL : '')
   const socketWsUrl = socketUrl ? toWebSocketUrl(socketUrl) : ''
-  const ollamaUrl = getEnv('OLLAMA_URL') || (isDev ? getOllamaUrl() : '')
+  const ollamaUrl = getEnv('OLLAMA_URL') || (isDev ? DEFAULT_OLLAMA_URL : '')
 
   const brandLogoDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_BRAND_LOGO_URL'))
   const brandFaviconDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_BRAND_FAVICON_URL'))
