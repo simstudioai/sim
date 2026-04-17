@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import type { SecureFetchResponse } from '@/lib/core/security/input-validation.server'
 import type {
   AgiloftAttachmentInfoParams,
   AgiloftBaseParams,
@@ -13,6 +12,21 @@ import type {
   AgiloftSelectRecordsParams,
 } from '@/tools/agiloft/types'
 import type { HttpMethod, ToolResponse } from '@/tools/types'
+
+/**
+ * Mirrors the shape of SecureFetchResponse from input-validation.server.ts.
+ * Defined locally to avoid importing the .server module into client bundles
+ * (it pulls in dns/promises which is Node-only).
+ */
+interface SecureFetchResponse {
+  ok: boolean
+  status: number
+  statusText: string
+  headers: { get(name: string): string | null }
+  text: () => Promise<string>
+  json: () => Promise<unknown>
+  arrayBuffer: () => Promise<ArrayBuffer>
+}
 
 const logger = createLogger('AgiloftAuth')
 
