@@ -129,6 +129,7 @@ import {
   MistralParseV2Block,
   MistralParseV3Block,
 } from '@/blocks/blocks/mistral_parse'
+import { MondayBlock } from '@/blocks/blocks/monday'
 import { MongoDBBlock } from '@/blocks/blocks/mongodb'
 import { MothershipBlock } from '@/blocks/blocks/mothership'
 import { MySQLBlock } from '@/blocks/blocks/mysql'
@@ -371,6 +372,7 @@ export const registry: Record<string, BlockConfig> = {
   mistral_parse: MistralParseBlock,
   mistral_parse_v2: MistralParseV2Block,
   mistral_parse_v3: MistralParseV3Block,
+  monday: MondayBlock,
   mongodb: MongoDBBlock,
   mothership: MothershipBlock,
   mysql: MySQLBlock,

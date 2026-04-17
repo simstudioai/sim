@@ -275,6 +275,8 @@ export const env = createEnv({
     SUPABASE_CLIENT_SECRET:                z.string().optional(),                  // Supabase OAuth client secret
     NOTION_CLIENT_ID:                      z.string().optional(),                  // Notion OAuth client ID
     NOTION_CLIENT_SECRET:                  z.string().optional(),                  // Notion OAuth client secret
+    MONDAY_CLIENT_ID:                      z.string().optional(),                  // Monday.com OAuth client ID
+    MONDAY_CLIENT_SECRET:                  z.string().optional(),                  // Monday.com OAuth client secret
     DISCORD_CLIENT_ID:                     z.string().optional(),                  // Discord OAuth client ID
     DISCORD_CLIENT_SECRET:                 z.string().optional(),                  // Discord OAuth client secret
     DOCUSIGN_CLIENT_ID:                    z.string().optional(),                  // DocuSign OAuth client ID

@@ -623,6 +623,7 @@ export const auth = betterAuth({
         'zoom',
         'wordpress',
         'linear',
+        'monday',
         'attio',
         'shopify',
         'trello',
@@ -2022,6 +2023,59 @@ export const auth = betterAuth({
               }
             } catch (error) {
               logger.error('Error in Notion getUserInfo:', { error })
+              return null
+            }
+          },
+        },
+
+        // Monday.com provider
+        {
+          providerId: 'monday',
+          clientId: env.MONDAY_CLIENT_ID as string,
+          clientSecret: env.MONDAY_CLIENT_SECRET as string,
+          authorizationUrl: 'https://auth.monday.com/oauth2/authorize',
+          tokenUrl: 'https://auth.monday.com/oauth2/token',
+          userInfoUrl: 'https://api.monday.com/v2',
+          scopes: getCanonicalScopesForProvider('monday'),
+          responseType: 'code',
+          pkce: false,
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/monday`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://api.monday.com/v2', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'API-Version': '2024-10',
+                  Authorization: tokens.accessToken ?? '',
+                },
+                body: JSON.stringify({ query: '{ me { id name email } }' }),
+              })
+
+              if (!response.ok) {
+                await response.text().catch(() => {})
+                logger.error('Error fetching Monday.com user info:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
+              }
+
+              const data = await response.json()
+              const user = data.data?.me
+              if (!user) return null
+
+              const now = new Date()
+              return {
+                id: `${user.id.toString()}-${generateId()}`,
+                name: user.name || 'Monday.com User',
+                email: user.email || `${user.id}@monday.user`,
+                emailVerified: !!user.email,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Monday.com getUserInfo:', { error })
               return null
             }
           },
