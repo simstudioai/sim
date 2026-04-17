@@ -1259,6 +1259,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
 
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const [previousTimeRange, setPreviousTimeRange] = useState(timeRange)
+  const dateRangeAppliedRef = useRef(false)
   const { data: folders = {} } = useFolderMap(workspaceId)
   const { data: allWorkflowList = [] } = useWorkflows(workspaceId)
 
@@ -1357,6 +1358,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
   }
 
   const handleDateRangeApply = (start: string, end: string) => {
+    dateRangeAppliedRef.current = true
     setDateRange(start, end)
     setDatePickerOpen(false)
   }
@@ -1501,7 +1503,13 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             showTrigger={false}
             open={datePickerOpen}
             onOpenChange={(isOpen) => {
-              if (!isOpen) handleDatePickerCancel()
+              if (!isOpen) {
+                if (dateRangeAppliedRef.current) {
+                  dateRangeAppliedRef.current = false
+                } else {
+                  handleDatePickerCancel()
+                }
+              }
             }}
             startDate={startDate}
             endDate={endDate}

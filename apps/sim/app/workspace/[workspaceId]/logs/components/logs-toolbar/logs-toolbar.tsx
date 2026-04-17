@@ -224,6 +224,7 @@ export const LogsToolbar = memo(function LogsToolbar({
 
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const [previousTimeRange, setPreviousTimeRange] = useState(timeRange)
+  const dateRangeAppliedRef = useRef(false)
   const { data: folders = {} } = useFolderMap(workspaceId)
 
   const { data: allWorkflowList = [] } = useWorkflows(workspaceId)
@@ -398,6 +399,7 @@ export const LogsToolbar = memo(function LogsToolbar({
    */
   const handleDateRangeApply = useCallback(
     (start: string, end: string) => {
+      dateRangeAppliedRef.current = true
       setDateRange(start, end)
       setDatePickerOpen(false)
       captureEvent(posthogRef.current, 'logs_filter_applied', {
@@ -803,7 +805,13 @@ export const LogsToolbar = memo(function LogsToolbar({
                 showTrigger={false}
                 open={datePickerOpen}
                 onOpenChange={(isOpen) => {
-                  if (!isOpen) handleDatePickerCancel()
+                  if (!isOpen) {
+                    if (dateRangeAppliedRef.current) {
+                      dateRangeAppliedRef.current = false
+                    } else {
+                      handleDatePickerCancel()
+                    }
+                  }
                 }}
                 startDate={startDate}
                 endDate={endDate}
