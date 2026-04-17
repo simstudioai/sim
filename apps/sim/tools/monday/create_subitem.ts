@@ -1,5 +1,10 @@
 import type { MondayCreateSubitemParams, MondayCreateSubitemResponse } from '@/tools/monday/types'
-import { extractMondayError, MONDAY_API_URL, mondayHeaders } from '@/tools/monday/utils'
+import {
+  extractMondayError,
+  MONDAY_API_URL,
+  mondayHeaders,
+  sanitizeNumericId,
+} from '@/tools/monday/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mondayCreateSubitemTool: ToolConfig<
@@ -49,7 +54,7 @@ export const mondayCreateSubitemTool: ToolConfig<
     headers: (params) => mondayHeaders(params.accessToken),
     body: (params) => {
       const args: string[] = [
-        `parent_item_id: ${params.parentItemId}`,
+        `parent_item_id: ${sanitizeNumericId(params.parentItemId, 'parentItemId')}`,
         `item_name: ${JSON.stringify(params.itemName)}`,
       ]
       if (params.columnValues) {

@@ -1,5 +1,10 @@
 import type { MondayDeleteItemParams, MondayDeleteItemResponse } from '@/tools/monday/types'
-import { extractMondayError, MONDAY_API_URL, mondayHeaders } from '@/tools/monday/utils'
+import {
+  extractMondayError,
+  MONDAY_API_URL,
+  mondayHeaders,
+  sanitizeNumericId,
+} from '@/tools/monday/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mondayDeleteItemTool: ToolConfig<MondayDeleteItemParams, MondayDeleteItemResponse> = {
@@ -33,7 +38,7 @@ export const mondayDeleteItemTool: ToolConfig<MondayDeleteItemParams, MondayDele
     method: 'POST',
     headers: (params) => mondayHeaders(params.accessToken),
     body: (params) => ({
-      query: `mutation { delete_item(item_id: ${params.itemId}) { id } }`,
+      query: `mutation { delete_item(item_id: ${sanitizeNumericId(params.itemId, 'itemId')}) { id } }`,
     }),
   },
 

@@ -1,5 +1,10 @@
 import type { MondayGetItemsParams, MondayGetItemsResponse } from '@/tools/monday/types'
-import { extractMondayError, MONDAY_API_URL, mondayHeaders } from '@/tools/monday/utils'
+import {
+  extractMondayError,
+  MONDAY_API_URL,
+  mondayHeaders,
+  sanitizeNumericId,
+} from '@/tools/monday/utils'
 import type { ToolConfig } from '@/tools/types'
 
 function mapItem(item: Record<string, unknown>): {
@@ -81,13 +86,14 @@ export const mondayGetItemsTool: ToolConfig<MondayGetItemsParams, MondayGetItems
     headers: (params) => mondayHeaders(params.accessToken),
     body: (params) => {
       const limit = params.limit ?? 25
+      const boardId = sanitizeNumericId(params.boardId, 'boardId')
       if (params.groupId) {
         return {
-          query: `query { boards(ids: [${params.boardId}]) { groups(ids: [${JSON.stringify(params.groupId)}]) { items_page(limit: ${limit}) { items { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } } } } }`,
+          query: `query { boards(ids: [${boardId}]) { groups(ids: [${JSON.stringify(params.groupId)}]) { items_page(limit: ${limit}) { items { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } } } } }`,
         }
       }
       return {
-        query: `query { boards(ids: [${params.boardId}]) { items_page(limit: ${limit}) { items { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } } } }`,
+        query: `query { boards(ids: [${boardId}]) { items_page(limit: ${limit}) { items { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } } } }`,
       }
     },
   },

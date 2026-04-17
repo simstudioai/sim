@@ -1,5 +1,10 @@
 import type { MondaySearchItemsParams, MondaySearchItemsResponse } from '@/tools/monday/types'
-import { extractMondayError, MONDAY_API_URL, mondayHeaders } from '@/tools/monday/utils'
+import {
+  extractMondayError,
+  MONDAY_API_URL,
+  mondayHeaders,
+  sanitizeNumericId,
+} from '@/tools/monday/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mondaySearchItemsTool: ToolConfig<MondaySearchItemsParams, MondaySearchItemsResponse> =
@@ -59,12 +64,20 @@ export const mondaySearchItemsTool: ToolConfig<MondaySearchItemsParams, MondaySe
             query: `query { next_items_page(limit: ${limit}, cursor: ${JSON.stringify(params.cursor)}) { cursor items { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } } }`,
           }
         }
-        const columnsJson =
-          typeof params.columns === 'string'
-            ? JSON.stringify(JSON.parse(params.columns))
-            : JSON.stringify(params.columns)
+        const boardId = sanitizeNumericId(params.boardId, 'boardId')
+        let columnsJson: string
+        try {
+          columnsJson =
+            typeof params.columns === 'string'
+              ? JSON.stringify(JSON.parse(params.columns))
+              : JSON.stringify(params.columns)
+        } catch {
+          throw new Error(
+            'Column filters must be a valid JSON array, e.g. [{"column_id":"status","column_values":["Done"]}]'
+          )
+        }
         return {
-          query: `query { items_page_by_column_values(limit: ${limit}, board_id: ${params.boardId}, columns: ${columnsJson}) { cursor items { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } } }`,
+          query: `query { items_page_by_column_values(limit: ${limit}, board_id: ${boardId}, columns: ${columnsJson}) { cursor items { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } } }`,
         }
       },
     },

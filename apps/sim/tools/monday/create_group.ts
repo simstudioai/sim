@@ -1,5 +1,10 @@
 import type { MondayCreateGroupParams, MondayCreateGroupResponse } from '@/tools/monday/types'
-import { extractMondayError, MONDAY_API_URL, mondayHeaders } from '@/tools/monday/utils'
+import {
+  extractMondayError,
+  MONDAY_API_URL,
+  mondayHeaders,
+  sanitizeNumericId,
+} from '@/tools/monday/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mondayCreateGroupTool: ToolConfig<MondayCreateGroupParams, MondayCreateGroupResponse> =
@@ -47,7 +52,7 @@ export const mondayCreateGroupTool: ToolConfig<MondayCreateGroupParams, MondayCr
       headers: (params) => mondayHeaders(params.accessToken),
       body: (params) => {
         const args: string[] = [
-          `board_id: ${params.boardId}`,
+          `board_id: ${sanitizeNumericId(params.boardId, 'boardId')}`,
           `group_name: ${JSON.stringify(params.groupName)}`,
         ]
         if (params.groupColor) {

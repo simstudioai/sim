@@ -1,5 +1,10 @@
 import type { MondayGetItemParams, MondayGetItemResponse } from '@/tools/monday/types'
-import { extractMondayError, MONDAY_API_URL, mondayHeaders } from '@/tools/monday/utils'
+import {
+  extractMondayError,
+  MONDAY_API_URL,
+  mondayHeaders,
+  sanitizeNumericId,
+} from '@/tools/monday/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mondayGetItemTool: ToolConfig<MondayGetItemParams, MondayGetItemResponse> = {
@@ -33,7 +38,7 @@ export const mondayGetItemTool: ToolConfig<MondayGetItemParams, MondayGetItemRes
     method: 'POST',
     headers: (params) => mondayHeaders(params.accessToken),
     body: (params) => ({
-      query: `query { items(ids: [${params.itemId}]) { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } }`,
+      query: `query { items(ids: [${sanitizeNumericId(params.itemId, 'itemId')}]) { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } }`,
     }),
   },
 

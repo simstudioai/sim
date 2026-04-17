@@ -1,5 +1,10 @@
 import type { MondayArchiveItemParams, MondayArchiveItemResponse } from '@/tools/monday/types'
-import { extractMondayError, MONDAY_API_URL, mondayHeaders } from '@/tools/monday/utils'
+import {
+  extractMondayError,
+  MONDAY_API_URL,
+  mondayHeaders,
+  sanitizeNumericId,
+} from '@/tools/monday/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mondayArchiveItemTool: ToolConfig<MondayArchiveItemParams, MondayArchiveItemResponse> =
@@ -34,7 +39,7 @@ export const mondayArchiveItemTool: ToolConfig<MondayArchiveItemParams, MondayAr
       method: 'POST',
       headers: (params) => mondayHeaders(params.accessToken),
       body: (params) => ({
-        query: `mutation { archive_item(item_id: ${params.itemId}) { id } }`,
+        query: `mutation { archive_item(item_id: ${sanitizeNumericId(params.itemId, 'itemId')}) { id } }`,
       }),
     },
 

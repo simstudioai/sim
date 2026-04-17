@@ -1,5 +1,10 @@
 import type { MondayCreateItemParams, MondayCreateItemResponse } from '@/tools/monday/types'
-import { extractMondayError, MONDAY_API_URL, mondayHeaders } from '@/tools/monday/utils'
+import {
+  extractMondayError,
+  MONDAY_API_URL,
+  mondayHeaders,
+  sanitizeNumericId,
+} from '@/tools/monday/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mondayCreateItemTool: ToolConfig<MondayCreateItemParams, MondayCreateItemResponse> = {
@@ -53,7 +58,7 @@ export const mondayCreateItemTool: ToolConfig<MondayCreateItemParams, MondayCrea
     headers: (params) => mondayHeaders(params.accessToken),
     body: (params) => {
       const args: string[] = [
-        `board_id: ${params.boardId}`,
+        `board_id: ${sanitizeNumericId(params.boardId, 'boardId')}`,
         `item_name: ${JSON.stringify(params.itemName)}`,
       ]
       if (params.groupId) {

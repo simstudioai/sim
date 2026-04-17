@@ -2,7 +2,12 @@ import type {
   MondayMoveItemToGroupParams,
   MondayMoveItemToGroupResponse,
 } from '@/tools/monday/types'
-import { extractMondayError, MONDAY_API_URL, mondayHeaders } from '@/tools/monday/utils'
+import {
+  extractMondayError,
+  MONDAY_API_URL,
+  mondayHeaders,
+  sanitizeNumericId,
+} from '@/tools/monday/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mondayMoveItemToGroupTool: ToolConfig<
@@ -45,7 +50,7 @@ export const mondayMoveItemToGroupTool: ToolConfig<
     method: 'POST',
     headers: (params) => mondayHeaders(params.accessToken),
     body: (params) => ({
-      query: `mutation { move_item_to_group(item_id: ${params.itemId}, group_id: ${JSON.stringify(params.groupId)}) { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } }`,
+      query: `mutation { move_item_to_group(item_id: ${sanitizeNumericId(params.itemId, 'itemId')}, group_id: ${JSON.stringify(params.groupId)}) { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } }`,
     }),
   },
 

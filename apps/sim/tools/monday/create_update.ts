@@ -1,5 +1,10 @@
 import type { MondayCreateUpdateParams, MondayCreateUpdateResponse } from '@/tools/monday/types'
-import { extractMondayError, MONDAY_API_URL, mondayHeaders } from '@/tools/monday/utils'
+import {
+  extractMondayError,
+  MONDAY_API_URL,
+  mondayHeaders,
+  sanitizeNumericId,
+} from '@/tools/monday/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mondayCreateUpdateTool: ToolConfig<
@@ -42,7 +47,7 @@ export const mondayCreateUpdateTool: ToolConfig<
     method: 'POST',
     headers: (params) => mondayHeaders(params.accessToken),
     body: (params) => ({
-      query: `mutation { create_update(item_id: ${params.itemId}, body: ${JSON.stringify(params.body)}) { id body text_body created_at creator_id item_id } }`,
+      query: `mutation { create_update(item_id: ${sanitizeNumericId(params.itemId, 'itemId')}, body: ${JSON.stringify(params.body)}) { id body text_body created_at creator_id item_id } }`,
     }),
   },
 
