@@ -44,7 +44,6 @@ import {
   ResourceOptionsBar,
   ResourceTable,
 } from '@/app/workspace/[workspaceId]/components'
-import { DEV_MOCK_LOGS } from '@/app/workspace/[workspaceId]/logs/__dev__/mock-logs'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
 import type { Suggestion } from '@/app/workspace/[workspaceId]/logs/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -359,11 +358,7 @@ export default function Logs() {
   })
 
   const logs = useMemo(() => {
-    const realLogs = logsQuery.data?.pages?.flatMap((page) => page.logs) ?? []
-    if (process.env.NODE_ENV === 'development') {
-      return [...DEV_MOCK_LOGS, ...realLogs]
-    }
-    return realLogs
+    return logsQuery.data?.pages?.flatMap((page) => page.logs) ?? []
   }, [logsQuery.data?.pages])
 
   const sortedLogs = useMemo(() => {
