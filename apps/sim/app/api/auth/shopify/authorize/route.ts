@@ -4,6 +4,7 @@ import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { generateId } from '@/lib/core/utils/uuid'
+import { isSameOrigin } from '@/lib/core/utils/validation'
 import { getScopesForService } from '@/lib/oauth/utils'
 
 const logger = createLogger('ShopifyAuthorize')
@@ -192,7 +193,7 @@ export async function GET(request: NextRequest) {
       path: '/',
     })
 
-    if (returnUrl) {
+    if (returnUrl && isSameOrigin(returnUrl)) {
       response.cookies.set('shopify_return_url', returnUrl, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
