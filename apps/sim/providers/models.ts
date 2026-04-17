@@ -2315,7 +2315,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-09-29',
-        recommended: true,
       },
       {
         id: 'bedrock/anthropic.claude-haiku-4-5-20251001-v1:0',
@@ -2331,7 +2330,6 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-10-15',
-        speedOptimized: true,
       },
       {
         id: 'bedrock/anthropic.claude-opus-4-1-20250805-v1:0',

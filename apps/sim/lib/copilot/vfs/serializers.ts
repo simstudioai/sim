@@ -329,18 +329,6 @@ interface StaticModelOption {
   deprecated?: boolean
 }
 
-interface TierFlags {
-  recommended?: boolean
-  speedOptimized?: boolean
-  deprecated?: boolean
-}
-
-const RESELLER_BASE_PREFIX: Record<string, string> = {
-  'azure-openai': 'azure/',
-  'azure-anthropic': 'azure-anthropic/',
-  vertex: 'vertex/',
-}
-
 const DYNAMIC_PROVIDERS_NOTE = {
   note: 'The options array above lists Sim\'s static provider catalog. These providers also accept user-configured models that are NOT enumerated here: the user may have additional ids available at runtime. Any model id prefixed with one of the slashes below is accepted by the server, as is any bare id that does not match a static provider pattern (typically a local Ollama tag like "llama3.1:8b"). The UI dropdown shows the user\'s actual installed models; if the user references one by name, use that id verbatim.',
   prefixes: DYNAMIC_MODEL_PROVIDERS.map((p) => `${p}/`),
@@ -349,21 +337,6 @@ const DYNAMIC_PROVIDERS_NOTE = {
 function getStaticModelOptionsForVFS(): StaticModelOption[] {
   const hostedProviders = new Set(['openai', 'anthropic', 'google'])
   const dynamicProviders = new Set<string>(DYNAMIC_MODEL_PROVIDERS)
-
-  const baseTierFlags = new Map<string, TierFlags>()
-  for (const providerId of hostedProviders) {
-    const def = PROVIDER_DEFINITIONS[providerId]
-    if (!def) continue
-    for (const model of def.models) {
-      if (model.recommended || model.speedOptimized || model.deprecated) {
-        baseTierFlags.set(model.id, {
-          ...(model.recommended && { recommended: true }),
-          ...(model.speedOptimized && { speedOptimized: true }),
-          ...(model.deprecated && { deprecated: true }),
-        })
-      }
-    }
-  }
 
   const models: StaticModelOption[] = []
 
@@ -378,16 +351,6 @@ function getStaticModelOptionsForVFS(): StaticModelOption[] {
       if (model.recommended) option.recommended = true
       if (model.speedOptimized) option.speedOptimized = true
       if (model.deprecated) option.deprecated = true
-
-      if (!option.recommended && !option.speedOptimized && !option.deprecated) {
-        const prefix = RESELLER_BASE_PREFIX[providerId]
-        if (prefix && model.id.startsWith(prefix)) {
-          const baseId = model.id.slice(prefix.length)
-          const inherited = baseTierFlags.get(baseId)
-          if (inherited) Object.assign(option, inherited)
-        }
-      }
-
       models.push(option)
     }
   }
