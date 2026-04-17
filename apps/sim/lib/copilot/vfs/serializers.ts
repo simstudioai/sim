@@ -330,7 +330,7 @@ interface StaticModelOption {
 }
 
 const DYNAMIC_PROVIDERS_NOTE = {
-  note: 'The options array above lists Sim\'s static provider catalog. These providers also accept user-configured models that are NOT enumerated here: the user may have additional ids available at runtime. Any model id prefixed with one of the slashes below is accepted by the server, as is any bare id that does not match a static provider pattern (typically a local Ollama tag like "llama3.1:8b"). The UI dropdown shows the user\'s actual installed models; if the user references one by name, use that id verbatim.',
+  note: 'The options array above lists Sim\'s static provider catalog. These providers also accept user-configured models that are NOT enumerated here: the user may have additional ids available at runtime (e.g. local Ollama tags). To reference one, prefix the model id with the provider slash below — for example "ollama/llama3.1:8b" instead of the bare "llama3.1:8b". The server rejects bare ids that are not in the catalog; always use the prefix for user-configured models.',
   prefixes: DYNAMIC_MODEL_PROVIDERS.map((p) => `${p}/`),
 } as const
 
