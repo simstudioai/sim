@@ -3,13 +3,13 @@ title: Workflows
 description: Create, edit, run, debug, deploy, and organize workflows from Mothership.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
 
-Describe a workflow and Mothership builds it. Reference an existing one by name and it edits it. No canvas navigation required — every change appears in the resource panel in real time.
+<Video src="mothership/create-workflow.mp4" width={700} height={450} />
 
-{/* TODO: Screenshot of Mothership chat on the left with the Build subagent section visible, and a workflow open in the resource panel on the right. Shows the split-pane experience of building via natural language. */}
+Describe a workflow and Mothership builds it. Reference an existing one by name and it edits it. No canvas navigation required — every change appears in the resource panel in real time.
 
 ## Creating Workflows
 
@@ -33,7 +33,7 @@ Open an existing workflow with `@workflow-name` or the **+** menu, then describe
 
 ## Running Workflows
 
-{/* TODO: Screenshot or GIF of Mothership running a workflow — showing the chat streaming execution output on the left while the workflow canvas in the resource panel highlights blocks as they execute in real time. */}
+<Video src="mothership/run-workflow.mp4" width={700} height={450} />
 
 Ask Mothership to run a workflow and it handles the execution:
 
@@ -109,10 +109,6 @@ Variables set this way are available via `<variable.VARIABLE_NAME>` syntax insid
 
 - "Delete the old_api_prototype workflow"
 - "Delete all workflows in the deprecated folder"
-
-<Callout type="warn">
-  Workflow deletion is permanent. Deployed versions are also removed. There is no recycle bin.
-</Callout>
 
 <FAQ items={[
   { question: "Can Mothership edit a workflow while it's deployed?", answer: "Yes. Editing a workflow does not affect the live deployment. The deployed version is a snapshot — you need to ask Mothership to redeploy to push changes to production." },

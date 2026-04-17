@@ -12,6 +12,8 @@ interface VideoProps {
   muted?: boolean
   playsInline?: boolean
   enableLightbox?: boolean
+  width?: number
+  height?: number
 }
 
 export function Video({
@@ -22,6 +24,8 @@ export function Video({
   muted = true,
   playsInline = true,
   enableLightbox = true,
+  width,
+  height,
 }: VideoProps) {
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
 
@@ -38,6 +42,8 @@ export function Video({
         loop={loop}
         muted={muted}
         playsInline={playsInline}
+        width={width}
+        height={height}
         className={`${className} ${enableLightbox ? 'cursor-pointer transition-opacity hover:opacity-95' : ''}`}
         src={getAssetUrl(src)}
         onClick={handleVideoClick}
