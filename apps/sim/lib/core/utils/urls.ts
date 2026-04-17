@@ -1,4 +1,4 @@
-import { getEnv } from '@/lib/core/config/env'
+import { env, getEnv } from '@/lib/core/config/env'
 import { isProd } from '@/lib/core/config/feature-flags'
 
 /** Canonical base URL for the public-facing marketing site. No trailing slash. */
@@ -99,4 +99,22 @@ export function getEmailDomain(): string {
   } catch (_e) {
     return isProd ? 'sim.ai' : 'localhost:3000'
   }
+}
+
+const DEFAULT_SOCKET_URL = 'http://localhost:3002'
+
+/**
+ * Returns the socket server URL for server-side internal API calls.
+ * Reads from SOCKET_SERVER_URL with a localhost fallback for development.
+ */
+export function getSocketServerUrl(): string {
+  return env.SOCKET_SERVER_URL || DEFAULT_SOCKET_URL
+}
+
+/**
+ * Returns the socket server URL for client-side Socket.IO connections.
+ * Reads from NEXT_PUBLIC_SOCKET_URL with a localhost fallback for development.
+ */
+export function getSocketUrl(): string {
+  return getEnv('NEXT_PUBLIC_SOCKET_URL') || DEFAULT_SOCKET_URL
 }

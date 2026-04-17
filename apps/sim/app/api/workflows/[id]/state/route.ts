@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import {
   loadWorkflowFromNormalizedTables,
@@ -305,8 +306,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     logger.info(`[${requestId}] Successfully saved workflow ${workflowId} state in ${elapsed}ms`)
 
     try {
-      const socketUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
-      const notifyResponse = await fetch(`${socketUrl}/api/workflow-updated`, {
+      const notifyResponse = await fetch(`${getSocketServerUrl()}/api/workflow-updated`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

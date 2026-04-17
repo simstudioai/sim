@@ -5,7 +5,7 @@ import { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getBaseUrl, getSocketServerUrl } from '@/lib/core/utils/urls'
 import { removeMcpToolsForWorkflow, syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
@@ -37,8 +37,7 @@ const logger = createLogger('DeployOrchestration')
  */
 export async function notifySocketDeploymentChanged(workflowId: string): Promise<void> {
   try {
-    const socketServerUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
-    const response = await fetch(`${socketServerUrl}/api/workflow-deployed`, {
+    const response = await fetch(`${getSocketServerUrl()}/api/workflow-deployed`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -47,7 +46,9 @@ export async function notifySocketDeploymentChanged(workflowId: string): Promise
       body: JSON.stringify({ workflowId }),
     })
     if (!response.ok) {
-      logger.warn(`Socket deployment notification failed (${response.status}) for workflow ${workflowId}`)
+      logger.warn(
+        `Socket deployment notification failed (${response.status}) for workflow ${workflowId}`
+      )
     }
   } catch (error) {
     logger.error('Error sending workflow deployed event to socket server', error)
@@ -625,8 +626,7 @@ export async function performRevertToVersion(
     .where(eq(workflowTable.id, workflowId))
 
   try {
-    const socketServerUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
-    await fetch(`${socketServerUrl}/api/workflow-reverted`, {
+    await fetch(`${getSocketServerUrl()}/api/workflow-reverted`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

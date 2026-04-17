@@ -13,7 +13,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import type { Socket } from 'socket.io-client'
-import { getEnv } from '@/lib/core/config/env'
+import { getSocketUrl } from '@/lib/core/utils/urls'
 import { generateId } from '@/lib/core/utils/uuid'
 import {
   type SocketJoinCommand,
@@ -340,7 +340,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     const initializeSocket = async () => {
       try {
         const { io } = await import('socket.io-client')
-        const socketUrl = getEnv('NEXT_PUBLIC_SOCKET_URL') || 'http://localhost:3002'
+        const socketUrl = getSocketUrl()
 
         logger.info('Attempting to connect to Socket.IO server', {
           url: socketUrl,
