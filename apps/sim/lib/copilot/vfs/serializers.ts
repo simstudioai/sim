@@ -348,7 +348,7 @@ const DYNAMIC_PROVIDERS_NOTE = {
 
 function getStaticModelOptionsForVFS(): StaticModelOption[] {
   const hostedProviders = new Set(['openai', 'anthropic', 'google'])
-  const dynamicProviders = new Set(['ollama', 'vllm', 'openrouter', 'fireworks'])
+  const dynamicProviders = new Set<string>(DYNAMIC_MODEL_PROVIDERS)
 
   const baseTierFlags = new Map<string, TierFlags>()
   for (const providerId of hostedProviders) {
