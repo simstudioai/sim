@@ -84,13 +84,12 @@ export const jsmHandler: WebhookProviderHandler = {
 
   extractIdempotencyId(body: unknown) {
     const obj = body as Record<string, unknown>
+    const comment = obj.comment as Record<string, unknown> | undefined
     const issue = obj.issue as Record<string, unknown> | undefined
-    const ts = obj.timestamp ?? ''
-    if (obj.webhookEvent && issue?.id) {
-      return `jsm:${obj.webhookEvent}:${issue.id}:${ts}`
-    }
-    if (obj.webhookEvent && ts) {
-      return `jsm:${obj.webhookEvent}:${ts}`
+    const entityId = comment?.id || issue?.id
+    if (obj.webhookEvent && entityId) {
+      const ts = obj.timestamp ?? ''
+      return `jsm:${obj.webhookEvent}:${entityId}:${ts}`
     }
     return null
   },

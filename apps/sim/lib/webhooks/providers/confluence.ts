@@ -48,10 +48,10 @@ export const confluenceHandler: WebhookProviderHandler = {
       return { input: extractLabelData(body) }
     }
     if (triggerId === 'confluence_page_permissions_updated') {
-      return { input: extractPagePermissionsData(body) }
+      return { input: extractPagePermissionsData(body as Record<string, unknown>) }
     }
     if (triggerId === 'confluence_user_created') {
-      return { input: extractUserData(body) }
+      return { input: extractUserData(body as Record<string, unknown>) }
     }
     if (triggerId === 'confluence_webhook') {
       const b = body as Record<string, unknown>
