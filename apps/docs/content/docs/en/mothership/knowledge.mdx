@@ -1,0 +1,84 @@
+---
+title: Knowledge Bases
+description: Create, populate, and query knowledge bases from Mothership.
+---
+
+import { Image } from '@/components/ui/image'
+import { FAQ } from '@/components/ui/faq'
+
+Create a knowledge base, add documents to it, and query it in plain language — all through conversation. Knowledge bases you create in Mothership are immediately available to Agent blocks in any workflow.
+
+{/* TODO: Screenshot of Mothership with a knowledge base open in the resource panel — showing the knowledge base name, document list, and status of indexed documents. */}
+
+## Creating Knowledge Bases
+
+Describe the knowledge base and Mothership creates it:
+
+- "Create a knowledge base called 'Product Docs'"
+- "Set up a knowledge base for our support team — call it 'Support KB'"
+- "Create a competitive intelligence knowledge base"
+- "Create a knowledge base from our sales playbook and attach it to the outbound agent workflow"
+- "Set up a customer success knowledge base — I'll add our onboarding guides and past case studies to it"
+
+## Adding Documents
+
+Add documents by attaching files to your message, pasting text, or pointing Mothership at a URL:
+
+- "Add this PDF to the Product Docs knowledge base [attach file]"
+- "Add the following text to the Support KB as a new document: [paste content]"
+- "Fetch the page at [URL] and add it to the competitive intelligence knowledge base"
+- "Add these three uploaded case studies to the customer success knowledge base"
+
+Mothership processes and indexes each document automatically. Once indexed, the content is searchable by any Agent block that has the knowledge base attached.
+
+{/* TODO: Screenshot of Mothership confirming a document was added and indexed — showing the document name and its indexed status in the knowledge base. */}
+
+## Querying Knowledge Bases
+
+Ask Mothership a question and it searches the specified knowledge base to answer:
+
+- "What does the Product Docs knowledge base say about our refund policy?"
+- "Search the Support KB for anything related to SSO setup errors"
+- "What are the key differences between our Pro and Enterprise plans, based on the product docs?"
+- "Find everything in the competitive intelligence knowledge base about [competitor]'s pricing"
+
+## Connectors
+
+For knowledge bases that should stay current automatically, connectors sync content from external services on a schedule — no manual uploads needed. New content is added, changed content is re-processed, and deleted content is removed on every run.
+
+Connectors are configured through the knowledge base settings, not through Mothership chat. Once connected, all synced content is immediately searchable by Mothership and by any Agent block with the knowledge base attached.
+
+Sim ships with 30 built-in connectors, including Notion, Google Drive, Slack, GitHub, Confluence, HubSpot, Salesforce, Gmail, and more.
+
+Examples of what you can sync:
+
+- **Notion** — sync a workspace, a database, or a specific page tree
+- **Google Drive / Dropbox / OneDrive** — sync documents from cloud storage
+- **GitHub** — sync a repository's markdown and code files
+- **Slack** — sync channel history
+- **Confluence / Jira** — sync your internal wiki or issue tracker
+- **HubSpot / Salesforce** — sync CRM records into a searchable knowledge base
+
+See [Connectors](/knowledgebase/connectors) for setup steps, sync frequency options, and managing connector status.
+
+## Managing Knowledge Bases
+
+List, inspect, and clean up knowledge bases in plain language:
+
+- "What knowledge bases are in this workspace?"
+- "How many documents are in the Support KB?"
+- "Remove the outdated pricing doc from the Product Docs knowledge base"
+- "Delete the old-competitive-intel knowledge base"
+
+## Using Knowledge Bases in Workflows
+
+Knowledge bases created in Mothership are immediately available to Agent blocks in any workflow. Attach a knowledge base to an Agent block and it will use semantic search to retrieve relevant content at runtime.
+
+See [Knowledge Base](/knowledgebase) for full details on document processing settings, search configuration, and connector syncing.
+
+<FAQ items={[
+  { question: "How do I attach a knowledge base to a workflow?", answer: "Open the Agent block in the workflow editor, find the Knowledge Base setting, and select the knowledge base by name. Mothership can also do this for you: 'Attach the Product Docs knowledge base to the research agent block in the content pipeline workflow.'" },
+  { question: "What file types can I add to a knowledge base?", answer: "PDFs, markdown files, plain text, and web pages fetched from URLs. Mothership handles the parsing and indexing automatically." },
+  { question: "Can I add documents to a knowledge base from a workflow run?", answer: "Yes. The Knowledge Base write tool is available to Agent blocks and can be used to add documents programmatically during a workflow run." },
+  { question: "How do I keep a knowledge base up to date?", answer: "Set up a connector to sync from an external source automatically — see Connectors above. For one-off updates, ask Mothership to add or replace the document directly." },
+]} />

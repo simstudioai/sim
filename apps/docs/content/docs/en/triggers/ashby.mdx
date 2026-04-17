@@ -1,0 +1,185 @@
+---
+title: Ashby
+description: Available Ashby triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="ashby"
+  color="#5D4ED6"
+/>
+
+Ashby provides 6 triggers for automating workflows based on events.
+
+## Triggers
+
+### Ashby Application Submitted
+
+Trigger workflow when a new application is submitted
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `application` | object | application output from the tool |
+|   ↳ `id` | string | Application UUID |
+|   ↳ `createdAt` | string | Application creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Application last update timestamp \(ISO 8601\) |
+|   ↳ `status` | string | Application status \(Active, Hired, Archived, Lead\) |
+|   ↳ `candidate` | object | candidate output from the tool |
+|     ↳ `id` | string | Candidate UUID |
+|     ↳ `name` | string | Candidate name |
+|   ↳ `currentInterviewStage` | object | currentInterviewStage output from the tool |
+|     ↳ `id` | string | Current interview stage UUID |
+|     ↳ `title` | string | Current interview stage title |
+|   ↳ `job` | object | job output from the tool |
+|     ↳ `id` | string | Job UUID |
+|     ↳ `title` | string | Job title |
+
+
+---
+
+### Ashby Candidate Deleted
+
+Trigger workflow when a candidate is deleted
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `candidate` | object | candidate output from the tool |
+|   ↳ `id` | string | Deleted candidate UUID |
+
+
+---
+
+### Ashby Candidate Hired
+
+Trigger workflow when a candidate is hired
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `application` | object | application output from the tool |
+|   ↳ `id` | string | Application UUID |
+|   ↳ `createdAt` | string | Application creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Application last update timestamp \(ISO 8601\) |
+|   ↳ `status` | string | Application status \(Hired\) |
+|   ↳ `candidate` | object | candidate output from the tool |
+|     ↳ `id` | string | Candidate UUID |
+|     ↳ `name` | string | Candidate name |
+|   ↳ `currentInterviewStage` | object | currentInterviewStage output from the tool |
+|     ↳ `id` | string | Current interview stage UUID |
+|     ↳ `title` | string | Current interview stage title |
+|   ↳ `job` | object | job output from the tool |
+|     ↳ `id` | string | Job UUID |
+|     ↳ `title` | string | Job title |
+
+
+---
+
+### Ashby Candidate Stage Change
+
+Trigger workflow when a candidate changes interview stages
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `application` | object | application output from the tool |
+|   ↳ `id` | string | Application UUID |
+|   ↳ `createdAt` | string | Application creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Application last update timestamp \(ISO 8601\) |
+|   ↳ `status` | string | Application status \(Active, Hired, Archived, Lead\) |
+|   ↳ `candidate` | object | candidate output from the tool |
+|     ↳ `id` | string | Candidate UUID |
+|     ↳ `name` | string | Candidate name |
+|   ↳ `currentInterviewStage` | object | currentInterviewStage output from the tool |
+|     ↳ `id` | string | Current interview stage UUID |
+|     ↳ `title` | string | Current interview stage title |
+|   ↳ `job` | object | job output from the tool |
+|     ↳ `id` | string | Job UUID |
+|     ↳ `title` | string | Job title |
+
+
+---
+
+### Ashby Job Created
+
+Trigger workflow when a new job is created
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `job` | object | job output from the tool |
+|   ↳ `id` | string | Job UUID |
+|   ↳ `title` | string | Job title |
+|   ↳ `confidential` | boolean | Whether the job is confidential |
+|   ↳ `status` | string | Job status \(Open, Closed, Draft, Archived\) |
+|   ↳ `employmentType` | string | Employment type \(Full-time, Part-time, etc.\) |
+
+
+---
+
+### Ashby Offer Created
+
+Trigger workflow when a new offer is created
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | API Key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `action` | string | The webhook event type \(e.g., applicationSubmit, candidateHire\) |
+| `offer` | object | offer output from the tool |
+|   ↳ `id` | string | Offer UUID |
+|   ↳ `applicationId` | string | Associated application UUID |
+|   ↳ `acceptanceStatus` | string | Offer acceptance status \(Accepted, Declined, Pending, Created, Cancelled, WaitingOnResponse\) |
+|   ↳ `offerStatus` | string | Offer process status \(WaitingOnApprovalStart, WaitingOnOfferApproval, WaitingOnCandidateResponse, CandidateAccepted, CandidateRejected, OfferCancelled\) |
+|   ↳ `decidedAt` | string | Offer decision timestamp \(ISO 8601\). Typically null at creation; populated after candidate responds. |
+|   ↳ `latestVersion` | object | latestVersion output from the tool |
+|     ↳ `id` | string | Latest offer version UUID |
+

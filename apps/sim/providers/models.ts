@@ -520,6 +520,25 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
+        id: 'claude-opus-4-7',
+        pricing: {
+          input: 5.0,
+          cachedInput: 0.5,
+          output: 25.0,
+          updatedAt: '2026-04-16',
+        },
+        capabilities: {
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 128000,
+          thinking: {
+            levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+            default: 'high',
+          },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-04-16',
+      },
+      {
         id: 'claude-opus-4-6',
         pricing: {
           input: 5.0,

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import {
   Button,
   Check,
@@ -50,7 +50,12 @@ interface MessageActionsProps {
   requestId?: string
 }
 
-export function MessageActions({ content, chatId, userQuery, requestId }: MessageActionsProps) {
+export const MessageActions = memo(function MessageActions({
+  content,
+  chatId,
+  userQuery,
+  requestId,
+}: MessageActionsProps) {
   const [copied, setCopied] = useState(false)
   const [copiedRequestId, setCopiedRequestId] = useState(false)
   const [pendingFeedback, setPendingFeedback] = useState<'up' | 'down' | null>(null)
@@ -70,7 +75,7 @@ export function MessageActions({ content, chatId, userQuery, requestId }: Messag
     }
   }, [])
 
-  const copyToClipboard = useCallback(async () => {
+  const copyToClipboard = async () => {
     if (!content) return
     const text = toPlainText(content)
     if (!text) return
@@ -84,9 +89,9 @@ export function MessageActions({ content, chatId, userQuery, requestId }: Messag
     } catch {
       /* clipboard unavailable */
     }
-  }, [content])
+  }
 
-  const copyRequestId = useCallback(async () => {
+  const copyRequestId = async () => {
     if (!requestId) return
     try {
       await navigator.clipboard.writeText(requestId)
@@ -98,20 +103,17 @@ export function MessageActions({ content, chatId, userQuery, requestId }: Messag
     } catch {
       /* clipboard unavailable */
     }
-  }, [requestId])
+  }
 
-  const handleFeedbackClick = useCallback(
-    (type: 'up' | 'down') => {
-      if (chatId && userQuery) {
-        setPendingFeedback(type)
-        setFeedbackText('')
-        setCopiedRequestId(false)
-      }
-    },
-    [chatId, userQuery]
-  )
+  const handleFeedbackClick = (type: 'up' | 'down') => {
+    if (chatId && userQuery) {
+      setPendingFeedback(type)
+      setFeedbackText('')
+      setCopiedRequestId(false)
+    }
+  }
 
-  const handleSubmitFeedback = useCallback(() => {
+  const handleSubmitFeedback = () => {
     if (!pendingFeedback || !chatId || !userQuery) return
     const text = feedbackText.trim()
     if (!text) {
@@ -128,15 +130,15 @@ export function MessageActions({ content, chatId, userQuery, requestId }: Messag
     })
     setPendingFeedback(null)
     setFeedbackText('')
-  }, [pendingFeedback, chatId, userQuery, content, feedbackText])
+  }
 
-  const handleModalClose = useCallback((open: boolean) => {
+  const handleModalClose = (open: boolean) => {
     if (!open) {
       setPendingFeedback(null)
       setFeedbackText('')
       setCopiedRequestId(false)
     }
-  }, [])
+  }
 
   if (!content) return null
 
@@ -224,4 +226,4 @@ export function MessageActions({ content, chatId, userQuery, requestId }: Messag
       </Modal>
     </>
   )
-}
+})

@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef, memo, useCallback, useEffect, useState } from 'react'
+import { forwardRef, memo, useState } from 'react'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
@@ -80,15 +80,13 @@ export const MothershipView = memo(
         : undefined
 
     const [previewMode, setPreviewMode] = useState<PreviewMode>('preview')
-    const [prevActiveId, setPrevActiveId] = useState<string | null | undefined>(active?.id)
-    const handleCyclePreview = useCallback(() => setPreviewMode((m) => PREVIEW_CYCLE[m]), [])
+    const handleCyclePreview = () => setPreviewMode((m) => PREVIEW_CYCLE[m])
 
-    useEffect(() => {
-      if (active?.id !== prevActiveId) {
-        setPrevActiveId(active?.id)
-        setPreviewMode('preview')
-      }
-    }, [active?.id, prevActiveId])
+    const [prevActiveId, setPrevActiveId] = useState(active?.id)
+    if (prevActiveId !== active?.id) {
+      setPrevActiveId(active?.id)
+      setPreviewMode('preview')
+    }
 
     const isActivePreviewable =
       canEdit &&

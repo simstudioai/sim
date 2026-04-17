@@ -1,0 +1,331 @@
+---
+title: Notion
+description: Available Notion triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="notion"
+  color="#181C1E"
+/>
+
+Notion provides 9 triggers for automating workflows based on events.
+
+## Triggers
+
+### Notion Comment Created
+
+Trigger workflow when a comment or suggested edit is added in Notion
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `entity` | object | entity output from the tool |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `entity_type` | string | Entity type \(comment\) |
+| `data` | object | data output from the tool |
+|   ↳ `page_id` | string | Page ID that owns the comment thread |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page or block ID |
+|     ↳ `parent_type` | string | Parent type \(page or block\) |
+
+
+---
+
+### Notion Database Created
+
+Trigger workflow when a new database is created in Notion
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | object | data output from the tool |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Database properties updated as part of the event, when provided by Notion |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page, database, workspace, or space ID |
+|     ↳ `parent_type` | string | Parent type: `page`, `database`, `workspace`, or `space` |
+
+
+---
+
+### Notion Database Deleted
+
+Trigger workflow when a database is deleted in Notion
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | object | data output from the tool |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Database properties updated as part of the event, when provided by Notion |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page, database, workspace, or space ID |
+|     ↳ `parent_type` | string | Parent type: `page`, `database`, `workspace`, or `space` |
+
+
+---
+
+### Notion Database Schema Updated
+
+Trigger workflow when a database schema is modified in Notion
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | object | data output from the tool |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Database properties updated as part of the event, when provided by Notion |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page, database, workspace, or space ID |
+|     ↳ `parent_type` | string | Parent type: `page`, `database`, `workspace`, or `space` |
+
+
+---
+
+### Notion Page Content Updated
+
+Trigger workflow when page content is changed in Notion
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | object | data output from the tool |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Property IDs updated as part of the event, when provided by Notion |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page, database, workspace \(space\), or block ID |
+|     ↳ `parent_type` | string | Parent type: `page`, `database`, `block`, `workspace`, or `space` |
+
+
+---
+
+### Notion Page Created
+
+Trigger workflow when a new page is created in Notion
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | object | data output from the tool |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Property IDs updated as part of the event, when provided by Notion |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page, database, workspace \(space\), or block ID |
+|     ↳ `parent_type` | string | Parent type: `page`, `database`, `block`, `workspace`, or `space` |
+
+
+---
+
+### Notion Page Deleted
+
+Trigger workflow when a page is deleted in Notion
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | object | data output from the tool |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Property IDs updated as part of the event, when provided by Notion |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page, database, workspace \(space\), or block ID |
+|     ↳ `parent_type` | string | Parent type: `page`, `database`, `block`, `workspace`, or `space` |
+
+
+---
+
+### Notion Page Properties Updated
+
+Trigger workflow when page properties are modified in Notion
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | object | data output from the tool |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Property IDs updated as part of the event, when provided by Notion |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent page, database, workspace \(space\), or block ID |
+|     ↳ `parent_type` | string | Parent type: `page`, `database`, `block`, `workspace`, or `space` |
+
+
+---
+
+### Notion Webhook (All Events)
+
+Trigger workflow on any Notion webhook event
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | The verification_token sent by Notion during webhook setup. This same token is used to verify X-Notion-Signature HMAC headers on all subsequent webhook deliveries. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Webhook event ID |
+| `type` | string | Event type \(e.g., page.created, database.schema_updated\) |
+| `timestamp` | string | ISO 8601 timestamp of the event |
+| `api_version` | string | Notion API version included with the event |
+| `workspace_id` | string | Workspace ID where the event occurred |
+| `workspace_name` | string | Workspace name |
+| `subscription_id` | string | Webhook subscription ID |
+| `integration_id` | string | Integration ID that received the event |
+| `attempt_number` | number | Delivery attempt number \(1-8 per Notion retries\) |
+| `accessible_by` | array | Users and bots with access to the entity \(`id` + `type` per object\); `type` is `person` or `bot`. Omitted on some deliveries \(treat as empty\). |
+| `authors` | array | Actors who triggered the event \(`id` + `type` per object\); `type` is `person`, `bot`, or `agent` per Notion |
+| `data` | object | data output from the tool |
+|   ↳ `parent` | object | parent output from the tool |
+|     ↳ `id` | string | Parent entity ID, when provided by Notion |
+|     ↳ `parent_type` | string | Parent type \(`page`, `database`, `block`, `workspace`, `space`, …\), when present |
+|   ↳ `page_id` | string | Page ID related to the event, when present |
+|   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
+|   ↳ `updated_properties` | array | Updated properties included with the event, when provided by Notion |
+

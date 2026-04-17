@@ -1,0 +1,54 @@
+---
+title: Google Calendar
+description: Available Google Calendar triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="google_calendar"
+  color="#E0E0E0"
+/>
+
+Google Calendar provides 1 trigger for automating workflows based on events.
+
+All triggers below are **polling-based** — they check for new data on a schedule rather than receiving push notifications.
+
+## Triggers
+
+### Google Calendar Event Trigger
+
+Triggers when events are created, updated, or cancelled in Google Calendar
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | Connect your Google account to access Google Calendar. |
+| `calendarId` | file-selector | No | The calendar to monitor for event changes. |
+| `manualCalendarId` | string | No | The calendar to monitor for event changes. |
+| `eventTypeFilter` | string | No | Only trigger for specific event types. Defaults to all events. |
+| `searchTerm` | string | No | Optional: Filter events by text match across title, description, location, and attendees. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | object | event output from the tool |
+|   ↳ `id` | string | Calendar event ID |
+|   ↳ `status` | string | Event status \(confirmed, tentative, cancelled\) |
+|   ↳ `eventType` | string | Change type: "created", "updated", or "cancelled" |
+|   ↳ `summary` | string | Event title |
+|   ↳ `eventDescription` | string | Event description |
+|   ↳ `location` | string | Event location |
+|   ↳ `htmlLink` | string | Link to event in Google Calendar |
+|   ↳ `start` | json | Event start time |
+|   ↳ `end` | json | Event end time |
+|   ↳ `created` | string | Event creation time |
+|   ↳ `updated` | string | Event last updated time |
+|   ↳ `attendees` | json | Event attendees |
+|   ↳ `creator` | json | Event creator |
+|   ↳ `organizer` | json | Event organizer |
+| `calendarId` | string | Calendar ID |
+| `timestamp` | string | Event processing timestamp in ISO format |
+

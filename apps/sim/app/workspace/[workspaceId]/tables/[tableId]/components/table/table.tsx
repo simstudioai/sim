@@ -22,6 +22,7 @@ import {
   ModalFooter,
   ModalHeader,
   Skeleton,
+  Upload,
 } from '@/components/emcn'
 import {
   ArrowLeft,
@@ -45,6 +46,7 @@ import type { ColumnDefinition, Filter, SortDirection, TableRow as TableRowType 
 import type { ColumnOption, SortConfig } from '@/app/workspace/[workspaceId]/components'
 import { ResourceHeader, ResourceOptionsBar } from '@/app/workspace/[workspaceId]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
 import {
   useAddTableColumn,
   useBatchCreateTableRows,
@@ -200,6 +202,7 @@ export function Table({
   const lastCheckboxRowRef = useRef<number | null>(null)
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
   const [deletingColumn, setDeletingColumn] = useState<string | null>(null)
+  const [isImportCsvOpen, setIsImportCsvOpen] = useState(false)
 
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
   const columnWidthsRef = useRef(columnWidths)
@@ -1555,6 +1558,21 @@ export function Table({
     [handleAddColumn, addColumnMutation.isPending]
   )
 
+  const headerActions = useMemo(
+    () =>
+      tableData
+        ? [
+            {
+              label: 'Import CSV',
+              icon: Upload,
+              onClick: () => setIsImportCsvOpen(true),
+              disabled: userPermissions.canEdit !== true,
+            },
+          ]
+        : undefined,
+    [tableData, userPermissions.canEdit]
+  )
+
   const activeSortState = useMemo(() => {
     if (!queryOptions.sort) return null
     const entries = Object.entries(queryOptions.sort)
@@ -1619,7 +1637,12 @@ export function Table({
     <div ref={containerRef} className='flex h-full flex-col overflow-hidden'>
       {!embedded && (
         <>
-          <ResourceHeader icon={TableIcon} breadcrumbs={breadcrumbs} create={createAction} />
+          <ResourceHeader
+            icon={TableIcon}
+            breadcrumbs={breadcrumbs}
+            create={createAction}
+            actions={headerActions}
+          />
 
           <ResourceOptionsBar
             sort={sortConfig}
@@ -1873,6 +1896,15 @@ export function Table({
             </ModalFooter>
           </ModalContent>
         </Modal>
+      )}
+
+      {tableData && (
+        <ImportCsvDialog
+          open={isImportCsvOpen}
+          onOpenChange={setIsImportCsvOpen}
+          workspaceId={workspaceId}
+          table={tableData}
+        />
       )}
 
       <Modal
