@@ -10,9 +10,181 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
   color="#E0E0E0"
 />
 
-Jira provides 6 triggers for automating workflows based on events.
+Jira provides 15 triggers for automating workflows based on events.
 
 ## Triggers
+
+### Jira Comment Deleted
+
+Trigger workflow when a comment is deleted from a Jira issue
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+| `jqlFilter` | string | No | Filter which comment deletions trigger this workflow using JQL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `webhookEvent` | string | The webhook event type \(e.g., jira:issue_created, comment_created, worklog_created\) |
+| `timestamp` | number | Timestamp of the webhook event |
+| `user` | object | user output from the tool |
+|   ↳ `displayName` | string | Display name of the user who triggered the event |
+|   ↳ `accountId` | string | Account ID of the user who triggered the event |
+|   ↳ `emailAddress` | string | Email address of the user who triggered the event |
+| `issue` | object | issue output from the tool |
+|   ↳ `id` | string | Jira issue ID |
+|   ↳ `key` | string | Jira issue key \(e.g., PROJ-123\) |
+|   ↳ `self` | string | REST API URL for this issue |
+|   ↳ `fields` | object | fields output from the tool |
+|     ↳ `votes` | json | Votes on this issue |
+|     ↳ `labels` | array | Array of labels applied to this issue |
+|     ↳ `status` | object | status output from the tool |
+|       ↳ `name` | string | Status name |
+|       ↳ `id` | string | Status ID |
+|       ↳ `statusCategory` | json | Status category information |
+|     ↳ `created` | string | Issue creation date \(ISO format\) |
+|     ↳ `creator` | object | creator output from the tool |
+|       ↳ `displayName` | string | Creator display name |
+|       ↳ `accountId` | string | Creator account ID |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
+|     ↳ `duedate` | string | Due date for the issue |
+|     ↳ `project` | object | project output from the tool |
+|       ↳ `key` | string | Project key |
+|       ↳ `name` | string | Project name |
+|       ↳ `id` | string | Project ID |
+|     ↳ `summary` | string | Issue summary/title |
+|     ↳ `description` | json | Issue description in Atlassian Document Format \(ADF\). On Jira Server this may be a plain string. |
+|     ↳ `updated` | string | Last updated date \(ISO format\) |
+|     ↳ `watches` | json | Watchers information |
+|     ↳ `assignee` | object | assignee output from the tool |
+|       ↳ `displayName` | string | Assignee display name |
+|       ↳ `accountId` | string | Assignee account ID |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
+|     ↳ `priority` | object | priority output from the tool |
+|       ↳ `name` | string | Priority name |
+|       ↳ `id` | string | Priority ID |
+|     ↳ `progress` | json | Progress tracking information |
+|     ↳ `reporter` | object | reporter output from the tool |
+|       ↳ `displayName` | string | Reporter display name |
+|       ↳ `accountId` | string | Reporter account ID |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
+|     ↳ `security` | string | Security level |
+|     ↳ `subtasks` | array | Array of subtask objects |
+|     ↳ `versions` | array | Array of affected versions |
+|     ↳ `issuetype` | object | issuetype output from the tool |
+|       ↳ `name` | string | Issue type name |
+|       ↳ `id` | string | Issue type ID |
+|     ↳ `resolution` | object | resolution output from the tool |
+|       ↳ `name` | string | Resolution name \(e.g., Done, Fixed\) |
+|       ↳ `id` | string | Resolution ID |
+|     ↳ `components` | array | Array of component objects associated with this issue |
+|     ↳ `fixVersions` | array | Array of fix version objects for this issue |
+| `comment` | object | comment output from the tool |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `body` | json | Comment body in Atlassian Document Format \(ADF\). On Jira Server this may be a plain string. |
+|   ↳ `author` | object | author output from the tool |
+|     ↳ `displayName` | string | Comment author display name |
+|     ↳ `accountId` | string | Comment author account ID |
+|     ↳ `emailAddress` | string | Comment author email address |
+|   ↳ `updateAuthor` | object | updateAuthor output from the tool |
+|     ↳ `displayName` | string | Display name of the user who last updated the comment |
+|     ↳ `accountId` | string | Account ID of the user who last updated the comment |
+|   ↳ `created` | string | Comment creation date \(ISO format\) |
+|   ↳ `updated` | string | Comment last updated date \(ISO format\) |
+|   ↳ `self` | string | REST API URL for this comment |
+
+
+---
+
+### Jira Comment Updated
+
+Trigger workflow when a comment is updated on a Jira issue
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+| `jqlFilter` | string | No | Filter which comment updates trigger this workflow using JQL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `webhookEvent` | string | The webhook event type \(e.g., jira:issue_created, comment_created, worklog_created\) |
+| `timestamp` | number | Timestamp of the webhook event |
+| `user` | object | user output from the tool |
+|   ↳ `displayName` | string | Display name of the user who triggered the event |
+|   ↳ `accountId` | string | Account ID of the user who triggered the event |
+|   ↳ `emailAddress` | string | Email address of the user who triggered the event |
+| `issue` | object | issue output from the tool |
+|   ↳ `id` | string | Jira issue ID |
+|   ↳ `key` | string | Jira issue key \(e.g., PROJ-123\) |
+|   ↳ `self` | string | REST API URL for this issue |
+|   ↳ `fields` | object | fields output from the tool |
+|     ↳ `votes` | json | Votes on this issue |
+|     ↳ `labels` | array | Array of labels applied to this issue |
+|     ↳ `status` | object | status output from the tool |
+|       ↳ `name` | string | Status name |
+|       ↳ `id` | string | Status ID |
+|       ↳ `statusCategory` | json | Status category information |
+|     ↳ `created` | string | Issue creation date \(ISO format\) |
+|     ↳ `creator` | object | creator output from the tool |
+|       ↳ `displayName` | string | Creator display name |
+|       ↳ `accountId` | string | Creator account ID |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
+|     ↳ `duedate` | string | Due date for the issue |
+|     ↳ `project` | object | project output from the tool |
+|       ↳ `key` | string | Project key |
+|       ↳ `name` | string | Project name |
+|       ↳ `id` | string | Project ID |
+|     ↳ `summary` | string | Issue summary/title |
+|     ↳ `description` | json | Issue description in Atlassian Document Format \(ADF\). On Jira Server this may be a plain string. |
+|     ↳ `updated` | string | Last updated date \(ISO format\) |
+|     ↳ `watches` | json | Watchers information |
+|     ↳ `assignee` | object | assignee output from the tool |
+|       ↳ `displayName` | string | Assignee display name |
+|       ↳ `accountId` | string | Assignee account ID |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
+|     ↳ `priority` | object | priority output from the tool |
+|       ↳ `name` | string | Priority name |
+|       ↳ `id` | string | Priority ID |
+|     ↳ `progress` | json | Progress tracking information |
+|     ↳ `reporter` | object | reporter output from the tool |
+|       ↳ `displayName` | string | Reporter display name |
+|       ↳ `accountId` | string | Reporter account ID |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
+|     ↳ `security` | string | Security level |
+|     ↳ `subtasks` | array | Array of subtask objects |
+|     ↳ `versions` | array | Array of affected versions |
+|     ↳ `issuetype` | object | issuetype output from the tool |
+|       ↳ `name` | string | Issue type name |
+|       ↳ `id` | string | Issue type ID |
+|     ↳ `resolution` | object | resolution output from the tool |
+|       ↳ `name` | string | Resolution name \(e.g., Done, Fixed\) |
+|       ↳ `id` | string | Resolution ID |
+|     ↳ `components` | array | Array of component objects associated with this issue |
+|     ↳ `fixVersions` | array | Array of fix version objects for this issue |
+| `comment` | object | comment output from the tool |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `body` | json | Comment body in Atlassian Document Format \(ADF\). On Jira Server this may be a plain string. |
+|   ↳ `author` | object | author output from the tool |
+|     ↳ `displayName` | string | Comment author display name |
+|     ↳ `accountId` | string | Comment author account ID |
+|     ↳ `emailAddress` | string | Comment author email address |
+|   ↳ `updateAuthor` | object | updateAuthor output from the tool |
+|     ↳ `displayName` | string | Display name of the user who last updated the comment |
+|     ↳ `accountId` | string | Account ID of the user who last updated the comment |
+|   ↳ `created` | string | Comment creation date \(ISO format\) |
+|   ↳ `updated` | string | Comment last updated date \(ISO format\) |
+|   ↳ `self` | string | REST API URL for this comment |
+
+
+---
 
 ### Jira Issue Commented
 
@@ -31,6 +203,10 @@ Trigger workflow when a comment is added to a Jira issue
 | --------- | ---- | ----------- |
 | `webhookEvent` | string | The webhook event type \(e.g., jira:issue_created, comment_created, worklog_created\) |
 | `timestamp` | number | Timestamp of the webhook event |
+| `user` | object | user output from the tool |
+|   ↳ `displayName` | string | Display name of the user who triggered the event |
+|   ↳ `accountId` | string | Account ID of the user who triggered the event |
+|   ↳ `emailAddress` | string | Email address of the user who triggered the event |
 | `issue` | object | issue output from the tool |
 |   ↳ `id` | string | Jira issue ID |
 |   ↳ `key` | string | Jira issue key \(e.g., PROJ-123\) |
@@ -46,19 +222,20 @@ Trigger workflow when a comment is added to a Jira issue
 |     ↳ `creator` | object | creator output from the tool |
 |       ↳ `displayName` | string | Creator display name |
 |       ↳ `accountId` | string | Creator account ID |
-|       ↳ `emailAddress` | string | Creator email address |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
 |     ↳ `duedate` | string | Due date for the issue |
 |     ↳ `project` | object | project output from the tool |
 |       ↳ `key` | string | Project key |
 |       ↳ `name` | string | Project name |
 |       ↳ `id` | string | Project ID |
 |     ↳ `summary` | string | Issue summary/title |
+|     ↳ `description` | json | Issue description in Atlassian Document Format \(ADF\). On Jira Server this may be a plain string. |
 |     ↳ `updated` | string | Last updated date \(ISO format\) |
 |     ↳ `watches` | json | Watchers information |
 |     ↳ `assignee` | object | assignee output from the tool |
 |       ↳ `displayName` | string | Assignee display name |
 |       ↳ `accountId` | string | Assignee account ID |
-|       ↳ `emailAddress` | string | Assignee email address |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
 |     ↳ `priority` | object | priority output from the tool |
 |       ↳ `name` | string | Priority name |
 |       ↳ `id` | string | Priority ID |
@@ -66,22 +243,31 @@ Trigger workflow when a comment is added to a Jira issue
 |     ↳ `reporter` | object | reporter output from the tool |
 |       ↳ `displayName` | string | Reporter display name |
 |       ↳ `accountId` | string | Reporter account ID |
-|       ↳ `emailAddress` | string | Reporter email address |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
 |     ↳ `security` | string | Security level |
 |     ↳ `subtasks` | array | Array of subtask objects |
 |     ↳ `versions` | array | Array of affected versions |
 |     ↳ `issuetype` | object | issuetype output from the tool |
 |       ↳ `name` | string | Issue type name |
 |       ↳ `id` | string | Issue type ID |
+|     ↳ `resolution` | object | resolution output from the tool |
+|       ↳ `name` | string | Resolution name \(e.g., Done, Fixed\) |
+|       ↳ `id` | string | Resolution ID |
+|     ↳ `components` | array | Array of component objects associated with this issue |
+|     ↳ `fixVersions` | array | Array of fix version objects for this issue |
 | `comment` | object | comment output from the tool |
 |   ↳ `id` | string | Comment ID |
-|   ↳ `body` | string | Comment text/body |
+|   ↳ `body` | json | Comment body in Atlassian Document Format \(ADF\). On Jira Server this may be a plain string. |
 |   ↳ `author` | object | author output from the tool |
 |     ↳ `displayName` | string | Comment author display name |
 |     ↳ `accountId` | string | Comment author account ID |
 |     ↳ `emailAddress` | string | Comment author email address |
+|   ↳ `updateAuthor` | object | updateAuthor output from the tool |
+|     ↳ `displayName` | string | Display name of the user who last updated the comment |
+|     ↳ `accountId` | string | Account ID of the user who last updated the comment |
 |   ↳ `created` | string | Comment creation date \(ISO format\) |
 |   ↳ `updated` | string | Comment last updated date \(ISO format\) |
+|   ↳ `self` | string | REST API URL for this comment |
 
 
 ---
@@ -103,6 +289,10 @@ Trigger workflow when a new issue is created in Jira
 | --------- | ---- | ----------- |
 | `webhookEvent` | string | The webhook event type \(e.g., jira:issue_created, comment_created, worklog_created\) |
 | `timestamp` | number | Timestamp of the webhook event |
+| `user` | object | user output from the tool |
+|   ↳ `displayName` | string | Display name of the user who triggered the event |
+|   ↳ `accountId` | string | Account ID of the user who triggered the event |
+|   ↳ `emailAddress` | string | Email address of the user who triggered the event |
 | `issue` | object | issue output from the tool |
 |   ↳ `id` | string | Jira issue ID |
 |   ↳ `key` | string | Jira issue key \(e.g., PROJ-123\) |
@@ -118,19 +308,20 @@ Trigger workflow when a new issue is created in Jira
 |     ↳ `creator` | object | creator output from the tool |
 |       ↳ `displayName` | string | Creator display name |
 |       ↳ `accountId` | string | Creator account ID |
-|       ↳ `emailAddress` | string | Creator email address |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
 |     ↳ `duedate` | string | Due date for the issue |
 |     ↳ `project` | object | project output from the tool |
 |       ↳ `key` | string | Project key |
 |       ↳ `name` | string | Project name |
 |       ↳ `id` | string | Project ID |
 |     ↳ `summary` | string | Issue summary/title |
+|     ↳ `description` | json | Issue description in Atlassian Document Format \(ADF\). On Jira Server this may be a plain string. |
 |     ↳ `updated` | string | Last updated date \(ISO format\) |
 |     ↳ `watches` | json | Watchers information |
 |     ↳ `assignee` | object | assignee output from the tool |
 |       ↳ `displayName` | string | Assignee display name |
 |       ↳ `accountId` | string | Assignee account ID |
-|       ↳ `emailAddress` | string | Assignee email address |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
 |     ↳ `priority` | object | priority output from the tool |
 |       ↳ `name` | string | Priority name |
 |       ↳ `id` | string | Priority ID |
@@ -138,13 +329,18 @@ Trigger workflow when a new issue is created in Jira
 |     ↳ `reporter` | object | reporter output from the tool |
 |       ↳ `displayName` | string | Reporter display name |
 |       ↳ `accountId` | string | Reporter account ID |
-|       ↳ `emailAddress` | string | Reporter email address |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
 |     ↳ `security` | string | Security level |
 |     ↳ `subtasks` | array | Array of subtask objects |
 |     ↳ `versions` | array | Array of affected versions |
 |     ↳ `issuetype` | object | issuetype output from the tool |
 |       ↳ `name` | string | Issue type name |
 |       ↳ `id` | string | Issue type ID |
+|     ↳ `resolution` | object | resolution output from the tool |
+|       ↳ `name` | string | Resolution name \(e.g., Done, Fixed\) |
+|       ↳ `id` | string | Resolution ID |
+|     ↳ `components` | array | Array of component objects associated with this issue |
+|     ↳ `fixVersions` | array | Array of fix version objects for this issue |
 | `issue_event_type_name` | string | Issue event type name from Jira \(only present in issue events\) |
 
 
@@ -167,6 +363,10 @@ Trigger workflow when an issue is deleted in Jira
 | --------- | ---- | ----------- |
 | `webhookEvent` | string | The webhook event type \(e.g., jira:issue_created, comment_created, worklog_created\) |
 | `timestamp` | number | Timestamp of the webhook event |
+| `user` | object | user output from the tool |
+|   ↳ `displayName` | string | Display name of the user who triggered the event |
+|   ↳ `accountId` | string | Account ID of the user who triggered the event |
+|   ↳ `emailAddress` | string | Email address of the user who triggered the event |
 | `issue` | object | issue output from the tool |
 |   ↳ `id` | string | Jira issue ID |
 |   ↳ `key` | string | Jira issue key \(e.g., PROJ-123\) |
@@ -182,19 +382,20 @@ Trigger workflow when an issue is deleted in Jira
 |     ↳ `creator` | object | creator output from the tool |
 |       ↳ `displayName` | string | Creator display name |
 |       ↳ `accountId` | string | Creator account ID |
-|       ↳ `emailAddress` | string | Creator email address |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
 |     ↳ `duedate` | string | Due date for the issue |
 |     ↳ `project` | object | project output from the tool |
 |       ↳ `key` | string | Project key |
 |       ↳ `name` | string | Project name |
 |       ↳ `id` | string | Project ID |
 |     ↳ `summary` | string | Issue summary/title |
+|     ↳ `description` | json | Issue description in Atlassian Document Format \(ADF\). On Jira Server this may be a plain string. |
 |     ↳ `updated` | string | Last updated date \(ISO format\) |
 |     ↳ `watches` | json | Watchers information |
 |     ↳ `assignee` | object | assignee output from the tool |
 |       ↳ `displayName` | string | Assignee display name |
 |       ↳ `accountId` | string | Assignee account ID |
-|       ↳ `emailAddress` | string | Assignee email address |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
 |     ↳ `priority` | object | priority output from the tool |
 |       ↳ `name` | string | Priority name |
 |       ↳ `id` | string | Priority ID |
@@ -202,13 +403,18 @@ Trigger workflow when an issue is deleted in Jira
 |     ↳ `reporter` | object | reporter output from the tool |
 |       ↳ `displayName` | string | Reporter display name |
 |       ↳ `accountId` | string | Reporter account ID |
-|       ↳ `emailAddress` | string | Reporter email address |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
 |     ↳ `security` | string | Security level |
 |     ↳ `subtasks` | array | Array of subtask objects |
 |     ↳ `versions` | array | Array of affected versions |
 |     ↳ `issuetype` | object | issuetype output from the tool |
 |       ↳ `name` | string | Issue type name |
 |       ↳ `id` | string | Issue type ID |
+|     ↳ `resolution` | object | resolution output from the tool |
+|       ↳ `name` | string | Resolution name \(e.g., Done, Fixed\) |
+|       ↳ `id` | string | Resolution ID |
+|     ↳ `components` | array | Array of component objects associated with this issue |
+|     ↳ `fixVersions` | array | Array of fix version objects for this issue |
 | `issue_event_type_name` | string | Issue event type name from Jira \(only present in issue events\) |
 
 
@@ -232,6 +438,10 @@ Trigger workflow when an issue is updated in Jira
 | --------- | ---- | ----------- |
 | `webhookEvent` | string | The webhook event type \(e.g., jira:issue_created, comment_created, worklog_created\) |
 | `timestamp` | number | Timestamp of the webhook event |
+| `user` | object | user output from the tool |
+|   ↳ `displayName` | string | Display name of the user who triggered the event |
+|   ↳ `accountId` | string | Account ID of the user who triggered the event |
+|   ↳ `emailAddress` | string | Email address of the user who triggered the event |
 | `issue` | object | issue output from the tool |
 |   ↳ `id` | string | Jira issue ID |
 |   ↳ `key` | string | Jira issue key \(e.g., PROJ-123\) |
@@ -247,19 +457,20 @@ Trigger workflow when an issue is updated in Jira
 |     ↳ `creator` | object | creator output from the tool |
 |       ↳ `displayName` | string | Creator display name |
 |       ↳ `accountId` | string | Creator account ID |
-|       ↳ `emailAddress` | string | Creator email address |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
 |     ↳ `duedate` | string | Due date for the issue |
 |     ↳ `project` | object | project output from the tool |
 |       ↳ `key` | string | Project key |
 |       ↳ `name` | string | Project name |
 |       ↳ `id` | string | Project ID |
 |     ↳ `summary` | string | Issue summary/title |
+|     ↳ `description` | json | Issue description in Atlassian Document Format \(ADF\). On Jira Server this may be a plain string. |
 |     ↳ `updated` | string | Last updated date \(ISO format\) |
 |     ↳ `watches` | json | Watchers information |
 |     ↳ `assignee` | object | assignee output from the tool |
 |       ↳ `displayName` | string | Assignee display name |
 |       ↳ `accountId` | string | Assignee account ID |
-|       ↳ `emailAddress` | string | Assignee email address |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
 |     ↳ `priority` | object | priority output from the tool |
 |       ↳ `name` | string | Priority name |
 |       ↳ `id` | string | Priority ID |
@@ -267,16 +478,192 @@ Trigger workflow when an issue is updated in Jira
 |     ↳ `reporter` | object | reporter output from the tool |
 |       ↳ `displayName` | string | Reporter display name |
 |       ↳ `accountId` | string | Reporter account ID |
-|       ↳ `emailAddress` | string | Reporter email address |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
 |     ↳ `security` | string | Security level |
 |     ↳ `subtasks` | array | Array of subtask objects |
 |     ↳ `versions` | array | Array of affected versions |
 |     ↳ `issuetype` | object | issuetype output from the tool |
 |       ↳ `name` | string | Issue type name |
 |       ↳ `id` | string | Issue type ID |
+|     ↳ `resolution` | object | resolution output from the tool |
+|       ↳ `name` | string | Resolution name \(e.g., Done, Fixed\) |
+|       ↳ `id` | string | Resolution ID |
+|     ↳ `components` | array | Array of component objects associated with this issue |
+|     ↳ `fixVersions` | array | Array of fix version objects for this issue |
 | `issue_event_type_name` | string | Issue event type name from Jira \(only present in issue events\) |
 | `changelog` | object | changelog output from the tool |
 |   ↳ `id` | string | Changelog ID |
+
+
+---
+
+### Jira Project Created
+
+Trigger workflow when a project is created in Jira
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `webhookEvent` | string | The webhook event type \(project_created\) |
+| `timestamp` | number | Timestamp of the webhook event |
+| `user` | object | user output from the tool |
+|   ↳ `displayName` | string | Display name of the user who triggered the event |
+|   ↳ `accountId` | string | Account ID of the user who triggered the event |
+|   ↳ `emailAddress` | string | Email address of the user who triggered the event |
+| `project` | object | project output from the tool |
+|   ↳ `id` | string | Project ID |
+|   ↳ `key` | string | Project key |
+|   ↳ `name` | string | Project name |
+|   ↳ `self` | string | REST API URL for this project |
+|   ↳ `projectTypeKey` | string | Project type \(e.g., software, business\) |
+|   ↳ `lead` | object | lead output from the tool |
+|     ↳ `displayName` | string | Project lead display name |
+|     ↳ `accountId` | string | Project lead account ID |
+
+
+---
+
+### Jira Sprint Closed
+
+Trigger workflow when a sprint is closed in Jira
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `webhookEvent` | string | The webhook event type \(e.g., sprint_started, sprint_closed\) |
+| `timestamp` | number | Timestamp of the webhook event |
+| `user` | object | user output from the tool |
+|   ↳ `displayName` | string | Display name of the user who triggered the event |
+|   ↳ `accountId` | string | Account ID of the user who triggered the event |
+|   ↳ `emailAddress` | string | Email address of the user who triggered the event |
+| `sprint` | object | sprint output from the tool |
+|   ↳ `id` | number | Sprint ID |
+|   ↳ `self` | string | REST API URL for this sprint |
+|   ↳ `state` | string | Sprint state \(future, active, closed\) |
+|   ↳ `name` | string | Sprint name |
+|   ↳ `startDate` | string | Sprint start date \(ISO format\) |
+|   ↳ `endDate` | string | Sprint end date \(ISO format\) |
+|   ↳ `completeDate` | string | Sprint completion date \(ISO format\) |
+|   ↳ `originBoardId` | number | Board ID the sprint belongs to |
+|   ↳ `goal` | string | Sprint goal |
+|   ↳ `createdDate` | string | Sprint creation date \(ISO format\) |
+
+
+---
+
+### Jira Sprint Created
+
+Trigger workflow when a sprint is created in Jira
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `webhookEvent` | string | The webhook event type \(e.g., sprint_started, sprint_closed\) |
+| `timestamp` | number | Timestamp of the webhook event |
+| `user` | object | user output from the tool |
+|   ↳ `displayName` | string | Display name of the user who triggered the event |
+|   ↳ `accountId` | string | Account ID of the user who triggered the event |
+|   ↳ `emailAddress` | string | Email address of the user who triggered the event |
+| `sprint` | object | sprint output from the tool |
+|   ↳ `id` | number | Sprint ID |
+|   ↳ `self` | string | REST API URL for this sprint |
+|   ↳ `state` | string | Sprint state \(future, active, closed\) |
+|   ↳ `name` | string | Sprint name |
+|   ↳ `startDate` | string | Sprint start date \(ISO format\) |
+|   ↳ `endDate` | string | Sprint end date \(ISO format\) |
+|   ↳ `completeDate` | string | Sprint completion date \(ISO format\) |
+|   ↳ `originBoardId` | number | Board ID the sprint belongs to |
+|   ↳ `goal` | string | Sprint goal |
+|   ↳ `createdDate` | string | Sprint creation date \(ISO format\) |
+
+
+---
+
+### Jira Sprint Started
+
+Trigger workflow when a sprint is started in Jira
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `webhookEvent` | string | The webhook event type \(e.g., sprint_started, sprint_closed\) |
+| `timestamp` | number | Timestamp of the webhook event |
+| `user` | object | user output from the tool |
+|   ↳ `displayName` | string | Display name of the user who triggered the event |
+|   ↳ `accountId` | string | Account ID of the user who triggered the event |
+|   ↳ `emailAddress` | string | Email address of the user who triggered the event |
+| `sprint` | object | sprint output from the tool |
+|   ↳ `id` | number | Sprint ID |
+|   ↳ `self` | string | REST API URL for this sprint |
+|   ↳ `state` | string | Sprint state \(future, active, closed\) |
+|   ↳ `name` | string | Sprint name |
+|   ↳ `startDate` | string | Sprint start date \(ISO format\) |
+|   ↳ `endDate` | string | Sprint end date \(ISO format\) |
+|   ↳ `completeDate` | string | Sprint completion date \(ISO format\) |
+|   ↳ `originBoardId` | number | Board ID the sprint belongs to |
+|   ↳ `goal` | string | Sprint goal |
+|   ↳ `createdDate` | string | Sprint creation date \(ISO format\) |
+
+
+---
+
+### Jira Version Released
+
+Trigger workflow when a version is released in Jira
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `webhookEvent` | string | The webhook event type \(jira:version_released\) |
+| `timestamp` | number | Timestamp of the webhook event |
+| `user` | object | user output from the tool |
+|   ↳ `displayName` | string | Display name of the user who triggered the event |
+|   ↳ `accountId` | string | Account ID of the user who triggered the event |
+|   ↳ `emailAddress` | string | Email address of the user who triggered the event |
+| `version` | object | version output from the tool |
+|   ↳ `id` | string | Version ID |
+|   ↳ `name` | string | Version name |
+|   ↳ `self` | string | REST API URL for this version |
+|   ↳ `released` | boolean | Whether the version is released |
+|   ↳ `releaseDate` | string | Release date \(ISO format\) |
+|   ↳ `projectId` | number | Project ID the version belongs to |
+|   ↳ `description` | string | Version description |
+|   ↳ `archived` | boolean | Whether the version is archived |
 
 
 ---
@@ -337,6 +724,10 @@ Trigger workflow when time is logged on a Jira issue
 | --------- | ---- | ----------- |
 | `webhookEvent` | string | The webhook event type \(e.g., jira:issue_created, comment_created, worklog_created\) |
 | `timestamp` | number | Timestamp of the webhook event |
+| `user` | object | user output from the tool |
+|   ↳ `displayName` | string | Display name of the user who triggered the event |
+|   ↳ `accountId` | string | Account ID of the user who triggered the event |
+|   ↳ `emailAddress` | string | Email address of the user who triggered the event |
 | `issue` | object | issue output from the tool |
 |   ↳ `id` | string | Jira issue ID |
 |   ↳ `key` | string | Jira issue key \(e.g., PROJ-123\) |
@@ -352,19 +743,20 @@ Trigger workflow when time is logged on a Jira issue
 |     ↳ `creator` | object | creator output from the tool |
 |       ↳ `displayName` | string | Creator display name |
 |       ↳ `accountId` | string | Creator account ID |
-|       ↳ `emailAddress` | string | Creator email address |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
 |     ↳ `duedate` | string | Due date for the issue |
 |     ↳ `project` | object | project output from the tool |
 |       ↳ `key` | string | Project key |
 |       ↳ `name` | string | Project name |
 |       ↳ `id` | string | Project ID |
 |     ↳ `summary` | string | Issue summary/title |
+|     ↳ `description` | json | Issue description in Atlassian Document Format \(ADF\). On Jira Server this may be a plain string. |
 |     ↳ `updated` | string | Last updated date \(ISO format\) |
 |     ↳ `watches` | json | Watchers information |
 |     ↳ `assignee` | object | assignee output from the tool |
 |       ↳ `displayName` | string | Assignee display name |
 |       ↳ `accountId` | string | Assignee account ID |
-|       ↳ `emailAddress` | string | Assignee email address |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
 |     ↳ `priority` | object | priority output from the tool |
 |       ↳ `name` | string | Priority name |
 |       ↳ `id` | string | Priority ID |
@@ -372,21 +764,213 @@ Trigger workflow when time is logged on a Jira issue
 |     ↳ `reporter` | object | reporter output from the tool |
 |       ↳ `displayName` | string | Reporter display name |
 |       ↳ `accountId` | string | Reporter account ID |
-|       ↳ `emailAddress` | string | Reporter email address |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
 |     ↳ `security` | string | Security level |
 |     ↳ `subtasks` | array | Array of subtask objects |
 |     ↳ `versions` | array | Array of affected versions |
 |     ↳ `issuetype` | object | issuetype output from the tool |
 |       ↳ `name` | string | Issue type name |
 |       ↳ `id` | string | Issue type ID |
+|     ↳ `resolution` | object | resolution output from the tool |
+|       ↳ `name` | string | Resolution name \(e.g., Done, Fixed\) |
+|       ↳ `id` | string | Resolution ID |
+|     ↳ `components` | array | Array of component objects associated with this issue |
+|     ↳ `fixVersions` | array | Array of fix version objects for this issue |
 | `worklog` | object | worklog output from the tool |
 |   ↳ `id` | string | Worklog entry ID |
 |   ↳ `author` | object | author output from the tool |
 |     ↳ `displayName` | string | Worklog author display name |
 |     ↳ `accountId` | string | Worklog author account ID |
 |     ↳ `emailAddress` | string | Worklog author email address |
+|   ↳ `updateAuthor` | object | updateAuthor output from the tool |
+|     ↳ `displayName` | string | Display name of the user who last updated the worklog |
+|     ↳ `accountId` | string | Account ID of the user who last updated the worklog |
 |   ↳ `timeSpent` | string | Time spent \(e.g., "2h 30m"\) |
 |   ↳ `timeSpentSeconds` | number | Time spent in seconds |
 |   ↳ `comment` | string | Worklog comment/description |
 |   ↳ `started` | string | When the work was started \(ISO format\) |
+|   ↳ `created` | string | When the worklog entry was created \(ISO format\) |
+|   ↳ `updated` | string | When the worklog entry was last updated \(ISO format\) |
+|   ↳ `issueId` | string | ID of the issue this worklog belongs to |
+|   ↳ `self` | string | REST API URL for this worklog entry |
+
+
+---
+
+### Jira Worklog Deleted
+
+Trigger workflow when a worklog entry is deleted from a Jira issue
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+| `jqlFilter` | string | No | Filter which worklog deletions trigger this workflow using JQL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `webhookEvent` | string | The webhook event type \(e.g., jira:issue_created, comment_created, worklog_created\) |
+| `timestamp` | number | Timestamp of the webhook event |
+| `user` | object | user output from the tool |
+|   ↳ `displayName` | string | Display name of the user who triggered the event |
+|   ↳ `accountId` | string | Account ID of the user who triggered the event |
+|   ↳ `emailAddress` | string | Email address of the user who triggered the event |
+| `issue` | object | issue output from the tool |
+|   ↳ `id` | string | Jira issue ID |
+|   ↳ `key` | string | Jira issue key \(e.g., PROJ-123\) |
+|   ↳ `self` | string | REST API URL for this issue |
+|   ↳ `fields` | object | fields output from the tool |
+|     ↳ `votes` | json | Votes on this issue |
+|     ↳ `labels` | array | Array of labels applied to this issue |
+|     ↳ `status` | object | status output from the tool |
+|       ↳ `name` | string | Status name |
+|       ↳ `id` | string | Status ID |
+|       ↳ `statusCategory` | json | Status category information |
+|     ↳ `created` | string | Issue creation date \(ISO format\) |
+|     ↳ `creator` | object | creator output from the tool |
+|       ↳ `displayName` | string | Creator display name |
+|       ↳ `accountId` | string | Creator account ID |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
+|     ↳ `duedate` | string | Due date for the issue |
+|     ↳ `project` | object | project output from the tool |
+|       ↳ `key` | string | Project key |
+|       ↳ `name` | string | Project name |
+|       ↳ `id` | string | Project ID |
+|     ↳ `summary` | string | Issue summary/title |
+|     ↳ `description` | json | Issue description in Atlassian Document Format \(ADF\). On Jira Server this may be a plain string. |
+|     ↳ `updated` | string | Last updated date \(ISO format\) |
+|     ↳ `watches` | json | Watchers information |
+|     ↳ `assignee` | object | assignee output from the tool |
+|       ↳ `displayName` | string | Assignee display name |
+|       ↳ `accountId` | string | Assignee account ID |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
+|     ↳ `priority` | object | priority output from the tool |
+|       ↳ `name` | string | Priority name |
+|       ↳ `id` | string | Priority ID |
+|     ↳ `progress` | json | Progress tracking information |
+|     ↳ `reporter` | object | reporter output from the tool |
+|       ↳ `displayName` | string | Reporter display name |
+|       ↳ `accountId` | string | Reporter account ID |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
+|     ↳ `security` | string | Security level |
+|     ↳ `subtasks` | array | Array of subtask objects |
+|     ↳ `versions` | array | Array of affected versions |
+|     ↳ `issuetype` | object | issuetype output from the tool |
+|       ↳ `name` | string | Issue type name |
+|       ↳ `id` | string | Issue type ID |
+|     ↳ `resolution` | object | resolution output from the tool |
+|       ↳ `name` | string | Resolution name \(e.g., Done, Fixed\) |
+|       ↳ `id` | string | Resolution ID |
+|     ↳ `components` | array | Array of component objects associated with this issue |
+|     ↳ `fixVersions` | array | Array of fix version objects for this issue |
+| `worklog` | object | worklog output from the tool |
+|   ↳ `id` | string | Worklog entry ID |
+|   ↳ `author` | object | author output from the tool |
+|     ↳ `displayName` | string | Worklog author display name |
+|     ↳ `accountId` | string | Worklog author account ID |
+|     ↳ `emailAddress` | string | Worklog author email address |
+|   ↳ `updateAuthor` | object | updateAuthor output from the tool |
+|     ↳ `displayName` | string | Display name of the user who last updated the worklog |
+|     ↳ `accountId` | string | Account ID of the user who last updated the worklog |
+|   ↳ `timeSpent` | string | Time spent \(e.g., "2h 30m"\) |
+|   ↳ `timeSpentSeconds` | number | Time spent in seconds |
+|   ↳ `comment` | string | Worklog comment/description |
+|   ↳ `started` | string | When the work was started \(ISO format\) |
+|   ↳ `created` | string | When the worklog entry was created \(ISO format\) |
+|   ↳ `updated` | string | When the worklog entry was last updated \(ISO format\) |
+|   ↳ `issueId` | string | ID of the issue this worklog belongs to |
+|   ↳ `self` | string | REST API URL for this worklog entry |
+
+
+---
+
+### Jira Worklog Updated
+
+Trigger workflow when a worklog entry is updated on a Jira issue
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `webhookSecret` | string | No | Optional secret to validate webhook deliveries from Jira using HMAC signature |
+| `jqlFilter` | string | No | Filter which worklog updates trigger this workflow using JQL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `webhookEvent` | string | The webhook event type \(e.g., jira:issue_created, comment_created, worklog_created\) |
+| `timestamp` | number | Timestamp of the webhook event |
+| `user` | object | user output from the tool |
+|   ↳ `displayName` | string | Display name of the user who triggered the event |
+|   ↳ `accountId` | string | Account ID of the user who triggered the event |
+|   ↳ `emailAddress` | string | Email address of the user who triggered the event |
+| `issue` | object | issue output from the tool |
+|   ↳ `id` | string | Jira issue ID |
+|   ↳ `key` | string | Jira issue key \(e.g., PROJ-123\) |
+|   ↳ `self` | string | REST API URL for this issue |
+|   ↳ `fields` | object | fields output from the tool |
+|     ↳ `votes` | json | Votes on this issue |
+|     ↳ `labels` | array | Array of labels applied to this issue |
+|     ↳ `status` | object | status output from the tool |
+|       ↳ `name` | string | Status name |
+|       ↳ `id` | string | Status ID |
+|       ↳ `statusCategory` | json | Status category information |
+|     ↳ `created` | string | Issue creation date \(ISO format\) |
+|     ↳ `creator` | object | creator output from the tool |
+|       ↳ `displayName` | string | Creator display name |
+|       ↳ `accountId` | string | Creator account ID |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
+|     ↳ `duedate` | string | Due date for the issue |
+|     ↳ `project` | object | project output from the tool |
+|       ↳ `key` | string | Project key |
+|       ↳ `name` | string | Project name |
+|       ↳ `id` | string | Project ID |
+|     ↳ `summary` | string | Issue summary/title |
+|     ↳ `description` | json | Issue description in Atlassian Document Format \(ADF\). On Jira Server this may be a plain string. |
+|     ↳ `updated` | string | Last updated date \(ISO format\) |
+|     ↳ `watches` | json | Watchers information |
+|     ↳ `assignee` | object | assignee output from the tool |
+|       ↳ `displayName` | string | Assignee display name |
+|       ↳ `accountId` | string | Assignee account ID |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
+|     ↳ `priority` | object | priority output from the tool |
+|       ↳ `name` | string | Priority name |
+|       ↳ `id` | string | Priority ID |
+|     ↳ `progress` | json | Progress tracking information |
+|     ↳ `reporter` | object | reporter output from the tool |
+|       ↳ `displayName` | string | Reporter display name |
+|       ↳ `accountId` | string | Reporter account ID |
+|       ↳ `emailAddress` | string | Email address \(Jira Server only — not available in Jira Cloud webhook payloads\) |
+|     ↳ `security` | string | Security level |
+|     ↳ `subtasks` | array | Array of subtask objects |
+|     ↳ `versions` | array | Array of affected versions |
+|     ↳ `issuetype` | object | issuetype output from the tool |
+|       ↳ `name` | string | Issue type name |
+|       ↳ `id` | string | Issue type ID |
+|     ↳ `resolution` | object | resolution output from the tool |
+|       ↳ `name` | string | Resolution name \(e.g., Done, Fixed\) |
+|       ↳ `id` | string | Resolution ID |
+|     ↳ `components` | array | Array of component objects associated with this issue |
+|     ↳ `fixVersions` | array | Array of fix version objects for this issue |
+| `worklog` | object | worklog output from the tool |
+|   ↳ `id` | string | Worklog entry ID |
+|   ↳ `author` | object | author output from the tool |
+|     ↳ `displayName` | string | Worklog author display name |
+|     ↳ `accountId` | string | Worklog author account ID |
+|     ↳ `emailAddress` | string | Worklog author email address |
+|   ↳ `updateAuthor` | object | updateAuthor output from the tool |
+|     ↳ `displayName` | string | Display name of the user who last updated the worklog |
+|     ↳ `accountId` | string | Account ID of the user who last updated the worklog |
+|   ↳ `timeSpent` | string | Time spent \(e.g., "2h 30m"\) |
+|   ↳ `timeSpentSeconds` | number | Time spent in seconds |
+|   ↳ `comment` | string | Worklog comment/description |
+|   ↳ `started` | string | When the work was started \(ISO format\) |
+|   ↳ `created` | string | When the worklog entry was created \(ISO format\) |
+|   ↳ `updated` | string | When the worklog entry was last updated \(ISO format\) |
+|   ↳ `issueId` | string | ID of the issue this worklog belongs to |
+|   ↳ `self` | string | REST API URL for this worklog entry |
 

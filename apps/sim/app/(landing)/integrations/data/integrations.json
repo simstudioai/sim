@@ -2523,6 +2523,16 @@
         "description": "Trigger workflow when a page is moved in Confluence"
       },
       {
+        "id": "confluence_page_restored",
+        "name": "Confluence Page Restored",
+        "description": "Trigger workflow when a page is restored from trash in Confluence"
+      },
+      {
+        "id": "confluence_page_permissions_updated",
+        "name": "Confluence Page Permissions Updated",
+        "description": "Trigger workflow when page permissions are changed in Confluence"
+      },
+      {
         "id": "confluence_comment_created",
         "name": "Confluence Comment Created",
         "description": "Trigger workflow when a comment is created in Confluence"
@@ -2531,6 +2541,11 @@
         "id": "confluence_comment_removed",
         "name": "Confluence Comment Removed",
         "description": "Trigger workflow when a comment is removed in Confluence"
+      },
+      {
+        "id": "confluence_comment_updated",
+        "name": "Confluence Comment Updated",
+        "description": "Trigger workflow when a comment is updated in Confluence"
       },
       {
         "id": "confluence_blog_created",
@@ -2548,6 +2563,11 @@
         "description": "Trigger workflow when a blog post is removed in Confluence"
       },
       {
+        "id": "confluence_blog_restored",
+        "name": "Confluence Blog Post Restored",
+        "description": "Trigger workflow when a blog post is restored from trash in Confluence"
+      },
+      {
         "id": "confluence_attachment_created",
         "name": "Confluence Attachment Created",
         "description": "Trigger workflow when an attachment is uploaded in Confluence"
@@ -2556,6 +2576,11 @@
         "id": "confluence_attachment_removed",
         "name": "Confluence Attachment Removed",
         "description": "Trigger workflow when an attachment is removed in Confluence"
+      },
+      {
+        "id": "confluence_attachment_updated",
+        "name": "Confluence Attachment Updated",
+        "description": "Trigger workflow when an attachment is updated in Confluence"
       },
       {
         "id": "confluence_space_created",
@@ -2568,6 +2593,11 @@
         "description": "Trigger workflow when a space is updated in Confluence"
       },
       {
+        "id": "confluence_space_removed",
+        "name": "Confluence Space Removed",
+        "description": "Trigger workflow when a space is removed in Confluence"
+      },
+      {
         "id": "confluence_label_added",
         "name": "Confluence Label Added",
         "description": "Trigger workflow when a label is added to content in Confluence"
@@ -2578,12 +2608,17 @@
         "description": "Trigger workflow when a label is removed from content in Confluence"
       },
       {
+        "id": "confluence_user_created",
+        "name": "Confluence User Created",
+        "description": "Trigger workflow when a new user is added to Confluence"
+      },
+      {
         "id": "confluence_webhook",
         "name": "Confluence Webhook (All Events)",
         "description": "Trigger workflow on any Confluence webhook event"
       }
     ],
-    "triggerCount": 16,
+    "triggerCount": 23,
     "authType": "oauth",
     "category": "tools",
     "integrationTypes": ["documents", "productivity", "search"],
@@ -6798,9 +6833,54 @@
         "description": "Trigger workflow when a comment is added to a Jira issue"
       },
       {
+        "id": "jira_comment_updated",
+        "name": "Jira Comment Updated",
+        "description": "Trigger workflow when a comment is updated on a Jira issue"
+      },
+      {
+        "id": "jira_comment_deleted",
+        "name": "Jira Comment Deleted",
+        "description": "Trigger workflow when a comment is deleted from a Jira issue"
+      },
+      {
         "id": "jira_worklog_created",
         "name": "Jira Worklog Created",
         "description": "Trigger workflow when time is logged on a Jira issue"
+      },
+      {
+        "id": "jira_worklog_updated",
+        "name": "Jira Worklog Updated",
+        "description": "Trigger workflow when a worklog entry is updated on a Jira issue"
+      },
+      {
+        "id": "jira_worklog_deleted",
+        "name": "Jira Worklog Deleted",
+        "description": "Trigger workflow when a worklog entry is deleted from a Jira issue"
+      },
+      {
+        "id": "jira_sprint_created",
+        "name": "Jira Sprint Created",
+        "description": "Trigger workflow when a sprint is created in Jira"
+      },
+      {
+        "id": "jira_sprint_started",
+        "name": "Jira Sprint Started",
+        "description": "Trigger workflow when a sprint is started in Jira"
+      },
+      {
+        "id": "jira_sprint_closed",
+        "name": "Jira Sprint Closed",
+        "description": "Trigger workflow when a sprint is closed in Jira"
+      },
+      {
+        "id": "jira_project_created",
+        "name": "Jira Project Created",
+        "description": "Trigger workflow when a project is created in Jira"
+      },
+      {
+        "id": "jira_version_released",
+        "name": "Jira Version Released",
+        "description": "Trigger workflow when a version is released in Jira"
       },
       {
         "id": "jira_webhook",
@@ -6808,7 +6888,7 @@
         "description": "Trigger workflow on any Jira webhook event"
       }
     ],
-    "triggerCount": 6,
+    "triggerCount": 15,
     "authType": "oauth",
     "category": "tools",
     "integrationTypes": ["productivity", "customer-support"],
@@ -6962,8 +7042,34 @@
       }
     ],
     "operationCount": 34,
-    "triggers": [],
-    "triggerCount": 0,
+    "triggers": [
+      {
+        "id": "jsm_request_created",
+        "name": "JSM Request Created",
+        "description": "Trigger workflow when a new service request is created in Jira Service Management"
+      },
+      {
+        "id": "jsm_request_updated",
+        "name": "JSM Request Updated",
+        "description": "Trigger workflow when a service request is updated in Jira Service Management"
+      },
+      {
+        "id": "jsm_request_commented",
+        "name": "JSM Request Commented",
+        "description": "Trigger workflow when a comment is added to a Jira Service Management request"
+      },
+      {
+        "id": "jsm_request_resolved",
+        "name": "JSM Request Resolved",
+        "description": "Trigger workflow when a service request is resolved in Jira Service Management"
+      },
+      {
+        "id": "jsm_webhook",
+        "name": "JSM Webhook (All Events)",
+        "description": "Trigger workflow on any Jira Service Management webhook event"
+      }
+    ],
+    "triggerCount": 5,
     "authType": "oauth",
     "category": "tools",
     "integrationTypes": ["customer-support", "developer-tools", "productivity"],

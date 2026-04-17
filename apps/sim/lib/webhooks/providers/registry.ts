@@ -20,6 +20,7 @@ import { hubspotHandler } from '@/lib/webhooks/providers/hubspot'
 import { imapHandler } from '@/lib/webhooks/providers/imap'
 import { intercomHandler } from '@/lib/webhooks/providers/intercom'
 import { jiraHandler } from '@/lib/webhooks/providers/jira'
+import { jsmHandler } from '@/lib/webhooks/providers/jsm'
 import { lemlistHandler } from '@/lib/webhooks/providers/lemlist'
 import { linearHandler } from '@/lib/webhooks/providers/linear'
 import { microsoftTeamsHandler } from '@/lib/webhooks/providers/microsoft-teams'
@@ -65,6 +66,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   imap: imapHandler,
   intercom: intercomHandler,
   jira: jiraHandler,
+  jsm: jsmHandler,
   lemlist: lemlistHandler,
   linear: linearHandler,
   resend: resendHandler,

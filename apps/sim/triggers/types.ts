@@ -1,6 +1,6 @@
 export interface TriggerOutput {
   type?: string
-  description?: string
+  description?: string | TriggerOutput
   [key: string]: TriggerOutput | string | undefined
 }
 
