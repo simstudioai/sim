@@ -101,6 +101,7 @@ export type OAuthService =
   | 'calcom'
   | 'docusign'
   | 'github'
+  | 'monday'
 
 export interface OAuthProviderConfig {
   name: string

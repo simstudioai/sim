@@ -216,6 +216,9 @@ export function resolveArrayInput(
         if (typeof resolved === 'object' && resolved !== null) {
           return Object.entries(resolved)
         }
+        if (resolved === null) {
+          return []
+        }
         throw new Error(`Reference "${items}" did not resolve to an array or object`)
       } catch (error) {
         if (error instanceof Error && error.message.startsWith('Reference "')) {

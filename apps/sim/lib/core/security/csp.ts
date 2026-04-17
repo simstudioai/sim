@@ -3,7 +3,18 @@ import { isDev, isHosted, isReactGrabEnabled } from '../config/feature-flags'
 
 /**
  * Content Security Policy (CSP) configuration builder
+ *
+ * NOTE: This file is loaded by next.config.ts at build time, before @/ path
+ * aliases are resolved. Do NOT import from ../utils/urls (which uses @/ imports).
+ * Keep all URL constants local to this file.
  */
+
+const DEFAULT_SOCKET_URL = 'http://localhost:3002'
+const DEFAULT_OLLAMA_URL = 'http://localhost:11434'
+
+function toWebSocketUrl(httpUrl: string): string {
+  return httpUrl.replace('http://', 'ws://').replace('https://', 'wss://')
+}
 
 function getHostnameFromUrl(url: string | undefined): string[] {
   if (!url) return []
@@ -156,14 +167,11 @@ export const buildTimeCSPDirectives: CSPDirectives = {
   'connect-src': [
     ...STATIC_CONNECT_SRC,
     env.NEXT_PUBLIC_APP_URL || '',
-    ...(env.OLLAMA_URL ? [env.OLLAMA_URL] : isDev ? ['http://localhost:11434'] : []),
+    ...(env.OLLAMA_URL ? [env.OLLAMA_URL] : isDev ? [DEFAULT_OLLAMA_URL] : []),
     ...(env.NEXT_PUBLIC_SOCKET_URL
-      ? [
-          env.NEXT_PUBLIC_SOCKET_URL,
-          env.NEXT_PUBLIC_SOCKET_URL.replace('http://', 'ws://').replace('https://', 'wss://'),
-        ]
+      ? [env.NEXT_PUBLIC_SOCKET_URL, toWebSocketUrl(env.NEXT_PUBLIC_SOCKET_URL)]
       : isDev
-        ? ['http://localhost:3002', 'ws://localhost:3002']
+        ? [DEFAULT_SOCKET_URL, toWebSocketUrl(DEFAULT_SOCKET_URL)]
         : []),
     ...getHostnameFromUrl(env.NEXT_PUBLIC_BRAND_LOGO_URL),
     ...getHostnameFromUrl(env.NEXT_PUBLIC_PRIVACY_URL),
@@ -201,13 +209,9 @@ export function buildCSPString(directives: CSPDirectives): string {
 export function generateRuntimeCSP(): string {
   const appUrl = getEnv('NEXT_PUBLIC_APP_URL') || ''
 
-  const socketUrl = getEnv('NEXT_PUBLIC_SOCKET_URL') || (isDev ? 'http://localhost:3002' : '')
-  const socketWsUrl = socketUrl
-    ? socketUrl.replace('http://', 'ws://').replace('https://', 'wss://')
-    : isDev
-      ? 'ws://localhost:3002'
-      : ''
-  const ollamaUrl = getEnv('OLLAMA_URL') || (isDev ? 'http://localhost:11434' : '')
+  const socketUrl = getEnv('NEXT_PUBLIC_SOCKET_URL') || (isDev ? DEFAULT_SOCKET_URL : '')
+  const socketWsUrl = socketUrl ? toWebSocketUrl(socketUrl) : ''
+  const ollamaUrl = getEnv('OLLAMA_URL') || (isDev ? DEFAULT_OLLAMA_URL : '')
 
   const brandLogoDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_BRAND_LOGO_URL'))
   const brandFaviconDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_BRAND_FAVICON_URL'))

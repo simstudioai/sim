@@ -52,6 +52,8 @@ export type SelectorKey =
   | 'webflow.items'
   | 'cloudwatch.logGroups'
   | 'cloudwatch.logStreams'
+  | 'monday.boards'
+  | 'monday.groups'
   | 'sim.workflows'
 
 export interface SelectorOption {
@@ -82,6 +84,7 @@ export interface SelectorContext {
   datasetId?: string
   serviceDeskId?: string
   impersonateUserEmail?: string
+  boardId?: string
   awsAccessKeyId?: string
   awsSecretAccessKey?: string
   awsRegion?: string

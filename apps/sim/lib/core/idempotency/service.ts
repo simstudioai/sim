@@ -454,6 +454,7 @@ export class IdempotencyService {
       normalizedHeaders?.['linear-delivery'] ||
       normalizedHeaders?.['greenhouse-event-id'] ||
       normalizedHeaders?.['x-zm-request-id'] ||
+      normalizedHeaders?.['x-atlassian-webhook-identifier'] ||
       normalizedHeaders?.['idempotency-key']
 
     if (webhookIdHeader) {

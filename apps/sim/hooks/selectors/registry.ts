@@ -1257,6 +1257,96 @@ const registry: Record<SelectorKey, SelectorDefinition> = {
       return { id: issue.id, label: issue.name }
     },
   },
+  'monday.boards': {
+    key: 'monday.boards',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'monday.boards',
+      context.oauthCredential ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'monday.boards')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ boards: { id: string; name: string }[] }>(
+        '/api/tools/monday/boards',
+        {
+          method: 'POST',
+          body,
+        }
+      )
+      return (data.boards || []).map((board) => ({
+        id: board.id,
+        label: board.name,
+      }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'monday.boards')
+      const body = JSON.stringify({ credential: credentialId, workflowId: context.workflowId })
+      const data = await fetchJson<{ boards: { id: string; name: string }[] }>(
+        '/api/tools/monday/boards',
+        {
+          method: 'POST',
+          body,
+        }
+      )
+      const board = (data.boards || []).find((b) => b.id === detailId) ?? null
+      if (!board) return null
+      return { id: board.id, label: board.name }
+    },
+  },
+  'monday.groups': {
+    key: 'monday.groups',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context }: SelectorQueryArgs) => [
+      'selectors',
+      'monday.groups',
+      context.oauthCredential ?? 'none',
+      context.boardId ?? 'none',
+    ],
+    enabled: ({ context }) => Boolean(context.oauthCredential && context.boardId),
+    fetchList: async ({ context }: SelectorQueryArgs) => {
+      const credentialId = ensureCredential(context, 'monday.groups')
+      const body = JSON.stringify({
+        credential: credentialId,
+        boardId: context.boardId,
+        workflowId: context.workflowId,
+      })
+      const data = await fetchJson<{ groups: { id: string; name: string }[] }>(
+        '/api/tools/monday/groups',
+        {
+          method: 'POST',
+          body,
+        }
+      )
+      return (data.groups || []).map((group) => ({
+        id: group.id,
+        label: group.name,
+      }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs) => {
+      if (!detailId) return null
+      const credentialId = ensureCredential(context, 'monday.groups')
+      if (!context.boardId) return null
+      const body = JSON.stringify({
+        credential: credentialId,
+        boardId: context.boardId,
+        workflowId: context.workflowId,
+      })
+      const data = await fetchJson<{ groups: { id: string; name: string }[] }>(
+        '/api/tools/monday/groups',
+        {
+          method: 'POST',
+          body,
+        }
+      )
+      const group = (data.groups || []).find((g) => g.id === detailId) ?? null
+      if (!group) return null
+      return { id: group.id, label: group.name }
+    },
+  },
   'linear.teams': {
     key: 'linear.teams',
     staleTime: SELECTOR_STALE,

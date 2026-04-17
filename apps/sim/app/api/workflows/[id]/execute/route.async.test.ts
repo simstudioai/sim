@@ -53,6 +53,7 @@ vi.mock('@/lib/core/utils/request', () => ({
 
 vi.mock('@/lib/core/utils/urls', () => ({
   getBaseUrl: vi.fn().mockReturnValue('http://localhost:3000'),
+  getOllamaUrl: vi.fn().mockReturnValue('http://localhost:11434'),
 }))
 
 vi.mock('@/lib/execution/call-chain', () => ({
