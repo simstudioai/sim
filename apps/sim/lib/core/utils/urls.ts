@@ -102,6 +102,7 @@ export function getEmailDomain(): string {
 }
 
 const DEFAULT_SOCKET_URL = 'http://localhost:3002'
+const DEFAULT_OLLAMA_URL = 'http://localhost:11434'
 
 /**
  * Returns the socket server URL for server-side internal API calls.
@@ -117,4 +118,12 @@ export function getSocketServerUrl(): string {
  */
 export function getSocketUrl(): string {
   return getEnv('NEXT_PUBLIC_SOCKET_URL') || DEFAULT_SOCKET_URL
+}
+
+/**
+ * Returns the Ollama server URL.
+ * Reads from OLLAMA_URL with a localhost fallback for development.
+ */
+export function getOllamaUrl(): string {
+  return env.OLLAMA_URL || DEFAULT_OLLAMA_URL
 }

@@ -1,9 +1,14 @@
 import { env, getEnv } from '../config/env'
 import { isDev, isHosted, isReactGrabEnabled } from '../config/feature-flags'
+import { getOllamaUrl, getSocketUrl } from '../utils/urls'
 
 /**
  * Content Security Policy (CSP) configuration builder
  */
+
+function toWebSocketUrl(httpUrl: string): string {
+  return httpUrl.replace('http://', 'ws://').replace('https://', 'wss://')
+}
 
 function getHostnameFromUrl(url: string | undefined): string[] {
   if (!url) return []
@@ -156,14 +161,11 @@ export const buildTimeCSPDirectives: CSPDirectives = {
   'connect-src': [
     ...STATIC_CONNECT_SRC,
     env.NEXT_PUBLIC_APP_URL || '',
-    ...(env.OLLAMA_URL ? [env.OLLAMA_URL] : isDev ? ['http://localhost:11434'] : []),
+    ...(env.OLLAMA_URL ? [env.OLLAMA_URL] : isDev ? [getOllamaUrl()] : []),
     ...(env.NEXT_PUBLIC_SOCKET_URL
-      ? [
-          env.NEXT_PUBLIC_SOCKET_URL,
-          env.NEXT_PUBLIC_SOCKET_URL.replace('http://', 'ws://').replace('https://', 'wss://'),
-        ]
+      ? [env.NEXT_PUBLIC_SOCKET_URL, toWebSocketUrl(env.NEXT_PUBLIC_SOCKET_URL)]
       : isDev
-        ? ['http://localhost:3002', 'ws://localhost:3002']
+        ? [getSocketUrl(), toWebSocketUrl(getSocketUrl())]
         : []),
     ...getHostnameFromUrl(env.NEXT_PUBLIC_BRAND_LOGO_URL),
     ...getHostnameFromUrl(env.NEXT_PUBLIC_PRIVACY_URL),
@@ -201,13 +203,9 @@ export function buildCSPString(directives: CSPDirectives): string {
 export function generateRuntimeCSP(): string {
   const appUrl = getEnv('NEXT_PUBLIC_APP_URL') || ''
 
-  const socketUrl = getEnv('NEXT_PUBLIC_SOCKET_URL') || (isDev ? 'http://localhost:3002' : '')
-  const socketWsUrl = socketUrl
-    ? socketUrl.replace('http://', 'ws://').replace('https://', 'wss://')
-    : isDev
-      ? 'ws://localhost:3002'
-      : ''
-  const ollamaUrl = getEnv('OLLAMA_URL') || (isDev ? 'http://localhost:11434' : '')
+  const socketUrl = getEnv('NEXT_PUBLIC_SOCKET_URL') || (isDev ? getSocketUrl() : '')
+  const socketWsUrl = socketUrl ? toWebSocketUrl(socketUrl) : ''
+  const ollamaUrl = getEnv('OLLAMA_URL') || (isDev ? getOllamaUrl() : '')
 
   const brandLogoDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_BRAND_LOGO_URL'))
   const brandFaviconDomains = getHostnameFromUrl(getEnv('NEXT_PUBLIC_BRAND_FAVICON_URL'))
