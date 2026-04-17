@@ -213,7 +213,7 @@ export const mondayHandler: WebhookProviderHandler = {
 
     if (!accessToken) {
       try {
-        const fallbackToken = await getOAuthToken(ctx.webhook.userId, 'monday')
+        const fallbackToken = await getOAuthToken(ctx.webhook.userId as string, 'monday')
         if (fallbackToken) accessToken = fallbackToken
       } catch {
         // Non-fatal — fall through to the guard below
