@@ -6,6 +6,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { generateId } from '@/lib/core/utils/uuid'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import {
@@ -147,8 +148,7 @@ function findDescendants(containerId: string, blocksById: Record<string, BlockSt
 }
 
 function notifyWorkflowUpdated(workflowId: string): void {
-  const socketUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
-  fetch(`${socketUrl}/api/workflow-updated`, {
+  fetch(`${getSocketServerUrl()}/api/workflow-updated`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

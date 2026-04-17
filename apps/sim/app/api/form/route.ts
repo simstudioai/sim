@@ -10,6 +10,7 @@ import { isDev } from '@/lib/core/config/feature-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getEmailDomain } from '@/lib/core/utils/urls'
 import { generateId } from '@/lib/core/utils/uuid'
+import { notifySocketDeploymentChanged } from '@/lib/workflows/orchestration'
 import { deployWorkflow } from '@/lib/workflows/persistence/utils'
 import {
   checkWorkflowAccessForFormCreation,
@@ -151,6 +152,8 @@ export async function POST(request: NextRequest) {
       logger.info(
         `${workflowRecord.isDeployed ? 'Redeployed' : 'Auto-deployed'} workflow ${workflowId} for form (v${result.version})`
       )
+
+      await notifySocketDeploymentChanged(workflowId)
 
       let encryptedPassword = null
       if (authType === 'password' && password) {

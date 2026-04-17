@@ -9,6 +9,7 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { env } from '@/lib/core/config/env'
+import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import {
   applyTargetedLayout,
   getTargetedLayoutImpact,
@@ -284,8 +285,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
 
     logger.info('Workflow state persisted to database', { workflowId })
 
-    const socketUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
-    fetch(`${socketUrl}/api/workflow-updated`, {
+    fetch(`${getSocketServerUrl()}/api/workflow-updated`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

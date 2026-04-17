@@ -439,4 +439,22 @@ export class RedisRoomManager implements IRoomManager {
     const userCount = await this.getUniqueUserCount(workflowId)
     logger.info(`Notified ${userCount} users about workflow update: ${workflowId}`)
   }
+
+  async handleWorkflowDeployed(workflowId: string): Promise<void> {
+    logger.info(`Handling workflow deployed notification for ${workflowId}`)
+
+    const hasRoom = await this.hasWorkflowRoom(workflowId)
+    if (!hasRoom) {
+      logger.debug(`No active room found for deployed workflow ${workflowId}`)
+      return
+    }
+
+    this._io.to(workflowId).emit('workflow-deployed', {
+      workflowId,
+      timestamp: Date.now(),
+    })
+
+    const userCount = await this.getUniqueUserCount(workflowId)
+    logger.info(`Notified ${userCount} users about workflow deployment change: ${workflowId}`)
+  }
 }

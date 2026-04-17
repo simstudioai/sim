@@ -138,4 +138,9 @@ export interface IRoomManager {
    * Handle workflow update - notify users
    */
   handleWorkflowUpdate(workflowId: string): Promise<void>
+
+  /**
+   * Handle workflow deployment change - notify users to refresh deployment state
+   */
+  handleWorkflowDeployed(workflowId: string): Promise<void>
 }

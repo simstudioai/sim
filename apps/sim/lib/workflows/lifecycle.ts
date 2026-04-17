@@ -18,6 +18,7 @@ import { env } from '@/lib/core/config/env'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { getWorkflowById } from '@/lib/workflows/utils'
 
@@ -31,8 +32,7 @@ interface ArchiveWorkflowOptions {
 
 async function notifyWorkflowArchived(workflowId: string, requestId: string): Promise<void> {
   try {
-    const socketUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
-    const socketResponse = await fetch(`${socketUrl}/api/workflow-deleted`, {
+    const socketResponse = await fetch(`${getSocketServerUrl()}/api/workflow-deleted`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
