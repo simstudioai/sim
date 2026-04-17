@@ -40,6 +40,7 @@ import {
   type ToolCallState,
 } from '@/lib/copilot/request/types'
 import { ensureHandlersRegistered, executeTool } from '@/lib/copilot/tool-executor'
+import { toError } from '@/lib/core/utils/helpers'
 
 export { waitForToolCompletion } from '@/lib/copilot/request/tools/client'
 
@@ -191,7 +192,7 @@ export async function executeToolAndReport(
     }).catch((err) => {
       logger.warn('Failed to persist async tool status', {
         toolCallId: toolCall.id,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
     })
     publishTerminalToolConfirmation({
@@ -212,13 +213,13 @@ export async function executeToolAndReport(
   }).catch((err) => {
     logger.warn('Failed to persist async tool row before execution', {
       toolCallId: toolCall.id,
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
   })
   await markAsyncToolRunning(toolCall.id, 'sim-stream').catch((err) => {
     logger.warn('Failed to mark async tool running', {
       toolCallId: toolCall.id,
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
   })
 
@@ -289,7 +290,7 @@ export async function executeToolAndReport(
       }).catch((err) => {
         logger.warn('Failed to persist async tool status', {
           toolCallId: toolCall.id,
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
       })
       publishTerminalToolConfirmation({
@@ -316,7 +317,7 @@ export async function executeToolAndReport(
       }).catch((err) => {
         logger.warn('Failed to persist async tool status', {
           toolCallId: toolCall.id,
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
       })
       publishTerminalToolConfirmation({
@@ -340,7 +341,7 @@ export async function executeToolAndReport(
       }).catch((err) => {
         logger.warn('Failed to persist async tool status', {
           toolCallId: toolCall.id,
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
       })
       publishTerminalToolConfirmation({
@@ -364,7 +365,7 @@ export async function executeToolAndReport(
       }).catch((err) => {
         logger.warn('Failed to persist async tool status', {
           toolCallId: toolCall.id,
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
       })
       publishTerminalToolConfirmation({
@@ -438,7 +439,7 @@ export async function executeToolAndReport(
     }).catch((err) => {
       logger.warn('Failed to persist async tool completion', {
         toolCallId: toolCall.id,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
     })
     publishTerminalToolConfirmation({
@@ -499,7 +500,7 @@ export async function executeToolAndReport(
       ...(terminalData !== undefined ? { data: terminalData } : {}),
     })
   } catch (error) {
-    const thrownMessage = error instanceof Error ? error.message : String(error)
+    const thrownMessage = toError(error).message
     if (abortRequested(context, execContext, options)) {
       markToolCallCancelled('Request aborted during tool execution')
       markToolResultSeen(toolCall.id)
@@ -511,7 +512,7 @@ export async function executeToolAndReport(
       }).catch((err) => {
         logger.warn('Failed to persist async tool status', {
           toolCallId: toolCall.id,
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
       })
       publishTerminalToolConfirmation({
@@ -547,7 +548,7 @@ export async function executeToolAndReport(
     }).catch((err) => {
       logger.warn('Failed to persist async tool error', {
         toolCallId: toolCall.id,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
     })
     publishTerminalToolConfirmation({

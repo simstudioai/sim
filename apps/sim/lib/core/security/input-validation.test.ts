@@ -21,6 +21,7 @@ import {
   validatePathSegment,
   validateProxyUrl,
   validateS3BucketName,
+  validateSupabaseProjectId,
 } from '@/lib/core/security/input-validation'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { sanitizeForLogging } from '@/lib/core/security/redaction'
@@ -1717,6 +1718,125 @@ describe('validateMondayColumnId', () => {
     it.concurrent('should reject strings exceeding max length', () => {
       const result = validateMondayColumnId('a'.repeat(256))
       expect(result.isValid).toBe(false)
+    })
+  })
+
+  describe('validateSupabaseProjectId', () => {
+    describe('valid inputs', () => {
+      it.concurrent('should accept a typical 20-char lowercase alphanumeric project ID', () => {
+        const result = validateSupabaseProjectId('jdrkgepadsdopsntdlom')
+        expect(result.isValid).toBe(true)
+        expect(result.sanitized).toBe('jdrkgepadsdopsntdlom')
+      })
+
+      it.concurrent('should accept project IDs with digits', () => {
+        const result = validateSupabaseProjectId('abc123def456ghi789jk')
+        expect(result.isValid).toBe(true)
+      })
+
+      it.concurrent('should accept IDs at the minimum length boundary (10)', () => {
+        const result = validateSupabaseProjectId('abcdefghij')
+        expect(result.isValid).toBe(true)
+      })
+
+      it.concurrent('should accept IDs at the maximum length boundary (40)', () => {
+        const result = validateSupabaseProjectId('a'.repeat(40))
+        expect(result.isValid).toBe(true)
+      })
+    })
+
+    describe('SSRF attack vectors', () => {
+      it.concurrent('should reject fragment injection (#)', () => {
+        const result = validateSupabaseProjectId('evil#attacker.com')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject @ for authority injection', () => {
+        const result = validateSupabaseProjectId('evil@attacker.com')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject path traversal with slashes', () => {
+        const result = validateSupabaseProjectId('evil/../../etc/passwd')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject dots (subdomain manipulation)', () => {
+        const result = validateSupabaseProjectId('evil.attacker.com')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject backslashes', () => {
+        const result = validateSupabaseProjectId('evil\\path')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject colons (port injection)', () => {
+        const result = validateSupabaseProjectId('evil:8080')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject URL-encoded characters', () => {
+        const result = validateSupabaseProjectId('evil%23attacker')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject spaces', () => {
+        const result = validateSupabaseProjectId('evil host')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject newlines (header injection)', () => {
+        const result = validateSupabaseProjectId('evil\r\nHost: attacker.com')
+        expect(result.isValid).toBe(false)
+      })
+    })
+
+    describe('invalid formats', () => {
+      it.concurrent('should reject null', () => {
+        const result = validateSupabaseProjectId(null)
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject undefined', () => {
+        const result = validateSupabaseProjectId(undefined)
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject empty string', () => {
+        const result = validateSupabaseProjectId('')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject uppercase letters', () => {
+        const result = validateSupabaseProjectId('JDRKGEPADSDOPSNTDLOM')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject mixed case', () => {
+        const result = validateSupabaseProjectId('jdrkGEPadsdOPSntdlom')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject hyphens', () => {
+        const result = validateSupabaseProjectId('jdrk-gepa-dsdo-psnt')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject underscores', () => {
+        const result = validateSupabaseProjectId('jdrk_gepa_dsdo_psnt')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject IDs shorter than 10 characters', () => {
+        const result = validateSupabaseProjectId('abcdefghi')
+        expect(result.isValid).toBe(false)
+      })
+
+      it.concurrent('should reject IDs longer than 40 characters', () => {
+        const result = validateSupabaseProjectId('a'.repeat(41))
+        expect(result.isValid).toBe(false)
+      })
     })
   })
 })

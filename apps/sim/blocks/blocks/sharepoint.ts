@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { MicrosoftSharepointIcon } from '@/components/icons'
+import { toError } from '@/lib/core/utils/helpers'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -439,7 +440,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
             parsedItemFields = JSON.parse(listItemFields)
           } catch (error) {
             logger.error('Failed to parse listItemFields JSON', {
-              error: error instanceof Error ? error.message : String(error),
+              error: toError(error).message,
             })
           }
         }

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getJobQueue } from '@/lib/core/async-jobs'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createErrorResponse } from '@/app/api/workflows/utils'
 
@@ -70,7 +71,7 @@ export async function GET(
 
     return NextResponse.json(response)
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
     logger.error(`[${requestId}] Error fetching task status:`, error)
 
     if (errorMessage?.includes('not found')) {

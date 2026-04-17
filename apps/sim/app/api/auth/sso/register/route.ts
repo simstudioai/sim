@@ -147,6 +147,32 @@ export async function POST(request: NextRequest) {
       oidcConfig.userInfoEndpoint = userInfoEndpoint
       oidcConfig.jwksEndpoint = jwksEndpoint
 
+      const userProvidedEndpoints: Record<string, string | undefined> = {
+        authorizationEndpoint,
+        tokenEndpoint,
+        userInfoEndpoint,
+        jwksEndpoint,
+      }
+
+      for (const [name, endpointUrl] of Object.entries(userProvidedEndpoints)) {
+        if (endpointUrl) {
+          const endpointValidation = await validateUrlWithDNS(endpointUrl, `OIDC ${name}`)
+          if (!endpointValidation.isValid) {
+            logger.warn('Explicitly provided OIDC endpoint failed SSRF validation', {
+              endpoint: name,
+              url: endpointUrl,
+              error: endpointValidation.error,
+            })
+            return NextResponse.json(
+              {
+                error: `OIDC ${name} failed security validation: ${endpointValidation.error}`,
+              },
+              { status: 400 }
+            )
+          }
+        }
+      }
+
       const needsDiscovery =
         !oidcConfig.authorizationEndpoint || !oidcConfig.tokenEndpoint || !oidcConfig.jwksEndpoint
 

@@ -28,6 +28,7 @@ import { SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/session/sse'
 import { reportTrace, TraceCollector } from '@/lib/copilot/request/trace'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { env } from '@/lib/core/config/env'
+import { toError } from '@/lib/core/utils/helpers'
 
 export { SSE_RESPONSE_HEADERS }
 
@@ -112,7 +113,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           requestContext: { requestId },
         }).catch((error) => {
           logger.warn(`[${requestId}] Failed to create copilot run segment`, {
-            error: error instanceof Error ? error.message : String(error),
+            error: toError(error).message,
           })
         })
       }
@@ -202,7 +203,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           await publisher.close()
         } catch (error) {
           logger.warn(`[${requestId}] Failed to flush stream persistence during close`, {
-            error: error instanceof Error ? error.message : String(error),
+            error: toError(error).message,
           })
         }
         unregisterActiveStream(streamId)

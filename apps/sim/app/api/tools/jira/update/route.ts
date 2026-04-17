@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
+import { toError } from '@/lib/core/utils/helpers'
 import { getJiraCloudId, parseAtlassianErrorMessage, toAdf } from '@/tools/jira/utils'
 
 export const dynamic = 'force-dynamic'
@@ -182,7 +183,7 @@ export async function PUT(request: NextRequest) {
     })
   } catch (error: any) {
     logger.error('Error updating Jira issue:', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
 

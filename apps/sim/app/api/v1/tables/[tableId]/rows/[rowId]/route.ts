@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { RowData } from '@/lib/table'
 import { updateRow } from '@/lib/table'
@@ -196,7 +197,7 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
       )
     }
 
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
 
     if (errorMessage === 'Row not found') {
       return NextResponse.json({ error: errorMessage }, { status: 404 })

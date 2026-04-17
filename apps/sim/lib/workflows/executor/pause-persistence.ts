@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@/lib/core/utils/helpers'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import type { ExecutionResult } from '@/executor/types'
@@ -44,10 +45,10 @@ export async function handlePostExecutionPauseState({
       } catch (pauseError) {
         logger.error('Failed to persist pause result', {
           executionId,
-          error: pauseError instanceof Error ? pauseError.message : String(pauseError),
+          error: toError(pauseError).message,
         })
         await loggingSession.markAsFailed(
-          `Failed to persist pause state: ${pauseError instanceof Error ? pauseError.message : String(pauseError)}`
+          `Failed to persist pause state: ${toError(pauseError).message}`
         )
       }
     }
@@ -57,7 +58,7 @@ export async function handlePostExecutionPauseState({
     } catch (resumeError) {
       logger.error('Failed to process queued resumes', {
         executionId,
-        error: resumeError instanceof Error ? resumeError.message : String(resumeError),
+        error: toError(resumeError).message,
       })
     }
   }

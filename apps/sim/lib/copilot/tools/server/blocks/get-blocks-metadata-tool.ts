@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { getAllowedIntegrationsFromEnv, isHosted } from '@/lib/core/config/feature-flags'
+import { toError } from '@/lib/core/utils/helpers'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
 import { registry as blockRegistry } from '@/blocks/registry'
 import { AuthMode, type BlockConfig, isHiddenFromDisplay } from '@/blocks/types'
@@ -313,7 +314,7 @@ export const getBlocksMetadataServerTool: BaseServerTool<
         }
       } catch (error) {
         logger.warn('Failed to read YAML documentation file', {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
 
@@ -1000,7 +1001,7 @@ function resolveToolIdForOperation(blockConfig: BlockConfig, opId: string): stri
   } catch (error) {
     const toolLogger = createLogger('GetBlocksMetadataServerTool')
     toolLogger.warn('Failed to resolve tool ID for operation', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
   }
   return undefined

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { sleep, toError } from '@/lib/core/utils/helpers'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 export type PendingFileIntent = {
@@ -80,7 +81,7 @@ async function withRedisRetry<T>(
   for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt++) {
     const delay = RETRY_DELAYS_MS[attempt]
     if (delay > 0) {
-      await new Promise((resolve) => setTimeout(resolve, delay))
+      await sleep(delay)
     }
 
     try {
@@ -91,7 +92,7 @@ async function withRedisRetry<T>(
         operation,
         workspaceId,
         attempt: attempt + 1,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }
@@ -110,7 +111,7 @@ function parseIntent(raw: string | null | undefined): PendingFileIntent | undefi
     return isStale(parsed) ? undefined : parsed
   } catch (error) {
     logger.warn('Failed to parse file intent', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return undefined
   }

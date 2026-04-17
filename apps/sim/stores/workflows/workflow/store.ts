@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import { DEFAULT_DUPLICATE_OFFSET } from '@/lib/workflows/autolayout/constants'
 import {
@@ -73,7 +74,7 @@ function resolveInitialSubblockValue(config: SubBlockConfig): unknown {
     } catch (error) {
       logger.warn('Failed to resolve dynamic sub-block default value', {
         subBlockId: config.id,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }

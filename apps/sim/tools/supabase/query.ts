@@ -1,4 +1,5 @@
 import type { SupabaseQueryParams, SupabaseQueryResponse } from '@/tools/supabase/types'
+import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> = {
@@ -69,7 +70,7 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
     url: (params) => {
       // Construct the URL for the Supabase REST API
       const selectColumns = params.select?.trim() || '*'
-      let url = `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=${encodeURIComponent(selectColumns)}`
+      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${params.table}?select=${encodeURIComponent(selectColumns)}`
 
       // Add filters if provided - using PostgREST syntax
       if (params.filter?.trim()) {

@@ -8,6 +8,7 @@ import type { CopilotLifecycleOptions } from '@/lib/copilot/request/lifecycle/ru
 import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
 import { reportTrace, TraceCollector } from '@/lib/copilot/request/trace'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('CopilotHeadlessLifecycle')
@@ -76,7 +77,7 @@ export async function runHeadlessCopilotLifecycle(
       logger.warn('Failed to report headless trace', {
         simRequestId,
         chatId: result?.chatId ?? options.chatId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }

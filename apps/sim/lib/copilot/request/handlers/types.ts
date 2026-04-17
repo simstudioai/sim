@@ -24,6 +24,7 @@ import type {
   StreamingContext,
   ToolCallState,
 } from '@/lib/copilot/request/types'
+import { toError } from '@/lib/core/utils/helpers'
 
 export type StreamHandler = (
   event: StreamEvent,
@@ -230,7 +231,7 @@ export async function emitSyntheticToolResult(
     logger.warn('Failed to emit synthetic tool_result', {
       toolCallId,
       toolName,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
   }
 }

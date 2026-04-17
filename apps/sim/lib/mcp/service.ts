@@ -7,6 +7,7 @@ import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { isTest } from '@/lib/core/config/feature-flags'
+import { sleep, toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { McpClient } from '@/lib/mcp/client'
 import { mcpConnectionManager } from '@/lib/mcp/connection-manager'
@@ -211,7 +212,7 @@ class McpService {
             `[${requestId}] Session error executing tool ${toolCall.name}, retrying (attempt ${attempt + 1}):`,
             error
           )
-          await new Promise((resolve) => setTimeout(resolve, 100))
+          await sleep(100)
           continue
         }
         throw error
@@ -225,7 +226,7 @@ class McpService {
    * Check if an error indicates a session-related issue that might be resolved by retry
    */
   private isSessionError(error: unknown): boolean {
-    const message = error instanceof Error ? error.message : String(error)
+    const message = toError(error).message
     const lowerMessage = message.toLowerCase()
     return (
       lowerMessage.includes('session') ||
@@ -465,7 +466,7 @@ class McpService {
             `[${requestId}] Session error discovering tools from server ${serverId}, retrying (attempt ${attempt + 1}):`,
             error
           )
-          await new Promise((resolve) => setTimeout(resolve, 100))
+          await sleep(100)
           continue
         }
         throw error

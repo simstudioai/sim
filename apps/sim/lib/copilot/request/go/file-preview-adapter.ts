@@ -25,6 +25,7 @@ import {
   buildFilePreviewText,
   loadWorkspaceFileTextForPreview,
 } from '@/lib/copilot/tools/server/files/file-preview'
+import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('CopilotFilePreviewAdapter')
 
@@ -219,7 +220,7 @@ async function persistFilePreviewSession(session: FilePreviewSession): Promise<v
       streamId: session.streamId,
       toolCallId: session.toolCallId,
       previewVersion: session.previewVersion,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
   }
 }

@@ -10,6 +10,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createLogger } from '@sim/logger'
+import { toError } from '@/lib/core/utils/helpers'
 import {
   downloadWorkspaceFile,
   getWorkspaceFile,
@@ -95,7 +96,7 @@ export async function generatePptxFromCode(
         env: { PATH: process.env.PATH ?? '' } as unknown as NodeJS.ProcessEnv,
       })
     } catch (err) {
-      done(err instanceof Error ? err : new Error(String(err)))
+      done(toError(err))
       return
     }
 
@@ -154,7 +155,7 @@ export async function generatePptxFromCode(
         handleFileRequest(proc!, workspaceId, msg).catch((err) => {
           logger.error('Failed to handle file request from PPTX worker', {
             fileId: msg.fileId,
-            error: err instanceof Error ? err.message : String(err),
+            error: toError(err).message,
           })
           if (proc && !settled) {
             try {

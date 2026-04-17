@@ -9,6 +9,7 @@ import {
   type SecureFetchOptions,
   secureFetchWithValidation,
 } from '@/lib/core/security/input-validation.server'
+import { toError } from '@/lib/core/utils/helpers'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 
 const logger = createLogger('IsolatedVMExecution')
@@ -238,7 +239,7 @@ async function secureFetch(
   } catch (error: unknown) {
     logger.warn(`[${requestId}] Isolated fetch failed`, {
       url: sanitizeUrlForLog(url),
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown fetch error' })
   }

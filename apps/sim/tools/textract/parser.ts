@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@/lib/core/utils/helpers'
 import type {
   TextractParserInput,
   TextractParserOutput,
@@ -139,9 +140,7 @@ export const textractParserTool: ToolConfig<TextractParserInput, TextractParserO
       try {
         apiResult = await response.json()
       } catch (jsonError) {
-        throw new Error(
-          `Failed to parse Textract response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`
-        )
+        throw new Error(`Failed to parse Textract response: ${toError(jsonError).message}`)
       }
 
       if (!apiResult || typeof apiResult !== 'object') {

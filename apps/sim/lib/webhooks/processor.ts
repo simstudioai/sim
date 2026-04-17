@@ -8,6 +8,7 @@ import { tryAdmit } from '@/lib/core/admission/gate'
 import { getInlineJobQueue, getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { isProd } from '@/lib/core/config/feature-flags'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
@@ -83,7 +84,7 @@ export async function parseWebhookBody(
     }
   } catch (bodyError) {
     logger.error(`[${requestId}] Failed to read request body`, {
-      error: bodyError instanceof Error ? bodyError.message : String(bodyError),
+      error: toError(bodyError).message,
     })
     return new NextResponse('Failed to read request body', { status: 400 })
   }
@@ -106,7 +107,7 @@ export async function parseWebhookBody(
     }
   } catch (parseError) {
     logger.error(`[${requestId}] Failed to parse webhook body`, {
-      error: parseError instanceof Error ? parseError.message : String(parseError),
+      error: toError(parseError).message,
       contentType: request.headers.get('content-type'),
       bodyPreview: `${rawBody?.slice(0, 100)}...`,
     })
@@ -597,7 +598,7 @@ export async function queueWebhookExecution(
           const output = await executeWebhookJob(payload)
           await jobQueue.completeJob(jobId, output)
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error)
+          const errorMessage = toError(error).message
           logger.error(`[${options.requestId}] Webhook execution failed`, {
             jobId,
             error: errorMessage,
@@ -784,7 +785,7 @@ export async function processPolledWebhookEvent(
           const output = await executeWebhookJob(payload)
           await jobQueue.completeJob(jobId, output)
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error)
+          const errorMessage = toError(error).message
           logger.error(`[${requestId}] Webhook execution failed`, {
             jobId,
             error: errorMessage,

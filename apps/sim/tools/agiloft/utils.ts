@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { validateExternalUrl } from '@/lib/core/security/input-validation'
+import type { SecureFetchResponse } from '@/lib/core/security/input-validation.server'
 import type {
   AgiloftAttachmentInfoParams,
   AgiloftBaseParams,
@@ -16,6 +16,18 @@ import type { HttpMethod, ToolResponse } from '@/tools/types'
 
 const logger = createLogger('AgiloftAuth')
 
+/**
+ * Lazily imports server-only security functions to avoid pulling `dns/promises`
+ * into client bundles (this file is reachable from tools/registry.ts).
+ */
+async function getServerSecurity() {
+  const mod = await import('@/lib/core/security/input-validation.server')
+  return {
+    secureFetchWithPinnedIP: mod.secureFetchWithPinnedIP,
+    validateUrlWithDNS: mod.validateUrlWithDNS,
+  }
+}
+
 interface AgiloftRequestConfig {
   url: string
   method: HttpMethod
@@ -24,29 +36,39 @@ interface AgiloftRequestConfig {
 }
 
 /**
- * Exchanges login/password for a short-lived Bearer token via EWLogin.
+ * Validates the instance URL via DNS resolution and returns the resolved IP
+ * for use with pinned fetches to prevent SSRF via DNS rebinding.
  */
-async function agiloftLogin(params: AgiloftBaseParams): Promise<string> {
-  const base = params.instanceUrl.replace(/\/$/, '')
-
-  const urlValidation = validateExternalUrl(params.instanceUrl, 'instanceUrl')
-  if (!urlValidation.isValid) {
-    throw new Error(`Invalid Agiloft instance URL: ${urlValidation.error}`)
+async function validateInstanceUrl(instanceUrl: string): Promise<string> {
+  const { validateUrlWithDNS } = await getServerSecurity()
+  const validation = await validateUrlWithDNS(instanceUrl, 'instanceUrl')
+  if (!validation.isValid) {
+    throw new Error(`Invalid Agiloft instance URL: ${validation.error}`)
   }
+  return validation.resolvedIP!
+}
+
+/**
+ * Exchanges login/password for a short-lived Bearer token via EWLogin.
+ * Uses DNS-pinned fetch to prevent SSRF via DNS rebinding.
+ */
+async function agiloftLogin(params: AgiloftBaseParams, resolvedIP: string): Promise<string> {
+  const base = params.instanceUrl.replace(/\/$/, '')
 
   const kb = encodeURIComponent(params.knowledgeBase)
   const login = encodeURIComponent(params.login)
   const password = encodeURIComponent(params.password)
 
   const url = `${base}/ewws/EWLogin?$KB=${kb}&$login=${login}&$password=${password}`
-  const response = await fetch(url, { method: 'POST' })
+  const { secureFetchWithPinnedIP } = await getServerSecurity()
+  const response = await secureFetchWithPinnedIP(url, resolvedIP, { method: 'POST' })
 
   if (!response.ok) {
     const errorText = await response.text()
     throw new Error(`Agiloft login failed: ${response.status} - ${errorText}`)
   }
 
-  const data = await response.json()
+  const data = (await response.json()) as { access_token?: string }
   const token = data.access_token
 
   if (!token) {
@@ -58,16 +80,19 @@ async function agiloftLogin(params: AgiloftBaseParams): Promise<string> {
 
 /**
  * Cleans up the server session. Best-effort — failures are logged but not thrown.
+ * Uses DNS-pinned fetch to prevent SSRF via DNS rebinding.
  */
 async function agiloftLogout(
   instanceUrl: string,
   knowledgeBase: string,
-  token: string
+  token: string,
+  resolvedIP: string
 ): Promise<void> {
   try {
     const base = instanceUrl.replace(/\/$/, '')
     const kb = encodeURIComponent(knowledgeBase)
-    await fetch(`${base}/ewws/EWLogout?$KB=${kb}`, {
+    const { secureFetchWithPinnedIP } = await getServerSecurity()
+    await secureFetchWithPinnedIP(`${base}/ewws/EWLogout?$KB=${kb}`, resolvedIP, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -78,42 +103,43 @@ async function agiloftLogout(
 
 /**
  * Shared wrapper that handles the full auth lifecycle:
- * 1. Login to get Bearer token
- * 2. Execute the request with the token
- * 3. Logout to clean up the session
+ * 1. Validate instance URL via DNS resolution
+ * 2. Login to get Bearer token (using pinned IP)
+ * 3. Execute the request with the token (using pinned IP)
+ * 4. Logout to clean up the session (using pinned IP)
  *
- * The `buildRequest` callback receives the token and base URL, and returns
- * the request config. The `transformResponse` callback converts the raw
- * Response into the tool's output format.
+ * All HTTP requests use the resolved IP to prevent SSRF via DNS rebinding.
  */
 export async function executeAgiloftRequest<R extends ToolResponse>(
   params: AgiloftBaseParams,
   buildRequest: (base: string) => AgiloftRequestConfig,
-  transformResponse: (response: Response) => Promise<R>
+  transformResponse: (response: SecureFetchResponse) => Promise<R>
 ): Promise<R> {
-  const token = await agiloftLogin(params)
+  const resolvedIP = await validateInstanceUrl(params.instanceUrl)
+  const token = await agiloftLogin(params, resolvedIP)
   const base = params.instanceUrl.replace(/\/$/, '')
 
   try {
     const req = buildRequest(base)
-    const response = await fetch(req.url, {
+    const { secureFetchWithPinnedIP } = await getServerSecurity()
+    const response = await secureFetchWithPinnedIP(req.url, resolvedIP, {
       method: req.method,
       headers: {
         ...req.headers,
         Authorization: `Bearer ${token}`,
       },
-      body: req.body,
+      body: req.body as string | Buffer | Uint8Array | undefined,
     })
     return await transformResponse(response)
   } finally {
-    await agiloftLogout(params.instanceUrl, params.knowledgeBase, token)
+    await agiloftLogout(params.instanceUrl, params.knowledgeBase, token, resolvedIP)
   }
 }
 
 /**
  * Login helper exported for use in the attach file API route.
  */
-export { agiloftLogin, agiloftLogout }
+export { agiloftLogin, agiloftLogout, validateInstanceUrl }
 
 /** URL builders (credential-free -- auth is via Bearer token header) */
 

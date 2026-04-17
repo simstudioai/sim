@@ -5,6 +5,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { findMothershipUploadRowByChatAndName } from '@/lib/copilot/tools/handlers/upload-file-reader'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import { getServePathPrefix } from '@/lib/uploads'
 import { downloadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -219,7 +220,7 @@ export async function executeMaterializeFile(
         fileName,
         operation,
         chatId: context.chatId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       failed.push({
         fileName,

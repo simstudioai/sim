@@ -9,6 +9,7 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { env } from '@/lib/core/config/env'
+import { toError } from '@/lib/core/utils/helpers'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import {
   applyTargetedLayout,
@@ -155,7 +156,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
         validationErrors.push(...selectorErrors)
       } catch (error) {
         logger.warn('Selector ID validation failed', {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
     }
@@ -249,7 +250,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       } catch (error) {
         logger.warn('Targeted autolayout failed, using default positions', {
           workflowId,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
     }

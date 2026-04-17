@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { toError } from '@/lib/core/utils/helpers'
 import {
   deleteCustomTool,
   getCustomToolById,
@@ -206,7 +207,7 @@ export async function executeManageCustomTool(
         operation,
         workspaceId,
         userId: context.userId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       }
     )
     return {

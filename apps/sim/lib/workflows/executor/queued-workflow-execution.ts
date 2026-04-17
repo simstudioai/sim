@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
+import { toError } from '@/lib/core/utils/helpers'
 import { createExecutionEventWriter, setExecutionMeta } from '@/lib/execution/event-buffer'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -273,7 +274,7 @@ export async function executeQueuedWorkflowJob(
     logger.error('Queued workflow execution failed', {
       workflowId,
       executionId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
 
     if (!wasExecutionFinalizedByCore(error, executionId)) {
@@ -281,7 +282,7 @@ export async function executeQueuedWorkflowJob(
       const { traceSpans } = executionResult ? buildTraceSpans(executionResult) : { traceSpans: [] }
       await loggingSession.safeCompleteWithError({
         error: {
-          message: error instanceof Error ? error.message : String(error),
+          message: toError(error).message,
           stackTrace: error instanceof Error ? error.stack : undefined,
         },
         traceSpans,
@@ -295,7 +296,7 @@ export async function executeQueuedWorkflowJob(
         executionId,
         workflowId,
         data: {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
           duration: 0,
         },
       })
@@ -309,7 +310,7 @@ export async function executeQueuedWorkflowJob(
       {
         success: false,
         output: executionResult?.output ?? {},
-        error: executionResult?.error || (error instanceof Error ? error.message : String(error)),
+        error: executionResult?.error || toError(error).message,
         logs: executionResult?.logs,
         metadata: executionResult?.metadata
           ? {
@@ -332,7 +333,7 @@ export async function executeQueuedWorkflowJob(
     await cleanupExecutionBase64Cache(executionId).catch((error) => {
       logger.error('Failed to cleanup queued workflow base64 cache', {
         executionId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     })
   }

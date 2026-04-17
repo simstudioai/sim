@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@/lib/core/utils/helpers'
 import { DEFAULTS } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { ParallelScope } from '@/executor/execution/state'
@@ -68,7 +69,7 @@ export class ParallelOrchestrator {
       items = resolved.items
       isEmpty = resolved.isEmpty ?? false
     } catch (error) {
-      const baseErrorMessage = error instanceof Error ? error.message : String(error)
+      const baseErrorMessage = toError(error).message
       const errorMessage = baseErrorMessage.startsWith('Parallel collection distribution is empty')
         ? baseErrorMessage
         : `Parallel Items did not resolve: ${baseErrorMessage}`

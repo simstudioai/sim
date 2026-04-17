@@ -2,12 +2,17 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import { secureFetchWithPinnedIP } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { FileInputSchema, type RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
-import { agiloftLogin, agiloftLogout, buildAttachFileUrl } from '@/tools/agiloft/utils'
+import {
+  agiloftLogin,
+  agiloftLogout,
+  buildAttachFileUrl,
+  validateInstanceUrl,
+} from '@/tools/agiloft/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,18 +65,20 @@ export async function POST(request: NextRequest) {
     const fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
     const resolvedFileName = data.fileName || userFile.name || 'attachment'
 
-    const urlValidation = await validateUrlWithDNS(data.instanceUrl, 'instanceUrl')
-    if (!urlValidation.isValid) {
+    let resolvedIP: string
+    try {
+      resolvedIP = await validateInstanceUrl(data.instanceUrl)
+    } catch (error) {
       logger.warn(`[${requestId}] SSRF attempt blocked for Agiloft instance URL`, {
         instanceUrl: data.instanceUrl,
       })
       return NextResponse.json(
-        { success: false, error: urlValidation.error || 'Invalid instance URL' },
+        { success: false, error: error instanceof Error ? error.message : 'Invalid instance URL' },
         { status: 400 }
       )
     }
 
-    const token = await agiloftLogin(data)
+    const token = await agiloftLogin(data, resolvedIP)
     const base = data.instanceUrl.replace(/\/$/, '')
 
     try {
@@ -79,7 +86,7 @@ export async function POST(request: NextRequest) {
 
       logger.info(`[${requestId}] Uploading file to Agiloft: ${resolvedFileName}`)
 
-      const agiloftResponse = await fetch(url, {
+      const agiloftResponse = await secureFetchWithPinnedIP(url, resolvedIP, {
         method: 'PUT',
         headers: {
           'Content-Type': userFile.type || 'application/octet-stream',
@@ -123,7 +130,7 @@ export async function POST(request: NextRequest) {
         },
       })
     } finally {
-      await agiloftLogout(data.instanceUrl, data.knowledgeBase, token)
+      await agiloftLogout(data.instanceUrl, data.knowledgeBase, token, resolvedIP)
     }
   } catch (error) {
     if (error instanceof z.ZodError) {

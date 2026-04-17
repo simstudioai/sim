@@ -7,6 +7,7 @@ import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { type AtomicClaimResult, billingIdempotency } from '@/lib/core/idempotency/service'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
 
 const logger = createLogger('BillingUpdateCostAPI')
@@ -170,7 +171,7 @@ export async function POST(req: NextRequest) {
     const duration = Date.now() - startTime
 
     logger.error(`[${requestId}] Cost update failed`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
       duration,
     })
@@ -180,7 +181,7 @@ export async function POST(req: NextRequest) {
         .release(claim.normalizedKey, claim.storageMethod)
         .catch((releaseErr) => {
           logger.warn(`[${requestId}] Failed to release idempotency claim`, {
-            error: releaseErr instanceof Error ? releaseErr.message : String(releaseErr),
+            error: toError(releaseErr).message,
             normalizedKey: claim?.normalizedKey,
           })
         })

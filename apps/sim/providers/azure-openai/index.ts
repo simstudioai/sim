@@ -10,6 +10,7 @@ import type {
 } from 'openai/resources/chat/completions'
 import type { ReasoningEffort } from 'openai/resources/shared'
 import { env } from '@/lib/core/config/env'
+import { toError } from '@/lib/core/utils/helpers'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {
@@ -593,7 +594,7 @@ async function executeChatCompletionsRequest(
       duration: totalDuration,
     })
 
-    throw new ProviderError(error instanceof Error ? error.message : String(error), {
+    throw new ProviderError(toError(error).message, {
       startTime: providerStartTimeISO,
       endTime: providerEndTimeISO,
       duration: totalDuration,

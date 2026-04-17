@@ -92,23 +92,23 @@ export const agiloftSearchRecordsTool: ToolConfig<
           }
         }
 
-        const data = await response.json()
+        const data = (await response.json()) as Record<string, unknown>
         const records: Record<string, unknown>[] = []
 
         if (data.result && Array.isArray(data.result)) {
-          for (const item of data.result) {
+          for (const item of data.result as Record<string, unknown>[]) {
             records.push(item)
           }
         } else if (Array.isArray(data)) {
-          for (const item of data) {
+          for (const item of data as Record<string, unknown>[]) {
             records.push(item)
           }
         } else if (data.results && Array.isArray(data.results)) {
-          for (const item of data.results) {
+          for (const item of data.results as Record<string, unknown>[]) {
             records.push(item)
           }
         } else if (data.records && Array.isArray(data.records)) {
-          for (const item of data.records) {
+          for (const item of data.records as Record<string, unknown>[]) {
             records.push(item)
           }
         } else if (typeof data.EWREST_length === 'number') {
@@ -128,7 +128,11 @@ export const agiloftSearchRecordsTool: ToolConfig<
         }
 
         const totalCount =
-          data.totalCount ?? data.total ?? data.count ?? data.EWREST_length ?? records.length
+          (data.totalCount as number) ??
+          (data.total as number) ??
+          (data.count as number) ??
+          (data.EWREST_length as number) ??
+          records.length
         const page = params.page ? Number(params.page) : 0
         const limit = params.limit ? Number(params.limit) : 25
 

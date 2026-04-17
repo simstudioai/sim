@@ -33,6 +33,7 @@ import type { ExecutionContext, OrchestratorResult } from '@/lib/copilot/request
 import { persistChatResources } from '@/lib/copilot/resources/persistence'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
+import { toError } from '@/lib/core/utils/helpers'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -612,7 +613,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     const userPermissionPromise = workspaceId
       ? getUserEntityPermissions(authenticatedUserId, 'workspace', workspaceId).catch((error) => {
           logger.warn('Failed to load user permissions', {
-            error: error instanceof Error ? error.message : String(error),
+            error: toError(error).message,
             workspaceId,
           })
           return null
