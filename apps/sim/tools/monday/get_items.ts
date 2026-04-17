@@ -83,7 +83,7 @@ export const mondayGetItemsTool: ToolConfig<MondayGetItemsParams, MondayGetItems
       const limit = params.limit ?? 25
       if (params.groupId) {
         return {
-          query: `query { boards(ids: [${params.boardId}]) { groups(ids: ["${params.groupId}"]) { items_page(limit: ${limit}) { items { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } } } } }`,
+          query: `query { boards(ids: [${params.boardId}]) { groups(ids: [${JSON.stringify(params.groupId)}]) { items_page(limit: ${limit}) { items { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } } } } }`,
         }
       }
       return {

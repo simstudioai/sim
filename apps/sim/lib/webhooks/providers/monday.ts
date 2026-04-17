@@ -114,7 +114,7 @@ export const mondayHandler: WebhookProviderHandler = {
           Authorization: accessToken,
         },
         body: JSON.stringify({
-          query: `mutation { create_webhook(board_id: ${boardIdValidation.sanitized}, url: "${notificationUrl}", event: ${eventType}) { id board_id } }`,
+          query: `mutation { create_webhook(board_id: ${boardIdValidation.sanitized}, url: ${JSON.stringify(notificationUrl)}, event: ${eventType}) { id board_id } }`,
         }),
       })
 
@@ -209,15 +209,6 @@ export const mondayHandler: WebhookProviderHandler = {
         `[${ctx.requestId}] Could not resolve credentials for Monday webhook deletion (non-fatal)`,
         { error: error instanceof Error ? error.message : String(error) }
       )
-    }
-
-    if (!accessToken) {
-      try {
-        const fallbackToken = await getOAuthToken(ctx.webhook.userId as string, 'monday')
-        if (fallbackToken) accessToken = fallbackToken
-      } catch {
-        // Non-fatal — fall through to the guard below
-      }
     }
 
     if (!accessToken) {
