@@ -157,7 +157,6 @@ export function buildWorkflowFolderTree(
 
     for (const f of childFolders) {
       const children = buildLevel(f.id)
-      // Folders with no descendant workflows are intentionally omitted; they are still reachable via search.
       if (children.length === 0) continue
       mixed.push({
         sortOrder: (f.sortOrder as number) ?? 0,
