@@ -67,6 +67,86 @@ function isBusinessSpan(spanName: string): boolean {
 }
 
 /**
+ * Parse OTLP headers from the standard env var `OTEL_EXPORTER_OTLP_HEADERS`.
+ *
+ * Spec format: `key1=value1,key2=value2`, with values optionally
+ * URL-encoded. We tolerate whitespace around entries and values that
+ * themselves contain `=`. This is the mechanism every managed backend
+ * (Honeycomb, Grafana Cloud, New Relic, Datadog) uses to receive its
+ * auth token without any backend-specific code paths here.
+ */
+function parseOtlpHeadersEnv(raw: string): Record<string, string> {
+  const out: Record<string, string> = {}
+  if (!raw) return out
+  for (const part of raw.split(',')) {
+    const trimmed = part.trim()
+    if (!trimmed) continue
+    const eq = trimmed.indexOf('=')
+    if (eq <= 0) continue
+    const key = trimmed.slice(0, eq).trim()
+    const rawVal = trimmed.slice(eq + 1).trim()
+    let val = rawVal
+    try {
+      val = decodeURIComponent(rawVal)
+    } catch {
+      // value wasn't URL-encoded; keep as-is.
+    }
+    if (key) out[key] = val
+  }
+  return out
+}
+
+/**
+ * Normalize an OTLP base URL to the full traces-signal endpoint.
+ *
+ * The OTel HTTP exporter sends to whatever URL you give it verbatim
+ * — no signal-path appending. That's a footgun when the same env
+ * var also flows into the Go side, where the SDK *does* append
+ * `/v1/traces` automatically. We bridge the gap here so both halves
+ * of the mothership can share one endpoint value.
+ *
+ * Rules:
+ *   - If the URL already has a non-root path, respect it (operator
+ *     intent: "post to exactly this URL").
+ *   - Otherwise, append `/v1/traces`.
+ *   - Malformed URLs pass through unchanged; the exporter will
+ *     surface the error at first export.
+ */
+function normalizeOtlpTracesUrl(url: string): string {
+  if (!url) return url
+  try {
+    const u = new URL(url)
+    if (u.pathname && u.pathname !== '/') return url
+    return `${url.replace(/\/$/, '')}/v1/traces`
+  } catch {
+    return url
+  }
+}
+
+/**
+ * Resolve the sampling ratio from env, with sensible fallbacks.
+ *
+ * Matches the Go side's `samplerFromEnv()` semantics so operators can
+ * control both halves of the mothership trace tree from the same
+ * variable. Invalid values degrade gracefully to the fallback.
+ */
+function resolveSamplingRatio(isLocalEndpoint: boolean): number {
+  const raw = process.env.TELEMETRY_SAMPLING_RATIO || process.env.OTEL_TRACES_SAMPLER_ARG || ''
+  if (raw) {
+    const parsed = Number.parseFloat(raw)
+    if (Number.isFinite(parsed)) {
+      if (parsed <= 0) return 0
+      if (parsed >= 1) return 1
+      return parsed
+    }
+  }
+  // Local dev gets 100% for deterministic manual verification.
+  // Production default is also 100% — the 1-day retention at the
+  // backend caps storage cost, not sampling.
+  return isLocalEndpoint ? 1.0 : 1.0
+}
+
+/**
  * MothershipOriginSpanProcessor tags every span this process creates with
  * `mothership.origin` and prepends a `sim: ` prefix to the span name on
  * start, before any downstream processor (BatchSpanProcessor) reads it.
@@ -106,11 +186,16 @@ async function initializeOpenTelemetry() {
       telemetryConfig = DEFAULT_TELEMETRY_CONFIG
     }
 
-    // Prefer process.env directly: @t3-oss/env-nextjs sometimes returns
-    // undefined for server vars that aren't listed in experimental__runtimeEnv,
-    // and TELEMETRY_ENDPOINT isn't mapped there.
+    // Endpoint resolution: prefer the OTel spec env var, fall back to
+    // our legacy TELEMETRY_ENDPOINT so existing deploys keep working
+    // during rollout. Read process.env directly because
+    // @t3-oss/env-nextjs sometimes returns undefined for server vars
+    // that aren't listed in experimental__runtimeEnv.
     const resolvedEndpoint =
-      process.env.TELEMETRY_ENDPOINT || env.TELEMETRY_ENDPOINT || telemetryConfig.endpoint
+      process.env.OTEL_EXPORTER_OTLP_ENDPOINT ||
+      process.env.TELEMETRY_ENDPOINT ||
+      env.TELEMETRY_ENDPOINT ||
+      telemetryConfig.endpoint
     telemetryConfig = {
       ...telemetryConfig,
       endpoint: resolvedEndpoint,
@@ -187,9 +272,24 @@ async function initializeOpenTelemetry() {
       },
     })
 
+    // Parse OTEL_EXPORTER_OTLP_HEADERS per the OTel spec: comma-
+    // separated `key=value` pairs, values optionally URL-encoded. This
+    // is how managed backends (Honeycomb, Grafana Cloud, New Relic)
+    // receive their API keys without needing a vendor-specific code
+    // path — flip the secret, redeploy, traces land in the new place.
+    const otlpHeaders = parseOtlpHeadersEnv(process.env.OTEL_EXPORTER_OTLP_HEADERS || '')
+
+    // The @opentelemetry/exporter-trace-otlp-http exporter treats the
+    // `url` option as the complete POST target and does NOT append the
+    // `/v1/traces` signal path. The Go SDK, by contrast, does append
+    // it when only a host is given. Normalize here so operators can
+    // set the same `OTEL_EXPORTER_OTLP_ENDPOINT=https://api.honeycomb.io`
+    // for both services and have it Just Work.
+    const exporterUrl = normalizeOtlpTracesUrl(telemetryConfig.endpoint)
+
     const exporter = new OTLPTraceExporter({
-      url: telemetryConfig.endpoint,
-      headers: {},
+      url: exporterUrl,
+      headers: otlpHeaders,
       timeoutMillis: Math.min(telemetryConfig.batchSettings.exportTimeoutMillis, 10000),
       keepAlive: false,
     })
@@ -244,13 +344,26 @@ async function initializeOpenTelemetry() {
       })
     )
 
-    // Dev / self-hosted OTLP backends (Jaeger/Tempo on localhost) should
-    // capture every trace so manual verification is deterministic. Keep 10%
-    // for production cloud endpoints.
+    // Sampling ratio resolution, in priority order:
+    //   1. `TELEMETRY_SAMPLING_RATIO` (our explicit, matches Go side)
+    //   2. `OTEL_TRACES_SAMPLER_ARG`  (OTel spec env var)
+    //   3. 1.0 for local endpoints (so dev traces are deterministic)
+    //   4. 1.0 otherwise (production wants every mothership request —
+    //      retention happens at the backend)
+    //
+    // `1.0` is the right default for mothership: every request is
+    // support-critical and we rely on the backend's retention (1 day
+    // in prod) to cap storage, not upstream sampling.
     const isLocalEndpoint = /localhost|127\.0\.0\.1/i.test(telemetryConfig.endpoint)
-    const samplingRatio = isLocalEndpoint ? 1.0 : 0.1
+    const samplingRatio = resolveSamplingRatio(isLocalEndpoint)
     const rootRatioSampler = new TraceIdRatioBasedSampler(samplingRatio)
     const sampler = createBusinessSpanSampler(rootRatioSampler)
+
+    logger.info('OpenTelemetry sampler configured', {
+      samplingRatio,
+      endpoint: telemetryConfig.endpoint,
+      origin: MOTHERSHIP_ORIGIN,
+    })
 
     // Order matters: the origin-prefix processor must run BEFORE the batch
     // processor so the renamed span and the mothership.origin attribute are
