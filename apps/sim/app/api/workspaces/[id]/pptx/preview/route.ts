@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { generatePptxFromCode } from '@/lib/execution/doc-vm'
+import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
 export const dynamic = 'force-dynamic'
@@ -44,7 +44,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'code exceeds maximum size' }, { status: 413 })
     }
 
-    const buffer = await generatePptxFromCode(code, workspaceId, req.signal)
+    const buffer = await runSandboxTask(
+      'pptx-generate',
+      { code, workspaceId },
+      { ownerKey: `user:${session.user.id}`, signal: req.signal }
+    )
 
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,

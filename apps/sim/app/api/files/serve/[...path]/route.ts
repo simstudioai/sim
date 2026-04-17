@@ -4,11 +4,7 @@ import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import {
-  generateDocxFromCode,
-  generatePdfFromCode,
-  generatePptxFromCode,
-} from '@/lib/execution/doc-vm'
+import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -22,6 +18,7 @@ import {
   findLocalFile,
   getContentType,
 } from '@/app/api/files/utils'
+import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 
 const logger = createLogger('FilesServeAPI')
 
@@ -30,24 +27,24 @@ const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]) // %PDF-
 
 interface CompilableFormat {
   magic: Buffer
-  compile: (code: string, workspaceId: string) => Promise<Buffer>
+  taskId: SandboxTaskId
   contentType: string
 }
 
 const COMPILABLE_FORMATS: Record<string, CompilableFormat> = {
   '.pptx': {
     magic: ZIP_MAGIC,
-    compile: generatePptxFromCode,
+    taskId: 'pptx-generate',
     contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   },
   '.docx': {
     magic: ZIP_MAGIC,
-    compile: generateDocxFromCode,
+    taskId: 'docx-generate',
     contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   },
   '.pdf': {
     magic: PDF_MAGIC,
-    compile: generatePdfFromCode,
+    taskId: 'pdf-generate',
     contentType: 'application/pdf',
   },
 }
@@ -65,8 +62,9 @@ function compiledCacheSet(key: string, buffer: Buffer): void {
 async function compileDocumentIfNeeded(
   buffer: Buffer,
   filename: string,
-  workspaceId?: string,
-  raw?: boolean
+  workspaceId: string | undefined,
+  raw: boolean,
+  ownerKey: string | undefined
 ): Promise<{ buffer: Buffer; contentType: string }> {
   if (raw) return { buffer, contentType: getContentType(filename) }
 
@@ -90,7 +88,11 @@ async function compileDocumentIfNeeded(
     return { buffer: cached, contentType: format.contentType }
   }
 
-  const compiled = await format.compile(code, workspaceId || '')
+  const compiled = await runSandboxTask(
+    format.taskId,
+    { code, workspaceId: workspaceId || '' },
+    { ownerKey }
+  )
   compiledCacheSet(cacheKey, compiled)
   return { buffer: compiled, contentType: format.contentType }
 }
@@ -173,6 +175,7 @@ async function handleLocalFile(
   userId: string,
   raw: boolean
 ): Promise<NextResponse> {
+  const ownerKey = `user:${userId}`
   try {
     const contextParam: StorageContext | undefined = inferContextFromKey(filename) as
       | StorageContext
@@ -205,7 +208,8 @@ async function handleLocalFile(
       rawBuffer,
       displayName,
       workspaceId,
-      raw
+      raw,
+      ownerKey
     )
 
     logger.info('Local file served', { userId, filename, size: fileBuffer.length })
@@ -227,6 +231,7 @@ async function handleCloudProxy(
   userId: string,
   raw = false
 ): Promise<NextResponse> {
+  const ownerKey = `user:${userId}`
   try {
     const context = inferContextFromKey(cloudKey)
     logger.info(`Inferred context: ${context} from key pattern: ${cloudKey}`)
@@ -262,7 +267,8 @@ async function handleCloudProxy(
       rawBuffer,
       displayName,
       workspaceId,
-      raw
+      raw,
+      ownerKey
     )
 
     logger.info('Cloud file served', {

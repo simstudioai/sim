@@ -4,12 +4,9 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import {
-  generateDocxFromCode,
-  generatePdfFromCode,
-  generatePptxFromCode,
-} from '@/lib/execution/doc-vm'
+import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { updateWorkspaceFileContent } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 import { consumeLatestFileIntent } from './file-intent-store'
 import { inferContentType } from './workspace-file'
 
@@ -29,7 +26,7 @@ function getDocumentFormatInfo(fileName: string): {
   isDoc: boolean
   formatName?: string
   sourceMime?: string
-  generator?: (code: string, workspaceId: string, signal?: AbortSignal) => Promise<Buffer>
+  taskId?: SandboxTaskId
 } {
   const lowerName = fileName.toLowerCase()
   if (lowerName.endsWith('.pptx')) {
@@ -37,7 +34,7 @@ function getDocumentFormatInfo(fileName: string): {
       isDoc: true,
       formatName: 'PPTX',
       sourceMime: 'text/x-pptxgenjs',
-      generator: generatePptxFromCode,
+      taskId: 'pptx-generate',
     }
   }
   if (lowerName.endsWith('.docx')) {
@@ -45,7 +42,7 @@ function getDocumentFormatInfo(fileName: string): {
       isDoc: true,
       formatName: 'DOCX',
       sourceMime: 'text/x-docxjs',
-      generator: generateDocxFromCode,
+      taskId: 'docx-generate',
     }
   }
   if (lowerName.endsWith('.pdf')) {
@@ -53,7 +50,7 @@ function getDocumentFormatInfo(fileName: string): {
       isDoc: true,
       formatName: 'PDF',
       sourceMime: 'text/x-pdflibjs',
-      generator: generatePdfFromCode,
+      taskId: 'pdf-generate',
     }
   }
   return { isDoc: false }
@@ -240,7 +237,11 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
 
       if (docInfo.isDoc) {
         try {
-          await docInfo.generator!(finalContent, workspaceId)
+          await runSandboxTask(
+            docInfo.taskId!,
+            { code: finalContent, workspaceId },
+            { ownerKey: `user:${context.userId}` }
+          )
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
           return {

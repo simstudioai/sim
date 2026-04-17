@@ -5,11 +5,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import {
-  generateDocxFromCode,
-  generatePdfFromCode,
-  generatePptxFromCode,
-} from '@/lib/execution/doc-vm'
+import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import {
   deleteWorkspaceFile,
   downloadWorkspaceFile as downloadWsFile,
@@ -18,6 +14,7 @@ import {
   renameWorkspaceFile,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 import { storeFileIntent } from './file-intent-store'
 
 const logger = createLogger('WorkspaceFileServerTool')
@@ -108,7 +105,7 @@ function getDocumentFormatInfo(fileName: string): {
   isDoc: boolean
   formatName?: 'PPTX' | 'DOCX' | 'PDF'
   sourceMime?: string
-  generator?: (code: string, workspaceId: string, signal?: AbortSignal) => Promise<Buffer>
+  taskId?: SandboxTaskId
 } {
   const lowerName = fileName.toLowerCase()
   if (lowerName.endsWith('.pptx')) {
@@ -116,7 +113,7 @@ function getDocumentFormatInfo(fileName: string): {
       isDoc: true,
       formatName: 'PPTX',
       sourceMime: PPTX_SOURCE_MIME,
-      generator: generatePptxFromCode,
+      taskId: 'pptx-generate',
     }
   }
   if (lowerName.endsWith('.docx')) {
@@ -124,7 +121,7 @@ function getDocumentFormatInfo(fileName: string): {
       isDoc: true,
       formatName: 'DOCX',
       sourceMime: DOCX_SOURCE_MIME,
-      generator: generateDocxFromCode,
+      taskId: 'docx-generate',
     }
   }
   if (lowerName.endsWith('.pdf')) {
@@ -132,7 +129,7 @@ function getDocumentFormatInfo(fileName: string): {
       isDoc: true,
       formatName: 'PDF',
       sourceMime: PDF_SOURCE_MIME,
-      generator: generatePdfFromCode,
+      taskId: 'pdf-generate',
     }
   }
   return { isDoc: false }
@@ -201,7 +198,11 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           let contentType = inferContentType(fileName, explicitType)
           if (docInfo.isDoc) {
             try {
-              await docInfo.generator!(content, workspaceId)
+              await runSandboxTask(
+                docInfo.taskId!,
+                { code: content, workspaceId },
+                { ownerKey: `user:${context.userId}` }
+              )
             } catch (err) {
               const msg = err instanceof Error ? err.message : String(err)
               return {
