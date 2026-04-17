@@ -349,7 +349,7 @@ export function extractLabelData(body: any) {
   }
 }
 
-export function extractPagePermissionsData(body: any) {
+export function extractPagePermissionsData(body: Record<string, unknown>) {
   return {
     timestamp: body.timestamp,
     userAccountId: body.userAccountId,
@@ -358,7 +358,7 @@ export function extractPagePermissionsData(body: any) {
   }
 }
 
-export function extractUserData(body: any) {
+export function extractUserData(body: Record<string, unknown>) {
   return {
     timestamp: body.timestamp,
     userAccountId: body.userAccountId,
