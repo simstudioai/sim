@@ -1236,6 +1236,170 @@ const MICROSOFT_CONTENT_SUFFIXES = [
  * @param url - The URL to check
  * @returns Whether the URL belongs to a trusted Microsoft content host
  */
+/**
+ * Validates a Monday.com numeric ID (board, item, webhook, workspace, user IDs).
+ *
+ * Monday.com uses numeric integer IDs for boards, items, webhooks, workspaces, and users.
+ * These are always positive integers, represented as strings in GraphQL `ID!` scalars.
+ *
+ * @param value - The ID to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ *
+ * @example
+ * ```typescript
+ * const result = validateMondayNumericId(boardId, 'boardId')
+ * if (!result.isValid) {
+ *   return NextResponse.json({ error: result.error }, { status: 400 })
+ * }
+ * ```
+ */
+export function validateMondayNumericId(
+  value: string | number | null | undefined,
+  paramName = 'ID'
+): ValidationResult {
+  if (value === null || value === undefined || value === '') {
+    return {
+      isValid: false,
+      error: `${paramName} is required`,
+    }
+  }
+
+  const str = String(value).trim()
+
+  if (!/^\d+$/.test(str)) {
+    logger.warn('Monday.com ID is not a valid numeric integer', {
+      paramName,
+      value: str.substring(0, 50),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} must be a numeric integer`,
+    }
+  }
+
+  return { isValid: true, sanitized: str }
+}
+
+/**
+ * Validates a Monday.com group ID.
+ *
+ * Monday.com group IDs are strings that can contain lowercase/uppercase letters,
+ * digits, underscores, and spaces. They are user-visible identifiers like
+ * "topics", "new_group", or "test group id". Auto-generated IDs may also
+ * include "group_title" patterns.
+ *
+ * @param value - The group ID to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ *
+ * @example
+ * ```typescript
+ * const result = validateMondayGroupId(groupId, 'groupId')
+ * if (!result.isValid) {
+ *   return NextResponse.json({ error: result.error }, { status: 400 })
+ * }
+ * ```
+ */
+export function validateMondayGroupId(
+  value: string | null | undefined,
+  paramName = 'groupId'
+): ValidationResult {
+  if (value === null || value === undefined || value === '') {
+    return {
+      isValid: false,
+      error: `${paramName} is required`,
+    }
+  }
+
+  if (value.length > 255) {
+    logger.warn('Monday.com group ID exceeds maximum length', {
+      paramName,
+      length: value.length,
+    })
+    return {
+      isValid: false,
+      error: `${paramName} exceeds maximum length of 255 characters`,
+    }
+  }
+
+  if (/[\x00-\x1f\x7f]/.test(value) || value.includes('%00')) {
+    logger.warn('Monday.com group ID contains control characters', { paramName })
+    return {
+      isValid: false,
+      error: `${paramName} contains invalid control characters`,
+    }
+  }
+
+  if (!/^[a-zA-Z0-9_ ]+$/.test(value)) {
+    logger.warn('Monday.com group ID contains disallowed characters', {
+      paramName,
+      value: value.substring(0, 100),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} can only contain letters, digits, underscores, and spaces`,
+    }
+  }
+
+  return { isValid: true, sanitized: value }
+}
+
+/**
+ * Validates a Monday.com column ID.
+ *
+ * Column IDs are strings containing lowercase letters (a-z), digits (0-9),
+ * and underscores. User-specified IDs are 1-20 characters of [a-z_].
+ * Auto-generated IDs follow patterns like "status", "date4", "email_mksr9hcd".
+ *
+ * @param value - The column ID to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ *
+ * @example
+ * ```typescript
+ * const result = validateMondayColumnId(columnId, 'columnId')
+ * if (!result.isValid) {
+ *   return NextResponse.json({ error: result.error }, { status: 400 })
+ * }
+ * ```
+ */
+export function validateMondayColumnId(
+  value: string | null | undefined,
+  paramName = 'columnId'
+): ValidationResult {
+  if (value === null || value === undefined || value === '') {
+    return {
+      isValid: false,
+      error: `${paramName} is required`,
+    }
+  }
+
+  if (value.length > 255) {
+    logger.warn('Monday.com column ID exceeds maximum length', {
+      paramName,
+      length: value.length,
+    })
+    return {
+      isValid: false,
+      error: `${paramName} exceeds maximum length of 255 characters`,
+    }
+  }
+
+  if (!/^[a-z0-9_]+$/.test(value)) {
+    logger.warn('Monday.com column ID contains disallowed characters', {
+      paramName,
+      value: value.substring(0, 100),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} can only contain lowercase letters, digits, and underscores`,
+    }
+  }
+
+  return { isValid: true, sanitized: value }
+}
+
 export function isMicrosoftContentUrl(url: string): boolean {
   let hostname: string
   try {

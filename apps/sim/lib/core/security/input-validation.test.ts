@@ -14,6 +14,9 @@ import {
   validateJiraCloudId,
   validateJiraIssueKey,
   validateMicrosoftGraphId,
+  validateMondayColumnId,
+  validateMondayGroupId,
+  validateMondayNumericId,
   validateNumericId,
   validatePathSegment,
   validateProxyUrl,
@@ -1488,6 +1491,232 @@ describe('validateS3BucketName', () => {
     it.concurrent('should use custom param name in errors', () => {
       const result = validateS3BucketName('', 's3Bucket')
       expect(result.error).toContain('s3Bucket')
+    })
+  })
+})
+
+describe('validateMondayNumericId', () => {
+  describe('valid inputs', () => {
+    it.concurrent('should accept standard numeric board IDs', () => {
+      const result = validateMondayNumericId('1234567890', 'boardId')
+      expect(result.isValid).toBe(true)
+      expect(result.sanitized).toBe('1234567890')
+    })
+
+    it.concurrent('should accept small numeric IDs', () => {
+      const result = validateMondayNumericId('12', 'webhookId')
+      expect(result.isValid).toBe(true)
+      expect(result.sanitized).toBe('12')
+    })
+
+    it.concurrent('should accept single digit IDs', () => {
+      const result = validateMondayNumericId('0', 'itemId')
+      expect(result.isValid).toBe(true)
+      expect(result.sanitized).toBe('0')
+    })
+
+    it.concurrent('should accept very large numeric IDs', () => {
+      const result = validateMondayNumericId('98765432101234567890')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept number type input', () => {
+      const result = validateMondayNumericId(1234567890, 'boardId')
+      expect(result.isValid).toBe(true)
+      expect(result.sanitized).toBe('1234567890')
+    })
+
+    it.concurrent('should trim whitespace from numeric IDs', () => {
+      const result = validateMondayNumericId(' 12345 ', 'boardId')
+      expect(result.isValid).toBe(true)
+      expect(result.sanitized).toBe('12345')
+    })
+  })
+
+  describe('invalid inputs', () => {
+    it.concurrent('should reject null', () => {
+      const result = validateMondayNumericId(null, 'boardId')
+      expect(result.isValid).toBe(false)
+      expect(result.error).toContain('boardId')
+    })
+
+    it.concurrent('should reject undefined', () => {
+      const result = validateMondayNumericId(undefined)
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject empty string', () => {
+      const result = validateMondayNumericId('')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject strings with letters', () => {
+      const result = validateMondayNumericId('abc123')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject GraphQL injection attempts', () => {
+      const result = validateMondayNumericId('1234]) { subscribers { id } } #')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject negative numbers', () => {
+      const result = validateMondayNumericId('-1')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject decimal numbers', () => {
+      const result = validateMondayNumericId('12.34')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject strings with special characters', () => {
+      const result = validateMondayNumericId('123;DROP TABLE')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject strings with brackets', () => {
+      const result = validateMondayNumericId('123])')
+      expect(result.isValid).toBe(false)
+    })
+  })
+})
+
+describe('validateMondayGroupId', () => {
+  describe('valid inputs', () => {
+    it.concurrent('should accept simple group IDs', () => {
+      const result = validateMondayGroupId('topics')
+      expect(result.isValid).toBe(true)
+      expect(result.sanitized).toBe('topics')
+    })
+
+    it.concurrent('should accept group IDs with underscores', () => {
+      const result = validateMondayGroupId('new_group')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept group IDs with spaces', () => {
+      const result = validateMondayGroupId('test group id')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept group IDs with uppercase letters', () => {
+      const result = validateMondayGroupId('Group One')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept group IDs with digits', () => {
+      const result = validateMondayGroupId('group123')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept auto-generated group IDs', () => {
+      const result = validateMondayGroupId('group_title')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('invalid inputs', () => {
+    it.concurrent('should reject null', () => {
+      const result = validateMondayGroupId(null)
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject empty string', () => {
+      const result = validateMondayGroupId('')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject strings with brackets', () => {
+      const result = validateMondayGroupId('group"]){id}#')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject strings with quotes', () => {
+      const result = validateMondayGroupId('group")')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject control characters', () => {
+      const result = validateMondayGroupId('group\x00id')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject strings exceeding max length', () => {
+      const result = validateMondayGroupId('a'.repeat(256))
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject strings with special characters', () => {
+      const result = validateMondayGroupId('group;DROP')
+      expect(result.isValid).toBe(false)
+    })
+  })
+})
+
+describe('validateMondayColumnId', () => {
+  describe('valid inputs', () => {
+    it.concurrent('should accept simple column IDs', () => {
+      const result = validateMondayColumnId('status')
+      expect(result.isValid).toBe(true)
+      expect(result.sanitized).toBe('status')
+    })
+
+    it.concurrent('should accept column IDs with digits', () => {
+      const result = validateMondayColumnId('date4')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept auto-generated column IDs', () => {
+      const result = validateMondayColumnId('email_mksr9hcd')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept column IDs with underscores', () => {
+      const result = validateMondayColumnId('color_mksreyj6')
+      expect(result.isValid).toBe(true)
+    })
+
+    it.concurrent('should accept single character column IDs', () => {
+      const result = validateMondayColumnId('a')
+      expect(result.isValid).toBe(true)
+    })
+  })
+
+  describe('invalid inputs', () => {
+    it.concurrent('should reject null', () => {
+      const result = validateMondayColumnId(null)
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject empty string', () => {
+      const result = validateMondayColumnId('')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject uppercase letters', () => {
+      const result = validateMondayColumnId('Status')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject spaces', () => {
+      const result = validateMondayColumnId('my column')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject hyphens', () => {
+      const result = validateMondayColumnId('my-column')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject special characters', () => {
+      const result = validateMondayColumnId('col;DROP')
+      expect(result.isValid).toBe(false)
+    })
+
+    it.concurrent('should reject strings exceeding max length', () => {
+      const result = validateMondayColumnId('a'.repeat(256))
+      expect(result.isValid).toBe(false)
     })
   })
 })

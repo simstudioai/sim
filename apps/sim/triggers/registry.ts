@@ -231,6 +231,17 @@ import {
   microsoftTeamsWebhookTrigger,
 } from '@/triggers/microsoftteams'
 import {
+  mondayColumnChangedTrigger,
+  mondayItemArchivedTrigger,
+  mondayItemCreatedTrigger,
+  mondayItemDeletedTrigger,
+  mondayItemMovedTrigger,
+  mondayItemNameChangedTrigger,
+  mondayStatusChangedTrigger,
+  mondaySubitemCreatedTrigger,
+  mondayUpdateCreatedTrigger,
+} from '@/triggers/monday'
+import {
   notionCommentCreatedTrigger,
   notionDatabaseCreatedTrigger,
   notionDatabaseDeletedTrigger,
@@ -467,6 +478,15 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   linear_project_update_created_v2: linearProjectUpdateCreatedV2Trigger,
   linear_customer_request_created_v2: linearCustomerRequestCreatedV2Trigger,
   linear_customer_request_updated_v2: linearCustomerRequestUpdatedV2Trigger,
+  monday_item_created: mondayItemCreatedTrigger,
+  monday_column_changed: mondayColumnChangedTrigger,
+  monday_status_changed: mondayStatusChangedTrigger,
+  monday_item_name_changed: mondayItemNameChangedTrigger,
+  monday_item_archived: mondayItemArchivedTrigger,
+  monday_item_deleted: mondayItemDeletedTrigger,
+  monday_item_moved: mondayItemMovedTrigger,
+  monday_subitem_created: mondaySubitemCreatedTrigger,
+  monday_update_created: mondayUpdateCreatedTrigger,
   microsoftteams_webhook: microsoftTeamsWebhookTrigger,
   microsoftteams_chat_subscription: microsoftTeamsChatSubscriptionTrigger,
   notion_page_created: notionPageCreatedTrigger,

@@ -8710,6 +8710,123 @@
     "tags": ["document-processing", "ocr"]
   },
   {
+    "type": "monday",
+    "slug": "monday",
+    "name": "Monday",
+    "description": "Manage Monday.com boards, items, and groups",
+    "longDescription": "Integrate with Monday.com to list boards, get board details, fetch and search items, create and update items, archive or delete items, create subitems, move items between groups, add updates, and create groups.",
+    "bgColor": "#FFFFFF",
+    "iconName": "MondayIcon",
+    "docsUrl": "https://docs.sim.ai/tools/monday",
+    "operations": [
+      {
+        "name": "List Boards",
+        "description": "List boards from your Monday.com account"
+      },
+      {
+        "name": "Get Board",
+        "description": "Get a specific Monday.com board with its groups and columns"
+      },
+      {
+        "name": "Get Item",
+        "description": "Get a specific item by ID from Monday.com"
+      },
+      {
+        "name": "Get Items",
+        "description": "Get items from a Monday.com board"
+      },
+      {
+        "name": "Search Items",
+        "description": "Search for items on a Monday.com board by column values"
+      },
+      {
+        "name": "Create Item",
+        "description": "Create a new item on a Monday.com board"
+      },
+      {
+        "name": "Update Item",
+        "description": "Update column values of an item on a Monday.com board"
+      },
+      {
+        "name": "Delete Item",
+        "description": "Delete an item from a Monday.com board"
+      },
+      {
+        "name": "Archive Item",
+        "description": "Archive an item on a Monday.com board"
+      },
+      {
+        "name": "Move Item to Group",
+        "description": "Move an item to a different group on a Monday.com board"
+      },
+      {
+        "name": "Create Subitem",
+        "description": "Create a subitem under a parent item on Monday.com"
+      },
+      {
+        "name": "Create Update",
+        "description": "Add an update (comment) to a Monday.com item"
+      },
+      {
+        "name": "Create Group",
+        "description": "Create a new group on a Monday.com board"
+      }
+    ],
+    "operationCount": 13,
+    "triggers": [
+      {
+        "id": "monday_item_created",
+        "name": "Monday Item Created",
+        "description": "Trigger workflow when a new item is created on a Monday.com board"
+      },
+      {
+        "id": "monday_column_changed",
+        "name": "Monday Column Value Changed",
+        "description": "Trigger workflow when any column value changes on a Monday.com board"
+      },
+      {
+        "id": "monday_status_changed",
+        "name": "Monday Status Changed",
+        "description": "Trigger workflow when a status column value changes on a Monday.com board"
+      },
+      {
+        "id": "monday_item_name_changed",
+        "name": "Monday Item Name Changed",
+        "description": "Trigger workflow when an item name changes on a Monday.com board"
+      },
+      {
+        "id": "monday_item_archived",
+        "name": "Monday Item Archived",
+        "description": "Trigger workflow when an item is archived on a Monday.com board"
+      },
+      {
+        "id": "monday_item_deleted",
+        "name": "Monday Item Deleted",
+        "description": "Trigger workflow when an item is deleted on a Monday.com board"
+      },
+      {
+        "id": "monday_item_moved",
+        "name": "Monday Item Moved to Group",
+        "description": "Trigger workflow when an item is moved to any group on a Monday.com board"
+      },
+      {
+        "id": "monday_subitem_created",
+        "name": "Monday Subitem Created",
+        "description": "Trigger workflow when a subitem is created on a Monday.com board"
+      },
+      {
+        "id": "monday_update_created",
+        "name": "Monday Update Posted",
+        "description": "Trigger workflow when an update or comment is posted on a Monday.com item"
+      }
+    ],
+    "triggerCount": 9,
+    "authType": "oauth",
+    "category": "tools",
+    "integrationTypes": ["productivity"],
+    "tags": ["project-management"]
+  },
+  {
     "type": "mongodb",
     "slug": "mongodb",
     "name": "MongoDB",
