@@ -3,6 +3,7 @@ import {
   extractMondayError,
   MONDAY_API_URL,
   mondayHeaders,
+  sanitizeLimit,
   sanitizeNumericId,
 } from '@/tools/monday/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -58,7 +59,7 @@ export const mondaySearchItemsTool: ToolConfig<MondaySearchItemsParams, MondaySe
       method: 'POST',
       headers: (params) => mondayHeaders(params.accessToken),
       body: (params) => {
-        const limit = params.limit ?? 25
+        const limit = sanitizeLimit(params.limit, 25, 500)
         if (params.cursor) {
           return {
             query: `query { next_items_page(limit: ${limit}, cursor: ${JSON.stringify(params.cursor)}) { cursor items { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } } }`,

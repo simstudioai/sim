@@ -3,6 +3,7 @@ import {
   extractMondayError,
   MONDAY_API_URL,
   mondayHeaders,
+  sanitizeLimit,
   sanitizeNumericId,
 } from '@/tools/monday/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -85,7 +86,7 @@ export const mondayGetItemsTool: ToolConfig<MondayGetItemsParams, MondayGetItems
     method: 'POST',
     headers: (params) => mondayHeaders(params.accessToken),
     body: (params) => {
-      const limit = params.limit ?? 25
+      const limit = sanitizeLimit(params.limit, 25, 500)
       const boardId = sanitizeNumericId(params.boardId, 'boardId')
       if (params.groupId) {
         return {

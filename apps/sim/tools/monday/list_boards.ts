@@ -1,5 +1,10 @@
 import type { MondayListBoardsParams, MondayListBoardsResponse } from '@/tools/monday/types'
-import { extractMondayError, MONDAY_API_URL, mondayHeaders } from '@/tools/monday/utils'
+import {
+  extractMondayError,
+  MONDAY_API_URL,
+  mondayHeaders,
+  sanitizeLimit,
+} from '@/tools/monday/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mondayListBoardsTool: ToolConfig<MondayListBoardsParams, MondayListBoardsResponse> = {
@@ -39,8 +44,8 @@ export const mondayListBoardsTool: ToolConfig<MondayListBoardsParams, MondayList
     method: 'POST',
     headers: (params) => mondayHeaders(params.accessToken),
     body: (params) => {
-      const limit = params.limit ?? 25
-      const page = params.page ?? 1
+      const limit = sanitizeLimit(params.limit, 25, 500)
+      const page = sanitizeLimit(params.page, 1, 10000)
       return {
         query: `query { boards(limit: ${limit}, page: ${page}, state: active) { id name description state board_kind items_count url updated_at } }`,
       }
