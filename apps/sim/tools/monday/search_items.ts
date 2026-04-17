@@ -60,7 +60,9 @@ export const mondaySearchItemsTool: ToolConfig<MondaySearchItemsParams, MondaySe
           }
         }
         const columnsJson =
-          typeof params.columns === 'string' ? params.columns : JSON.stringify(params.columns)
+          typeof params.columns === 'string'
+            ? JSON.stringify(JSON.parse(params.columns))
+            : JSON.stringify(params.columns)
         return {
           query: `query { items_page_by_column_values(limit: ${limit}, board_id: ${params.boardId}, columns: ${columnsJson}) { cursor items { id name state board { id } group { id title } column_values { id text value type } created_at updated_at url } } }`,
         }
