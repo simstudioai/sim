@@ -2,7 +2,7 @@ import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
-import { PROVIDER_DEFINITIONS } from '@/providers/models'
+import { DYNAMIC_MODEL_PROVIDERS, PROVIDER_DEFINITIONS } from '@/providers/models'
 import type { ToolConfig } from '@/tools/types'
 
 /**
@@ -342,8 +342,8 @@ const RESELLER_BASE_PREFIX: Record<string, string> = {
 }
 
 const DYNAMIC_PROVIDERS_NOTE = {
-  note: 'The options array above lists Sim\'s static provider catalog. These four providers also accept user-configured models that are NOT enumerated here: the user may have additional ids available at runtime. Any model id prefixed with one of the slashes below is accepted by the server, as is any bare id that does not match a static provider pattern (typically a local Ollama tag like "llama3.1:8b"). The UI dropdown shows the user\'s actual installed models; if the user references one by name, use that id verbatim.',
-  prefixes: ['ollama/', 'vllm/', 'openrouter/', 'fireworks/'],
+  note: 'The options array above lists Sim\'s static provider catalog. These providers also accept user-configured models that are NOT enumerated here: the user may have additional ids available at runtime. Any model id prefixed with one of the slashes below is accepted by the server, as is any bare id that does not match a static provider pattern (typically a local Ollama tag like "llama3.1:8b"). The UI dropdown shows the user\'s actual installed models; if the user references one by name, use that id verbatim.',
+  prefixes: DYNAMIC_MODEL_PROVIDERS.map((p) => `${p}/`),
 } as const
 
 function getStaticModelOptionsForVFS(): StaticModelOption[] {

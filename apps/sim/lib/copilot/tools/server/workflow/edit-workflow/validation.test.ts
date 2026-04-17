@@ -172,15 +172,25 @@ describe('validateInputsForBlock', () => {
     expect(result.validInputs.model).toBe('mistralai/Mistral-7B-Instruct-v0.3')
   })
 
-  it('accepts date-suffixed variants of known Anthropic ids', () => {
+  it('rejects a bare Ollama-style tag without the provider prefix', () => {
+    const result = validateInputsForBlock('agent', { model: 'llama3.1:8b' }, 'agent-1')
+
+    expect(result.validInputs.model).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('Unknown model id')
+    expect(result.errors[0]?.error).toContain('ollama/')
+  })
+
+  it('rejects date-pinned ids that are not literally in the catalog', () => {
     const result = validateInputsForBlock(
       'agent',
       { model: 'claude-sonnet-4-5-20250929' },
       'agent-1'
     )
 
-    expect(result.errors).toHaveLength(0)
-    expect(result.validInputs.model).toBe('claude-sonnet-4-5-20250929')
+    expect(result.validInputs.model).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('Unknown model id')
   })
 
   it('trims whitespace around catalog model ids and stores the trimmed value', () => {

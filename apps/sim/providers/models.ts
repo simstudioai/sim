@@ -2711,32 +2711,32 @@ export function getProviderModels(providerId: string): string[] {
   return PROVIDER_DEFINITIONS[providerId]?.models.map((m) => m.id) || []
 }
 
-const DYNAMIC_MODEL_PROVIDERS = ['ollama', 'vllm', 'openrouter', 'fireworks'] as const
+export const DYNAMIC_MODEL_PROVIDERS = ['ollama', 'vllm', 'openrouter', 'fireworks'] as const
+
+export function getAllStaticModelIds(): string[] {
+  const ids: string[] = []
+  for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
+    if ((DYNAMIC_MODEL_PROVIDERS as readonly string[]).includes(providerId)) continue
+    for (const model of provider.models) ids.push(model.id)
+  }
+  return ids
+}
+
+const STATIC_MODEL_ID_SET = new Set(getAllStaticModelIds().map((id) => id.toLowerCase()))
 
 export function isKnownModelId(modelId: string): boolean {
   if (!modelId || typeof modelId !== 'string') return false
   const trimmed = modelId.trim()
   if (!trimmed) return false
-  const normalized = trimmed.toLowerCase()
 
-  for (const provider of Object.values(PROVIDER_DEFINITIONS)) {
-    for (const model of provider.models) {
-      const base = model.id.toLowerCase()
-      if (normalized === base || normalized.startsWith(`${base}-`)) return true
-    }
+  if (STATIC_MODEL_ID_SET.has(trimmed.toLowerCase())) return true
+
+  const lowered = trimmed.toLowerCase()
+  for (const provider of DYNAMIC_MODEL_PROVIDERS) {
+    if (lowered.startsWith(`${provider}/`)) return true
   }
 
-  const dynamicPrefixes = [/^ollama\//i, /^vllm\//i, /^openrouter\//i, /^fireworks\//i]
-  if (dynamicPrefixes.some((re) => re.test(trimmed))) return true
-
-  for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
-    if ((DYNAMIC_MODEL_PROVIDERS as readonly string[]).includes(providerId)) continue
-    if (provider.modelPatterns?.some((re) => re.test(normalized))) {
-      return false
-    }
-  }
-
-  return true
+  return false
 }
 
 export function getRecommendedModels(): string[] {
@@ -2750,25 +2750,7 @@ export function getRecommendedModels(): string[] {
   return models
 }
 
-export function suggestModelIdsForUnknownModel(modelId: string, limit = 5): string[] {
-  if (!modelId || typeof modelId !== 'string') return []
-  const normalized = modelId.trim().toLowerCase()
-  if (!normalized) return []
-
-  for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
-    if ((DYNAMIC_MODEL_PROVIDERS as readonly string[]).includes(providerId)) continue
-    if (provider.modelPatterns?.some((re) => re.test(normalized))) {
-      const recommendedFirst = [...provider.models].sort((a, b) => {
-        if (a.deprecated && !b.deprecated) return 1
-        if (!a.deprecated && b.deprecated) return -1
-        if (a.recommended && !b.recommended) return -1
-        if (!a.recommended && b.recommended) return 1
-        return 0
-      })
-      return recommendedFirst.map((m) => m.id).slice(0, limit)
-    }
-  }
-
+export function suggestModelIdsForUnknownModel(_modelId: string, limit = 5): string[] {
   const recommended = getRecommendedModels()
   if (recommended.length > 0) return recommended.slice(0, limit)
 
