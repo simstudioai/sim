@@ -6,6 +6,8 @@
     "includes": [
       "**",
       "!**/.next",
+      "!**/.next/**",
+      "!**/next-env.d.ts",
       "!**/out",
       "!**/dist",
       "!**/build",
@@ -27,7 +29,8 @@
       "!**/apps/docs/.source",
       "!**/venv",
       "!**/.venv",
-      "!**/uploads"
+      "!**/uploads",
+      "!**/apps/sim/lib/execution/sandbox/bundles/*.cjs"
     ]
   },
   "formatter": {

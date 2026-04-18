@@ -379,7 +379,7 @@ async function executeCode(request, executionId) {
       // Host sent a `cancel` IPC which called `isolate.dispose()`. Any
       // in-flight compileScript/run then throws; detect that authoritatively
       // via the isolate flag rather than fuzzy-matching the error message.
-      if (isolate && isolate.isDisposed) {
+      if (isolate?.isDisposed) {
         return {
           result: null,
           stdout,
@@ -789,10 +789,9 @@ async function executeTask(request, executionId) {
     timings.brokerInstall = Date.now() - tPhase
     tPhase = Date.now()
 
-    const bootstrapScript = await isolate.compileScript(
-      `(async () => { ${task.bootstrap} })()`,
-      { filename: `sandbox/${task.id}/bootstrap.js` }
-    )
+    const bootstrapScript = await isolate.compileScript(`(async () => { ${task.bootstrap} })()`, {
+      filename: `sandbox/${task.id}/bootstrap.js`,
+    })
     releaseables.push(bootstrapScript)
     await bootstrapScript.run(context, { timeout: timeoutMs, promise: true })
     timings.taskBootstrap = Date.now() - tPhase
@@ -917,7 +916,7 @@ async function executeTask(request, executionId) {
       // Cancellation: host sent `cancel` IPC which called `isolate.dispose()`.
       // Detect authoritatively via the isolate flag so we don't depend on
       // isolated-vm's internal error wording.
-      if (isolate && isolate.isDisposed) {
+      if (isolate?.isDisposed) {
         return {
           result: null,
           stdout,
@@ -925,7 +924,7 @@ async function executeTask(request, executionId) {
           timings,
         }
       }
-      if (err.message && err.message.includes('Script execution timed out')) {
+      if (err.message?.includes('Script execution timed out')) {
         return {
           result: null,
           stdout,
