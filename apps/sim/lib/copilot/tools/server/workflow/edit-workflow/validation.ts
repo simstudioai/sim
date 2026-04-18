@@ -356,12 +356,7 @@ export function validateValueForSubBlockType(
         fieldName === 'model' && subBlockConfig.options === getModelOptions
 
       if (usesProviderCatalog) {
-        const stringValue =
-          typeof value === 'string'
-            ? value
-            : typeof value === 'number'
-              ? String(value)
-              : String(value)
+        const stringValue = typeof value === 'string' ? value : String(value)
         const trimmed = stringValue.trim()
         if (trimmed !== '' && !isKnownModelId(trimmed)) {
           const suggestions = suggestModelIdsForUnknownModel(trimmed)
