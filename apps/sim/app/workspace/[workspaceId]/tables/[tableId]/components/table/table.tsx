@@ -604,10 +604,24 @@ export function Table({
         const rowIndex = Number.parseInt(td.getAttribute('data-row') || '-1', 10)
         const colIndex = Number.parseInt(td.getAttribute('data-col') || '-1', 10)
         if (rowIndex >= 0 && colIndex >= 0) {
-          setSelectionAnchor({ rowIndex, colIndex })
-          setSelectionFocus(null)
           columnName =
             colIndex < columnsRef.current.length ? columnsRef.current[colIndex].name : null
+
+          const sel = computeNormalizedSelection(
+            selectionAnchorRef.current,
+            selectionFocusRef.current
+          )
+          const isWithinSelection =
+            sel !== null &&
+            rowIndex >= sel.startRow &&
+            rowIndex <= sel.endRow &&
+            colIndex >= sel.startCol &&
+            colIndex <= sel.endCol
+
+          if (!isWithinSelection) {
+            setSelectionAnchor({ rowIndex, colIndex })
+            setSelectionFocus(null)
+          }
         }
       }
       baseHandleRowContextMenu(e, row, columnName)
@@ -729,6 +743,40 @@ export function Table({
   const handleColumnResizeEnd = useCallback(() => {
     setResizingColumn(null)
     updateMetadataRef.current({ columnWidths: columnWidthsRef.current })
+  }, [])
+
+  const handleColumnAutoResize = useCallback((columnName: string) => {
+    const cols = columnsRef.current
+    const colIndex = cols.findIndex((c) => c.name === columnName)
+    if (colIndex === -1) return
+
+    const currentRows = rowsRef.current
+    let maxWidth = COL_WIDTH_MIN
+
+    const measure = document.createElement('span')
+    measure.style.cssText =
+      'position:absolute;visibility:hidden;white-space:nowrap;font:inherit;padding:0 8px'
+    document.body.appendChild(measure)
+
+    measure.className = 'font-medium text-small'
+    measure.textContent = columnName
+    maxWidth = Math.max(maxWidth, measure.offsetWidth + 48)
+
+    measure.className = 'text-small'
+    for (const row of currentRows) {
+      const val = row.data[columnName]
+      if (val == null) continue
+      measure.textContent = String(val)
+      maxWidth = Math.max(maxWidth, measure.offsetWidth + 20)
+    }
+
+    document.body.removeChild(measure)
+
+    const newWidth = Math.min(Math.ceil(maxWidth), 600)
+    setColumnWidths((prev) => ({ ...prev, [columnName]: newWidth }))
+    const updated = { ...columnWidthsRef.current, [columnName]: newWidth }
+    columnWidthsRef.current = updated
+    updateMetadataRef.current({ columnWidths: updated })
   }, [])
 
   const handleColumnDragStart = useCallback((columnName: string) => {
@@ -928,6 +976,9 @@ export function Table({
       if (e.key === 'Escape') {
         e.preventDefault()
         if (dragColumnNameRef.current) {
+          dragColumnNameRef.current = null
+          dropTargetColumnNameRef.current = null
+          dropSideRef.current = 'left'
           setDragColumnName(null)
           setDropTargetColumnName(null)
           setDropSide('left')
@@ -1957,6 +2008,7 @@ export function Table({
                       onResizeStart={handleColumnResizeStart}
                       onResize={handleColumnResize}
                       onResizeEnd={handleColumnResizeEnd}
+                      onAutoResize={handleColumnAutoResize}
                       onDragStart={handleColumnDragStart}
                       onDragOver={handleColumnDragOver}
                       onDragEnd={handleColumnDragEnd}
@@ -2880,6 +2932,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onResizeStart,
   onResize,
   onResizeEnd,
+  onAutoResize,
   onDragStart,
   onDragOver,
   onDragEnd,
@@ -2904,6 +2957,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onResizeStart: (columnName: string) => void
   onResize: (columnName: string, width: number) => void
   onResizeEnd: () => void
+  onAutoResize: (columnName: string) => void
   onDragStart?: (columnName: string) => void
   onDragOver?: (columnName: string, side: 'left' | 'right') => void
   onDragEnd?: () => void
@@ -3150,6 +3204,11 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         draggable={false}
         onDragStart={(e) => e.stopPropagation()}
         onPointerDown={handleResizePointerDown}
+        onDoubleClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          onAutoResize(column.name)
+        }}
       />
     </th>
   )
