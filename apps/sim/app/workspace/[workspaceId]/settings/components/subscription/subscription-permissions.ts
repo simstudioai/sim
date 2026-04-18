@@ -58,8 +58,14 @@ export function getSubscriptionPermissions(
     canEditUsageLimit: (isFree || (isPaid && !isEnterprise)) && orgAdminOrSolo,
     canCancelSubscription: isPaid && !isEnterprise && orgAdminOrSolo,
     showTeamMemberView: orgMemberOnly,
+    // Personal Pro can upgrade to team/enterprise. Any org admin/owner on
+    // a non-enterprise plan can upgrade to enterprise — covers team admins
+    // AND admins of `pro_*` plans attached to an org (previously missed by
+    // the narrower `isTeam && isTeamAdmin` check, which left pro-on-org
+    // admins with no upgrade path even though `getVisiblePlans` listed
+    // enterprise for them).
     showUpgradePlans:
-      (isFree || (isPro && !isOrgScoped) || (isTeam && isTeamAdmin)) && !isEnterprise,
+      (isFree || (isPro && !isOrgScoped) || (isOrgScoped && isTeamAdmin)) && !isEnterprise,
     isEnterpriseMember,
     canViewUsageInfo,
   }
@@ -70,7 +76,7 @@ export function getVisiblePlans(
   userRole: UserRole
 ): ('pro' | 'team' | 'enterprise')[] {
   const plans: ('pro' | 'team' | 'enterprise')[] = []
-  const { isFree, isPro, isTeam, isOrgScoped } = subscription
+  const { isFree, isPro, isEnterprise, isOrgScoped } = subscription
   const { isTeamAdmin } = userRole
 
   // Free users see all plans
@@ -81,13 +87,14 @@ export function getVisiblePlans(
   else if (isPro && !isOrgScoped) {
     plans.push('team', 'enterprise')
   }
-  // Team/org owners/admins: only enterprise (already on a team-level plan)
-  else if (isOrgScoped && isTeamAdmin && !isTeam) {
-    plans.push('enterprise')
-  } else if (isTeam && isTeamAdmin) {
+  // Org admin/owner on a non-enterprise plan: enterprise is the only
+  // remaining upgrade. Covers team admins and `pro_*`-on-org admins.
+  // Explicitly excludes enterprise admins (already on the top tier) so
+  // this stays consistent with `showUpgradePlans`.
+  else if (isOrgScoped && isTeamAdmin && !isEnterprise) {
     plans.push('enterprise')
   }
-  // Team/org members, Enterprise users see no plans
+  // Org members, Enterprise users see no plans
 
   return plans
 }

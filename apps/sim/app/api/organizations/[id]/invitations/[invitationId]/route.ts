@@ -422,10 +422,20 @@ export async function PUT(
             // this transfer, pre-join bytes would be orphaned on the
             // user's row and subsequent decrements (deleting a pre-join
             // file after joining) would wrongly reduce the org pool.
+            //
+            // `.for('update')` acquires a row-level write lock on the
+            // user's `user_stats` row so a concurrent
+            // `incrementStorageUsage`/`decrementStorageUsage` (from
+            // another tab, a scheduled run, an API-key writer, etc.)
+            // blocks until this transaction commits — otherwise Postgres
+            // READ COMMITTED would let a write land between the snapshot
+            // SELECT and the zero UPDATE, silently dropping those bytes.
+            // Mirrors the bulk version in `syncSubscriptionUsageLimits`.
             const storageRows = await tx
               .select({ storageUsedBytes: userStats.storageUsedBytes })
               .from(userStats)
               .where(eq(userStats.userId, userId))
+              .for('update')
               .limit(1)
 
             const bytesToTransfer = storageRows[0]?.storageUsedBytes ?? 0
