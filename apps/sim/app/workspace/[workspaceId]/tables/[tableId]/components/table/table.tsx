@@ -202,7 +202,7 @@ export function Table({
   const lastCheckboxRowRef = useRef<number | null>(null)
   const isColumnSelectionRef = useRef(false)
   const [showDeleteTableConfirm, setShowDeleteTableConfirm] = useState(false)
-  const [deletingColumn, setDeletingColumn] = useState<string | null>(null)
+  const [deletingColumns, setDeletingColumns] = useState<string[] | null>(null)
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false)
 
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
@@ -716,15 +716,16 @@ export function Table({
 
   const handleSelectAllRows = useCallback(() => {
     const rws = rowsRef.current
-    if (rws.length === 0) return
+    const currentCols = columnsRef.current
+    if (rws.length === 0 || currentCols.length === 0) return
     setEditingCell(null)
-    setSelectionAnchor(null)
-    setSelectionFocus(null)
-    const all = new Set<number>()
-    for (const row of rws) {
-      all.add(row.position)
-    }
-    setCheckedRows(all)
+    setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+    setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
+    setSelectionFocus({
+      rowIndex: maxPositionRef.current,
+      colIndex: currentCols.length - 1,
+    })
+    setIsColumnSelection(false)
     scrollRef.current?.focus({ preventScroll: true })
   }, [])
 
@@ -1372,6 +1373,7 @@ export function Table({
       const cols = columnsRef.current
       const pMap = positionMapRef.current
       const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
+      const batchUpdates: Array<{ rowId: string; data: Record<string, unknown> }> = []
 
       if (checked.size > 0) {
         e.preventDefault()
@@ -1393,7 +1395,7 @@ export function Table({
             updates[col.name] = null
           }
           undoCells.push({ rowId: row.id, data: previousData })
-          mutateRef.current({ rowId: row.id, data: updates })
+          batchUpdates.push({ rowId: row.id, data: updates })
         }
         e.clipboardData?.setData('text/plain', lines.join('\n'))
       } else {
@@ -1426,11 +1428,14 @@ export function Table({
           }
           lines.push(cells.join('\t'))
           undoCells.push({ rowId: row.id, data: previousData })
-          mutateRef.current({ rowId: row.id, data: updates })
+          batchUpdates.push({ rowId: row.id, data: updates })
         }
         e.clipboardData?.setData('text/plain', lines.join('\n'))
       }
 
+      if (batchUpdates.length > 0) {
+        batchUpdateRef.current({ updates: batchUpdates })
+      }
       if (undoCells.length > 0) {
         pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
       }
@@ -1732,48 +1737,76 @@ export function Table({
   )
 
   const handleDeleteColumn = useCallback((columnName: string) => {
-    setDeletingColumn(columnName)
+    const cols = columnsRef.current
+    if (isColumnSelectionRef.current && selectionAnchorRef.current) {
+      const sel = computeNormalizedSelection(selectionAnchorRef.current, selectionFocusRef.current)
+      if (sel && sel.startCol !== sel.endCol) {
+        const names: string[] = []
+        for (let c = sel.startCol; c <= sel.endCol; c++) {
+          if (c < cols.length) names.push(cols[c].name)
+        }
+        if (names.length > 0) {
+          setDeletingColumns(names)
+          return
+        }
+      }
+    }
+    setDeletingColumns([columnName])
   }, [])
 
   const handleDeleteColumnConfirm = useCallback(() => {
-    if (!deletingColumn) return
-    const columnToDelete = deletingColumn
-    const orderAtDelete = columnOrderRef.current
-    const cols = schemaColumnsRef.current
-    const colDef = cols.find((c) => c.name === columnToDelete)
-    const colPosition = colDef ? cols.indexOf(colDef) : cols.length
-    const currentRows = rowsRef.current
-    const cellData = currentRows
-      .filter((r) => r.data[columnToDelete] != null)
-      .map((r) => ({ rowId: r.id, value: r.data[columnToDelete] }))
-    const previousWidth = columnWidthsRef.current[columnToDelete] ?? null
+    if (!deletingColumns || deletingColumns.length === 0) return
+    const columnsToDelete = [...deletingColumns]
+    setDeletingColumns(null)
 
-    setDeletingColumn(null)
-    deleteColumnMutation.mutate(columnToDelete, {
-      onSuccess: () => {
-        pushUndoRef.current({
-          type: 'delete-column',
-          columnName: columnToDelete,
-          columnType: colDef?.type ?? 'string',
-          columnPosition: colPosition >= 0 ? colPosition : cols.length,
-          columnUnique: colDef?.unique ?? false,
-          columnRequired: colDef?.required ?? false,
-          cellData,
-          previousOrder: orderAtDelete ? [...orderAtDelete] : null,
-          previousWidth,
-        })
+    let currentOrder = columnOrderRef.current ? [...columnOrderRef.current] : null
 
-        if (orderAtDelete) {
-          const newOrder = orderAtDelete.filter((n) => n !== columnToDelete)
-          setColumnOrder(newOrder)
-          updateMetadataRef.current({
-            columnWidths: columnWidthsRef.current,
-            columnOrder: newOrder,
+    const deleteNext = (index: number) => {
+      if (index >= columnsToDelete.length) return
+      const columnToDelete = columnsToDelete[index]
+      const cols = schemaColumnsRef.current
+      const colDef = cols.find((c) => c.name === columnToDelete)
+      const colPosition = colDef ? cols.indexOf(colDef) : cols.length
+      const currentRows = rowsRef.current
+      const cellData = currentRows
+        .filter((r) => r.data[columnToDelete] != null)
+        .map((r) => ({ rowId: r.id, value: r.data[columnToDelete] }))
+      const previousWidth = columnWidthsRef.current[columnToDelete] ?? null
+      const orderSnapshot = currentOrder ? [...currentOrder] : null
+
+      deleteColumnMutation.mutate(columnToDelete, {
+        onSuccess: () => {
+          pushUndoRef.current({
+            type: 'delete-column',
+            columnName: columnToDelete,
+            columnType: colDef?.type ?? 'string',
+            columnPosition: colPosition >= 0 ? colPosition : cols.length,
+            columnUnique: colDef?.unique ?? false,
+            columnRequired: colDef?.required ?? false,
+            cellData,
+            previousOrder: orderSnapshot,
+            previousWidth,
           })
-        }
-      },
-    })
-  }, [deletingColumn])
+
+          if (currentOrder) {
+            currentOrder = currentOrder.filter((n) => n !== columnToDelete)
+            setColumnOrder(currentOrder)
+            updateMetadataRef.current({
+              columnWidths: columnWidthsRef.current,
+              columnOrder: currentOrder,
+            })
+          }
+
+          deleteNext(index + 1)
+        },
+      })
+    }
+
+    setSelectionAnchor(null)
+    setSelectionFocus(null)
+    setIsColumnSelection(false)
+    deleteNext(0)
+  }, [deletingColumns])
 
   const handleSortChange = useCallback((column: string, direction: SortDirection) => {
     setQueryOptions((prev) => ({ ...prev, sort: { [column]: direction } }))
@@ -2241,25 +2274,45 @@ export function Table({
       )}
 
       <Modal
-        open={deletingColumn !== null}
+        open={deletingColumns !== null}
         onOpenChange={(open) => {
-          if (!open) setDeletingColumn(null)
+          if (!open) setDeletingColumns(null)
         }}
       >
         <ModalContent size='sm'>
-          <ModalHeader>Delete Column</ModalHeader>
+          <ModalHeader>
+            {deletingColumns && deletingColumns.length > 1
+              ? `Delete ${deletingColumns.length} Columns`
+              : 'Delete Column'}
+          </ModalHeader>
           <ModalBody>
             <p className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{deletingColumn}</span>?{' '}
+              {deletingColumns && deletingColumns.length > 1 ? (
+                <>
+                  Are you sure you want to delete{' '}
+                  <span className='font-medium text-[var(--text-primary)]'>
+                    {deletingColumns.length} columns
+                  </span>
+                  ?{' '}
+                </>
+              ) : (
+                <>
+                  Are you sure you want to delete{' '}
+                  <span className='font-medium text-[var(--text-primary)]'>
+                    {deletingColumns?.[0]}
+                  </span>
+                  ?{' '}
+                </>
+              )}
               <span className='text-[var(--text-error)]'>
-                This will remove all data in this column.
+                This will remove all data in{' '}
+                {deletingColumns && deletingColumns.length > 1 ? 'these columns' : 'this column'}.
               </span>{' '}
               You can undo this action.
             </p>
           </ModalBody>
           <ModalFooter>
-            <Button variant='default' onClick={() => setDeletingColumn(null)}>
+            <Button variant='default' onClick={() => setDeletingColumns(null)}>
               Cancel
             </Button>
             <Button variant='destructive' onClick={handleDeleteColumnConfirm}>
@@ -3190,7 +3243,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
           </button>
           <button
             type='button'
-            className='flex h-full shrink-0 cursor-pointer items-center pr-2 pl-0.5 text-[var(--text-muted)] opacity-0 transition-opacity hover:text-[var(--text-primary)] group-hover:opacity-100'
+            className='flex h-full shrink-0 cursor-pointer items-center pr-2.5 pl-0.5 text-[var(--text-muted)] opacity-0 transition-opacity hover:text-[var(--text-primary)] group-hover:opacity-100'
             onClick={handleChevronClick}
             draggable={false}
             aria-label='Column options'
