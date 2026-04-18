@@ -104,8 +104,8 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
   }, [])
 
   /**
-   * Processes and uploads files to S3
-   * @param fileList - Files to process
+   * Uploads files in parallel so a slow file does not block faster ones queued
+   * behind it. All placeholders insert in a single state update for a stable row.
    */
   const processFiles = useCallback(
     async (fileList: FileList) => {
@@ -114,67 +114,69 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
         return
       }
 
-      for (const file of Array.from(fileList)) {
-        let previewUrl: string | undefined
-        if (file.type.startsWith('image/')) {
-          previewUrl = URL.createObjectURL(file)
-        }
+      const files = Array.from(fileList)
+      if (files.length === 0) return
 
-        const resolvedType = resolveFileType(file)
+      const placeholders: AttachedFile[] = files.map((file) => ({
+        id: generateId(),
+        name: file.name,
+        size: file.size,
+        type: resolveFileType(file),
+        path: '',
+        uploading: true,
+        previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
+      }))
 
-        const tempFile: AttachedFile = {
-          id: generateId(),
-          name: file.name,
-          size: file.size,
-          type: resolvedType,
-          path: '',
-          uploading: true,
-          previewUrl,
-        }
+      setAttachedFiles((prev) => [...prev, ...placeholders])
 
-        setAttachedFiles((prev) => [...prev, tempFile])
+      await Promise.all(
+        files.map(async (file, i) => {
+          const placeholder = placeholders[i]
+          try {
+            const formData = new FormData()
+            formData.append('file', file)
+            formData.append('context', 'mothership')
+            if (workspaceId) {
+              formData.append('workspaceId', workspaceId)
+            }
 
-        try {
-          const formData = new FormData()
-          formData.append('file', file)
-          formData.append('context', 'mothership')
-          if (workspaceId) {
-            formData.append('workspaceId', workspaceId)
-          }
+            const uploadResponse = await fetch('/api/files/upload', {
+              method: 'POST',
+              body: formData,
+            })
 
-          const uploadResponse = await fetch('/api/files/upload', {
-            method: 'POST',
-            body: formData,
-          })
+            if (!uploadResponse.ok) {
+              const errorData = await uploadResponse.json().catch(() => ({
+                error: `Upload failed: ${uploadResponse.status}`,
+              }))
+              throw new Error(errorData.error || `Failed to upload file: ${uploadResponse.status}`)
+            }
 
-          if (!uploadResponse.ok) {
-            const errorData = await uploadResponse.json().catch(() => ({
-              error: `Upload failed: ${uploadResponse.status}`,
-            }))
-            throw new Error(errorData.error || `Failed to upload file: ${uploadResponse.status}`)
-          }
+            const uploadData = await uploadResponse.json()
 
-          const uploadData = await uploadResponse.json()
-
-          logger.info(`File uploaded successfully: ${uploadData.fileInfo?.path || uploadData.path}`)
-
-          setAttachedFiles((prev) =>
-            prev.map((f) =>
-              f.id === tempFile.id
-                ? {
-                    ...f,
-                    path: uploadData.fileInfo?.path || uploadData.path || uploadData.url,
-                    key: uploadData.fileInfo?.key || uploadData.key,
-                    uploading: false,
-                  }
-                : f
+            logger.info(
+              `File uploaded successfully: ${uploadData.fileInfo?.path || uploadData.path}`
             )
-          )
-        } catch (error) {
-          logger.error(`File upload failed: ${error}`)
-          setAttachedFiles((prev) => prev.filter((f) => f.id !== tempFile.id))
-        }
-      }
+
+            setAttachedFiles((prev) =>
+              prev.map((f) =>
+                f.id === placeholder.id
+                  ? {
+                      ...f,
+                      path: uploadData.fileInfo?.path || uploadData.path || uploadData.url,
+                      key: uploadData.fileInfo?.key || uploadData.key,
+                      uploading: false,
+                    }
+                  : f
+              )
+            )
+          } catch (error) {
+            logger.error(`File upload failed: ${error}`)
+            if (placeholder.previewUrl) URL.revokeObjectURL(placeholder.previewUrl)
+            setAttachedFiles((prev) => prev.filter((f) => f.id !== placeholder.id))
+          }
+        })
+      )
     },
     [userId, workspaceId]
   )
