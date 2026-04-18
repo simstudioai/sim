@@ -633,13 +633,16 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       setDropIndicator(null)
       setHoverFolderId(null)
     }
+    const onWindowDrop = (e: DragEvent) => {
+      const target = e.target as Node | null
+      if (target && container.contains(target)) return
+      handleDragEnd()
+    }
     container.addEventListener('dragleave', onLeave)
-    window.addEventListener('drop', handleDragEnd, true)
-    window.addEventListener('dragend', handleDragEnd, true)
+    window.addEventListener('drop', onWindowDrop, true)
     return () => {
       container.removeEventListener('dragleave', onLeave)
-      window.removeEventListener('drop', handleDragEnd, true)
-      window.removeEventListener('dragend', handleDragEnd, true)
+      window.removeEventListener('drop', onWindowDrop, true)
     }
   }, [isDragging, handleDragEnd])
 
