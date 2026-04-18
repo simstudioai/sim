@@ -320,6 +320,17 @@ export function Table({
 
   const dropColumnBounds = useMemo(() => {
     if (!dropTargetColumnName || !dragColumnName) return null
+    if (dropTargetColumnName === dragColumnName) return null
+
+    const dragIndex = displayColumns.findIndex((c) => c.name === dragColumnName)
+    const targetIndex = displayColumns.findIndex((c) => c.name === dropTargetColumnName)
+    if (dragIndex === -1 || targetIndex === -1) return null
+
+    const wouldBeNoOp =
+      (dropSide === 'right' && targetIndex === dragIndex - 1) ||
+      (dropSide === 'left' && targetIndex === dragIndex + 1)
+    if (wouldBeNoOp) return null
+
     let left = CHECKBOX_COL_WIDTH
     for (const col of displayColumns) {
       const w = columnWidths[col.name] ?? COL_WIDTH
@@ -331,6 +342,17 @@ export function Table({
     }
     return null
   }, [dropTargetColumnName, dragColumnName, dropSide, displayColumns, columnWidths])
+
+  const dragSourceBounds = useMemo(() => {
+    if (!dragColumnName) return null
+    let left = CHECKBOX_COL_WIDTH
+    for (const col of displayColumns) {
+      const w = columnWidths[col.name] ?? COL_WIDTH
+      if (col.name === dragColumnName) return { left, width: w }
+      left += w
+    }
+    return null
+  }, [dragColumnName, displayColumns, columnWidths])
 
   const isAllRowsSelected = useMemo(() => {
     if (checkedRows.size > 0 && rows.length > 0 && checkedRows.size >= rows.length) {
@@ -708,7 +730,12 @@ export function Table({
 
   const handleColumnDragEnd = useCallback(() => {
     const dragged = dragColumnNameRef.current
-    if (!dragged) return
+    if (!dragged) {
+      setDragColumnName(null)
+      setDropTargetColumnName(null)
+      setDropSide('left')
+      return
+    }
     const target = dropTargetColumnNameRef.current
     const side = dropSideRef.current
     if (target && dragged !== target) {
@@ -721,11 +748,14 @@ export function Table({
         let insertIndex = newOrder.indexOf(target)
         if (side === 'right') insertIndex += 1
         newOrder.splice(insertIndex, 0, dragged)
-        setColumnOrder(newOrder)
-        updateMetadataRef.current({
-          columnWidths: columnWidthsRef.current,
-          columnOrder: newOrder,
-        })
+        const orderChanged = newOrder.some((name, i) => currentOrder[i] !== name)
+        if (orderChanged) {
+          setColumnOrder(newOrder)
+          updateMetadataRef.current({
+            columnWidths: columnWidthsRef.current,
+            columnOrder: newOrder,
+          })
+        }
       }
     }
     setDragColumnName(null)
@@ -1925,6 +1955,12 @@ export function Table({
             <div
               className='-translate-x-[1.5px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]'
               style={{ left: resizeIndicatorLeft }}
+            />
+          )}
+          {dragSourceBounds !== null && (
+            <div
+              className='pointer-events-none absolute top-0 z-[15] h-full bg-[var(--bg)] opacity-50'
+              style={{ left: dragSourceBounds.left, width: dragSourceBounds.width }}
             />
           )}
           {dropColumnBounds !== null && (
