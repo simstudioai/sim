@@ -13,7 +13,10 @@ import {
   getHighestPrioritySubscription,
   type HighestPrioritySubscription,
 } from '@/lib/billing/core/plan'
-import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
+import {
+  computeDailyRefreshConsumed,
+  getOrgMemberRefreshBounds,
+} from '@/lib/billing/credits/daily-refresh'
 import { getPlanTierDollars, isEnterprise, isFree, isPaid, isPro } from '@/lib/billing/plan-helpers'
 import {
   canEditUsageLimit,
@@ -214,12 +217,17 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
       if (planDollars > 0) {
         if (orgScoped) {
           if (orgMemberIds.length > 0) {
+            const userBounds = await getOrgMemberRefreshBounds(
+              subscription.referenceId,
+              billingPeriodStart
+            )
             dailyRefreshConsumed = await computeDailyRefreshConsumed({
               userIds: orgMemberIds,
               periodStart: billingPeriodStart,
               periodEnd: billingPeriodEnd,
               planDollars,
               seats: subscription.seats || 1,
+              userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
             })
           }
         } else {
@@ -649,12 +657,18 @@ export async function getEffectiveCurrentPeriodCost(userId: string): Promise<num
   const planDollars = getPlanTierDollars(subscription.plan)
   if (planDollars <= 0) return rawCost
 
+  const userBounds =
+    orgScoped && subscription.periodStart
+      ? await getOrgMemberRefreshBounds(subscription.referenceId, subscription.periodStart)
+      : {}
+
   const refreshConsumed = await computeDailyRefreshConsumed({
     userIds: refreshUserIds,
     periodStart: subscription.periodStart,
     periodEnd: subscription.periodEnd ?? null,
     planDollars,
     seats: subscription.seats || 1,
+    userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
   })
 
   return Math.max(0, rawCost - refreshConsumed)

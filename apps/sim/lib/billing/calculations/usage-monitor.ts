@@ -6,8 +6,11 @@ import {
   getHighestPrioritySubscription,
   type HighestPrioritySubscription,
 } from '@/lib/billing/core/plan'
-import { getUserUsageLimit } from '@/lib/billing/core/usage'
-import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
+import { getOrgUsageLimit, getUserUsageLimit } from '@/lib/billing/core/usage'
+import {
+  computeDailyRefreshConsumed,
+  getOrgMemberRefreshBounds,
+} from '@/lib/billing/credits/daily-refresh'
 import { getPlanTierDollars, isPaid } from '@/lib/billing/plan-helpers'
 import {
   ENTITLED_SUBSCRIPTION_STATUSES,
@@ -99,12 +102,14 @@ export async function checkUsageStatus(
         if (isPaid(sub.plan) && sub.periodStart) {
           const planDollars = getPlanTierDollars(sub.plan)
           if (planDollars > 0) {
+            const userBounds = await getOrgMemberRefreshBounds(sub.referenceId, sub.periodStart)
             const refresh = await computeDailyRefreshConsumed({
               userIds: memberIds,
               periodStart: sub.periodStart,
               periodEnd: sub.periodEnd ?? null,
               planDollars,
               seats: sub.seats || 1,
+              userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
             })
             pooled = Math.max(0, pooled - refresh)
           }
@@ -184,11 +189,17 @@ export async function checkUsageStatus(
         if (!orgSub) continue
 
         const [org] = await db
-          .select({ id: organization.id, orgUsageLimit: organization.orgUsageLimit })
+          .select({ id: organization.id })
           .from(organization)
           .where(eq(organization.id, m.organizationId))
           .limit(1)
         if (!org) continue
+
+        // Use the same resolver as primary-path enforcement so the
+        // `basePrice × seats` floor is applied here too. Reading
+        // `organization.orgUsageLimit` raw would miss the floor when
+        // the column is null or has drifted below minimum.
+        const { limit: orgCap } = await getOrgUsageLimit(org.id, orgSub.plan, orgSub.seats)
 
         const teamMembers = await db
           .select({ userId: member.userId })
@@ -212,21 +223,19 @@ export async function checkUsageStatus(
           const planDollars = getPlanTierDollars(orgSub.plan)
           if (planDollars > 0) {
             const memberIds = teamMembers.map((tm) => tm.userId)
+            const userBounds = await getOrgMemberRefreshBounds(org.id, orgSub.periodStart)
             const orgRefreshDeduction = await computeDailyRefreshConsumed({
               userIds: memberIds,
               periodStart: orgSub.periodStart,
               periodEnd: orgSub.periodEnd ?? null,
               planDollars,
               seats: orgSub.seats || 1,
+              userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
             })
             pooledUsage = Math.max(0, pooledUsage - orgRefreshDeduction)
           }
         }
 
-        const orgCap = org.orgUsageLimit ? Number.parseFloat(String(org.orgUsageLimit)) : 0
-        if (!orgCap || Number.isNaN(orgCap)) {
-          logger.warn('Organization missing usage limit', { orgId: org.id })
-        }
         if (orgCap > 0 && pooledUsage >= orgCap) {
           currentUsage = pooledUsage
           effectiveLimit = orgCap

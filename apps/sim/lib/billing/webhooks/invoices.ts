@@ -8,15 +8,16 @@ import {
   userStats,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, isNull, ne, or } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { getEmailSubject, PaymentFailedEmail, renderCreditPurchaseEmail } from '@/components/emails'
 import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
-import { addCredits, getCreditBalanceForEntity, removeCredits } from '@/lib/billing/credits/balance'
+import { addCredits, getCreditBalanceForEntity } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
 import { blockOrgMembers, unblockOrgMembers } from '@/lib/billing/organizations/membership'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getPersonalEmailFrom } from '@/lib/messaging/email/utils'
@@ -409,8 +410,8 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
           .set({
             lastPeriodCost: current,
             lastPeriodCopilotCost: currentCopilot,
-            currentPeriodCost: '0',
-            currentPeriodCopilotCost: '0',
+            currentPeriodCost: sql`GREATEST(0, ${userStats.currentPeriodCost} - ${current}::decimal)`,
+            currentPeriodCopilotCost: sql`GREATEST(0, ${userStats.currentPeriodCopilotCost} - ${currentCopilot}::decimal)`,
             billedOverageThisPeriod: '0',
           })
           .where(eq(userStats.userId, m.userId))
@@ -432,7 +433,7 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
       .where(eq(userStats.userId, sub.referenceId))
       .limit(1)
     if (currentStats.length > 0) {
-      const current = Number.parseFloat(currentStats[0].current?.toString() || '0')
+      const current = currentStats[0].current || '0'
       const snapshot = Number.parseFloat(currentStats[0].snapshot?.toString() || '0')
       const currentCopilot = currentStats[0].currentCopilot || '0'
 
@@ -447,19 +448,22 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
             lastPeriodCost: snapshot.toString(),
             lastPeriodCopilotCost: '0',
             proPeriodCostSnapshot: '0',
+            proPeriodCostSnapshotAt: null,
             billedOverageThisPeriod: '0',
           })
           .where(eq(userStats.userId, sub.referenceId))
       } else {
-        const totalLastPeriod = (current + snapshot).toString()
+        const totalLastPeriod = (Number.parseFloat(current) + snapshot).toString()
+        // Delta-reset for the same reason as the org branch above.
         await db
           .update(userStats)
           .set({
             lastPeriodCost: totalLastPeriod,
             lastPeriodCopilotCost: currentCopilot,
-            currentPeriodCost: '0',
-            currentPeriodCopilotCost: '0',
+            currentPeriodCost: sql`GREATEST(0, ${userStats.currentPeriodCost} - ${current}::decimal)`,
+            currentPeriodCopilotCost: sql`GREATEST(0, ${userStats.currentPeriodCopilotCost} - ${currentCopilot}::decimal)`,
             proPeriodCostSnapshot: '0',
+            proPeriodCostSnapshotAt: null,
             billedOverageThisPeriod: '0',
           })
           .where(eq(userStats.userId, sub.referenceId))
@@ -487,87 +491,127 @@ async function handleCreditPurchaseSuccess(invoice: Stripe.Invoice): Promise<voi
   }
 
   const amount = Number.parseFloat(amountDollars)
-  if (Number.isNaN(amount) || amount <= 0) {
+  if (!Number.isFinite(amount) || amount <= 0) {
     logger.error('Invalid amount in credit purchase', { invoiceId: invoice.id, amountDollars })
     return
   }
 
-  await addCredits(entityType, entityId, amount)
-
-  const subscription = await db
-    .select()
-    .from(subscriptionTable)
-    .where(eq(subscriptionTable.referenceId, entityId))
-    .limit(1)
-
-  if (subscription.length > 0) {
-    const sub = subscription[0]
-    const newCreditBalance = await getCreditBalanceForEntity(entityType, entityId)
-    await setUsageLimitForCredits(entityType, entityId, sub.plan, sub.seats, newCreditBalance)
+  if (!invoice.id) {
+    logger.error('Credit purchase invoice missing id, cannot dedupe', {
+      metadata: invoice.metadata,
+    })
+    return
   }
 
-  logger.info('Credit purchase completed via webhook', {
-    invoiceId: invoice.id,
-    entityType,
-    entityId,
-    amount,
-    purchasedBy,
-  })
+  // Idempotent apply: duplicate Stripe deliveries collapse to a single
+  // execution. On exception the key is released (retryFailures: true)
+  // so the next Stripe retry runs from scratch. On success, subsequent
+  // deliveries short-circuit with the cached result.
+  //
+  // CRITICAL: everything after `addCredits` must be either idempotent or
+  // wrapped in try/catch that does not rethrow. Otherwise a failure
+  // after credits commit would release the key and the retry would
+  // double-credit. `setUsageLimitForCredits` and the email are both
+  // best-effort and wrapped; the subscription lookup before them is a
+  // read, safe to rerun.
+  await stripeWebhookIdempotency.executeWithIdempotency('credit-purchase', invoice.id, async () => {
+    await addCredits(entityType, entityId, amount)
 
-  try {
-    const newBalance = await getCreditBalanceForEntity(entityType, entityId)
-    let recipients: Array<{ email: string; name: string | null }> = []
-
-    if (entityType === 'organization') {
-      const members = await db
-        .select({ userId: member.userId, role: member.role })
-        .from(member)
-        .where(eq(member.organizationId, entityId))
-
-      const ownerAdminIds = members
-        .filter((m) => m.role === 'owner' || m.role === 'admin')
-        .map((m) => m.userId)
-
-      if (ownerAdminIds.length > 0) {
-        recipients = await db
-          .select({ email: user.email, name: user.name })
-          .from(user)
-          .where(inArray(user.id, ownerAdminIds))
-      }
-    } else if (purchasedBy) {
-      const users = await db
-        .select({ email: user.email, name: user.name })
-        .from(user)
-        .where(eq(user.id, purchasedBy))
+    try {
+      const subscription = await db
+        .select()
+        .from(subscriptionTable)
+        .where(eq(subscriptionTable.referenceId, entityId))
         .limit(1)
 
-      recipients = users
+      if (subscription.length > 0) {
+        const sub = subscription[0]
+        const newCreditBalance = await getCreditBalanceForEntity(entityType, entityId)
+        await setUsageLimitForCredits(entityType, entityId, sub.plan, sub.seats, newCreditBalance)
+      }
+    } catch (limitError) {
+      // Limit bump is best-effort. Customer already got credits; if the
+      // cap doesn't auto-raise they can edit it themselves or another
+      // credit purchase will rebase it. Do NOT rethrow — that would
+      // release the idempotency claim and double-credit on retry.
+      logger.error('Failed to update usage limit after credit purchase', {
+        invoiceId: invoice.id,
+        entityType,
+        entityId,
+        error: limitError,
+      })
     }
 
-    for (const recipient of recipients) {
-      if (!recipient.email) continue
+    logger.info('Credit purchase completed via webhook', {
+      invoiceId: invoice.id,
+      entityType,
+      entityId,
+      amount,
+      purchasedBy,
+    })
 
-      const emailHtml = await renderCreditPurchaseEmail({
-        userName: recipient.name || undefined,
-        amount,
-        newBalance,
-      })
+    try {
+      const newBalance = await getCreditBalanceForEntity(entityType, entityId)
+      let recipients: Array<{ email: string; name: string | null }> = []
 
-      await sendEmail({
-        to: recipient.email,
-        subject: getEmailSubject('credit-purchase'),
-        html: emailHtml,
-        emailType: 'transactional',
-      })
+      if (entityType === 'organization') {
+        const members = await db
+          .select({ userId: member.userId, role: member.role })
+          .from(member)
+          .where(eq(member.organizationId, entityId))
 
-      logger.info('Sent credit purchase confirmation email', {
-        email: recipient.email,
+        const ownerAdminIds = members
+          .filter((m) => m.role === 'owner' || m.role === 'admin')
+          .map((m) => m.userId)
+
+        if (ownerAdminIds.length > 0) {
+          recipients = await db
+            .select({ email: user.email, name: user.name })
+            .from(user)
+            .where(inArray(user.id, ownerAdminIds))
+        }
+      } else if (purchasedBy) {
+        const users = await db
+          .select({ email: user.email, name: user.name })
+          .from(user)
+          .where(eq(user.id, purchasedBy))
+          .limit(1)
+
+        recipients = users
+      }
+
+      for (const recipient of recipients) {
+        if (!recipient.email) continue
+
+        const emailHtml = await renderCreditPurchaseEmail({
+          userName: recipient.name || undefined,
+          amount,
+          newBalance,
+        })
+
+        await sendEmail({
+          to: recipient.email,
+          subject: getEmailSubject('credit-purchase'),
+          html: emailHtml,
+          emailType: 'transactional',
+        })
+
+        logger.info('Sent credit purchase confirmation email', {
+          email: recipient.email,
+          invoiceId: invoice.id,
+        })
+      }
+    } catch (emailError) {
+      // Emails are best-effort — a failure here should NOT release the
+      // claim (otherwise Stripe retries would re-credit the user).
+      logger.error('Failed to send credit purchase emails', {
+        emailError,
         invoiceId: invoice.id,
       })
     }
-  } catch (emailError) {
-    logger.error('Failed to send credit purchase emails', { emailError, invoiceId: invoice.id })
-  }
+
+    return { ok: true }
+  })
 }
 
 /**
@@ -764,7 +808,6 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
 export async function handleInvoiceFinalized(event: Stripe.Event) {
   try {
     const invoice = event.data.object as Stripe.Invoice
-    // Only run for subscription renewal invoices (cycle boundary)
     const subscription = invoice.parent?.subscription_details?.subscription
     const stripeSubscriptionId = typeof subscription === 'string' ? subscription : subscription?.id
     if (!stripeSubscriptionId) {
@@ -784,151 +827,235 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
     if (records.length === 0) return
     const sub = records[0]
 
-    // Enterprise plans have no overages - reset usage and exit
     if (isEnterprise(sub.plan)) {
       await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
       return
     }
 
-    const stripe = requireStripeClient()
-    const periodEnd =
-      invoice.lines?.data?.[0]?.period?.end || invoice.period_end || Math.floor(Date.now() / 1000)
-    const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
+    await stripeWebhookIdempotency.executeWithIdempotency(
+      'invoice-finalized',
+      event.id,
+      async () => {
+        const stripe = requireStripeClient()
+        const periodEnd =
+          invoice.lines?.data?.[0]?.period?.end ||
+          invoice.period_end ||
+          Math.floor(Date.now() / 1000)
+        const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
 
-    // Compute overage (only for team and pro plans), before resetting usage
-    const totalOverage = await calculateSubscriptionOverage(sub)
+        const totalOverage = await calculateSubscriptionOverage(sub)
 
-    // Get already-billed overage from threshold billing
-    const billedOverage = await getBilledOverageForSubscription(sub)
+        const entityType = (await isSubscriptionOrgScoped(sub)) ? 'organization' : 'user'
+        const entityId = sub.referenceId
 
-    // Only bill the remaining unbilled overage
-    let remainingOverage = Math.max(0, totalOverage - billedOverage)
-
-    // Apply credits to reduce overage at end of cycle
-    let creditsApplied = 0
-    if (remainingOverage > 0) {
-      const entityType = (await isSubscriptionOrgScoped(sub)) ? 'organization' : 'user'
-      const entityId = sub.referenceId
-      const creditBalance = await getCreditBalanceForEntity(entityType, entityId)
-
-      if (creditBalance > 0) {
-        creditsApplied = Math.min(creditBalance, remainingOverage)
-        await removeCredits(entityType, entityId, creditsApplied)
-        remainingOverage = remainingOverage - creditsApplied
-
-        logger.info('Applied credits to reduce overage at cycle end', {
-          subscriptionId: sub.id,
-          creditBalance,
-          creditsApplied,
-          remainingOverageAfterCredits: remainingOverage,
-        })
-      }
-    }
-
-    logger.info('Invoice finalized overage calculation', {
-      subscriptionId: sub.id,
-      totalOverage,
-      billedOverage,
-      creditsApplied,
-      remainingOverage,
-      billingPeriod,
-    })
-
-    if (remainingOverage > 0) {
-      const customerId = String(invoice.customer)
-      const cents = Math.round(remainingOverage * 100)
-      const itemIdemKey = `overage-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
-      const invoiceIdemKey = `overage-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
-
-      // Inherit billing settings from the Stripe subscription/customer for autopay
-      const getPaymentMethodId = (
-        pm: string | Stripe.PaymentMethod | null | undefined
-      ): string | undefined => (typeof pm === 'string' ? pm : pm?.id)
-
-      let collectionMethod: 'charge_automatically' | 'send_invoice' = 'charge_automatically'
-      let defaultPaymentMethod: string | undefined
-      try {
-        const stripeSub = await stripe.subscriptions.retrieve(stripeSubscriptionId)
-        if (stripeSub.collection_method === 'send_invoice') {
-          collectionMethod = 'send_invoice'
-        }
-        const subDpm = getPaymentMethodId(stripeSub.default_payment_method)
-        if (subDpm) {
-          defaultPaymentMethod = subDpm
-        } else if (collectionMethod === 'charge_automatically') {
-          const custObj = await stripe.customers.retrieve(customerId)
-          if (custObj && !('deleted' in custObj)) {
-            const cust = custObj as Stripe.Customer
-            const custDpm = getPaymentMethodId(cust.invoice_settings?.default_payment_method)
-            if (custDpm) defaultPaymentMethod = custDpm
+        // Resolve the userStats row that holds the `billedOverageThisPeriod`
+        // tracker. Org subs: the owner's row. Personal: the user's own row.
+        // Throw if an org has no owner — returning early would cache a
+        // "successful" no-op, and the next cycle's tracker would still
+        // reflect this cycle's billed amount, breaking future overage math.
+        let trackerUserId: string
+        if (entityType === 'organization') {
+          const ownerRows = await db
+            .select({ userId: member.userId })
+            .from(member)
+            .where(and(eq(member.organizationId, entityId), eq(member.role, 'owner')))
+            .limit(1)
+          const ownerId = ownerRows[0]?.userId
+          if (!ownerId) {
+            throw new Error(
+              `Organization ${entityId} has no owner member; cannot process invoice finalization`
+            )
           }
+          trackerUserId = ownerId
+        } else {
+          trackerUserId = entityId
         }
-      } catch (e) {
-        logger.error('Failed to retrieve subscription or customer', { error: e })
-      }
 
-      // Create a draft invoice first so we can attach the item directly
-      const overageInvoice = await stripe.invoices.create(
-        {
-          customer: customerId,
-          collection_method: collectionMethod,
-          auto_advance: false,
-          ...(defaultPaymentMethod ? { default_payment_method: defaultPaymentMethod } : {}),
-          metadata: {
-            type: 'overage_billing',
-            billingPeriod,
-            subscriptionId: stripeSubscriptionId,
-          },
-        },
-        { idempotencyKey: invoiceIdemKey }
-      )
+        // Phase 1 — atomic commit. Lock the tracker row first so we read
+        // `billedOverageThisPeriod` serialized against concurrent events;
+        // then read the credit balance, decrement it, and bump the
+        // tracker to `totalOverage`. On retry, the locked re-read sees
+        // `billed == totalOverage` → `remaining == 0` → credit removal
+        // skipped. That's the invariant preventing double-deduction.
+        const phase1 = await db.transaction(async (tx) => {
+          const trackerRows = await tx
+            .select({ billed: userStats.billedOverageThisPeriod })
+            .from(userStats)
+            .where(eq(userStats.userId, trackerUserId))
+            .for('update')
+            .limit(1)
 
-      // Attach the item to this invoice
-      await stripe.invoiceItems.create(
-        {
-          customer: customerId,
-          invoice: overageInvoice.id,
-          amount: cents,
-          currency: 'usd',
-          description: `Usage Based Overage – ${billingPeriod}`,
-          metadata: {
-            type: 'overage_billing',
-            billingPeriod,
-            subscriptionId: stripeSubscriptionId,
-          },
-        },
-        { idempotencyKey: itemIdemKey }
-      )
+          const billedInTx =
+            trackerRows.length > 0 ? Number.parseFloat(trackerRows[0].billed?.toString() || '0') : 0
+          const remaining = Math.max(0, totalOverage - billedInTx)
 
-      // Finalize to trigger autopay (if charge_automatically and a PM is present)
-      const draftId = overageInvoice.id
-      if (typeof draftId !== 'string' || draftId.length === 0) {
-        logger.error('Stripe created overage invoice without id; aborting finalize')
-      } else {
-        const finalized = await stripe.invoices.finalizeInvoice(draftId)
-        // Some manual invoices may remain open after finalize; ensure we pay immediately when possible
-        if (collectionMethod === 'charge_automatically' && finalized.status === 'open') {
-          try {
-            const payId = finalized.id
-            if (typeof payId !== 'string' || payId.length === 0) {
-              logger.error('Finalized invoice missing id')
-              throw new Error('Finalized invoice missing id')
+          if (remaining === 0) {
+            return { billedInTx, applied: 0, billed: 0, remaining: 0 }
+          }
+
+          const lockedBalance =
+            entityType === 'organization'
+              ? await tx
+                  .select({ creditBalance: organization.creditBalance })
+                  .from(organization)
+                  .where(eq(organization.id, entityId))
+                  .for('update')
+                  .limit(1)
+              : await tx
+                  .select({ creditBalance: userStats.creditBalance })
+                  .from(userStats)
+                  .where(eq(userStats.userId, entityId))
+                  .for('update')
+                  .limit(1)
+
+          const creditBalance =
+            lockedBalance.length > 0
+              ? Number.parseFloat(lockedBalance[0].creditBalance?.toString() || '0')
+              : 0
+
+          const applied = Math.min(creditBalance, remaining)
+          const billed = remaining - applied
+
+          if (applied > 0) {
+            if (entityType === 'organization') {
+              await tx
+                .update(organization)
+                .set({
+                  creditBalance: sql`GREATEST(0, ${organization.creditBalance} - ${applied})`,
+                })
+                .where(eq(organization.id, entityId))
+            } else {
+              await tx
+                .update(userStats)
+                .set({
+                  creditBalance: sql`GREATEST(0, ${userStats.creditBalance} - ${applied})`,
+                })
+                .where(eq(userStats.userId, entityId))
             }
-            await stripe.invoices.pay(payId, {
-              payment_method: defaultPaymentMethod,
-            })
-          } catch (payError) {
-            logger.error('Failed to auto-pay overage invoice', {
-              error: payError,
-              invoiceId: finalized.id,
-            })
+          }
+
+          await tx
+            .update(userStats)
+            .set({ billedOverageThisPeriod: totalOverage.toString() })
+            .where(eq(userStats.userId, trackerUserId))
+
+          return { billedInTx, applied, billed, remaining }
+        })
+
+        const creditsApplied = phase1.applied
+        const amountToBillStripe = phase1.billed
+
+        logger.info('Invoice finalized overage calculation', {
+          subscriptionId: sub.id,
+          totalOverage,
+          billedOverageBeforeTx: phase1.billedInTx,
+          creditsApplied,
+          amountToBillStripe,
+          billingPeriod,
+        })
+
+        // Phase 2 — Stripe invoice. Runs outside any DB transaction.
+        // Every call uses a deterministic idempotency key so retries
+        // converge on the same invoice object: re-create returns the
+        // existing draft, re-finalize no-ops on an already-finalized
+        // invoice, re-pay no-ops on an already-paid invoice.
+        if (amountToBillStripe > 0) {
+          const customerId = String(invoice.customer)
+          const cents = Math.round(amountToBillStripe * 100)
+          const itemIdemKey = `overage-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
+          const invoiceIdemKey = `overage-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
+
+          const getPaymentMethodId = (
+            pm: string | Stripe.PaymentMethod | null | undefined
+          ): string | undefined => (typeof pm === 'string' ? pm : pm?.id)
+
+          let collectionMethod: 'charge_automatically' | 'send_invoice' = 'charge_automatically'
+          let defaultPaymentMethod: string | undefined
+          try {
+            const stripeSub = await stripe.subscriptions.retrieve(stripeSubscriptionId)
+            if (stripeSub.collection_method === 'send_invoice') {
+              collectionMethod = 'send_invoice'
+            }
+            const subDpm = getPaymentMethodId(stripeSub.default_payment_method)
+            if (subDpm) {
+              defaultPaymentMethod = subDpm
+            } else if (collectionMethod === 'charge_automatically') {
+              const custObj = await stripe.customers.retrieve(customerId)
+              if (custObj && !('deleted' in custObj)) {
+                const cust = custObj as Stripe.Customer
+                const custDpm = getPaymentMethodId(cust.invoice_settings?.default_payment_method)
+                if (custDpm) defaultPaymentMethod = custDpm
+              }
+            }
+          } catch (e) {
+            logger.error('Failed to retrieve subscription or customer', { error: e })
+          }
+
+          const overageInvoice = await stripe.invoices.create(
+            {
+              customer: customerId,
+              collection_method: collectionMethod,
+              auto_advance: false,
+              ...(defaultPaymentMethod ? { default_payment_method: defaultPaymentMethod } : {}),
+              metadata: {
+                type: 'overage_billing',
+                billingPeriod,
+                subscriptionId: stripeSubscriptionId,
+              },
+            },
+            { idempotencyKey: invoiceIdemKey }
+          )
+
+          await stripe.invoiceItems.create(
+            {
+              customer: customerId,
+              invoice: overageInvoice.id,
+              amount: cents,
+              currency: 'usd',
+              description: `Usage Based Overage – ${billingPeriod}`,
+              metadata: {
+                type: 'overage_billing',
+                billingPeriod,
+                subscriptionId: stripeSubscriptionId,
+              },
+            },
+            { idempotencyKey: itemIdemKey }
+          )
+
+          const draftId = overageInvoice.id
+          if (typeof draftId !== 'string' || draftId.length === 0) {
+            logger.error('Stripe created overage invoice without id; aborting finalize')
+          } else {
+            const finalized = await stripe.invoices.finalizeInvoice(draftId)
+            if (collectionMethod === 'charge_automatically' && finalized.status === 'open') {
+              try {
+                const payId = finalized.id
+                if (typeof payId !== 'string' || payId.length === 0) {
+                  logger.error('Finalized invoice missing id')
+                  throw new Error('Finalized invoice missing id')
+                }
+                await stripe.invoices.pay(payId, {
+                  payment_method: defaultPaymentMethod,
+                })
+              } catch (payError) {
+                logger.error('Failed to auto-pay overage invoice', {
+                  error: payError,
+                  invoiceId: finalized.id,
+                })
+              }
+            }
           }
         }
-      }
-    }
 
-    // Finally, reset usage for this subscription after overage handling
-    await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
+        // Phase 3 — reset usage for the new period. Clears trackers and
+        // rolls `currentPeriodCost` forward by delta. Idempotent on its
+        // own (delta subtraction of a value that's already been
+        // subtracted is a no-op).
+        await resetUsageForSubscription({ plan: sub.plan, referenceId: sub.referenceId })
+
+        return { totalOverage, creditsApplied, amountToBillStripe }
+      }
+    )
   } catch (error) {
     logger.error('Failed to handle invoice finalized', { error })
     throw error

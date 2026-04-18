@@ -17,9 +17,10 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { isPaid, sqlIsPro } from '@/lib/billing/plan-helpers'
-import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
+import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
+import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('OrganizationMembership')
@@ -137,31 +138,28 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
     result.subscriptionId = personalPro.id
 
     try {
-      const stripe = requireStripeClient()
-      await stripe.subscriptions.update(personalPro.stripeSubscriptionId, {
-        cancel_at_period_end: false,
-      })
-    } catch (stripeError) {
-      logger.error('Stripe restore cancel_at_period_end failed for personal Pro', {
-        userId,
-        stripeSubscriptionId: personalPro.stripeSubscriptionId,
-        error: stripeError,
-      })
-    }
+      await db.transaction(async (tx) => {
+        await tx
+          .update(subscriptionTable)
+          .set({ cancelAtPeriodEnd: false })
+          .where(eq(subscriptionTable.id, personalPro.id))
 
-    try {
-      await db
-        .update(subscriptionTable)
-        .set({ cancelAtPeriodEnd: false })
-        .where(eq(subscriptionTable.id, personalPro.id))
+        if (personalPro.stripeSubscriptionId) {
+          await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+            stripeSubscriptionId: personalPro.stripeSubscriptionId,
+            subscriptionId: personalPro.id,
+            reason: 'member-left-paid-org',
+          })
+        }
+      })
 
       result.restored = true
-      logger.info('Restored personal Pro subscription', {
+      logger.info('Restored personal Pro subscription (DB committed, Stripe queued)', {
         userId,
         subscriptionId: personalPro.id,
       })
     } catch (dbError) {
-      logger.error('DB update failed when restoring personal Pro', {
+      logger.error('Failed to restore personal Pro subscription', {
         userId,
         subscriptionId: personalPro.id,
         error: dbError,
@@ -192,6 +190,7 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
             .set({
               currentPeriodCost: restoredUsage,
               proPeriodCostSnapshot: '0',
+              proPeriodCostSnapshotAt: null,
             })
             .where(eq(userStats.userId, userId))
 
@@ -237,12 +236,12 @@ export interface AddMemberResult {
   error?: string
   billingActions: {
     proUsageSnapshotted: boolean
+    /**
+     * True when this function marked the user's personal Pro for
+     * cancellation at period end AND enqueued the Stripe sync via
+     * the outbox. Callers should NOT make a Stripe call themselves.
+     */
     proCancelledAtPeriodEnd: boolean
-    /** If Pro was cancelled, contains info for Stripe update (caller can optionally call Stripe) */
-    proSubscriptionToCancel?: {
-      subscriptionId: string
-      stripeSubscriptionId: string | null
-    }
   }
 }
 
@@ -459,6 +458,7 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
               .update(userStats)
               .set({
                 proPeriodCostSnapshot: currentProUsage,
+                proPeriodCostSnapshotAt: new Date(),
                 currentPeriodCost: '0',
                 currentPeriodCopilotCost: '0',
               })
@@ -473,25 +473,59 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
             })
           }
 
-          // Mark Pro for cancellation at period end
+          // Mark Pro for cancellation at period end AND enqueue the
+          // Stripe sync atomically with this transaction. Caller must
+          // not make a Stripe call — the outbox worker handles it.
           if (!personalPro.cancelAtPeriodEnd) {
             await tx
               .update(subscriptionTable)
               .set({ cancelAtPeriodEnd: true })
               .where(eq(subscriptionTable.id, personalPro.id))
 
-            billingActions.proCancelledAtPeriodEnd = true
-            billingActions.proSubscriptionToCancel = {
-              subscriptionId: personalPro.id,
-              stripeSubscriptionId: personalPro.stripeSubscriptionId,
+            if (personalPro.stripeSubscriptionId) {
+              await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+                stripeSubscriptionId: personalPro.stripeSubscriptionId,
+                subscriptionId: personalPro.id,
+                reason: 'admin-added-to-paid-org',
+              })
             }
 
-            logger.info('Marked personal Pro for cancellation at period end', {
+            billingActions.proCancelledAtPeriodEnd = true
+
+            logger.info('Marked personal Pro for cancellation at period end (Stripe queued)', {
               userId,
               subscriptionId: personalPro.id,
               organizationId,
             })
           }
+        }
+
+        const storageRows = await tx
+          .select({ storageUsedBytes: userStats.storageUsedBytes })
+          .from(userStats)
+          .where(eq(userStats.userId, userId))
+          .for('update')
+          .limit(1)
+
+        const bytesToTransfer = storageRows[0]?.storageUsedBytes ?? 0
+        if (bytesToTransfer > 0) {
+          await tx
+            .update(organization)
+            .set({
+              storageUsedBytes: sql`${organization.storageUsedBytes} + ${bytesToTransfer}`,
+            })
+            .where(eq(organization.id, organizationId))
+
+          await tx
+            .update(userStats)
+            .set({ storageUsedBytes: 0 })
+            .where(eq(userStats.userId, userId))
+
+          logger.info('Transferred personal storage bytes to org pool on admin add', {
+            userId,
+            organizationId,
+            bytes: bytesToTransfer,
+          })
         }
       }
     })

@@ -8,7 +8,10 @@ import {
 } from '@/lib/billing/core/subscription'
 import { getUserUsageData } from '@/lib/billing/core/usage'
 import { getCreditBalance } from '@/lib/billing/credits/balance'
-import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
+import {
+  computeDailyRefreshConsumed,
+  getOrgMemberRefreshBounds,
+} from '@/lib/billing/credits/daily-refresh'
 import { getPlanTierDollars, isEnterprise, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import {
   ENTITLED_SUBSCRIPTION_STATUSES,
@@ -163,12 +166,14 @@ export async function calculateSubscriptionOverage(sub: {
     let dailyRefreshDeduction = 0
     const planDollars = getPlanTierDollars(sub.plan)
     if (planDollars > 0 && sub.periodStart) {
+      const userBounds = await getOrgMemberRefreshBounds(sub.referenceId, sub.periodStart)
       dailyRefreshDeduction = await computeDailyRefreshConsumed({
         userIds: pooled.memberIds,
         periodStart: sub.periodStart,
         periodEnd: sub.periodEnd ?? null,
         planDollars,
         seats: sub.seats || 1,
+        userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
       })
     }
 
@@ -199,6 +204,7 @@ export async function calculateSubscriptionOverage(sub: {
       .select({
         currentPeriodCost: userStats.currentPeriodCost,
         proPeriodCostSnapshot: userStats.proPeriodCostSnapshot,
+        proPeriodCostSnapshotAt: userStats.proPeriodCostSnapshotAt,
       })
       .from(userStats)
       .where(eq(userStats.userId, sub.referenceId))
@@ -206,12 +212,9 @@ export async function calculateSubscriptionOverage(sub: {
 
     const personalCurrentUsage = statsRow ? toNumber(toDecimal(statsRow.currentPeriodCost)) : 0
     const snapshotUsage = statsRow ? toNumber(toDecimal(statsRow.proPeriodCostSnapshot)) : 0
+    const snapshotAt = statsRow?.proPeriodCostSnapshotAt ?? null
 
-    // If snapshot > 0 the user joined a paid org mid-cycle: pre-join
-    // usage sits in `proPeriodCostSnapshot`, post-join is still
-    // accumulating in `currentPeriodCost` and will be billed by the org.
-    // Bill only the snapshot here to avoid double-charging.
-    const joinedOrgMidCycle = snapshotUsage > 0
+    const joinedOrgMidCycle = snapshotAt !== null || snapshotUsage > 0
     const totalProUsageDecimal = joinedOrgMidCycle
       ? toDecimal(snapshotUsage)
       : toDecimal(personalCurrentUsage)
@@ -221,6 +224,7 @@ export async function calculateSubscriptionOverage(sub: {
         userId: sub.referenceId,
         preJoinUsage: snapshotUsage,
         postJoinUsageOnMemberRow: personalCurrentUsage,
+        snapshotAt: snapshotAt?.toISOString() ?? null,
         subscriptionId: sub.id,
       })
     }
@@ -228,10 +232,15 @@ export async function calculateSubscriptionOverage(sub: {
     let dailyRefreshDeduction = 0
     const planDollars = getPlanTierDollars(sub.plan)
     if (planDollars > 0 && sub.periodStart) {
+      // If the user joined an org mid-cycle, their usageLog rows after
+      // `snapshotAt` belong to the org's pooled refresh. Cap refresh
+      // to [periodStart, snapshotAt) so post-join refresh isn't
+      // deducted from pre-join personal Pro usage.
+      const refreshCap = joinedOrgMidCycle && snapshotAt ? snapshotAt : (sub.periodEnd ?? null)
       dailyRefreshDeduction = await computeDailyRefreshConsumed({
         userIds: [sub.referenceId],
         periodStart: sub.periodStart,
-        periodEnd: sub.periodEnd ?? null,
+        periodEnd: refreshCap,
         planDollars,
       })
     }

@@ -4,7 +4,10 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { getPlanPricing } from '@/lib/billing/core/billing'
-import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
+import {
+  computeDailyRefreshConsumed,
+  getOrgMemberRefreshBounds,
+} from '@/lib/billing/credits/daily-refresh'
 import { getPlanTierDollars, isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
 import {
   ENTITLED_SUBSCRIPTION_STATUSES,
@@ -147,12 +150,17 @@ export async function getOrganizationBillingData(
       const planDollars = getPlanTierDollars(subscription.plan)
       if (planDollars > 0) {
         const memberIds = members.map((m) => m.userId)
+        const userBounds = await getOrgMemberRefreshBounds(
+          subscription.referenceId,
+          subscription.periodStart
+        )
         const refreshConsumed = await computeDailyRefreshConsumed({
           userIds: memberIds,
           periodStart: subscription.periodStart,
           periodEnd: subscription.periodEnd ?? null,
           planDollars,
           seats: subscription.seats || 1,
+          userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
         })
         totalCurrentUsage = Math.max(0, totalCurrentUsage - refreshConsumed)
       }

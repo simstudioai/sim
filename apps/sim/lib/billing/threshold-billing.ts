@@ -2,20 +2,23 @@ import { db } from '@sim/db'
 import { member, organization, subscription, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import type Stripe from 'stripe'
 import { DEFAULT_OVERAGE_THRESHOLD } from '@/lib/billing/constants'
 import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { calculateSubscriptionOverage, getPlanPricing } from '@/lib/billing/core/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
+import {
+  computeDailyRefreshConsumed,
+  getOrgMemberRefreshBounds,
+} from '@/lib/billing/credits/daily-refresh'
 import { getPlanTierDollars, isEnterprise, isFree, isPaid } from '@/lib/billing/plan-helpers'
-import { requireStripeClient } from '@/lib/billing/stripe-client'
 import {
   hasUsableSubscriptionAccess,
   isOrgScopedSubscription,
   USABLE_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
+import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { env } from '@/lib/core/config/env'
+import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 
 const logger = createLogger('ThresholdBilling')
 
@@ -24,84 +27,6 @@ const OVERAGE_THRESHOLD = env.OVERAGE_THRESHOLD_DOLLARS || DEFAULT_OVERAGE_THRES
 function parseDecimal(value: string | number | null | undefined): number {
   if (value === null || value === undefined) return 0
   return Number.parseFloat(value.toString())
-}
-
-async function createAndFinalizeOverageInvoice(
-  stripe: ReturnType<typeof requireStripeClient>,
-  params: {
-    customerId: string
-    stripeSubscriptionId: string
-    amountCents: number
-    description: string
-    itemDescription: string
-    metadata: Record<string, string>
-    idempotencyKey: string
-  }
-): Promise<string> {
-  const getPaymentMethodId = (
-    pm: string | Stripe.PaymentMethod | null | undefined
-  ): string | undefined => (typeof pm === 'string' ? pm : pm?.id)
-
-  let defaultPaymentMethod: string | undefined
-  try {
-    const stripeSub = await stripe.subscriptions.retrieve(params.stripeSubscriptionId)
-    const subDpm = getPaymentMethodId(stripeSub.default_payment_method)
-    if (subDpm) {
-      defaultPaymentMethod = subDpm
-    } else {
-      const custObj = await stripe.customers.retrieve(params.customerId)
-      if (custObj && !('deleted' in custObj)) {
-        const cust = custObj as Stripe.Customer
-        const custDpm = getPaymentMethodId(cust.invoice_settings?.default_payment_method)
-        if (custDpm) defaultPaymentMethod = custDpm
-      }
-    }
-  } catch (e) {
-    logger.error('Failed to retrieve subscription or customer', { error: e })
-  }
-
-  const invoice = await stripe.invoices.create(
-    {
-      customer: params.customerId,
-      collection_method: 'charge_automatically',
-      auto_advance: false,
-      description: params.description,
-      metadata: params.metadata,
-      ...(defaultPaymentMethod ? { default_payment_method: defaultPaymentMethod } : {}),
-    },
-    { idempotencyKey: `${params.idempotencyKey}-invoice` }
-  )
-
-  await stripe.invoiceItems.create(
-    {
-      customer: params.customerId,
-      invoice: invoice.id,
-      amount: params.amountCents,
-      currency: 'usd',
-      description: params.itemDescription,
-      metadata: params.metadata,
-    },
-    { idempotencyKey: params.idempotencyKey }
-  )
-
-  if (invoice.id) {
-    const finalized = await stripe.invoices.finalizeInvoice(invoice.id)
-
-    if (finalized.status === 'open' && finalized.id) {
-      try {
-        await stripe.invoices.pay(finalized.id, {
-          payment_method: defaultPaymentMethod,
-        })
-      } catch (payError) {
-        logger.error('Failed to auto-pay threshold overage invoice', {
-          error: payError,
-          invoiceId: finalized.id,
-        })
-      }
-    }
-  }
-
-  return invoice.id || ''
 }
 
 export async function checkAndBillOverageThreshold(userId: string): Promise<void> {
@@ -173,6 +98,23 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
         return
       }
 
+      const stripeSubscriptionId = userSubscription.stripeSubscriptionId
+      if (!stripeSubscriptionId) {
+        logger.error('No Stripe subscription ID found', { userId })
+        return
+      }
+
+      const customerRows = await tx
+        .select({ stripeCustomerId: subscription.stripeCustomerId })
+        .from(subscription)
+        .where(eq(subscription.id, userSubscription.id))
+        .limit(1)
+      const customerId = customerRows[0]?.stripeCustomerId
+      if (!customerId) {
+        logger.error('No Stripe customer ID found', { userId, subscriptionId: userSubscription.id })
+        return
+      }
+
       // Apply credits to reduce the amount to bill (use stats from locked row)
       let amountToBill = unbilledOverage
       let creditsApplied = 0
@@ -180,7 +122,6 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
 
       if (creditBalance > 0) {
         creditsApplied = Math.min(creditBalance, amountToBill)
-        // Update credit balance within the transaction
         await tx
           .update(userStats)
           .set({
@@ -197,7 +138,7 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
         })
       }
 
-      // If credits covered everything, just update the billed amount but don't create invoice
+      // If credits covered everything, bump billed tracker but don't enqueue Stripe invoice.
       if (amountToBill <= 0) {
         await tx
           .update(userStats)
@@ -214,53 +155,12 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
         return
       }
 
-      const stripeSubscriptionId = userSubscription.stripeSubscriptionId
-      if (!stripeSubscriptionId) {
-        logger.error('No Stripe subscription ID found', { userId })
-        return
-      }
-
-      const stripe = requireStripeClient()
-      const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId)
-      const customerId =
-        typeof stripeSubscription.customer === 'string'
-          ? stripeSubscription.customer
-          : stripeSubscription.customer.id
-
       const periodEnd = userSubscription.periodEnd
         ? Math.floor(userSubscription.periodEnd.getTime() / 1000)
         : Math.floor(Date.now() / 1000)
       const billingPeriod = new Date(periodEnd * 1000).toISOString().slice(0, 7)
-
       const amountCents = Math.round(amountToBill * 100)
       const totalOverageCents = Math.round(currentOverage * 100)
-      const idempotencyKey = `threshold-overage:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`
-
-      logger.info('Creating threshold overage invoice', {
-        userId,
-        plan: userSubscription.plan,
-        amountToBill,
-        billingPeriod,
-        idempotencyKey,
-      })
-
-      const cents = amountCents
-
-      const invoiceId = await createAndFinalizeOverageInvoice(stripe, {
-        customerId,
-        stripeSubscriptionId,
-        amountCents: cents,
-        description: `Threshold overage billing – ${billingPeriod}`,
-        itemDescription: `Usage overage ($${amountToBill.toFixed(2)})`,
-        metadata: {
-          type: 'overage_threshold_billing',
-          userId,
-          subscriptionId: stripeSubscriptionId,
-          billingPeriod,
-          totalOverageAtTimeOfBilling: currentOverage.toFixed(2),
-        },
-        idempotencyKey,
-      })
 
       await tx
         .update(userStats)
@@ -269,12 +169,31 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
         })
         .where(eq(userStats.userId, userId))
 
-      logger.info('Successfully created and finalized threshold overage invoice', {
+      await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_THRESHOLD_OVERAGE_INVOICE, {
+        customerId,
+        stripeSubscriptionId,
+        amountCents,
+        description: `Threshold overage billing – ${billingPeriod}`,
+        itemDescription: `Usage overage ($${amountToBill.toFixed(2)})`,
+        billingPeriod,
+        invoiceIdemKeyStem: `threshold-overage-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`,
+        itemIdemKeyStem: `threshold-overage-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`,
+        metadata: {
+          type: 'overage_threshold_billing',
+          userId,
+          subscriptionId: stripeSubscriptionId,
+          billingPeriod,
+          totalOverageAtTimeOfBilling: currentOverage.toFixed(2),
+        },
+      })
+
+      logger.info('Queued threshold overage invoice for Stripe', {
         userId,
+        plan: userSubscription.plan,
+        amountToBill,
+        billingPeriod,
         creditsApplied,
-        amountBilled: amountToBill,
         totalProcessed: unbilledOverage,
-        invoiceId,
         newBilledTotal: billedOverageThisPeriod + unbilledOverage,
       })
     })
@@ -406,17 +325,24 @@ export async function checkAndBillOrganizationOverageThreshold(
         }
       }
 
+      totalTeamUsage += parseDecimal(orgLock[0].departedMemberUsage)
+
       let dailyRefreshDeduction = 0
       if (isPaid(orgSubscription.plan) && orgSubscription.periodStart) {
         const planDollars = getPlanTierDollars(orgSubscription.plan)
         if (planDollars > 0) {
           const allMemberIds = members.map((m) => m.userId)
+          const userBounds = await getOrgMemberRefreshBounds(
+            organizationId,
+            orgSubscription.periodStart
+          )
           dailyRefreshDeduction = await computeDailyRefreshConsumed({
             userIds: allMemberIds,
             periodStart: orgSubscription.periodStart,
             periodEnd: orgSubscription.periodEnd ?? null,
             planDollars,
             seats: orgSubscription.seats || 1,
+            userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
           })
         }
       }
@@ -441,13 +367,24 @@ export async function checkAndBillOrganizationOverageThreshold(
         return
       }
 
-      // Apply credits to reduce the amount to bill (use locked org's balance)
+      // Validate Stripe identifiers BEFORE mutating credits/trackers.
+      const stripeSubscriptionId = orgSubscription.stripeSubscriptionId
+      if (!stripeSubscriptionId) {
+        logger.error('No Stripe subscription ID for organization', { organizationId })
+        return
+      }
+
+      const customerId = orgSubscription.stripeCustomerId
+      if (!customerId) {
+        logger.error('No Stripe customer ID for organization', { organizationId })
+        return
+      }
+
       let amountToBill = unbilledOverage
       let creditsApplied = 0
 
       if (orgCreditBalance > 0) {
         creditsApplied = Math.min(orgCreditBalance, amountToBill)
-        // Update credit balance within the transaction
         await tx
           .update(organization)
           .set({
@@ -464,7 +401,7 @@ export async function checkAndBillOrganizationOverageThreshold(
         })
       }
 
-      // If credits covered everything, just update the billed amount but don't create invoice
+      // If credits covered everything, bump billed tracker but don't enqueue Stripe invoice.
       if (amountToBill <= 0) {
         await tx
           .update(userStats)
@@ -481,19 +418,6 @@ export async function checkAndBillOrganizationOverageThreshold(
         return
       }
 
-      const stripeSubscriptionId = orgSubscription.stripeSubscriptionId
-      if (!stripeSubscriptionId) {
-        logger.error('No Stripe subscription ID for organization', { organizationId })
-        return
-      }
-
-      const stripe = requireStripeClient()
-      const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId)
-      const customerId =
-        typeof stripeSubscription.customer === 'string'
-          ? stripeSubscription.customer
-          : stripeSubscription.customer.id
-
       const periodEnd = orgSubscription.periodEnd
         ? Math.floor(orgSubscription.periodEnd.getTime() / 1000)
         : Math.floor(Date.now() / 1000)
@@ -501,33 +425,8 @@ export async function checkAndBillOrganizationOverageThreshold(
       const amountCents = Math.round(amountToBill * 100)
       const totalOverageCents = Math.round(currentOverage * 100)
 
-      const idempotencyKey = `threshold-overage-org:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`
-
-      logger.info('Creating organization threshold overage invoice', {
-        organizationId,
-        amountToBill,
-        creditsApplied,
-        billingPeriod,
-      })
-
-      const cents = amountCents
-
-      const invoiceId = await createAndFinalizeOverageInvoice(stripe, {
-        customerId,
-        stripeSubscriptionId,
-        amountCents: cents,
-        description: `Team threshold overage billing – ${billingPeriod}`,
-        itemDescription: `Team usage overage ($${amountToBill.toFixed(2)})`,
-        metadata: {
-          type: 'overage_threshold_billing_org',
-          organizationId,
-          subscriptionId: stripeSubscriptionId,
-          billingPeriod,
-          totalOverageAtTimeOfBilling: currentOverage.toFixed(2),
-        },
-        idempotencyKey,
-      })
-
+      // Bump billed tracker and enqueue Stripe invoice atomically.
+      // See user-path above for the full retry-invariant reasoning.
       await tx
         .update(userStats)
         .set({
@@ -535,13 +434,31 @@ export async function checkAndBillOrganizationOverageThreshold(
         })
         .where(eq(userStats.userId, owner.userId))
 
-      logger.info('Successfully created and finalized organization threshold overage invoice', {
+      await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_THRESHOLD_OVERAGE_INVOICE, {
+        customerId,
+        stripeSubscriptionId,
+        amountCents,
+        description: `Team threshold overage billing – ${billingPeriod}`,
+        itemDescription: `Team usage overage ($${amountToBill.toFixed(2)})`,
+        billingPeriod,
+        invoiceIdemKeyStem: `threshold-overage-org-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`,
+        itemIdemKeyStem: `threshold-overage-org-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}:${totalOverageCents}:${amountCents}`,
+        metadata: {
+          type: 'overage_threshold_billing_org',
+          organizationId,
+          subscriptionId: stripeSubscriptionId,
+          billingPeriod,
+          totalOverageAtTimeOfBilling: currentOverage.toFixed(2),
+        },
+      })
+
+      logger.info('Queued organization threshold overage invoice for Stripe', {
         organizationId,
         ownerId: owner.userId,
         creditsApplied,
         amountBilled: amountToBill,
         totalProcessed: unbilledOverage,
-        invoiceId,
+        billingPeriod,
       })
     })
   } catch (error) {

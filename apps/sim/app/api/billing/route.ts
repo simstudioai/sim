@@ -45,7 +45,20 @@ export async function GET(request: NextRequest) {
     let billingData
 
     if (context === 'user') {
-      // Get user billing and billing blocked status in parallel
+      if (contextId) {
+        const membership = await db
+          .select({ role: member.role })
+          .from(member)
+          .where(and(eq(member.organizationId, contextId), eq(member.userId, session.user.id)))
+          .limit(1)
+        if (membership.length === 0) {
+          return NextResponse.json(
+            { error: 'Access denied - not a member of this organization' },
+            { status: 403 }
+          )
+        }
+      }
+
       const [billingResult, billingStatus] = await Promise.all([
         getSimplifiedBillingSummary(session.user.id, contextId || undefined),
         getEffectiveBillingStatus(session.user.id),
