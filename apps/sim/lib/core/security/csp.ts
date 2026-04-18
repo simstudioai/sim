@@ -111,6 +111,7 @@ const STATIC_CONNECT_SRC = [
 
 const STATIC_FRAME_SRC = [
   "'self'",
+  'blob:',
   'https://challenges.cloudflare.com',
   'https://drive.google.com',
   'https://docs.google.com',
