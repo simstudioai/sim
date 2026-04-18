@@ -10,10 +10,11 @@ import {
   TraceFlags,
   trace,
 } from '@opentelemetry/api'
-import type { RequestTraceV1Outcome } from '@/lib/copilot/generated/request-trace-v1'
+import { RequestTraceV1Outcome } from '@/lib/copilot/generated/request-trace-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { contextFromRequestHeaders } from '@/lib/copilot/request/go/propagation'
+import { CopilotBranchKind, CopilotSurface } from '@/lib/copilot/generated/trace-attribute-values-v1'
 
 /**
  * OTel GenAI experimental semantic conventions env var. When set to a
@@ -521,14 +522,17 @@ export function startCopilotOtelRoot(scope: CopilotOtelScope): CopilotOtelRoot {
   const finish: CopilotOtelRoot['finish'] = (outcome, error) => {
     if (finished) return
     finished = true
-    span.setAttribute(TraceAttr.CopilotRequestOutcome, outcome ?? 'success')
+    span.setAttribute(
+      TraceAttr.CopilotRequestOutcome,
+      outcome ?? RequestTraceV1Outcome.success
+    )
     if (error) {
       span.setStatus({
         code: SpanStatusCode.ERROR,
         message: error instanceof Error ? error.message : String(error),
       })
       span.recordException(error instanceof Error ? error : new Error(String(error)))
-    } else if (outcome === 'success') {
+    } else if (outcome === RequestTraceV1Outcome.success) {
       span.setStatus({ code: SpanStatusCode.OK })
     }
     span.end()
@@ -558,7 +562,7 @@ function applyRequestShape(span: Span, shape: CopilotOtelRequestShape): void {
     span.setAttribute(TraceAttr.CopilotBranchKind, shape.branchKind)
     span.setAttribute(
       TraceAttr.CopilotSurface,
-      shape.branchKind === 'workflow' ? 'copilot' : 'mothership'
+      shape.branchKind === CopilotBranchKind.Workflow ? CopilotSurface.Copilot : CopilotSurface.Mothership
     )
   }
   if (shape.mode) span.setAttribute(TraceAttr.CopilotMode, shape.mode)

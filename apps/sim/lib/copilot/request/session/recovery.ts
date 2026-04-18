@@ -8,6 +8,7 @@ import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import { getLatestSeq, getOldestSeq, readEvents } from './buffer'
 import { createEvent } from './event'
+import { CopilotRecoveryOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 
 const logger = createLogger('SessionRecovery')
 
@@ -56,7 +57,7 @@ export async function checkForReplayGap(
           oldestAvailableSeq: oldestSeq,
           latestSeq,
         })
-        span.setAttribute(TraceAttr.CopilotRecoveryOutcome, 'gap_detected')
+        span.setAttribute(TraceAttr.CopilotRecoveryOutcome, CopilotRecoveryOutcome.GapDetected)
 
         const gapEnvelope = createEvent({
           streamId,
@@ -92,7 +93,7 @@ export async function checkForReplayGap(
         }
       }
 
-      span.setAttribute(TraceAttr.CopilotRecoveryOutcome, 'in_range')
+      span.setAttribute(TraceAttr.CopilotRecoveryOutcome, CopilotRecoveryOutcome.InRange)
       return null
     }
   )

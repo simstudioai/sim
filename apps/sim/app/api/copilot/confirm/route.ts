@@ -25,6 +25,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
+import { CopilotConfirmOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 
 const logger = createLogger('CopilotConfirmAPI')
 
@@ -140,7 +141,7 @@ export async function POST(req: NextRequest) {
           await authenticateCopilotRequestSessionOnly()
 
         if (!isAuthenticated || !authenticatedUserId) {
-          span.setAttribute(TraceAttr.CopilotConfirmOutcome, 'unauthorized')
+          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.Unauthorized)
           return createUnauthorizedResponse()
         }
 
@@ -161,7 +162,7 @@ export async function POST(req: NextRequest) {
         })
 
         if (!existing) {
-          span.setAttribute(TraceAttr.CopilotConfirmOutcome, 'tool_call_not_found')
+          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
           return createNotFoundResponse('Tool call not found')
         }
         if (existing.toolName) span.setAttribute(TraceAttr.ToolName, existing.toolName)
@@ -175,11 +176,11 @@ export async function POST(req: NextRequest) {
           return null
         })
         if (!run) {
-          span.setAttribute(TraceAttr.CopilotConfirmOutcome, 'run_not_found')
+          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.RunNotFound)
           return createNotFoundResponse('Tool call run not found')
         }
         if (run.userId !== authenticatedUserId) {
-          span.setAttribute(TraceAttr.CopilotConfirmOutcome, 'forbidden')
+          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.Forbidden)
           return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
         }
 
@@ -193,13 +194,13 @@ export async function POST(req: NextRequest) {
             internalStatus: status,
             message,
           })
-          span.setAttribute(TraceAttr.CopilotConfirmOutcome, 'update_failed')
+          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.UpdateFailed)
           return createBadRequestResponse(
             'Failed to update tool call status or tool call not found'
           )
         }
 
-        span.setAttribute(TraceAttr.CopilotConfirmOutcome, 'delivered')
+        span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.Delivered)
         return NextResponse.json({
           success: true,
           message: message || `Tool call ${toolCallId} has been ${status.toLowerCase()}`,
@@ -214,7 +215,7 @@ export async function POST(req: NextRequest) {
             duration,
             errors: error.errors,
           })
-          span.setAttribute(TraceAttr.CopilotConfirmOutcome, 'validation_error')
+          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ValidationError)
           return createBadRequestResponse(
             `Invalid request data: ${error.errors.map((e) => e.message).join(', ')}`
           )
@@ -226,7 +227,7 @@ export async function POST(req: NextRequest) {
           stack: error instanceof Error ? error.stack : undefined,
         })
 
-        span.setAttribute(TraceAttr.CopilotConfirmOutcome, 'internal_error')
+        span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.InternalError)
         return createInternalServerErrorResponse(
           error instanceof Error ? error.message : 'Internal server error'
         )

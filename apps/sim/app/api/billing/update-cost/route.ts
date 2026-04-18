@@ -11,6 +11,7 @@ import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { type AtomicClaimResult, billingIdempotency } from '@/lib/core/idempotency/service'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { BillingRouteOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 
 const logger = createLogger('BillingUpdateCostAPI')
 
@@ -60,7 +61,7 @@ async function updateCostInner(
     logger.info(`[${requestId}] Update cost request started`)
 
     if (!isBillingEnabled) {
-      span.setAttribute(TraceAttr.BillingOutcome, 'billing_disabled')
+      span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.BillingDisabled)
       span.setAttribute(TraceAttr.HttpStatusCode, 200)
       return NextResponse.json({
         success: true,
@@ -77,7 +78,7 @@ async function updateCostInner(
     const authResult = checkInternalApiKey(req)
     if (!authResult.success) {
       logger.warn(`[${requestId}] Authentication failed: ${authResult.error}`)
-      span.setAttribute(TraceAttr.BillingOutcome, 'auth_failed')
+      span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.AuthFailed)
       span.setAttribute(TraceAttr.HttpStatusCode, 401)
       return NextResponse.json(
         {
@@ -96,7 +97,7 @@ async function updateCostInner(
         errors: validation.error.issues,
         body,
       })
-      span.setAttribute(TraceAttr.BillingOutcome, 'invalid_body')
+      span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.InvalidBody)
       span.setAttribute(TraceAttr.HttpStatusCode, 400)
       return NextResponse.json(
         {
@@ -133,7 +134,7 @@ async function updateCostInner(
         userId,
         source,
       })
-      span.setAttribute(TraceAttr.BillingOutcome, 'duplicate_idempotency_key')
+      span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.DuplicateIdempotencyKey)
       span.setAttribute(TraceAttr.HttpStatusCode, 409)
       return NextResponse.json(
         {
@@ -199,7 +200,7 @@ async function updateCostInner(
       cost,
     })
 
-    span.setAttribute(TraceAttr.BillingOutcome, 'billed')
+    span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.Billed)
     span.setAttribute(TraceAttr.HttpStatusCode, 200)
     span.setAttribute(TraceAttr.BillingDurationMs, duration)
     return NextResponse.json({
@@ -236,7 +237,7 @@ async function updateCostInner(
       )
     }
 
-    span.setAttribute(TraceAttr.BillingOutcome, 'internal_error')
+    span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.InternalError)
     span.setAttribute(TraceAttr.HttpStatusCode, 500)
     span.setAttribute(TraceAttr.BillingDurationMs, duration)
     return NextResponse.json(

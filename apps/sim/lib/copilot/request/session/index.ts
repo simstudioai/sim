@@ -1,8 +1,11 @@
 export {
   abortActiveStream,
+  AbortReason,
+  type AbortReasonValue,
   acquirePendingChatStream,
   cleanupAbortMarker,
   getPendingChatStreamId,
+  isExplicitStopReason,
   registerActiveStream,
   releasePendingChatStream,
   startAbortPoller,

@@ -7,6 +7,11 @@ import {
   MothershipStreamV1EventType,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import {
+  CopilotResumeOutcome,
+  CopilotTransport,
+} from '@/lib/copilot/generated/trace-attribute-values-v1'
+import { contextFromRequestHeaders } from '@/lib/copilot/request/go/propagation'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
 import { getCopilotTracer } from '@/lib/copilot/request/otel'
 import {
@@ -125,15 +130,31 @@ export async function GET(request: NextRequest) {
   // manually, capture its context, and re-enter that context inside the
   // stream callback so every nested `withCopilotSpan` / `withDbSpan` call
   // attaches to this root.
-  const rootSpan = getCopilotTracer().startSpan('copilot.resume.request', {
-    attributes: {
-      [TraceAttr.CopilotTransport]: batchMode ? 'batch' : 'stream',
-      [TraceAttr.StreamId]: streamId,
-      [TraceAttr.UserId]: authenticatedUserId,
-      [TraceAttr.CopilotResumeAfterCursor]: afterCursor || '0',
+  //
+  // `contextFromRequestHeaders` extracts the W3C `traceparent` the
+  // client echoed (set via `streamTraceparentRef` on Sim's chat POST
+  // response), so the resume span becomes a child of the original
+  // chat's `gen_ai.agent.execute` trace instead of a disconnected
+  // new root. On reconnects after page reload (client ref was wiped)
+  // the header is absent and extraction leaves the ambient context
+  // alone → the resume span becomes its own root. Same as pre-
+  // linking behavior; no regression.
+  const incomingContext = contextFromRequestHeaders(request.headers)
+  const rootSpan = getCopilotTracer().startSpan(
+    'copilot.resume.request',
+    {
+      attributes: {
+        [TraceAttr.CopilotTransport]: batchMode
+          ? CopilotTransport.Batch
+          : CopilotTransport.Stream,
+        [TraceAttr.StreamId]: streamId,
+        [TraceAttr.UserId]: authenticatedUserId,
+        [TraceAttr.CopilotResumeAfterCursor]: afterCursor || '0',
+      },
     },
-  })
-  const rootContext = trace.setSpan(otelContext.active(), rootSpan)
+    incomingContext
+  )
+  const rootContext = trace.setSpan(incomingContext, rootSpan)
 
   try {
     return await otelContext.with(rootContext, () =>
@@ -190,7 +211,7 @@ async function handleResumeRequestBody({
     runStatus: run?.status,
   })
   if (!run) {
-    rootSpan.setAttribute(TraceAttr.CopilotResumeOutcome, 'stream_not_found')
+    rootSpan.setAttribute(TraceAttr.CopilotResumeOutcome, CopilotResumeOutcome.StreamNotFound)
     rootSpan.end()
     return NextResponse.json({ error: 'Stream not found' }, { status: 404 })
   }
@@ -217,7 +238,7 @@ async function handleResumeRequestBody({
       runStatus: run.status,
     })
     rootSpan.setAttributes({
-      [TraceAttr.CopilotResumeOutcome]: 'batch_delivered',
+      [TraceAttr.CopilotResumeOutcome]: CopilotResumeOutcome.BatchDelivered,
       [TraceAttr.CopilotResumeEventCount]: batchEvents.length,
       [TraceAttr.CopilotResumePreviewSessionCount]: previewSessions.length,
     })
@@ -411,10 +432,10 @@ async function handleResumeRequestBody({
       closeController()
       rootSpan.setAttributes({
         [TraceAttr.CopilotResumeOutcome]: sawTerminalEvent
-          ? 'terminal_delivered'
+          ? CopilotResumeOutcome.TerminalDelivered
           : controllerClosed
-            ? 'client_disconnected'
-            : 'ended_without_terminal',
+            ? CopilotResumeOutcome.ClientDisconnected
+            : CopilotResumeOutcome.EndedWithoutTerminal,
         [TraceAttr.CopilotResumeEventCount]: totalEventsFlushed,
         [TraceAttr.CopilotResumePollIterations]: pollIterations,
         [TraceAttr.CopilotResumeDurationMs]: Date.now() - startTime,

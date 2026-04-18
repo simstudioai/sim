@@ -9,8 +9,16 @@ import {
   MothershipStreamV1EventType,
   MothershipStreamV1SessionKind,
 } from '@/lib/copilot/generated/mothership-stream-v1'
-import { RequestTraceV1Outcome } from '@/lib/copilot/generated/request-trace-v1'
+import {
+  RequestTraceV1Outcome,
+  RequestTraceV1SpanStatus,
+} from '@/lib/copilot/generated/request-trace-v1'
+import {
+  CopilotRequestCancelReason,
+  type CopilotRequestCancelReasonValue,
+} from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { finalizeStream } from '@/lib/copilot/request/lifecycle/finalize'
 import type { CopilotLifecycleOptions } from '@/lib/copilot/request/lifecycle/run'
 import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
@@ -19,6 +27,7 @@ import {
   cleanupAbortMarker,
   clearFilePreviewSessions,
   registerActiveStream,
+  isExplicitStopReason,
   releasePendingChatStream,
   resetBuffer,
   StreamWriter,
@@ -106,6 +115,76 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
   registerActiveStream(streamId, abortController)
 
   const publisher = new StreamWriter({ streamId, chatId, requestId })
+
+  /**
+   * Classifies a cancelled outcome into one of the closed-vocabulary
+   * `CopilotRequestCancelReason` values, and records the result on the
+   * active OTel root span (attribute + event).
+   *
+   * Classification rules:
+   * - `signal.reason` is in the known explicit-stop set (see
+   *   `AbortReason.*`) → `ExplicitStop`.
+   * - Otherwise, `publisher.clientDisconnected` → `ClientDisconnect`.
+   * - Otherwise → `Unknown`, which is a latent bug: the stream aborted
+   *   with a reason we don't recognize and the client never dropped.
+   *   We log an error with the raw reason and record it on the span so
+   *   we can find whichever code path added a new `abort(...)` call
+   *   without updating the contract.
+   *
+   * IMPORTANT: `publisher.clientDisconnected` alone is NOT a reliable
+   * discriminator. When the user clicks Stop, `abortActiveStream`
+   * fires `abortController.abort(AbortReason.UserStop)`, which closes
+   * the SSE stream, which causes the BROWSER to disconnect its SSE
+   * reader, which propagates back as `publisher.markDisconnected()`.
+   * So on an explicit Stop you observe BOTH the explicit reason AND
+   * `clientDisconnected=true`. The reason string is the source of
+   * truth for intent; the disconnect flag is only a fallback.
+   */
+  const recordCancelled = (errorMessage?: string): CopilotRequestCancelReasonValue => {
+    const rawReason = abortController.signal.reason
+    let cancelReason: CopilotRequestCancelReasonValue
+    if (isExplicitStopReason(rawReason)) {
+      cancelReason = CopilotRequestCancelReason.ExplicitStop
+    } else if (publisher.clientDisconnected) {
+      cancelReason = CopilotRequestCancelReason.ClientDisconnect
+    } else {
+      cancelReason = CopilotRequestCancelReason.Unknown
+      const serializedReason =
+        rawReason === undefined
+          ? 'undefined'
+          : rawReason instanceof Error
+            ? `${rawReason.name}: ${rawReason.message}`
+            : typeof rawReason === 'string'
+              ? rawReason
+              : (() => {
+                  try {
+                    return JSON.stringify(rawReason)
+                  } catch {
+                    return String(rawReason)
+                  }
+                })()
+      // Not user-facing. Signals a contract violation: a code path
+      // aborted the stream with a reason that isn't in the known set,
+      // and the client didn't disconnect either. Whoever sees this
+      // should add the new reason to `AbortReason` / `isExplicitStopReason`
+      // (if it's explicit) or extend the classifier.
+      logger.error(`[${requestId}] Stream cancelled with unknown abort reason`, {
+        streamId,
+        chatId,
+        reason: serializedReason,
+      })
+      activeOtelRoot.span.setAttribute(
+        TraceAttr.CopilotAbortUnknownReason,
+        serializedReason
+      )
+    }
+    activeOtelRoot.span.setAttribute(TraceAttr.CopilotRequestCancelReason, cancelReason)
+    activeOtelRoot.span.addEvent(TraceEvent.RequestCancelled, {
+      [TraceAttr.CopilotRequestCancelReason]: cancelReason,
+      ...(errorMessage ? { [TraceAttr.ErrorMessage]: errorMessage } : {}),
+    })
+    return cancelReason
+  }
 
   const collector = new TraceCollector()
 
@@ -204,6 +283,9 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               : result.success
                 ? RequestTraceV1Outcome.success
                 : RequestTraceV1Outcome.error
+            if (outcome === RequestTraceV1Outcome.cancelled) {
+              recordCancelled()
+            }
             await finalizeStream(
               result,
               publisher,
@@ -215,6 +297,13 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             outcome = abortController.signal.aborted
               ? RequestTraceV1Outcome.cancelled
               : RequestTraceV1Outcome.error
+            if (outcome === RequestTraceV1Outcome.cancelled) {
+              // Error-path cancel: typically the stream raised before
+              // it saw the abort signal. Same classification rules as
+              // the happy path — we just also thread the error's
+              // message onto the event for triage.
+              recordCancelled(error instanceof Error ? error.message : String(error))
+            }
             if (publisher.clientDisconnected) {
               logger.info(`[${requestId}] Stream errored after client disconnect`, {
                 error: error instanceof Error ? error.message : 'Stream error',
@@ -240,10 +329,10 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             collector.endSpan(
               requestSpan,
               outcome === RequestTraceV1Outcome.success
-                ? 'ok'
+                ? RequestTraceV1SpanStatus.ok
                 : outcome === RequestTraceV1Outcome.cancelled
-                  ? 'cancelled'
-                  : 'error'
+                  ? RequestTraceV1SpanStatus.cancelled
+                  : RequestTraceV1SpanStatus.error
             )
 
             clearInterval(abortPoller)

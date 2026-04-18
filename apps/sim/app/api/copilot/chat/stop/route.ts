@@ -11,6 +11,7 @@ import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { generateId } from '@/lib/core/utils/uuid'
+import { CopilotStopOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 
 const logger = createLogger('CopilotChatStopAPI')
 
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
       try {
         const session = await getSession()
         if (!session?.user?.id) {
-          span.setAttribute(TraceAttr.CopilotStopOutcome, 'unauthorized')
+          span.setAttribute(TraceAttr.CopilotStopOutcome, CopilotStopOutcome.Unauthorized)
           return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
@@ -102,7 +103,7 @@ export async function POST(req: NextRequest) {
           .limit(1)
 
         if (!row) {
-          span.setAttribute(TraceAttr.CopilotStopOutcome, 'chat_not_found')
+          span.setAttribute(TraceAttr.CopilotStopOutcome, CopilotStopOutcome.ChatNotFound)
           return NextResponse.json({ success: true })
         }
 
@@ -160,15 +161,18 @@ export async function POST(req: NextRequest) {
           })
         }
 
-        span.setAttribute(TraceAttr.CopilotStopOutcome, updated ? 'persisted' : 'no_matching_row')
+        span.setAttribute(
+          TraceAttr.CopilotStopOutcome,
+          updated ? CopilotStopOutcome.Persisted : CopilotStopOutcome.NoMatchingRow
+        )
         return NextResponse.json({ success: true })
       } catch (error) {
         if (error instanceof z.ZodError) {
-          span.setAttribute(TraceAttr.CopilotStopOutcome, 'validation_error')
+          span.setAttribute(TraceAttr.CopilotStopOutcome, CopilotStopOutcome.ValidationError)
           return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
         }
         logger.error('Error stopping chat stream:', error)
-        span.setAttribute(TraceAttr.CopilotStopOutcome, 'internal_error')
+        span.setAttribute(TraceAttr.CopilotStopOutcome, CopilotStopOutcome.InternalError)
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
       }
     }

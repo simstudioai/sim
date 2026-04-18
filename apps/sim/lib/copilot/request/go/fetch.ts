@@ -1,6 +1,7 @@
 import { type Context, context, SpanStatusCode, trace } from '@opentelemetry/api'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { traceHeaders } from '@/lib/copilot/request/go/propagation'
+import { CopilotLeg } from '@/lib/copilot/generated/trace-attribute-values-v1'
 
 // Lazy tracer resolution: module-level `trace.getTracer()` can be evaluated
 // before `instrumentation-node.ts` installs the TracerProvider under
@@ -47,7 +48,7 @@ export async function fetchGo(url: string, options: OutboundFetchOptions = {}): 
         [TraceAttr.HttpUrl]: url,
         [TraceAttr.HttpTarget]: pathname,
         [TraceAttr.NetPeerName]: parsed?.host ?? '',
-        [TraceAttr.CopilotLeg]: 'sim_to_go',
+        [TraceAttr.CopilotLeg]: CopilotLeg.SimToGo,
         ...(operation ? { [TraceAttr.CopilotOperation]: operation } : {}),
         ...(attributes ?? {}),
       },

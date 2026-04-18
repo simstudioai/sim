@@ -4,6 +4,7 @@ import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import { acquireLock, getRedisClient, releaseLock } from '@/lib/core/config/redis'
 import { clearAbortMarker, hasAbortMarker, writeAbortMarker } from './buffer'
+import { AbortBackend } from '@/lib/copilot/generated/trace-attribute-values-v1'
 
 const logger = createLogger('SessionAbort')
 
@@ -136,7 +137,10 @@ export async function acquirePendingChatStream(
     },
     async (span) => {
       const redis = getRedisClient()
-      span.setAttribute(TraceAttr.LockBackend, redis ? 'redis' : 'in_process')
+      span.setAttribute(
+        TraceAttr.LockBackend,
+        redis ? AbortBackend.Redis : AbortBackend.InProcess
+      )
       if (redis) {
         const deadline = Date.now() + timeoutMs
         for (;;) {
@@ -202,14 +206,78 @@ export async function acquirePendingChatStream(
 /**
  * Returns `true` if it aborted an in-process controller,
  * `false` if it only wrote the marker (no local controller found).
+ *
+ * Spanned because the two operations inside can stall independently
+ * — Redis latency on `writeAbortMarker` was previously invisible, and
+ * the "no local controller" branch (happens when the stream handler
+ * is on a different Sim box than the one receiving /chat/abort) is
+ * a subtle but important outcome to distinguish from "aborted a live
+ * controller" in dashboards.
  */
 export async function abortActiveStream(streamId: string): Promise<boolean> {
-  await writeAbortMarker(streamId)
-  const controller = activeStreams.get(streamId)
-  if (!controller) return false
-  controller.abort('user_stop:abortActiveStream')
-  activeStreams.delete(streamId)
-  return true
+  return withCopilotSpan(
+    TraceSpan.CopilotChatAbortActiveStream,
+    { [TraceAttr.StreamId]: streamId },
+    async (span) => {
+      await writeAbortMarker(streamId)
+      span.setAttribute(TraceAttr.CopilotAbortMarkerWritten, true)
+      const controller = activeStreams.get(streamId)
+      if (!controller) {
+        span.setAttribute(TraceAttr.CopilotAbortControllerFired, false)
+        return false
+      }
+      controller.abort(AbortReason.UserStop)
+      activeStreams.delete(streamId)
+      span.setAttribute(TraceAttr.CopilotAbortControllerFired, true)
+      return true
+    }
+  )
+}
+
+/**
+ * Reason strings passed to `AbortController.abort(reason)` for every
+ * Sim-originated cancel path. Exported so the lifecycle finalizer can
+ * look at `signal.reason` and distinguish EXPLICIT stops (user hit the
+ * Stop button) from client disconnects (tab closed, network dropped)
+ * without guessing.
+ *
+ * Why this matters: when the user clicks Stop, we fire
+ * `abortController.abort(AbortReason.UserStop)` from
+ * `abortActiveStream()`. That causes Sim's SSE writer to close, which
+ * in turn makes the BROWSER's SSE reader see the stream end — which
+ * fires the browser-side fetch AbortController and propagates back to
+ * Sim as `publisher.markDisconnected()`. So on an explicit Stop you
+ * observe BOTH "explicit reason" AND "client disconnected" — the
+ * discriminator is the reason string, not the client flag.
+ *
+ * For any NEW abort path, add its reason here and in the
+ * `isExplicitStopReason` helper so classification stays correct.
+ */
+export const AbortReason = {
+  /** Same-process stop: browser→Sim→abortActiveStream. */
+  UserStop: 'user_stop:abortActiveStream',
+  /**
+   * Cross-process stop: the SIM node that held the SSE didn't receive
+   * the Stop HTTP call, but it polled the Redis abort marker that the
+   * node that DID receive it wrote, and aborts on the poll.
+   */
+  RedisPoller: 'redis_abort_marker:poller',
+  /** Internal timeout on the outbound explicit-abort fetch to Go. */
+  ExplicitAbortFetchTimeout: 'timeout:go_explicit_abort_fetch',
+} as const
+
+export type AbortReasonValue = (typeof AbortReason)[keyof typeof AbortReason]
+
+/**
+ * True iff `reason` indicates the user explicitly triggered the abort
+ * (as opposed to an implicit client disconnect or server timeout).
+ * Treated as a small closed vocabulary — any string not in
+ * `AbortReason` is presumed non-explicit.
+ */
+export function isExplicitStopReason(reason: unknown): boolean {
+  return (
+    reason === AbortReason.UserStop || reason === AbortReason.RedisPoller
+  )
 }
 
 const pollingStreams = new Set<string>()
@@ -230,7 +298,7 @@ export function startAbortPoller(
       try {
         const shouldAbort = await hasAbortMarker(streamId)
         if (shouldAbort && !abortController.signal.aborted) {
-          abortController.abort('redis_abort_marker:poller')
+          abortController.abort(AbortReason.RedisPoller)
           await clearAbortMarker(streamId)
         }
       } catch (error) {

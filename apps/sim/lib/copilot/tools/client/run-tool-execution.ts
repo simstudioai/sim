@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { AsyncCompletionData } from '@/lib/copilot/async-runs/lifecycle'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
+import { traceparentHeader } from '@/lib/copilot/tools/client/trace-context'
 import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
   RunBlock,
@@ -465,7 +466,10 @@ async function reportCompletion(
     })
     const res = await fetch(COPILOT_CONFIRM_API_PATH, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      // Propagate the chat's root traceparent so the confirm handler
+      // becomes a child span of the original request's trace. See
+      // `trace-context.ts` for why this lives in a module singleton.
+      headers: { 'Content-Type': 'application/json', ...traceparentHeader() },
       body,
     })
     const LARGE_PAYLOAD_THRESHOLD = 10 * 1024 * 1024
@@ -479,7 +483,7 @@ async function reportCompletion(
       })
       const retryRes = await fetch(COPILOT_CONFIRM_API_PATH, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...traceparentHeader() },
         body: JSON.stringify({
           toolCallId,
           status,

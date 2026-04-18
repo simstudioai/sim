@@ -5,6 +5,7 @@ import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { CopilotOutputFileOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 
 const logger = createLogger('CopilotToolResultFiles')
 
@@ -186,7 +187,7 @@ export async function maybeWriteOutputToFile(
         )
         span.setAttributes({
           [TraceAttr.CopilotOutputFileId]: uploaded.id,
-          [TraceAttr.CopilotOutputFileOutcome]: 'uploaded',
+          [TraceAttr.CopilotOutputFileOutcome]: CopilotOutputFileOutcome.Uploaded,
         })
 
         logger.info('Tool output written to file', {
@@ -214,7 +215,7 @@ export async function maybeWriteOutputToFile(
           outputPath,
           error: message,
         })
-        span.setAttribute(TraceAttr.CopilotOutputFileOutcome, 'failed')
+        span.setAttribute(TraceAttr.CopilotOutputFileOutcome, CopilotOutputFileOutcome.Failed)
         span.addEvent('copilot.output_file.error', {
           'error.message': message.slice(0, 500),
         })

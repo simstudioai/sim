@@ -9,6 +9,7 @@ import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/htt
 import { withCopilotSpan, withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import { abortActiveStream, waitForPendingChatStream } from '@/lib/copilot/request/session'
 import { env } from '@/lib/core/config/env'
+import { CopilotAbortOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 
 const logger = createLogger('CopilotChatAbortAPI')
 const GO_EXPLICIT_ABORT_TIMEOUT_MS = 3000
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
         await authenticateCopilotRequestSessionOnly()
 
       if (!isAuthenticated || !authenticatedUserId) {
-        rootSpan.setAttribute(TraceAttr.CopilotAbortOutcome, 'unauthorized')
+        rootSpan.setAttribute(TraceAttr.CopilotAbortOutcome, CopilotAbortOutcome.Unauthorized)
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
       let chatId = typeof body.chatId === 'string' ? body.chatId : ''
 
       if (!streamId) {
-        rootSpan.setAttribute(TraceAttr.CopilotAbortOutcome, 'missing_stream_id')
+        rootSpan.setAttribute(TraceAttr.CopilotAbortOutcome, CopilotAbortOutcome.MissingStreamId)
         return NextResponse.json({ error: 'streamId is required' }, { status: 400 })
       }
       rootSpan.setAttributes({
@@ -139,17 +140,17 @@ export async function POST(request: Request) {
           }
         )
         if (!settled) {
-          rootSpan.setAttribute(TraceAttr.CopilotAbortOutcome, 'settle_timeout')
+          rootSpan.setAttribute(TraceAttr.CopilotAbortOutcome, CopilotAbortOutcome.SettleTimeout)
           return NextResponse.json(
             { error: 'Previous response is still shutting down', aborted, settled: false },
             { status: 409 }
           )
         }
-        rootSpan.setAttribute(TraceAttr.CopilotAbortOutcome, 'settled')
+        rootSpan.setAttribute(TraceAttr.CopilotAbortOutcome, CopilotAbortOutcome.Settled)
         return NextResponse.json({ aborted, settled: true })
       }
 
-      rootSpan.setAttribute(TraceAttr.CopilotAbortOutcome, 'no_chat_id')
+      rootSpan.setAttribute(TraceAttr.CopilotAbortOutcome, CopilotAbortOutcome.NoChatId)
       return NextResponse.json({ aborted })
     }
   )

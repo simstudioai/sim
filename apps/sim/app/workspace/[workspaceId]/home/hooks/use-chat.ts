@@ -85,6 +85,7 @@ import {
   markRunToolManuallyStopped,
   reportManualRunToolStop,
 } from '@/lib/copilot/tools/client/run-tool-execution'
+import { setCurrentChatTraceparent } from '@/lib/copilot/tools/client/trace-context'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
 import { generateId } from '@/lib/core/utils/uuid'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
@@ -1271,6 +1272,13 @@ export function useChat(
   const activeTurnRef = useRef<ActiveTurn | null>(null)
   const pendingUserMsgRef = useRef<PersistedMessage | null>(null)
   const streamIdRef = useRef<string | undefined>(undefined)
+  // W3C traceparent for the currently-streaming chat request. Sim's
+  // chat POST response returns this header built from the root
+  // gen_ai.agent.execute span; we echo it on every side-channel
+  // request (abort/stop/confirm/stream-replay) so they appear as
+  // child spans of the same trace instead of disconnected roots.
+  // Cleared when a new chat starts (overwritten by the next POST).
+  const streamTraceparentRef = useRef<string | undefined>(undefined)
   const locallyTerminalStreamIdRef = useRef<string | undefined>(undefined)
   const lastCursorRef = useRef('0')
   const sendingRef = useRef(false)
@@ -2528,7 +2536,17 @@ export function useChat(
     ): Promise<StreamBatchResponse> => {
       const response = await fetch(
         `/api/mothership/chat/stream?streamId=${encodeURIComponent(streamId)}&after=${encodeURIComponent(afterCursor)}&batch=true`,
-        { signal }
+        {
+          signal,
+          // Propagate the original chat trace so batch-replay spans
+          // nest under the same trace as the chat POST. Empty on
+          // page-reload reconnects (stored ref was wiped), in which
+          // case the resume handler starts its own root — unchanged
+          // from pre-linking behavior.
+          ...(streamTraceparentRef.current
+            ? { headers: { traceparent: streamTraceparentRef.current } }
+            : {}),
+        }
       )
       if (!response.ok) {
         throw new Error(`Stream resume batch failed: ${response.status}`)
@@ -2599,7 +2617,12 @@ export function useChat(
 
           const sseRes = await fetch(
             `/api/mothership/chat/stream?streamId=${encodeURIComponent(streamId)}&after=${encodeURIComponent(latestCursor)}`,
-            { signal: activeAbort.signal }
+            {
+              signal: activeAbort.signal,
+              ...(streamTraceparentRef.current
+                ? { headers: { traceparent: streamTraceparentRef.current } }
+                : {}),
+            }
           )
           if (!sseRes.ok || !sseRes.body) {
             throw new Error(RECONNECT_TAIL_ERROR)
@@ -2878,7 +2901,12 @@ export function useChat(
       try {
         const res = await fetch(stopPathRef.current, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(streamTraceparentRef.current
+              ? { traceparent: streamTraceparentRef.current }
+              : {}),
+          },
           body: JSON.stringify({
             chatId,
             streamId,
@@ -3159,6 +3187,22 @@ export function useChat(
           }),
           signal: abortController.signal,
         })
+
+        // Capture the server's root trace identity so we can propagate
+        // it on every subsequent side-channel call for this stream.
+        // See `streamTraceparentRef` comment above for full rationale.
+        // Fine to read even on non-ok responses — Sim still sets the
+        // header before validation fails so error traces are linked
+        // too; we just won't use it in that case because we return
+        // early below. Also mirror it into the module-level client-
+        // tool trace-context holder so tool-completion callbacks
+        // fired from non-React code paths (e.g. workflow runner) can
+        // echo it without having to thread a prop through.
+        const traceparent = response.headers.get('traceparent')
+        if (traceparent) {
+          streamTraceparentRef.current = traceparent
+          setCurrentChatTraceparent(traceparent)
+        }
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
@@ -3460,7 +3504,12 @@ export function useChat(
           ? (async () => {
               const res = await fetch('/api/mothership/chat/abort', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(streamTraceparentRef.current
+                    ? { traceparent: streamTraceparentRef.current }
+                    : {}),
+                },
                 body: JSON.stringify({
                   streamId: sid,
                   ...(resolvedChatId ? { chatId: resolvedChatId } : {}),
