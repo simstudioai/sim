@@ -255,10 +255,26 @@ export function Table({
     setColumnOrder(order)
   }, [])
 
+  const handleColumnRename = useCallback((oldName: string, newName: string) => {
+    let updatedWidths = columnWidthsRef.current
+    if (oldName in updatedWidths) {
+      const { [oldName]: width, ...rest } = updatedWidths
+      updatedWidths = { ...rest, [newName]: width }
+      setColumnWidths(updatedWidths)
+    }
+    const updatedOrder = columnOrderRef.current?.map((n) => (n === oldName ? newName : n))
+    if (updatedOrder) setColumnOrder(updatedOrder)
+    updateMetadataRef.current({
+      columnWidths: updatedWidths,
+      columnOrder: updatedOrder,
+    })
+  }, [])
+
   const { pushUndo, undo, redo } = useTableUndo({
     workspaceId,
     tableId,
     onColumnOrderChange: handleColumnOrderChange,
+    onColumnRename: handleColumnRename,
   })
   const undoRef = useRef(undo)
   undoRef.current = undo
@@ -1631,6 +1647,26 @@ export function Table({
     if (!deletingColumn) return
     const columnToDelete = deletingColumn
     const orderAtDelete = columnOrderRef.current
+    const cols = schemaColumnsRef.current
+    const colDef = cols.find((c) => c.name === columnToDelete)
+    const colPosition = cols.indexOf(colDef!)
+    const currentRows = rowsRef.current
+    const cellData = currentRows
+      .filter((r) => r.data[columnToDelete] != null)
+      .map((r) => ({ rowId: r.id, value: r.data[columnToDelete] }))
+    const previousWidth = columnWidthsRef.current[columnToDelete] ?? null
+
+    pushUndoRef.current({
+      type: 'delete-column',
+      columnName: columnToDelete,
+      columnType: colDef?.type ?? 'string',
+      columnPosition: colPosition >= 0 ? colPosition : cols.length,
+      columnUnique: colDef?.unique ?? false,
+      cellData,
+      previousOrder: orderAtDelete ? [...orderAtDelete] : null,
+      previousWidth,
+    })
+
     setDeletingColumn(null)
     deleteColumnMutation.mutate(columnToDelete, {
       onSuccess: () => {

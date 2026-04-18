@@ -35,9 +35,15 @@ interface UseTableUndoProps {
   workspaceId: string
   tableId: string
   onColumnOrderChange?: (order: string[]) => void
+  onColumnRename?: (oldName: string, newName: string) => void
 }
 
-export function useTableUndo({ workspaceId, tableId, onColumnOrderChange }: UseTableUndoProps) {
+export function useTableUndo({
+  workspaceId,
+  tableId,
+  onColumnOrderChange,
+  onColumnRename,
+}: UseTableUndoProps) {
   const push = useTableUndoStore((s) => s.push)
   const popUndo = useTableUndoStore((s) => s.popUndo)
   const popRedo = useTableUndoStore((s) => s.popRedo)
@@ -61,6 +67,8 @@ export function useTableUndo({ workspaceId, tableId, onColumnOrderChange }: UseT
 
   const onColumnOrderChangeRef = useRef(onColumnOrderChange)
   onColumnOrderChangeRef.current = onColumnOrderChange
+  const onColumnRenameRef = useRef(onColumnRename)
+  onColumnRenameRef.current = onColumnRename
 
   useEffect(() => {
     return () => clear(tableId)
@@ -197,18 +205,63 @@ export function useTableUndo({ workspaceId, tableId, onColumnOrderChange }: UseT
             break
           }
 
-          case 'rename-column': {
+          case 'delete-column': {
             if (direction === 'undo') {
-              updateColumnMutation.mutate({
-                columnName: action.newName,
-                updates: { name: action.oldName },
-              })
+              addColumnMutation.mutate(
+                {
+                  name: action.columnName,
+                  type: action.columnType,
+                  unique: action.columnUnique,
+                  position: action.columnPosition,
+                },
+                {
+                  onSuccess: () => {
+                    if (action.cellData.length > 0) {
+                      const updates = action.cellData.map((c) => ({
+                        rowId: c.rowId,
+                        data: { [action.columnName]: c.value },
+                      }))
+                      batchUpdateRowsMutation.mutate({ updates })
+                    }
+                    if (action.previousOrder) {
+                      onColumnOrderChangeRef.current?.(action.previousOrder)
+                      updateMetadataMutation.mutate({
+                        columnOrder: action.previousOrder,
+                        ...(action.previousWidth !== null
+                          ? {
+                              columnWidths: {
+                                ...({} as Record<string, number>),
+                                [action.columnName]: action.previousWidth,
+                              },
+                            }
+                          : {}),
+                      })
+                    }
+                  },
+                }
+              )
             } else {
-              updateColumnMutation.mutate({
-                columnName: action.oldName,
-                updates: { name: action.newName },
+              deleteColumnMutation.mutate(action.columnName, {
+                onSuccess: () => {
+                  if (action.previousOrder) {
+                    const newOrder = action.previousOrder.filter((n) => n !== action.columnName)
+                    onColumnOrderChangeRef.current?.(newOrder)
+                    updateMetadataMutation.mutate({ columnOrder: newOrder })
+                  }
+                },
               })
             }
+            break
+          }
+
+          case 'rename-column': {
+            const fromName = direction === 'undo' ? action.newName : action.oldName
+            const toName = direction === 'undo' ? action.oldName : action.newName
+            updateColumnMutation.mutate({
+              columnName: fromName,
+              updates: { name: toName },
+            })
+            onColumnRenameRef.current?.(fromName, toName)
             break
           }
 
