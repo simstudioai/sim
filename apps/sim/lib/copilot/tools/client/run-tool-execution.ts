@@ -1,13 +1,13 @@
 import { createLogger } from '@sim/logger'
 import type { AsyncCompletionData } from '@/lib/copilot/async-runs/lifecycle'
 import { COPILOT_CONFIRM_API_PATH } from '@/lib/copilot/constants'
-import { traceparentHeader } from '@/lib/copilot/tools/client/trace-context'
 import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
   RunBlock,
   RunFromBlock,
   RunWorkflowUntilBlock,
 } from '@/lib/copilot/generated/tool-catalog-v1'
+import { traceparentHeader } from '@/lib/copilot/tools/client/trace-context'
 import { generateId } from '@/lib/core/utils/uuid'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { useExecutionStore } from '@/stores/execution/store'

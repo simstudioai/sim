@@ -11,10 +11,13 @@ import {
   trace,
 } from '@opentelemetry/api'
 import { RequestTraceV1Outcome } from '@/lib/copilot/generated/request-trace-v1'
+import {
+  CopilotBranchKind,
+  CopilotSurface,
+} from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { contextFromRequestHeaders } from '@/lib/copilot/request/go/propagation'
-import { CopilotBranchKind, CopilotSurface } from '@/lib/copilot/generated/trace-attribute-values-v1'
 
 /**
  * OTel GenAI experimental semantic conventions env var. When set to a
@@ -374,7 +377,17 @@ function createFallbackSpanContext(): SpanContext {
 }
 
 export interface CopilotOtelScope {
-  requestId: string
+  /**
+   * Optional override for the logical request ID surfaced on
+   * `request.id` / `sim.request_id` span attributes. Leave unset on
+   * the primary chat POST path — `startCopilotOtelRoot` will derive
+   * it from the newly-created root span's OTel trace ID, which is the
+   * same 32-hex value that flows through `traceparent` and shows up
+   * in Grafana. Pass an explicit value only for paths that need a
+   * non-trace-derived identifier (e.g. headless / resume taking an
+   * ID from persisted state).
+   */
+  requestId?: string
   route?: string
   chatId?: string
   workflowId?: string
@@ -409,13 +422,18 @@ const USER_MESSAGE_PREVIEW_MAX_CHARS = 500
  * span to outlive the synchronous handler body — e.g. SSE routes).
  */
 function buildAgentSpanAttributes(
-  scope: CopilotOtelScope
+  scope: CopilotOtelScope & { requestId: string }
 ): Record<string, string | number | boolean> {
   const preview = truncateUserMessagePreview(scope.userMessagePreview)
   return {
     'gen_ai.agent.name': 'mothership',
     'gen_ai.agent.id': scope.transport === 'stream' ? 'mothership-stream' : 'mothership-headless',
     'gen_ai.operation.name': scope.transport === 'stream' ? 'chat' : 'invoke_agent',
+    // `request.id` and `sim.request_id` intentionally carry the SAME
+    // value. For chat POSTs (where scope.requestId is not provided
+    // by the caller) this is the OTel trace ID of this root span —
+    // meaning the value pasted from the UI's "copy request ID"
+    // button works directly in Grafana's trace-ID search box.
     'request.id': scope.requestId,
     'sim.request_id': scope.requestId,
     'copilot.route': scope.route ?? '',
@@ -534,7 +552,9 @@ export interface CopilotOtelRoot {
   setRequestShape: (shape: CopilotOtelRequestShape) => void
 }
 
-export function startCopilotOtelRoot(scope: CopilotOtelScope): CopilotOtelRoot {
+export function startCopilotOtelRoot(
+  scope: CopilotOtelScope
+): CopilotOtelRoot & { requestId: string } {
   // Create gen_ai.agent.execute as a TRUE root span — do not inherit
   // from Next.js's HTTP handler span. The framework span is dropped by
   // our sampler (it has `next.span_type`), so if we parented under it,
@@ -543,14 +563,33 @@ export function startCopilotOtelRoot(scope: CopilotOtelScope): CopilotOtelRoot {
   // disrupted would inherit the same dropped parent. Starting from
   // ROOT_CONTEXT gives the mothership lifecycle its own clean trace tree.
   const parentContext = ROOT_CONTEXT
+  // Start the span FIRST with a placeholder requestId, so we can read
+  // its actual trace ID and stamp it as the canonical `request.id`.
+  // This makes the ID the UI exposes (via `msg.requestId`) identical
+  // to the trace ID Grafana uses — one ID, pasteable anywhere. When
+  // the caller provided an explicit override (resume / headless /
+  // tests) we keep that instead.
   const span = getTracer().startSpan(
     TraceSpan.GenAiAgentExecute,
-    { attributes: buildAgentSpanAttributes(scope) },
+    { attributes: buildAgentSpanAttributes({ ...scope, requestId: '' }) },
     parentContext
   )
   const carrierSpan = isValidSpanContext(span.spanContext())
     ? span
     : trace.wrapSpanContext(createFallbackSpanContext())
+  const spanContext = carrierSpan.spanContext()
+  // Derived ID: use the caller's override when given, otherwise the
+  // real OTel trace ID. Fall back to an empty string only when OTel
+  // itself failed to produce a valid span (shouldn't happen in prod
+  // but the carrier branch above already handles that defensively).
+  const requestId =
+    scope.requestId ??
+    (spanContext.traceId && spanContext.traceId.length === 32 ? spanContext.traceId : '')
+  // Re-stamp with the resolved ID (overwriting the placeholder empties
+  // set above). Cheap — both `request.id` and `sim.request_id` get the
+  // same value.
+  span.setAttribute('request.id', requestId)
+  span.setAttribute('sim.request_id', requestId)
   const rootContext = trace.setSpan(parentContext, carrierSpan)
 
   let finished = false
@@ -584,6 +623,10 @@ export function startCopilotOtelRoot(scope: CopilotOtelScope): CopilotOtelRoot {
   return {
     span,
     context: rootContext,
+    // Surface the resolved requestId so callers can thread it through
+    // trackers, log prefixes, and persisted `msg.requestId` without
+    // having to dig it back out of span attributes.
+    requestId,
     finish,
     setInputMessages: (input) => setAgentInputMessages(span, input),
     setOutputMessages: (output) => setAgentOutputMessages(span, output),
@@ -605,7 +648,9 @@ function applyRequestShape(span: Span, shape: CopilotOtelRequestShape): void {
     span.setAttribute(TraceAttr.CopilotBranchKind, shape.branchKind)
     span.setAttribute(
       TraceAttr.CopilotSurface,
-      shape.branchKind === CopilotBranchKind.Workflow ? CopilotSurface.Copilot : CopilotSurface.Mothership
+      shape.branchKind === CopilotBranchKind.Workflow
+        ? CopilotSurface.Copilot
+        : CopilotSurface.Mothership
     )
   }
   if (shape.mode) span.setAttribute(TraceAttr.CopilotMode, shape.mode)
@@ -646,14 +691,25 @@ export async function withCopilotOtelContext<T>(
   fn: (otelContext: Context) => Promise<T>
 ): Promise<T> {
   const parentContext = context.active()
+  // Same trace-id-derives-requestId dance as startCopilotOtelRoot — see
+  // that function for the rationale. Stamp a placeholder, read the real
+  // trace ID off the span, then overwrite.
   const span = getTracer().startSpan(
     TraceSpan.GenAiAgentExecute,
-    { attributes: buildAgentSpanAttributes(scope) },
+    { attributes: buildAgentSpanAttributes({ ...scope, requestId: scope.requestId ?? '' }) },
     parentContext
   )
   const carrierSpan = isValidSpanContext(span.spanContext())
     ? span
     : trace.wrapSpanContext(createFallbackSpanContext())
+  const spanContext = carrierSpan.spanContext()
+  const resolvedRequestId =
+    scope.requestId ??
+    (spanContext.traceId && spanContext.traceId.length === 32 ? spanContext.traceId : '')
+  if (resolvedRequestId) {
+    span.setAttribute('request.id', resolvedRequestId)
+    span.setAttribute('sim.request_id', resolvedRequestId)
+  }
   const otelContext = trace.setSpan(parentContext, carrierSpan)
   let terminalStatusSet = false
 

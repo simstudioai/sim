@@ -2,10 +2,10 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
+import { CopilotChatFinalizeOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
-import { CopilotChatFinalizeOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 
 interface FinalizeAssistantTurnParams {
   chatId: string
@@ -66,7 +66,10 @@ export async function finalizeAssistantTurn({
             messages: sql`${copilotChats.messages} || ${JSON.stringify([assistantMessage])}::jsonb`,
           })
           .where(updateWhere)
-        span.setAttribute(TraceAttr.ChatFinalizeOutcome, CopilotChatFinalizeOutcome.AppendedAssistant)
+        span.setAttribute(
+          TraceAttr.ChatFinalizeOutcome,
+          CopilotChatFinalizeOutcome.AppendedAssistant
+        )
         return
       }
 

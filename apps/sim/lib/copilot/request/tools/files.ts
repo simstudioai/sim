@@ -1,11 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { FunctionExecute, UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
+import { CopilotOutputFileOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { CopilotOutputFileOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 
 const logger = createLogger('CopilotToolResultFiles')
 

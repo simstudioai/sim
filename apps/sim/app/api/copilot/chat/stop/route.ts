@@ -6,12 +6,12 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
+import { CopilotStopOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { generateId } from '@/lib/core/utils/uuid'
-import { CopilotStopOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 
 const logger = createLogger('CopilotChatStopAPI')
 

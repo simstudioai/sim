@@ -10,35 +10,35 @@
 // become compile errors.
 
 export const TraceEvent = {
-  BedrockInvokeRetryWithoutImages: "bedrock.invoke.retry_without_images",
-  CopilotOutputFileError: "copilot.output_file.error",
-  CopilotTableError: "copilot.table.error",
-  CopilotVfsParseFailed: "copilot.vfs.parse_failed",
-  CopilotVfsResizeAttempt: "copilot.vfs.resize_attempt",
-  CopilotVfsResizeAttemptFailed: "copilot.vfs.resize_attempt_failed",
-  LlmInvokeSent: "llm.invoke.sent",
-  LlmStreamFirstChunk: "llm.stream.first_chunk",
-  LlmStreamOpened: "llm.stream.opened",
-  PgNotifyFailed: "pg_notify_failed",
-  RedisSubscribed: "redis.subscribed",
-  RequestCancelled: "request.cancelled",
-} as const;
+  BedrockInvokeRetryWithoutImages: 'bedrock.invoke.retry_without_images',
+  CopilotOutputFileError: 'copilot.output_file.error',
+  CopilotTableError: 'copilot.table.error',
+  CopilotVfsParseFailed: 'copilot.vfs.parse_failed',
+  CopilotVfsResizeAttempt: 'copilot.vfs.resize_attempt',
+  CopilotVfsResizeAttemptFailed: 'copilot.vfs.resize_attempt_failed',
+  LlmInvokeSent: 'llm.invoke.sent',
+  LlmStreamFirstChunk: 'llm.stream.first_chunk',
+  LlmStreamOpened: 'llm.stream.opened',
+  PgNotifyFailed: 'pg_notify_failed',
+  RedisSubscribed: 'redis.subscribed',
+  RequestCancelled: 'request.cancelled',
+} as const
 
-export type TraceEventKey = keyof typeof TraceEvent;
-export type TraceEventValue = (typeof TraceEvent)[TraceEventKey];
+export type TraceEventKey = keyof typeof TraceEvent
+export type TraceEventValue = (typeof TraceEvent)[TraceEventKey]
 
 /** Readonly sorted list of every canonical event name. */
 export const TraceEventValues: readonly TraceEventValue[] = [
-  "bedrock.invoke.retry_without_images",
-  "copilot.output_file.error",
-  "copilot.table.error",
-  "copilot.vfs.parse_failed",
-  "copilot.vfs.resize_attempt",
-  "copilot.vfs.resize_attempt_failed",
-  "llm.invoke.sent",
-  "llm.stream.first_chunk",
-  "llm.stream.opened",
-  "pg_notify_failed",
-  "redis.subscribed",
-  "request.cancelled",
-] as const;
+  'bedrock.invoke.retry_without_images',
+  'copilot.output_file.error',
+  'copilot.table.error',
+  'copilot.vfs.parse_failed',
+  'copilot.vfs.resize_attempt',
+  'copilot.vfs.resize_attempt_failed',
+  'llm.invoke.sent',
+  'llm.stream.first_chunk',
+  'llm.stream.opened',
+  'pg_notify_failed',
+  'redis.subscribed',
+  'request.cancelled',
+] as const

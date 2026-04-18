@@ -1833,7 +1833,7 @@ export function useChat(
       try {
         const pendingLines: string[] = []
 
-        readLoop: while (true) {
+        while (true) {
           if (pendingLines.length === 0) {
             // Once the terminal `complete` event has been processed,
             // don't read another chunk — we've drained everything
@@ -2955,9 +2955,7 @@ export function useChat(
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(streamTraceparentRef.current
-              ? { traceparent: streamTraceparentRef.current }
-              : {}),
+            ...(streamTraceparentRef.current ? { traceparent: streamTraceparentRef.current } : {}),
           },
           body: JSON.stringify({
             chatId,

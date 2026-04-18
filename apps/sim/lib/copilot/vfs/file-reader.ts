@@ -1,11 +1,16 @@
 import { type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
+import {
+  CopilotVfsOutcome,
+  CopilotVfsReadOutcome,
+  CopilotVfsReadPath,
+} from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
-import { CopilotVfsOutcome, CopilotVfsReadOutcome, CopilotVfsReadPath } from '@/lib/copilot/generated/trace-attribute-values-v1'
+
 /**
  * Lazy tracer (see lib/copilot/request/otel.ts for the same pattern and
  * why we resolve on every call).

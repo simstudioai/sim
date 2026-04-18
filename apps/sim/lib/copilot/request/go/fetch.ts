@@ -1,7 +1,7 @@
 import { type Context, context, SpanStatusCode, trace } from '@opentelemetry/api'
+import { CopilotLeg } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { traceHeaders } from '@/lib/copilot/request/go/propagation'
-import { CopilotLeg } from '@/lib/copilot/generated/trace-attribute-values-v1'
 
 // Lazy tracer resolution: module-level `trace.getTracer()` can be evaluated
 // before `instrumentation-node.ts` installs the TracerProvider under

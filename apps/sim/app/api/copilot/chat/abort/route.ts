@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
+import { CopilotAbortOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
@@ -9,7 +10,6 @@ import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/htt
 import { withCopilotSpan, withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import { abortActiveStream, waitForPendingChatStream } from '@/lib/copilot/request/session'
 import { env } from '@/lib/core/config/env'
-import { CopilotAbortOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 
 const logger = createLogger('CopilotChatAbortAPI')
 const GO_EXPLICIT_ABORT_TIMEOUT_MS = 3000

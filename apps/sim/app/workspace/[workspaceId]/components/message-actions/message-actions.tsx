@@ -138,14 +138,15 @@ export function MessageActions({ content, chatId, userQuery, requestId }: Messag
     }
   }, [])
 
-  // Render the action row whenever there's ANYTHING to act on. For a
-  // normal assistant turn that's `content`; for an aborted / error /
-  // content-less turn it's the `requestId` alone — users still need to
-  // be able to grab the trace ID for bug reports in those cases.
   const hasContent = Boolean(content)
-  if (!hasContent && !requestId) return null
-
   const canSubmitFeedback = Boolean(chatId && userQuery)
+
+  // Render the action row whenever there's something the user can
+  // actually act on: copy the message, or open the feedback modal
+  // (thumbs up / down). Request ID alone is not a reason to render the
+  // row anymore — it's only exposed from inside the thumbs-down modal,
+  // which requires both chatId and userQuery.
+  if (!hasContent && !canSubmitFeedback) return null
 
   return (
     <>
@@ -197,27 +198,15 @@ export function MessageActions({ content, chatId, userQuery, requestId }: Messag
             </Tooltip.Root>
           </>
         )}
-        {requestId && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <button
-                type='button'
-                aria-label='Copy request ID'
-                onClick={copyRequestId}
-                className={BUTTON_CLASS}
-              >
-                {copiedRequestId ? (
-                  <Check className={ICON_CLASS} />
-                ) : (
-                  <Copy className={ICON_CLASS} />
-                )}
-              </button>
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              {copiedRequestId ? 'Copied request ID' : 'Copy request ID'}
-            </Tooltip.Content>
-          </Tooltip.Root>
-        )}
+        {/*
+          Intentionally NO root-row "Copy request ID" button here — it
+          rendered as an ambiguous standalone Copy icon next to the
+          message Copy icon, which was confusing (two indistinguishable
+          copy buttons side by side). The request ID only needs to be
+          grabbable from the thumbs-down feedback modal below, which is
+          the surface we actually want people to use when reporting a
+          bad response.
+        */}
       </div>
 
       <Modal open={pendingFeedback !== null} onOpenChange={handleModalClose}>

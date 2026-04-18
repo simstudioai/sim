@@ -1,10 +1,10 @@
 import { createLogger } from '@sim/logger'
+import { AbortBackend } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import { acquireLock, getRedisClient, releaseLock } from '@/lib/core/config/redis'
 import { clearAbortMarker, hasAbortMarker, writeAbortMarker } from './buffer'
-import { AbortBackend } from '@/lib/copilot/generated/trace-attribute-values-v1'
 
 const logger = createLogger('SessionAbort')
 
@@ -137,10 +137,7 @@ export async function acquirePendingChatStream(
     },
     async (span) => {
       const redis = getRedisClient()
-      span.setAttribute(
-        TraceAttr.LockBackend,
-        redis ? AbortBackend.Redis : AbortBackend.InProcess
-      )
+      span.setAttribute(TraceAttr.LockBackend, redis ? AbortBackend.Redis : AbortBackend.InProcess)
       if (redis) {
         const deadline = Date.now() + timeoutMs
         for (;;) {
@@ -275,9 +272,7 @@ export type AbortReasonValue = (typeof AbortReason)[keyof typeof AbortReason]
  * `AbortReason` is presumed non-explicit.
  */
 export function isExplicitStopReason(reason: unknown): boolean {
-  return (
-    reason === AbortReason.UserStop || reason === AbortReason.RedisPoller
-  )
+  return reason === AbortReason.UserStop || reason === AbortReason.RedisPoller
 }
 
 const pollingStreams = new Set<string>()

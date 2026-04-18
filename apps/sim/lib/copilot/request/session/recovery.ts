@@ -3,12 +3,12 @@ import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import { CopilotRecoveryOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import { getLatestSeq, getOldestSeq, readEvents } from './buffer'
 import { createEvent } from './event'
-import { CopilotRecoveryOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 
 const logger = createLogger('SessionRecovery')
 

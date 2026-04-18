@@ -26,8 +26,8 @@ import { type CopilotLifecycleOutcome, startCopilotOtelRoot } from '@/lib/copilo
 import {
   cleanupAbortMarker,
   clearFilePreviewSessions,
-  registerActiveStream,
   isExplicitStopReason,
+  registerActiveStream,
   releasePendingChatStream,
   resetBuffer,
   StreamWriter,
@@ -173,10 +173,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         chatId,
         reason: serializedReason,
       })
-      activeOtelRoot.span.setAttribute(
-        TraceAttr.CopilotAbortUnknownReason,
-        serializedReason
-      )
+      activeOtelRoot.span.setAttribute(TraceAttr.CopilotAbortUnknownReason, serializedReason)
     }
     activeOtelRoot.span.setAttribute(TraceAttr.CopilotRequestCancelReason, cancelReason)
     activeOtelRoot.span.addEvent(TraceEvent.RequestCancelled, {
@@ -308,11 +305,8 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             // Error-path classification: if the abort signal fired or
             // the client disconnected, treat the thrown error as a
             // cancel (same rationale as the try-path above).
-            const wasCancelled =
-              abortController.signal.aborted || publisher.clientDisconnected
-            outcome = wasCancelled
-              ? RequestTraceV1Outcome.cancelled
-              : RequestTraceV1Outcome.error
+            const wasCancelled = abortController.signal.aborted || publisher.clientDisconnected
+            outcome = wasCancelled ? RequestTraceV1Outcome.cancelled : RequestTraceV1Outcome.error
             if (outcome === RequestTraceV1Outcome.cancelled) {
               recordCancelled(error instanceof Error ? error.message : String(error))
             }
@@ -364,6 +358,12 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               chatId,
               runId,
               executionId,
+              // Pass the raw user prompt through so the Go-side trace
+              // ingest can stamp it onto the `request_traces.message`
+              // column at insert time. Avoids relying on the late
+              // `UpdateAnalytics` UPDATE (which silently misses many
+              // rows).
+              userMessage: message,
               usage: lifecycleResult?.usage,
               cost: lifecycleResult?.cost,
             })

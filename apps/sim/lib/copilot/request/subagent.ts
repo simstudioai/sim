@@ -137,7 +137,9 @@ async function orchestrateSubagentStreamInner(
           'Content-Type': 'application/json',
           ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
           'X-Client-Version': SIM_AGENT_VERSION,
-          ...(options.simRequestId ? { 'X-Sim-Request-ID': options.simRequestId } : {}),
+          // X-Sim-Request-ID removed — Go derives the logical request
+          // ID from the propagated W3C `traceparent` now. See
+          // lifecycle/run.ts for the full rationale.
         },
         body: JSON.stringify({
           ...requestPayload,

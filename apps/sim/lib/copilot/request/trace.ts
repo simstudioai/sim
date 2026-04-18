@@ -73,6 +73,13 @@ export class TraceCollector {
     chatId?: string
     runId?: string
     executionId?: string
+    // Original user prompt, surfaced on the `request_traces.message`
+    // column at row-insert time so it's queryable from the DB without
+    // going through Tempo. Sim already has this at chat-POST time; it's
+    // threaded through here to the trace report so the row is complete
+    // the moment it's first written instead of waiting on the late
+    // analytics UPDATE.
+    userMessage?: string
     usage?: { prompt: number; completion: number }
     cost?: { input: number; output: number; total: number }
   }): RequestTraceV1SimReport {
@@ -98,6 +105,7 @@ export class TraceCollector {
       chatId: params.chatId,
       runId: params.runId,
       executionId: params.executionId,
+      ...(params.userMessage ? { userMessage: params.userMessage } : {}),
       startMs: this.startMs,
       endMs,
       durationMs: endMs - this.startMs,

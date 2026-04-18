@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
+import { BillingRouteOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
@@ -11,7 +12,6 @@ import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { type AtomicClaimResult, billingIdempotency } from '@/lib/core/idempotency/service'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { BillingRouteOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 
 const logger = createLogger('BillingUpdateCostAPI')
 

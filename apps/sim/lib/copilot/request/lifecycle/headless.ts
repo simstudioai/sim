@@ -74,6 +74,11 @@ export async function runHeadlessCopilotLifecycle(
         )
 
         try {
+          // Best-effort extraction of the prompt from the untyped
+          // headless payload. Keeps parity with the streaming path
+          // where `message` is destructured directly.
+          const userMessage =
+            typeof requestPayload.message === 'string' ? requestPayload.message : undefined
           await reportTrace(
             trace.build({
               outcome,
@@ -81,6 +86,7 @@ export async function runHeadlessCopilotLifecycle(
               chatId: result?.chatId ?? options.chatId,
               runId: options.runId,
               executionId: options.executionId,
+              userMessage,
               usage: result?.usage,
               cost: result?.cost,
             }),

@@ -6,11 +6,11 @@ import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
 } from '@/lib/copilot/generated/mothership-stream-v1'
-import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import {
   CopilotResumeOutcome,
   CopilotTransport,
 } from '@/lib/copilot/generated/trace-attribute-values-v1'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { contextFromRequestHeaders } from '@/lib/copilot/request/go/propagation'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
 import { getCopilotTracer } from '@/lib/copilot/request/otel'
@@ -144,9 +144,7 @@ export async function GET(request: NextRequest) {
     'copilot.resume.request',
     {
       attributes: {
-        [TraceAttr.CopilotTransport]: batchMode
-          ? CopilotTransport.Batch
-          : CopilotTransport.Stream,
+        [TraceAttr.CopilotTransport]: batchMode ? CopilotTransport.Batch : CopilotTransport.Stream,
         [TraceAttr.StreamId]: streamId,
         [TraceAttr.UserId]: authenticatedUserId,
         [TraceAttr.CopilotResumeAfterCursor]: afterCursor || '0',

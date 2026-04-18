@@ -21,11 +21,7 @@ import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
-import {
-  createBadRequestResponse,
-  createRequestTracker,
-  createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
+import { createBadRequestResponse, createUnauthorizedResponse } from '@/lib/copilot/request/http'
 import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/lifecycle/start'
 import { startCopilotOtelRoot, withCopilotSpan } from '@/lib/copilot/request/otel'
 import {
@@ -609,17 +605,27 @@ async function resolveBranch(params: {
 }
 
 export async function handleUnifiedChatPost(req: NextRequest) {
-  const tracker = createRequestTracker(false)
   let actualChatId: string | undefined
   let userMessageId = ''
   let chatStreamLockAcquired = false
-  // Started once we know the streamId (= userMessageId). Every subsequent
-  // span (persistUserMessage, createRunSegment, the whole SSE stream, etc.)
-  // nests under this root via AsyncLocalStorage / explicit propagation,
-  // and the stream's terminal code path calls finish() when the request
-  // actually ends. Errors thrown from the handler before the stream
-  // starts are finished here in the catch below.
+  // Started once we've parsed the body (need userMessageId to stamp as
+  // streamId). Every subsequent span (persistUserMessage,
+  // createRunSegment, the whole SSE stream, etc.) nests under this
+  // root via AsyncLocalStorage / explicit propagation, and the stream's
+  // terminal code path calls finish() when the request actually ends.
+  // Errors thrown from the handler before the stream starts are
+  // finished here in the catch below.
   let otelRoot: ReturnType<typeof startCopilotOtelRoot> | undefined
+  // `requestId` is the canonical logical ID for this HTTP request —
+  // same value that flows into `request.id`/`sim.request_id` span
+  // attributes, the persisted `msg.requestId`, and eventually the
+  // Grafana trace-ID search box. Derived from otelRoot.requestId (= the
+  // OTel trace ID of the root span) as soon as that's created. Stays
+  // empty only in the narrow window before otelRoot is set — errors in
+  // that window can't be correlated to any trace anyway, and their log
+  // line carries the error message + stack which is the actually
+  // useful info.
+  let requestId = ''
   const executionId = crypto.randomUUID()
   const runId = crypto.randomUUID()
 
@@ -635,7 +641,11 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     userMessageId = body.userMessageId || crypto.randomUUID()
 
     otelRoot = startCopilotOtelRoot({
-      requestId: tracker.requestId,
+      // No explicit requestId — startCopilotOtelRoot derives it from
+      // the span's OTel trace ID so `msg.requestId` on the UI side
+      // ends up being the same value Grafana uses. See the scope
+      // doc-comment and the call site for why this is the desired
+      // direction of the unification.
       streamId: userMessageId,
       executionId,
       runId,
@@ -646,6 +656,12 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       // by setInputMessages above.
       userMessagePreview: body.message,
     })
+    // Promote the OTel-derived ID to the handler-level `requestId` so
+    // every downstream consumer (logs, orchestrator, onComplete,
+    // onError, persisted assistant message) uses the same value.
+    if (otelRoot.requestId) {
+      requestId = otelRoot.requestId
+    }
     // Emit `gen_ai.input.messages` on the root agent span for OTel
     // GenAI spec compliance (Honeycomb's Gen AI view keys off this).
     // Gated on OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
@@ -800,7 +816,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             message: body.message,
             workspaceId,
             chatId: actualChatId,
-            requestId: tracker.requestId,
+            requestId,
           }),
         otelRoot!.context
       )
@@ -908,7 +924,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         message: body.message,
         titleModel: branch.titleModel,
         ...(branch.titleProvider ? { titleProvider: branch.titleProvider } : {}),
-        requestId: tracker.requestId,
+        requestId,
         workspaceId,
         otelRoot: otelRoot!,
         orchestrateOptions: {
@@ -925,7 +941,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           onComplete: buildOnComplete({
             chatId: actualChatId,
             userMessageId,
-            requestId: tracker.requestId,
+            requestId,
             workspaceId,
             notifyWorkspaceStatus: branch.notifyWorkspaceStatus,
             otelRoot,
@@ -933,7 +949,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           onError: buildOnError({
             chatId: actualChatId,
             userMessageId,
-            requestId: tracker.requestId,
+            requestId,
             workspaceId,
             notifyWorkspaceStatus: branch.notifyWorkspaceStatus,
           }),
@@ -970,7 +986,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       )
     }
 
-    logger.error(`[${tracker.requestId}] Error handling unified chat request`, {
+    logger.error(`[${requestId}] Error handling unified chat request`, {
       error: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined,
     })

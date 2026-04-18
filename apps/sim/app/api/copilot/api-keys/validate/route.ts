@@ -5,11 +5,11 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import { CopilotValidateOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { withIncomingGoSpan } from '@/lib/copilot/request/otel'
-import { CopilotValidateOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 
 const logger = createLogger('CopilotApiKeysValidate')
 
@@ -33,7 +33,10 @@ export async function POST(req: NextRequest) {
       try {
         const auth = checkInternalApiKey(req)
         if (!auth.success) {
-          span.setAttribute(TraceAttr.CopilotValidateOutcome, CopilotValidateOutcome.InternalAuthFailed)
+          span.setAttribute(
+            TraceAttr.CopilotValidateOutcome,
+            CopilotValidateOutcome.InternalAuthFailed
+          )
           span.setAttribute(TraceAttr.HttpStatusCode, 401)
           return new NextResponse(null, { status: 401 })
         }
