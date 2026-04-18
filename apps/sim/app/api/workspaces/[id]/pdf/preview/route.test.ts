@@ -4,13 +4,11 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockVerifyWorkspaceMembership, mockGeneratePdfFromCode } = vi.hoisted(
-  () => ({
-    mockGetSession: vi.fn(),
-    mockVerifyWorkspaceMembership: vi.fn(),
-    mockGeneratePdfFromCode: vi.fn(),
-  })
-)
+const { mockGetSession, mockVerifyWorkspaceMembership, mockRunSandboxTask } = vi.hoisted(() => ({
+  mockGetSession: vi.fn(),
+  mockVerifyWorkspaceMembership: vi.fn(),
+  mockRunSandboxTask: vi.fn(),
+}))
 
 vi.mock('@/lib/auth', () => ({
   getSession: mockGetSession,
@@ -20,8 +18,8 @@ vi.mock('@/app/api/workflows/utils', () => ({
   verifyWorkspaceMembership: mockVerifyWorkspaceMembership,
 }))
 
-vi.mock('@/lib/execution/doc-vm', () => ({
-  generatePdfFromCode: mockGeneratePdfFromCode,
+vi.mock('@/lib/execution/sandbox/run-task', () => ({
+  runSandboxTask: mockRunSandboxTask,
 }))
 
 import { POST } from '@/app/api/workspaces/[id]/pdf/preview/route'
@@ -31,7 +29,7 @@ describe('PDF preview API route', () => {
     vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     mockVerifyWorkspaceMembership.mockResolvedValue(true)
-    mockGeneratePdfFromCode.mockResolvedValue(Buffer.from('%PDF-test'))
+    mockRunSandboxTask.mockResolvedValue(Buffer.from('%PDF-test'))
   })
 
   it('returns a generated PDF for authorized workspace members', async () => {
@@ -54,7 +52,11 @@ describe('PDF preview API route', () => {
     expect(response.headers.get('Content-Type')).toBe('application/pdf')
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
     expect(mockVerifyWorkspaceMembership).toHaveBeenCalledWith('user-1', 'workspace-1')
-    expect(mockGeneratePdfFromCode).toHaveBeenCalledWith('return 1', 'workspace-1', request.signal)
+    expect(mockRunSandboxTask).toHaveBeenCalledWith(
+      'pdf-generate',
+      { code: 'return 1', workspaceId: 'workspace-1' },
+      { ownerKey: 'user:user-1', signal: request.signal }
+    )
     expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('%PDF-test')
   })
 
@@ -76,6 +78,6 @@ describe('PDF preview API route', () => {
 
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toEqual({ error: 'code is required' })
-    expect(mockGeneratePdfFromCode).not.toHaveBeenCalled()
+    expect(mockRunSandboxTask).not.toHaveBeenCalled()
   })
 })
