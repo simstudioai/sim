@@ -273,8 +273,8 @@ async function executeCode(request, executionId) {
           throw new Error('Invalid fetch response');
         }
 
-        if (result.error) {
-          throw new Error(result.error);
+        if (typeof result.error === 'string') {
+          throw new Error(result.error || 'Fetch failed');
         }
 
         // Create a Response-like object
@@ -775,7 +775,9 @@ async function executeTask(request, executionId) {
             );
             let response;
             try { response = JSON.parse(responseJson); } catch { throw new Error('Invalid broker response'); }
-            if (response.error) throw new Error(response.error);
+            if (typeof response.error === 'string') {
+              throw new Error(response.error || 'Broker call failed');
+            }
             return response.resultJson === undefined || response.resultJson === null
               ? null
               : JSON.parse(response.resultJson);
