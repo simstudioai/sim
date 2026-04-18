@@ -55,7 +55,6 @@ async function fetchWorkspaces(
   }
 }
 
-// Module-scoped so TanStack Query caches the select result across renders.
 const selectWorkspaces = (data: WorkspacesResponse): Workspace[] => data.workspaces
 
 /**
