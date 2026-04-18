@@ -6,11 +6,7 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { toError } from '@/lib/core/utils/helpers'
-import {
-  generateDocxFromCode,
-  generatePdfFromCode,
-  generatePptxFromCode,
-} from '@/lib/execution/doc-vm'
+import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import {
   deleteWorkspaceFile,
   downloadWorkspaceFile as downloadWsFile,
@@ -19,6 +15,7 @@ import {
   renameWorkspaceFile,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 import { storeFileIntent } from './file-intent-store'
 
 const logger = createLogger('WorkspaceFileServerTool')
@@ -105,19 +102,21 @@ export function validateFlatWorkspaceFileName(fileName: string): string | null {
   return null
 }
 
-function getDocumentFormatInfo(fileName: string): {
+export interface DocumentFormatInfo {
   isDoc: boolean
   formatName?: 'PPTX' | 'DOCX' | 'PDF'
   sourceMime?: string
-  generator?: (code: string, workspaceId: string, signal?: AbortSignal) => Promise<Buffer>
-} {
+  taskId?: SandboxTaskId
+}
+
+export function getDocumentFormatInfo(fileName: string): DocumentFormatInfo {
   const lowerName = fileName.toLowerCase()
   if (lowerName.endsWith('.pptx')) {
     return {
       isDoc: true,
       formatName: 'PPTX',
       sourceMime: PPTX_SOURCE_MIME,
-      generator: generatePptxFromCode,
+      taskId: 'pptx-generate',
     }
   }
   if (lowerName.endsWith('.docx')) {
@@ -125,7 +124,7 @@ function getDocumentFormatInfo(fileName: string): {
       isDoc: true,
       formatName: 'DOCX',
       sourceMime: DOCX_SOURCE_MIME,
-      generator: generateDocxFromCode,
+      taskId: 'docx-generate',
     }
   }
   if (lowerName.endsWith('.pdf')) {
@@ -133,7 +132,7 @@ function getDocumentFormatInfo(fileName: string): {
       isDoc: true,
       formatName: 'PDF',
       sourceMime: PDF_SOURCE_MIME,
-      generator: generatePdfFromCode,
+      taskId: 'pdf-generate',
     }
   }
   return { isDoc: false }
@@ -202,7 +201,11 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           let contentType = inferContentType(fileName, explicitType)
           if (docInfo.isDoc) {
             try {
-              await docInfo.generator!(content, workspaceId)
+              await runSandboxTask(
+                docInfo.taskId!,
+                { code: content, workspaceId },
+                { ownerKey: `user:${context.userId}`, signal: context.abortSignal }
+              )
             } catch (err) {
               const msg = toError(err).message
               return {
