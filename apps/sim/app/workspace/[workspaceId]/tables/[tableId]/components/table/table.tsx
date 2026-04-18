@@ -1025,6 +1025,7 @@ export function Table({
         if (lastRow < 0) return
         e.preventDefault()
         setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+        lastCheckboxRowRef.current = null
         setSelectionAnchor({ rowIndex: 0, colIndex: a.colIndex })
         setSelectionFocus({ rowIndex: lastRow, colIndex: a.colIndex })
         setIsColumnSelection(true)
@@ -1038,6 +1039,7 @@ export function Table({
         if (currentCols.length === 0) return
         e.preventDefault()
         setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+        lastCheckboxRowRef.current = null
         setIsColumnSelection(false)
         setSelectionAnchor({ rowIndex: a.rowIndex, colIndex: 0 })
         setSelectionFocus({ rowIndex: a.rowIndex, colIndex: currentCols.length - 1 })
@@ -1354,6 +1356,7 @@ export function Table({
       for (let r = sel.startRow; r <= sel.endRow; r++) {
         const cells: string[] = []
         for (let c = sel.startCol; c <= sel.endCol; c++) {
+          if (c >= cols.length) break
           const row = pMap.get(r)
           const value: unknown = row ? row.data[cols[c].name] : null
           if (value === null || value === undefined) {
@@ -1593,15 +1596,16 @@ export function Table({
         return
       }
 
-      const oldValue = row.data[columnName]
-      const changed = !(oldValue === value) && !(oldValue === null && value === null)
+      const oldValue = row.data[columnName] ?? null
+      const normalizedValue = value ?? null
+      const changed = oldValue !== normalizedValue
 
       if (changed) {
         pushUndoRef.current({
           type: 'update-cell',
           rowId,
           columnName,
-          previousValue: oldValue ?? null,
+          previousValue: oldValue,
           newValue: value,
         })
         mutateRef.current({ rowId, data: { [columnName]: value } })
@@ -1806,13 +1810,19 @@ export function Table({
             previousWidth,
           })
 
+          const { [columnToDelete]: _removedWidth, ...cleanedWidths } = columnWidthsRef.current
+          setColumnWidths(cleanedWidths)
+          columnWidthsRef.current = cleanedWidths
+
           if (currentOrder) {
             currentOrder = currentOrder.filter((n) => n !== columnToDelete)
             setColumnOrder(currentOrder)
             updateMetadataRef.current({
-              columnWidths: columnWidthsRef.current,
+              columnWidths: cleanedWidths,
               columnOrder: currentOrder,
             })
+          } else {
+            updateMetadataRef.current({ columnWidths: cleanedWidths })
           }
 
           deleteNext(index + 1)
@@ -3147,7 +3157,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         'position:absolute;top:-9999px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:13px;font-weight:500;white-space:nowrap;color:var(--text-primary)'
       document.body.appendChild(ghost)
       e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
-      requestAnimationFrame(() => document.body.removeChild(ghost))
+      requestAnimationFrame(() => ghost.parentNode?.removeChild(ghost))
 
       onDragStart?.(column.name)
     },

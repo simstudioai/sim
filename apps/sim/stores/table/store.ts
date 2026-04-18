@@ -150,31 +150,35 @@ export const useTableUndoStore = create<TableUndoState>()(
       },
 
       patchRedoRowId: (tableId: string, oldRowId: string, newRowId: string) => {
-        const stacks = get().stacks[tableId]
-        if (!stacks) return
-
-        const patchedRedo = stacks.redo.map((entry) => patchRowIdInEntry(entry, oldRowId, newRowId))
-
-        set((state) => ({
-          stacks: {
-            ...state.stacks,
-            [tableId]: { ...stacks, redo: patchedRedo },
-          },
-        }))
+        set((state) => {
+          const stacks = state.stacks[tableId]
+          if (!stacks) return state
+          const patchedRedo = stacks.redo.map((entry) =>
+            patchRowIdInEntry(entry, oldRowId, newRowId)
+          )
+          return {
+            stacks: {
+              ...state.stacks,
+              [tableId]: { ...stacks, redo: patchedRedo },
+            },
+          }
+        })
       },
 
       patchUndoRowId: (tableId: string, oldRowId: string, newRowId: string) => {
-        const stacks = get().stacks[tableId]
-        if (!stacks) return
-
-        const patchedUndo = stacks.undo.map((entry) => patchRowIdInEntry(entry, oldRowId, newRowId))
-
-        set((state) => ({
-          stacks: {
-            ...state.stacks,
-            [tableId]: { ...stacks, undo: patchedUndo },
-          },
-        }))
+        set((state) => {
+          const stacks = state.stacks[tableId]
+          if (!stacks) return state
+          const patchedUndo = stacks.undo.map((entry) =>
+            patchRowIdInEntry(entry, oldRowId, newRowId)
+          )
+          return {
+            stacks: {
+              ...state.stacks,
+              [tableId]: { ...stacks, undo: patchedUndo },
+            },
+          }
+        })
       },
 
       clear: (tableId: string) => {

@@ -202,7 +202,16 @@ export function useTableUndo({
 
           case 'create-column': {
             if (direction === 'undo') {
-              deleteColumnMutation.mutate(action.columnName)
+              deleteColumnMutation.mutate(action.columnName, {
+                onSuccess: () => {
+                  const currentWidths = getColumnWidthsRef.current?.() ?? {}
+                  if (action.columnName in currentWidths) {
+                    const { [action.columnName]: _, ...rest } = currentWidths
+                    onColumnWidthsChangeRef.current?.(rest)
+                    updateMetadataMutation.mutate({ columnWidths: rest })
+                  }
+                },
+              })
             } else {
               addColumnMutation.mutate({
                 name: action.columnName,
