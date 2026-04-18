@@ -37,7 +37,7 @@ import {
 } from '@/lib/auth/cimd'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
-import { writeBillingInterval } from '@/lib/billing/core/subscription'
+import { syncSubscriptionPlan, writeBillingInterval } from '@/lib/billing/core/subscription'
 import { handleNewUser } from '@/lib/billing/core/usage'
 import {
   ensureOrganizationForTeamSubscription,
@@ -2904,6 +2904,9 @@ export const auth = betterAuth({
                     { subscriptionId: subscription.id, dbPlan: subscription.plan, priceId }
                   )
                 }
+
+                await syncSubscriptionPlan(subscription.id, subscription.plan, planFromStripe)
+
                 const subscriptionForOrg = {
                   ...subscription,
                   plan: planFromStripe ?? subscription.plan,
@@ -2981,6 +2984,9 @@ export const auth = betterAuth({
                     { subscriptionId: subscription.id, dbPlan: subscription.plan }
                   )
                 }
+
+                await syncSubscriptionPlan(subscription.id, subscription.plan, planFromStripe)
+
                 const subscriptionForOrg = {
                   ...subscription,
                   plan: planFromStripe ?? subscription.plan,
@@ -3058,6 +3064,7 @@ export const auth = betterAuth({
                 await writeBillingInterval(resolvedSubscription.id, isAnnual ? 'year' : 'month')
               },
               onSubscriptionDeleted: async ({
+                event,
                 subscription,
               }: {
                 event: Stripe.Event
@@ -3065,18 +3072,24 @@ export const auth = betterAuth({
                 subscription: any
               }) => {
                 logger.info('[onSubscriptionDeleted] Subscription deleted', {
+                  eventId: event.id,
                   subscriptionId: subscription.id,
                   referenceId: subscription.referenceId,
                 })
 
                 try {
-                  await handleSubscriptionDeleted(subscription)
+                  await handleSubscriptionDeleted(subscription, event.id)
                 } catch (error) {
                   logger.error('[onSubscriptionDeleted] Failed to handle subscription deletion', {
+                    eventId: event.id,
                     subscriptionId: subscription.id,
                     referenceId: subscription.referenceId,
                     error,
                   })
+                  // Rethrow so the Stripe webhook retries — otherwise
+                  // the final overage invoice, usage reset, org cleanup,
+                  // and personal Pro restore can be permanently skipped.
+                  throw error
                 }
               },
             },

@@ -1,11 +1,14 @@
 import { db } from '@sim/db'
-import { member, organization, userStats } from '@sim/db/schema'
+import { organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { isOrgPlan, isPro, isTeam } from '@/lib/billing/plan-helpers'
-import { hasUsableSubscriptionAccess } from '@/lib/billing/subscriptions/utils'
+import { isPro, isTeam } from '@/lib/billing/plan-helpers'
+import {
+  hasUsableSubscriptionAccess,
+  isOrgScopedSubscription,
+} from '@/lib/billing/subscriptions/utils'
 import { Decimal, toDecimal, toFixedString, toNumber } from '@/lib/billing/utils/decimal'
 
 const logger = createLogger('CreditBalance')
@@ -16,31 +19,47 @@ export interface CreditBalanceInfo {
   entityId: string
 }
 
+/**
+ * Read credit balance directly from a known entity (user or organization).
+ * Use this in webhook / admin paths that already know the target entity —
+ * unlike `getCreditBalance(userId)` it does not route through
+ * `getHighestPrioritySubscription`, so callers don't need to resolve the
+ * org owner as a user-id proxy.
+ */
+export async function getCreditBalanceForEntity(
+  entityType: 'user' | 'organization',
+  entityId: string
+): Promise<number> {
+  if (entityType === 'organization') {
+    const rows = await db
+      .select({ creditBalance: organization.creditBalance })
+      .from(organization)
+      .where(eq(organization.id, entityId))
+      .limit(1)
+    return rows.length > 0 ? toNumber(toDecimal(rows[0].creditBalance)) : 0
+  }
+
+  const rows = await db
+    .select({ creditBalance: userStats.creditBalance })
+    .from(userStats)
+    .where(eq(userStats.userId, entityId))
+    .limit(1)
+  return rows.length > 0 ? toNumber(toDecimal(rows[0].creditBalance)) : 0
+}
+
 export async function getCreditBalance(userId: string): Promise<CreditBalanceInfo> {
   const subscription = await getHighestPrioritySubscription(userId)
 
-  if (subscription && isOrgPlan(subscription.plan)) {
-    const orgRows = await db
-      .select({ creditBalance: organization.creditBalance })
-      .from(organization)
-      .where(eq(organization.id, subscription.referenceId))
-      .limit(1)
-
+  if (isOrgScopedSubscription(subscription, userId) && subscription) {
     return {
-      balance: orgRows.length > 0 ? toNumber(toDecimal(orgRows[0].creditBalance)) : 0,
+      balance: await getCreditBalanceForEntity('organization', subscription.referenceId),
       entityType: 'organization',
       entityId: subscription.referenceId,
     }
   }
 
-  const userRows = await db
-    .select({ creditBalance: userStats.creditBalance })
-    .from(userStats)
-    .where(eq(userStats.userId, userId))
-    .limit(1)
-
   return {
-    balance: userRows.length > 0 ? toNumber(toDecimal(userRows[0].creditBalance)) : 0,
+    balance: await getCreditBalanceForEntity('user', userId),
     entityType: 'user',
     entityId: userId,
   }
@@ -155,11 +174,11 @@ export async function deductFromCredits(userId: string, cost: number): Promise<D
   }
 
   const subscription = await getHighestPrioritySubscription(userId)
-  const isTeamOrEnterprise = isOrgPlan(subscription?.plan)
+  const orgScoped = isOrgScopedSubscription(subscription, userId)
 
   let creditsUsed: number
 
-  if (isTeamOrEnterprise && subscription?.referenceId) {
+  if (orgScoped && subscription?.referenceId) {
     creditsUsed = await atomicDeductOrgCredits(subscription.referenceId, cost)
   } else {
     creditsUsed = await atomicDeductUserCredits(userId, cost)
@@ -172,7 +191,7 @@ export async function deductFromCredits(userId: string, cost: number): Promise<D
       userId,
       creditsUsed,
       overflow,
-      entityType: isTeamOrEnterprise ? 'organization' : 'user',
+      entityType: orgScoped ? 'organization' : 'user',
     })
   }
 
@@ -190,15 +209,4 @@ export async function canPurchaseCredits(userId: string): Promise<boolean> {
   }
   // Enterprise users must contact support to purchase credits
   return isPro(subscription.plan) || isTeam(subscription.plan)
-}
-
-export async function isOrgAdmin(userId: string, organizationId: string): Promise<boolean> {
-  const memberRows = await db
-    .select({ role: member.role })
-    .from(member)
-    .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
-    .limit(1)
-
-  if (memberRows.length === 0) return false
-  return memberRows[0].role === 'owner' || memberRows[0].role === 'admin'
 }

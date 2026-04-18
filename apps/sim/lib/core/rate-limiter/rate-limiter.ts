@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { isOrgPlan } from '@/lib/billing/plan-helpers'
+import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { toError } from '@/lib/core/utils/helpers'
 import { createStorageAdapter, type RateLimitStorageAdapter } from './storage'
 import {
@@ -42,7 +42,7 @@ export class RateLimiter {
   private getRateLimitKey(userId: string, subscription: SubscriptionInfo | null): string {
     if (!subscription) return userId
 
-    if (isOrgPlan(subscription.plan) && subscription.referenceId !== userId) {
+    if (isOrgScopedSubscription(subscription, userId)) {
       return subscription.referenceId
     }
 

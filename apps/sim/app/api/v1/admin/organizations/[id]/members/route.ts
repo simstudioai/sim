@@ -33,7 +33,6 @@ import { member, organization, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { count, eq } from 'drizzle-orm'
 import { addUserToOrganization } from '@/lib/billing/organizations/membership'
-import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
@@ -227,28 +226,6 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
 
     if (!result.success) {
       return badRequestResponse(result.error || 'Failed to add member')
-    }
-
-    if (isBillingEnabled && result.billingActions.proSubscriptionToCancel?.stripeSubscriptionId) {
-      try {
-        const stripe = requireStripeClient()
-        await stripe.subscriptions.update(
-          result.billingActions.proSubscriptionToCancel.stripeSubscriptionId,
-          { cancel_at_period_end: true }
-        )
-        logger.info('Admin API: Synced Pro cancellation with Stripe', {
-          userId: body.userId,
-          subscriptionId: result.billingActions.proSubscriptionToCancel.subscriptionId,
-          stripeSubscriptionId: result.billingActions.proSubscriptionToCancel.stripeSubscriptionId,
-        })
-      } catch (stripeError) {
-        logger.error('Admin API: Failed to sync Pro cancellation with Stripe', {
-          userId: body.userId,
-          subscriptionId: result.billingActions.proSubscriptionToCancel.subscriptionId,
-          stripeSubscriptionId: result.billingActions.proSubscriptionToCancel.stripeSubscriptionId,
-          error: stripeError,
-        })
-      }
     }
 
     const data: AdminMember = {
