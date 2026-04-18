@@ -36,6 +36,7 @@ interface UseTableUndoProps {
   tableId: string
   onColumnOrderChange?: (order: string[]) => void
   onColumnRename?: (oldName: string, newName: string) => void
+  getColumnWidths?: () => Record<string, number>
 }
 
 export function useTableUndo({
@@ -43,6 +44,7 @@ export function useTableUndo({
   tableId,
   onColumnOrderChange,
   onColumnRename,
+  getColumnWidths,
 }: UseTableUndoProps) {
   const push = useTableUndoStore((s) => s.push)
   const popUndo = useTableUndoStore((s) => s.popUndo)
@@ -69,6 +71,8 @@ export function useTableUndo({
   onColumnOrderChangeRef.current = onColumnOrderChange
   const onColumnRenameRef = useRef(onColumnRename)
   onColumnRenameRef.current = onColumnRename
+  const getColumnWidthsRef = useRef(getColumnWidths)
+  getColumnWidthsRef.current = getColumnWidths
 
   useEffect(() => {
     return () => clear(tableId)
@@ -230,7 +234,7 @@ export function useTableUndo({
                         ...(action.previousWidth !== null
                           ? {
                               columnWidths: {
-                                ...({} as Record<string, number>),
+                                ...(getColumnWidthsRef.current?.() ?? {}),
                                 [action.columnName]: action.previousWidth,
                               },
                             }

@@ -270,11 +270,14 @@ export function Table({
     })
   }, [])
 
+  const getColumnWidths = useCallback(() => columnWidthsRef.current, [])
+
   const { pushUndo, undo, redo } = useTableUndo({
     workspaceId,
     tableId,
     onColumnOrderChange: handleColumnOrderChange,
     onColumnRename: handleColumnRename,
+    getColumnWidths,
   })
   const undoRef = useRef(undo)
   undoRef.current = undo
@@ -757,19 +760,21 @@ export function Table({
     measure.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;font:inherit'
     document.body.appendChild(measure)
 
-    measure.className = 'font-medium text-small'
-    measure.textContent = columnName
-    maxWidth = Math.max(maxWidth, measure.offsetWidth + 36)
+    try {
+      measure.className = 'font-medium text-small'
+      measure.textContent = columnName
+      maxWidth = Math.max(maxWidth, measure.offsetWidth + 36)
 
-    measure.className = 'text-small'
-    for (const row of currentRows) {
-      const val = row.data[columnName]
-      if (val == null) continue
-      measure.textContent = String(val)
-      maxWidth = Math.max(maxWidth, measure.offsetWidth + 17)
+      measure.className = 'text-small'
+      for (const row of currentRows) {
+        const val = row.data[columnName]
+        if (val == null) continue
+        measure.textContent = String(val)
+        maxWidth = Math.max(maxWidth, measure.offsetWidth + 17)
+      }
+    } finally {
+      document.body.removeChild(measure)
     }
-
-    document.body.removeChild(measure)
 
     const newWidth = Math.min(Math.ceil(maxWidth), 600)
     setColumnWidths((prev) => ({ ...prev, [columnName]: newWidth }))
