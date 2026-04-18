@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { GripVertical } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
@@ -2890,6 +2889,15 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
     [colIndex, isRenaming, onColumnSelect]
   )
 
+  const handleChevronClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    const rect = (e.currentTarget as HTMLElement).closest('th')?.getBoundingClientRect()
+    if (rect) {
+      setMenuPosition({ x: rect.left, y: rect.bottom })
+    }
+    setMenuOpen(true)
+  }, [])
+
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => {
       if (readOnly || isRenaming) return
@@ -2907,6 +2915,9 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         isDragging && 'opacity-40',
         isColumnSelected && 'bg-[rgba(37,99,235,0.06)]'
       )}
+      draggable={!readOnly && !isRenaming}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
       onDragLeave={handleDragLeave}
@@ -2941,12 +2952,20 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             type='button'
             className='flex min-w-0 flex-1 cursor-pointer items-center px-2 py-[7px] outline-none'
             onClick={handleHeaderClick}
+            draggable={false}
           >
             <ColumnTypeIcon type={column.type} />
             <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
               {column.name}
             </span>
-            <ChevronDown className='ml-1.5 h-[7px] w-[9px] shrink-0 text-[var(--text-muted)]' />
+          </button>
+          <button
+            type='button'
+            className='flex h-full shrink-0 cursor-pointer items-center pr-2 pl-0.5 text-[var(--text-muted)] opacity-0 transition-opacity hover:text-[var(--text-primary)] group-hover:opacity-100'
+            onClick={handleChevronClick}
+            draggable={false}
+          >
+            <ChevronDown className='h-[7px] w-[9px]' />
           </button>
           <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
@@ -3012,14 +3031,6 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <div
-            draggable
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-            className='flex h-full cursor-grab items-center pr-1.5 pl-0.5 opacity-0 transition-opacity active:cursor-grabbing group-hover:opacity-100'
-          >
-            <GripVertical className='h-3 w-3 shrink-0 text-[var(--text-muted)]' />
-          </div>
         </div>
       )}
       <div
