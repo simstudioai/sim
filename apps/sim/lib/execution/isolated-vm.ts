@@ -71,6 +71,24 @@ export interface IsolatedVMExecutionResult {
   error?: IsolatedVMError
   /** Populated in task mode: the `finalize` result as base64-encoded bytes. */
   bytesBase64?: string
+  /**
+   * Populated in task mode: per-phase execution timings in milliseconds. Lets
+   * callers log where time is spent per request (bundle parse is typically
+   * the dominant cost today). Shape mirrors `executeTask`'s `timings`.
+   */
+  timings?: IsolatedVMTaskTimings
+}
+
+export interface IsolatedVMTaskTimings {
+  setup: number
+  runtimeBootstrap: number
+  bundles: number
+  brokerInstall: number
+  taskBootstrap: number
+  harden: number
+  userCode: number
+  finalize: number
+  total: number
 }
 
 export interface IsolatedVMError {
@@ -1126,6 +1144,14 @@ function enqueueExecution(
   brokers?: Record<string, IsolatedVMBrokerHandler>
 ) {
   if (queueLength() >= MAX_QUEUE_SIZE) {
+    logger.warn('Isolated-vm saturation: global queue full', {
+      reason: 'queue_full_global',
+      queueLength: queueLength(),
+      max: MAX_QUEUE_SIZE,
+      totalActive: totalActiveExecutions,
+      poolSize: workers.size,
+      ownerKey: ownerState.ownerKey,
+    })
     resolve({
       result: null,
       stdout: '',
@@ -1137,6 +1163,13 @@ function enqueueExecution(
     return
   }
   if (ownerState.queueLength >= MAX_QUEUED_PER_OWNER) {
+    logger.warn('Isolated-vm saturation: per-owner queue full', {
+      reason: 'queue_full_owner',
+      ownerKey: ownerState.ownerKey,
+      ownerQueueLength: ownerState.queueLength,
+      ownerActive: ownerState.activeExecutions,
+      max: MAX_QUEUED_PER_OWNER,
+    })
     resolve({
       result: null,
       stdout: '',
@@ -1153,6 +1186,11 @@ function enqueueExecution(
   const queueTimeout = setTimeout(() => {
     const queued = removeQueuedExecutionById(queueId)
     if (!queued) return
+    logger.warn('Isolated-vm saturation: queue wait timeout', {
+      reason: 'queue_wait_timeout',
+      ownerKey: ownerState.ownerKey,
+      queueTimeoutMs: QUEUE_TIMEOUT_MS,
+    })
     resolve({
       result: null,
       stdout: '',
@@ -1268,6 +1306,11 @@ export async function executeInIsolatedVM(
     req.timeoutMs
   )
   if (leaseAcquireResult === 'limit_exceeded') {
+    logger.warn('Isolated-vm saturation: distributed lease limit exceeded', {
+      reason: 'distributed_lease_limit',
+      ownerKey,
+      max: DISTRIBUTED_MAX_INFLIGHT_PER_OWNER,
+    })
     maybeCleanupOwner(ownerKey)
     return {
       result: null,
@@ -1339,6 +1382,14 @@ export async function executeInIsolatedVM(
         })
       }
       signal.addEventListener('abort', abortListener, { once: true })
+      // Close the race where the signal aborted between the async work above
+      // (e.g. tryAcquireDistributedLease) and listener registration. AbortSignal
+      // does NOT fire listeners registered after `abort()` has fired, so we
+      // have to check and invoke synchronously.
+      if (signal.aborted) {
+        abortListener()
+        return
+      }
     }
 
     if (

@@ -64,11 +64,19 @@ export async function runSandboxTask<TInput extends SandboxTaskInput>(
   const result = await executeInIsolatedVM(request, { brokers, signal: options.signal })
   const elapsedMs = Date.now() - start
 
+  // Phase timings come from the worker (see executeTask). `queue` is the
+  // gap between client call and worker-side start — useful for diagnosing
+  // pool saturation vs. isolate-internal slowness.
+  const queueMs = result.timings ? Math.max(0, elapsedMs - result.timings.total) : undefined
+
   if (result.error) {
     logger.warn('Sandbox task failed', {
       taskId,
       requestId,
+      workspaceId: input.workspaceId,
       elapsedMs,
+      queueMs,
+      timings: result.timings,
       error: result.error.message,
       errorName: result.error.name,
     })
@@ -79,7 +87,12 @@ export async function runSandboxTask<TInput extends SandboxTaskInput>(
   }
 
   if (typeof result.bytesBase64 !== 'string' || result.bytesBase64.length === 0) {
-    logger.error('Sandbox task returned no bytes', { taskId, requestId })
+    logger.error('Sandbox task returned no bytes', {
+      taskId,
+      requestId,
+      workspaceId: input.workspaceId,
+      timings: result.timings,
+    })
     throw new Error(`Sandbox task "${taskId}" finalize did not return any bytes`)
   }
 
@@ -87,7 +100,10 @@ export async function runSandboxTask<TInput extends SandboxTaskInput>(
   logger.info('Sandbox task completed', {
     taskId,
     requestId,
+    workspaceId: input.workspaceId,
     elapsedMs,
+    queueMs,
+    timings: result.timings,
     bytes: bytes.length,
   })
   return task.toResult(new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength), input)

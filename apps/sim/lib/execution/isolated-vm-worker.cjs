@@ -477,6 +477,39 @@ async function executeTask(request, executionId) {
   let context = null
   const releaseables = []
 
+  // Timer bookkeeping — hoisted out of the try so the finally can always
+  // sweep regardless of where execution throws.
+  let nextTimerId = 1
+  const timers = new Map()
+  const cleanupTimers = () => {
+    for (const entry of timers.values()) {
+      try {
+        if (entry.recurring) clearInterval(entry.nodeTimer)
+        else clearTimeout(entry.nodeTimer)
+      } catch {}
+      try {
+        entry.fnRef.release()
+      } catch {}
+    }
+    timers.clear()
+  }
+
+  // Phase timings (ms). Populated inline during execution; returned in
+  // every result shape so the host can log where time is spent per request.
+  const timings = {
+    setup: 0,
+    runtimeBootstrap: 0,
+    bundles: 0,
+    brokerInstall: 0,
+    taskBootstrap: 0,
+    harden: 0,
+    userCode: 0,
+    finalize: 0,
+    total: 0,
+  }
+  const tStart = Date.now()
+  let tPhase = tStart
+
   try {
     isolate = new ivm.Isolate({ memoryLimit: 128 })
     if (executionId !== undefined) activeIsolates.set(executionId, isolate)
@@ -498,6 +531,108 @@ async function executeTask(request, executionId) {
     })
     releaseables.push(errorCallback)
     await jail.set('__error', errorCallback)
+
+    // Delegate TextEncoder / TextDecoder to Node's native implementations
+    // (C++-backed, WHATWG-compliant). The isolate-side classes installed in
+    // the runtime bootstrap below call into these via closure-captured refs
+    // so hardening can safely undefine the raw globals afterwards.
+    const nodeEncoder = new TextEncoder()
+    const nodeDecoder = new TextDecoder()
+    const textEncodeCallback = new ivm.Callback((str) =>
+      nodeEncoder.encode(typeof str === 'string' ? str : String(str ?? ''))
+    )
+    releaseables.push(textEncodeCallback)
+    await jail.set('__textEncode', textEncodeCallback)
+
+    const textDecodeCallback = new ivm.Callback((bytes) => {
+      if (!bytes) return ''
+      return nodeDecoder.decode(bytes)
+    })
+    releaseables.push(textDecodeCallback)
+    await jail.set('__textDecode', textDecodeCallback)
+
+    // Delegate timers to Node's real timer heap via ivm.Reference (the pattern
+    // recommended by laverdet/isolated-vm#136). Host-side bookkeeping was
+    // hoisted to the function scope above so the finally can always sweep.
+    //
+    // Note on arg marshaling: we call the reference with
+    // `arguments: { reference: true }` from the isolate so the function arg
+    // crosses as a Reference (functions aren't transferable by default).
+    // That option applies uniformly, so primitive args (ms, id) also arrive
+    // as `Reference<primitive>`. The `unwrapPrimitive` helper calls
+    // `.copySync()` to get the real value. Numbers/strings/booleans are
+    // supported; anything exotic falls back to `undefined`.
+    const unwrapPrimitive = (v) => {
+      if (v === null || v === undefined) return v
+      const t = typeof v
+      if (t === 'number' || t === 'string' || t === 'boolean') return v
+      if (v && typeof v.copySync === 'function') {
+        try {
+          return v.copySync()
+        } catch {
+          return undefined
+        }
+      }
+      return v
+    }
+
+    const setTimeoutRef = new ivm.Reference((fnRef, msRef) => {
+      const id = nextTimerId++
+      const delay = Math.max(0, Math.min(Number(unwrapPrimitive(msRef)) || 0, timeoutMs))
+      const nodeTimer = setTimeout(() => {
+        const entry = timers.get(id)
+        if (!entry) return
+        timers.delete(id)
+        try {
+          fnRef.applyIgnored(undefined, [], { timeout: timeoutMs })
+        } catch {
+          // isolate disposed between schedule and fire — callback silently dropped
+        }
+        try {
+          fnRef.release()
+        } catch {}
+      }, delay)
+      timers.set(id, { nodeTimer, fnRef, recurring: false })
+      return id
+    })
+    releaseables.push(setTimeoutRef)
+    await jail.set('__setTimeoutRef', setTimeoutRef)
+
+    const clearTimeoutRef = new ivm.Reference((idRef) => {
+      const key = Number(unwrapPrimitive(idRef))
+      if (!Number.isFinite(key)) return
+      const entry = timers.get(key)
+      if (!entry) return
+      try {
+        if (entry.recurring) clearInterval(entry.nodeTimer)
+        else clearTimeout(entry.nodeTimer)
+      } catch {}
+      try {
+        entry.fnRef.release()
+      } catch {}
+      timers.delete(key)
+    })
+    releaseables.push(clearTimeoutRef)
+    await jail.set('__clearTimeoutRef', clearTimeoutRef)
+
+    const setIntervalRef = new ivm.Reference((fnRef, msRef) => {
+      const id = nextTimerId++
+      const delay = Math.max(1, Math.min(Number(unwrapPrimitive(msRef)) || 1, timeoutMs))
+      const nodeTimer = setInterval(() => {
+        const entry = timers.get(id)
+        if (!entry) return
+        try {
+          fnRef.applyIgnored(undefined, [], { timeout: timeoutMs })
+        } catch {
+          // isolate disposed — callback silently dropped; the sweep on dispose
+          // clears the Node interval and releases the fn ref.
+        }
+      }, delay)
+      timers.set(id, { nodeTimer, fnRef, recurring: true })
+      return id
+    })
+    releaseables.push(setIntervalRef)
+    await jail.set('__setIntervalRef', setIntervalRef)
 
     const brokerRef = new ivm.Reference(async (brokerName, argsJson) => {
       return new Promise((resolve) => {
@@ -521,12 +656,19 @@ async function executeTask(request, executionId) {
     releaseables.push(brokerRef)
     await jail.set('__brokerRef', brokerRef)
 
-    const consoleBootstrap = `
-      // Capture log callbacks in a closure so later hardening can unset the
-      // raw __log / __error globals without breaking console in user code.
+    const runtimeBootstrap = `
+      // Capture every host bridge in a closure so later hardening can unset
+      // the raw globals without breaking the runtime surface user code
+      // depends on.
       (() => {
         const __log = globalThis.__log;
         const __error = globalThis.__error;
+        const __textEncode = globalThis.__textEncode;
+        const __textDecode = globalThis.__textDecode;
+        const __setTimeoutRef = globalThis.__setTimeoutRef;
+        const __clearTimeoutRef = globalThis.__clearTimeoutRef;
+        const __setIntervalRef = globalThis.__setIntervalRef;
+
         globalThis.console = {
           log: (...args) => __log(...args),
           error: (...args) => __error(...args),
@@ -534,11 +676,78 @@ async function executeTask(request, executionId) {
           info: (...args) => __log(...args),
           debug: (...args) => __log(...args),
         };
+
+        // TextEncoder / TextDecoder delegate to Node's native implementations
+        // via ivm.Callback bridges. UTF-8 only — that's all the doc libraries
+        // need. If a library passes an alternate label to TextDecoder, the
+        // bridge still decodes as UTF-8; \`encoding\` getter returns the label
+        // for parity with the spec's getter behaviour.
+        globalThis.TextEncoder = class TextEncoder {
+          get encoding() { return 'utf-8' }
+          encode(input) {
+            return __textEncode(input == null ? '' : String(input));
+          }
+        };
+        globalThis.TextDecoder = class TextDecoder {
+          constructor(label) { this._label = (label || 'utf-8').toLowerCase(); }
+          get encoding() { return this._label; }
+          decode(input) {
+            if (!input) return '';
+            const bytes = input instanceof Uint8Array
+              ? input
+              : ArrayBuffer.isView(input)
+                ? new Uint8Array(input.buffer, input.byteOffset, input.byteLength)
+                : new Uint8Array(input);
+            return __textDecode(bytes);
+          }
+        };
+
+        // setTimeout / setInterval delegate to Node's real timer heap via
+        // ivm.Reference. The \`ms\` arg is honored (host clamps to the script
+        // timeout window); \`clearTimeout\` / \`clearInterval\` actually cancel.
+        // All outstanding timers are swept on isolate dispose.
+        globalThis.setTimeout = function(fn, ms) {
+          if (typeof fn !== 'function') {
+            throw new TypeError('setTimeout requires a function callback');
+          }
+          return __setTimeoutRef.applySync(undefined, [fn, ms], {
+            arguments: { reference: true },
+          });
+        };
+        globalThis.clearTimeout = function(id) {
+          if (id == null) return;
+          __clearTimeoutRef.applyIgnored(undefined, [id], {
+            arguments: { reference: true },
+          });
+        };
+        globalThis.setImmediate = function(fn) {
+          return globalThis.setTimeout(fn, 0);
+        };
+        globalThis.clearImmediate = globalThis.clearTimeout;
+        globalThis.setInterval = function(fn, ms) {
+          if (typeof fn !== 'function') {
+            throw new TypeError('setInterval requires a function callback');
+          }
+          return __setIntervalRef.applySync(undefined, [fn, ms], {
+            arguments: { reference: true },
+          });
+        };
+        globalThis.clearInterval = globalThis.clearTimeout;
+        // queueMicrotask is V8-intrinsic in modern isolates; provide a
+        // defensive fallback for older V8 builds.
+        if (typeof globalThis.queueMicrotask === 'undefined') {
+          globalThis.queueMicrotask = function(fn) { Promise.resolve().then(fn); };
+        }
       })();
     `
-    const consoleScript = await isolate.compileScript(consoleBootstrap)
-    releaseables.push(consoleScript)
-    await consoleScript.run(context)
+    timings.setup = Date.now() - tPhase
+    tPhase = Date.now()
+
+    const runtimeScript = await isolate.compileScript(runtimeBootstrap)
+    releaseables.push(runtimeScript)
+    await runtimeScript.run(context)
+    timings.runtimeBootstrap = Date.now() - tPhase
+    tPhase = Date.now()
 
     for (const bundleName of task.bundles) {
       const { source, fileName } = getBundleSource(bundleName)
@@ -546,6 +755,8 @@ async function executeTask(request, executionId) {
       releaseables.push(bundleScript)
       await bundleScript.run(context, { timeout: timeoutMs })
     }
+    timings.bundles = Date.now() - tPhase
+    tPhase = Date.now()
 
     const brokerNamesJson = JSON.stringify(task.brokers)
     const brokerInstallScript = `
@@ -575,6 +786,8 @@ async function executeTask(request, executionId) {
     const brokerScript = await isolate.compileScript(brokerInstallScript)
     releaseables.push(brokerScript)
     await brokerScript.run(context)
+    timings.brokerInstall = Date.now() - tPhase
+    tPhase = Date.now()
 
     const bootstrapScript = await isolate.compileScript(
       `(async () => { ${task.bootstrap} })()`,
@@ -582,6 +795,8 @@ async function executeTask(request, executionId) {
     )
     releaseables.push(bootstrapScript)
     await bootstrapScript.run(context, { timeout: timeoutMs, promise: true })
+    timings.taskBootstrap = Date.now() - tPhase
+    tPhase = Date.now()
 
     const hardenScript = await isolate.compileScript(`
       // Remove host-provided bridges + isolated-vm escape globals before user
@@ -591,7 +806,8 @@ async function executeTask(request, executionId) {
       const undefined_globals = [
         'Isolate', 'Context', 'Script', 'Module', 'Callback', 'Reference',
         'ExternalCopy', '__dirname', '__filename', '__brokerRef',
-        '__log', '__error'
+        '__log', '__error', '__textEncode', '__textDecode',
+        '__setTimeoutRef', '__clearTimeoutRef', '__setIntervalRef'
       ];
       for (const name of undefined_globals) {
         try {
@@ -603,6 +819,8 @@ async function executeTask(request, executionId) {
     `)
     releaseables.push(hardenScript)
     await hardenScript.run(context)
+    timings.harden = Date.now() - tPhase
+    tPhase = Date.now()
 
     const wrappedUserCode = `
       (async () => {
@@ -628,6 +846,8 @@ async function executeTask(request, executionId) {
     })
     releaseables.push(userScript)
     const userResultJson = await userScript.run(context, { timeout: timeoutMs, promise: true })
+    timings.userCode = Date.now() - tPhase
+    tPhase = Date.now()
 
     let userResult
     try {
@@ -637,10 +857,12 @@ async function executeTask(request, executionId) {
     }
 
     if (!userResult.success) {
+      timings.total = Date.now() - tStart
       return {
         result: null,
         stdout: stdoutChunks.join(''),
         error: convertToCompatibleError(userResult.errorInfo, code),
+        timings,
       }
     }
 
@@ -678,14 +900,18 @@ async function executeTask(request, executionId) {
     })
     releaseables.push(finalizeScript)
     const bytesBase64 = await finalizeScript.run(context, { timeout: timeoutMs, promise: true })
+    timings.finalize = Date.now() - tPhase
+    timings.total = Date.now() - tStart
 
     return {
       result: null,
       stdout: stdoutChunks.join(''),
       bytesBase64,
+      timings,
     }
   } catch (err) {
     const stdout = stdoutChunks.join('')
+    timings.total = Date.now() - tStart
     if (err instanceof Error) {
       const errorInfo = { message: err.message, name: err.name, stack: err.stack }
       // Cancellation: host sent `cancel` IPC which called `isolate.dispose()`.
@@ -696,6 +922,7 @@ async function executeTask(request, executionId) {
           result: null,
           stdout,
           error: { message: 'Execution cancelled', name: 'AbortError' },
+          timings,
         }
       }
       if (err.message && err.message.includes('Script execution timed out')) {
@@ -706,20 +933,27 @@ async function executeTask(request, executionId) {
             message: `Execution timed out after ${timeoutMs}ms`,
             name: 'TimeoutError',
           },
+          timings,
         }
       }
       return {
         result: null,
         stdout,
         error: convertToCompatibleError(errorInfo, code),
+        timings,
       }
     }
     return {
       result: null,
       stdout,
       error: { message: String(err), name: 'Error' },
+      timings,
     }
   } finally {
+    // Sweep pending timers BEFORE releasing the isolate-side references they
+    // hold. This cancels any scheduled Node timers and releases the fn refs
+    // so callbacks can't fire after dispose.
+    cleanupTimers()
     for (const obj of releaseables) {
       if (obj) {
         try {
