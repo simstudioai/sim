@@ -318,16 +318,19 @@ export function Table({
     return 0
   }, [resizingColumn, displayColumns, columnWidths])
 
-  const dropIndicatorLeft = useMemo(() => {
-    if (!dropTargetColumnName) return null
+  const dropColumnBounds = useMemo(() => {
+    if (!dropTargetColumnName || !dragColumnName) return null
     let left = CHECKBOX_COL_WIDTH
     for (const col of displayColumns) {
-      if (dropSide === 'left' && col.name === dropTargetColumnName) return left
-      left += columnWidths[col.name] ?? COL_WIDTH
-      if (dropSide === 'right' && col.name === dropTargetColumnName) return left
+      const w = columnWidths[col.name] ?? COL_WIDTH
+      if (col.name === dropTargetColumnName) {
+        const lineLeft = dropSide === 'left' ? left : left + w
+        return { left, width: w, lineLeft }
+      }
+      left += w
     }
     return null
-  }, [dropTargetColumnName, dropSide, displayColumns, columnWidths])
+  }, [dropTargetColumnName, dragColumnName, dropSide, displayColumns, columnWidths])
 
   const isAllRowsSelected = useMemo(() => {
     if (checkedRows.size > 0 && rows.length > 0 && checkedRows.size >= rows.length) {
@@ -1924,11 +1927,17 @@ export function Table({
               style={{ left: resizeIndicatorLeft }}
             />
           )}
-          {dropIndicatorLeft !== null && (
-            <div
-              className='-translate-x-[1px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]'
-              style={{ left: dropIndicatorLeft }}
-            />
+          {dropColumnBounds !== null && (
+            <>
+              <div
+                className='pointer-events-none absolute top-0 z-[15] h-full bg-[rgba(37,99,235,0.06)]'
+                style={{ left: dropColumnBounds.left, width: dropColumnBounds.width }}
+              />
+              <div
+                className='-translate-x-[1px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]'
+                style={{ left: dropColumnBounds.lineLeft }}
+              />
+            </>
           )}
         </div>
         {!isLoadingTable && !isLoadingRows && userPermissions.canEdit && (
