@@ -240,7 +240,7 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
           await runSandboxTask(
             docInfo.taskId!,
             { code: finalContent, workspaceId },
-            { ownerKey: `user:${context.userId}` }
+            { ownerKey: `user:${context.userId}`, signal: context.abortSignal }
           )
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)

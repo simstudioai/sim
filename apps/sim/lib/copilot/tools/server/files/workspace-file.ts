@@ -201,7 +201,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
               await runSandboxTask(
                 docInfo.taskId!,
                 { code: content, workspaceId },
-                { ownerKey: `user:${context.userId}` }
+                { ownerKey: `user:${context.userId}`, signal: context.abortSignal }
               )
             } catch (err) {
               const msg = err instanceof Error ? err.message : String(err)

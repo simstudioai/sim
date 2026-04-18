@@ -64,7 +64,8 @@ async function compileDocumentIfNeeded(
   filename: string,
   workspaceId: string | undefined,
   raw: boolean,
-  ownerKey: string | undefined
+  ownerKey: string | undefined,
+  signal: AbortSignal | undefined
 ): Promise<{ buffer: Buffer; contentType: string }> {
   if (raw) return { buffer, contentType: getContentType(filename) }
 
@@ -91,7 +92,7 @@ async function compileDocumentIfNeeded(
   const compiled = await runSandboxTask(
     format.taskId,
     { code, workspaceId: workspaceId || '' },
-    { ownerKey }
+    { ownerKey, signal }
   )
   compiledCacheSet(cacheKey, compiled)
   return { buffer: compiled, contentType: format.contentType }
@@ -155,10 +156,10 @@ export async function GET(
     const userId = authResult.userId
 
     if (isUsingCloudStorage()) {
-      return await handleCloudProxy(cloudKey, userId, raw)
+      return await handleCloudProxy(cloudKey, userId, raw, request.signal)
     }
 
-    return await handleLocalFile(cloudKey, userId, raw)
+    return await handleLocalFile(cloudKey, userId, raw, request.signal)
   } catch (error) {
     logger.error('Error serving file:', error)
 
@@ -173,7 +174,8 @@ export async function GET(
 async function handleLocalFile(
   filename: string,
   userId: string,
-  raw: boolean
+  raw: boolean,
+  signal: AbortSignal | undefined
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
   try {
@@ -209,7 +211,8 @@ async function handleLocalFile(
       displayName,
       workspaceId,
       raw,
-      ownerKey
+      ownerKey,
+      signal
     )
 
     logger.info('Local file served', { userId, filename, size: fileBuffer.length })
@@ -229,7 +232,8 @@ async function handleLocalFile(
 async function handleCloudProxy(
   cloudKey: string,
   userId: string,
-  raw = false
+  raw = false,
+  signal: AbortSignal | undefined = undefined
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
   try {
@@ -268,7 +272,8 @@ async function handleCloudProxy(
       displayName,
       workspaceId,
       raw,
-      ownerKey
+      ownerKey,
+      signal
     )
 
     logger.info('Cloud file served', {
