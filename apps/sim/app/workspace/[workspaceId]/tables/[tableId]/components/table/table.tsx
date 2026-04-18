@@ -251,7 +251,15 @@ export function Table({
   const deleteColumnMutation = useDeleteColumn({ workspaceId, tableId })
   const updateMetadataMutation = useUpdateTableMetadata({ workspaceId, tableId })
 
-  const { pushUndo, undo, redo } = useTableUndo({ workspaceId, tableId })
+  const handleColumnOrderChange = useCallback((order: string[]) => {
+    setColumnOrder(order)
+  }, [])
+
+  const { pushUndo, undo, redo } = useTableUndo({
+    workspaceId,
+    tableId,
+    onColumnOrderChange: handleColumnOrderChange,
+  })
   const undoRef = useRef(undo)
   undoRef.current = undo
   const redoRef = useRef(redo)
@@ -750,6 +758,11 @@ export function Table({
         newOrder.splice(insertIndex, 0, dragged)
         const orderChanged = newOrder.some((name, i) => currentOrder[i] !== name)
         if (orderChanged) {
+          pushUndoRef.current({
+            type: 'reorder-columns',
+            previousOrder: currentOrder,
+            newOrder,
+          })
           setColumnOrder(newOrder)
           updateMetadataRef.current({
             columnWidths: columnWidthsRef.current,
@@ -766,6 +779,37 @@ export function Table({
   const handleColumnDragLeave = useCallback(() => {
     dropTargetColumnNameRef.current = null
     setDropTargetColumnName(null)
+  }, [])
+
+  const handleScrollDragOver = useCallback((e: React.DragEvent) => {
+    if (!dragColumnNameRef.current) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+
+    const scrollEl = scrollRef.current
+    if (!scrollEl) return
+    const scrollRect = scrollEl.getBoundingClientRect()
+    const cursorX = e.clientX - scrollRect.left + scrollEl.scrollLeft
+
+    const cols = columnsRef.current
+    let left = CHECKBOX_COL_WIDTH
+    for (const col of cols) {
+      const w = columnWidthsRef.current[col.name] ?? COL_WIDTH
+      if (cursorX < left + w) {
+        const midX = left + w / 2
+        const side = cursorX < midX ? 'left' : 'right'
+        if (col.name !== dropTargetColumnNameRef.current || side !== dropSideRef.current) {
+          setDropTargetColumnName(col.name)
+          setDropSide(side)
+        }
+        return
+      }
+      left += w
+    }
+  }, [])
+
+  const handleScrollDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
   }, [])
 
   useEffect(() => {
@@ -878,6 +922,12 @@ export function Table({
 
       if (e.key === 'Escape') {
         e.preventDefault()
+        if (dragColumnNameRef.current) {
+          setDragColumnName(null)
+          setDropTargetColumnName(null)
+          setDropSide('left')
+          return
+        }
         setSelectionAnchor(null)
         setSelectionFocus(null)
         setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
@@ -1805,6 +1855,8 @@ export function Table({
           resizingColumn && 'select-none'
         )}
         data-table-scroll
+        onDragOver={handleScrollDragOver}
+        onDrop={handleScrollDrop}
       >
         <div className='relative h-fit' style={{ width: `${tableWidth}px` }}>
           <table

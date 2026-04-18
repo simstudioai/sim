@@ -42,6 +42,7 @@ export type TableUndoAction =
       newValue: boolean
     }
   | { type: 'rename-table'; tableId: string; previousName: string; newName: string }
+  | { type: 'reorder-columns'; previousOrder: string[]; newOrder: string[] }
 
 export interface UndoEntry {
   id: string

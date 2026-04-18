@@ -2,7 +2,7 @@
  * Hook that connects the table undo/redo store to React Query mutations.
  */
 
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   useAddTableColumn,
@@ -14,6 +14,7 @@ import {
   useDeleteTableRows,
   useRenameTable,
   useUpdateColumn,
+  useUpdateTableMetadata,
   useUpdateTableRow,
 } from '@/hooks/queries/tables'
 import { runWithoutRecording, useTableUndoStore } from '@/stores/table/store'
@@ -33,9 +34,10 @@ export function extractCreatedRowId(response: Record<string, unknown>): string |
 interface UseTableUndoProps {
   workspaceId: string
   tableId: string
+  onColumnOrderChange?: (order: string[]) => void
 }
 
-export function useTableUndo({ workspaceId, tableId }: UseTableUndoProps) {
+export function useTableUndo({ workspaceId, tableId, onColumnOrderChange }: UseTableUndoProps) {
   const push = useTableUndoStore((s) => s.push)
   const popUndo = useTableUndoStore((s) => s.popUndo)
   const popRedo = useTableUndoStore((s) => s.popRedo)
@@ -55,6 +57,10 @@ export function useTableUndo({ workspaceId, tableId }: UseTableUndoProps) {
   const updateColumnMutation = useUpdateColumn({ workspaceId, tableId })
   const deleteColumnMutation = useDeleteColumn({ workspaceId, tableId })
   const renameTableMutation = useRenameTable(workspaceId)
+  const updateMetadataMutation = useUpdateTableMetadata({ workspaceId, tableId })
+
+  const onColumnOrderChangeRef = useRef(onColumnOrderChange)
+  onColumnOrderChangeRef.current = onColumnOrderChange
 
   useEffect(() => {
     return () => clear(tableId)
@@ -227,6 +233,13 @@ export function useTableUndo({ workspaceId, tableId }: UseTableUndoProps) {
           case 'rename-table': {
             const name = direction === 'undo' ? action.previousName : action.newName
             renameTableMutation.mutate({ tableId: action.tableId, name })
+            break
+          }
+
+          case 'reorder-columns': {
+            const order = direction === 'undo' ? action.previousOrder : action.newOrder
+            onColumnOrderChangeRef.current?.(order)
+            updateMetadataMutation.mutate({ columnOrder: order })
             break
           }
         }
