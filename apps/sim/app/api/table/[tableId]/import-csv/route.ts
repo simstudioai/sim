@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateId } from '@/lib/core/utils/uuid'
 import {
@@ -163,7 +164,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           inserted += result.length
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
+        const message = toError(err).message
         logger.warn(`[${requestId}] Append failed mid-import for table ${tableId}`, {
           inserted,
           total: coerced.length,
@@ -238,7 +239,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         },
       })
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
+      const message = toError(err).message
       const isClientError =
         message.includes('row limit') ||
         message.includes('Schema validation') ||
@@ -251,7 +252,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       throw err
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
+    const message = toError(error).message
     logger.error(`[${requestId}] CSV import into existing table failed:`, error)
 
     const isClientError =

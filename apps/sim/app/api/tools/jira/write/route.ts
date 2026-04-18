@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId, validateJiraCloudId } from '@/lib/core/security/input-validation'
+import { toError } from '@/lib/core/utils/helpers'
 import { getJiraCloudId, parseAtlassianErrorMessage, toAdf } from '@/tools/jira/utils'
 
 export const dynamic = 'force-dynamic'
@@ -225,7 +226,7 @@ export async function POST(request: NextRequest) {
     })
   } catch (error: any) {
     logger.error('Error creating Jira issue:', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
 

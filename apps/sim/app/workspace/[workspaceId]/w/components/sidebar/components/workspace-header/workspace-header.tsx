@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { MoreHorizontal, Search } from 'lucide-react'
 import {
@@ -90,7 +90,7 @@ interface WorkspaceHeaderProps {
 /**
  * Workspace header component that displays workspace name and switcher.
  */
-export function WorkspaceHeader({
+function WorkspaceHeaderImpl({
   activeWorkspace,
   workspaceId,
   workspaces,
@@ -834,3 +834,5 @@ export function WorkspaceHeader({
     </div>
   )
 }
+
+export const WorkspaceHeader = memo(WorkspaceHeaderImpl)

@@ -1,3 +1,4 @@
+import { toError } from '@/lib/core/utils/helpers'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import type { PulseParserInput, PulseParserOutput, PulseParserV2Input } from '@/tools/pulse/types'
 import type { ToolConfig } from '@/tools/types'
@@ -121,7 +122,7 @@ export const pulseParserTool: ToolConfig<PulseParserInput, PulseParserOutput> = 
               )
             }
           } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage = toError(error).message
             throw new Error(
               `Invalid URL format: ${errorMessage}. Please provide a valid HTTP or HTTPS URL to a document`
             )
@@ -168,9 +169,7 @@ export const pulseParserTool: ToolConfig<PulseParserInput, PulseParserOutput> = 
     try {
       parseResult = await response.json()
     } catch (jsonError) {
-      throw new Error(
-        `Failed to parse Pulse response: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`
-      )
+      throw new Error(`Failed to parse Pulse response: ${toError(jsonError).message}`)
     }
 
     if (!parseResult || typeof parseResult !== 'object') {

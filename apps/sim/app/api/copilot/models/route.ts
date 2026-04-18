@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
+import { toError } from '@/lib/core/utils/helpers'
 
 interface AvailableModel {
   id: string
@@ -76,7 +77,7 @@ export async function GET(_req: NextRequest) {
     return NextResponse.json({ success: true, models })
   } catch (error) {
     logger.error('Error fetching available models', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return NextResponse.json(
       {

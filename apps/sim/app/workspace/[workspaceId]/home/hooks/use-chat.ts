@@ -86,6 +86,7 @@ import {
   reportManualRunToolStop,
 } from '@/lib/copilot/tools/client/run-tool-execution'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
+import { sleep, toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
@@ -2512,7 +2513,7 @@ export function useChat(
       } catch (error) {
         logger.warn('Failed to load chat history while recovering stream', {
           chatId,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
         return null
       }
@@ -2746,7 +2747,7 @@ export function useChat(
           if (isStaleReconnect()) return true
 
           setTransportReconnecting()
-          await new Promise((resolve) => setTimeout(resolve, delayMs))
+          await sleep(delayMs)
           if (streamGenRef.current !== gen) {
             if (!sendingRef.current) {
               setTransportIdle()
@@ -2816,7 +2817,7 @@ export function useChat(
           logger.warn('Reconnect attempt failed', {
             streamId,
             attempt: attempt + 1,
-            error: err instanceof Error ? err.message : String(err),
+            error: toError(err).message,
           })
         }
       }

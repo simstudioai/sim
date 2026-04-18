@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@/lib/core/utils/helpers'
 import {
   EDGE,
   isConditionBlockType,
@@ -113,7 +114,7 @@ export class EdgeConstructor {
     } catch (error) {
       logger.warn('Failed to parse condition config', {
         blockId: block.id,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
 
       return null
@@ -136,7 +137,7 @@ export class EdgeConstructor {
     } catch (error) {
       logger.warn('Failed to parse router v2 config', {
         blockId: block.id,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
 
       return null

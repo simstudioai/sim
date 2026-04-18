@@ -12,6 +12,7 @@ import type {
 import { createLogger } from '@sim/logger'
 import * as ipaddr from 'ipaddr.js'
 import { secureFetchWithPinnedIP } from '@/lib/core/security/input-validation.server'
+import { toError } from '@/lib/core/utils/helpers'
 
 /** Connect-format field type strings returned by normalization. */
 type ConnectFieldType =
@@ -283,7 +284,7 @@ async function validateConnectServerUrl(serverUrl: string): Promise<string> {
     if (error instanceof Error && error.message.startsWith('1Password')) throw error
     connectLogger.warn('DNS lookup failed for 1Password Connect server URL', {
       hostname: clean,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     throw new Error('1Password server URL hostname could not be resolved')
   }

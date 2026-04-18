@@ -3,6 +3,7 @@ import {
   type SupabaseStorageListBucketsParams,
   type SupabaseStorageListBucketsResponse,
 } from '@/tools/supabase/types'
+import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const storageListBucketsTool: ToolConfig<
@@ -31,7 +32,7 @@ export const storageListBucketsTool: ToolConfig<
 
   request: {
     url: (params) => {
-      return `https://${params.projectId}.supabase.co/storage/v1/bucket`
+      return `${supabaseBaseUrl(params.projectId)}/storage/v1/bucket`
     },
     method: 'GET',
     headers: (params) => ({

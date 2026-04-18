@@ -6,6 +6,7 @@ import {
   validateEnum,
   validateJiraCloudId,
 } from '@/lib/core/security/input-validation'
+import { toError } from '@/lib/core/utils/helpers'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 import { getJsmApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 
@@ -140,7 +141,7 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     logger.error('Error fetching requests:', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
 

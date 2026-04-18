@@ -26,6 +26,7 @@ import type {
 import { getToolEntry, isSimExecuted } from '@/lib/copilot/tool-executor'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
+import { toError } from '@/lib/core/utils/helpers'
 import type { ToolScope } from './types'
 import {
   abortPendingToolIfStreamDead,
@@ -334,7 +335,7 @@ async function dispatchToolExecution(
       logger.error(`Parallel ${scopeLabel}tool execution failed`, {
         toolCallId,
         toolName,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return {
         status: MothershipStreamV1ToolOutcome.error,
@@ -373,7 +374,7 @@ async function dispatchToolExecution(
           logger.warn(`Failed to persist async tool row for client-executable ${scopeLabel}tool`, {
             toolCallId,
             toolName,
-            error: err instanceof Error ? err.message : String(err),
+            error: toError(err).message,
           })
         })
         const completion = await waitForToolCompletion(
@@ -394,7 +395,7 @@ async function dispatchToolExecution(
         logger.error(`Client-executable ${scopeLabel}tool wait failed`, {
           toolCallId,
           toolName,
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
         return {
           status: MothershipStreamV1ToolOutcome.error,

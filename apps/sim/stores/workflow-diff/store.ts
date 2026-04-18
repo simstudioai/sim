@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { COPILOT_STATS_API_PATH } from '@/lib/copilot/constants'
+import { toError } from '@/lib/core/utils/helpers'
 import { stripWorkflowDiffMarkers, WorkflowDiffEngine } from '@/lib/workflows/diff'
 import { enqueueReplaceWorkflowState } from '@/lib/workflows/operations/socket-operations'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
@@ -334,7 +335,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               }),
             }).catch((error) => {
               logger.warn('Failed to send diff-accepted stats', {
-                error: error instanceof Error ? error.message : String(error),
+                error: toError(error).message,
                 messageId: triggerMessageId,
               })
             })
@@ -427,7 +428,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               }),
             }).catch((error) => {
               logger.warn('Failed to send diff-rejected stats', {
-                error: error instanceof Error ? error.message : String(error),
+                error: toError(error).message,
                 messageId: _triggerMessageId,
               })
             })

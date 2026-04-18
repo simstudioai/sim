@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { validateSupabaseProjectId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { FileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
@@ -12,7 +13,10 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('SupabaseStorageUploadAPI')
 
 const SupabaseStorageUploadSchema = z.object({
-  projectId: z.string().min(1, 'Project ID is required'),
+  projectId: z
+    .string()
+    .min(1, 'Project ID is required')
+    .regex(/^[a-z0-9]+$/, 'Project ID must contain only lowercase alphanumeric characters'),
   apiKey: z.string().min(1, 'API key is required'),
   bucket: z.string().min(1, 'Bucket name is required'),
   fileName: z.string().min(1, 'File name is required'),
@@ -162,7 +166,12 @@ export async function POST(request: NextRequest) {
       fullPath = `${folderPath}${validatedData.fileName}`
     }
 
-    const supabaseUrl = `https://${validatedData.projectId}.supabase.co/storage/v1/object/${validatedData.bucket}/${fullPath}`
+    const projectValidation = validateSupabaseProjectId(validatedData.projectId)
+    if (!projectValidation.isValid) {
+      return NextResponse.json({ success: false, error: projectValidation.error }, { status: 400 })
+    }
+
+    const supabaseUrl = `https://${projectValidation.sanitized}.supabase.co/storage/v1/object/${validatedData.bucket}/${fullPath}`
 
     const headers: Record<string, string> = {
       apikey: validatedData.apiKey,
@@ -218,7 +227,7 @@ export async function POST(request: NextRequest) {
       path: fullPath,
     })
 
-    const publicUrl = `https://${validatedData.projectId}.supabase.co/storage/v1/object/public/${validatedData.bucket}/${fullPath}`
+    const publicUrl = `https://${projectValidation.sanitized}.supabase.co/storage/v1/object/public/${validatedData.bucket}/${fullPath}`
 
     return NextResponse.json({
       success: true,

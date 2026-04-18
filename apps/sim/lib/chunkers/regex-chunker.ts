@@ -9,6 +9,7 @@ import {
   splitAtWordBoundaries,
   tokensToChars,
 } from '@/lib/chunkers/utils'
+import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('RegexChunker')
 
@@ -62,9 +63,7 @@ export class RegexChunker {
       if (error instanceof Error && error.message.includes('catastrophic')) {
         throw error
       }
-      throw new Error(
-        `Invalid regex pattern "${pattern}": ${error instanceof Error ? error.message : String(error)}`
-      )
+      throw new Error(`Invalid regex pattern "${pattern}": ${toError(error).message}`)
     }
   }
 

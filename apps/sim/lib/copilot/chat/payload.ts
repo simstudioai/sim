@@ -4,6 +4,7 @@ import { isPaid } from '@/lib/billing/plan-helpers'
 import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/feature-flags'
+import { toError } from '@/lib/core/utils/helpers'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { tools } from '@/tools/registry'
@@ -89,7 +90,7 @@ export async function buildIntegrationToolSchemas(
       } catch (error) {
         reqLogger.warn('Failed to load subscription for copilot tool descriptions', {
           userId,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
 
@@ -125,7 +126,7 @@ export async function buildIntegrationToolSchemas(
               : 'Failed to build schema for tool, skipping',
             {
               toolId,
-              error: toolError instanceof Error ? toolError.message : String(toolError),
+              error: toError(toolError).message,
             }
           )
         }
@@ -136,7 +137,7 @@ export async function buildIntegrationToolSchemas(
           ? `Failed to build tool schemas [messageId:${messageId}]`
           : 'Failed to build tool schemas',
         {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         }
       )
     }
@@ -221,7 +222,7 @@ export async function buildCopilotRequestPayload(
         logger.warn('Failed to track chat upload', {
           filename,
           chatId,
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
       }
     }
@@ -265,7 +266,7 @@ export async function buildCopilotRequestPayload(
             ? `Failed to discover MCP tools for copilot [messageId:${userMessageId}]`
             : 'Failed to discover MCP tools for copilot',
           {
-            error: error instanceof Error ? error.message : String(error),
+            error: toError(error).message,
           }
         )
       }

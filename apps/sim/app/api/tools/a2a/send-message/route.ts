@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { createA2AClient, extractTextContent, isTerminalState } from '@/lib/a2a/utils'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateId } from '@/lib/core/utils/uuid'
 
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
         parts.push(dataPart)
       } catch (parseError) {
         logger.warn(`[${requestId}] Failed to parse data as JSON, skipping DataPart`, {
-          error: parseError instanceof Error ? parseError.message : String(parseError),
+          error: toError(parseError).message,
         })
       }
     }

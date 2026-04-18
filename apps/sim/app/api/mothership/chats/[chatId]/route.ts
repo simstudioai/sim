@@ -19,6 +19,7 @@ import { readEvents } from '@/lib/copilot/request/session/buffer'
 import { readFilePreviewSessions } from '@/lib/copilot/request/session/file-preview-session'
 import { type StreamBatchEvent, toStreamBatchEvent } from '@/lib/copilot/request/session/types'
 import { taskPubSub } from '@/lib/copilot/tasks'
+import { toError } from '@/lib/core/utils/helpers'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('MothershipChatAPI')
@@ -66,7 +67,7 @@ export async function GET(
             logger.warn('Failed to read preview sessions for mothership chat', {
               chatId,
               conversationId: chat.conversationId,
-              error: error instanceof Error ? error.message : String(error),
+              error: toError(error).message,
             })
             return []
           }),
@@ -75,7 +76,7 @@ export async function GET(
           logger.warn('Failed to fetch latest run for mothership chat snapshot', {
             chatId,
             conversationId: chat.conversationId,
-            error: error instanceof Error ? error.message : String(error),
+            error: toError(error).message,
           })
           return null
         })
@@ -90,7 +91,7 @@ export async function GET(
         logger.warn('Failed to read stream snapshot for mothership chat', {
           chatId,
           conversationId: chat.conversationId,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
     }

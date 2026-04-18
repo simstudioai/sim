@@ -3,6 +3,7 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { toError } from '@/lib/core/utils/helpers'
 import {
   LLM_BLOCK_TYPES,
   MAX_PREVIEW_LENGTH,
@@ -38,7 +39,7 @@ export function getProviderForTokenization(model: string): string {
   } catch (error) {
     logger.warn(`Failed to get provider for model ${model}, using default`, {
       model,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return TOKENIZATION_CONFIG.defaults.provider
   }
@@ -86,7 +87,7 @@ export function extractTextContent(input: unknown): string {
     } catch (error) {
       logger.warn('Failed to stringify input object', {
         inputType: typeof input,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return ''
     }

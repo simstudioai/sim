@@ -5,6 +5,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { toError } from '@/lib/core/utils/helpers'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import {
   deleteWorkspaceFile,
@@ -204,7 +205,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
                 { ownerKey: `user:${context.userId}`, signal: context.abortSignal }
               )
             } catch (err) {
-              const msg = err instanceof Error ? err.message : String(err)
+              const msg = toError(err).message
               return {
                 success: false,
                 message: `${docInfo.formatName} generation failed: ${msg}. Fix the code and retry.`,

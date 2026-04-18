@@ -6,6 +6,7 @@ import {
   type ResultField,
 } from '@aws-sdk/client-cloudwatch-logs'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { sleep } from '@/lib/core/utils/helpers'
 
 interface AwsCredentials {
   region: string
@@ -79,7 +80,7 @@ export async function pollQueryResults(
       throw new Error(`CloudWatch Log Insights query ${status.toLowerCase()}`)
     }
 
-    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs))
+    await sleep(pollIntervalMs)
   }
 
   // Timeout -- fetch one last time for partial results

@@ -22,6 +22,7 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
+import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('CopilotConfirmAPI')
 
@@ -106,7 +107,7 @@ async function updateToolCallStatus(
     logger.error('Failed to update tool call status', {
       toolCallId,
       status,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return false
   }
@@ -133,7 +134,7 @@ export async function POST(req: NextRequest) {
     const existing = await getAsyncToolCall(toolCallId).catch((err) => {
       logger.warn('Failed to fetch async tool call', {
         toolCallId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return null
     })
@@ -145,7 +146,7 @@ export async function POST(req: NextRequest) {
     const run = await getRunSegment(existing.runId).catch((err) => {
       logger.warn('Failed to fetch run segment', {
         runId: existing.runId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return null
     })

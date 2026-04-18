@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
+import { toError } from '@/lib/core/utils/helpers'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { createReadableStreamFromMistralStream } from '@/providers/mistral/utils'
@@ -567,7 +568,7 @@ export const mistralProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      throw new ProviderError(error instanceof Error ? error.message : String(error), {
+      throw new ProviderError(toError(error).message, {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,
         duration: totalDuration,

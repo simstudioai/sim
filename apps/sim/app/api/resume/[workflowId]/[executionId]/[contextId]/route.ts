@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { AuthType } from '@/lib/auth/hybrid'
 import { getJobQueue } from '@/lib/core/async-jobs'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -235,7 +236,7 @@ export async function POST(
         })
       } catch (dispatchError) {
         logger.error('Failed to dispatch async resume execution', {
-          error: dispatchError instanceof Error ? dispatchError.message : String(dispatchError),
+          error: toError(dispatchError).message,
           resumeExecutionId: enqueueResult.resumeExecutionId,
         })
         return NextResponse.json(

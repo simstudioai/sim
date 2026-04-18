@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { ObsidianIcon } from '@/components/icons'
+import { toError } from '@/lib/core/utils/helpers'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { joinTagArray, parseTagDate } from '@/connectors/utils'
@@ -100,7 +101,7 @@ async function listVaultFiles(
     } catch (error) {
       logger.warn('Failed to list subdirectory', {
         dir,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }
@@ -259,7 +260,7 @@ export const obsidianConnector: ConnectorConfig = {
     } catch (error) {
       logger.warn('Failed to get Obsidian note', {
         externalId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return null
     }

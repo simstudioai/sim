@@ -5,6 +5,7 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
 
 const logger = createLogger('ImageProxyAPI')
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
     logger.error(`[${requestId}] Image proxy error:`, { error: errorMessage })
 
     return new NextResponse(`Failed to proxy image: ${errorMessage}`, {

@@ -1,4 +1,5 @@
 import type { SupabaseUpsertParams, SupabaseUpsertResponse } from '@/tools/supabase/types'
+import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const upsertTool: ToolConfig<SupabaseUpsertParams, SupabaseUpsertResponse> = {
@@ -42,7 +43,7 @@ export const upsertTool: ToolConfig<SupabaseUpsertParams, SupabaseUpsertResponse
   },
 
   request: {
-    url: (params) => `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`,
+    url: (params) => `${supabaseBaseUrl(params.projectId)}/rest/v1/${params.table}?select=*`,
     method: 'POST',
     headers: (params) => {
       const headers: Record<string, string> = {

@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { hasPaidSubscription } from '@/lib/billing'
+import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('SubscriptionTransferAPI')
 
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })
   } catch (error) {
     logger.error('Error transferring subscription', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return NextResponse.json({ error: 'Failed to transfer subscription' }, { status: 500 })
   }

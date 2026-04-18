@@ -7,6 +7,7 @@ import { getUserUsageLimit } from '@/lib/billing/core/usage'
 import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
 import { getPlanTierDollars, isOrgPlan, isPaid } from '@/lib/billing/plan-helpers'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('UsageMonitor')
 
@@ -190,7 +191,7 @@ export async function checkUsageStatus(
     // Block execution if we can't determine usage status
     logger.error('Cannot determine usage status - blocking execution', {
       userId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
 
     return {
@@ -369,7 +370,7 @@ export async function checkServerSideUsageLimits(
 
     logger.error('Cannot determine usage limits - blocking execution', {
       userId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
 
     return {

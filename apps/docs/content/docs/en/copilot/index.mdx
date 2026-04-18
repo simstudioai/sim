@@ -5,6 +5,7 @@ description: Your per-workflow AI assistant for building and editing workflows.
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
 
 Copilot is the AI assistant built into every workflow editor. It is scoped to the workflow you have open — it reads the current structure, makes changes directly, and saves checkpoints so you can revert if needed.
@@ -15,7 +16,7 @@ For workspace-wide tasks (managing multiple workflows, running research, working
   Copilot is a Sim-managed service. For self-hosted deployments, go to [sim.ai](https://sim.ai) → Settings → Copilot, generate a Copilot API key, then set `COPILOT_API_KEY` in your self-hosted environment.
 </Callout>
 
-{/* TODO: Screenshot of the workflow editor with the Copilot panel open on the right side — showing a conversation with a workflow change applied. Ideally shows a message from the user, a response from Copilot, and the checkpoint icon visible on the message. */}
+<Video src="copilot/copilot.mp4" width={700} height={450} />
 
 ## What Copilot Can Do
 

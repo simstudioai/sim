@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { Filter, RowData, Sort, TableSchema } from '@/lib/table'
 import {
@@ -162,7 +163,7 @@ async function handleBatchInsert(
       },
     })
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
 
     if (
       errorMessage.includes('row limit') ||
@@ -392,7 +393,7 @@ export async function POST(request: NextRequest, { params }: TableRowsRouteParam
       )
     }
 
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
 
     if (
       errorMessage.includes('row limit') ||
@@ -489,7 +490,7 @@ export async function PUT(request: NextRequest, { params }: TableRowsRouteParams
       )
     }
 
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
 
     if (
       errorMessage.includes('Row size exceeds') ||
@@ -591,7 +592,7 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
       )
     }
 
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
 
     if (errorMessage.includes('Filter is required')) {
       return NextResponse.json({ error: errorMessage }, { status: 400 })

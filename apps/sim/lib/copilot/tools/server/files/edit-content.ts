@@ -4,6 +4,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { toError } from '@/lib/core/utils/helpers'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { updateWorkspaceFileContent } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
@@ -243,7 +244,7 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
             { ownerKey: `user:${context.userId}`, signal: context.abortSignal }
           )
         } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err)
+          const msg = toError(err).message
           return {
             success: false,
             message: `${docInfo.formatName} generation failed: ${msg}. Fix the content and retry.`,
