@@ -3181,6 +3181,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   }, [])
 
   const handleDragEnd = useCallback(() => {
+    didDragRef.current = false
     onDragEnd?.()
   }, [onDragEnd])
 
