@@ -1,8 +1,9 @@
 'use client'
 
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { MoreHorizontal, Search } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import {
   Button,
   ChevronDown,
@@ -118,6 +119,7 @@ function WorkspaceHeaderImpl({
   sessionUserId,
   isCollapsed = false,
 }: WorkspaceHeaderProps) {
+  const router = useRouter()
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -175,21 +177,30 @@ function WorkspaceHeaderImpl({
   const canCreateWorkspace = workspaceCreationPolicy?.canCreate ?? true
   const createWorkspaceDisabledReason =
     workspaceCreationPolicy?.canCreate === false ? workspaceCreationPolicy.reason : null
-  const inviteDisabledReason =
-    activeWorkspaceFull?.workspaceMode === 'personal'
-      ? 'Member invites are only available for organization-owned or grandfathered shared workspaces.'
-      : null
+  const inviteMembersEnabled = activeWorkspaceFull?.inviteMembersEnabled ?? false
+  const inviteUpgradeRequired = activeWorkspaceFull?.inviteUpgradeRequired ?? false
+  const inviteDisabledReason = inviteMembersEnabled
+    ? null
+    : (activeWorkspaceFull?.inviteDisabledReason ?? null)
+  const inviteButtonDisabled = !inviteMembersEnabled && !inviteUpgradeRequired
 
-  // Listen for open-invite-modal event from context menu
+  const handleInviteClick = useCallback(() => {
+    if (isInvitationsDisabled) return
+    if (!inviteMembersEnabled && inviteUpgradeRequired && workspaceId) {
+      router.push(`/workspace/${workspaceId}/settings/subscription`)
+      return
+    }
+    if (!inviteMembersEnabled) return
+    setIsInviteModalOpen(true)
+  }, [isInvitationsDisabled, inviteMembersEnabled, inviteUpgradeRequired, workspaceId, router])
+
   useEffect(() => {
     const handleOpenInvite = () => {
-      if (!isInvitationsDisabled && !inviteDisabledReason) {
-        setIsInviteModalOpen(true)
-      }
+      handleInviteClick()
     }
     window.addEventListener('open-invite-modal', handleOpenInvite)
     return () => window.removeEventListener('open-invite-modal', handleOpenInvite)
-  }, [inviteDisabledReason, isInvitationsDisabled])
+  }, [handleInviteClick])
 
   /**
    * Save and exit edit mode when popover closes
@@ -689,10 +700,10 @@ function WorkspaceHeaderImpl({
                         type='button'
                         className='flex w-full cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-[5px] font-medium text-[var(--text-body)] text-caption outline-none transition-colors hover-hover:bg-[var(--surface-hover)] disabled:pointer-events-none disabled:opacity-50'
                         onClick={() => {
-                          setIsInviteModalOpen(true)
                           setIsWorkspaceMenuOpen(false)
+                          handleInviteClick()
                         }}
-                        disabled={Boolean(inviteDisabledReason)}
+                        disabled={inviteButtonDisabled}
                         title={inviteDisabledReason ?? undefined}
                       >
                         <UserPlus className='h-[14px] w-[14px] shrink-0 text-[var(--text-icon)]' />

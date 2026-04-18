@@ -213,6 +213,7 @@ export default function Invite() {
 
         const data = await response.json()
         setInvitation(data.invitation as InvitationDetails)
+        setError(null)
       } catch (fetchError) {
         logger.error('Error fetching invitation:', fetchError)
         setError(getInviteError('network-error'))
@@ -260,6 +261,7 @@ export default function Invite() {
       ])
 
       setAccepted(true)
+      setIsAccepting(false)
 
       const redirectPath = typeof data.redirectPath === 'string' ? data.redirectPath : '/workspace'
       setTimeout(() => router.push(redirectPath), 1200)

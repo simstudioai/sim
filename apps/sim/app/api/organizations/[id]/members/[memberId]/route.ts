@@ -193,22 +193,29 @@ export async function PUT(
       return NextResponse.json({ error: 'Cannot change owner role' }, { status: 400 })
     }
 
-    if (role === 'admin' && userMember[0].role !== 'owner') {
+    if (role === 'owner' && userMember[0].role !== 'owner') {
       return NextResponse.json(
-        { error: 'Only owners can promote members to admin' },
+        { error: 'Only the current owner can transfer ownership' },
         { status: 403 }
       )
     }
 
-    if (targetMember[0].role === 'admin' && userMember[0].role !== 'owner') {
-      return NextResponse.json({ error: 'Only owners can change admin roles' }, { status: 403 })
-    }
+    const isOwnershipTransfer = role === 'owner'
 
-    const updatedMember = await db
-      .update(member)
-      .set({ role })
-      .where(and(eq(member.organizationId, organizationId), eq(member.userId, memberId)))
-      .returning()
+    const updatedMember = await db.transaction(async (tx) => {
+      if (isOwnershipTransfer) {
+        await tx
+          .update(member)
+          .set({ role: 'admin' })
+          .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
+      }
+
+      return tx
+        .update(member)
+        .set({ role })
+        .where(and(eq(member.organizationId, organizationId), eq(member.userId, memberId)))
+        .returning()
+    })
 
     if (updatedMember.length === 0) {
       return NextResponse.json({ error: 'Failed to update member role' }, { status: 500 })

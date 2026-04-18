@@ -5,9 +5,17 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
+import { getOrganizationSubscription } from '@/lib/billing/core/billing'
+import { isEnterprise, isTeam } from '@/lib/billing/plan-helpers'
+import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { getInvitationById } from '@/lib/invitations/core'
-import { resendInvitationEmail, sendInvitationEmail } from '@/lib/invitations/send'
-import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
+import {
+  persistInvitationResend,
+  prepareInvitationResend,
+  sendInvitationEmail,
+} from '@/lib/invitations/send'
+import { getWorkspaceWithOwner, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
+import { getWorkspaceInvitePolicy } from '@/lib/workspaces/policy'
 
 const logger = createLogger('InvitationResendAPI')
 
@@ -54,7 +62,48 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       )
     }
 
-    const { token } = await resendInvitationEmail({ invitationId: id, rotateToken: true })
+    for (const grant of inv.grants) {
+      const workspaceDetails = await getWorkspaceWithOwner(grant.workspaceId)
+      if (!workspaceDetails) {
+        return NextResponse.json(
+          { error: 'Invitation references a workspace that no longer exists' },
+          { status: 409 }
+        )
+      }
+      const policy = await getWorkspaceInvitePolicy(workspaceDetails)
+      if (!policy.allowed) {
+        return NextResponse.json(
+          {
+            error: policy.reason ?? 'Invites are no longer allowed on this workspace',
+            upgradeRequired: policy.upgradeRequired,
+          },
+          { status: 403 }
+        )
+      }
+    }
+
+    if (inv.kind === 'organization' && inv.grants.length === 0 && inv.organizationId) {
+      const orgSubscription = await getOrganizationSubscription(inv.organizationId)
+      const orgOnTeamOrEnterprise =
+        !!orgSubscription &&
+        hasUsableSubscriptionStatus(orgSubscription.status) &&
+        (isTeam(orgSubscription.plan) || isEnterprise(orgSubscription.plan))
+      if (!orgOnTeamOrEnterprise) {
+        return NextResponse.json(
+          {
+            error: 'Invites are no longer allowed on this organization',
+            upgradeRequired: true,
+          },
+          { status: 403 }
+        )
+      }
+    }
+
+    const { tokenForEmail, nextToken, nextExpiresAt } = await prepareInvitationResend({
+      invitationId: id,
+      rotateToken: true,
+      currentToken: inv.token,
+    })
 
     const [inviterRow] = await db
       .select({ name: user.name, email: user.email })
@@ -64,7 +113,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const emailResult = await sendInvitationEmail({
       invitationId: inv.id,
-      token,
+      token: tokenForEmail,
       kind: inv.kind,
       email: inv.email,
       inviterName: inviterRow?.name || inviterRow?.email || 'A user',
@@ -82,6 +131,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         { status: 502 }
       )
     }
+
+    await persistInvitationResend({ invitationId: id, nextToken, nextExpiresAt })
 
     recordAudit({
       workspaceId: inv.grants[0]?.workspaceId ?? null,

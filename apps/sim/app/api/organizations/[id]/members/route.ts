@@ -19,6 +19,10 @@ import {
   sendInvitationEmail,
 } from '@/lib/invitations/send'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import {
+  InvitationsNotAllowedError,
+  validateInvitationsAllowed,
+} from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('OrganizationMembersAPI')
 
@@ -157,10 +161,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    await validateInvitationsAllowed(session.user.id)
+
     const { id: organizationId } = await params
     const { email, role = 'member' } = await request.json()
 
-    // Validate input
     if (!email) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 })
     }
@@ -323,6 +328,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       },
     })
   } catch (error) {
+    if (error instanceof InvitationsNotAllowedError) {
+      return NextResponse.json({ error: error.message }, { status: 403 })
+    }
     logger.error('Failed to invite organization member', {
       organizationId: (await params).id,
       error,

@@ -59,6 +59,7 @@ import {
   handleInvoicePaymentSucceeded,
 } from '@/lib/billing/webhooks/invoices'
 import {
+  handleOrganizationPlanDowngrade,
   handleSubscriptionCreated,
   handleSubscriptionDeleted,
 } from '@/lib/billing/webhooks/subscription'
@@ -3064,6 +3065,16 @@ export const auth = betterAuth({
                       error,
                     })
                   }
+                } else {
+                  await handleOrganizationPlanDowngrade(
+                    {
+                      id: resolvedSubscription.id,
+                      plan: effectivePlanForTeamFeatures ?? null,
+                      referenceId: resolvedSubscription.referenceId,
+                      status: resolvedSubscription.status ?? null,
+                    },
+                    event.id
+                  )
                 }
 
                 await writeBillingInterval(resolvedSubscription.id, isAnnual ? 'year' : 'month')

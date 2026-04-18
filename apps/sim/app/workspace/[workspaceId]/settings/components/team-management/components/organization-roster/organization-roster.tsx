@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ChevronDown, ChevronRight, Search } from 'lucide-react'
 import {
@@ -309,11 +309,11 @@ function InvitationExpandedPanel({
   )
 }
 
-function matchesQuery(haystacks: string[], q: string): boolean {
+function matchesQuery(haystacks: Array<string | null | undefined>, q: string): boolean {
   if (!q) return true
   const needle = q.trim().toLowerCase()
   if (!needle) return true
-  return haystacks.some((h) => h.toLowerCase().includes(needle))
+  return haystacks.some((h) => (h ?? '').toLowerCase().includes(needle))
 }
 
 export function OrganizationRoster({
@@ -330,6 +330,15 @@ export function OrganizationRoster({
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(() => new Set())
   const [resendingIds, setResendingIds] = useState<Set<string>>(() => new Set())
   const [resendCooldowns, setResendCooldowns] = useState<Record<string, number>>({})
+  const cooldownIntervalsRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map())
+
+  useEffect(() => {
+    const intervals = cooldownIntervalsRef.current
+    return () => {
+      intervals.forEach((interval) => clearInterval(interval))
+      intervals.clear()
+    }
+  }, [])
 
   const cancelInvitation = useCancelInvitation()
   const resendInvitation = useResendInvitation()
@@ -366,10 +375,7 @@ export function OrganizationRoster({
     )
   }, [isAdminOrOwner, roster?.workspaces, members, currentUserId])
 
-  const currentUserOrgRole = useMemo(() => {
-    return members.find((m) => m.userId === currentUserId)?.role
-  }, [members, currentUserId])
-  const canEditRoles = currentUserOrgRole === 'owner'
+  const canEditRoles = isAdminOrOwner
 
   const updateMemberRole = useUpdateOrganizationMemberRole()
   const updateInvitation = useUpdateInvitation()
@@ -384,7 +390,7 @@ export function OrganizationRoster({
   const filteredInvitations = useMemo(() => {
     return pendingInvitations.filter((inv) => {
       const workspaceNames = inv.workspaces.map((ws) => ws.workspaceName)
-      return matchesQuery([inv.email, ...workspaceNames], query)
+      return matchesQuery([inv.inviteeName, inv.email, ...workspaceNames], query)
     })
   }, [pendingInvitations, query])
 
@@ -425,6 +431,8 @@ export function OrganizationRoster({
     try {
       await resendInvitation.mutateAsync({ invitationId, orgId: organizationId })
       setResendCooldowns((prev) => ({ ...prev, [invitationId]: 60 }))
+      const existing = cooldownIntervalsRef.current.get(invitationId)
+      if (existing) clearInterval(existing)
       const interval = setInterval(() => {
         setResendCooldowns((prev) => {
           const current = prev[invitationId]
@@ -432,12 +440,17 @@ export function OrganizationRoster({
           if (current <= 1) {
             const next = { ...prev }
             delete next[invitationId]
-            clearInterval(interval)
+            const tracked = cooldownIntervalsRef.current.get(invitationId)
+            if (tracked) {
+              clearInterval(tracked)
+              cooldownIntervalsRef.current.delete(invitationId)
+            }
             return next
           }
           return { ...prev, [invitationId]: current - 1 }
         })
       }, 1000)
+      cooldownIntervalsRef.current.set(invitationId, interval)
     } catch (error) {
       logger.error('Failed to resend invitation', { error })
     } finally {

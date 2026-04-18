@@ -13,7 +13,7 @@ import {
   workspaceEnvironment,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, lte } from 'drizzle-orm'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import { hasAccessControlAccess } from '@/lib/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
@@ -123,6 +123,74 @@ async function hydrateInvitation(
 
 export function isInvitationExpired(inv: Pick<InvitationWithGrants, 'expiresAt'>): boolean {
   return new Date() > new Date(inv.expiresAt)
+}
+
+/**
+ * Flip any still-pending invitations for the given organization whose
+ * `expiresAt` has already passed to `expired`. Best-effort housekeeping
+ * — callers can rely on this for display freshness, but seat math also
+ * defensively filters by `expiresAt` at query time.
+ */
+export async function expireStalePendingInvitationsForOrganization(
+  organizationId: string
+): Promise<void> {
+  try {
+    await db
+      .update(invitation)
+      .set({ status: 'expired', updatedAt: new Date() })
+      .where(
+        and(
+          eq(invitation.organizationId, organizationId),
+          eq(invitation.status, 'pending'),
+          lte(invitation.expiresAt, new Date())
+        )
+      )
+  } catch (error) {
+    logger.error('Failed to expire stale pending invitations for organization', {
+      organizationId,
+      error,
+    })
+  }
+}
+
+/**
+ * Flip any still-pending invitations with grants on the given workspaces
+ * whose `expiresAt` has already passed to `expired`.
+ */
+export async function expireStalePendingInvitationsForWorkspaces(
+  workspaceIds: string[]
+): Promise<void> {
+  if (workspaceIds.length === 0) return
+  try {
+    const staleIds = await db
+      .select({ id: invitation.id })
+      .from(invitation)
+      .innerJoin(invitationWorkspaceGrant, eq(invitationWorkspaceGrant.invitationId, invitation.id))
+      .where(
+        and(
+          inArray(invitationWorkspaceGrant.workspaceId, workspaceIds),
+          eq(invitation.status, 'pending'),
+          lte(invitation.expiresAt, new Date())
+        )
+      )
+
+    if (staleIds.length === 0) return
+
+    await db
+      .update(invitation)
+      .set({ status: 'expired', updatedAt: new Date() })
+      .where(
+        inArray(
+          invitation.id,
+          staleIds.map((row) => row.id)
+        )
+      )
+  } catch (error) {
+    logger.error('Failed to expire stale pending invitations for workspaces', {
+      workspaceCount: workspaceIds.length,
+      error,
+    })
+  }
 }
 
 export function normalizeEmail(email: string): string {
@@ -383,7 +451,13 @@ export async function rejectInvitation(
   if (!inv) return { success: false, kind: 'not-found' }
   if (input.token && inv.token !== input.token) return { success: false, kind: 'invalid-token' }
   if (inv.status !== 'pending') return { success: false, kind: 'already-processed' }
-  if (isInvitationExpired(inv)) return { success: false, kind: 'expired' }
+  if (isInvitationExpired(inv)) {
+    await db
+      .update(invitation)
+      .set({ status: 'expired', updatedAt: new Date() })
+      .where(and(eq(invitation.id, inv.id), eq(invitation.status, 'pending')))
+    return { success: false, kind: 'expired' }
+  }
   if (normalizeEmail(input.userEmail) !== normalizeEmail(inv.email)) {
     return { success: false, kind: 'email-mismatch' }
   }

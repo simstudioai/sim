@@ -267,31 +267,38 @@ export async function sendInvitationEmail(
   return { success: true }
 }
 
-export async function resendInvitationEmail(params: {
+export async function prepareInvitationResend(params: {
   invitationId: string
   rotateToken?: boolean
-}): Promise<{ token: string; expiresAt: Date }> {
-  const expiresAt = computeInvitationExpiry()
-  const token = params.rotateToken ? generateId() : undefined
+  currentToken: string
+}): Promise<{ tokenForEmail: string; nextExpiresAt: Date; nextToken: string | null }> {
+  const nextExpiresAt = computeInvitationExpiry()
+  const nextToken = params.rotateToken ? generateId() : null
+  const tokenForEmail = nextToken ?? params.currentToken
+  return { tokenForEmail, nextExpiresAt, nextToken }
+}
 
+export async function persistInvitationResend(params: {
+  invitationId: string
+  nextToken: string | null
+  nextExpiresAt: Date
+}): Promise<void> {
   const [row] = await db
     .update(invitation)
     .set({
-      expiresAt,
+      expiresAt: params.nextExpiresAt,
       updatedAt: new Date(),
-      ...(token ? { token } : {}),
+      ...(params.nextToken ? { token: params.nextToken } : {}),
     })
-    .where(eq(invitation.id, params.invitationId))
-    .returning({ token: invitation.token, expiresAt: invitation.expiresAt })
+    .where(and(eq(invitation.id, params.invitationId), eq(invitation.status, 'pending')))
+    .returning({ id: invitation.id })
 
   if (!row) {
-    throw new Error(`Invitation ${params.invitationId} not found`)
+    throw new Error(`Invitation ${params.invitationId} not found or no longer pending`)
   }
 
-  logger.info('Rotated/refreshed invitation token', {
+  logger.info('Persisted invitation resend', {
     invitationId: params.invitationId,
-    rotated: !!token,
+    rotated: !!params.nextToken,
   })
-
-  return { token: row.token, expiresAt: row.expiresAt }
 }

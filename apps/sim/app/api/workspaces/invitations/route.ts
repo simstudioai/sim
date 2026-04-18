@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { permissions, type permissionTypeEnum, user, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
@@ -17,11 +17,7 @@ import {
 } from '@/lib/invitations/send'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
-import {
-  canWorkspaceInviteMembers,
-  getWorkspaceInviteDisabledReason,
-  isOrganizationWorkspace,
-} from '@/lib/workspaces/policy'
+import { getWorkspaceInvitePolicy } from '@/lib/workspaces/policy'
 import {
   InvitationsNotAllowedError,
   validateInvitationsAllowed,
@@ -115,21 +111,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
     }
 
-    if (!canWorkspaceInviteMembers(workspaceDetails)) {
+    const invitePolicy = await getWorkspaceInvitePolicy(workspaceDetails)
+    if (!invitePolicy.allowed) {
       return NextResponse.json(
         {
-          error:
-            getWorkspaceInviteDisabledReason(workspaceDetails) ||
-            'Invites are disabled for this workspace.',
+          error: invitePolicy.reason ?? 'Invites are disabled for this workspace.',
+          upgradeRequired: invitePolicy.upgradeRequired,
         },
-        { status: 400 }
+        { status: 403 }
       )
     }
 
     const existingUser = await db
       .select()
       .from(user)
-      .where(eq(user.email, normalizedEmail))
+      .where(sql`lower(${user.email}) = ${normalizedEmail}`)
       .then((rows) => rows[0])
 
     if (existingUser) {
@@ -155,11 +151,11 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      if (isOrganizationWorkspace(workspaceDetails)) {
+      if (invitePolicy.requiresSeat && invitePolicy.organizationId) {
         const existingMembership = await getUserOrganization(existingUser.id)
         if (
           existingMembership &&
-          existingMembership.organizationId !== workspaceDetails.organizationId
+          existingMembership.organizationId !== invitePolicy.organizationId
         ) {
           return NextResponse.json(
             {
@@ -172,7 +168,7 @@ export async function POST(req: NextRequest) {
         }
 
         if (!existingMembership) {
-          const seatValidation = await validateSeatAvailability(workspaceDetails.organizationId!, 1)
+          const seatValidation = await validateSeatAvailability(invitePolicy.organizationId, 1)
           if (!seatValidation.canInvite) {
             return NextResponse.json(
               {
@@ -184,8 +180,8 @@ export async function POST(req: NextRequest) {
           }
         }
       }
-    } else if (isOrganizationWorkspace(workspaceDetails)) {
-      const seatValidation = await validateSeatAvailability(workspaceDetails.organizationId!, 1)
+    } else if (invitePolicy.requiresSeat && invitePolicy.organizationId) {
+      const seatValidation = await validateSeatAvailability(invitePolicy.organizationId, 1)
       if (!seatValidation.canInvite) {
         return NextResponse.json(
           {

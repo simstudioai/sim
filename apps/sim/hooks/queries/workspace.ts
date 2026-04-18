@@ -34,6 +34,9 @@ export interface Workspace {
   membershipId?: string
   permissions?: 'admin' | 'write' | 'read' | null
   billedAccountUserId?: string | null
+  inviteMembersEnabled?: boolean
+  inviteDisabledReason?: string | null
+  inviteUpgradeRequired?: boolean
 }
 
 export interface WorkspaceCreationPolicy {
@@ -68,6 +71,9 @@ async function fetchWorkspaces(
         ...workspace,
         organizationId: workspace.organizationId ?? null,
         workspaceMode: workspace.workspaceMode ?? 'grandfathered_shared',
+        inviteMembersEnabled: workspace.inviteMembersEnabled ?? false,
+        inviteDisabledReason: workspace.inviteDisabledReason ?? null,
+        inviteUpgradeRequired: workspace.inviteUpgradeRequired ?? false,
       })) || [],
     lastActiveWorkspaceId:
       typeof data.lastActiveWorkspaceId === 'string' ? data.lastActiveWorkspaceId : null,
@@ -421,6 +427,9 @@ async function fetchAdminWorkspaces(
     ...workspace,
     organizationId: workspace.organizationId ?? null,
     workspaceMode: workspace.workspaceMode ?? 'grandfathered_shared',
+    inviteMembersEnabled: workspace.inviteMembersEnabled ?? false,
+    inviteDisabledReason: workspace.inviteDisabledReason ?? null,
+    inviteUpgradeRequired: workspace.inviteUpgradeRequired ?? false,
   }))
 
   return allUserWorkspaces
@@ -435,7 +444,7 @@ async function fetchAdminWorkspaces(
       name: workspace.name,
       isOwner: workspace.ownerId === userId,
       ownerId: workspace.ownerId,
-      canInvite: workspace.workspaceMode !== 'personal',
+      canInvite: workspace.inviteMembersEnabled ?? false,
       organizationId: workspace.organizationId,
       workspaceMode: workspace.workspaceMode,
     }))

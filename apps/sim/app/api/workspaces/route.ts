@@ -12,7 +12,15 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { getRandomWorkspaceColor } from '@/lib/workspaces/colors'
-import { getWorkspaceCreationPolicy, WORKSPACE_MODE } from '@/lib/workspaces/policy'
+import {
+  CONTACT_OWNER_TO_UPGRADE_REASON,
+  evaluateWorkspaceInvitePolicy,
+  getWorkspaceCreationPolicy,
+  getWorkspaceInvitePolicy,
+  hasActiveTeamOrEnterpriseSubscription,
+  UPGRADE_TO_INVITE_REASON,
+  WORKSPACE_MODE,
+} from '@/lib/workspaces/policy'
 import type { WorkspaceScope } from '@/lib/workspaces/utils'
 
 const logger = createLogger('Workspaces')
@@ -105,17 +113,49 @@ export async function GET(request: Request) {
     await ensureWorkflowsHaveWorkspace(session.user.id, userWorkspaces[0].workspace.id)
   }
 
-  const workspacesWithPermissions = userWorkspaces.map(
-    ({ workspace: workspaceDetails, permissionType }) => ({
-      ...workspaceDetails,
-      role:
-        workspaceDetails.ownerId === session.user.id
-          ? 'owner'
-          : permissionType === 'admin'
-            ? 'admin'
-            : 'member',
-      permissions: permissionType,
+  const grandfatheredBilledUserIds = [
+    ...new Set(
+      userWorkspaces
+        .filter(({ workspace: ws }) => ws.workspaceMode === WORKSPACE_MODE.GRANDFATHERED_SHARED)
+        .map(({ workspace: ws }) => ws.billedAccountUserId)
+    ),
+  ]
+  const teamOrEnterpriseByUser = new Map<string, boolean>()
+  await Promise.all(
+    grandfatheredBilledUserIds.map(async (userId) => {
+      teamOrEnterpriseByUser.set(userId, await hasActiveTeamOrEnterpriseSubscription(userId))
     })
+  )
+
+  const workspacesWithPermissions = userWorkspaces.map(
+    ({ workspace: workspaceDetails, permissionType }) => {
+      const invitePolicy = evaluateWorkspaceInvitePolicy(workspaceDetails, {
+        billedUserHasTeamOrEnterprise:
+          teamOrEnterpriseByUser.get(workspaceDetails.billedAccountUserId) ?? false,
+      })
+      const callerIsBilledUser = workspaceDetails.billedAccountUserId === session.user.id
+
+      const canActOnUpgrade = invitePolicy.upgradeRequired && callerIsBilledUser
+      const inviteDisabledReason = invitePolicy.allowed
+        ? null
+        : callerIsBilledUser
+          ? (invitePolicy.reason ?? UPGRADE_TO_INVITE_REASON)
+          : CONTACT_OWNER_TO_UPGRADE_REASON
+
+      return {
+        ...workspaceDetails,
+        role:
+          workspaceDetails.ownerId === session.user.id
+            ? 'owner'
+            : permissionType === 'admin'
+              ? 'admin'
+              : 'member',
+        permissions: permissionType,
+        inviteMembersEnabled: invitePolicy.allowed,
+        inviteDisabledReason,
+        inviteUpgradeRequired: canActOnUpgrade,
+      }
+    }
   )
 
   return NextResponse.json({
@@ -331,6 +371,20 @@ async function createWorkspace({
     // Telemetry should not fail the operation
   }
 
+  const invitePolicy = await getWorkspaceInvitePolicy({
+    organizationId,
+    workspaceMode,
+    billedAccountUserId,
+    ownerId: userId,
+  })
+  const callerIsBilledUser = billedAccountUserId === userId
+  const canActOnUpgrade = invitePolicy.upgradeRequired && callerIsBilledUser
+  const inviteDisabledReason = invitePolicy.allowed
+    ? null
+    : callerIsBilledUser
+      ? (invitePolicy.reason ?? UPGRADE_TO_INVITE_REASON)
+      : CONTACT_OWNER_TO_UPGRADE_REASON
+
   return {
     id: workspaceId,
     name,
@@ -344,6 +398,9 @@ async function createWorkspace({
     updatedAt: now,
     role: 'owner',
     permissions: 'admin',
+    inviteMembersEnabled: invitePolicy.allowed,
+    inviteDisabledReason,
+    inviteUpgradeRequired: canActOnUpgrade,
   }
 }
 

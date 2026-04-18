@@ -8,9 +8,10 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { expireStalePendingInvitationsForOrganization } from '@/lib/invitations/core'
 
 const logger = createLogger('OrganizationRosterAPI')
 
@@ -41,6 +42,15 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         { status: 403 }
       )
     }
+
+    if (callerMembership.role !== 'owner' && callerMembership.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Forbidden - Organization admin access required' },
+        { status: 403 }
+      )
+    }
+
+    await expireStalePendingInvitationsForOrganization(organizationId)
 
     const orgWorkspaces = await db
       .select({ id: workspace.id, name: workspace.name })
@@ -118,7 +128,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
         inviteeImage: user.image,
       })
       .from(invitation)
-      .leftJoin(user, eq(user.email, invitation.email))
+      .leftJoin(user, sql`lower(${user.email}) = lower(${invitation.email})`)
       .where(and(eq(invitation.organizationId, organizationId), eq(invitation.status, 'pending')))
 
     const pendingInvitationIds = pendingInvitationRows.map((row) => row.id)

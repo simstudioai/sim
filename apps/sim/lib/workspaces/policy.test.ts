@@ -90,7 +90,11 @@ vi.mock('drizzle-orm', () => ({
   isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
 }))
 
-import { getWorkspaceCreationPolicy, WORKSPACE_MODE } from '@/lib/workspaces/policy'
+import {
+  getWorkspaceCreationPolicy,
+  getWorkspaceInvitePolicy,
+  WORKSPACE_MODE,
+} from '@/lib/workspaces/policy'
 
 describe('getWorkspaceCreationPolicy', () => {
   beforeEach(() => {
@@ -208,5 +212,121 @@ describe('getWorkspaceCreationPolicy', () => {
     expect(result.canCreate).toBe(false)
     expect(result.workspaceMode).toBe(WORKSPACE_MODE.ORGANIZATION)
     expect(result.reason).toContain('owners and admins')
+  })
+})
+
+describe('getWorkspaceInvitePolicy', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockFeatureFlags.isBillingEnabled = true
+    mockGetHighestPrioritySubscription.mockResolvedValue(null)
+  })
+
+  const baseState = {
+    workspaceMode: WORKSPACE_MODE.PERSONAL,
+    organizationId: null,
+    billedAccountUserId: 'owner-1',
+    ownerId: 'owner-1',
+  } as const
+
+  it('allows invites unconditionally when billing is disabled', async () => {
+    mockFeatureFlags.isBillingEnabled = false
+
+    const result = await getWorkspaceInvitePolicy(baseState)
+
+    expect(result.allowed).toBe(true)
+    expect(result.upgradeRequired).toBe(false)
+    expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
+  })
+
+  it('blocks personal workspaces with an upgrade prompt', async () => {
+    const result = await getWorkspaceInvitePolicy(baseState)
+
+    expect(result.allowed).toBe(false)
+    expect(result.upgradeRequired).toBe(true)
+    expect(result.reason).toBe('Upgrade to invite more members')
+  })
+
+  it('allows org workspaces and flags them as seat-gated', async () => {
+    const result = await getWorkspaceInvitePolicy({
+      ...baseState,
+      workspaceMode: WORKSPACE_MODE.ORGANIZATION,
+      organizationId: 'org-1',
+    })
+
+    expect(result.allowed).toBe(true)
+    expect(result.requiresSeat).toBe(true)
+    expect(result.organizationId).toBe('org-1')
+  })
+
+  it('blocks org workspaces without an organization id', async () => {
+    const result = await getWorkspaceInvitePolicy({
+      ...baseState,
+      workspaceMode: WORKSPACE_MODE.ORGANIZATION,
+    })
+
+    expect(result.allowed).toBe(false)
+    expect(result.upgradeRequired).toBe(true)
+  })
+
+  it('allows grandfathered workspaces when the billed user has a team plan', async () => {
+    mockGetHighestPrioritySubscription.mockResolvedValueOnce({
+      id: 'sub-1',
+      plan: 'team_6000',
+      status: 'active',
+    })
+
+    const result = await getWorkspaceInvitePolicy({
+      ...baseState,
+      workspaceMode: WORKSPACE_MODE.GRANDFATHERED_SHARED,
+    })
+
+    expect(result.allowed).toBe(true)
+    expect(result.upgradeRequired).toBe(false)
+    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledWith('owner-1')
+  })
+
+  it('allows grandfathered workspaces when the billed user has an enterprise plan', async () => {
+    mockGetHighestPrioritySubscription.mockResolvedValueOnce({
+      id: 'sub-1',
+      plan: 'enterprise',
+      status: 'active',
+    })
+
+    const result = await getWorkspaceInvitePolicy({
+      ...baseState,
+      workspaceMode: WORKSPACE_MODE.GRANDFATHERED_SHARED,
+    })
+
+    expect(result.allowed).toBe(true)
+  })
+
+  it('blocks grandfathered workspaces when the billed user is on a free plan', async () => {
+    mockGetHighestPrioritySubscription.mockResolvedValueOnce(null)
+
+    const result = await getWorkspaceInvitePolicy({
+      ...baseState,
+      workspaceMode: WORKSPACE_MODE.GRANDFATHERED_SHARED,
+    })
+
+    expect(result.allowed).toBe(false)
+    expect(result.upgradeRequired).toBe(true)
+    expect(result.reason).toBe('Upgrade to invite more members')
+  })
+
+  it('blocks grandfathered workspaces when the billed user is on a pro plan', async () => {
+    mockGetHighestPrioritySubscription.mockResolvedValueOnce({
+      id: 'sub-1',
+      plan: 'pro_6000',
+      status: 'active',
+    })
+
+    const result = await getWorkspaceInvitePolicy({
+      ...baseState,
+      workspaceMode: WORKSPACE_MODE.GRANDFATHERED_SHARED,
+    })
+
+    expect(result.allowed).toBe(false)
+    expect(result.upgradeRequired).toBe(true)
   })
 })

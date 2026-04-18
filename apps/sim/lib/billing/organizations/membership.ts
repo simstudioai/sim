@@ -106,12 +106,25 @@ export interface RestoreProResult {
 }
 
 /**
- * Restore a user's personal Pro subscription if it was paused (cancelAtPeriodEnd=true).
- * Also restores any snapshotted Pro usage from when they joined a team.
+ * Restore a user's personal Pro subscription if it was paused
+ * (`cancelAtPeriodEnd = true`) and merge any snapshotted Pro usage back
+ * into their current-period usage.
+ *
+ * All DB mutations run inside a single transaction so partial progress
+ * cannot be committed: either both the subscription un-pause and the
+ * usage snapshot merge succeed, or neither does. Errors propagate to
+ * the caller so webhook handlers can rely on Stripe retry semantics.
+ *
+ * Idempotent:
+ *   - Early returns when the user has no paused Pro subscription, so
+ *     re-runs after a successful restore are no-ops.
+ *   - The snapshot merge only runs when `proPeriodCostSnapshot > 0`,
+ *     so a second call after a prior success (which zeroes the
+ *     snapshot) does nothing.
  *
  * Called when:
- * - A member leaves a team (via removeUserFromOrganization)
- * - A team subscription ends (members stay but get Pro restored)
+ *   - A member leaves a team (via `removeUserFromOrganization`).
+ *   - A team subscription ends (members stay but get Pro restored).
  */
 export async function restoreUserProSubscription(userId: string): Promise<RestoreProResult> {
   const result: RestoreProResult = {
@@ -119,102 +132,84 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
     usageRestored: false,
   }
 
-  try {
-    const [personalPro] = await db
-      .select()
-      .from(subscriptionTable)
-      .where(
-        and(
-          eq(subscriptionTable.referenceId, userId),
-          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
-          sqlIsPro(subscriptionTable.plan)
-        )
+  const [personalPro] = await db
+    .select()
+    .from(subscriptionTable)
+    .where(
+      and(
+        eq(subscriptionTable.referenceId, userId),
+        inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
+        sqlIsPro(subscriptionTable.plan)
       )
+    )
+    .limit(1)
+
+  if (!personalPro?.cancelAtPeriodEnd || !personalPro.stripeSubscriptionId) {
+    return result
+  }
+
+  result.subscriptionId = personalPro.id
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(subscriptionTable)
+      .set({ cancelAtPeriodEnd: false })
+      .where(eq(subscriptionTable.id, personalPro.id))
+
+    await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+      stripeSubscriptionId: personalPro.stripeSubscriptionId,
+      subscriptionId: personalPro.id,
+      reason: 'member-left-paid-org',
+    })
+
+    result.restored = true
+
+    const [stats] = await tx
+      .select({
+        currentPeriodCost: userStats.currentPeriodCost,
+        proPeriodCostSnapshot: userStats.proPeriodCostSnapshot,
+      })
+      .from(userStats)
+      .where(eq(userStats.userId, userId))
       .limit(1)
 
-    if (!personalPro?.cancelAtPeriodEnd || !personalPro.stripeSubscriptionId) {
-      return result
+    if (!stats) {
+      return
     }
 
-    result.subscriptionId = personalPro.id
+    const currentNum = toNumber(toDecimal(stats.currentPeriodCost))
+    const snapshotNum = toNumber(toDecimal(stats.proPeriodCostSnapshot))
 
-    try {
-      await db.transaction(async (tx) => {
-        await tx
-          .update(subscriptionTable)
-          .set({ cancelAtPeriodEnd: false })
-          .where(eq(subscriptionTable.id, personalPro.id))
-
-        if (personalPro.stripeSubscriptionId) {
-          await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
-            stripeSubscriptionId: personalPro.stripeSubscriptionId,
-            subscriptionId: personalPro.id,
-            reason: 'member-left-paid-org',
-          })
-        }
-      })
-
-      result.restored = true
-      logger.info('Restored personal Pro subscription (DB committed, Stripe queued)', {
-        userId,
-        subscriptionId: personalPro.id,
-      })
-    } catch (dbError) {
-      logger.error('Failed to restore personal Pro subscription', {
-        userId,
-        subscriptionId: personalPro.id,
-        error: dbError,
-      })
+    if (snapshotNum <= 0) {
+      return
     }
 
-    try {
-      const [stats] = await db
-        .select({
-          currentPeriodCost: userStats.currentPeriodCost,
-          proPeriodCostSnapshot: userStats.proPeriodCostSnapshot,
-        })
-        .from(userStats)
-        .where(eq(userStats.userId, userId))
-        .limit(1)
+    const restoredUsage = (currentNum + snapshotNum).toString()
 
-      if (stats) {
-        const currentNum = toNumber(toDecimal(stats.currentPeriodCost))
-        const snapshotNum = toNumber(toDecimal(stats.proPeriodCostSnapshot))
-
-        if (snapshotNum > 0) {
-          const restoredUsage = (currentNum + snapshotNum).toString()
-
-          await db
-            .update(userStats)
-            .set({
-              currentPeriodCost: restoredUsage,
-              proPeriodCostSnapshot: '0',
-              proPeriodCostSnapshotAt: null,
-            })
-            .where(eq(userStats.userId, userId))
-
-          result.usageRestored = true
-
-          logger.info('Restored Pro usage snapshot', {
-            userId,
-            previousUsage: currentNum,
-            snapshotUsage: snapshotNum,
-            restoredUsage,
-          })
-        }
-      }
-    } catch (usageRestoreError) {
-      logger.error('Failed to restore Pro usage snapshot', {
-        userId,
-        error: usageRestoreError,
+    await tx
+      .update(userStats)
+      .set({
+        currentPeriodCost: restoredUsage,
+        proPeriodCostSnapshot: '0',
+        proPeriodCostSnapshotAt: null,
       })
-    }
-  } catch (error) {
-    logger.error('Failed to restore user Pro subscription', {
+      .where(eq(userStats.userId, userId))
+
+    result.usageRestored = true
+
+    logger.info('Restored Pro usage snapshot', {
       userId,
-      error,
+      previousUsage: currentNum,
+      snapshotUsage: snapshotNum,
+      restoredUsage,
     })
-  }
+  })
+
+  logger.info('Restored personal Pro subscription (DB committed, Stripe queued)', {
+    userId,
+    subscriptionId: personalPro.id,
+    usageRestored: result.usageRestored,
+  })
 
   return result
 }
@@ -391,6 +386,157 @@ export async function validateMembershipAddition(
   }
 }
 
+interface PaidOrgJoinBillingActions {
+  proUsageSnapshotted: boolean
+  proCancelledAtPeriodEnd: boolean
+}
+
+/**
+ * Applies the billing side-effects of a user joining a paid (Team/Enterprise)
+ * organization inside an existing transaction:
+ *   - snapshots current Pro usage so new usage attributes to the org;
+ *   - marks personal Pro subscription `cancelAtPeriodEnd=true` and enqueues
+ *     the Stripe sync via the outbox;
+ *   - transfers personal storage bytes into the org's pool.
+ *
+ * Idempotent: re-running is a no-op when Pro is already flagged cancel-at-period-end
+ * and the user's storage is already transferred (zeroed).
+ */
+async function applyPaidOrgJoinBillingTx(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  userId: string,
+  organizationId: string
+): Promise<PaidOrgJoinBillingActions> {
+  const actions: PaidOrgJoinBillingActions = {
+    proUsageSnapshotted: false,
+    proCancelledAtPeriodEnd: false,
+  }
+
+  const [personalPro] = await tx
+    .select()
+    .from(subscriptionTable)
+    .where(
+      and(
+        eq(subscriptionTable.referenceId, userId),
+        inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
+        sqlIsPro(subscriptionTable.plan)
+      )
+    )
+    .limit(1)
+
+  if (personalPro && !personalPro.cancelAtPeriodEnd) {
+    const [userStatsRow] = await tx
+      .select({ currentPeriodCost: userStats.currentPeriodCost })
+      .from(userStats)
+      .where(eq(userStats.userId, userId))
+      .limit(1)
+
+    if (userStatsRow) {
+      const currentProUsage = userStatsRow.currentPeriodCost || '0'
+
+      await tx
+        .update(userStats)
+        .set({
+          proPeriodCostSnapshot: currentProUsage,
+          proPeriodCostSnapshotAt: new Date(),
+          currentPeriodCost: '0',
+          currentPeriodCopilotCost: '0',
+        })
+        .where(eq(userStats.userId, userId))
+
+      actions.proUsageSnapshotted = true
+
+      logger.info('Snapshotted Pro usage when joining paid org', {
+        userId,
+        proUsageSnapshot: currentProUsage,
+        organizationId,
+      })
+    }
+
+    await tx
+      .update(subscriptionTable)
+      .set({ cancelAtPeriodEnd: true })
+      .where(eq(subscriptionTable.id, personalPro.id))
+
+    if (personalPro.stripeSubscriptionId) {
+      await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+        stripeSubscriptionId: personalPro.stripeSubscriptionId,
+        subscriptionId: personalPro.id,
+        reason: 'joined-paid-org',
+      })
+    }
+
+    actions.proCancelledAtPeriodEnd = true
+
+    logger.info('Marked personal Pro for cancellation at period end (Stripe queued)', {
+      userId,
+      subscriptionId: personalPro.id,
+      organizationId,
+    })
+  }
+
+  const storageRows = await tx
+    .select({ storageUsedBytes: userStats.storageUsedBytes })
+    .from(userStats)
+    .where(eq(userStats.userId, userId))
+    .for('update')
+    .limit(1)
+
+  const bytesToTransfer = storageRows[0]?.storageUsedBytes ?? 0
+  if (bytesToTransfer > 0) {
+    await tx
+      .update(organization)
+      .set({
+        storageUsedBytes: sql`${organization.storageUsedBytes} + ${bytesToTransfer}`,
+      })
+      .where(eq(organization.id, organizationId))
+
+    await tx.update(userStats).set({ storageUsedBytes: 0 }).where(eq(userStats.userId, userId))
+
+    logger.info('Transferred personal storage bytes to org pool on join', {
+      userId,
+      organizationId,
+      bytes: bytesToTransfer,
+    })
+  }
+
+  return actions
+}
+
+/**
+ * Re-applies paid-org join billing for a user who is already a member of
+ * the organization. Used on re-upgrade after a dormant transition: members
+ * kept their org membership but had their personal Pro subscriptions
+ * restored (`cancelAtPeriodEnd=false`) during the cancel/downgrade. When
+ * the org becomes paid again, those Pros must be re-paused so the user
+ * isn't double-billed.
+ *
+ * No-op when the org has no active Team/Enterprise subscription.
+ */
+export async function reapplyPaidOrgJoinBillingForExistingMember(
+  userId: string,
+  organizationId: string
+): Promise<PaidOrgJoinBillingActions> {
+  return db.transaction(async (tx) => {
+    const [orgSub] = await tx
+      .select({ plan: subscriptionTable.plan })
+      .from(subscriptionTable)
+      .where(
+        and(
+          eq(subscriptionTable.referenceId, organizationId),
+          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+        )
+      )
+      .limit(1)
+
+    if (!orgSub || !isPaid(orgSub.plan)) {
+      return { proUsageSnapshotted: false, proCancelledAtPeriodEnd: false }
+    }
+
+    return applyPaidOrgJoinBillingTx(tx, userId, organizationId)
+  })
+}
+
 /**
  * Add a user to an organization with full billing logic.
  *
@@ -478,106 +624,10 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
         createdAt: new Date(),
       })
 
-      // Handle Pro subscription if org is paid and we're not skipping billing logic
       if (orgIsPaid && !skipBillingLogic) {
-        // Find user's active personal Pro subscription
-        const [personalPro] = await tx
-          .select()
-          .from(subscriptionTable)
-          .where(
-            and(
-              eq(subscriptionTable.referenceId, userId),
-              inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES),
-              sqlIsPro(subscriptionTable.plan)
-            )
-          )
-          .limit(1)
-
-        if (personalPro) {
-          // Snapshot the current Pro usage before resetting
-          const [userStatsRow] = await tx
-            .select({ currentPeriodCost: userStats.currentPeriodCost })
-            .from(userStats)
-            .where(eq(userStats.userId, userId))
-            .limit(1)
-
-          if (userStatsRow) {
-            const currentProUsage = userStatsRow.currentPeriodCost || '0'
-
-            // Snapshot Pro usage and reset currentPeriodCost so new usage goes to team
-            await tx
-              .update(userStats)
-              .set({
-                proPeriodCostSnapshot: currentProUsage,
-                proPeriodCostSnapshotAt: new Date(),
-                currentPeriodCost: '0',
-                currentPeriodCopilotCost: '0',
-              })
-              .where(eq(userStats.userId, userId))
-
-            billingActions.proUsageSnapshotted = true
-
-            logger.info('Snapshotted Pro usage when adding to team', {
-              userId,
-              proUsageSnapshot: currentProUsage,
-              organizationId,
-            })
-          }
-
-          // Mark Pro for cancellation at period end AND enqueue the
-          // Stripe sync atomically with this transaction. Caller must
-          // not make a Stripe call — the outbox worker handles it.
-          if (!personalPro.cancelAtPeriodEnd) {
-            await tx
-              .update(subscriptionTable)
-              .set({ cancelAtPeriodEnd: true })
-              .where(eq(subscriptionTable.id, personalPro.id))
-
-            if (personalPro.stripeSubscriptionId) {
-              await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
-                stripeSubscriptionId: personalPro.stripeSubscriptionId,
-                subscriptionId: personalPro.id,
-                reason: 'admin-added-to-paid-org',
-              })
-            }
-
-            billingActions.proCancelledAtPeriodEnd = true
-
-            logger.info('Marked personal Pro for cancellation at period end (Stripe queued)', {
-              userId,
-              subscriptionId: personalPro.id,
-              organizationId,
-            })
-          }
-        }
-
-        const storageRows = await tx
-          .select({ storageUsedBytes: userStats.storageUsedBytes })
-          .from(userStats)
-          .where(eq(userStats.userId, userId))
-          .for('update')
-          .limit(1)
-
-        const bytesToTransfer = storageRows[0]?.storageUsedBytes ?? 0
-        if (bytesToTransfer > 0) {
-          await tx
-            .update(organization)
-            .set({
-              storageUsedBytes: sql`${organization.storageUsedBytes} + ${bytesToTransfer}`,
-            })
-            .where(eq(organization.id, organizationId))
-
-          await tx
-            .update(userStats)
-            .set({ storageUsedBytes: 0 })
-            .where(eq(userStats.userId, userId))
-
-          logger.info('Transferred personal storage bytes to org pool on admin add', {
-            userId,
-            organizationId,
-            bytes: bytesToTransfer,
-          })
-        }
+        const joinBillingActions = await applyPaidOrgJoinBillingTx(tx, userId, organizationId)
+        billingActions.proUsageSnapshotted = joinBillingActions.proUsageSnapshotted
+        billingActions.proCancelledAtPeriodEnd = joinBillingActions.proCancelledAtPeriodEnd
       }
     })
 

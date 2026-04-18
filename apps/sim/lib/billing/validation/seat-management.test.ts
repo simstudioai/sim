@@ -61,6 +61,8 @@ vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
   count: vi.fn(() => ({ type: 'count' })),
   eq: vi.fn((field: unknown, value: unknown) => ({ type: 'eq', field, value })),
+  gt: vi.fn((field: unknown, value: unknown) => ({ type: 'gt', field, value })),
+  ne: vi.fn((field: unknown, value: unknown) => ({ type: 'ne', field, value })),
 }))
 
 vi.mock('@/lib/billing/core/billing', () => ({
@@ -107,14 +109,14 @@ describe('getOrganizationSeatInfo', () => {
   })
 
   it('returns unlimited seat info when billing is disabled', async () => {
-    mockDbResults.value = [[{ id: 'org-1', name: 'Acme' }], [{ count: 3 }]]
+    mockDbResults.value = [[{ id: 'org-1', name: 'Acme' }], [{ count: 3 }], [{ count: 2 }]]
 
     const result = await getOrganizationSeatInfo('org-1')
 
     expect(result).toEqual({
       organizationId: 'org-1',
       organizationName: 'Acme',
-      currentSeats: 3,
+      currentSeats: 5,
       maxSeats: Number.MAX_SAFE_INTEGER,
       availableSeats: Number.MAX_SAFE_INTEGER,
       subscriptionPlan: 'billing_disabled',

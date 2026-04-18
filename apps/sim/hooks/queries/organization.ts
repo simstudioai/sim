@@ -66,7 +66,7 @@ async function fetchOrganizationRoster(
   if (!orgId) return null
 
   const response = await fetch(`/api/organizations/${orgId}/roster`, { signal })
-  if (response.status === 404) return null
+  if (response.status === 403 || response.status === 404) return null
   if (!response.ok) {
     throw new Error('Failed to fetch organization roster')
   }
@@ -359,6 +359,7 @@ export function useInviteMember() {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.memberUsage(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
     },
   })
@@ -397,6 +398,7 @@ export function useRemoveMember() {
       queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.memberUsage(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.subscription(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
       queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
     },
@@ -427,6 +429,7 @@ export function useUpdateOrganizationMemberRole() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
     },
   })
 }
@@ -456,6 +459,7 @@ export function useUpdateInvitation() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
     },
   })
 }
@@ -486,6 +490,7 @@ export function useCancelInvitation() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
     },
   })
@@ -518,6 +523,7 @@ export function useResendInvitation() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
     },
   })
 }
@@ -553,6 +559,7 @@ export function useUpdateSeats() {
       queryClient.invalidateQueries({ queryKey: organizationKeys.subscription(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
     },
   })
 }

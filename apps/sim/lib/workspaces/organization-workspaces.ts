@@ -3,9 +3,12 @@ import { member, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
-import { ensureUserInOrganization } from '@/lib/billing/organizations/membership'
+import {
+  ensureUserInOrganization,
+  reapplyPaidOrgJoinBillingForExistingMember,
+} from '@/lib/billing/organizations/membership'
 import { generateId } from '@/lib/core/utils/uuid'
-import { WORKSPACE_MODE } from '@/lib/workspaces/policy'
+import { getOrganizationOwnerId, WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
 const logger = createLogger('OrganizationWorkspaces')
 
@@ -37,14 +40,6 @@ interface AttachOwnedWorkspacesToOrganizationParams {
   organizationId: string
 }
 
-export async function getOrganizationWorkspaceBillingUserId(
-  organizationId: string,
-  fallbackUserId: string
-): Promise<string> {
-  const organizationOwnerId = await getOrganizationOwnerId(organizationId)
-  return organizationOwnerId ?? fallbackUserId
-}
-
 export async function attachOwnedWorkspacesToOrganization({
   ownerUserId,
   organizationId,
@@ -54,10 +49,14 @@ export async function attachOwnedWorkspacesToOrganization({
     .from(workspace)
     .where(eq(workspace.ownerId, ownerUserId))
 
-  const billedAccountUserId = await getOrganizationWorkspaceBillingUserId(
-    organizationId,
-    ownerUserId
-  )
+  const billedAccountUserId = await getOrganizationOwnerId(organizationId)
+  if (!billedAccountUserId) {
+    logger.error('Attempted to attach workspaces to an organization without an owner', {
+      organizationId,
+      ownerUserId,
+    })
+    throw new Error(`Organization ${organizationId} has no owner membership`)
+  }
   const ownedWorkspaceIds = ownedWorkspaces.map((ownedWorkspace) => ownedWorkspace.id)
   const uniqueWorkspaceMemberIds = await getWorkspaceMemberIds(ownedWorkspaceIds)
   await assertWorkspaceMembersCanJoinOrganization(uniqueWorkspaceMemberIds, organizationId)
@@ -82,28 +81,53 @@ export async function attachOwnedWorkspacesToOrganization({
       throw new Error(result.error || 'Failed to sync workspace member into organization')
     }
 
-    if (!result.alreadyMember) {
+    if (result.alreadyMember) {
+      await reapplyPaidOrgJoinBillingForExistingMember(userId, organizationId)
+    } else {
       addedMemberIds.push(userId)
       await syncUsageLimitsFromSubscription(userId)
     }
   }
 
-  const attachedWorkspaceIds: string[] = []
+  const attachedWorkspaceIds = await db.transaction(async (tx) => {
+    const touched: string[] = []
+    const now = new Date()
 
-  for (const ownedWorkspace of ownedWorkspaces) {
-    await db
-      .update(workspace)
-      .set({
-        organizationId,
-        workspaceMode: WORKSPACE_MODE.ORGANIZATION,
-        billedAccountUserId,
-        updatedAt: new Date(),
-      })
-      .where(eq(workspace.id, ownedWorkspace.id))
+    for (const ownedWorkspace of ownedWorkspaces) {
+      await tx
+        .update(workspace)
+        .set({
+          organizationId,
+          workspaceMode: WORKSPACE_MODE.ORGANIZATION,
+          billedAccountUserId,
+          updatedAt: now,
+        })
+        .where(eq(workspace.id, ownedWorkspace.id))
 
-    await ensureWorkspaceAdminPermission(ownedWorkspace.id, billedAccountUserId)
-    attachedWorkspaceIds.push(ownedWorkspace.id)
-  }
+      await tx
+        .insert(permissions)
+        .values({
+          id: generateId(),
+          userId: billedAccountUserId,
+          entityType: 'workspace',
+          entityId: ownedWorkspace.id,
+          permissionType: 'admin',
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [permissions.userId, permissions.entityType, permissions.entityId],
+          set: {
+            permissionType: 'admin',
+            updatedAt: now,
+          },
+        })
+
+      touched.push(ownedWorkspace.id)
+    }
+
+    return touched
+  })
 
   logger.info('Attached owned workspaces to organization', {
     ownerUserId,
@@ -123,6 +147,13 @@ export async function detachOrganizationWorkspaces(
   organizationId: string
 ): Promise<DetachOrganizationWorkspacesResult> {
   const organizationOwnerId = await getOrganizationOwnerId(organizationId)
+  if (!organizationOwnerId) {
+    logger.warn(
+      'Detaching workspaces from an organization without an owner; using workspace owner as billed account',
+      { organizationId }
+    )
+  }
+
   const organizationWorkspaces = await db
     .select({ id: workspace.id, ownerId: workspace.ownerId })
     .from(workspace)
@@ -133,24 +164,47 @@ export async function detachOrganizationWorkspaces(
       )
     )
 
-  const detachedWorkspaceIds: string[] = []
+  const detachedWorkspaceIds = await db.transaction(async (tx) => {
+    const touched: string[] = []
+    const now = new Date()
 
-  for (const organizationWorkspace of organizationWorkspaces) {
-    const billedAccountUserId = organizationOwnerId ?? organizationWorkspace.ownerId
+    for (const organizationWorkspace of organizationWorkspaces) {
+      const billedAccountUserId = organizationOwnerId ?? organizationWorkspace.ownerId
 
-    await db
-      .update(workspace)
-      .set({
-        organizationId: null,
-        workspaceMode: WORKSPACE_MODE.GRANDFATHERED_SHARED,
-        billedAccountUserId,
-        updatedAt: new Date(),
-      })
-      .where(eq(workspace.id, organizationWorkspace.id))
+      await tx
+        .update(workspace)
+        .set({
+          organizationId: null,
+          workspaceMode: WORKSPACE_MODE.GRANDFATHERED_SHARED,
+          billedAccountUserId,
+          updatedAt: now,
+        })
+        .where(eq(workspace.id, organizationWorkspace.id))
 
-    await ensureWorkspaceAdminPermission(organizationWorkspace.id, billedAccountUserId)
-    detachedWorkspaceIds.push(organizationWorkspace.id)
-  }
+      await tx
+        .insert(permissions)
+        .values({
+          id: generateId(),
+          userId: billedAccountUserId,
+          entityType: 'workspace',
+          entityId: organizationWorkspace.id,
+          permissionType: 'admin',
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [permissions.userId, permissions.entityType, permissions.entityId],
+          set: {
+            permissionType: 'admin',
+            updatedAt: now,
+          },
+        })
+
+      touched.push(organizationWorkspace.id)
+    }
+
+    return touched
+  })
 
   logger.info('Detached organization workspaces', {
     organizationId,
@@ -162,40 +216,6 @@ export async function detachOrganizationWorkspaces(
     detachedWorkspaceIds,
     billedAccountUserId: organizationOwnerId,
   }
-}
-
-export async function ensureWorkspaceAdminPermission(
-  workspaceId: string,
-  userId: string
-): Promise<void> {
-  await db
-    .insert(permissions)
-    .values({
-      id: generateId(),
-      userId,
-      entityType: 'workspace',
-      entityId: workspaceId,
-      permissionType: 'admin',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: [permissions.userId, permissions.entityType, permissions.entityId],
-      set: {
-        permissionType: 'admin',
-        updatedAt: new Date(),
-      },
-    })
-}
-
-async function getOrganizationOwnerId(organizationId: string): Promise<string | null> {
-  const [ownerMembership] = await db
-    .select({ userId: member.userId })
-    .from(member)
-    .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
-    .limit(1)
-
-  return ownerMembership?.userId ?? null
 }
 
 async function assertWorkspaceMembersCanJoinOrganization(

@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockGetSession,
   mockGetWorkspaceWithOwner,
+  mockGetWorkspaceInvitePolicy,
   mockValidateInvitationsAllowed,
   mockValidateSeatAvailability,
   mockGetUserOrganization,
@@ -19,6 +20,7 @@ const {
 } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockGetWorkspaceWithOwner: vi.fn(),
+  mockGetWorkspaceInvitePolicy: vi.fn(),
   mockValidateInvitationsAllowed: vi.fn().mockResolvedValue(undefined),
   mockValidateSeatAvailability: vi.fn(),
   mockGetUserOrganization: vi.fn(),
@@ -66,6 +68,14 @@ vi.mock('drizzle-orm', () => ({
   eq: vi.fn((field: unknown, value: unknown) => ({ type: 'eq', field, value })),
   inArray: vi.fn((field: unknown, values: unknown[]) => ({ type: 'inArray', field, values })),
   isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
+  sql: Object.assign(
+    vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({
+      type: 'sql',
+      strings,
+      values,
+    })),
+    { raw: vi.fn((value: unknown) => ({ type: 'sql.raw', value })) }
+  ),
 }))
 
 vi.mock('@sim/logger', () => ({
@@ -81,10 +91,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 }))
 
 vi.mock('@/lib/workspaces/policy', () => ({
-  canWorkspaceInviteMembers: (ws: { workspaceMode?: string | null }) =>
-    ws.workspaceMode !== 'personal',
-  getWorkspaceInviteDisabledReason: () =>
-    'Member invites are only available for organization-owned or grandfathered shared workspaces.',
+  getWorkspaceInvitePolicy: mockGetWorkspaceInvitePolicy,
   isOrganizationWorkspace: (ws: {
     workspaceMode?: string | null
     organizationId?: string | null
@@ -146,6 +153,13 @@ describe('POST /api/workspaces/invitations', () => {
       billedAccountUserId: 'user-1',
     })
     mockValidateInvitationsAllowed.mockResolvedValue(undefined)
+    mockGetWorkspaceInvitePolicy.mockResolvedValue({
+      allowed: true,
+      reason: null,
+      requiresSeat: false,
+      organizationId: null,
+      upgradeRequired: false,
+    })
     mockValidateSeatAvailability.mockResolvedValue({
       canInvite: true,
       currentSeats: 1,
@@ -162,7 +176,7 @@ describe('POST /api/workspaces/invitations', () => {
     mockFindPendingGrantForWorkspaceEmail.mockResolvedValue(null)
   })
 
-  it('blocks invites for personal workspaces', async () => {
+  it('blocks invites for personal workspaces with an upgrade prompt', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValueOnce({
       id: 'workspace-1',
       name: 'Personal Workspace',
@@ -170,6 +184,13 @@ describe('POST /api/workspaces/invitations', () => {
       organizationId: null,
       workspaceMode: 'personal',
       billedAccountUserId: 'user-1',
+    })
+    mockGetWorkspaceInvitePolicy.mockResolvedValueOnce({
+      allowed: false,
+      reason: 'Upgrade to invite more members',
+      requiresSeat: false,
+      organizationId: null,
+      upgradeRequired: true,
     })
     mockDbResults.value = [[{ permissionType: 'admin' }]]
 
@@ -182,8 +203,41 @@ describe('POST /api/workspaces/invitations', () => {
     const response = await POST(request)
     const data = await response.json()
 
-    expect(response.status).toBe(400)
-    expect(data.error).toContain('Member invites are only available')
+    expect(response.status).toBe(403)
+    expect(data.error).toBe('Upgrade to invite more members')
+    expect(data.upgradeRequired).toBe(true)
+  })
+
+  it('blocks invites for grandfathered workspaces without a team plan', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValueOnce({
+      id: 'workspace-1',
+      name: 'Grandfathered Workspace',
+      ownerId: 'user-1',
+      organizationId: null,
+      workspaceMode: 'grandfathered_shared',
+      billedAccountUserId: 'user-1',
+    })
+    mockGetWorkspaceInvitePolicy.mockResolvedValueOnce({
+      allowed: false,
+      reason: 'Upgrade to invite more members',
+      requiresSeat: false,
+      organizationId: null,
+      upgradeRequired: true,
+    })
+    mockDbResults.value = [[{ permissionType: 'admin' }]]
+
+    const request = createMockRequest('POST', {
+      workspaceId: 'workspace-1',
+      email: 'new@example.com',
+      permission: 'read',
+    })
+
+    const response = await POST(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(data.upgradeRequired).toBe(true)
+    expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
   })
 
   it('rejects org-owned invites when the organization has no available seats', async () => {
@@ -194,6 +248,13 @@ describe('POST /api/workspaces/invitations', () => {
       organizationId: 'org-1',
       workspaceMode: 'organization',
       billedAccountUserId: 'owner-1',
+    })
+    mockGetWorkspaceInvitePolicy.mockResolvedValueOnce({
+      allowed: true,
+      reason: null,
+      requiresSeat: true,
+      organizationId: 'org-1',
+      upgradeRequired: false,
     })
     mockValidateSeatAvailability.mockResolvedValueOnce({
       canInvite: false,
@@ -227,6 +288,13 @@ describe('POST /api/workspaces/invitations', () => {
       organizationId: 'org-1',
       workspaceMode: 'organization',
       billedAccountUserId: 'owner-1',
+    })
+    mockGetWorkspaceInvitePolicy.mockResolvedValueOnce({
+      allowed: true,
+      reason: null,
+      requiresSeat: true,
+      organizationId: 'org-1',
+      upgradeRequired: false,
     })
     mockGetUserOrganization.mockResolvedValueOnce({
       organizationId: 'org-2',

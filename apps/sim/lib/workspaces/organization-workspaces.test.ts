@@ -13,6 +13,7 @@ const {
   mockDbInsert,
   mockEnsureUserInOrganization,
   mockSyncUsageLimitsFromSubscription,
+  mockReapplyPaidOrgJoinBillingForExistingMember,
 } = vi.hoisted(() => {
   const mockDbResults: { value: any[] } = { value: [] }
   const mockUpdateWhere = vi.fn().mockResolvedValue(undefined)
@@ -25,6 +26,10 @@ const {
   const mockDbInsert = vi.fn().mockReturnValue({ values: mockInsertValues })
   const mockEnsureUserInOrganization = vi.fn()
   const mockSyncUsageLimitsFromSubscription = vi.fn().mockResolvedValue(undefined)
+  const mockReapplyPaidOrgJoinBillingForExistingMember = vi.fn().mockResolvedValue({
+    proUsageSnapshotted: false,
+    proCancelledAtPeriodEnd: false,
+  })
 
   return {
     mockDbResults,
@@ -36,28 +41,38 @@ const {
     mockDbInsert,
     mockEnsureUserInOrganization,
     mockSyncUsageLimitsFromSubscription,
+    mockReapplyPaidOrgJoinBillingForExistingMember,
   }
 })
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn().mockImplementation(() => {
-      const chain: any = {}
-      chain.from = vi.fn().mockReturnValue(chain)
-      chain.where = vi.fn().mockReturnValue(chain)
-      chain.limit = vi
-        .fn()
-        .mockImplementation(() => Promise.resolve(mockDbResults.value.shift() || []))
-      chain.then = vi.fn().mockImplementation((callback: (rows: any[]) => unknown) => {
-        const result = mockDbResults.value.shift() || []
-        return Promise.resolve(callback ? callback(result) : result)
-      })
-      return chain
-    }),
+vi.mock('@sim/db', () => {
+  const selectImpl = vi.fn().mockImplementation(() => {
+    const chain: any = {}
+    chain.from = vi.fn().mockReturnValue(chain)
+    chain.where = vi.fn().mockReturnValue(chain)
+    chain.limit = vi
+      .fn()
+      .mockImplementation(() => Promise.resolve(mockDbResults.value.shift() || []))
+    chain.then = vi.fn().mockImplementation((callback: (rows: any[]) => unknown) => {
+      const result = mockDbResults.value.shift() || []
+      return Promise.resolve(callback ? callback(result) : result)
+    })
+    return chain
+  })
+  const txObject = {
+    select: selectImpl,
     update: mockDbUpdate,
     insert: mockDbInsert,
-  },
-}))
+  }
+  return {
+    db: {
+      select: selectImpl,
+      update: mockDbUpdate,
+      insert: mockDbInsert,
+      transaction: vi.fn(async (fn: (tx: typeof txObject) => unknown) => fn(txObject)),
+    },
+  }
+})
 
 vi.mock('@sim/db/schema', () => ({
   member: {
@@ -81,6 +96,7 @@ vi.mock('@sim/db/schema', () => ({
 
 vi.mock('@/lib/billing/organizations/membership', () => ({
   ensureUserInOrganization: mockEnsureUserInOrganization,
+  reapplyPaidOrgJoinBillingForExistingMember: mockReapplyPaidOrgJoinBillingForExistingMember,
 }))
 
 vi.mock('@/lib/billing/core/usage', () => ({
@@ -167,6 +183,11 @@ describe('organization workspace helpers', () => {
       skipSeatValidation: true,
     })
     expect(mockSyncUsageLimitsFromSubscription).toHaveBeenCalledWith('member-1')
+    expect(mockReapplyPaidOrgJoinBillingForExistingMember).toHaveBeenCalledWith('owner-1', 'org-1')
+    expect(mockReapplyPaidOrgJoinBillingForExistingMember).not.toHaveBeenCalledWith(
+      'member-1',
+      'org-1'
+    )
   })
 
   it('fails before attaching workspaces when an existing member belongs to another organization', async () => {

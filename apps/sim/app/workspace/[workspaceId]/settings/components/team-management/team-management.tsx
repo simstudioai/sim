@@ -231,26 +231,6 @@ export function TeamManagement() {
     [removeMemberDialog.memberId, session?.user?.id, activeOrganization?.id, removeMemberMutation]
   )
 
-  const handleReduceSeats = useCallback(async () => {
-    if (!session?.user || !activeOrganization?.id || !subscriptionData) return
-    if (checkEnterprisePlan(subscriptionData)) return
-
-    const currentSeats = subscriptionData.seats || 0
-    if (currentSeats <= 1) return
-
-    const { used: totalCount } = usedSeats
-    if (totalCount >= currentSeats) return
-
-    try {
-      await updateSeatsMutation.mutateAsync({
-        orgId: activeOrganization?.id,
-        seats: currentSeats - 1,
-      })
-    } catch (error) {
-      logger.error('Failed to reduce seats', error)
-    }
-  }, [session?.user?.id, activeOrganization?.id, subscriptionData, usedSeats, updateSeatsMutation])
-
   const handleAddSeatDialog = useCallback(() => {
     if (subscriptionData && !checkEnterprisePlan(subscriptionData)) {
       setNewSeatCount(totalSeats + 1)
@@ -278,15 +258,6 @@ export function TeamManagement() {
       }
     },
     [subscriptionData, activeOrganization?.id, newSeatCount, updateSeatsMutation]
-  )
-
-  const confirmTeamUpgrade = useCallback(
-    async (seats: number) => {
-      if (!session?.user || !activeOrganization?.id) return
-      logger.info('Team upgrade requested', { seats, organizationId: activeOrganization?.id })
-      alert(`Team upgrade to ${seats} seats - integration needed`)
-    },
-    [session?.user?.id, activeOrganization?.id]
   )
 
   const queryError = orgError || subscriptionError
@@ -376,26 +347,24 @@ export function TeamManagement() {
     )
   }
 
+  if (!adminOrOwner) {
+    return null
+  }
+
   return (
     <div className='flex h-full flex-col gap-5'>
-      {/* Seats Overview - Full Width */}
-      {adminOrOwner && (
-        <div>
-          <TeamSeatsOverview
-            subscriptionData={subscriptionData || null}
-            isLoadingSubscription={isLoadingSubscription}
-            totalSeats={totalSeats}
-            usedSeats={usedSeats.used}
-            isLoading={isLoading}
-            onConfirmTeamUpgrade={confirmTeamUpgrade}
-            onReduceSeats={handleReduceSeats}
-            onAddSeatDialog={handleAddSeatDialog}
-          />
-        </div>
-      )}
+      <div>
+        <TeamSeatsOverview
+          subscriptionData={subscriptionData || null}
+          isLoadingSubscription={isLoadingSubscription}
+          totalSeats={totalSeats}
+          usedSeats={usedSeats.used}
+          isLoading={isLoading}
+          onAddSeatDialog={handleAddSeatDialog}
+        />
+      </div>
 
-      {/* Action: Invite New Members - hidden when invitations are disabled */}
-      {adminOrOwner && !isInvitationsDisabled && (
+      {!isInvitationsDisabled && (
         <div>
           <MemberInvitationCard
             inviteEmails={inviteEmails}
