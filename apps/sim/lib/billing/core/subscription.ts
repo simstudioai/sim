@@ -62,13 +62,10 @@ export async function writeBillingInterval(
 }
 
 /**
- * Sync the subscription's `plan` column to match what Stripe currently
- * says it is. This closes a historical gap where Stripe-side plan changes
- * (e.g. Pro → Team upgrades, tier swaps) updated `seats` / `referenceId` /
- * pricing at Stripe but left the DB's `plan` column stale (see
- * customer sub `pro_6000` attached to an org with `seats=2`).
- *
- * Returns `true` if a write was issued, `false` if no update was needed.
+ * Sync the subscription's `plan` column to match Stripe. Closes a gap
+ * where plan changes (Pro → Team upgrades, tier swaps) updated price,
+ * seats, and referenceId at Stripe but left the DB plan stale. Returns
+ * `true` if a write was issued, `false` if no change was needed.
  */
 export async function syncSubscriptionPlan(
   subscriptionId: string,

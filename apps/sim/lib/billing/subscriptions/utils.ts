@@ -93,9 +93,8 @@ export function getEffectiveSeats(subscription: any): number {
     return 0
   }
 
-  // Team plans and `pro_*` plans attached to an organization both expose
-  // licensed seats via the `seats` column on the Stripe subscription.
-  // Personally-scoped `pro_*` subs have no seat concept, so they return 0.
+  // Mirrors the Stripe subscription's `quantity`. For personal Pro this
+  // is null in practice, so `?? 0` returns 0.
   if (isTeam(subscription.plan) || isPro(subscription.plan)) {
     return subscription.seats ?? 0
   }
@@ -112,17 +111,10 @@ export function checkTeamPlan(subscription: any): boolean {
 }
 
 /**
- * Returns true if the subscription's `referenceId` points at an organization
- * (i.e. it is not the caller's own `userId`).
- *
- * Prefer this over plan-name checks (`isOrgPlan`, `isTeam`) when deciding
- * whether reads/writes of the usage limit should be routed through the
- * organization or the user. A subscription with plan `pro_6000` whose
- * `referenceId` is an org id is org-scoped and must be treated as such,
- * even though `isTeam`/`isOrgPlan` return false for its plan name.
- *
- * Callers should pass the user id whose perspective is being evaluated
- * (normally the authenticated user or the billed-account user).
+ * True when the subscription's `referenceId` is an org (i.e. not the
+ * caller's own `userId`). Prefer this over plan-name checks for scope
+ * decisions — a `pro_*` sub attached to an org is org-scoped even though
+ * `isTeam` / `isOrgPlan` return false.
  */
 export function isOrgScopedSubscription(
   subscription: { referenceId?: string | null } | null | undefined,

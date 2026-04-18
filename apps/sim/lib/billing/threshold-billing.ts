@@ -123,9 +123,7 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
       return
     }
 
-    // Any org-scoped subscription (team plan, or `pro_*` attached to an org)
-    // is billed at the org level. The plan-name heuristic (`isTeam`) misses
-    // `pro_*` plans whose `referenceId` is an org id.
+    // Org-scoped subs are billed at the org level regardless of plan name.
     if (isOrgScopedSubscription(userSubscription, userId)) {
       logger.debug('Org-scoped subscription detected - triggering org-level threshold billing', {
         userId,
@@ -328,7 +326,6 @@ export async function checkAndBillOrganizationOverageThreshold(
     })
 
     if (isEnterprise(orgSubscription.plan) || isFree(orgSubscription.plan)) {
-      // Enterprise: no overage concept. Free: not billable.
       logger.debug('Organization plan not eligible for overage billing, skipping', {
         organizationId,
         plan: orgSubscription.plan,
@@ -419,16 +416,14 @@ export async function checkAndBillOrganizationOverageThreshold(
             periodStart: orgSubscription.periodStart,
             periodEnd: orgSubscription.periodEnd ?? null,
             planDollars,
-            seats: orgSubscription.seats ?? 1,
+            seats: orgSubscription.seats || 1,
           })
         }
       }
 
       const effectiveTeamUsage = Math.max(0, totalTeamUsage - dailyRefreshDeduction)
       const { basePrice: basePricePerSeat } = getPlanPricing(orgSubscription.plan)
-      // Base = basePrice × seats, matching Stripe's `price × quantity`.
-      // Personal Pro (seats null) collapses to basePrice × 1.
-      const basePrice = basePricePerSeat * (orgSubscription.seats ?? 1)
+      const basePrice = basePricePerSeat * (orgSubscription.seats || 1)
       const currentOverage = Math.max(0, effectiveTeamUsage - basePrice)
       const unbilledOverage = Math.max(0, currentOverage - totalBilledOverage)
 

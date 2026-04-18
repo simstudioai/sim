@@ -414,9 +414,6 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
       )
       .limit(1)
 
-    // Any paid subscription attached to the org (team, enterprise, or
-    // `pro_*` transferred to the org) makes the org a paid tenant for
-    // the purposes of cleaning up the joining user's personal Pro usage.
     const orgIsPaid = orgSub && isPaid(orgSub.plan)
 
     let memberId = ''
@@ -630,9 +627,7 @@ export async function removeUserFromOrganization(
               )
             )
 
-          // Any paid sub attached to an org the user is still a member
-          // of should prevent restoring their personal Pro — they're still
-          // covered by the org's plan, whatever its name.
+          // Still covered by a paid org sub → don't restore personal Pro.
           hasAnyPaidTeam = orgPaidSubs.some((s) => isPaid(s.plan))
         }
 

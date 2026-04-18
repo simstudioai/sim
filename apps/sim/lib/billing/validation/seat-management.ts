@@ -62,8 +62,6 @@ export async function validateSeatAvailability(
       }
     }
 
-    // Free plans can't support invitations. Any other paid plan attached
-    // to this org (team, enterprise, or `pro_*` with pooled seats) can.
     if (isFree(subscription.plan)) {
       return {
         canInvite: false,
@@ -82,9 +80,8 @@ export async function validateSeatAvailability(
 
     const currentSeats = memberCount[0]?.count || 0
 
-    // Determine seat limits based on subscription
-    // Team: seats from Stripe subscription quantity (seats column)
-    // Enterprise: seats from metadata.seats (not from seats column which is always 1)
+    // Team: seats from the `seats` column (Stripe quantity).
+    // Enterprise: seats from metadata.seats (column is always 1).
     const maxSeats = getEffectiveSeats(subscription)
 
     const availableSeats = Math.max(0, maxSeats - currentSeats)
@@ -157,7 +154,6 @@ export async function getOrganizationSeatInfo(
 
     const currentSeats = memberCount[0]?.count || 0
 
-    // Team: seats from column, Enterprise: seats from metadata
     const maxSeats = getEffectiveSeats(subscription)
 
     const canAddSeats = !isEnterprise(subscription.plan)

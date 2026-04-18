@@ -42,10 +42,6 @@ export class RateLimiter {
   private getRateLimitKey(userId: string, subscription: SubscriptionInfo | null): string {
     if (!subscription) return userId
 
-    // Pool rate limits at the org level whenever the subscription is
-    // attached to an organization — this covers team/enterprise AND
-    // `pro_*` plans that have been transferred to an org (plan name alone
-    // is not a reliable signal of scope).
     if (isOrgScopedSubscription(subscription, userId)) {
       return subscription.referenceId
     }

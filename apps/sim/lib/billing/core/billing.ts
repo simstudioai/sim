@@ -168,7 +168,7 @@ export async function calculateSubscriptionOverage(sub: {
         periodStart: sub.periodStart,
         periodEnd: sub.periodEnd ?? null,
         planDollars,
-        seats: sub.seats ?? 1,
+        seats: sub.seats || 1,
       })
     }
 
@@ -177,9 +177,7 @@ export async function calculateSubscriptionOverage(sub: {
       totalUsageWithDepartedDecimal.minus(toDecimal(dailyRefreshDeduction))
     )
     const { basePrice } = getPlanPricing(sub.plan ?? '')
-    // Base = basePrice × seats (or × 1 when seats is null), mirroring
-    // Stripe's `price × quantity` for every paid non-enterprise plan.
-    const baseSubscriptionAmount = (sub.seats ?? 1) * basePrice
+    const baseSubscriptionAmount = (sub.seats || 1) * basePrice
     totalOverageDecimal = Decimal.max(0, effectiveUsageDecimal.minus(baseSubscriptionAmount))
 
     logger.info('Calculated org-scoped overage', {
@@ -192,13 +190,11 @@ export async function calculateSubscriptionOverage(sub: {
       totalOverage: toNumber(totalOverageDecimal),
     })
   } else if (isPro(sub.plan)) {
-    // Personal Pro finalization. Read this user's own row directly instead
-    // of going through `getUserUsageData` — that helper follows
-    // `getHighestPrioritySubscription`, which now prefers an org sub over
-    // a personal sub within the same tier. During the `cancelAtPeriodEnd`
-    // grace window (user has an active personal Pro AND is a member of a
-    // paid org), routing through the priority lookup would bill pooled
-    // org usage on the personal Pro's final invoice.
+    // Read user_stats directly (not via `getUserUsageData`). Priority
+    // lookup prefers org over personal within tier, so during a
+    // cancel-at-period-end grace window it would return pooled org usage
+    // instead of this user's personal period — overbilling the final
+    // personal Pro invoice.
     const [statsRow] = await db
       .select({
         currentPeriodCost: userStats.currentPeriodCost,
@@ -211,12 +207,10 @@ export async function calculateSubscriptionOverage(sub: {
     const personalCurrentUsage = statsRow ? toNumber(toDecimal(statsRow.currentPeriodCost)) : 0
     const snapshotUsage = statsRow ? toNumber(toDecimal(statsRow.proPeriodCostSnapshot)) : 0
 
-    // Attribution rule: if the user joined a paid org mid-cycle, their
-    // pre-join usage is in `proPeriodCostSnapshot` and their post-join
-    // usage (still accumulating in `currentPeriodCost`) now belongs to the
-    // org pool. This personal-Pro invoice must only bill the pre-join
-    // portion, otherwise post-join org usage gets double-charged here and
-    // on the org's own invoice.
+    // If snapshot > 0 the user joined a paid org mid-cycle: pre-join
+    // usage sits in `proPeriodCostSnapshot`, post-join is still
+    // accumulating in `currentPeriodCost` and will be billed by the org.
+    // Bill only the snapshot here to avoid double-charging.
     const joinedOrgMidCycle = snapshotUsage > 0
     const totalProUsageDecimal = joinedOrgMidCycle
       ? toDecimal(snapshotUsage)
@@ -231,7 +225,6 @@ export async function calculateSubscriptionOverage(sub: {
       })
     }
 
-    // Apply personal daily refresh for this sub's own period.
     let dailyRefreshDeduction = 0
     const planDollars = getPlanTierDollars(sub.plan)
     if (planDollars > 0 && sub.periodStart) {
@@ -261,8 +254,7 @@ export async function calculateSubscriptionOverage(sub: {
       totalOverage: toNumber(totalOverageDecimal),
     })
   } else {
-    // Free plan or unknown plan type scoped to a user. Read personal row
-    // directly for the same reason as the Pro branch above.
+    // Free or unknown plan. Same direct-read rationale as the Pro branch.
     const [statsRow] = await db
       .select({ currentPeriodCost: userStats.currentPeriodCost })
       .from(userStats)
@@ -306,13 +298,7 @@ export async function getSimplifiedBillingSummary(
   isPro: boolean
   isTeam: boolean
   isEnterprise: boolean
-  /**
-   * True when the subscription is attached to an organization rather than
-   * the user. Includes `pro_*` plans that have been transferred to an org;
-   * prefer this over `isTeam` / `isEnterprise` for scope decisions (which
-   * API context to use, whether to pool usage, whether the limit is edited
-   * at the org level, etc.).
-   */
+  /** True when the subscription's `referenceId` is an organization id. */
   isOrgScoped: boolean
   /** Present when `isOrgScoped` is true. */
   organizationId: string | null
@@ -346,16 +332,12 @@ export async function getSimplifiedBillingSummary(
       getUserUsageData(userId),
     ])
 
-    // Determine subscription type flags
     const plan = subscription?.plan || 'free'
     const hasPaidEntitlement = hasPaidSubscriptionStatus(subscription?.status)
     const planIsPaid = hasPaidEntitlement && isPaid(plan)
     const planIsPro = hasPaidEntitlement && isPro(plan)
     const planIsTeam = hasPaidEntitlement && isTeam(plan)
     const planIsEnterprise = hasPaidEntitlement && isEnterprise(plan)
-    // Source of truth for "is this subscription at org level?" is the
-    // subscription's referenceId, not its plan name. A `pro_6000` attached
-    // to an org is org-scoped even though `isTeam` would return false.
     const orgScoped = isOrgScopedSubscription(subscription, userId)
     const subscriptionOrgId = orgScoped && subscription ? subscription.referenceId : null
 
@@ -365,9 +347,9 @@ export async function getSimplifiedBillingSummary(
         return getDefaultBillingSummary('organization')
       }
 
-      // Pool usage/copilot across all org members in a single query — do
-      // NOT call `getUserUsageData` per member because that now returns the
-      // entire pool for org-scoped subs, which would N-times-count.
+      // Pool usage/copilot across all members in one query. Must not use
+      // `getUserUsageData` per-member — it now returns the pool itself
+      // for org-scoped subs, which would N-times-count.
       const pooled = await aggregateOrgMemberStats(organizationId)
 
       const totalCurrentUsage = pooled.currentPeriodCost
@@ -429,9 +411,6 @@ export async function getSimplifiedBillingSummary(
       }
     }
 
-    // Individual billing summary. Fetch copilot cost for the breakdown
-    // inside `usage`; pool across org members when org-scoped so the
-    // display numbers match what enforcement sees.
     const userStatsRows = await db
       .select({
         currentPeriodCopilotCost: userStats.currentPeriodCopilotCost,

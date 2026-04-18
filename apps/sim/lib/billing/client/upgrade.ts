@@ -65,9 +65,6 @@ export function useSubscriptionUpgrade() {
           )
 
           if (existingOrg) {
-            // Check if this org already has ANY paid subscription — team,
-            // enterprise, or a `pro_*` that's been transferred to the org.
-            // Upgrading again would create a duplicate.
             const existingOrgSub = allSubscriptions.find(
               (sub: any) =>
                 hasPaidSubscriptionStatus(sub.status) &&

@@ -155,9 +155,6 @@ export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) =
       .limit(1)
 
     const userSubscription = await getHighestPrioritySubscription(userId)
-    // True for any user whose effective subscription is attached to an org
-    // (team, enterprise, or `pro_*` transferred to an org). They have no
-    // individual usage limit — the org cap governs.
     const isOrgScopedMember = isOrgScopedSubscription(userSubscription, userId)
 
     const [orgMembership] = await db

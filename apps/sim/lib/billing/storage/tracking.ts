@@ -27,8 +27,7 @@ export async function incrementStorageUsage(userId: string, bytes: number): Prom
     const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
     const sub = await getHighestPrioritySubscription(userId)
 
-    // Org-scoped subscriptions (including `pro_*` on org) pool storage at
-    // the org level; personal plans track per-user.
+    // Org-scoped subs pool at the org level; personal plans per-user.
     if (isOrgScopedSubscription(sub, userId) && sub) {
       await db
         .update(organization)

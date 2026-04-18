@@ -143,7 +143,6 @@ export async function getOrganizationBillingData(
     // Calculate aggregated statistics
     let totalCurrentUsage = members.reduce((sum, m) => sum + m.currentUsage, 0)
 
-    // Deduct daily refresh from pooled usage
     if (isPaid(subscription.plan) && subscription.periodStart) {
       const planDollars = getPlanTierDollars(subscription.plan)
       if (planDollars > 0) {
@@ -153,44 +152,33 @@ export async function getOrganizationBillingData(
           periodStart: subscription.periodStart,
           periodEnd: subscription.periodEnd ?? null,
           planDollars,
-          seats: subscription.seats ?? 1,
+          seats: subscription.seats || 1,
         })
         totalCurrentUsage = Math.max(0, totalCurrentUsage - refreshConsumed)
       }
     }
 
-    // Get per-seat pricing for the plan
     const { basePrice: pricePerSeat } = getPlanPricing(subscription.plan)
 
-    // Licensed seats mirrors Stripe's subscription quantity. Default to 1
-    // for null rows to match the unified `basePrice × (seats ?? 1)` formula
-    // used in `getOrgUsageLimit`, `updateOrganizationUsageLimit`, overage,
-    // and threshold billing — so admin dashboard math agrees with
-    // enforcement math.
-    const licensedSeats = subscription.seats ?? 1
+    // Stripe subscription quantity; `||` not `??` because 0 seats is
+    // never valid for a paid sub — fall through to 1.
+    const licensedSeats = subscription.seats || 1
 
-    // For seat count used in UI (invitations, team management):
-    // Team: seats column (Stripe quantity)
-    // Enterprise: metadata.seats (allocated seats, not Stripe quantity which is always 1)
+    // UI seat count — metadata.seats on enterprise (column is always 1).
     const effectiveSeats = getEffectiveSeats(subscription)
 
-    // Calculate minimum billing amount
     let minimumBillingAmount: number
     let totalUsageLimit: number
 
     if (isEnterprise(subscription.plan)) {
-      // Enterprise has fixed pricing set through custom Stripe product
-      // Their usage limit is configured to match their monthly cost
       const configuredLimit = organizationData.orgUsageLimit
         ? Number.parseFloat(organizationData.orgUsageLimit)
         : 0
-      minimumBillingAmount = configuredLimit // For enterprise, this equals their fixed monthly cost
-      totalUsageLimit = configuredLimit // Same as their monthly cost
+      minimumBillingAmount = configuredLimit
+      totalUsageLimit = configuredLimit
     } else {
-      // Team plan: Billing is based on licensed seats from Stripe
       minimumBillingAmount = licensedSeats * pricePerSeat
 
-      // Total usage limit: never below the minimum based on licensed seats
       const configuredLimit = organizationData.orgUsageLimit
         ? Number.parseFloat(organizationData.orgUsageLimit)
         : null
@@ -202,7 +190,6 @@ export async function getOrganizationBillingData(
 
     const averageUsagePerMember = members.length > 0 ? totalCurrentUsage / members.length : 0
 
-    // Billing period comes from the organization's subscription
     const billingPeriodStart = subscription.periodStart || null
     const billingPeriodEnd = subscription.periodEnd || null
 
@@ -211,9 +198,9 @@ export async function getOrganizationBillingData(
       organizationName: organizationData.name || '',
       subscriptionPlan: subscription.plan,
       subscriptionStatus: subscription.status || 'inactive',
-      totalSeats: effectiveSeats, // Uses metadata.seats for enterprise, seats column for team
+      totalSeats: effectiveSeats,
       usedSeats: members.length,
-      seatsCount: licensedSeats, // Used for billing calculations (Stripe quantity)
+      seatsCount: licensedSeats,
       totalCurrentUsage: roundCurrency(totalCurrentUsage),
       totalUsageLimit: roundCurrency(totalUsageLimit),
       minimumBillingAmount: roundCurrency(minimumBillingAmount),
@@ -260,7 +247,6 @@ export async function updateOrganizationUsageLimit(
       return { success: false, error: 'An active subscription is required to edit usage limits' }
     }
 
-    // Enterprise plans have fixed usage limits that cannot be changed
     if (isEnterprise(subscription.plan)) {
       return {
         success: false,
@@ -268,11 +254,6 @@ export async function updateOrganizationUsageLimit(
       }
     }
 
-    // Any non-enterprise, non-free plan attached to an org can have its
-    // usage limit edited at the org level. This intentionally covers
-    // `pro_*` plans that have been transferred to an organization —
-    // they pool usage and are enforced against `organization.orgUsageLimit`
-    // just like team plans are.
     if (!isPaid(subscription.plan)) {
       return {
         success: false,
@@ -281,10 +262,7 @@ export async function updateOrganizationUsageLimit(
     }
 
     const { basePrice } = getPlanPricing(subscription.plan)
-    // Minimum = basePrice × seats (or × 1 if no seat count), mirroring
-    // Stripe's `price × quantity`. Keep this in sync with
-    // `getOrgUsageLimit` and `setUsageLimitForCredits`.
-    const seatCount = subscription.seats ?? 1
+    const seatCount = subscription.seats || 1
     const minimumLimit = seatCount * basePrice
 
     if (newLimit < minimumLimit) {
@@ -294,8 +272,6 @@ export async function updateOrganizationUsageLimit(
       }
     }
 
-    // Update the organization usage limit
-    // Convert number to string for decimal column
     await db
       .update(organization)
       .set({

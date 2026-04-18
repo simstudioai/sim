@@ -25,11 +25,8 @@ export async function setUsageLimitForCredits(
 ): Promise<void> {
   try {
     const { basePrice } = getPlanPricing(plan)
-    // planBase = basePrice × seats (or × 1 if no seat count). Matches
-    // Stripe's `price × quantity` billing for every paid non-enterprise
-    // plan. Keep consistent with `getOrgUsageLimit` and
-    // `updateOrganizationUsageLimit`.
-    const seatCount = seats ?? 1
+    // `||` not `??` — 0 is never a valid seat count for a paid sub.
+    const seatCount = seats || 1
     const planBase = Number(basePrice) * seatCount
     const creditBalanceNum = Number(creditBalance)
     const newLimit = planBase + creditBalanceNum
@@ -133,8 +130,7 @@ export async function purchaseCredits(params: PurchaseCreditsParams): Promise<Pu
   let entityType: 'user' | 'organization' = 'user'
   let entityId = userId
 
-  // Any org-scoped subscription (team, enterprise, or `pro_*` attached to an
-  // org) routes credit purchases to the organization and must be authorized
+  // Org-scoped subs route credit purchases to the organization and must be authorized
   // by an org owner/admin. We've already rejected enterprise above.
   if (isOrgScopedSubscription(subscription, userId)) {
     const isAdmin = await isOrgAdmin(userId, subscription.referenceId)

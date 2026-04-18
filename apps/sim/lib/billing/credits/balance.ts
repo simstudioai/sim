@@ -19,34 +19,47 @@ export interface CreditBalanceInfo {
   entityId: string
 }
 
+/**
+ * Read credit balance directly from a known entity (user or organization).
+ * Use this in webhook / admin paths that already know the target entity —
+ * unlike `getCreditBalance(userId)` it does not route through
+ * `getHighestPrioritySubscription`, so callers don't need to resolve the
+ * org owner as a user-id proxy.
+ */
+export async function getCreditBalanceForEntity(
+  entityType: 'user' | 'organization',
+  entityId: string
+): Promise<number> {
+  if (entityType === 'organization') {
+    const rows = await db
+      .select({ creditBalance: organization.creditBalance })
+      .from(organization)
+      .where(eq(organization.id, entityId))
+      .limit(1)
+    return rows.length > 0 ? toNumber(toDecimal(rows[0].creditBalance)) : 0
+  }
+
+  const rows = await db
+    .select({ creditBalance: userStats.creditBalance })
+    .from(userStats)
+    .where(eq(userStats.userId, entityId))
+    .limit(1)
+  return rows.length > 0 ? toNumber(toDecimal(rows[0].creditBalance)) : 0
+}
+
 export async function getCreditBalance(userId: string): Promise<CreditBalanceInfo> {
   const subscription = await getHighestPrioritySubscription(userId)
 
-  // Credits live on the entity that owns the subscription. For any
-  // org-scoped sub (including `pro_*` plans attached to an org), credits
-  // are read from `organization.creditBalance`.
   if (isOrgScopedSubscription(subscription, userId) && subscription) {
-    const orgRows = await db
-      .select({ creditBalance: organization.creditBalance })
-      .from(organization)
-      .where(eq(organization.id, subscription.referenceId))
-      .limit(1)
-
     return {
-      balance: orgRows.length > 0 ? toNumber(toDecimal(orgRows[0].creditBalance)) : 0,
+      balance: await getCreditBalanceForEntity('organization', subscription.referenceId),
       entityType: 'organization',
       entityId: subscription.referenceId,
     }
   }
 
-  const userRows = await db
-    .select({ creditBalance: userStats.creditBalance })
-    .from(userStats)
-    .where(eq(userStats.userId, userId))
-    .limit(1)
-
   return {
-    balance: userRows.length > 0 ? toNumber(toDecimal(userRows[0].creditBalance)) : 0,
+    balance: await getCreditBalanceForEntity('user', userId),
     entityType: 'user',
     entityId: userId,
   }

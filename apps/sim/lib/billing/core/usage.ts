@@ -41,14 +41,9 @@ export interface OrgUsageLimitResult {
 
 /**
  * Calculates the effective usage limit for an organization-scoped plan.
- * - Enterprise: Uses orgUsageLimit directly (fixed pricing).
- * - Everything else (team, plus `pro_*` transferred to an org): minimum
- *   floor is `basePrice × seats`, mirroring Stripe's `price × quantity`.
- *   `seats` defaults to 1 when null (matches Stripe's default quantity).
- *
- * Returns `{ limit, minimum }` where `limit` is the greater of the
- * configured `orgUsageLimit` and the computed minimum, and `minimum` is
- * the plan-driven floor.
+ * Enterprise uses the configured orgUsageLimit directly; every other
+ * paid plan uses `basePrice × seats` (Stripe's `price × quantity`) as a
+ * floor. Returns `{ limit, minimum }` where `limit = max(configured, minimum)`.
  */
 export async function getOrgUsageLimit(
   organizationId: string,
@@ -76,13 +71,8 @@ export async function getOrgUsageLimit(
   }
 
   const { basePrice } = getPlanPricing(plan)
-  // Minimum floor = basePrice × seats. Stripe bills `price × quantity`
-  // for every paid non-enterprise plan, and `seats` is the mirror of the
-  // Stripe subscription's quantity. Personal Pro subs have seats=null →
-  // floor = basePrice × 1 = basePrice; team subs with N seats → basePrice
-  // × N; and `pro_*` plans that were transferred to an org (data drift)
-  // keep whatever quantity Stripe is actually charging for.
-  const seatCount = seats ?? 1
+  // `||` not `??` — 0 is never a valid seat count for a paid sub.
+  const seatCount = seats || 1
   const minimum = seatCount * basePrice
 
   if (configured !== null) {
@@ -162,9 +152,8 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
 
     let currentUsageDecimal = toDecimal(stats.currentPeriodCost)
 
-    // For personally-scoped Pro users, include any snapshotted usage (from
-    // when they previously joined a team) so the display reflects total Pro
-    // usage. Org-scoped subs use pooled values computed below instead.
+    // For personally-scoped Pro users, include any snapshotted usage from
+    // a prior org-join so the display reflects their total Pro usage.
     if (subscription && isPro(subscription.plan) && !orgScoped) {
       const snapshotUsageDecimal = toDecimal(stats.proPeriodCostSnapshot)
       if (snapshotUsageDecimal.greaterThan(0)) {
@@ -179,14 +168,12 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
     }
     let currentUsage = toNumber(currentUsageDecimal)
 
-    // Determine usage limit based on subscription scope (not plan name).
-    // Any subscription whose referenceId is an organization is org-scoped,
-    // including `pro_*` plans that have been transferred to an org.
     let limit: number
+    // Shared between the pooled-usage and pooled-refresh blocks so we
+    // don't issue the member lookup twice per org-scoped call.
+    let orgMemberIds: string[] = []
 
     if (orgScoped && subscription) {
-      // Org-scoped: use the organization's pooled limit, and surface the
-      // organization's pooled current period usage (not this user's slice).
       const orgLimit = await getOrgUsageLimit(
         subscription.referenceId,
         subscription.plan,
@@ -198,13 +185,13 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
         .select({ userId: member.userId })
         .from(member)
         .where(eq(member.organizationId, subscription.referenceId))
+      orgMemberIds = teamMembers.map((m) => m.userId)
 
-      if (teamMembers.length > 0) {
-        const memberIds = teamMembers.map((m) => m.userId)
+      if (orgMemberIds.length > 0) {
         const rows = await db
           .select({ current: userStats.currentPeriodCost })
           .from(userStats)
-          .where(inArray(userStats.userId, memberIds))
+          .where(inArray(userStats.userId, orgMemberIds))
 
         let pooled = toDecimal(0)
         for (const row of rows) {
@@ -213,36 +200,26 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
         currentUsage = toNumber(pooled)
       }
     } else {
-      // Personally-scoped Free/Pro: use individual user limit from userStats
       limit = stats.currentUsageLimit
         ? toNumber(toDecimal(stats.currentUsageLimit))
         : getFreeTierLimit()
     }
 
-    // Derive billing period dates from subscription (source of truth).
     const billingPeriodStart = subscription?.periodStart ?? null
     const billingPeriodEnd = subscription?.periodEnd ?? null
 
-    // Compute daily refresh deduction. Apply at the pooled level for
-    // org-scoped subscriptions (which includes `pro_*` plans attached to
-    // an organization) and at the individual level otherwise.
     let dailyRefreshConsumed = 0
     if (subscription && isPaid(subscription.plan) && billingPeriodStart) {
       const planDollars = getPlanTierDollars(subscription.plan)
       if (planDollars > 0) {
         if (orgScoped) {
-          const teamMembers = await db
-            .select({ userId: member.userId })
-            .from(member)
-            .where(eq(member.organizationId, subscription.referenceId))
-          const memberIds = teamMembers.map((m) => m.userId)
-          if (memberIds.length > 0) {
+          if (orgMemberIds.length > 0) {
             dailyRefreshConsumed = await computeDailyRefreshConsumed({
-              userIds: memberIds,
+              userIds: orgMemberIds,
               periodStart: billingPeriodStart,
               periodEnd: billingPeriodEnd,
               planDollars,
-              seats: subscription.seats ?? 1,
+              seats: subscription.seats || 1,
             })
           }
         } else {
@@ -294,9 +271,6 @@ export async function getUserUsageLimitInfo(userId: string): Promise<UsageLimitI
     const stats = userStatsRecord[0]
     const orgScoped = isOrgScopedSubscription(subscription, userId)
 
-    // Determine limits based on subscription scope. Org-scoped subs (including
-    // `pro_*` plans attached to an organization) use the organization-level
-    // limit and cannot be edited from the user-context endpoint.
     let currentLimit: number
     let minimumLimit: number
     let canEdit: boolean
@@ -345,12 +319,9 @@ export async function initializeUserUsageLimit(userId: string): Promise<void> {
     .limit(1)
 
   if (existingStats.length > 0) {
-    return // User already has usage stats
+    return
   }
 
-  // Check user's subscription to determine initial limit. Org-scoped
-  // subscriptions (including `pro_*` attached to an org) null out the
-  // individual limit and defer to the organization's usage limit.
   const subscription = await getHighestPrioritySubscription(userId)
   const orgScoped = isOrgScopedSubscription(subscription, userId)
 
@@ -379,9 +350,6 @@ export async function updateUserUsageLimit(
   try {
     const subscription = await getHighestPrioritySubscription(userId)
 
-    // Org-scoped subscriptions (Team/Enterprise, and `pro_*` plans that have
-    // been attached to an organization) do not have individual limits — they
-    // are edited through the organization endpoint.
     if (isOrgScopedSubscription(subscription, userId)) {
       return {
         success: false,
@@ -441,12 +409,9 @@ export async function updateUserUsageLimit(
 }
 
 /**
- * Get usage limit for a user (used by checkUsageStatus for server-side checks).
- *
- * Branches on subscription scope, not plan name:
- *   - Org-scoped (any subscription whose `referenceId` is an organization,
- *     including `pro_*` plans attached to an org): organization usage limit.
- *   - Personally-scoped Free/Pro: individual user limit from userStats.
+ * Get usage limit for a user (used by checkUsageStatus for server-side
+ * checks). Org-scoped subs return the organization limit;
+ * personally-scoped subs return the individual user limit from userStats.
  */
 export async function getUserUsageLimit(
   userId: string,
@@ -476,7 +441,6 @@ export async function getUserUsageLimit(
     return orgLimit.limit
   }
 
-  // Personally-scoped Free/Pro: Use individual limit from userStats
   const userStatsQuery = await db
     .select({ currentUsageLimit: userStats.currentUsageLimit })
     .from(userStats)
@@ -540,8 +504,6 @@ export async function syncUsageLimitsFromSubscription(userId: string): Promise<v
 
   const currentStats = currentUserStats[0]
 
-  // Org-scoped (Team/Enterprise, or `pro_*` plans attached to an org):
-  // the individual limit is meaningless — defer to the organization limit.
   if (isOrgScopedSubscription(subscription, userId)) {
     if (currentStats.currentUsageLimit !== null) {
       await db
@@ -559,8 +521,6 @@ export async function syncUsageLimitsFromSubscription(userId: string): Promise<v
     }
     return
   }
-
-  // Free/Pro: Handle individual limits
   const defaultLimit = getPerUserMinimumLimit(subscription)
   const currentLimit = currentStats.currentUsageLimit
     ? toNumber(toDecimal(currentStats.currentUsageLimit))
@@ -640,13 +600,9 @@ export async function getTeamUsageLimits(organizationId: string): Promise<
 }
 
 /**
- * Returns the effective current period usage cost for a user,
- * with weekly refresh credits deducted.
- * - Personally-scoped (Free/Pro with referenceId === userId): the user's
- *   own currentPeriodCost minus refresh consumed.
- * - Org-scoped (any subscription whose referenceId is an org, including
- *   `pro_*` plans attached to an org): pooled sum of all org members'
- *   currentPeriodCost minus refresh consumed.
+ * Returns the effective current period usage cost for a user, with daily
+ * refresh credits deducted. Org-scoped subs return the pooled sum across
+ * all org members; personally-scoped subs return this user's own cost.
  */
 export async function getEffectiveCurrentPeriodCost(userId: string): Promise<number> {
   const subscription = await getHighestPrioritySubscription(userId)
@@ -698,7 +654,7 @@ export async function getEffectiveCurrentPeriodCost(userId: string): Promise<num
     periodStart: subscription.periodStart,
     periodEnd: subscription.periodEnd ?? null,
     planDollars,
-    seats: subscription.seats ?? 1,
+    seats: subscription.seats || 1,
   })
 
   return Math.max(0, rawCost - refreshConsumed)

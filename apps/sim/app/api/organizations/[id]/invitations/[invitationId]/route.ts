@@ -356,9 +356,6 @@ export async function PUT(
             .limit(1)
 
           const orgSub = orgSubs[0]
-          // Any paid subscription attached to the org triggers the
-          // "snapshot my personal Pro usage and cancel it" flow — includes
-          // `pro_*` plans transferred to the org, not just team/enterprise.
           const orgIsPaid = orgSub && isPaid(orgSub.plan)
 
           if (orgIsPaid) {
@@ -414,23 +411,14 @@ export async function PUT(
               }
             }
 
-            // Transfer the joining user's accumulated personal storage
-            // bytes into the organization's pool. After this point
-            // `isOrgScopedSubscription` returns true for the user, so
-            // `getUserStorageUsage`/`incrementStorageUsage`/`decrementStorageUsage`
-            // all route through `organization.storageUsedBytes`. Without
-            // this transfer, pre-join bytes would be orphaned on the
-            // user's row and subsequent decrements (deleting a pre-join
-            // file after joining) would wrongly reduce the org pool.
-            //
-            // `.for('update')` acquires a row-level write lock on the
-            // user's `user_stats` row so a concurrent
-            // `incrementStorageUsage`/`decrementStorageUsage` (from
-            // another tab, a scheduled run, an API-key writer, etc.)
-            // blocks until this transaction commits — otherwise Postgres
-            // READ COMMITTED would let a write land between the snapshot
-            // SELECT and the zero UPDATE, silently dropping those bytes.
-            // Mirrors the bulk version in `syncSubscriptionUsageLimits`.
+            // Transfer the joining user's pre-join storage bytes into
+            // the org pool — after this point storage reads/writes route
+            // through `organization.storageUsedBytes`, so bytes left on
+            // `user_stats` would be orphaned (and a later decrement from
+            // deleting a pre-join file would wrongly reduce the org
+            // pool). `.for('update')` row-locks `user_stats` so a
+            // concurrent increment/decrement can't land between the
+            // SELECT and the zero UPDATE and get silently dropped.
             const storageRows = await tx
               .select({ storageUsedBytes: userStats.storageUsedBytes })
               .from(userStats)

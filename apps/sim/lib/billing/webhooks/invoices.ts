@@ -12,7 +12,7 @@ import { and, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { getEmailSubject, PaymentFailedEmail, renderCreditPurchaseEmail } from '@/components/emails'
 import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
-import { addCredits, getCreditBalance, removeCredits } from '@/lib/billing/credits/balance'
+import { addCredits, getCreditBalanceForEntity, removeCredits } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
 import { blockOrgMembers, unblockOrgMembers } from '@/lib/billing/organizations/membership'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
@@ -263,9 +263,7 @@ async function sendPaymentFailureEmails(
     const amountDue = invoice.amount_due / 100 // Convert cents to dollars
     const { lastFourDigits, failureReason } = await getPaymentMethodDetails(invoice)
 
-    // Get users to notify based on subscription scope (determined by the
-    // subscription's referenceId, not its plan name — `pro_*` plans can be
-    // attached to orgs and must notify org owners/admins).
+    // Notify based on subscription scope — org-scoped subs alert owners/admins.
     let usersToNotify: Array<{ email: string; name: string | null }> = []
     const orgScoped = await isSubscriptionOrgScoped(sub)
 
@@ -438,17 +436,10 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
       const snapshot = Number.parseFloat(currentStats[0].snapshot?.toString() || '0')
       const currentCopilot = currentStats[0].currentCopilot || '0'
 
-      // Attribution rule (mirrors `calculateSubscriptionOverage` personal
-      // Pro branch): if the user joined a paid org mid-cycle,
-      // `proPeriodCostSnapshot` holds the pre-join usage that was billed
-      // on this invoice, while `currentPeriodCost` is post-join usage
-      // that's still being billed by the org. Preserve `currentPeriodCost`
-      // (and `currentPeriodCopilotCost`) so the org's next cycle-close
-      // captures them; only retire the snapshot and personal-billing
-      // trackers here. `lastPeriodCopilotCost` is cleared because the
-      // invitation-accept flow resets `currentPeriodCopilotCost` (without
-      // snapshotting it), so the personal Pro's final period had no
-      // trackable copilot usage to report as "last period".
+      // Snapshot > 0: user joined a paid org mid-cycle. The pre-join
+      // portion was billed on this invoice (snapshot); `currentPeriodCost`
+      // is post-join usage the org will bill next cycle-close, so keep
+      // it. Only retire the personal-billing trackers here.
       if (snapshot > 0) {
         await db
           .update(userStats)
@@ -511,19 +502,7 @@ async function handleCreditPurchaseSuccess(invoice: Stripe.Invoice): Promise<voi
 
   if (subscription.length > 0) {
     const sub = subscription[0]
-    // `getCreditBalance` is keyed by user id. For org-scoped entities we
-    // read from the owner's perspective so it traverses through to
-    // `organization.creditBalance`.
-    let balanceUserId = entityId
-    if (entityType === 'organization') {
-      const ownerRow = await db
-        .select({ userId: member.userId })
-        .from(member)
-        .where(and(eq(member.organizationId, entityId), eq(member.role, 'owner')))
-        .limit(1)
-      balanceUserId = ownerRow[0]?.userId ?? (purchasedBy || entityId)
-    }
-    const { balance: newCreditBalance } = await getCreditBalance(balanceUserId)
+    const newCreditBalance = await getCreditBalanceForEntity(entityType, entityId)
     await setUsageLimitForCredits(entityType, entityId, sub.plan, sub.seats, newCreditBalance)
   }
 
@@ -535,12 +514,8 @@ async function handleCreditPurchaseSuccess(invoice: Stripe.Invoice): Promise<voi
     purchasedBy,
   })
 
-  // Send confirmation emails. `getCreditBalance` requires a user id even
-  // when the underlying entity is an organization — for org-scoped
-  // purchases, pass the purchaser (guaranteed to be an org member) so the
-  // helper routes to `organization.creditBalance`.
   try {
-    const { balance: newBalance } = await getCreditBalance(purchasedBy || entityId)
+    const newBalance = await getCreditBalanceForEntity(entityType, entityId)
     let recipients: Array<{ email: string; name: string | null }> = []
 
     if (entityType === 'organization') {
@@ -834,18 +809,7 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
     if (remainingOverage > 0) {
       const entityType = (await isSubscriptionOrgScoped(sub)) ? 'organization' : 'user'
       const entityId = sub.referenceId
-      // `getCreditBalance` is keyed by user id; when we need the org balance
-      // we call it on the org owner to read the pooled org credits.
-      let balanceUserId = entityId
-      if (entityType === 'organization') {
-        const ownerRow = await db
-          .select({ userId: member.userId })
-          .from(member)
-          .where(and(eq(member.organizationId, entityId), eq(member.role, 'owner')))
-          .limit(1)
-        balanceUserId = ownerRow[0]?.userId ?? entityId
-      }
-      const { balance: creditBalance } = await getCreditBalance(balanceUserId)
+      const creditBalance = await getCreditBalanceForEntity(entityType, entityId)
 
       if (creditBalance > 0) {
         creditsApplied = Math.min(creditBalance, remainingOverage)

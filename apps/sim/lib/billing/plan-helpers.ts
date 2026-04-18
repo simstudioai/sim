@@ -43,22 +43,11 @@ export function isPaid(plan: string | null | undefined): boolean {
 }
 
 /**
- * True when the plan **name** is a team/enterprise plan.
- *
- * WARNING: This is a plan-name check, NOT a scope check. It answers "is
- * this a team- or enterprise-branded plan?" — which is NOT the same as
- * "is this subscription attached to an organization?".
- *
- * A `pro_*` plan whose `referenceId` is an org id is org-scoped at the
- * billing level even though `isOrgPlan` returns `false` for its plan name.
- *
- * For **scope decisions** (pooling usage, routing edits, choosing user vs
- * organization context), use:
- *   - `isOrgScopedSubscription(sub, userId)` (pure, in `subscriptions/utils.ts`)
- *   - `isSubscriptionOrgScoped(sub)` (async DB lookup, in `core/billing.ts`)
- *
- * Keep using `isOrgPlan` only for plan-name semantics — e.g. display tier,
- * "did the user purchase a team-branded plan?" during checkout, etc.
+ * True when the plan **name** is a team/enterprise plan. This is a
+ * plan-name check, NOT a scope check — a `pro_*` plan attached to an
+ * organization is org-scoped at the billing level even though this
+ * returns `false` for it. For scope decisions use
+ * `isOrgScopedSubscription` (sync) or `isSubscriptionOrgScoped` (async).
  */
 export function isOrgPlan(plan: string | null | undefined): boolean {
   return isTeam(plan) || isEnterprise(plan)

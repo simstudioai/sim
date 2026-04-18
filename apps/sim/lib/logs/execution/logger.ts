@@ -416,9 +416,6 @@ export class ExecutionLogger implements IExecutionLoggerService {
           const { getDisplayPlanName } = await import('@/lib/billing/plan-helpers')
           const { isOrgScopedSubscription } = await import('@/lib/billing/subscriptions/utils')
           const planName = getDisplayPlanName(sub?.plan)
-          // Scope the threshold email by the subscription's referenceId, not
-          // its plan name. This correctly handles `pro_*` plans attached to
-          // an org: the 80% warning should go to org admins, not the user.
           const scope: 'user' | 'organization' = isOrgScopedSubscription(sub, usr.id)
             ? 'organization'
             : 'user'

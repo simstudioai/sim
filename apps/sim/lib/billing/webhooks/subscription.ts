@@ -330,10 +330,6 @@ export async function handleSubscriptionDeleted(subscription: {
     let organizationDeleted = false
     let membersSynced = 0
 
-    // Route cleanup by subscription scope (where the referenceId points),
-    // not plan name. A `pro_*` attached to an org needs org-level cleanup,
-    // not the per-user sync path (which would treat `referenceId` as a user
-    // id and silently do nothing for members).
     if (await isSubscriptionOrgScoped(subscription)) {
       const cleanup = await cleanupOrganizationSubscription(subscription.referenceId)
       restoredProCount = cleanup.restoredProCount

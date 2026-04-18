@@ -111,9 +111,7 @@ export const POST = withAdminAuth(async (request) => {
     const plan = userSubscription.plan
     let seats: number | null = null
 
-    // Route admin credits to the subscription's actual entity. Any sub whose
-    // `referenceId` is an org gets credited to the org pool — including
-    // `pro_*` plans transferred to an org.
+    // Route admin credits to the subscription's entity (org if org-scoped).
     if (isOrgScopedSubscription(userSubscription, resolvedUserId)) {
       entityType = 'organization'
       entityId = userSubscription.referenceId

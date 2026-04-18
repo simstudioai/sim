@@ -94,9 +94,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Any subscription whose referenceId is an organization (team,
-    // enterprise, or `pro_*` attached to an org) requires org admin/owner
-    // to change the plan.
     if (isOrgScopedSubscription(sub, userId)) {
       const hasPermission = await isOrganizationOwnerOrAdmin(userId, sub.referenceId)
       if (!hasPermission) {

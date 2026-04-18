@@ -335,20 +335,11 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
 
   const contextMenuItems = useMemo(
     () => ({
-      // Set limit: anyone who can manage billing on a paid non-enterprise
-      // plan. `userCanManageBilling` already enforces owner/admin for
-      // org-scoped subs (including `pro_*` attached to an org), so members
-      // of an org don't see this.
       showSetLimit: userCanManageBilling && !isFree && !isEnterprise,
-      // Upgrade to Pro: Only for free users
       showUpgradeToPro: isFree,
-      // Upgrade to Team: Free users and Pro users with billing permission
       showUpgradeToTeam: isFree || (isPro && userCanManageBilling),
-      // Manage seats: Only for Team admins
       showManageSeats: isTeam && userCanManageBilling,
-      // Upgrade to Enterprise: Only for Team admins (not free, not pro, not enterprise)
       showUpgradeToEnterprise: isTeam && userCanManageBilling,
-      // Contact support: Only for Enterprise admins
       showContactSupport: isEnterprise && userCanManageBilling,
       onSetLimit: handleSetLimit,
       onUpgradeToPro: handleUpgradeToPro,

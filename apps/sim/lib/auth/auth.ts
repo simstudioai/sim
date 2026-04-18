@@ -2905,8 +2905,6 @@ export const auth = betterAuth({
                   )
                 }
 
-                // Persist the Stripe-resolved plan name to our DB row before
-                // any downstream work so subsequent reads see the fresh plan.
                 await syncSubscriptionPlan(subscription.id, subscription.plan, planFromStripe)
 
                 const subscriptionForOrg = {
@@ -2987,10 +2985,6 @@ export const auth = betterAuth({
                   )
                 }
 
-                // Sync the DB's `plan` column to whatever Stripe currently
-                // says. better-auth's upgrade flow updates Stripe price,
-                // seats, and referenceId, but historically left `plan`
-                // stale (see `pro_6000` attached to an org in prod).
                 await syncSubscriptionPlan(subscription.id, subscription.plan, planFromStripe)
 
                 const subscriptionForOrg = {

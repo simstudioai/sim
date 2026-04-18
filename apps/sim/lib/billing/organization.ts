@@ -264,7 +264,7 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
       // Min = basePrice × seats, mirroring Stripe's `price × quantity`.
       if (isPaid(subscription.plan) && !isEnterprise(subscription.plan)) {
         const { basePrice } = getPlanPricing(subscription.plan)
-        const seats = subscription.seats ?? 1
+        const seats = subscription.seats || 1
         const orgLimit = seats * basePrice
 
         // Only set if not already set or if updating to a higher value based on seats
@@ -327,21 +327,13 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
           plan: subscription.plan,
         })
 
-        // Transfer any personal storage bytes still sitting on members'
-        // `user_stats` rows into the org pool. This is the bulk version of
-        // the per-member transfer in the invitation-accept flow — it
-        // catches the "org upgraded from free → paid after members had
-        // already joined" scenario, and acts as a retroactive backfill
-        // on the next subscription event for any previously-joined
-        // members whose bytes weren't transferred. Safe to re-run: once
-        // transferred the user row is 0, so subsequent passes no-op.
-        //
-        // Race note: concurrent `incrementStorageUsage` /
-        // `decrementStorageUsage` on the same rows could otherwise slip
-        // between our snapshot SELECT and the zeroing UPDATE, wiping
-        // bytes or corrupting the aggregate. We open a transaction and
-        // take row-level write locks via `SELECT ... FOR UPDATE` so
-        // concurrent writes on these user rows block until we commit.
+        // Bulk version of the per-member transfer in invitation-accept:
+        // catches members whose personal bytes never made it into the
+        // org pool (e.g. org upgraded free → paid after they joined).
+        // `.for('update')` row-locks so concurrent increment/decrement
+        // calls cannot slip between the snapshot SELECT and the
+        // zeroing UPDATE and get silently dropped. Idempotent — zeroed
+        // rows are filtered out.
         if (isPaid(subscription.plan)) {
           try {
             const memberIds = members.map((m) => m.userId)

@@ -88,8 +88,7 @@ export async function getUserStorageLimit(userId: string): Promise<number> {
       return limits.free
     }
 
-    // Any org-scoped subscription (team, enterprise, or `pro_*` attached to
-    // an org) uses pooled org-level storage. Custom limits come from the
+    // Org-scoped subs use pooled org-level storage. Custom limits come from the
     // subscription metadata; otherwise use the team/enterprise default.
     if (isOrgScopedSubscription(sub, userId)) {
       const orgRecord = await db
@@ -131,8 +130,8 @@ export async function getUserStorageUsage(userId: string): Promise<number> {
     const { getHighestPrioritySubscription } = await import('@/lib/billing/core/subscription')
     const sub = await getHighestPrioritySubscription(userId)
 
-    // Org-scoped subscriptions (including `pro_*` on org) share pooled
-    // `organization.storageUsedBytes`; personal plans use `userStats`.
+    // Org-scoped subs share pooled `organization.storageUsedBytes`;
+    // personal plans use `userStats`.
     if (isOrgScopedSubscription(sub, userId) && sub) {
       const orgRecord = await db
         .select({ storageUsedBytes: organization.storageUsedBytes })
