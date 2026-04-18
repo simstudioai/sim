@@ -431,18 +431,7 @@ export function Table({
   const columnRename = useInlineRename({
     onSave: (columnName, newName) => {
       pushUndoRef.current({ type: 'rename-column', oldName: columnName, newName })
-      let updatedWidths = columnWidthsRef.current
-      if (columnName in updatedWidths) {
-        const { [columnName]: width, ...rest } = updatedWidths
-        updatedWidths = { ...rest, [newName]: width }
-        setColumnWidths(updatedWidths)
-      }
-      const updatedOrder = columnOrderRef.current?.map((n) => (n === columnName ? newName : n))
-      if (updatedOrder) setColumnOrder(updatedOrder)
-      updateMetadataRef.current({
-        columnWidths: updatedWidths,
-        columnOrder: updatedOrder,
-      })
+      handleColumnRename(columnName, newName)
       updateColumnMutation.mutate({ columnName, updates: { name: newName } })
     },
   })
@@ -771,7 +760,7 @@ export function Table({
     try {
       measure.className = 'font-medium text-small'
       measure.textContent = columnName
-      maxWidth = Math.max(maxWidth, measure.offsetWidth + 36)
+      maxWidth = Math.max(maxWidth, measure.offsetWidth + 57)
 
       measure.className = 'text-small'
       for (const row of currentRows) {
