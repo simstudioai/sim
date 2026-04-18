@@ -899,8 +899,9 @@ export function Table({
   }, [])
 
   useEffect(() => {
-    if (!selectionAnchor) return
-    const { rowIndex, colIndex } = selectionAnchor
+    const target = selectionFocus ?? selectionAnchor
+    if (!target) return
+    const { rowIndex, colIndex } = target
     const rafId = requestAnimationFrame(() => {
       const cell = document.querySelector(
         `[data-table-scroll] [data-row="${rowIndex}"][data-col="${colIndex}"]`
@@ -908,7 +909,7 @@ export function Table({
       cell?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
     })
     return () => cancelAnimationFrame(rafId)
-  }, [selectionAnchor])
+  }, [selectionAnchor, selectionFocus])
 
   const handleCellClick = useCallback((rowId: string, columnName: string) => {
     const column = columnsRef.current.find((c) => c.name === columnName)
@@ -1172,7 +1173,8 @@ export function Table({
         setIsColumnSelection(false)
         const jump = e.metaKey || e.ctrlKey
         if (e.shiftKey) {
-          setSelectionFocus({ rowIndex: jump ? 0 : anchor.rowIndex, colIndex: 0 })
+          const focus = selectionFocusRef.current ?? anchor
+          setSelectionFocus({ rowIndex: jump ? 0 : focus.rowIndex, colIndex: 0 })
         } else {
           setSelectionAnchor({ rowIndex: jump ? 0 : anchor.rowIndex, colIndex: 0 })
           setSelectionFocus(null)
@@ -1185,8 +1187,9 @@ export function Table({
         setIsColumnSelection(false)
         const jump = e.metaKey || e.ctrlKey
         if (e.shiftKey) {
+          const focus = selectionFocusRef.current ?? anchor
           setSelectionFocus({
-            rowIndex: jump ? totalRows - 1 : anchor.rowIndex,
+            rowIndex: jump ? totalRows - 1 : focus.rowIndex,
             colIndex: cols.length - 1,
           })
         } else {
@@ -1728,34 +1731,35 @@ export function Table({
     const orderAtDelete = columnOrderRef.current
     const cols = schemaColumnsRef.current
     const colDef = cols.find((c) => c.name === columnToDelete)
-    const colPosition = cols.indexOf(colDef!)
+    const colPosition = colDef ? cols.indexOf(colDef) : cols.length
     const currentRows = rowsRef.current
     const cellData = currentRows
       .filter((r) => r.data[columnToDelete] != null)
       .map((r) => ({ rowId: r.id, value: r.data[columnToDelete] }))
     const previousWidth = columnWidthsRef.current[columnToDelete] ?? null
 
-    pushUndoRef.current({
-      type: 'delete-column',
-      columnName: columnToDelete,
-      columnType: colDef?.type ?? 'string',
-      columnPosition: colPosition >= 0 ? colPosition : cols.length,
-      columnUnique: colDef?.unique ?? false,
-      cellData,
-      previousOrder: orderAtDelete ? [...orderAtDelete] : null,
-      previousWidth,
-    })
-
     setDeletingColumn(null)
     deleteColumnMutation.mutate(columnToDelete, {
       onSuccess: () => {
-        if (!orderAtDelete) return
-        const newOrder = orderAtDelete.filter((n) => n !== columnToDelete)
-        setColumnOrder(newOrder)
-        updateMetadataRef.current({
-          columnWidths: columnWidthsRef.current,
-          columnOrder: newOrder,
+        pushUndoRef.current({
+          type: 'delete-column',
+          columnName: columnToDelete,
+          columnType: colDef?.type ?? 'string',
+          columnPosition: colPosition >= 0 ? colPosition : cols.length,
+          columnUnique: colDef?.unique ?? false,
+          cellData,
+          previousOrder: orderAtDelete ? [...orderAtDelete] : null,
+          previousWidth,
         })
+
+        if (orderAtDelete) {
+          const newOrder = orderAtDelete.filter((n) => n !== columnToDelete)
+          setColumnOrder(newOrder)
+          updateMetadataRef.current({
+            columnWidths: columnWidthsRef.current,
+            columnOrder: newOrder,
+          })
+        }
       },
     })
   }, [deletingColumn])
@@ -2240,7 +2244,7 @@ export function Table({
               <span className='text-[var(--text-error)]'>
                 This will remove all data in this column.
               </span>{' '}
-              This action cannot be undone.
+              You can undo this action.
             </p>
           </ModalBody>
           <ModalFooter>
