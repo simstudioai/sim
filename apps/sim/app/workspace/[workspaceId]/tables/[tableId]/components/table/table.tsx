@@ -459,7 +459,8 @@ export function Table({
     } catch {
       setShowDeleteTableConfirm(false)
     }
-  }, [deleteTableMutation, tableId, router, workspaceId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tableId, router, workspaceId])
 
   const toggleBooleanCell = useCallback(
     (rowId: string, columnName: string, currentValue: unknown) => {
