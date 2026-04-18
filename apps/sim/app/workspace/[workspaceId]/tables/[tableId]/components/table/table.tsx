@@ -1061,6 +1061,7 @@ export function Table({
         const pMap = positionMapRef.current
         const currentCols = columnsRef.current
         const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
+        const batchUpdates: Array<{ rowId: string; data: Record<string, unknown> }> = []
         for (const pos of checked) {
           const row = pMap.get(pos)
           if (!row) continue
@@ -1071,7 +1072,10 @@ export function Table({
             updates[col.name] = null
           }
           undoCells.push({ rowId: row.id, data: previousData })
-          mutateRef.current({ rowId: row.id, data: updates })
+          batchUpdates.push({ rowId: row.id, data: updates })
+        }
+        if (batchUpdates.length > 0) {
+          batchUpdateRef.current({ updates: batchUpdates })
         }
         if (undoCells.length > 0) {
           pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
@@ -1238,10 +1242,10 @@ export function Table({
       }
 
       if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
+        e.preventDefault()
         if (!canEditRef.current) return
         const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
         if (!sel || sel.startRow === sel.endRow) return
-        e.preventDefault()
         const pMap = positionMapRef.current
         const sourceRow = pMap.get(sel.startRow)
         if (!sourceRow) return
@@ -1280,6 +1284,7 @@ export function Table({
         if (!sel) return
         const pMap = positionMapRef.current
         const undoCells: Array<{ rowId: string; data: Record<string, unknown> }> = []
+        const batchUpdates: Array<{ rowId: string; data: Record<string, unknown> }> = []
         for (let r = sel.startRow; r <= sel.endRow; r++) {
           const row = pMap.get(r)
           if (!row) continue
@@ -1293,7 +1298,10 @@ export function Table({
             }
           }
           undoCells.push({ rowId: row.id, data: previousData })
-          mutateRef.current({ rowId: row.id, data: updates })
+          batchUpdates.push({ rowId: row.id, data: updates })
+        }
+        if (batchUpdates.length > 0) {
+          batchUpdateRef.current({ updates: batchUpdates })
         }
         if (undoCells.length > 0) {
           pushUndoRef.current({ type: 'clear-cells', cells: undoCells })
