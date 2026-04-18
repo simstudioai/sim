@@ -1028,18 +1028,13 @@ export function Table({
       if (e.key === ' ' && e.shiftKey) {
         const a = selectionAnchorRef.current
         if (!a || editingCellRef.current) return
+        const currentCols = columnsRef.current
+        if (currentCols.length === 0) return
         e.preventDefault()
-        setSelectionFocus(null)
-        setCheckedRows((prev) => {
-          const next = new Set(prev)
-          if (next.has(a.rowIndex)) {
-            next.delete(a.rowIndex)
-          } else {
-            next.add(a.rowIndex)
-          }
-          return next
-        })
-        lastCheckboxRowRef.current = a.rowIndex
+        setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+        setIsColumnSelection(false)
+        setSelectionAnchor({ rowIndex: a.rowIndex, colIndex: 0 })
+        setSelectionFocus({ rowIndex: a.rowIndex, colIndex: currentCols.length - 1 })
         return
       }
 
@@ -1221,6 +1216,40 @@ export function Table({
         } else {
           setSelectionAnchor({ rowIndex: newRow, colIndex: anchor.colIndex })
           setSelectionFocus(null)
+        }
+        return
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
+        if (!canEditRef.current) return
+        const sel = computeNormalizedSelection(anchor, selectionFocusRef.current)
+        if (!sel || sel.startRow === sel.endRow) return
+        e.preventDefault()
+        const pMap = positionMapRef.current
+        const sourceRow = pMap.get(sel.startRow)
+        if (!sourceRow) return
+        const undoCells: Array<{
+          rowId: string
+          oldData: Record<string, unknown>
+          newData: Record<string, unknown>
+        }> = []
+        for (let r = sel.startRow + 1; r <= sel.endRow; r++) {
+          const row = pMap.get(r)
+          if (!row) continue
+          const oldData: Record<string, unknown> = {}
+          const newData: Record<string, unknown> = {}
+          for (let c = sel.startCol; c <= sel.endCol; c++) {
+            if (c < cols.length) {
+              const colName = cols[c].name
+              oldData[colName] = row.data[colName] ?? null
+              newData[colName] = sourceRow.data[colName] ?? null
+            }
+          }
+          undoCells.push({ rowId: row.id, oldData, newData })
+          mutateRef.current({ rowId: row.id, data: newData })
+        }
+        if (undoCells.length > 0) {
+          pushUndoRef.current({ type: 'update-cells', cells: undoCells })
         }
         return
       }
