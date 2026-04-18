@@ -1624,15 +1624,22 @@ export function Table({
 
   const handleChangeType = useCallback((columnName: string, newType: string) => {
     const column = columnsRef.current.find((c) => c.name === columnName)
-    if (column) {
-      pushUndoRef.current({
-        type: 'update-column-type',
-        columnName,
-        previousType: column.type,
-        newType,
-      })
-    }
-    updateColumnMutation.mutate({ columnName, updates: { type: newType } })
+    const previousType = column?.type
+    updateColumnMutation.mutate(
+      { columnName, updates: { type: newType } },
+      {
+        onSuccess: () => {
+          if (previousType) {
+            pushUndoRef.current({
+              type: 'update-column-type',
+              columnName,
+              previousType,
+              newType,
+            })
+          }
+        },
+      }
+    )
   }, [])
 
   const insertColumnInOrder = useCallback(

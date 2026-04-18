@@ -676,6 +676,9 @@ export function useUpdateColumn({ workspaceId, tableId }: RowMutationContext) {
 
       return res.json()
     },
+    onError: (error) => {
+      toast.error(error.message, { duration: 5000 })
+    },
     onSettled: () => {
       invalidateTableSchema(queryClient, workspaceId, tableId)
     },
