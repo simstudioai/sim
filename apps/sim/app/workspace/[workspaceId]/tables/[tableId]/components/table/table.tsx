@@ -1754,13 +1754,16 @@ export function Table({
     if (isColumnSelectionRef.current && selectionAnchorRef.current) {
       const sel = computeNormalizedSelection(selectionAnchorRef.current, selectionFocusRef.current)
       if (sel && sel.startCol !== sel.endCol) {
-        const names: string[] = []
-        for (let c = sel.startCol; c <= sel.endCol; c++) {
-          if (c < cols.length) names.push(cols[c].name)
-        }
-        if (names.length > 0) {
-          setDeletingColumns(names)
-          return
+        const clickedIdx = cols.findIndex((c) => c.name === columnName)
+        if (clickedIdx >= sel.startCol && clickedIdx <= sel.endCol) {
+          const names: string[] = []
+          for (let c = sel.startCol; c <= sel.endCol; c++) {
+            if (c < cols.length) names.push(cols[c].name)
+          }
+          if (names.length > 0) {
+            setDeletingColumns(names)
+            return
+          }
         }
       }
     }
