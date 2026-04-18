@@ -719,6 +719,7 @@ export async function POST(req: NextRequest) {
       blockNameMapping = {},
       blockOutputSchemas = {},
       workflowVariables = {},
+      contextVariables: preResolvedContextVariables = {},
       workflowId,
       workspaceId,
       isCustomTool = false,
@@ -755,7 +756,10 @@ export async function POST(req: NextRequest) {
         lang
       )
       resolvedCode = codeResolution.resolvedCode
-      contextVariables = codeResolution.contextVariables
+      // Merge pre-resolved block output variables from the executor. These take precedence
+      // because they were produced by the resolver using full execution-state context
+      // (including loop/parallel scope) and should not be overwritten.
+      contextVariables = { ...codeResolution.contextVariables, ...preResolvedContextVariables }
     }
 
     let jsImports = ''

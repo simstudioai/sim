@@ -17,6 +17,8 @@ export interface CodeExecutionInput {
   blockData?: Record<string, unknown>
   blockNameMapping?: Record<string, string>
   blockOutputSchemas?: Record<string, Record<string, unknown>>
+  /** Pre-resolved block output variables from the executor, injected as VM globals. */
+  contextVariables?: Record<string, unknown>
   _context?: {
     workflowId?: string
     userId?: string
@@ -24,6 +26,13 @@ export interface CodeExecutionInput {
   }
   isCustomTool?: boolean
   _sandboxFiles?: Array<{ path: string; content: string }>
+}
+
+export interface CodeExecutionOutput extends ToolResponse {
+  output: {
+    result: any
+    stdout: string
+  }
 }
 
 export interface CodeExecutionOutput extends ToolResponse {

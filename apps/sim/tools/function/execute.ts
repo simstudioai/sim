@@ -128,6 +128,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
         blockData: params.blockData || {},
         blockNameMapping: params.blockNameMapping || {},
         blockOutputSchemas: params.blockOutputSchemas || {},
+        contextVariables: params.contextVariables || {},
         workflowId: params._context?.workflowId,
         userId: params._context?.userId,
         workspaceId: params._context?.workspaceId,

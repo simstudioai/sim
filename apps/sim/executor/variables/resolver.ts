@@ -15,6 +15,9 @@ import {
 import { WorkflowResolver } from '@/executor/variables/resolvers/workflow'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
+/** Key used to carry pre-resolved context variables through the inputs map. */
+export const FUNCTION_BLOCK_CONTEXT_VARS_KEY = '_runtimeContextVars'
+
 const logger = createLogger('VariableResolver')
 
 export class VariableResolver {
@@ -34,6 +37,63 @@ export class VariableResolver {
       new EnvResolver(),
       this.blockResolver,
     ]
+  }
+
+  /**
+   * Resolves inputs for function blocks. Block output references in the `code` field
+   * are stored as named context variables instead of being embedded as JavaScript
+   * literals, preventing large values from bloating the code string.
+   *
+   * Returns the resolved inputs and a `contextVariables` map. Callers should inject
+   * contextVariables into the function execution request body so the isolated VM can
+   * access them as global variables.
+   */
+  resolveInputsForFunctionBlock(
+    ctx: ExecutionContext,
+    currentNodeId: string,
+    params: Record<string, any>,
+    block: SerializedBlock
+  ): { resolvedInputs: Record<string, any>; contextVariables: Record<string, unknown> } {
+    const contextVariables: Record<string, unknown> = {}
+    const resolved: Record<string, any> = {}
+
+    for (const [key, value] of Object.entries(params)) {
+      if (key === 'code') {
+        if (typeof value === 'string') {
+          resolved[key] = this.resolveCodeWithContextVars(
+            ctx,
+            currentNodeId,
+            value,
+            undefined,
+            block,
+            contextVariables
+          )
+        } else if (Array.isArray(value)) {
+          resolved[key] = value.map((item: any) => {
+            if (item && typeof item === 'object' && typeof item.content === 'string') {
+              return {
+                ...item,
+                content: this.resolveCodeWithContextVars(
+                  ctx,
+                  currentNodeId,
+                  item.content,
+                  undefined,
+                  block,
+                  contextVariables
+                ),
+              }
+            }
+            return item
+          })
+        } else {
+          resolved[key] = this.resolveValue(ctx, currentNodeId, value, undefined, block)
+        }
+      } else {
+        resolved[key] = this.resolveValue(ctx, currentNodeId, value, undefined, block)
+      }
+    }
+
+    return { resolvedInputs: resolved, contextVariables }
   }
 
   resolveInputs(
@@ -149,6 +209,70 @@ export class VariableResolver {
     }
     return value
   }
+  /**
+   * Resolves a code template for a function block. Block output references are stored
+   * in `contextVarAccumulator` as named variables (e.g. `__blockRef_0`) and replaced
+   * with those variable names in the returned code string. Non-block references (loop
+   * items, workflow variables, env vars) are still inlined as literals so they remain
+   * available without any extra passing mechanism.
+   */
+  private resolveCodeWithContextVars(
+    ctx: ExecutionContext,
+    currentNodeId: string,
+    template: string,
+    loopScope: LoopScope | undefined,
+    block: SerializedBlock,
+    contextVarAccumulator: Record<string, unknown>
+  ): string {
+    const resolutionContext: ResolutionContext = {
+      executionContext: ctx,
+      executionState: this.state,
+      currentNodeId,
+      loopScope,
+    }
+
+    const language = (block.config?.params as Record<string, unknown> | undefined)?.language as
+      | string
+      | undefined
+
+    let replacementError: Error | null = null
+
+    let result = replaceValidReferences(template, (match) => {
+      if (replacementError) return match
+
+      try {
+        const resolved = this.resolveReference(match, resolutionContext)
+        if (resolved === undefined) return match
+
+        const effectiveValue = resolved === RESOLVED_EMPTY ? null : resolved
+
+        if (this.blockResolver.canResolve(match)) {
+          // Block output: store in contextVarAccumulator, replace with variable name
+          const varName = `__blockRef_${Object.keys(contextVarAccumulator).length}`
+          contextVarAccumulator[varName] = effectiveValue
+          return varName
+        }
+
+        // Non-block reference (loop, parallel, workflow, env): embed as literal
+        return this.blockResolver.formatValueForBlock(effectiveValue, BlockType.FUNCTION, language)
+      } catch (error) {
+        replacementError = error instanceof Error ? error : new Error(String(error))
+        return match
+      }
+    })
+
+    if (replacementError !== null) {
+      throw replacementError
+    }
+
+    result = result.replace(createEnvVarPattern(), (match) => {
+      const resolved = this.resolveReference(match, resolutionContext)
+      return typeof resolved === 'string' ? resolved : match
+    })
+
+    return result
+  }
+
   private resolveTemplate(
     ctx: ExecutionContext,
     currentNodeId: string,
