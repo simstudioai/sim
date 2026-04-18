@@ -345,22 +345,26 @@ export const LogDetails = memo(function LogDetails({
         onClose()
       }
 
-      if (isOpen) {
-        if (e.key === 'ArrowUp' && hasPrev && onNavigatePrev) {
-          e.preventDefault()
-          onNavigatePrev()
-        }
+      if (!isOpen) return
 
-        if (e.key === 'ArrowDown' && hasNext && onNavigateNext) {
-          e.preventDefault()
-          onNavigateNext()
-        }
+      // When the Trace tab is active, arrow keys belong to TraceView's own
+      // span-navigation handler. Log-to-log navigation should not hijack them.
+      if (resolvedTab === 'trace') return
+
+      if (e.key === 'ArrowUp' && hasPrev && onNavigatePrev) {
+        e.preventDefault()
+        onNavigatePrev()
+      }
+
+      if (e.key === 'ArrowDown' && hasNext && onNavigateNext) {
+        e.preventDefault()
+        onNavigateNext()
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose, hasPrev, hasNext, onNavigatePrev, onNavigateNext])
+  }, [isOpen, onClose, hasPrev, hasNext, onNavigatePrev, onNavigateNext, resolvedTab])
 
   const formattedTimestamp = log ? formatDate(log.createdAt) : null
 

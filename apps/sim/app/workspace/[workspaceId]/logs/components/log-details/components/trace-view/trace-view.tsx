@@ -38,6 +38,7 @@ import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 const DEFAULT_BLOCK_COLOR = '#6b7280'
 const TREE_PANE_WIDTH = 300
 const INDENT_PX = 12
+const ROW_BASE_PADDING_LEFT = 12
 const MIN_BAR_PCT = 0.5
 
 interface TraceViewProps {
@@ -344,7 +345,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
     >
       <div
         className='flex min-w-0 items-center gap-1.5 pt-1 pr-2'
-        style={{ paddingLeft: 8 + depth * INDENT_PX }}
+        style={{ paddingLeft: ROW_BASE_PADDING_LEFT + depth * INDENT_PX }}
       >
         {canExpand ? (
           <button
@@ -733,7 +734,6 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
 
   return (
     <div className='flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3.5 pt-3 pb-4'>
-      {/* Header */}
       <div className='flex items-start gap-2'>
         {!isIterationType(span.type) && (
           <div
@@ -777,7 +777,6 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
         </div>
       </div>
 
-      {/* Metadata block */}
       {metaEntries.length > 0 && (
         <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
           {metaEntries.map((m) => (
@@ -786,26 +785,34 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
         </div>
       )}
 
-      {/* Content sections */}
+      {/* Keys by label: without them, React reused a single DetailCodeSection
+          across span changes and carried isOpen between sections with different
+          labels — a collapsed Output on one span appeared as a collapsed Input
+          on the next. */}
       {span.input !== undefined && span.input !== null && (
-        <DetailCodeSection label='Input' data={span.input} />
+        <DetailCodeSection key='input' label='Input' data={span.input} />
       )}
       {span.output !== undefined && span.output !== null && (
         <DetailCodeSection
+          key={isDirectError ? 'error' : 'output'}
           label={isDirectError ? 'Error' : 'Output'}
           data={span.output}
           isError={isDirectError}
         />
       )}
-      {span.thinking && <DetailCodeSection label='Thinking' data={span.thinking} />}
+      {span.thinking && <DetailCodeSection key='thinking' label='Thinking' data={span.thinking} />}
       {span.modelToolCalls && span.modelToolCalls.length > 0 && (
-        <DetailCodeSection label='Tool calls' data={span.modelToolCalls} />
+        <DetailCodeSection key='tool-calls' label='Tool calls' data={span.modelToolCalls} />
       )}
       {span.errorMessage && (
-        <DetailCodeSection label='Error message' data={span.errorMessage} isError />
+        <DetailCodeSection
+          key='error-message'
+          label='Error message'
+          data={span.errorMessage}
+          isError
+        />
       )}
 
-      {/* Raw timing footer */}
       {Number.isFinite(startedAt) && Number.isFinite(endedAt) && startedAt > 0 && endedAt > 0 && (
         <div className='flex items-center justify-between font-medium text-[var(--text-tertiary)] text-caption'>
           <span>Started {new Date(startedAt).toISOString()}</span>
@@ -823,7 +830,6 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
  * follow block-by-block and segment-by-segment what happened and why.
  */
 export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
   const { normalizedSpans, allIds, totalDuration, runStartMs, firstRootId, blockCount } =
@@ -898,10 +904,13 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
   const handleCollapseAll = useCallback(() => setExpandedNodes(new Set()), [])
 
   useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
     const handler = (e: KeyboardEvent) => {
-      if (!container.contains(document.activeElement)) return
+      // Ignore while typing in inputs / contentEditable (filter box, etc.).
+      const target = e.target as HTMLElement | null
+      if (target) {
+        const tag = target.tagName
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable) return
+      }
       if (!selectedId) return
       const currentIndex = flatList.findIndex((entry) => getSpanId(entry.span) === selectedId)
       if (currentIndex === -1) return
@@ -950,7 +959,7 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
   }
 
   return (
-    <div ref={containerRef} className='-mx-3.5 flex h-full min-h-0 flex-col'>
+    <div className='-mx-3.5 flex h-full min-h-0 flex-col'>
       {/* Header strip */}
       <div className='flex items-center gap-2 border-[var(--border)] border-b px-3.5 pb-2'>
         <span
