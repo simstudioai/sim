@@ -780,6 +780,10 @@ export function Table({
 
   const handleColumnDragStart = useCallback((columnName: string) => {
     setDragColumnName(columnName)
+    setSelectionAnchor(null)
+    setSelectionFocus(null)
+    setCheckedRows((prev) => (prev.size === 0 ? prev : EMPTY_CHECKED_ROWS))
+    setIsColumnSelection(false)
   }, [])
 
   const handleColumnDragOver = useCallback((columnName: string, side: 'left' | 'right') => {
@@ -3012,6 +3016,15 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
       }
       e.dataTransfer.effectAllowed = 'move'
       e.dataTransfer.setData('text/plain', column.name)
+
+      const ghost = document.createElement('div')
+      ghost.textContent = column.name
+      ghost.style.cssText =
+        'position:absolute;top:-9999px;padding:4px 8px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:13px;font-weight:500;white-space:nowrap;color:var(--text-primary)'
+      document.body.appendChild(ghost)
+      e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
+      requestAnimationFrame(() => document.body.removeChild(ghost))
+
       onDragStart?.(column.name)
     },
     [column.name, readOnly, isRenaming, onDragStart]
