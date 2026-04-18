@@ -1792,6 +1792,7 @@ export const ToolInput = memo(function ToolInput({
                     <Popover
                       open={usageControlPopoverIndex === toolIndex}
                       onOpenChange={(open) => setUsageControlPopoverIndex(open ? toolIndex : null)}
+                      colorScheme='inverted'
                     >
                       <PopoverTrigger asChild>
                         <button
