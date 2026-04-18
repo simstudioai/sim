@@ -215,6 +215,7 @@ export function useTableUndo({
                 {
                   name: action.columnName,
                   type: action.columnType,
+                  required: action.columnRequired,
                   unique: action.columnUnique,
                   position: action.columnPosition,
                 },

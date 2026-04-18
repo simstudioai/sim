@@ -38,6 +38,7 @@ export type TableUndoAction =
       columnType: string
       columnPosition: number
       columnUnique: boolean
+      columnRequired: boolean
       cellData: Array<{ rowId: string; value: unknown }>
       previousOrder: string[] | null
       previousWidth: number | null

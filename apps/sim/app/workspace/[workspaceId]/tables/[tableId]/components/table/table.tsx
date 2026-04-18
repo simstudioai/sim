@@ -1755,6 +1755,7 @@ export function Table({
           columnType: colDef?.type ?? 'string',
           columnPosition: colPosition >= 0 ? colPosition : cols.length,
           columnUnique: colDef?.unique ?? false,
+          columnRequired: colDef?.required ?? false,
           cellData,
           previousOrder: orderAtDelete ? [...orderAtDelete] : null,
           previousWidth,
