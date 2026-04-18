@@ -39,6 +39,7 @@ import {
   type SelectorOverrides,
   ShortInput,
   SkillInput,
+  SlackManifestGenerator,
   SliderInput,
   SortBuilder,
   Switch,
@@ -1128,6 +1129,10 @@ function SubBlockComponent({
                 : (config.defaultValue as string) || ''
             }
           />
+        )
+      case 'slack-manifest-generator':
+        return (
+          <SlackManifestGenerator blockId={blockId} isPreview={isPreview} disabled={isDisabled} />
         )
       case 'messages-input':
         return (

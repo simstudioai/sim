@@ -162,6 +162,7 @@ export type SubBlockType =
   | 'text' // Read-only text display
   | 'router-input' // Router route definitions with descriptions
   | 'table-selector' // Table selector with link to view table
+  | 'slack-manifest-generator' // Slack app manifest generator with capability toggles
 
 /**
  * Selector types that require display name hydration
