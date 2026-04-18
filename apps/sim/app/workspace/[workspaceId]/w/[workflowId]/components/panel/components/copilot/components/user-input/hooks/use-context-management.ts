@@ -49,7 +49,7 @@ export function useContextManagement({ message, initialContexts }: UseContextMan
    * Clears all selected contexts
    */
   const clearContexts = useCallback(() => {
-    setSelectedContexts([])
+    setSelectedContexts((prev) => (prev.length === 0 ? prev : []))
   }, [])
 
   /**
