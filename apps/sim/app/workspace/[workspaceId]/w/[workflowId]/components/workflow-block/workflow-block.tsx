@@ -875,7 +875,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     runPathStatus,
   } = useBlockVisual({ blockId: id, data, isPending, isSelected: selected })
 
-  const currentWorkflowId = isSandbox ? '' : (params.workflowId as string) || activeWorkflowId
+  const currentWorkflowId = isSandbox ? '' : (params.workflowId as string) || activeWorkflowId || ''
 
   const currentBlock = currentWorkflow.getBlockById(id)
 
