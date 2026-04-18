@@ -335,29 +335,39 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
         // on the next subscription event for any previously-joined
         // members whose bytes weren't transferred. Safe to re-run: once
         // transferred the user row is 0, so subsequent passes no-op.
+        //
+        // Race note: concurrent `incrementStorageUsage` /
+        // `decrementStorageUsage` on the same rows could otherwise slip
+        // between our snapshot SELECT and the zeroing UPDATE, wiping
+        // bytes or corrupting the aggregate. We open a transaction and
+        // take row-level write locks via `SELECT ... FOR UPDATE` so
+        // concurrent writes on these user rows block until we commit.
         if (isPaid(subscription.plan)) {
           try {
             const memberIds = members.map((m) => m.userId)
-            const personalStorageRows = await db
-              .select({
-                userId: userStats.userId,
-                bytes: userStats.storageUsedBytes,
-              })
-              .from(userStats)
-              .where(inArray(userStats.userId, memberIds))
+            await db.transaction(async (tx) => {
+              const personalStorageRows = await tx
+                .select({
+                  userId: userStats.userId,
+                  bytes: userStats.storageUsedBytes,
+                })
+                .from(userStats)
+                .where(inArray(userStats.userId, memberIds))
+                .for('update')
 
-            const toTransfer = personalStorageRows.filter((r) => (r.bytes ?? 0) > 0)
-            const totalBytes = toTransfer.reduce((acc, r) => acc + (r.bytes ?? 0), 0)
+              const toTransfer = personalStorageRows.filter((r) => (r.bytes ?? 0) > 0)
+              const totalBytes = toTransfer.reduce((acc, r) => acc + (r.bytes ?? 0), 0)
 
-            if (totalBytes > 0) {
-              await db
+              if (totalBytes === 0) return
+
+              await tx
                 .update(organization)
                 .set({
                   storageUsedBytes: sql`${organization.storageUsedBytes} + ${totalBytes}`,
                 })
                 .where(eq(organization.id, organizationId))
 
-              await db
+              await tx
                 .update(userStats)
                 .set({ storageUsedBytes: 0 })
                 .where(
@@ -373,7 +383,7 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
                 memberCount: toTransfer.length,
                 totalBytes,
               })
-            }
+            })
           } catch (storageError) {
             logger.error('Failed to transfer personal storage to org pool', {
               organizationId,

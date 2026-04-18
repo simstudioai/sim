@@ -92,6 +92,7 @@ vi.mock('@/components/emails', () => ({
 
 vi.mock('@/lib/billing/core/billing', () => ({
   calculateSubscriptionOverage: vi.fn(),
+  isSubscriptionOrgScoped: vi.fn().mockResolvedValue(true),
 }))
 
 vi.mock('@/lib/billing/credits/balance', () => ({
