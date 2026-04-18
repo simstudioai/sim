@@ -21,6 +21,67 @@ export const organizationKeys = {
   billing: (id: string) => [...organizationKeys.detail(id), 'billing'] as const,
   members: (id: string) => [...organizationKeys.detail(id), 'members'] as const,
   memberUsage: (id: string) => [...organizationKeys.detail(id), 'member-usage'] as const,
+  roster: (id: string) => [...organizationKeys.detail(id), 'roster'] as const,
+}
+
+export type RosterWorkspaceAccess = {
+  workspaceId: string
+  workspaceName: string
+  permission: 'admin' | 'write' | 'read'
+}
+
+export type RosterMember = {
+  memberId: string
+  userId: string
+  role: string
+  createdAt: string
+  name: string
+  email: string
+  image: string | null
+  workspaces: RosterWorkspaceAccess[]
+}
+
+export type RosterPendingInvitation = {
+  id: string
+  email: string
+  role: string
+  kind: 'organization' | 'workspace'
+  createdAt: string
+  expiresAt: string
+  inviteeName: string | null
+  inviteeImage: string | null
+  workspaces: RosterWorkspaceAccess[]
+}
+
+export type OrganizationRoster = {
+  members: RosterMember[]
+  pendingInvitations: RosterPendingInvitation[]
+  workspaces: Array<{ id: string; name: string }>
+}
+
+async function fetchOrganizationRoster(
+  orgId: string,
+  signal?: AbortSignal
+): Promise<OrganizationRoster | null> {
+  if (!orgId) return null
+
+  const response = await fetch(`/api/organizations/${orgId}/roster`, { signal })
+  if (response.status === 404) return null
+  if (!response.ok) {
+    throw new Error('Failed to fetch organization roster')
+  }
+  const payload = await response.json()
+  return payload.data as OrganizationRoster
+}
+
+export function useOrganizationRoster(orgId: string | undefined | null) {
+  return useQuery({
+    queryKey: organizationKeys.roster(orgId ?? ''),
+    queryFn: ({ signal }) => fetchOrganizationRoster(orgId as string, signal),
+    enabled: !!orgId,
+    staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
+  })
 }
 
 /**
@@ -342,6 +403,63 @@ export function useRemoveMember() {
   })
 }
 
+interface UpdateMemberRoleParams {
+  orgId: string
+  userId: string
+  role: 'admin' | 'member'
+}
+
+export function useUpdateOrganizationMemberRole() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ orgId, userId, role }: UpdateMemberRoleParams) => {
+      const response = await fetch(`/api/organizations/${orgId}/members/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      })
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error.error || error.message || 'Failed to update role')
+      }
+      return response.json()
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
+    },
+  })
+}
+
+interface UpdateInvitationParams {
+  orgId: string
+  invitationId: string
+  role?: 'admin' | 'member'
+  grants?: Array<{ workspaceId: string; permission: 'read' | 'write' | 'admin' }>
+}
+
+export function useUpdateInvitation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ invitationId, role, grants }: UpdateInvitationParams) => {
+      const response = await fetch(`/api/invitations/${invitationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role, grants }),
+      })
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error.error || error.message || 'Failed to update invitation')
+      }
+      return response.json()
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
+    },
+  })
+}
+
 /**
  * Cancel invitation mutation
  */
@@ -354,23 +472,19 @@ export function useCancelInvitation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ invitationId, orgId }: CancelInvitationParams) => {
-      const response = await fetch(
-        `/api/organizations/${orgId}/invitations?invitationId=${invitationId}`,
-        {
-          method: 'DELETE',
-        }
-      )
+    mutationFn: async ({ invitationId }: CancelInvitationParams) => {
+      const response = await fetch(`/api/invitations/${invitationId}`, {
+        method: 'DELETE',
+      })
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.message || 'Failed to cancel invitation')
+        throw new Error(error.message || error.error || 'Failed to cancel invitation')
       }
 
       return response.json()
     },
     onSuccess: (_data, variables) => {
-      // Invalidate related queries
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
     },
@@ -389,15 +503,15 @@ export function useResendInvitation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ invitationId, orgId }: ResendInvitationParams) => {
-      const response = await fetch(`/api/organizations/${orgId}/invitations/${invitationId}`, {
+    mutationFn: async ({ invitationId }: ResendInvitationParams) => {
+      const response = await fetch(`/api/invitations/${invitationId}/resend`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       })
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.message || 'Failed to resend invitation')
+        throw new Error(error.message || error.error || 'Failed to resend invitation')
       }
 
       return response.json()

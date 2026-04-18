@@ -32,7 +32,7 @@ export type SettingsSection =
   | 'apikeys'
   | 'byok'
   | 'subscription'
-  | 'team'
+  | 'organization'
   | 'sso'
   | 'whitelabeling'
   | 'copilot'
@@ -119,8 +119,8 @@ export const allNavigationItems: NavigationItem[] = [
     hideWhenBillingDisabled: true,
   },
   {
-    id: 'team',
-    label: 'Team',
+    id: 'organization',
+    label: 'Organization',
     icon: Users,
     section: 'subscription',
     hideWhenBillingDisabled: true,

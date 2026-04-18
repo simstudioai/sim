@@ -21,6 +21,11 @@ vi.mock('@sim/db', () => ({
 vi.mock('@sim/db/schema', () => ({
   apiKey: { type: 'api_key_type' },
   document: { deletedAt: 'document_deleted_at', knowledgeBaseId: 'document_kb_id' },
+  invitation: { id: 'invitation_id', status: 'invitation_status' },
+  invitationWorkspaceGrant: {
+    invitationId: 'invitation_workspace_grant_invitation_id',
+    workspaceId: 'invitation_workspace_grant_workspace_id',
+  },
   knowledgeBase: { deletedAt: 'kb_deleted_at' },
   knowledgeConnector: { deletedAt: 'knowledge_connector_deleted_at', knowledgeBaseId: 'kc_kb_id' },
   mcpServers: { deletedAt: 'mcp_servers_deleted_at' },
@@ -29,7 +34,6 @@ vi.mock('@sim/db/schema', () => ({
   workspace: { archivedAt: 'workspace_archived_at' },
   workflowMcpServer: { isPublic: 'workflow_mcp_server_is_public' },
   workspaceFiles: { deletedAt: 'workspace_file_deleted_at' },
-  workspaceInvitation: { status: 'workspace_invitation_status' },
   workspaceNotificationSubscription: { active: 'workspace_notification_active' },
 }))
 

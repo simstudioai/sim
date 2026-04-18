@@ -227,6 +227,8 @@ export interface AddMemberParams {
   skipBillingLogic?: boolean
   /** Skip seat validation (default: false) */
   skipSeatValidation?: boolean
+  /** When provided, the acceptor's own pending invitation is excluded from the seat count during validation. */
+  acceptingInvitationId?: string
 }
 
 export interface AddMemberResult {
@@ -323,7 +325,8 @@ export async function ensureUserInOrganization(
  */
 export async function validateMembershipAddition(
   userId: string,
-  organizationId: string
+  organizationId: string,
+  options: { acceptingInvitationId?: string } = {}
 ): Promise<MembershipValidationResult> {
   const [userData] = await db.select({ id: user.id }).from(user).where(eq(user.id, userId)).limit(1)
 
@@ -363,7 +366,9 @@ export async function validateMembershipAddition(
     }
   }
 
-  const seatValidation = await validateSeatAvailability(organizationId, 1)
+  const seatValidation = await validateSeatAvailability(organizationId, 1, {
+    excludePendingInvitationId: options.acceptingInvitationId,
+  })
   if (!seatValidation.canInvite) {
     return {
       canAdd: false,
@@ -404,6 +409,7 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
     role,
     skipBillingLogic = false,
     skipSeatValidation = false,
+    acceptingInvitationId,
   } = params
 
   const billingActions: AddMemberResult['billingActions'] = {
@@ -413,7 +419,9 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
 
   try {
     if (!skipSeatValidation) {
-      const validation = await validateMembershipAddition(userId, organizationId)
+      const validation = await validateMembershipAddition(userId, organizationId, {
+        acceptingInvitationId,
+      })
       if (!validation.canAdd) {
         return { success: false, error: validation.reason, billingActions }
       }

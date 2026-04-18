@@ -897,7 +897,7 @@ export function Subscription() {
         onGetForTeam={() => {
           setManagePlanModalOpen(false)
           if (subscription.isTeam) {
-            window.location.href = `/workspace/${workspaceId}/settings/team`
+            window.location.href = `/workspace/${workspaceId}/settings/organization`
           } else {
             setTeamModalOpen(true)
           }

@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import {
+  member,
   permissions,
   type permissionTypeEnum,
   user,
@@ -322,7 +323,24 @@ export async function hasWorkspaceAdminAccess(
     return true
   }
 
-  return await hasAdminPermission(userId, workspaceId)
+  if (await hasAdminPermission(userId, workspaceId)) {
+    return true
+  }
+
+  return await isOrganizationAdminOrOwnerOfWorkspace(userId, ws)
+}
+
+export async function isOrganizationAdminOrOwnerOfWorkspace(
+  userId: string,
+  ws: Pick<WorkspaceWithOwner, 'organizationId'>
+): Promise<boolean> {
+  if (!ws.organizationId) return false
+  const [row] = await db
+    .select({ role: member.role })
+    .from(member)
+    .where(and(eq(member.userId, userId), eq(member.organizationId, ws.organizationId)))
+    .limit(1)
+  return row?.role === 'owner' || row?.role === 'admin'
 }
 
 /**

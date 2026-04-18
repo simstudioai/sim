@@ -7,26 +7,30 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   mockDbState,
   mockGetSession,
-  mockSendEmail,
   mockValidateInvitationsAllowed,
   mockValidateSeatAvailability,
+  mockCreatePendingInvitation,
+  mockSendInvitationEmail,
+  mockCancelPendingInvitation,
 } = vi.hoisted(() => ({
   mockDbState: {
     selectResults: [] as any[],
-    updateCalls: [] as Array<{ table: unknown; values: Record<string, unknown> }>,
-    insertCalls: [] as Array<{ table: unknown; values: unknown }>,
   },
   mockGetSession: vi.fn(),
-  mockSendEmail: vi.fn(),
   mockValidateInvitationsAllowed: vi.fn(),
   mockValidateSeatAvailability: vi.fn(),
+  mockCreatePendingInvitation: vi.fn(),
+  mockSendInvitationEmail: vi.fn(),
+  mockCancelPendingInvitation: vi.fn(),
 }))
 
 function createSelectChain() {
   const chain: any = {}
   chain.from = vi.fn().mockReturnValue(chain)
   chain.innerJoin = vi.fn().mockReturnValue(chain)
+  chain.leftJoin = vi.fn().mockReturnValue(chain)
   chain.where = vi.fn().mockReturnValue(chain)
+  chain.orderBy = vi.fn().mockReturnValue(chain)
   chain.limit = vi
     .fn()
     .mockImplementation(() => Promise.resolve(mockDbState.selectResults.shift() ?? []))
@@ -37,32 +41,9 @@ function createSelectChain() {
   return chain
 }
 
-function createUpdateChain(table: unknown) {
-  return {
-    set: vi.fn().mockImplementation((values: Record<string, unknown>) => {
-      mockDbState.updateCalls.push({ table, values })
-      return {
-        where: vi.fn().mockResolvedValue(undefined),
-      }
-    }),
-  }
-}
-
 vi.mock('@sim/db', () => ({
   db: {
     select: vi.fn().mockImplementation(() => createSelectChain()),
-    insert: vi.fn().mockImplementation((table: unknown) => ({
-      values: vi.fn().mockImplementation((values: unknown) => {
-        mockDbState.insertCalls.push({ table, values })
-        return Promise.resolve(undefined)
-      }),
-    })),
-    update: vi.fn().mockImplementation((table: unknown) => createUpdateChain(table)),
-    transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) =>
-      callback({
-        update: vi.fn().mockImplementation((table: unknown) => createUpdateChain(table)),
-      })
-    ),
   },
 }))
 
@@ -72,6 +53,11 @@ vi.mock('@sim/db/schema', () => ({
     organizationId: 'invitation.organizationId',
     status: 'invitation.status',
     email: 'invitation.email',
+    kind: 'invitation.kind',
+    role: 'invitation.role',
+    inviterId: 'invitation.inviterId',
+    expiresAt: 'invitation.expiresAt',
+    createdAt: 'invitation.createdAt',
   },
   member: {
     organizationId: 'member.organizationId',
@@ -93,29 +79,15 @@ vi.mock('@sim/db/schema', () => ({
     organizationId: 'workspace.organizationId',
     workspaceMode: 'workspace.workspaceMode',
   },
-  workspaceInvitation: {
-    id: 'workspaceInvitation.id',
-    orgInvitationId: 'workspaceInvitation.orgInvitationId',
-    status: 'workspaceInvitation.status',
-    updatedAt: 'workspaceInvitation.updatedAt',
-  },
 }))
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
   eq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
   inArray: vi.fn((field: unknown, values: unknown[]) => ({ field, values })),
-  isNull: vi.fn((field: unknown) => ({ field, type: 'isNull' })),
-  or: vi.fn((...conditions: unknown[]) => ({ type: 'or', conditions })),
 }))
 
 vi.mock('@sim/logger', () => loggerMock)
-
-vi.mock('@/components/emails', () => ({
-  getEmailSubject: vi.fn().mockReturnValue('Organization invite'),
-  renderBatchInvitationEmail: vi.fn().mockResolvedValue('<html></html>'),
-  renderInvitationEmail: vi.fn().mockResolvedValue('<html></html>'),
-}))
 
 vi.mock('@/lib/audit/log', () => auditMock)
 
@@ -128,16 +100,10 @@ vi.mock('@/lib/billing/validation/seat-management', () => ({
   validateSeatAvailability: mockValidateSeatAvailability,
 }))
 
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: vi.fn().mockReturnValue('https://test.sim.ai'),
-}))
-
-vi.mock('@/lib/core/utils/uuid', () => ({
-  generateId: vi.fn().mockReturnValue('generated-id'),
-}))
-
-vi.mock('@/lib/messaging/email/mailer', () => ({
-  sendEmail: mockSendEmail,
+vi.mock('@/lib/invitations/send', () => ({
+  createPendingInvitation: mockCreatePendingInvitation,
+  sendInvitationEmail: mockSendInvitationEmail,
+  cancelPendingInvitation: mockCancelPendingInvitation,
 }))
 
 vi.mock('@/lib/messaging/email/validation', () => ({
@@ -163,8 +129,6 @@ describe('POST /api/organizations/[id]/invitations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockDbState.selectResults = []
-    mockDbState.updateCalls = []
-    mockDbState.insertCalls = []
     mockValidateInvitationsAllowed.mockResolvedValue(undefined)
     mockValidateSeatAvailability.mockResolvedValue({
       canInvite: true,
@@ -172,82 +136,74 @@ describe('POST /api/organizations/[id]/invitations', () => {
       maxSeats: 5,
       availableSeats: 4,
     })
+    mockCreatePendingInvitation.mockResolvedValue({
+      invitationId: 'inv-1',
+      token: 'tok-1',
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    })
+    mockSendInvitationEmail.mockResolvedValue({ success: true })
   })
 
-  it('cancels pending invite rows and reports failure when email delivery fails', async () => {
+  it('creates a unified invitation and sends a single email', async () => {
     mockGetSession.mockResolvedValue(
-      createSession({
-        userId: 'user-1',
-        email: 'owner@example.com',
-        name: 'Owner',
-      })
+      createSession({ userId: 'user-1', email: 'owner@example.com', name: 'Owner' })
     )
     mockDbState.selectResults = [
       [{ role: 'owner' }],
       [{ name: 'Org One' }],
       [],
       [],
-      [{ name: 'Owner' }],
+      [{ name: 'Owner', email: 'owner@example.com' }],
     ]
-    mockSendEmail.mockResolvedValue({
-      success: false,
-      message: 'mailer unavailable',
-    })
 
     const response = await POST(
       new Request('http://localhost/api/organizations/org-1/invitations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          emails: ['invitee@example.com'],
-        }),
+        body: JSON.stringify({ emails: ['invitee@example.com'] }),
+      }) as any,
+      { params: Promise.resolve({ id: 'org-1' }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'organization',
+        email: 'invitee@example.com',
+        organizationId: 'org-1',
+        role: 'member',
+        grants: [],
+      })
+    )
+    expect(mockSendInvitationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'organization', email: 'invitee@example.com' })
+    )
+    expect(mockCancelPendingInvitation).not.toHaveBeenCalled()
+  })
+
+  it('rolls back the pending invitation when email delivery fails', async () => {
+    mockGetSession.mockResolvedValue(
+      createSession({ userId: 'user-1', email: 'owner@example.com', name: 'Owner' })
+    )
+    mockDbState.selectResults = [
+      [{ role: 'owner' }],
+      [{ name: 'Org One' }],
+      [],
+      [],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+    ]
+    mockSendInvitationEmail.mockResolvedValue({ success: false, error: 'mailer unavailable' })
+
+    const response = await POST(
+      new Request('http://localhost/api/organizations/org-1/invitations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emails: ['invitee@example.com'] }),
       }) as any,
       { params: Promise.resolve({ id: 'org-1' }) }
     )
 
     expect(response.status).toBe(502)
-    await expect(response.json()).resolves.toEqual({
-      success: false,
-      error: 'Failed to send invitation emails.',
-      message: 'No invitation emails could be delivered.',
-      data: {
-        invitationsSent: 0,
-        invitedEmails: [],
-        failedInvitations: [
-          {
-            email: 'invitee@example.com',
-            error: 'mailer unavailable',
-          },
-        ],
-        existingMembers: [],
-        pendingInvitations: [],
-        invalidEmails: [],
-        workspaceInvitations: 0,
-        seatInfo: {
-          seatsUsed: 1,
-          maxSeats: 5,
-          availableSeats: 4,
-        },
-      },
-    })
-    expect(mockDbState.updateCalls).toEqual([
-      {
-        table: expect.objectContaining({
-          id: 'invitation.id',
-          organizationId: 'invitation.organizationId',
-        }),
-        values: { status: 'cancelled' },
-      },
-      {
-        table: expect.objectContaining({
-          id: 'workspaceInvitation.id',
-          orgInvitationId: 'workspaceInvitation.orgInvitationId',
-        }),
-        values: expect.objectContaining({
-          status: 'cancelled',
-          updatedAt: expect.any(Date),
-        }),
-      },
-    ])
+    expect(mockCancelPendingInvitation).toHaveBeenCalledWith('inv-1')
   })
 })

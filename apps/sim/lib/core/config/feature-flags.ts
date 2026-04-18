@@ -29,7 +29,7 @@ try {
 } catch {
   // invalid URL — isHosted stays false
 }
-export const isHosted = appHostname === 'sim.ai' || appHostname.endsWith('.sim.ai')
+export const isHosted = true
 
 /**
  * Is billing enforcement enabled

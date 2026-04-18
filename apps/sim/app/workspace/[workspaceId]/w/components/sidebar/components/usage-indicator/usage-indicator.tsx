@@ -322,7 +322,7 @@ export function UsageIndicator({ onClick }: UsageIndicatorProps) {
   }, [navigateToSettings])
 
   const handleManageSeats = useCallback(() => {
-    navigateToSettings({ section: 'team' })
+    navigateToSettings({ section: 'organization' })
   }, [navigateToSettings])
 
   const handleUpgradeToEnterprise = useCallback(() => {

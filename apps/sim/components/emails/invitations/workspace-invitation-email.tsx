@@ -1,11 +1,7 @@
 import { Link, Text } from '@react-email/components'
-import { createLogger } from '@sim/logger'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailLayout } from '@/components/emails/components'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getBrandConfig } from '@/ee/whitelabeling'
-
-const logger = createLogger('WorkspaceInvitationEmail')
 
 interface WorkspaceInvitationEmailProps {
   workspaceName?: string
@@ -19,24 +15,6 @@ export function WorkspaceInvitationEmail({
   invitationLink = '',
 }: WorkspaceInvitationEmailProps) {
   const brand = getBrandConfig()
-  const baseUrl = getBaseUrl()
-
-  let enhancedLink = invitationLink
-
-  try {
-    if (
-      invitationLink.includes('/api/workspaces/invitations/accept') ||
-      invitationLink.match(/\/api\/workspaces\/invitations\/[^?]+\?token=/)
-    ) {
-      const url = new URL(invitationLink)
-      const token = url.searchParams.get('token')
-      if (token) {
-        enhancedLink = `${baseUrl}/invite/${token}?token=${token}`
-      }
-    }
-  } catch (e) {
-    logger.error('Error enhancing invitation link:', e)
-  }
 
   return (
     <EmailLayout
@@ -49,11 +27,10 @@ export function WorkspaceInvitationEmail({
         workspace on {brand.name}.
       </Text>
 
-      <Link href={enhancedLink} style={{ textDecoration: 'none' }}>
+      <Link href={invitationLink} style={{ textDecoration: 'none' }}>
         <Text style={baseStyles.button}>Accept Invitation</Text>
       </Link>
 
-      {/* Divider */}
       <div style={baseStyles.divider} />
 
       <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
