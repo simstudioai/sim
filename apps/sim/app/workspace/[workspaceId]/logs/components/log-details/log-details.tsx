@@ -14,6 +14,10 @@ import {
   DropdownMenuTrigger,
   Eye,
   Input,
+  SModalTabs,
+  SModalTabsContent,
+  SModalTabsList,
+  SModalTabsTrigger,
   Tooltip,
 } from '@/components/emcn'
 import { Copy as CopyIcon, Search as SearchIcon } from '@/components/emcn/icons'
@@ -25,6 +29,7 @@ import {
   ExecutionSnapshot,
   FileCards,
   TraceSpans,
+  TraceView,
 } from '@/app/workspace/[workspaceId]/logs/components'
 import { useLogDetailsResize } from '@/app/workspace/[workspaceId]/logs/hooks'
 import {
@@ -272,6 +277,8 @@ interface LogDetailsProps {
  * @param props - Component props
  * @returns Log details sidebar component
  */
+type LogDetailsTab = 'overview' | 'trace'
+
 export const LogDetails = memo(function LogDetails({
   log,
   isOpen,
@@ -282,6 +289,7 @@ export const LogDetails = memo(function LogDetails({
   hasPrev = false,
 }: LogDetailsProps) {
   const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<LogDetailsTab>('overview')
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const panelWidth = useLogDetailsUIStore((state) => state.panelWidth)
   const { handleMouseDown } = useLogDetailsResize()
@@ -301,7 +309,13 @@ export const LogDetails = memo(function LogDetails({
     ((log.trigger === 'manual' && !!log.duration) ||
       !!(log.executionData?.enhanced && log.executionData?.traceSpans))
 
-  const hasCostInfo = isWorkflowExecutionLog && log?.cost
+  const hasCostInfo = !!(isWorkflowExecutionLog && log?.cost)
+  const showTraceTab =
+    isWorkflowExecutionLog && !!log?.executionData?.traceSpans && !permissionConfig.hideTraceSpans
+
+  useEffect(() => {
+    if (activeTab === 'trace' && !showTraceTab) setActiveTab('overview')
+  }, [activeTab, showTraceTab])
 
   const workflowOutput = useMemo(() => {
     const executionData = log?.executionData as
@@ -389,262 +403,290 @@ export const LogDetails = memo(function LogDetails({
               </div>
             </div>
 
-            {/* Content - Scrollable */}
-            <div className='mt-5 h-full w-full overflow-y-auto' ref={scrollAreaRef}>
-              <div className='flex flex-col gap-2.5 pb-4'>
-                {/* Timestamp & Workflow Row */}
-                <div className='flex min-w-0 items-center gap-4 px-[1px]'>
-                  {/* Timestamp Card */}
-                  <div className='flex w-[140px] flex-shrink-0 flex-col gap-2'>
-                    <div className='font-medium text-[var(--text-tertiary)] text-caption'>
-                      Timestamp
-                    </div>
-                    <div className='flex items-center gap-1.5'>
-                      <span className='font-medium text-[var(--text-secondary)] text-sm'>
-                        {formattedTimestamp?.compactDate || 'N/A'}
-                      </span>
-                      <span className='font-medium text-[var(--text-secondary)] text-sm'>
-                        {formattedTimestamp?.compactTime || 'N/A'}
-                      </span>
-                    </div>
-                  </div>
+            {/* Tabs */}
+            <SModalTabs
+              value={activeTab}
+              onValueChange={(v) => setActiveTab(v as LogDetailsTab)}
+              className='mt-4 flex min-h-0 flex-1 flex-col'
+            >
+              <SModalTabsList
+                activeValue={activeTab}
+                className='!px-0 border-[var(--border)] border-b'
+              >
+                <SModalTabsTrigger value='overview'>Overview</SModalTabsTrigger>
+                {showTraceTab && <SModalTabsTrigger value='trace'>Trace</SModalTabsTrigger>}
+              </SModalTabsList>
 
-                  {/* Workflow Card */}
-                  <div className='flex w-0 min-w-0 flex-1 flex-col gap-2'>
-                    <div className='font-medium text-[var(--text-tertiary)] text-caption'>
-                      {log.trigger === 'mothership' ? 'Job' : 'Workflow'}
-                    </div>
-                    <div className='flex min-w-0 items-center gap-2'>
-                      {(() => {
-                        const c =
-                          log.trigger === 'mothership'
-                            ? '#ec4899'
-                            : log.workflow?.color ||
-                              (!log.workflowId ? DELETED_WORKFLOW_COLOR : undefined)
-                        return (
-                          <div
-                            className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
-                            style={{
-                              backgroundColor: c,
-                              borderColor: c ? workflowBorderColor(c) : undefined,
-                              backgroundClip: 'padding-box',
-                            }}
-                          />
-                        )
-                      })()}
-                      <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-secondary)] text-sm'>
-                        {log.trigger === 'mothership'
-                          ? log.jobTitle || 'Untitled Job'
-                          : log.workflow?.name ||
-                            (!log.workflowId ? DELETED_WORKFLOW_LABEL : 'Unknown')}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Run ID */}
-                {log.executionId && (
-                  <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2'>
-                    <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                      Run ID
-                    </span>
-                    <span className='truncate font-medium text-[var(--text-secondary)] text-sm'>
-                      {log.executionId}
-                    </span>
-                  </div>
-                )}
-
-                {/* Details Section */}
-                <div className='-my-1 flex min-w-0 flex-col overflow-hidden'>
-                  {/* Level */}
-                  <div className='flex h-[48px] items-center justify-between border-[var(--border)] border-b p-2'>
-                    <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                      Level
-                    </span>
-                    <StatusBadge status={logStatus} />
-                  </div>
-
-                  {/* Trigger */}
-                  <div className='flex h-[48px] items-center justify-between border-[var(--border)] border-b p-2'>
-                    <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                      Trigger
-                    </span>
-                    {log.trigger ? (
-                      <TriggerBadge trigger={log.trigger} />
-                    ) : (
-                      <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                        —
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Duration */}
-                  <div
-                    className={`flex h-[48px] items-center justify-between border-b p-2 ${log.deploymentVersion ? 'border-[var(--border)]' : 'border-transparent'}`}
-                  >
-                    <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                      Duration
-                    </span>
-                    <span className='font-medium text-[var(--text-secondary)] text-small'>
-                      {formatDuration(log.duration, { precision: 2 }) || '—'}
-                    </span>
-                  </div>
-
-                  {/* Version */}
-                  {log.deploymentVersion && (
-                    <div className='flex h-[48px] items-center gap-2 p-2'>
-                      <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
-                        Version
-                      </span>
-                      <div className='flex w-0 flex-1 justify-end'>
-                        <span className='max-w-full truncate rounded-md bg-[var(--badge-success-bg)] px-[9px] py-0.5 font-medium text-[var(--badge-success-text)] text-caption'>
-                          {log.deploymentVersionName || `v${log.deploymentVersion}`}
+              {/* Overview Tab */}
+              <SModalTabsContent value='overview' className='mt-4 min-h-0 flex-1 overflow-y-auto'>
+                <div className='flex flex-col gap-2.5 pb-4' ref={scrollAreaRef}>
+                  {/* Timestamp & Workflow Row */}
+                  <div className='flex min-w-0 items-center gap-4 px-[1px]'>
+                    {/* Timestamp Card */}
+                    <div className='flex w-[140px] flex-shrink-0 flex-col gap-2'>
+                      <div className='font-medium text-[var(--text-tertiary)] text-caption'>
+                        Timestamp
+                      </div>
+                      <div className='flex items-center gap-1.5'>
+                        <span className='font-medium text-[var(--text-secondary)] text-sm'>
+                          {formattedTimestamp?.compactDate || 'N/A'}
+                        </span>
+                        <span className='font-medium text-[var(--text-secondary)] text-sm'>
+                          {formattedTimestamp?.compactTime || 'N/A'}
                         </span>
                       </div>
                     </div>
+
+                    {/* Workflow Card */}
+                    <div className='flex w-0 min-w-0 flex-1 flex-col gap-2'>
+                      <div className='font-medium text-[var(--text-tertiary)] text-caption'>
+                        {log.trigger === 'mothership' ? 'Job' : 'Workflow'}
+                      </div>
+                      <div className='flex min-w-0 items-center gap-2'>
+                        {(() => {
+                          const c =
+                            log.trigger === 'mothership'
+                              ? '#ec4899'
+                              : log.workflow?.color ||
+                                (!log.workflowId ? DELETED_WORKFLOW_COLOR : undefined)
+                          return (
+                            <div
+                              className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
+                              style={{
+                                backgroundColor: c,
+                                borderColor: c ? workflowBorderColor(c) : undefined,
+                                backgroundClip: 'padding-box',
+                              }}
+                            />
+                          )
+                        })()}
+                        <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-secondary)] text-sm'>
+                          {log.trigger === 'mothership'
+                            ? log.jobTitle || 'Untitled Job'
+                            : log.workflow?.name ||
+                              (!log.workflowId ? DELETED_WORKFLOW_LABEL : 'Unknown')}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Run ID */}
+                  {log.executionId && (
+                    <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2'>
+                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                        Run ID
+                      </span>
+                      <span className='truncate font-medium text-[var(--text-secondary)] text-sm'>
+                        {log.executionId}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Details Section */}
+                  <div className='-my-1 flex min-w-0 flex-col overflow-hidden'>
+                    {/* Level */}
+                    <div className='flex h-[48px] items-center justify-between border-[var(--border)] border-b p-2'>
+                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                        Level
+                      </span>
+                      <StatusBadge status={logStatus} />
+                    </div>
+
+                    {/* Trigger */}
+                    <div className='flex h-[48px] items-center justify-between border-[var(--border)] border-b p-2'>
+                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                        Trigger
+                      </span>
+                      {log.trigger ? (
+                        <TriggerBadge trigger={log.trigger} />
+                      ) : (
+                        <span className='font-medium text-[var(--text-secondary)] text-caption'>
+                          —
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Duration */}
+                    <div
+                      className={`flex h-[48px] items-center justify-between border-b p-2 ${log.deploymentVersion ? 'border-[var(--border)]' : 'border-transparent'}`}
+                    >
+                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                        Duration
+                      </span>
+                      <span className='font-medium text-[var(--text-secondary)] text-small'>
+                        {formatDuration(log.duration, { precision: 2 }) || '—'}
+                      </span>
+                    </div>
+
+                    {/* Version */}
+                    {log.deploymentVersion && (
+                      <div className='flex h-[48px] items-center gap-2 p-2'>
+                        <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
+                          Version
+                        </span>
+                        <div className='flex w-0 flex-1 justify-end'>
+                          <span className='max-w-full truncate rounded-md bg-[var(--badge-success-bg)] px-[9px] py-0.5 font-medium text-[var(--badge-success-text)] text-caption'>
+                            {log.deploymentVersionName || `v${log.deploymentVersion}`}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Workflow State */}
+                  {isWorkflowExecutionLog &&
+                    log.executionId &&
+                    log.trigger !== 'mothership' &&
+                    !permissionConfig.hideTraceSpans && (
+                      <div className='-mt-2 flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2'>
+                        <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                          Workflow State
+                        </span>
+                        <Button
+                          variant='active'
+                          onClick={() => setIsExecutionSnapshotOpen(true)}
+                          className='flex w-full items-center justify-between px-2.5 py-1.5'
+                        >
+                          <span className='font-medium text-caption'>View Snapshot</span>
+                          <Eye className='h-[14px] w-[14px]' />
+                        </Button>
+                      </div>
+                    )}
+
+                  {/* Workflow Output */}
+                  {isWorkflowExecutionLog && workflowOutput && !permissionConfig.hideTraceSpans && (
+                    <div className='mt-1 flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
+                      <span
+                        className={cn(
+                          'font-medium text-caption',
+                          workflowOutput.error
+                            ? 'text-[var(--text-error)]'
+                            : 'text-[var(--text-tertiary)]'
+                        )}
+                      >
+                        Workflow Output
+                      </span>
+                      <WorkflowOutputSection output={workflowOutput} />
+                    </div>
+                  )}
+
+                  {/* Workflow Execution - Trace Spans */}
+                  {isWorkflowExecutionLog &&
+                    log.executionData?.traceSpans &&
+                    !permissionConfig.hideTraceSpans && (
+                      <div className='mt-1 flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
+                        <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                          Trace Span
+                        </span>
+                        <TraceSpans traceSpans={log.executionData.traceSpans} />
+                      </div>
+                    )}
+
+                  {/* Files */}
+                  {log.files && log.files.length > 0 && (
+                    <FileCards files={log.files} isExecutionFile />
+                  )}
+
+                  {/* Cost Breakdown */}
+                  {hasCostInfo && (
+                    <div className='flex flex-col gap-2'>
+                      <span className='px-[1px] font-medium text-[var(--text-tertiary)] text-caption'>
+                        Cost Breakdown
+                      </span>
+
+                      <div className='flex flex-col gap-1 rounded-md border border-[var(--border)]'>
+                        <div className='flex flex-col gap-2.5 rounded-md p-2.5'>
+                          <div className='flex items-center justify-between'>
+                            <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                              Base Run:
+                            </span>
+                            <span className='font-medium text-[var(--text-secondary)] text-caption'>
+                              {formatCost(BASE_EXECUTION_CHARGE)}
+                            </span>
+                          </div>
+                          <div className='flex items-center justify-between'>
+                            <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                              Model Input:
+                            </span>
+                            <span className='font-medium text-[var(--text-secondary)] text-caption'>
+                              {formatCost(log.cost?.input || 0)}
+                            </span>
+                          </div>
+                          <div className='flex items-center justify-between'>
+                            <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                              Model Output:
+                            </span>
+                            <span className='font-medium text-[var(--text-secondary)] text-caption'>
+                              {formatCost(log.cost?.output || 0)}
+                            </span>
+                          </div>
+                          {(() => {
+                            const models = (log.cost as Record<string, unknown>)?.models as
+                              | Record<string, { toolCost?: number }>
+                              | undefined
+                            const totalToolCost = models
+                              ? Object.values(models).reduce(
+                                  (sum, m) => sum + (m?.toolCost || 0),
+                                  0
+                                )
+                              : 0
+                            return totalToolCost > 0 ? (
+                              <div className='flex items-center justify-between'>
+                                <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                                  Tool Usage:
+                                </span>
+                                <span className='font-medium text-[var(--text-secondary)] text-caption'>
+                                  {formatCost(totalToolCost)}
+                                </span>
+                              </div>
+                            ) : null
+                          })()}
+                        </div>
+
+                        <div className='border-[var(--border)] border-t' />
+
+                        <div className='flex flex-col gap-2.5 rounded-md p-2.5'>
+                          <div className='flex items-center justify-between'>
+                            <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                              Total:
+                            </span>
+                            <span className='font-medium text-[var(--text-secondary)] text-caption'>
+                              {formatCost(log.cost?.total || 0)}
+                            </span>
+                          </div>
+                          <div className='flex items-center justify-between'>
+                            <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                              Tokens:
+                            </span>
+                            <span className='font-medium text-[var(--text-secondary)] text-caption'>
+                              {log.cost?.tokens?.input || log.cost?.tokens?.prompt || 0} in /{' '}
+                              {log.cost?.tokens?.output || log.cost?.tokens?.completion || 0} out
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className='flex items-center justify-center rounded-md bg-[var(--surface-2)] p-2 text-center'>
+                        <p className='font-medium text-[var(--text-subtle)] text-xs'>
+                          Total cost includes a base run charge of{' '}
+                          {formatCost(BASE_EXECUTION_CHARGE)} plus any model and tool usage costs.
+                        </p>
+                      </div>
+                    </div>
                   )}
                 </div>
+              </SModalTabsContent>
 
-                {/* Workflow State */}
-                {isWorkflowExecutionLog &&
-                  log.executionId &&
-                  log.trigger !== 'mothership' &&
-                  !permissionConfig.hideTraceSpans && (
-                    <div className='-mt-2 flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2'>
-                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                        Workflow State
-                      </span>
-                      <Button
-                        variant='active'
-                        onClick={() => setIsExecutionSnapshotOpen(true)}
-                        className='flex w-full items-center justify-between px-2.5 py-1.5'
-                      >
-                        <span className='font-medium text-caption'>View Snapshot</span>
-                        <Eye className='h-[14px] w-[14px]' />
-                      </Button>
-                    </div>
-                  )}
-
-                {/* Workflow Output */}
-                {isWorkflowExecutionLog && workflowOutput && !permissionConfig.hideTraceSpans && (
-                  <div className='mt-1 flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
-                    <span
-                      className={cn(
-                        'font-medium text-caption',
-                        workflowOutput.error
-                          ? 'text-[var(--text-error)]'
-                          : 'text-[var(--text-tertiary)]'
-                      )}
-                    >
-                      Workflow Output
-                    </span>
-                    <WorkflowOutputSection output={workflowOutput} />
-                  </div>
-                )}
-
-                {/* Workflow Execution - Trace Spans */}
-                {isWorkflowExecutionLog &&
-                  log.executionData?.traceSpans &&
-                  !permissionConfig.hideTraceSpans && (
-                    <div className='mt-1 flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
-                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                        Trace Span
-                      </span>
-                      <TraceSpans traceSpans={log.executionData.traceSpans} />
-                    </div>
-                  )}
-
-                {/* Files */}
-                {log.files && log.files.length > 0 && (
-                  <FileCards files={log.files} isExecutionFile />
-                )}
-
-                {/* Cost Breakdown */}
-                {hasCostInfo && (
-                  <div className='flex flex-col gap-2'>
-                    <span className='px-[1px] font-medium text-[var(--text-tertiary)] text-caption'>
-                      Cost Breakdown
-                    </span>
-
-                    <div className='flex flex-col gap-1 rounded-md border border-[var(--border)]'>
-                      <div className='flex flex-col gap-2.5 rounded-md p-2.5'>
-                        <div className='flex items-center justify-between'>
-                          <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                            Base Run:
-                          </span>
-                          <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                            {formatCost(BASE_EXECUTION_CHARGE)}
-                          </span>
-                        </div>
-                        <div className='flex items-center justify-between'>
-                          <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                            Model Input:
-                          </span>
-                          <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                            {formatCost(log.cost?.input || 0)}
-                          </span>
-                        </div>
-                        <div className='flex items-center justify-between'>
-                          <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                            Model Output:
-                          </span>
-                          <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                            {formatCost(log.cost?.output || 0)}
-                          </span>
-                        </div>
-                        {(() => {
-                          const models = (log.cost as Record<string, unknown>)?.models as
-                            | Record<string, { toolCost?: number }>
-                            | undefined
-                          const totalToolCost = models
-                            ? Object.values(models).reduce((sum, m) => sum + (m?.toolCost || 0), 0)
-                            : 0
-                          return totalToolCost > 0 ? (
-                            <div className='flex items-center justify-between'>
-                              <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                                Tool Usage:
-                              </span>
-                              <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                                {formatCost(totalToolCost)}
-                              </span>
-                            </div>
-                          ) : null
-                        })()}
-                      </div>
-
-                      <div className='border-[var(--border)] border-t' />
-
-                      <div className='flex flex-col gap-2.5 rounded-md p-2.5'>
-                        <div className='flex items-center justify-between'>
-                          <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                            Total:
-                          </span>
-                          <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                            {formatCost(log.cost?.total || 0)}
-                          </span>
-                        </div>
-                        <div className='flex items-center justify-between'>
-                          <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                            Tokens:
-                          </span>
-                          <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                            {log.cost?.tokens?.input || log.cost?.tokens?.prompt || 0} in /{' '}
-                            {log.cost?.tokens?.output || log.cost?.tokens?.completion || 0} out
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className='flex items-center justify-center rounded-md bg-[var(--surface-2)] p-2 text-center'>
-                      <p className='font-medium text-[var(--text-subtle)] text-xs'>
-                        Total cost includes a base run charge of {formatCost(BASE_EXECUTION_CHARGE)}{' '}
-                        plus any model and tool usage costs.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+              {/* Trace Tab */}
+              {showTraceTab && log.executionData?.traceSpans && (
+                <SModalTabsContent
+                  value='trace'
+                  className='mt-3 min-h-0 flex-1 overflow-hidden focus-visible:outline-none'
+                >
+                  <TraceView traceSpans={log.executionData.traceSpans} />
+                </SModalTabsContent>
+              )}
+            </SModalTabs>
           </div>
         )}
 

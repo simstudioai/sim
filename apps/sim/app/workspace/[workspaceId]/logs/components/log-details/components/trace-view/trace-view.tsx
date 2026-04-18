@@ -1,0 +1,978 @@
+'use client'
+
+import type React from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Clipboard,
+  Search,
+  X,
+} from 'lucide-react'
+import { createPortal } from 'react-dom'
+import {
+  Button,
+  ChevronDown,
+  Code,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Input,
+  Tooltip,
+} from '@/components/emcn'
+import { Copy as CopyIcon, Search as SearchIcon } from '@/components/emcn/icons'
+import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
+import { cn } from '@/lib/core/utils/cn'
+import { formatDuration } from '@/lib/core/utils/formatting'
+import type { TraceSpan } from '@/lib/logs/types'
+import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
+import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
+import { getBlock, getBlockByToolName } from '@/blocks'
+import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
+
+const DEFAULT_BLOCK_COLOR = '#6b7280'
+const TREE_PANE_WIDTH = 240
+const INDENT_PX = 12
+
+interface TraceViewProps {
+  traceSpans: TraceSpan[]
+}
+
+interface FlatSpanEntry {
+  span: TraceSpan
+  depth: number
+  parentIds: string[]
+}
+
+interface BlockAppearance {
+  icon: React.ComponentType<{ className?: string }> | null
+  bgColor: string
+}
+
+/**
+ * Parses a timestamp or numeric ms into milliseconds since epoch.
+ */
+function parseTime(value?: string | number | null): number {
+  if (!value) return 0
+  const ms = typeof value === 'number' ? value : new Date(value).getTime()
+  return Number.isFinite(ms) ? ms : 0
+}
+
+/**
+ * Whether a span type represents a loop or parallel iteration container.
+ */
+function isIterationType(type: string): boolean {
+  const lower = type?.toLowerCase() || ''
+  return lower === 'loop-iteration' || lower === 'parallel-iteration'
+}
+
+/**
+ * Returns the stable id for a span, synthesized when absent.
+ */
+function getSpanId(span: TraceSpan): string {
+  return span.id || `span-${span.name}-${span.startTime}`
+}
+
+/**
+ * Walks a span's descendants to determine if any error exists in the subtree.
+ */
+function hasErrorInTree(span: TraceSpan): boolean {
+  if (span.status === 'error') return true
+  if (span.children?.length) return span.children.some(hasErrorInTree)
+  if (span.toolCalls?.length) return span.toolCalls.some((tc) => tc.error)
+  return false
+}
+
+/**
+ * Like `hasErrorInTree` but only counts errors that were not handled by an
+ * error-handler path. Used for the root workflow status color.
+ */
+function hasUnhandledErrorInTree(span: TraceSpan): boolean {
+  if (span.status === 'error' && !span.errorHandled) return true
+  if (span.children?.length) return span.children.some(hasUnhandledErrorInTree)
+  if (span.toolCalls?.length && !span.errorHandled) return span.toolCalls.some((tc) => tc.error)
+  return false
+}
+
+/**
+ * Normalizes and sorts a tree of spans by start time.
+ */
+function normalizeAndSort(spans: TraceSpan[]): TraceSpan[] {
+  return spans
+    .map((span) => ({
+      ...span,
+      children: span.children?.length ? normalizeAndSort(span.children) : undefined,
+    }))
+    .sort((a, b) => {
+      const d = parseTime(a.startTime) - parseTime(b.startTime)
+      return d !== 0 ? d : parseTime(a.endTime) - parseTime(b.endTime)
+    })
+}
+
+/**
+ * For agents with no tool calls, hides synthetic model-segment children to
+ * avoid noise in the tree.
+ */
+function getDisplayChildren(span: TraceSpan): TraceSpan[] {
+  const kids: TraceSpan[] = span.children?.length
+    ? [...span.children]
+    : (span.toolCalls ?? []).map((tc, i) => ({
+        id: `${getSpanId(span)}-tool-${i}`,
+        name: tc.name,
+        type: 'tool',
+        duration: tc.duration || 0,
+        startTime: tc.startTime ?? span.startTime,
+        endTime: tc.endTime ?? span.endTime,
+        status: tc.error ? ('error' as const) : ('success' as const),
+        input: tc.input,
+        output: tc.error ? { error: tc.error, ...(tc.output ?? {}) } : tc.output,
+      }))
+  kids.sort((a, b) => parseTime(a.startTime) - parseTime(b.startTime))
+  const isAgent = span.type?.toLowerCase() === 'agent'
+  const hasToolCall = kids.some((c) => c.type?.toLowerCase() === 'tool')
+  if (isAgent && !hasToolCall) return kids.filter((c) => c.type?.toLowerCase() !== 'model')
+  return kids
+}
+
+/**
+ * Resolves the block icon and accent color for a trace span type.
+ */
+function getBlockAppearance(type: string, toolName?: string): BlockAppearance {
+  const lowerType = type.toLowerCase()
+  if (lowerType === 'tool' && toolName) {
+    if (toolName === 'load_skill') return { icon: AgentSkillsIcon, bgColor: '#8B5CF6' }
+    const toolBlock = getBlockByToolName(toolName)
+    if (toolBlock) return { icon: toolBlock.icon, bgColor: toolBlock.bgColor }
+  }
+  if (lowerType === 'loop' || lowerType === 'loop-iteration')
+    return { icon: LoopTool.icon, bgColor: LoopTool.bgColor }
+  if (lowerType === 'parallel' || lowerType === 'parallel-iteration')
+    return { icon: ParallelTool.icon, bgColor: ParallelTool.bgColor }
+  if (lowerType === 'workflow') return { icon: WorkflowIcon, bgColor: '#6366F1' }
+  const blockType = lowerType === 'model' ? 'agent' : lowerType
+  const blockConfig = getBlock(blockType)
+  if (blockConfig) return { icon: blockConfig.icon, bgColor: blockConfig.bgColor }
+  return { icon: null, bgColor: DEFAULT_BLOCK_COLOR }
+}
+
+function formatTokenCount(value: number | undefined): string | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
+  return value.toLocaleString('en-US')
+}
+
+function formatCostAmount(value: number | undefined): string | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
+  if (value < 0.0001) return '<$0.0001'
+  return `$${value.toFixed(4)}`
+}
+
+function formatTtft(ms: number | undefined): string | undefined {
+  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms < 0) return undefined
+  if (ms < 1000) return `${Math.round(ms)}ms`
+  return `${(ms / 1000).toFixed(2)}s`
+}
+
+function formatTps(outputTokens: number | undefined, durationMs: number): string | undefined {
+  if (typeof outputTokens !== 'number' || !(outputTokens > 0)) return undefined
+  if (!(durationMs > 0)) return undefined
+  const tps = Math.round(outputTokens / (durationMs / 1000))
+  return tps > 0 ? `${tps.toLocaleString('en-US')} tok/s` : undefined
+}
+
+/**
+ * Flattens the visible (expanded) span tree into a linear list for keyboard
+ * navigation, carrying depth and the chain of parent ids for indent drawing.
+ */
+function flattenVisible(spans: TraceSpan[], expanded: Set<string>): FlatSpanEntry[] {
+  const out: FlatSpanEntry[] = []
+  const walk = (list: TraceSpan[], depth: number, parents: string[]) => {
+    for (const span of list) {
+      const id = getSpanId(span)
+      out.push({ span, depth, parentIds: parents })
+      const children = getDisplayChildren(span)
+      if (children.length > 0 && expanded.has(id)) {
+        walk(children, depth + 1, [...parents, id])
+      }
+    }
+  }
+  walk(spans, 0, [])
+  return out
+}
+
+/**
+ * Returns every descendant span id in the tree.
+ */
+function collectAllIds(spans: TraceSpan[]): string[] {
+  const out: string[] = []
+  const walk = (list: TraceSpan[]) => {
+    for (const span of list) {
+      out.push(getSpanId(span))
+      const children = getDisplayChildren(span)
+      if (children.length > 0) walk(children)
+    }
+  }
+  walk(spans)
+  return out
+}
+
+/**
+ * Finds a span by id anywhere in the tree.
+ */
+function findSpan(spans: TraceSpan[], id: string | null): TraceSpan | null {
+  if (!id) return null
+  for (const span of spans) {
+    if (getSpanId(span) === id) return span
+    const children = getDisplayChildren(span)
+    if (children.length > 0) {
+      const found = findSpan(children, id)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+/**
+ * Case-insensitive name match.
+ */
+function spanMatchesQuery(span: TraceSpan, query: string): boolean {
+  if (!query) return true
+  return (span.name ?? '').toLowerCase().includes(query.toLowerCase())
+}
+
+/**
+ * Returns the set of ids of spans that match the query themselves or contain
+ * a matching descendant. Used to show only relevant branches while preserving
+ * their parents.
+ */
+function collectMatchingIds(spans: TraceSpan[], query: string): Set<string> {
+  const matches = new Set<string>()
+  const walk = (list: TraceSpan[]): boolean => {
+    let anyMatch = false
+    for (const span of list) {
+      const id = getSpanId(span)
+      const children = getDisplayChildren(span)
+      const childMatch = children.length > 0 ? walk(children) : false
+      const selfMatch = spanMatchesQuery(span, query)
+      if (selfMatch || childMatch) {
+        matches.add(id)
+        anyMatch = true
+      }
+    }
+    return anyMatch
+  }
+  walk(spans)
+  return matches
+}
+
+/**
+ * Row in the tree pane. Renders the span icon, name, duration, and indentation
+ * guides. Clicking selects the span; the chevron toggles expansion.
+ */
+const TraceTreeRow = memo(function TraceTreeRow({
+  entry,
+  isSelected,
+  isExpanded,
+  canExpand,
+  onSelect,
+  onToggleExpand,
+  matchQuery,
+}: {
+  entry: FlatSpanEntry
+  isSelected: boolean
+  isExpanded: boolean
+  canExpand: boolean
+  onSelect: (id: string) => void
+  onToggleExpand: (id: string) => void
+  matchQuery: string
+}) {
+  const { span, depth } = entry
+  const id = getSpanId(span)
+  const duration = span.duration || parseTime(span.endTime) - parseTime(span.startTime)
+  const isRootWorkflow = depth === 0 && span.type?.toLowerCase() === 'workflow'
+  const hasError = isRootWorkflow ? hasUnhandledErrorInTree(span) : hasErrorInTree(span)
+  const { icon: BlockIcon, bgColor } = getBlockAppearance(span.type, span.name)
+  const nameMatches = !!matchQuery && spanMatchesQuery(span, matchQuery)
+
+  return (
+    <div
+      className={cn(
+        'group relative flex min-w-0 cursor-pointer items-center gap-1.5 py-1 pr-2 transition-colors',
+        isSelected ? 'bg-[var(--surface-3)]' : 'hover-hover:bg-[var(--surface-2)]'
+      )}
+      style={{ paddingLeft: 8 + depth * INDENT_PX }}
+      onClick={() => onSelect(id)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onSelect(id)
+        }
+      }}
+      role='treeitem'
+      tabIndex={isSelected ? 0 : -1}
+      aria-selected={isSelected}
+      aria-expanded={canExpand ? isExpanded : undefined}
+      aria-level={depth + 1}
+    >
+      {canExpand ? (
+        <button
+          type='button'
+          className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded-sm text-[var(--text-tertiary)] transition-colors hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleExpand(id)
+          }}
+          aria-label={isExpanded ? 'Collapse' : 'Expand'}
+        >
+          <ChevronDown
+            className='h-[10px] w-[10px]'
+            style={{ transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }}
+          />
+        </button>
+      ) : (
+        <div className='h-[14px] w-[14px] flex-shrink-0' />
+      )}
+      {!isIterationType(span.type) && (
+        <div
+          className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+          style={{ background: bgColor }}
+        >
+          {BlockIcon && <BlockIcon className='h-[9px] w-[9px] text-white' />}
+        </div>
+      )}
+      <span
+        className={cn(
+          'min-w-0 flex-1 truncate font-medium text-caption',
+          hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-secondary)]',
+          nameMatches && 'text-[var(--text-primary)]'
+        )}
+      >
+        {span.name}
+      </span>
+      <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
+        {formatDuration(duration, { precision: 2 })}
+      </span>
+    </div>
+  )
+})
+
+/**
+ * Collapsible code viewer with copy/search overlay, used for input/output/thinking/
+ * tool-call/error blobs in the detail pane.
+ */
+function DetailCodeSection({
+  label,
+  data,
+  isError,
+  defaultOpen = true,
+}: {
+  label: string
+  data: unknown
+  isError?: boolean
+  defaultOpen?: boolean
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen)
+  const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
+  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
+  const [copied, setCopied] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  const {
+    isSearchActive,
+    searchQuery,
+    setSearchQuery,
+    matchCount,
+    currentMatchIndex,
+    activateSearch,
+    closeSearch,
+    goToNextMatch,
+    goToPreviousMatch,
+    handleMatchCountChange,
+    searchInputRef,
+  } = useCodeViewerFeatures({ contentRef })
+
+  const jsonString = useMemo(() => {
+    if (data == null) return ''
+    if (typeof data === 'string') return data
+    return JSON.stringify(data, null, 2)
+  }, [data])
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenuPosition({ x: e.clientX, y: e.clientY })
+    setIsContextMenuOpen(true)
+  }, [])
+
+  const closeContextMenu = useCallback(() => setIsContextMenuOpen(false), [])
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(jsonString)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+    closeContextMenu()
+  }, [jsonString, closeContextMenu])
+
+  const handleSearch = useCallback(() => {
+    activateSearch()
+    closeContextMenu()
+  }, [activateSearch, closeContextMenu])
+
+  return (
+    <div className='relative flex min-w-0 flex-col gap-1.5 overflow-hidden'>
+      <div
+        className='group flex cursor-pointer items-center justify-between'
+        onClick={() => setIsOpen((v) => !v)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setIsOpen((v) => !v)
+          }
+        }}
+        role='button'
+        tabIndex={0}
+        aria-expanded={isOpen}
+      >
+        <span
+          className={cn(
+            'font-medium text-caption transition-colors',
+            isError
+              ? 'text-[var(--text-error)]'
+              : 'text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]'
+          )}
+        >
+          {label}
+        </span>
+        <ChevronDown
+          className='h-[8px] w-[8px] text-[var(--text-tertiary)] transition-colors transition-transform group-hover:text-[var(--text-primary)]'
+          style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+        />
+      </div>
+      {isOpen && (
+        <>
+          <div ref={contentRef} onContextMenu={handleContextMenu} className='relative'>
+            <Code.Viewer
+              code={jsonString}
+              language='json'
+              className='!bg-[var(--surface-4)] dark:!bg-[var(--surface-3)] max-h-[360px] min-h-0 max-w-full rounded-md border-0 [word-break:break-all]'
+              wrapText
+              searchQuery={isSearchActive ? searchQuery : undefined}
+              currentMatchIndex={currentMatchIndex}
+              onMatchCountChange={handleMatchCountChange}
+            />
+            {!isSearchActive && (
+              <div className='absolute top-[7px] right-[6px] z-10 flex gap-1'>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      type='button'
+                      variant='default'
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleCopy()
+                      }}
+                      className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
+                    >
+                      {copied ? (
+                        <Check className='h-[10px] w-[10px] text-[var(--text-success)]' />
+                      ) : (
+                        <Clipboard className='h-[10px] w-[10px]' />
+                      )}
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top'>{copied ? 'Copied' : 'Copy'}</Tooltip.Content>
+                </Tooltip.Root>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      type='button'
+                      variant='default'
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        activateSearch()
+                      }}
+                      className='h-[20px] w-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
+                    >
+                      <Search className='h-[10px] w-[10px]' />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top'>Search</Tooltip.Content>
+                </Tooltip.Root>
+              </div>
+            )}
+          </div>
+          {isSearchActive && (
+            <div
+              className='absolute top-0 right-0 z-30 flex h-[34px] items-center gap-1.5 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-1.5 shadow-sm'
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Input
+                ref={searchInputRef}
+                type='text'
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder='Search...'
+                className='mr-0.5 h-[23px] w-[94px] text-caption'
+              />
+              <span
+                className={cn(
+                  'min-w-[45px] text-center text-xs',
+                  matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
+                )}
+              >
+                {matchCount > 0 ? `${currentMatchIndex + 1}/${matchCount}` : '0/0'}
+              </span>
+              <Button
+                variant='ghost'
+                className='!p-1'
+                onClick={goToPreviousMatch}
+                disabled={matchCount === 0}
+                aria-label='Previous match'
+              >
+                <ArrowUp className='h-[12px] w-[12px]' />
+              </Button>
+              <Button
+                variant='ghost'
+                className='!p-1'
+                onClick={goToNextMatch}
+                disabled={matchCount === 0}
+                aria-label='Next match'
+              >
+                <ArrowDown className='h-[12px] w-[12px]' />
+              </Button>
+              <Button
+                variant='ghost'
+                className='!p-1'
+                onClick={closeSearch}
+                aria-label='Close search'
+              >
+                <X className='h-[12px] w-[12px]' />
+              </Button>
+            </div>
+          )}
+          {typeof document !== 'undefined' &&
+            createPortal(
+              <DropdownMenu open={isContextMenuOpen} onOpenChange={closeContextMenu} modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <div
+                    style={{
+                      position: 'fixed',
+                      left: `${contextMenuPosition.x}px`,
+                      top: `${contextMenuPosition.y}px`,
+                      width: '1px',
+                      height: '1px',
+                      pointerEvents: 'none',
+                    }}
+                    tabIndex={-1}
+                    aria-hidden
+                  />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align='start'
+                  side='bottom'
+                  sideOffset={4}
+                  onCloseAutoFocus={(e) => e.preventDefault()}
+                >
+                  <DropdownMenuItem onSelect={handleCopy}>
+                    <CopyIcon />
+                    Copy
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={handleSearch}>
+                    <SearchIcon />
+                    Search
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>,
+              document.body
+            )}
+        </>
+      )}
+    </div>
+  )
+}
+
+/**
+ * A single label:value row in the metadata block of the detail pane.
+ */
+function MetaRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className='flex items-center justify-between gap-2 font-medium text-caption'>
+      <span className='flex-shrink-0 text-[var(--text-tertiary)]'>{label}</span>
+      <span className='min-w-0 truncate text-right text-[var(--text-secondary)]'>{value}</span>
+    </div>
+  )
+}
+
+/**
+ * Right-side pane. Renders a header and the available content sections for
+ * the selected span: metadata, input, output, thinking, tool calls, error.
+ */
+const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpan | null }) {
+  if (!span) {
+    return (
+      <div className='flex h-full items-center justify-center p-6 text-[var(--text-tertiary)] text-caption'>
+        Select a span to see details.
+      </div>
+    )
+  }
+
+  const duration = span.duration || parseTime(span.endTime) - parseTime(span.startTime)
+  const { icon: BlockIcon, bgColor } = getBlockAppearance(span.type, span.name)
+  const isRootWorkflow = span.type?.toLowerCase() === 'workflow'
+  const hasError = isRootWorkflow ? hasUnhandledErrorInTree(span) : hasErrorInTree(span)
+  const isDirectError = span.status === 'error'
+  const isModelSpan = span.type?.toLowerCase() === 'model'
+
+  const startedAt = parseTime(span.startTime)
+  const endedAt = parseTime(span.endTime)
+
+  const metaEntries: { label: string; value: string }[] = []
+  metaEntries.push({ label: 'Type', value: span.type })
+  metaEntries.push({ label: 'Duration', value: formatDuration(duration, { precision: 2 }) || '—' })
+  if (span.provider) metaEntries.push({ label: 'Provider', value: span.provider })
+  if (span.model) metaEntries.push({ label: 'Model', value: span.model })
+  if (span.finishReason) metaEntries.push({ label: 'Finish reason', value: span.finishReason })
+  const ttftFormatted = formatTtft(span.ttft)
+  if (ttftFormatted) metaEntries.push({ label: 'TTFT', value: ttftFormatted })
+  const tpsFormatted = isModelSpan ? formatTps(span.tokens?.output, duration) : undefined
+  if (tpsFormatted) metaEntries.push({ label: 'Throughput', value: tpsFormatted })
+  const inputTokens = formatTokenCount(span.tokens?.input)
+  const outputTokens = formatTokenCount(span.tokens?.output)
+  const totalTokens = formatTokenCount(span.tokens?.total)
+  const cacheRead = formatTokenCount(span.tokens?.cacheRead)
+  const cacheWrite = formatTokenCount(span.tokens?.cacheWrite)
+  const reasoning = formatTokenCount(span.tokens?.reasoning)
+  if (inputTokens) metaEntries.push({ label: 'Input tokens', value: inputTokens })
+  if (outputTokens) metaEntries.push({ label: 'Output tokens', value: outputTokens })
+  if (totalTokens) metaEntries.push({ label: 'Total tokens', value: totalTokens })
+  if (cacheRead) metaEntries.push({ label: 'Cache read', value: cacheRead })
+  if (cacheWrite) metaEntries.push({ label: 'Cache write', value: cacheWrite })
+  if (reasoning) metaEntries.push({ label: 'Reasoning tokens', value: reasoning })
+  const costTotal = formatCostAmount(span.cost?.total)
+  const costInput = formatCostAmount(span.cost?.input)
+  const costOutput = formatCostAmount(span.cost?.output)
+  if (costTotal) metaEntries.push({ label: 'Cost', value: costTotal })
+  if (costInput) metaEntries.push({ label: 'Cost input', value: costInput })
+  if (costOutput) metaEntries.push({ label: 'Cost output', value: costOutput })
+  if (span.errorType) metaEntries.push({ label: 'Error type', value: span.errorType })
+  if (span.iterationIndex !== undefined)
+    metaEntries.push({ label: 'Iteration', value: String(span.iterationIndex + 1) })
+
+  const statusLabel = hasError ? 'Error' : 'Success'
+
+  return (
+    <div className='flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3.5 pt-3 pb-4'>
+      {/* Header */}
+      <div className='flex items-start gap-2'>
+        {!isIterationType(span.type) && (
+          <div
+            className='mt-[2px] flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm'
+            style={{ background: bgColor }}
+          >
+            {BlockIcon && <BlockIcon className='h-[11px] w-[11px] text-white' />}
+          </div>
+        )}
+        <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
+          <h3
+            className={cn(
+              'min-w-0 truncate font-medium text-sm',
+              hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-primary)]'
+            )}
+          >
+            {span.name}
+          </h3>
+          <div className='flex items-center gap-1.5 font-medium text-[var(--text-tertiary)] text-caption'>
+            <span
+              className={cn(
+                'rounded-[3px] px-1.5 py-[1px]',
+                hasError
+                  ? 'bg-[var(--badge-error-bg)] text-[var(--badge-error-text)]'
+                  : 'bg-[var(--badge-success-bg)] text-[var(--badge-success-text)]'
+              )}
+            >
+              {statusLabel}
+            </span>
+            <span>·</span>
+            <span>{formatDuration(duration, { precision: 2 }) || '—'}</span>
+            {Number.isFinite(startedAt) && startedAt > 0 && (
+              <>
+                <span>·</span>
+                <span title={new Date(startedAt).toISOString()}>
+                  {new Date(startedAt).toLocaleTimeString()}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Metadata block */}
+      {metaEntries.length > 0 && (
+        <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
+          {metaEntries.map((m) => (
+            <MetaRow key={m.label} label={m.label} value={m.value} />
+          ))}
+        </div>
+      )}
+
+      {/* Content sections */}
+      {span.input !== undefined && span.input !== null && (
+        <DetailCodeSection label='Input' data={span.input} />
+      )}
+      {span.output !== undefined && span.output !== null && (
+        <DetailCodeSection
+          label={isDirectError ? 'Error' : 'Output'}
+          data={span.output}
+          isError={isDirectError}
+        />
+      )}
+      {span.thinking && <DetailCodeSection label='Thinking' data={span.thinking} />}
+      {span.modelToolCalls && span.modelToolCalls.length > 0 && (
+        <DetailCodeSection label='Tool calls' data={span.modelToolCalls} />
+      )}
+      {span.errorMessage && (
+        <DetailCodeSection label='Error message' data={span.errorMessage} isError />
+      )}
+
+      {/* Raw timing footer */}
+      {Number.isFinite(startedAt) && Number.isFinite(endedAt) && startedAt > 0 && endedAt > 0 && (
+        <div className='flex items-center justify-between font-medium text-[var(--text-tertiary)] text-caption'>
+          <span>Started {new Date(startedAt).toISOString()}</span>
+          <span>Ended {new Date(endedAt).toISOString()}</span>
+        </div>
+      )}
+    </div>
+  )
+})
+
+/**
+ * Rich two-pane trace view: hierarchical span tree on the left with
+ * keyboard-navigable selection, detail pane on the right. Renders the run
+ * in a way that mirrors the executor's internal structure so investigators can
+ * follow block-by-block and segment-by-segment what happened and why.
+ */
+export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set())
+  const [hasInitialized, setHasInitialized] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  const { normalizedSpans, allIds, totalDuration, firstRootId, blockCount } = useMemo(() => {
+    const sorted = normalizeAndSort(traceSpans ?? [])
+    let earliest = Number.POSITIVE_INFINITY
+    let latest = 0
+    for (const span of sorted) {
+      const s = parseTime(span.startTime)
+      const e = parseTime(span.endTime)
+      if (s < earliest) earliest = s
+      if (e > latest) latest = e
+    }
+    const ids = collectAllIds(sorted)
+    const count = ids.length
+    return {
+      normalizedSpans: sorted,
+      allIds: ids,
+      totalDuration: latest > earliest ? latest - earliest : 0,
+      firstRootId: sorted.length > 0 ? getSpanId(sorted[0]) : null,
+      blockCount: count,
+    }
+  }, [traceSpans])
+
+  useEffect(() => {
+    setExpandedNodes(new Set(allIds))
+    setSelectedId(firstRootId)
+    setHasInitialized(true)
+  }, [allIds, firstRootId])
+
+  const matchingIds = useMemo(
+    () => (searchQuery ? collectMatchingIds(normalizedSpans, searchQuery) : null),
+    [normalizedSpans, searchQuery]
+  )
+
+  const flatList = useMemo(() => {
+    const visible = flattenVisible(normalizedSpans, expandedNodes)
+    if (!matchingIds) return visible
+    return visible.filter((entry) => matchingIds.has(getSpanId(entry.span)))
+  }, [normalizedSpans, expandedNodes, matchingIds])
+
+  const selectedSpan = useMemo(
+    () => findSpan(normalizedSpans, selectedId),
+    [normalizedSpans, selectedId]
+  )
+
+  const runStatus = useMemo(() => {
+    if (normalizedSpans.length === 0) return 'empty' as const
+    const rootHasError = normalizedSpans.some((span) =>
+      span.type?.toLowerCase() === 'workflow' ? hasUnhandledErrorInTree(span) : hasErrorInTree(span)
+    )
+    return rootHasError ? ('error' as const) : ('success' as const)
+  }, [normalizedSpans])
+
+  const handleSelect = useCallback((id: string) => setSelectedId(id), [])
+
+  const handleToggleExpand = useCallback((id: string) => {
+    setExpandedNodes((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const handleExpandAll = useCallback(() => setExpandedNodes(new Set(allIds)), [allIds])
+  const handleCollapseAll = useCallback(() => setExpandedNodes(new Set()), [])
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const handler = (e: KeyboardEvent) => {
+      if (!container.contains(document.activeElement)) return
+      if (!selectedId) return
+      const currentIndex = flatList.findIndex((entry) => getSpanId(entry.span) === selectedId)
+      if (currentIndex === -1) return
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        const next = flatList[Math.min(flatList.length - 1, currentIndex + 1)]
+        if (next) setSelectedId(getSpanId(next.span))
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        const prev = flatList[Math.max(0, currentIndex - 1)]
+        if (prev) setSelectedId(getSpanId(prev.span))
+      } else if (e.key === 'ArrowLeft') {
+        const entry = flatList[currentIndex]
+        const span = entry.span
+        const id = getSpanId(span)
+        const canExpand = getDisplayChildren(span).length > 0
+        if (canExpand && expandedNodes.has(id)) {
+          e.preventDefault()
+          handleToggleExpand(id)
+        } else if (entry.parentIds.length > 0) {
+          e.preventDefault()
+          const parentId = entry.parentIds[entry.parentIds.length - 1]
+          setSelectedId(parentId)
+        }
+      } else if (e.key === 'ArrowRight') {
+        const entry = flatList[currentIndex]
+        const span = entry.span
+        const id = getSpanId(span)
+        const canExpand = getDisplayChildren(span).length > 0
+        if (canExpand && !expandedNodes.has(id)) {
+          e.preventDefault()
+          handleToggleExpand(id)
+        }
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [flatList, selectedId, expandedNodes, handleToggleExpand])
+
+  if (!traceSpans || traceSpans.length === 0) {
+    return (
+      <div className='flex h-full items-center justify-center text-[var(--text-tertiary)] text-caption'>
+        No trace data available
+      </div>
+    )
+  }
+
+  return (
+    <div ref={containerRef} className='-mx-3.5 flex h-full min-h-0 flex-col'>
+      {/* Header strip */}
+      <div className='flex items-center gap-2 border-[var(--border)] border-b px-3.5 pb-2'>
+        <span
+          className={cn(
+            'flex-shrink-0 rounded-[3px] px-1.5 py-[1px] font-medium text-caption',
+            runStatus === 'error'
+              ? 'bg-[var(--badge-error-bg)] text-[var(--badge-error-text)]'
+              : 'bg-[var(--badge-success-bg)] text-[var(--badge-success-text)]'
+          )}
+        >
+          {runStatus === 'error' ? 'Error' : 'Success'}
+        </span>
+        <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] text-caption'>
+          {formatDuration(totalDuration, { precision: 2 }) || '—'}
+        </span>
+        <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
+          {blockCount} {blockCount === 1 ? 'span' : 'spans'}
+        </span>
+        <div className='ml-auto flex items-center gap-1'>
+          <div className='relative'>
+            <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-[7px] h-[11px] w-[11px] text-[var(--text-tertiary)]' />
+            <Input
+              type='text'
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder='Filter spans'
+              className='h-[24px] w-[140px] pl-[22px] text-caption'
+            />
+          </div>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                type='button'
+                variant='ghost'
+                className='!p-1'
+                onClick={handleExpandAll}
+                aria-label='Expand all'
+              >
+                <ChevronsUpDown className='h-[12px] w-[12px]' />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>Expand all</Tooltip.Content>
+          </Tooltip.Root>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                type='button'
+                variant='ghost'
+                className='!p-1'
+                onClick={handleCollapseAll}
+                aria-label='Collapse all'
+              >
+                <ChevronsDownUp className='h-[12px] w-[12px]' />
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>Collapse all</Tooltip.Content>
+          </Tooltip.Root>
+        </div>
+      </div>
+
+      {/* Tree + detail split */}
+      <div className='flex min-h-0 flex-1'>
+        <div
+          className='flex flex-shrink-0 flex-col overflow-y-auto border-[var(--border)] border-r'
+          style={{ width: TREE_PANE_WIDTH }}
+          role='tree'
+        >
+          {hasInitialized && flatList.length === 0 && (
+            <div className='p-3 text-[var(--text-tertiary)] text-caption'>No matching spans</div>
+          )}
+          {flatList.map((entry) => {
+            const id = getSpanId(entry.span)
+            const canExpand = getDisplayChildren(entry.span).length > 0
+            return (
+              <TraceTreeRow
+                key={id}
+                entry={entry}
+                isSelected={id === selectedId}
+                isExpanded={expandedNodes.has(id)}
+                canExpand={canExpand}
+                onSelect={handleSelect}
+                onToggleExpand={handleToggleExpand}
+                matchQuery={searchQuery}
+              />
+            )
+          })}
+        </div>
+        <div className='flex min-w-0 flex-1 flex-col'>
+          <TraceDetailPane span={selectedSpan} />
+        </div>
+      </div>
+    </div>
+  )
+})
