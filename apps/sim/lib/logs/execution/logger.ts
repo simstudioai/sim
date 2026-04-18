@@ -47,17 +47,6 @@ const TRIGGER_COUNTER_MAP: Record<string, { key: string; column: string }> = {
   a2a: { key: 'totalA2aExecutions', column: 'total_a2a_executions' },
 } as const
 
-export interface ToolCall {
-  name: string
-  duration: number // in milliseconds
-  startTime: string // ISO timestamp
-  endTime: string // ISO timestamp
-  status: 'success' | 'error'
-  input?: Record<string, any>
-  output?: Record<string, any>
-  error?: string
-}
-
 const logger = createLogger('ExecutionLogger')
 
 function countTraceSpans(traceSpans?: TraceSpan[]): number {
