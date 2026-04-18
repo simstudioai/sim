@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { credential, credentialMember, permissions, workspace } from '@sim/db/schema'
+import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, notInArray } from 'drizzle-orm'
-import { generateId } from '@/lib/core/utils/uuid'
 
 interface AccessibleEnvCredential {
   type: 'env_workspace' | 'env_personal'

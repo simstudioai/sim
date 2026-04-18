@@ -9,8 +9,8 @@ import {
   UploadPartCommand,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { generateId } from '@sim/utils/id'
 import { env } from '@/lib/core/config/env'
-import { generateId } from '@/lib/core/utils/uuid'
 import { S3_CONFIG, S3_KB_CONFIG } from '@/lib/uploads/config'
 import type {
   S3Config,

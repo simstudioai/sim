@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { BLOB_CONFIG } from '@/lib/uploads/config'
-import { generateId } from '@/lib/core/utils/uuid'
 import type {
   AzureMultipartPart,
   AzureMultipartUploadInit,

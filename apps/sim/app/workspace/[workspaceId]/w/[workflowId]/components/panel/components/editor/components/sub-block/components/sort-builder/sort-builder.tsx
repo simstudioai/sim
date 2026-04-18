@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
+import { generateId } from '@sim/utils/id'
 import type { ComboboxOption } from '@/components/emcn'
-import { generateId } from '@/lib/core/utils/uuid'
 import { useTableColumns } from '@/lib/table/hooks'
 import { SORT_DIRECTIONS, type SortRule } from '@/lib/table/query-builder/constants'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'

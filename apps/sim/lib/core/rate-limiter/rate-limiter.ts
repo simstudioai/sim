@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
-import { toError } from '@/lib/core/utils/helpers'
 import { createStorageAdapter, type RateLimitStorageAdapter } from './storage'
 import {
   getRateLimit,

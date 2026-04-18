@@ -3,13 +3,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
 import { getRedisClient } from '@/lib/core/config/redis'
 import {
   type SecureFetchOptions,
   secureFetchWithValidation,
 } from '@/lib/core/security/input-validation.server'
-import { toError } from '@/lib/core/utils/helpers'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 
 const logger = createLogger('IsolatedVMExecution')

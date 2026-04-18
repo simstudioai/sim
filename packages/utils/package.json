@@ -1,0 +1,45 @@
+{
+  "name": "@sim/utils",
+  "version": "0.1.0",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./id": {
+      "types": "./src/id.ts",
+      "default": "./src/id.ts"
+    },
+    "./errors": {
+      "types": "./src/errors.ts",
+      "default": "./src/errors.ts"
+    },
+    "./helpers": {
+      "types": "./src/helpers.ts",
+      "default": "./src/helpers.ts"
+    },
+    "./formatting": {
+      "types": "./src/formatting.ts",
+      "default": "./src/formatting.ts"
+    }
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "lint": "biome check --write --unsafe .",
+    "lint:check": "biome check .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@sim/tsconfig": "workspace:*",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.8"
+  }
+}

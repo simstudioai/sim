@@ -1,4 +1,3 @@
-import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { BlockType } from '@/executor/constants'
@@ -6,8 +5,6 @@ import { FunctionBlockHandler } from '@/executor/handlers/function/function-hand
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
-
-vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/tools', () => ({
   executeTool: vi.fn(),

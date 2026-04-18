@@ -20,9 +20,9 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { generateId } from '@/lib/core/utils/uuid'
 import { validateEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
 import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import {

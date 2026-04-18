@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import {
@@ -18,8 +20,6 @@ import type {
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
-import { toError } from '@/lib/core/utils/helpers'
-import { generateId } from '@/lib/core/utils/uuid'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { getWorkflowById } from '@/lib/workflows/utils'
 

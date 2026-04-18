@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { getScopesForService } from '@/lib/oauth/utils'
 

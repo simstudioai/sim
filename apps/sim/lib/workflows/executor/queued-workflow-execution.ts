@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
-import { toError } from '@/lib/core/utils/helpers'
 import { createExecutionEventWriter, setExecutionMeta } from '@/lib/execution/event-buffer'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { AzureOpenAI } from 'openai'
 import type {
   ChatCompletion,
@@ -10,7 +11,6 @@ import type {
 } from 'openai/resources/chat/completions'
 import type { ReasoningEffort } from 'openai/resources/shared'
 import { env } from '@/lib/core/config/env'
-import { toError } from '@/lib/core/utils/helpers'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {

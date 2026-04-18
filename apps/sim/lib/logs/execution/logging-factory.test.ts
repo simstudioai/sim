@@ -1,37 +1,32 @@
-import { loggerMock } from '@sim/testing'
-import { describe, expect, test, vi } from 'vitest'
+import { workflowsPersistenceUtilsMock, workflowsPersistenceUtilsMockFns } from '@sim/testing'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
 import {
   calculateCostSummary,
   createEnvironmentObject,
   createTriggerObject,
 } from '@/lib/logs/execution/logging-factory'
 
-// Mock the billing constants
+/** Mock the billing constants */
 vi.mock('@/lib/billing/constants', () => ({
   BASE_EXECUTION_CHARGE: 0.005,
 }))
 
-vi.mock('@sim/logger', () => loggerMock)
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
-// Mock workflow persistence utils
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadDeployedWorkflowState: vi.fn(() =>
-    Promise.resolve({
-      blocks: {},
-      edges: [],
-      loops: {},
-      parallels: {},
-    })
-  ),
-  loadWorkflowFromNormalizedTables: vi.fn(() =>
-    Promise.resolve({
-      blocks: {},
-      edges: [],
-      loops: {},
-      parallels: {},
-    })
-  ),
-}))
+beforeEach(() => {
+  workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState.mockResolvedValue({
+    blocks: {},
+    edges: [],
+    loops: {},
+    parallels: {},
+  })
+  workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables.mockResolvedValue({
+    blocks: {},
+    edges: [],
+    loops: {},
+    parallels: {},
+  })
+})
 
 describe('createTriggerObject', () => {
   test('should create a trigger object with basic type', () => {

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/copilot/constants'
 import { MothershipStreamV1SpanLifecycleEvent } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
@@ -26,7 +27,6 @@ import type {
   StreamEvent,
   StreamingContext,
 } from '@/lib/copilot/request/types'
-import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('CopilotGoStream')
 

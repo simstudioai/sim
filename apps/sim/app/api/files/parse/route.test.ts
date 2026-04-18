@@ -3,7 +3,12 @@
  *
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import {
+  createMockRequest,
+  hybridAuthMock,
+  hybridAuthMockFns,
+  inputValidationMock,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -23,9 +28,6 @@ const {
   mockFsWriteFile,
   mockJoin,
   mockGetSession,
-  mockCheckInternalAuth,
-  mockCheckHybridAuth,
-  mockCheckSessionOrInternalAuth,
   actualPath,
 } = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -57,9 +59,6 @@ const {
       return actualPath.join(...args)
     }),
     mockGetSession: vi.fn(),
-    mockCheckInternalAuth: vi.fn(),
-    mockCheckHybridAuth: vi.fn(),
-    mockCheckSessionOrInternalAuth: vi.fn(),
     actualPath,
   }
 })
@@ -105,17 +104,9 @@ vi.mock('@/lib/auth', () => ({
   signUp: vi.fn(),
 }))
 
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkInternalAuth: mockCheckInternalAuth,
-  checkHybridAuth: mockCheckHybridAuth,
-  checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
-}))
+vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithPinnedIP: vi.fn(),
-  validateUrlWithDNS: vi.fn(),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 vi.mock('@/lib/core/utils/logging', () => ({
   sanitizeUrlForLog: vi.fn((url: string) => url),
@@ -165,19 +156,19 @@ function setupFileApiMocks(
     mockGetSession.mockResolvedValue(null)
   }
 
-  mockCheckInternalAuth.mockResolvedValue({
+  hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
     success: authenticated,
     userId: authenticated ? 'test-user-id' : undefined,
     error: authenticated ? undefined : 'Unauthorized',
   })
 
-  mockCheckHybridAuth.mockResolvedValue({
+  hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({
     success: authenticated,
     userId: authenticated ? 'test-user-id' : undefined,
     error: authenticated ? undefined : 'Unauthorized',
   })
 
-  mockCheckSessionOrInternalAuth.mockResolvedValue({
+  hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
     success: authenticated,
     userId: authenticated ? 'test-user-id' : undefined,
     error: authenticated ? undefined : 'Unauthorized',

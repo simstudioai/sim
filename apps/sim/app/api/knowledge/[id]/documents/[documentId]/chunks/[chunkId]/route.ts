@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { generateId } from '@/lib/core/utils/uuid'
 import { deleteChunk, updateChunk } from '@/lib/knowledge/chunks/service'
 import { checkChunkAccess } from '@/app/api/knowledge/utils'
 

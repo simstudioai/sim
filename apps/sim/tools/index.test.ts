@@ -11,6 +11,8 @@ import {
   createExecutionContext,
   createMockFetch,
   type ExecutionContext,
+  inputValidationMock,
+  inputValidationMockFns,
   type MockFetchResponse,
 } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -26,8 +28,6 @@ const {
   mockListCustomTools,
   mockGetCustomToolByIdOrTitle,
   mockGenerateInternalToken,
-  mockSecureFetchWithPinnedIP,
-  mockValidateUrlWithDNS,
   mockResolveWorkspaceFileReference,
 } = vi.hoisted(() => ({
   mockIsHosted: { value: false },
@@ -43,10 +43,11 @@ const {
   mockListCustomTools: vi.fn(),
   mockGetCustomToolByIdOrTitle: vi.fn(),
   mockGenerateInternalToken: vi.fn(),
-  mockSecureFetchWithPinnedIP: vi.fn(),
-  mockValidateUrlWithDNS: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
 }))
+
+const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
+const mockValidateUrlWithDNS = inputValidationMockFns.mockValidateUrlWithDNS
 
 // Mock feature flags
 vi.mock('@/lib/core/config/feature-flags', () => ({
@@ -79,10 +80,7 @@ vi.mock('@/lib/auth/internal', () => ({
 
 vi.mock('@/lib/billing/core/usage-log', () => ({}))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithPinnedIP: (...args: unknown[]) => mockSecureFetchWithPinnedIP(...args),
-  validateUrlWithDNS: (...args: unknown[]) => mockValidateUrlWithDNS(...args),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
   getHostedKeyRateLimiter: () => mockRateLimiterFns,

@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
@@ -28,7 +29,6 @@ import { SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/session/sse'
 import { reportTrace, TraceCollector } from '@/lib/copilot/request/trace'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { env } from '@/lib/core/config/env'
-import { toError } from '@/lib/core/utils/helpers'
 
 export { SSE_RESPONSE_HEADERS }
 

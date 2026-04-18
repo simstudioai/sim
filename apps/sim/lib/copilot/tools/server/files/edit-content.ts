@@ -1,10 +1,10 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { toError } from '@/lib/core/utils/helpers'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { updateWorkspaceFileContent } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { consumeLatestFileIntent } from './file-intent-store'

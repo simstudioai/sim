@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
-import { sleep } from '@/lib/core/utils/helpers'
 import type { ExaResearchParams, ExaResearchResponse } from '@/tools/exa/types'
 import type { ToolConfig } from '@/tools/types'
 

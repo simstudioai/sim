@@ -1,17 +1,8 @@
-import { databaseMock, loggerMock } from '@sim/testing'
+import { featureFlagsMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { ExecutionLogger } from '@/lib/logs/execution/logger'
 
-vi.mock('@sim/db', () => databaseMock)
-
-// Mock database schema
-vi.mock('@sim/db/schema', () => ({
-  member: {},
-  userStats: {},
-  user: {},
-  workflow: {},
-  workflowExecutionLogs: {},
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 // Mock billing modules
 vi.mock('@/lib/billing/core/subscription', () => ({
@@ -36,9 +27,7 @@ vi.mock('@/lib/billing/threshold-billing', () => ({
   checkAndBillOverageThreshold: vi.fn(() => Promise.resolve()),
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isBillingEnabled: false,
-}))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 // Mock security module
 vi.mock('@/lib/core/security/redaction', () => ({
@@ -49,8 +38,6 @@ vi.mock('@/lib/core/security/redaction', () => ({
 vi.mock('@/lib/core/utils/display-filters', () => ({
   filterForDisplay: vi.fn((data) => data),
 }))
-
-vi.mock('@sim/logger', () => loggerMock)
 
 // Mock events
 vi.mock('@/lib/logs/events', () => ({

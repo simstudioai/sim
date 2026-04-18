@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { getRedisClient } from '@/lib/core/config/redis'
-import { toError } from '@/lib/core/utils/helpers'
 import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 
 const logger = createLogger('ExecutionEventBuffer')

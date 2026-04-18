@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@/lib/core/utils/helpers'
-import { generateId } from '@/lib/core/utils/uuid'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType } from '@/executor/constants'

@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@/lib/core/utils/helpers'
+import { toError } from '@sim/utils/errors'
 import { executeTool as executeAppTool } from '@/tools'
 import { isKnownTool, isSimExecuted } from './router'
 import type {

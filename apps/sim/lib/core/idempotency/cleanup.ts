@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
 import { idempotencyKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
 import { and, count, inArray, like, lt, max, min, sql } from 'drizzle-orm'
-import { sleep } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('IdempotencyCleanup')
 

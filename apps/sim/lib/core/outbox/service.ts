@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
 import { outboxEvent } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, lte } from 'drizzle-orm'
-import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('OutboxService')
 

@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { generateId } from '@/lib/core/utils/uuid'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { type FolderQueryScope, folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'

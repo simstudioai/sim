@@ -3,10 +3,10 @@ import http from 'http'
 import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import * as ipaddr from 'ipaddr.js'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
-import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('InputValidation')
 

@@ -1,6 +1,6 @@
 import { Cerebras } from '@cerebras/cerebras_cloud_sdk'
 import { createLogger } from '@sim/logger'
-import { toError } from '@/lib/core/utils/helpers'
+import { toError } from '@sim/utils/errors'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import type { CerebrasResponse } from '@/providers/cerebras/types'

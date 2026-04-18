@@ -1,18 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { createMockRequest, hybridAuthMock, hybridAuthMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { fetchMock, mockCheckInternalAuth } = vi.hoisted(() => ({
+const { fetchMock } = vi.hoisted(() => ({
   fetchMock: vi.fn(),
-  mockCheckInternalAuth: vi.fn(),
 }))
 
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkInternalAuth: mockCheckInternalAuth,
-}))
+vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 
 import { POST } from '@/app/api/tools/crowdstrike/query/route'
 
@@ -72,7 +68,7 @@ describe('CrowdStrike query route', () => {
     vi.clearAllMocks()
     vi.stubGlobal('fetch', fetchMock)
 
-    mockCheckInternalAuth.mockResolvedValue({
+    hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-123',
       authType: 'internal_jwt',

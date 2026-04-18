@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@/lib/core/utils/uuid'
+import { generateId } from '@sim/utils/id'
 import { resolveFileType } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('useFileAttachments')

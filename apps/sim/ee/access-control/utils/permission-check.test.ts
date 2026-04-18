@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { databaseMock, drizzleOrmMock, loggerMock } from '@sim/testing'
+import { schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -40,10 +40,7 @@ const {
   mockGetProviderFromModel: vi.fn<(model: string) => string>(),
 }))
 
-vi.mock('@sim/db', () => databaseMock)
-vi.mock('@sim/db/schema', () => ({}))
-vi.mock('@sim/logger', () => loggerMock)
-vi.mock('drizzle-orm', () => drizzleOrmMock)
+vi.mock('@sim/db/schema', () => schemaMock)
 vi.mock('@/lib/billing', () => ({
   isOrganizationOnEnterprisePlan: mockIsOrganizationOnEnterprisePlan,
 }))

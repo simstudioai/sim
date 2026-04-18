@@ -8,13 +8,13 @@ import {
   userStats,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { hasPaidSubscription } from '@/lib/billing'
 import { getPlanPricing } from '@/lib/billing/core/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { isEnterprise, isPaid, isTeam } from '@/lib/billing/plan-helpers'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
-import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('BillingOrganization')
 

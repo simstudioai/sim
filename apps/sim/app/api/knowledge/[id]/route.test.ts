@@ -3,11 +3,17 @@
  *
  * @vitest-environment node
  */
-import { auditMock, createMockRequest } from '@sim/testing'
+import {
+  auditMock,
+  authMock,
+  authMockFns,
+  createMockRequest,
+  knowledgeApiUtilsMock,
+  schemaMock,
+} from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockDbChain } = vi.hoisted(() => {
-  const mockGetSession = vi.fn()
+const { mockDbChain } = vi.hoisted(() => {
   const mockDbChain = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -16,85 +22,16 @@ const { mockGetSession, mockDbChain } = vi.hoisted(() => {
     update: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),
   }
-  return { mockGetSession, mockDbChain }
+  return { mockDbChain }
 })
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
+vi.mock('@/lib/auth', () => authMock)
 
 vi.mock('@sim/db', () => ({
   db: mockDbChain,
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  knowledgeBase: {
-    id: 'kb_id',
-    userId: 'user_id',
-    name: 'kb_name',
-    description: 'description',
-    tokenCount: 'token_count',
-    embeddingModel: 'embedding_model',
-    embeddingDimension: 'embedding_dimension',
-    chunkingConfig: 'chunking_config',
-    workspaceId: 'workspace_id',
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-    deletedAt: 'deleted_at',
-  },
-  document: {
-    id: 'doc_id',
-    knowledgeBaseId: 'kb_id',
-    filename: 'filename',
-    fileUrl: 'file_url',
-    fileSize: 'file_size',
-    mimeType: 'mime_type',
-    chunkCount: 'chunk_count',
-    tokenCount: 'token_count',
-    characterCount: 'character_count',
-    processingStatus: 'processing_status',
-    processingStartedAt: 'processing_started_at',
-    processingCompletedAt: 'processing_completed_at',
-    processingError: 'processing_error',
-    enabled: 'enabled',
-    tag1: 'tag1',
-    tag2: 'tag2',
-    tag3: 'tag3',
-    tag4: 'tag4',
-    tag5: 'tag5',
-    tag6: 'tag6',
-    tag7: 'tag7',
-    uploadedAt: 'uploaded_at',
-    deletedAt: 'deleted_at',
-  },
-  embedding: {
-    id: 'embedding_id',
-    documentId: 'doc_id',
-    knowledgeBaseId: 'kb_id',
-    chunkIndex: 'chunk_index',
-    content: 'content',
-    embedding: 'embedding',
-    tokenCount: 'token_count',
-    characterCount: 'character_count',
-    tag1: 'tag1',
-    tag2: 'tag2',
-    tag3: 'tag3',
-    tag4: 'tag4',
-    tag5: 'tag5',
-    tag6: 'tag6',
-    tag7: 'tag7',
-    createdAt: 'created_at',
-  },
-  permissions: {
-    id: 'permission_id',
-    userId: 'user_id',
-    entityType: 'entity_type',
-    entityId: 'entity_id',
-    permissionType: 'permission_type',
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-  },
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('@/lib/audit/log', () => auditMock)
 
@@ -108,10 +45,7 @@ vi.mock('@/lib/knowledge/service', async (importOriginal) => {
   }
 })
 
-vi.mock('@/app/api/knowledge/utils', () => ({
-  checkKnowledgeBaseAccess: vi.fn(),
-  checkKnowledgeBaseWriteAccess: vi.fn(),
-}))
+vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 
 import {
   deleteKnowledgeBase,
@@ -162,7 +96,9 @@ describe('Knowledge Base By ID API Route', () => {
     const mockParams = Promise.resolve({ id: 'kb-123' })
 
     it('should retrieve knowledge base successfully for authenticated user', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       vi.mocked(checkKnowledgeBaseAccess).mockResolvedValueOnce({
         hasAccess: true,
@@ -184,7 +120,7 @@ describe('Knowledge Base By ID API Route', () => {
     })
 
     it('should return unauthorized for unauthenticated user', async () => {
-      mockGetSession.mockResolvedValue(null)
+      authMockFns.mockGetSession.mockResolvedValue(null)
 
       const req = createMockRequest('GET')
       const response = await GET(req, { params: mockParams })
@@ -195,7 +131,9 @@ describe('Knowledge Base By ID API Route', () => {
     })
 
     it('should return not found for non-existent knowledge base', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       vi.mocked(checkKnowledgeBaseAccess).mockResolvedValueOnce({
         hasAccess: false,
@@ -211,7 +149,9 @@ describe('Knowledge Base By ID API Route', () => {
     })
 
     it('should return unauthorized for knowledge base owned by different user', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       vi.mocked(checkKnowledgeBaseAccess).mockResolvedValueOnce({
         hasAccess: false,
@@ -227,7 +167,9 @@ describe('Knowledge Base By ID API Route', () => {
     })
 
     it('should return not found when service returns null', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       vi.mocked(checkKnowledgeBaseAccess).mockResolvedValueOnce({
         hasAccess: true,
@@ -245,7 +187,9 @@ describe('Knowledge Base By ID API Route', () => {
     })
 
     it('should handle database errors', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       vi.mocked(checkKnowledgeBaseAccess).mockRejectedValueOnce(new Error('Database error'))
 
@@ -266,7 +210,9 @@ describe('Knowledge Base By ID API Route', () => {
     }
 
     it('should update knowledge base successfully', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       resetMocks()
 
@@ -299,7 +245,7 @@ describe('Knowledge Base By ID API Route', () => {
     })
 
     it('should return unauthorized for unauthenticated user', async () => {
-      mockGetSession.mockResolvedValue(null)
+      authMockFns.mockGetSession.mockResolvedValue(null)
 
       const req = createMockRequest('PUT', validUpdateData)
       const response = await PUT(req, { params: mockParams })
@@ -310,7 +256,9 @@ describe('Knowledge Base By ID API Route', () => {
     })
 
     it('should return not found for non-existent knowledge base', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       resetMocks()
 
@@ -328,7 +276,9 @@ describe('Knowledge Base By ID API Route', () => {
     })
 
     it('should validate update data', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       resetMocks()
 
@@ -351,7 +301,9 @@ describe('Knowledge Base By ID API Route', () => {
     })
 
     it('should handle database errors during update', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValueOnce({
         hasAccess: true,
@@ -373,7 +325,9 @@ describe('Knowledge Base By ID API Route', () => {
     const mockParams = Promise.resolve({ id: 'kb-123' })
 
     it('should delete knowledge base successfully', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       resetMocks()
 
@@ -396,7 +350,7 @@ describe('Knowledge Base By ID API Route', () => {
     })
 
     it('should return unauthorized for unauthenticated user', async () => {
-      mockGetSession.mockResolvedValue(null)
+      authMockFns.mockGetSession.mockResolvedValue(null)
 
       const req = createMockRequest('DELETE')
       const response = await DELETE(req, { params: mockParams })
@@ -407,7 +361,9 @@ describe('Knowledge Base By ID API Route', () => {
     })
 
     it('should return not found for non-existent knowledge base', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       resetMocks()
 
@@ -425,7 +381,9 @@ describe('Knowledge Base By ID API Route', () => {
     })
 
     it('should return unauthorized for knowledge base owned by different user', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       resetMocks()
 
@@ -443,7 +401,9 @@ describe('Knowledge Base By ID API Route', () => {
     })
 
     it('should handle database errors during delete', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       vi.mocked(checkKnowledgeBaseWriteAccess).mockResolvedValueOnce({
         hasAccess: true,

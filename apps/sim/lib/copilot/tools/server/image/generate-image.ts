@@ -1,5 +1,6 @@
 import { GoogleGenAI, type Part } from '@google/genai'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { GenerateImage } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -7,7 +8,6 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
-import { toError } from '@/lib/core/utils/helpers'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
   downloadWorkspaceFile,

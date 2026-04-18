@@ -13,7 +13,7 @@ import {
   Type,
 } from '@google/genai'
 import { createLogger } from '@sim/logger'
-import { toError } from '@/lib/core/utils/helpers'
+import { toError } from '@sim/utils/errors'
 import type { ProviderRequest } from '@/providers/types'
 import { trackForcedToolUsage } from '@/providers/utils'
 

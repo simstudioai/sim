@@ -1,19 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { auditMock, databaseMock, drizzleOrmMock, loggerMock } from '@sim/testing'
+import { auditMock, databaseMock, schemaMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => ({
   ...databaseMock,
   auditLog: { id: 'id', workspaceId: 'workspace_id' },
 }))
-vi.mock('@sim/db/schema', () => ({
-  user: { id: 'id', name: 'name', email: 'email' },
-}))
-vi.mock('drizzle-orm', () => drizzleOrmMock)
-vi.mock('@sim/logger', () => loggerMock)
-vi.mock('@/lib/core/utils/uuid', () => ({
+vi.mock('@sim/db/schema', () => schemaMock)
+vi.mock('@sim/utils/id', () => ({
   generateId: () => 'test-uuid-123',
   generateShortId: () => 'test-id-123',
   isValidUuid: (v: string) =>

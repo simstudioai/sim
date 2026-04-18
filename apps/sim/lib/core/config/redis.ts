@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import Redis from 'ioredis'
 import { env } from '@/lib/core/config/env'
-import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('Redis')
 

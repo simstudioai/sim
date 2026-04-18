@@ -1,11 +1,11 @@
 import { db } from '@sim/db'
 import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
 import { performFullDeploy } from '@/lib/workflows/orchestration/deploy'
 
 const logger = createLogger('ChatDeployOrchestration')

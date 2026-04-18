@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1ResourceOp,
@@ -12,7 +13,6 @@ import {
   persistChatResources,
   removeChatResources,
 } from '@/lib/copilot/resources/persistence'
-import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('CopilotResourceEffects')
 

@@ -1,5 +1,5 @@
+import { toError } from '@sim/utils/errors'
 import { isAzureConfigured, isHosted, isOllamaConfigured } from '@/lib/core/config/feature-flags'
-import { toError } from '@/lib/core/utils/helpers'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/blocks/types'
 import {

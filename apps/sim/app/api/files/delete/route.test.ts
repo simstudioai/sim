@@ -1,13 +1,10 @@
 /**
  * @vitest-environment node
  */
+import { authMock, authMockFns, hybridAuthMock, hybridAuthMockFns, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
-  const mockGetSession = vi.fn()
-  const mockCheckHybridAuth = vi.fn()
-  const mockCheckSessionOrInternalAuth = vi.fn()
-  const mockCheckInternalAuth = vi.fn()
   const mockVerifyFileAccess = vi.fn()
   const mockVerifyWorkspaceFileAccess = vi.fn()
   const mockDeleteFile = vi.fn()
@@ -18,10 +15,6 @@ const mocks = vi.hoisted(() => {
   const mockDownloadFile = vi.fn()
 
   return {
-    mockGetSession,
-    mockCheckHybridAuth,
-    mockCheckSessionOrInternalAuth,
-    mockCheckInternalAuth,
     mockVerifyFileAccess,
     mockVerifyWorkspaceFileAccess,
     mockDeleteFile,
@@ -33,29 +26,7 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  workflowFolder: {
-    id: 'id',
-    userId: 'userId',
-    parentId: 'parentId',
-    updatedAt: 'updatedAt',
-    workspaceId: 'workspaceId',
-    sortOrder: 'sortOrder',
-    createdAt: 'createdAt',
-  },
-  workflow: { id: 'id', folderId: 'folderId', userId: 'userId', updatedAt: 'updatedAt' },
-  account: { userId: 'userId', providerId: 'providerId' },
-  user: { email: 'email', id: 'id' },
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
@@ -82,7 +53,7 @@ vi.mock('drizzle-orm', () => ({
   sql: vi.fn((strings: unknown, ...values: unknown[]) => ({ type: 'sql', sql: strings, values })),
 }))
 
-vi.mock('@/lib/core/utils/uuid', () => ({
+vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn(() => 'test-uuid'),
   generateShortId: vi.fn(() => 'mock-short-id'),
   isValidUuid: vi.fn((v: string) =>
@@ -90,16 +61,9 @@ vi.mock('@/lib/core/utils/uuid', () => ({
   ),
 }))
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mocks.mockGetSession,
-}))
+vi.mock('@/lib/auth', () => authMock)
 
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkHybridAuth: mocks.mockCheckHybridAuth,
-  checkSessionOrInternalAuth: mocks.mockCheckSessionOrInternalAuth,
-  checkInternalAuth: mocks.mockCheckInternalAuth,
-}))
+vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 
 vi.mock('@/app/api/files/authorization', () => ({
   verifyFileAccess: mocks.mockVerifyFileAccess,
@@ -151,8 +115,8 @@ describe('File Delete API Route', () => {
       randomUUID: vi.fn().mockReturnValue('mock-uuid-1234-5678'),
     })
 
-    mocks.mockGetSession.mockResolvedValue({ user: { id: 'test-user-id' } })
-    mocks.mockCheckSessionOrInternalAuth.mockResolvedValue({
+    authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'test-user-id' } })
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
       userId: 'test-user-id',
       error: undefined,

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { Chunk, RegexChunkerOptions } from '@/lib/chunkers/types'
 import {
   addOverlap,
@@ -9,7 +10,6 @@ import {
   splitAtWordBoundaries,
   tokensToChars,
 } from '@/lib/chunkers/utils'
-import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('RegexChunker')
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useRef } from 'react'
+import { generateId } from '@sim/utils/id'
 import { Plus } from 'lucide-react'
 import {
   Badge,
@@ -12,7 +13,6 @@ import {
   Trash,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { generateId } from '@/lib/core/utils/uuid'
 import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'

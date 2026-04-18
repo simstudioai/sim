@@ -7,8 +7,8 @@ import {
   workflowSubflows,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, min } from 'drizzle-orm'
-import { generateId } from '@/lib/core/utils/uuid'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import {
   authorizeWorkflowByWorkspacePermission,

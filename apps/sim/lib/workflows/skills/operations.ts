@@ -1,9 +1,9 @@
 import { db } from '@sim/db'
 import { skill } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateShortId } from '@sim/utils/id'
 import { and, desc, eq, ne } from 'drizzle-orm'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateShortId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('SkillsOperations')
 

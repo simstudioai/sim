@@ -24,8 +24,8 @@
 import { db } from '@sim/db'
 import { member, organization, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { count, eq } from 'drizzle-orm'
-import { generateId } from '@/lib/core/utils/uuid'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,

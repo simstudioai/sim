@@ -3,12 +3,17 @@
  *
  * @vitest-environment node
  */
+import {
+  hybridAuthMock,
+  hybridAuthMockFns,
+  permissionsMock,
+  permissionsMockFns,
+  schemaMock,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockCheckHybridAuth,
-  mockGetUserEntityPermissions,
   mockGenerateInternalToken,
   mockDbSelect,
   mockDbFrom,
@@ -17,8 +22,6 @@ const {
   mockDbLimit,
   fetchMock,
 } = vi.hoisted(() => ({
-  mockCheckHybridAuth: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
   mockGenerateInternalToken: vi.fn(),
   mockDbSelect: vi.fn(),
   mockDbFrom: vi.fn(),
@@ -27,6 +30,8 @@ const {
   mockDbLimit: vi.fn(),
   fetchMock: vi.fn(),
 }))
+
+const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(),
@@ -40,44 +45,11 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  workflowMcpServer: {
-    id: 'id',
-    name: 'name',
-    workspaceId: 'workspaceId',
-    isPublic: 'isPublic',
-    createdBy: 'createdBy',
-    deletedAt: 'deletedAt',
-  },
-  workflowMcpTool: {
-    serverId: 'serverId',
-    toolName: 'toolName',
-    toolDescription: 'toolDescription',
-    parameterSchema: 'parameterSchema',
-    workflowId: 'workflowId',
-    archivedAt: 'archivedAt',
-  },
-  workflow: {
-    id: 'id',
-    isDeployed: 'isDeployed',
-    archivedAt: 'archivedAt',
-  },
-  workspace: {
-    id: 'id',
-    archivedAt: 'archivedAt',
-  },
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkHybridAuth: mockCheckHybridAuth,
-  checkSessionOrInternalAuth: vi.fn(),
-  checkInternalAuth: vi.fn(),
-}))
+vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/auth/internal', () => ({
   generateInternalToken: mockGenerateInternalToken,
@@ -120,7 +92,10 @@ describe('MCP Serve Route', () => {
         createdBy: 'owner-1',
       },
     ])
-    mockCheckHybridAuth.mockResolvedValueOnce({ success: false, error: 'Unauthorized' })
+    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce({
+      success: false,
+      error: 'Unauthorized',
+    })
 
     const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
       method: 'POST',
@@ -141,7 +116,10 @@ describe('MCP Serve Route', () => {
         createdBy: 'owner-1',
       },
     ])
-    mockCheckHybridAuth.mockResolvedValueOnce({ success: false, error: 'Unauthorized' })
+    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce({
+      success: false,
+      error: 'Unauthorized',
+    })
 
     const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1')
     const response = await GET(req, { params: Promise.resolve({ serverId: 'server-1' }) })
@@ -163,7 +141,7 @@ describe('MCP Serve Route', () => {
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
       .mockResolvedValueOnce([{ isDeployed: true }])
 
-    mockCheckHybridAuth.mockResolvedValueOnce({
+    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce({
       success: true,
       userId: 'user-1',
       authType: 'api_key',
@@ -212,7 +190,7 @@ describe('MCP Serve Route', () => {
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
       .mockResolvedValueOnce([{ isDeployed: true }])
 
-    mockCheckHybridAuth.mockResolvedValueOnce({
+    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce({
       success: true,
       userId: 'user-1',
       authType: 'session',

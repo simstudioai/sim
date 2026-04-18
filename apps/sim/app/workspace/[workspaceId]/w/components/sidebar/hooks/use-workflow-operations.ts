@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
+import { generateId } from '@sim/utils/id'
 import { useRouter } from 'next/navigation'
-import { generateId } from '@/lib/core/utils/uuid'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { useCreateWorkflow, useWorkflowMap } from '@/hooks/queries/workflows'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'

@@ -1,11 +1,11 @@
 import { db } from '@sim/db'
 import { credential, credentialMember, pendingCredentialDraft } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, lt } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { generateId } from '@/lib/core/utils/uuid'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CredentialDraftAPI')

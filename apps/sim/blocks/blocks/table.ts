@@ -1,5 +1,5 @@
+import { toError } from '@sim/utils/errors'
 import { TableIcon } from '@/components/icons'
-import { toError } from '@/lib/core/utils/helpers'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { filterRulesToFilter, sortRulesToSort } from '@/lib/table/query-builder/converters'
 import type { BlockConfig } from '@/blocks/types'

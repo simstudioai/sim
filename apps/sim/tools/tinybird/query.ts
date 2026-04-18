@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@/lib/core/utils/helpers'
+import { toError } from '@sim/utils/errors'
 import type { TinybirdQueryParams, TinybirdQueryResponse } from '@/tools/tinybird/types'
 import type { ToolConfig } from '@/tools/types'
 

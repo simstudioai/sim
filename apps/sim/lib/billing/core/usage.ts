@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { member, organization, settings, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import {
   getEmailSubject,
@@ -31,7 +32,6 @@ import type { BillingData, UsageData, UsageLimitInfo } from '@/lib/billing/types
 import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getEmailPreferences } from '@/lib/messaging/email/unsubscribe'
 

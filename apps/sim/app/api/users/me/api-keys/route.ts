@@ -1,12 +1,12 @@
 import { db } from '@sim/db'
 import { apiKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateShortId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createApiKey, getApiKeyDisplayFormat } from '@/lib/api-key/auth'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
-import { generateShortId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('ApiKeysAPI')
 

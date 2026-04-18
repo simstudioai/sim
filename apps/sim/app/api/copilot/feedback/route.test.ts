@@ -3,34 +3,20 @@
  *
  * @vitest-environment node
  */
+import { copilotHttpMock, copilotHttpMockFns, schemaMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockInsert,
-  mockValues,
-  mockReturning,
-  mockSelect,
-  mockFrom,
-  mockWhere,
-  mockAuthenticate,
-  mockCreateUnauthorizedResponse,
-  mockCreateBadRequestResponse,
-  mockCreateInternalServerErrorResponse,
-  mockCreateRequestTracker,
-} = vi.hoisted(() => ({
-  mockInsert: vi.fn(),
-  mockValues: vi.fn(),
-  mockReturning: vi.fn(),
-  mockSelect: vi.fn(),
-  mockFrom: vi.fn(),
-  mockWhere: vi.fn(),
-  mockAuthenticate: vi.fn(),
-  mockCreateUnauthorizedResponse: vi.fn(),
-  mockCreateBadRequestResponse: vi.fn(),
-  mockCreateInternalServerErrorResponse: vi.fn(),
-  mockCreateRequestTracker: vi.fn(),
-}))
+const { mockInsert, mockValues, mockReturning, mockSelect, mockFrom, mockWhere } = vi.hoisted(
+  () => ({
+    mockInsert: vi.fn(),
+    mockValues: vi.fn(),
+    mockReturning: vi.fn(),
+    mockSelect: vi.fn(),
+    mockFrom: vi.fn(),
+    mockWhere: vi.fn(),
+  })
+)
 
 vi.mock('@sim/db', () => ({
   db: {
@@ -39,31 +25,13 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  copilotFeedback: {
-    feedbackId: 'feedbackId',
-    userId: 'userId',
-    chatId: 'chatId',
-    userQuery: 'userQuery',
-    agentResponse: 'agentResponse',
-    isPositive: 'isPositive',
-    feedback: 'feedback',
-    workflowYaml: 'workflowYaml',
-    createdAt: 'createdAt',
-  },
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
 }))
 
-vi.mock('@/lib/copilot/request/http', () => ({
-  authenticateCopilotRequestSessionOnly: mockAuthenticate,
-  createUnauthorizedResponse: mockCreateUnauthorizedResponse,
-  createBadRequestResponse: mockCreateBadRequestResponse,
-  createInternalServerErrorResponse: mockCreateInternalServerErrorResponse,
-  createRequestTracker: mockCreateRequestTracker,
-}))
+vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
 
 import { GET, POST } from '@/app/api/copilot/feedback/route'
 
@@ -85,20 +53,6 @@ describe('Copilot Feedback API Route', () => {
     mockSelect.mockReturnValue({ from: mockFrom })
     mockFrom.mockReturnValue({ where: mockWhere })
     mockWhere.mockResolvedValue([])
-
-    mockCreateRequestTracker.mockReturnValue({
-      requestId: 'test-request-id',
-      getDuration: vi.fn().mockReturnValue(100),
-    })
-    mockCreateUnauthorizedResponse.mockReturnValue(
-      new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
-    )
-    mockCreateBadRequestResponse.mockImplementation(
-      (message: string) => new Response(JSON.stringify({ error: message }), { status: 400 })
-    )
-    mockCreateInternalServerErrorResponse.mockImplementation(
-      (message: string) => new Response(JSON.stringify({ error: message }), { status: 500 })
-    )
   })
 
   afterEach(() => {
@@ -107,7 +61,7 @@ describe('Copilot Feedback API Route', () => {
 
   describe('POST', () => {
     it('should return 401 when user is not authenticated', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: null,
         isAuthenticated: false,
       })
@@ -127,7 +81,7 @@ describe('Copilot Feedback API Route', () => {
     })
 
     it('should successfully submit positive feedback', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -162,7 +116,7 @@ describe('Copilot Feedback API Route', () => {
     })
 
     it('should successfully submit negative feedback with text', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -197,7 +151,7 @@ describe('Copilot Feedback API Route', () => {
     })
 
     it('should successfully submit feedback with workflow YAML', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -248,7 +202,7 @@ edges:
     })
 
     it('should return 400 for invalid chatId format', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -268,7 +222,7 @@ edges:
     })
 
     it('should return 400 for empty userQuery', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -288,7 +242,7 @@ edges:
     })
 
     it('should return 400 for empty agentResponse', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -308,7 +262,7 @@ edges:
     })
 
     it('should return 400 for missing isPositiveFeedback', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -327,7 +281,7 @@ edges:
     })
 
     it('should handle database errors gracefully', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -349,7 +303,7 @@ edges:
     })
 
     it('should handle JSON parsing errors in request body', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -370,7 +324,7 @@ edges:
 
   describe('GET', () => {
     it('should return 401 when user is not authenticated', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: null,
         isAuthenticated: false,
       })
@@ -384,7 +338,7 @@ edges:
     })
 
     it('should return empty feedback array when no feedback exists', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -401,7 +355,7 @@ edges:
     })
 
     it('should only return feedback records for the authenticated user', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -438,7 +392,7 @@ edges:
     })
 
     it('should handle database errors gracefully', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -454,7 +408,7 @@ edges:
     })
 
     it('should return metadata with response', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })

@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { safeCompare } from '@/lib/core/security/encryption'
@@ -11,7 +12,6 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
-import { toError } from '@/lib/core/utils/helpers'
 import { sanitizeUrlForLog } from '@/lib/core/utils/logging'
 import {
   getCredentialOwner,

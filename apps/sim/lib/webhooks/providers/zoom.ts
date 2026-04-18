@@ -1,11 +1,11 @@
 import crypto from 'crypto'
 import { db, webhook, workflow } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { safeCompare } from '@/lib/core/security/encryption'
-import { toError } from '@/lib/core/utils/helpers'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import type {
   AuthContext,

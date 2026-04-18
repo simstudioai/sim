@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createMcpErrorResponse } from '@/lib/mcp/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'

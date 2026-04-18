@@ -13,7 +13,7 @@ import {
   type ToolUseBlock,
 } from '@aws-sdk/client-bedrock-runtime'
 import { createLogger } from '@sim/logger'
-import { toError } from '@/lib/core/utils/helpers'
+import { toError } from '@sim/utils/errors'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {

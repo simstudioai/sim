@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { eq, sql } from 'drizzle-orm'
-import { toError } from '@/lib/core/utils/helpers'
 import type { MothershipResource } from './types'
 
 export {

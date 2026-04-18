@@ -9,6 +9,7 @@ import {
   workspaceInvitation,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -23,7 +24,6 @@ import {
   validateSeatAvailability,
 } from '@/lib/billing/validation/seat-management'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'

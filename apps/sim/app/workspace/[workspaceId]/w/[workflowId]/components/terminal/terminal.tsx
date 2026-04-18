@@ -2,6 +2,7 @@
 
 import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { formatDuration } from '@sim/utils/formatting'
 import clsx from 'clsx'
 import {
   ArrowDown,
@@ -25,7 +26,6 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { formatDuration } from '@/lib/core/utils/formatting'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {

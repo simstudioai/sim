@@ -2,6 +2,8 @@ import { createHmac } from 'crypto'
 import { db } from '@sim/db'
 import { account, workspaceNotificationSubscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -12,9 +14,7 @@ import {
 import { getSession } from '@/lib/auth'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
-import { toError } from '@/lib/core/utils/helpers'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 

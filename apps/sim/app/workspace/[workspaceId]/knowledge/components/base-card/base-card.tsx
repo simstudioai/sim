@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useState } from 'react'
+import { formatAbsoluteDate, formatRelativeTime } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
 import { Badge, DocumentAttachment, Tooltip } from '@/components/emcn'
-import { formatAbsoluteDate, formatRelativeTime } from '@/lib/core/utils/formatting'
 import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'

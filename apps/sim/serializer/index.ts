@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import type { Edge } from 'reactflow'
-import { toError } from '@/lib/core/utils/helpers'
-import { generateId } from '@/lib/core/utils/uuid'
 import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import {
   buildCanonicalIndex,

@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
-import { toError } from '@/lib/core/utils/helpers'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 import { getJsmFormsApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
 

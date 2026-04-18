@@ -12,9 +12,6 @@ vi.mock('@/components/icons', () => ({
   GoogleDriveIcon: () => null,
   AirtableIcon: () => null,
 }))
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
-}))
 vi.mock('@/lib/knowledge/documents/utils', () => ({
   fetchWithRetry: vi.fn(),
   VALIDATE_RETRY_OPTIONS: {},

@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('PostHogProxy')
 

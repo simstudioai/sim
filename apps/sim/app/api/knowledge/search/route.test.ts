@@ -5,14 +5,22 @@
  *
  * @vitest-environment node
  */
-import { createEnvMock, createMockRequest, requestUtilsMock } from '@sim/testing'
+import {
+  createEnvMock,
+  createMockRequest,
+  hybridAuthMock,
+  hybridAuthMockFns,
+  knowledgeApiUtilsMock,
+  knowledgeApiUtilsMockFns,
+  requestUtilsMock,
+  schemaMock,
+  workflowsUtilsMock,
+  workflowsUtilsMockFns,
+} from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockDbChain,
-  mockCheckSessionOrInternalAuth,
-  mockAuthorizeWorkflowByWorkspacePermission,
-  mockCheckKnowledgeBaseAccess,
   mockGetDocumentTagDefinitions,
   mockHandleTagOnlySearch,
   mockHandleVectorOnlySearch,
@@ -32,9 +40,6 @@ const {
     groupBy: vi.fn().mockReturnThis(),
     having: vi.fn().mockReturnThis(),
   },
-  mockCheckSessionOrInternalAuth: vi.fn(),
-  mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
-  mockCheckKnowledgeBaseAccess: vi.fn(),
   mockGetDocumentTagDefinitions: vi.fn(),
   mockHandleTagOnlySearch: vi.fn(),
   mockHandleVectorOnlySearch: vi.fn(),
@@ -43,6 +48,8 @@ const {
   mockGenerateSearchEmbedding: vi.fn(),
   mockGetDocumentNamesByIds: vi.fn(),
 }))
+
+const mockCheckKnowledgeBaseAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseAccess
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn().mockImplementation((...args) => ({ and: args })),
@@ -56,87 +63,15 @@ vi.mock('drizzle-orm', () => ({
   })),
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  knowledgeBase: {
-    id: 'kb_id',
-    userId: 'user_id',
-    name: 'kb_name',
-    description: 'description',
-    tokenCount: 'token_count',
-    embeddingModel: 'embedding_model',
-    embeddingDimension: 'embedding_dimension',
-    chunkingConfig: 'chunking_config',
-    workspaceId: 'workspace_id',
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-    deletedAt: 'deleted_at',
-  },
-  document: {
-    id: 'doc_id',
-    knowledgeBaseId: 'kb_id',
-    filename: 'filename',
-    fileUrl: 'file_url',
-    fileSize: 'file_size',
-    mimeType: 'mime_type',
-    chunkCount: 'chunk_count',
-    tokenCount: 'token_count',
-    characterCount: 'character_count',
-    processingStatus: 'processing_status',
-    processingStartedAt: 'processing_started_at',
-    processingCompletedAt: 'processing_completed_at',
-    processingError: 'processing_error',
-    enabled: 'enabled',
-    tag1: 'tag1',
-    tag2: 'tag2',
-    tag3: 'tag3',
-    tag4: 'tag4',
-    tag5: 'tag5',
-    tag6: 'tag6',
-    tag7: 'tag7',
-    uploadedAt: 'uploaded_at',
-    deletedAt: 'deleted_at',
-  },
-  embedding: {
-    id: 'embedding_id',
-    documentId: 'doc_id',
-    knowledgeBaseId: 'kb_id',
-    chunkIndex: 'chunk_index',
-    content: 'content',
-    embedding: 'embedding',
-    tokenCount: 'token_count',
-    characterCount: 'character_count',
-    tag1: 'tag1',
-    tag2: 'tag2',
-    tag3: 'tag3',
-    tag4: 'tag4',
-    tag5: 'tag5',
-    tag6: 'tag6',
-    tag7: 'tag7',
-    createdAt: 'created_at',
-  },
-  permissions: {
-    id: 'permission_id',
-    userId: 'user_id',
-    entityType: 'entity_type',
-    entityId: 'entity_id',
-    permissionType: 'permission_type',
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-  },
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('@sim/db', () => ({
   db: mockDbChain,
 }))
 
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
-}))
+vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 
-vi.mock('@/lib/workflows/utils', () => ({
-  authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflowByWorkspacePermission,
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/core/config/env', () => createEnvMock({ OPENAI_API_KEY: 'test-api-key' }))
 
@@ -163,9 +98,7 @@ vi.mock('@/providers/utils', () => ({
   }),
 }))
 
-vi.mock('@/app/api/knowledge/utils', () => ({
-  checkKnowledgeBaseAccess: mockCheckKnowledgeBaseAccess,
-}))
+vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 
 vi.mock('@/lib/knowledge/tags/service', () => ({
   getDocumentTagDefinitions: mockGetDocumentTagDefinitions,
@@ -240,12 +173,12 @@ describe('Knowledge Search API Route', () => {
       doc2: 'Document 2',
     })
     mockGetDocumentTagDefinitions.mockClear()
-    mockCheckSessionOrInternalAuth.mockClear().mockResolvedValue({
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockClear().mockResolvedValue({
       success: true,
       userId: 'user-123',
       authType: 'session',
     })
-    mockAuthorizeWorkflowByWorkspacePermission.mockClear().mockResolvedValue({
+    workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockClear().mockResolvedValue({
       allowed: true,
       status: 200,
     })
@@ -400,15 +333,17 @@ describe('Knowledge Search API Route', () => {
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
-      expect(mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalledWith({
-        workflowId: 'workflow-123',
-        userId: 'user-123',
-        action: 'read',
-      })
+      expect(workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalledWith(
+        {
+          workflowId: 'workflow-123',
+          userId: 'user-123',
+          action: 'read',
+        }
+      )
     })
 
     it.concurrent('should return unauthorized for unauthenticated request', async () => {
-      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
         success: false,
         error: 'Unauthorized',
       })
@@ -427,7 +362,7 @@ describe('Knowledge Search API Route', () => {
         workflowId: 'nonexistent-workflow',
       }
 
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+      workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
         allowed: false,
         status: 404,
         message: 'Workflow not found',
