@@ -230,7 +230,17 @@ export function useTableUndo({
                         rowId: c.rowId,
                         data: { [action.columnName]: c.value },
                       }))
-                      batchUpdateRowsMutation.mutate({ updates })
+                      batchUpdateRowsMutation.mutate(
+                        { updates },
+                        {
+                          onError: (error) => {
+                            logger.error('Failed to restore cell data on delete-column undo', {
+                              columnName: action.columnName,
+                              error,
+                            })
+                          },
+                        }
+                      )
                     }
                     const metadata: Record<string, unknown> = {}
                     if (action.previousOrder) {
