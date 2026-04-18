@@ -812,6 +812,7 @@ export function Table({
       setDropSide('left')
       return
     }
+    dragColumnNameRef.current = null
     const target = dropTargetColumnNameRef.current
     const side = dropSideRef.current
     if (target && dragged !== target) {
