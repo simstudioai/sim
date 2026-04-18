@@ -624,6 +624,7 @@ export function Table({
           if (!isWithinSelection) {
             setSelectionAnchor({ rowIndex, colIndex })
             setSelectionFocus(null)
+            setIsColumnSelection(false)
           }
         }
       }
@@ -904,6 +905,7 @@ export function Table({
   }, [])
 
   useEffect(() => {
+    if (isColumnSelection) return
     const target = selectionFocus ?? selectionAnchor
     if (!target) return
     const { rowIndex, colIndex } = target
@@ -914,7 +916,7 @@ export function Table({
       cell?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
     })
     return () => cancelAnimationFrame(rafId)
-  }, [selectionAnchor, selectionFocus])
+  }, [selectionAnchor, selectionFocus, isColumnSelection])
 
   const handleCellClick = useCallback((rowId: string, columnName: string) => {
     const column = columnsRef.current.find((c) => c.name === columnName)
@@ -939,6 +941,7 @@ export function Table({
     if (!column || column.type === 'boolean') return
 
     setSelectionFocus(null)
+    setIsColumnSelection(false)
     setEditingCell({ rowId, columnName })
     setInitialCharacter(null)
   }, [])
