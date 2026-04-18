@@ -1207,14 +1207,20 @@ export async function updateRow(
     throw new Error('Row not found')
   }
 
+  // Merge partial update with existing row data so callers can pass only changed fields
+  const mergedData = {
+    ...(existingRow.data as RowData),
+    ...data.data,
+  }
+
   // Validate size
-  const sizeValidation = validateRowSize(data.data)
+  const sizeValidation = validateRowSize(mergedData)
   if (!sizeValidation.valid) {
     throw new Error(sizeValidation.errors.join(', '))
   }
 
   // Validate against schema
-  const schemaValidation = validateRowAgainstSchema(data.data, table.schema)
+  const schemaValidation = validateRowAgainstSchema(mergedData, table.schema)
   if (!schemaValidation.valid) {
     throw new Error(`Schema validation failed: ${schemaValidation.errors.join(', ')}`)
   }
@@ -1224,7 +1230,7 @@ export async function updateRow(
   if (uniqueColumns.length > 0) {
     const uniqueValidation = await checkUniqueConstraintsDb(
       data.tableId,
-      data.data,
+      mergedData,
       table.schema,
       data.rowId // Exclude current row
     )
@@ -1237,14 +1243,14 @@ export async function updateRow(
 
   await db
     .update(userTableRows)
-    .set({ data: data.data, updatedAt: now })
+    .set({ data: mergedData, updatedAt: now })
     .where(eq(userTableRows.id, data.rowId))
 
   logger.info(`[${requestId}] Updated row ${data.rowId} in table ${data.tableId}`)
 
   return {
     id: data.rowId,
-    data: data.data,
+    data: mergedData,
     position: existingRow.position,
     createdAt: existingRow.createdAt,
     updatedAt: now,
