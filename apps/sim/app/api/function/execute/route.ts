@@ -744,6 +744,10 @@ export async function POST(req: NextRequest) {
       // For shell, env vars are injected as OS env vars via shellEnvs.
       // Replace {{VAR}} placeholders with $VAR so the shell can access them natively.
       resolvedCode = code.replace(/\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}/g, '$$$1')
+      // Carry pre-resolved block output variables (e.g. __blockRef_N) so they can be
+      // injected as shell env vars below. The executor replaces block references in the
+      // code with these names, so the values must be present at runtime.
+      contextVariables = { ...preResolvedContextVariables }
     } else {
       const codeResolution = resolveCodeVariables(
         code,

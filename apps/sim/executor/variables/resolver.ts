@@ -237,21 +237,34 @@ export class VariableResolver {
 
     let replacementError: Error | null = null
 
+    const blockRefByMatch = new Map<string, string>()
+
     let result = replaceValidReferences(template, (match) => {
       if (replacementError) return match
 
       try {
+        if (this.blockResolver.canResolve(match)) {
+          // Deduplicate: identical references in the same template share a single
+          // accumulator slot so we do not duplicate large payloads.
+          const existing = blockRefByMatch.get(match)
+          if (existing !== undefined) return existing
+
+          const resolved = this.resolveReference(match, resolutionContext)
+          if (resolved === undefined) return match
+
+          const effectiveValue = resolved === RESOLVED_EMPTY ? null : resolved
+
+          // Block output: store in contextVarAccumulator, replace with variable name
+          const varName = `__blockRef_${Object.keys(contextVarAccumulator).length}`
+          contextVarAccumulator[varName] = effectiveValue
+          blockRefByMatch.set(match, varName)
+          return varName
+        }
+
         const resolved = this.resolveReference(match, resolutionContext)
         if (resolved === undefined) return match
 
         const effectiveValue = resolved === RESOLVED_EMPTY ? null : resolved
-
-        if (this.blockResolver.canResolve(match)) {
-          // Block output: store in contextVarAccumulator, replace with variable name
-          const varName = `__blockRef_${Object.keys(contextVarAccumulator).length}`
-          contextVarAccumulator[varName] = effectiveValue
-          return varName
-        }
 
         // Non-block reference (loop, parallel, workflow, env): embed as literal
         return this.blockResolver.formatValueForBlock(effectiveValue, BlockType.FUNCTION, language)

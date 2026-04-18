@@ -34,10 +34,3 @@ export interface CodeExecutionOutput extends ToolResponse {
     stdout: string
   }
 }
-
-export interface CodeExecutionOutput extends ToolResponse {
-  output: {
-    result: any
-    stdout: string
-  }
-}
