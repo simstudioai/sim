@@ -75,6 +75,7 @@ import {
   useWorkspaceManagement,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
+  compareByOrder,
   createSidebarDragGhost,
   groupWorkflowsByFolder,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
@@ -506,6 +507,42 @@ export const Sidebar = memo(function Sidebar() {
     () => (isCollapsed ? groupWorkflowsByFolder(regularWorkflows) : {}),
     [isCollapsed, regularWorkflows]
   )
+
+  const collapsedRootItems = useMemo(() => {
+    type RootItem =
+      | {
+          kind: 'folder'
+          sortOrder: number
+          createdAt?: Date
+          id: string
+          node: (typeof folderTree)[number]
+        }
+      | {
+          kind: 'workflow'
+          sortOrder: number
+          createdAt?: Date
+          id: string
+          workflow: (typeof regularWorkflows)[number]
+        }
+    const items: RootItem[] = [
+      ...folderTree.map((node) => ({
+        kind: 'folder' as const,
+        sortOrder: node.sortOrder,
+        createdAt: node.createdAt,
+        id: node.id,
+        node,
+      })),
+      ...(workflowsByFolder.root ?? []).map((w) => ({
+        kind: 'workflow' as const,
+        sortOrder: w.sortOrder,
+        createdAt: w.createdAt,
+        id: w.id,
+        workflow: w,
+      })),
+    ]
+    items.sort(compareByOrder)
+    return items
+  }, [folderTree, workflowsByFolder])
 
   const [activeNavItemHref, setActiveNavItemHref] = useState<string | null>(null)
   const {
@@ -1655,42 +1692,46 @@ export const Sidebar = memo(function Sidebar() {
                             <DropdownMenuItem disabled>No workflows yet</DropdownMenuItem>
                           ) : (
                             <>
-                              <CollapsedFolderItems
-                                nodes={folderTree}
-                                workflowsByFolder={workflowsByFolder}
-                                workspaceId={workspaceId}
-                                currentWorkflowId={workflowId}
-                                editingWorkflowId={workflowFlyoutRename.editingId}
-                                editingValue={workflowFlyoutRename.value}
-                                editInputRef={workflowFlyoutRename.inputRef}
-                                isRenamingWorkflow={workflowFlyoutRename.isSaving}
-                                onEditValueChange={workflowFlyoutRename.setValue}
-                                onEditKeyDown={workflowFlyoutRename.handleKeyDown}
-                                onEditBlur={handleWorkflowRenameBlur}
-                                onWorkflowOpenInNewTab={handleCollapsedWorkflowOpenInNewTab}
-                                onWorkflowRename={handleCollapsedWorkflowRename}
-                                canRenameWorkflow={canEdit}
-                              />
-                              {(workflowsByFolder.root || []).map((workflow) => (
-                                <CollapsedWorkflowFlyoutItem
-                                  key={workflow.id}
-                                  workflow={workflow}
-                                  href={`/workspace/${workspaceId}/w/${workflow.id}`}
-                                  isCurrentRoute={workflow.id === workflowId}
-                                  isEditing={workflow.id === workflowFlyoutRename.editingId}
-                                  editValue={workflowFlyoutRename.value}
-                                  inputRef={workflowFlyoutRename.inputRef}
-                                  isRenaming={workflowFlyoutRename.isSaving}
-                                  onEditValueChange={workflowFlyoutRename.setValue}
-                                  onEditKeyDown={workflowFlyoutRename.handleKeyDown}
-                                  onEditBlur={handleWorkflowRenameBlur}
-                                  onOpenInNewTab={() =>
-                                    handleCollapsedWorkflowOpenInNewTab(workflow)
-                                  }
-                                  onRename={() => handleCollapsedWorkflowRename(workflow)}
-                                  canRename={canEdit}
-                                />
-                              ))}
+                              {collapsedRootItems.map((item) =>
+                                item.kind === 'folder' ? (
+                                  <CollapsedFolderItems
+                                    key={item.id}
+                                    nodes={[item.node]}
+                                    workflowsByFolder={workflowsByFolder}
+                                    workspaceId={workspaceId}
+                                    currentWorkflowId={workflowId}
+                                    editingWorkflowId={workflowFlyoutRename.editingId}
+                                    editingValue={workflowFlyoutRename.value}
+                                    editInputRef={workflowFlyoutRename.inputRef}
+                                    isRenamingWorkflow={workflowFlyoutRename.isSaving}
+                                    onEditValueChange={workflowFlyoutRename.setValue}
+                                    onEditKeyDown={workflowFlyoutRename.handleKeyDown}
+                                    onEditBlur={handleWorkflowRenameBlur}
+                                    onWorkflowOpenInNewTab={handleCollapsedWorkflowOpenInNewTab}
+                                    onWorkflowRename={handleCollapsedWorkflowRename}
+                                    canRenameWorkflow={canEdit}
+                                  />
+                                ) : (
+                                  <CollapsedWorkflowFlyoutItem
+                                    key={item.id}
+                                    workflow={item.workflow}
+                                    href={`/workspace/${workspaceId}/w/${item.workflow.id}`}
+                                    isCurrentRoute={item.workflow.id === workflowId}
+                                    isEditing={item.workflow.id === workflowFlyoutRename.editingId}
+                                    editValue={workflowFlyoutRename.value}
+                                    inputRef={workflowFlyoutRename.inputRef}
+                                    isRenaming={workflowFlyoutRename.isSaving}
+                                    onEditValueChange={workflowFlyoutRename.setValue}
+                                    onEditKeyDown={workflowFlyoutRename.handleKeyDown}
+                                    onEditBlur={handleWorkflowRenameBlur}
+                                    onOpenInNewTab={() =>
+                                      handleCollapsedWorkflowOpenInNewTab(item.workflow)
+                                    }
+                                    onRename={() => handleCollapsedWorkflowRename(item.workflow)}
+                                    canRename={canEdit}
+                                  />
+                                )
+                              )}
                             </>
                           )}
                         </CollapsedSidebarMenu>

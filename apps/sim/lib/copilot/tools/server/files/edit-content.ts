@@ -4,14 +4,11 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import {
-  generateDocxFromCode,
-  generatePdfFromCode,
-  generatePptxFromCode,
-} from '@/lib/execution/doc-vm'
+import { toError } from '@/lib/core/utils/helpers'
+import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { updateWorkspaceFileContent } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { consumeLatestFileIntent } from './file-intent-store'
-import { inferContentType } from './workspace-file'
+import { getDocumentFormatInfo, inferContentType } from './workspace-file'
 
 const logger = createLogger('EditContentServerTool')
 
@@ -23,40 +20,6 @@ type EditContentResult = {
   success: boolean
   message: string
   data?: Record<string, unknown>
-}
-
-function getDocumentFormatInfo(fileName: string): {
-  isDoc: boolean
-  formatName?: string
-  sourceMime?: string
-  generator?: (code: string, workspaceId: string, signal?: AbortSignal) => Promise<Buffer>
-} {
-  const lowerName = fileName.toLowerCase()
-  if (lowerName.endsWith('.pptx')) {
-    return {
-      isDoc: true,
-      formatName: 'PPTX',
-      sourceMime: 'text/x-pptxgenjs',
-      generator: generatePptxFromCode,
-    }
-  }
-  if (lowerName.endsWith('.docx')) {
-    return {
-      isDoc: true,
-      formatName: 'DOCX',
-      sourceMime: 'text/x-docxjs',
-      generator: generateDocxFromCode,
-    }
-  }
-  if (lowerName.endsWith('.pdf')) {
-    return {
-      isDoc: true,
-      formatName: 'PDF',
-      sourceMime: 'text/x-pdflibjs',
-      generator: generatePdfFromCode,
-    }
-  }
-  return { isDoc: false }
 }
 
 export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentResult> = {
@@ -240,9 +203,13 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
 
       if (docInfo.isDoc) {
         try {
-          await docInfo.generator!(finalContent, workspaceId)
+          await runSandboxTask(
+            docInfo.taskId!,
+            { code: finalContent, workspaceId },
+            { ownerKey: `user:${context.userId}`, signal: context.abortSignal }
+          )
         } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err)
+          const msg = toError(err).message
           return {
             success: false,
             message: `${docInfo.formatName} generation failed: ${msg}. Fix the content and retry.`,

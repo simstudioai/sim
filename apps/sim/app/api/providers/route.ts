@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import {
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest) {
       logger.error(`[${requestId}] Failed to resolve Vertex credential:`, {
         provider,
         model,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
         hasVertexCredential: !!vertexCredential,
       })
       return NextResponse.json(
@@ -258,17 +259,14 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const executionTime = Date.now() - startTime
     logger.error(`[${requestId}] Provider request failed:`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       errorName: error instanceof Error ? error.name : 'Unknown',
       errorStack: error instanceof Error ? error.stack : undefined,
       executionTime,
       timestamp: new Date().toISOString(),
     })
 
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: toError(error).message }, { status: 500 })
   }
 }
 

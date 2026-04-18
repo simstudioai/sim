@@ -51,6 +51,7 @@ import {
   ZoomIcon,
 } from '@/components/icons'
 import { env } from '@/lib/core/config/env'
+import { toError } from '@/lib/core/utils/helpers'
 import type { OAuthProviderConfig } from './types'
 
 const logger = createLogger('OAuth')
@@ -1563,7 +1564,7 @@ export async function refreshOAuthToken(
     }
   } catch (error) {
     logger.error('Error refreshing token:', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return null
   }

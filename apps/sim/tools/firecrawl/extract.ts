@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { sleep } from '@/lib/core/utils/helpers'
 import type { ExtractParams, ExtractResponse } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -205,7 +206,7 @@ export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
           }
         }
 
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+        await sleep(POLL_INTERVAL_MS)
         elapsedTime += POLL_INTERVAL_MS
       } catch (error: any) {
         logger.error('Error polling for extract job status:', {

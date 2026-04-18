@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { idempotencyKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, inArray, like, lt, max, min, sql } from 'drizzle-orm'
+import { sleep } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('IdempotencyCleanup')
 
@@ -97,7 +98,7 @@ export async function cleanupExpiredIdempotencyKeys(
         } else {
           logger.info(`Deleted batch ${batchCount}: ${deletedCount} expired idempotency keys`)
 
-          await new Promise((resolve) => setTimeout(resolve, 100))
+          await sleep(100)
         }
       } catch (batchError) {
         const errorMessage =

@@ -7,6 +7,7 @@ import { Badge, Button } from '@/components/emcn'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { formatCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
+import { toError } from '@/lib/core/utils/helpers'
 import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
 import { useUpdateUsageLimit } from '@/hooks/queries/subscription'
 
@@ -140,7 +141,7 @@ export const UsageLimit = forwardRef<UsageLimitRef, UsageLimitProps>(
       } catch (err) {
         logger.error('Failed to update usage limit', { error: err })
 
-        const message = err instanceof Error ? err.message : String(err)
+        const message = toError(err).message
         if (message.includes('below current usage')) {
           setErrorType('belowUsage')
         } else {

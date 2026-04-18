@@ -17,6 +17,7 @@ import {
   hasUsableSubscriptionStatus,
 } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { toError } from '@/lib/core/utils/helpers'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('SwitchPlan')
@@ -185,7 +186,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error('Failed to switch subscription', {
       userId: session?.user?.id,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to switch plan' },

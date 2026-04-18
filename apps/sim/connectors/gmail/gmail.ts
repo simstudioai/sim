@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { GmailIcon } from '@/components/icons'
+import { toError } from '@/lib/core/utils/helpers'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
@@ -493,7 +494,7 @@ export const gmailConnector: ConnectorConfig = {
     } catch (error) {
       logger.warn('Failed to get Gmail thread', {
         externalId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return null
     }

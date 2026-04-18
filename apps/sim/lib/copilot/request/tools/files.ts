@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { FunctionExecute, UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { toError } from '@/lib/core/utils/helpers'
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('CopilotToolResultFiles')
@@ -201,7 +202,7 @@ export async function maybeWriteOutputToFile(
       resources: [{ type: 'file', id: uploaded.id, title: fileName }],
     }
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
+    const message = toError(err).message
     logger.warn('Failed to write tool output to file', {
       toolName,
       outputPath,

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { FirefliesIcon } from '@/components/icons'
+import { toError } from '@/lib/core/utils/helpers'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { parseTagDate } from '@/connectors/utils'
@@ -305,7 +306,7 @@ export const firefliesConnector: ConnectorConfig = {
     } catch (error) {
       logger.warn('Failed to get Fireflies transcript', {
         externalId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return null
     }

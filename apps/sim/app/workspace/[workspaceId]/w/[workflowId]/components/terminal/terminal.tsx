@@ -1246,20 +1246,14 @@ export const Terminal = memo(function Terminal() {
    * Closes the output panel if there's not enough space for the minimum width.
    */
   useEffect(() => {
+    const el = terminalRef.current
+    if (!el) return
+
     const handleResize = () => {
       if (!selectedEntry) return
 
-      const sidebarWidth = Number.parseInt(
-        getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
-      )
-      const panelWidth = Number.parseInt(
-        getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-      )
+      const maxWidth = el.getBoundingClientRect().width - TERMINAL_CONFIG.BLOCK_COLUMN_WIDTH_PX
 
-      const terminalWidth = window.innerWidth - sidebarWidth - panelWidth
-      const maxWidth = terminalWidth - TERMINAL_CONFIG.BLOCK_COLUMN_WIDTH_PX
-
-      // Close output panel if there's not enough space for minimum width
       if (maxWidth < MIN_OUTPUT_PANEL_WIDTH_PX) {
         setAutoSelectEnabled(false)
         setSelectedEntryId(null)
@@ -1273,21 +1267,10 @@ export const Terminal = memo(function Terminal() {
 
     handleResize()
 
-    window.addEventListener('resize', handleResize)
+    const observer = new ResizeObserver(handleResize)
+    observer.observe(el)
 
-    const observer = new MutationObserver(() => {
-      handleResize()
-    })
-
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['style'],
-    })
-
-    return () => {
-      window.removeEventListener('resize', handleResize)
-      observer.disconnect()
-    }
+    return () => observer.disconnect()
   }, [selectedEntry, outputPanelWidth, setOutputPanelWidth])
 
   return (

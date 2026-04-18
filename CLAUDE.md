@@ -8,6 +8,7 @@ You are a professional software engineer. All code must follow best practices: a
 - **Comments**: Use TSDoc for documentation. No `====` separators. No non-TSDoc comments
 - **Styling**: Never update global styles. Keep all styling local to components
 - **ID Generation**: Never use `crypto.randomUUID()`, `nanoid`, or `uuid` package. Use `generateId()` (UUID v4) or `generateShortId()` (compact) from `@/lib/core/utils/uuid`
+- **Common Utilities**: Use shared helpers from `@/lib/core/utils/helpers` instead of inline implementations. `sleep(ms)` for delays, `toError(e)` to normalize caught values.
 - **Package Manager**: Use `bun` and `bunx`, not `npm` and `npx`
 
 ## Architecture

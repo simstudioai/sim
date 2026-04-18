@@ -4,6 +4,7 @@ import { and, eq, isNull, lt, lte, ne, not, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateId } from '@/lib/core/utils/uuid'
 import {
@@ -136,7 +137,7 @@ export async function GET(request: NextRequest) {
             const output = await executeScheduleJob(payload)
             await jobQueue.completeJob(jobId, output)
           } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage = toError(error).message
             logger.error(
               `[${requestId}] Schedule execution failed for workflow ${schedule.workflowId}`,
               {
@@ -191,7 +192,7 @@ export async function GET(request: NextRequest) {
         await executeJobInline(payload)
       } catch (error) {
         logger.error(`[${requestId}] Job execution failed for ${job.id}`, {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
         await releaseScheduleLock(
           job.id,

@@ -7,6 +7,7 @@ import {
   RunFromBlock,
   RunWorkflowUntilBlock,
 } from '@/lib/copilot/generated/tool-catalog-v1'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils'
 import { useExecutionStore } from '@/stores/execution/store'
@@ -140,7 +141,7 @@ export function executeRunToolOnClient(
     logger.error('[RunTool] Unhandled error in client-side run tool execution', {
       toolCallId,
       toolName,
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
   })
 }
@@ -389,7 +390,7 @@ async function doExecuteRunTool(
         toolName,
       })
     } else {
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = toError(err).message
       logger.error('[RunTool] Workflow execution threw', { toolCallId, toolName, error: msg })
       await reportCompletion(toolCallId, MothershipStreamV1ToolOutcome.error, msg)
     }
@@ -499,7 +500,7 @@ async function reportCompletion(
   } catch (err) {
     logger.error('[RunTool] reportCompletion error', {
       toolCallId,
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
   }
 }

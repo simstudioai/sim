@@ -1400,6 +1400,55 @@ export function validateMondayColumnId(
   return { isValid: true, sanitized: value }
 }
 
+/**
+ * Validates a Supabase project ID.
+ *
+ * Supabase project IDs are 20-character lowercase alphanumeric strings
+ * (e.g. "jdrkgepadsdopsntdlom"). This validator ensures the value cannot
+ * contain URL-fragment (`#`), path-separator, or other characters that
+ * would let an attacker break out of the `*.supabase.co` domain when the
+ * ID is interpolated into a URL template.
+ *
+ * @param value - The project ID to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ */
+export function validateSupabaseProjectId(
+  value: string | null | undefined,
+  paramName = 'projectId'
+): ValidationResult {
+  if (value === null || value === undefined || value === '') {
+    return {
+      isValid: false,
+      error: `${paramName} is required`,
+    }
+  }
+
+  if (!/^[a-z0-9]+$/.test(value)) {
+    logger.warn('Invalid Supabase project ID format', {
+      paramName,
+      value: value.substring(0, 50),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} must contain only lowercase alphanumeric characters`,
+    }
+  }
+
+  if (value.length < 10 || value.length > 40) {
+    logger.warn('Supabase project ID length invalid', {
+      paramName,
+      length: value.length,
+    })
+    return {
+      isValid: false,
+      error: `${paramName} must be between 10 and 40 characters`,
+    }
+  }
+
+  return { isValid: true, sanitized: value }
+}
+
 export function isMicrosoftContentUrl(url: string): boolean {
   let hostname: string
   try {

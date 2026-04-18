@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@/lib/core/utils/helpers'
 import { getBlock } from '@/blocks/index'
 import { isMcpTool } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
@@ -48,7 +49,7 @@ export class GenericBlockHandler implements BlockHandler {
                 finalInputs[key] = JSON.parse(value.trim())
               } catch (error) {
                 logger.warn(`Failed to parse ${inputType} field "${key}":`, {
-                  error: error instanceof Error ? error.message : String(error),
+                  error: toError(error).message,
                 })
               }
             }

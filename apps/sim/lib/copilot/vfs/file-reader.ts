@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@/lib/core/utils/helpers'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
@@ -109,7 +110,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
         logger.warn('Failed to parse document', {
           fileName: record.name,
           ext,
-          error: parseErr instanceof Error ? parseErr.message : String(parseErr),
+          error: toError(parseErr).message,
         })
         return {
           content: `[Could not parse ${record.name} (${record.type}, ${record.size} bytes)]`,
@@ -125,7 +126,7 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
   } catch (err) {
     logger.warn('Failed to read workspace file', {
       fileName: record.name,
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
     return null
   }

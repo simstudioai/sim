@@ -7,6 +7,7 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
+import { toError } from '@/lib/core/utils/helpers'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
   downloadWorkspaceFile,
@@ -111,7 +112,7 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
           } catch (err) {
             logger.warn('Failed to load reference image, skipping', {
               fileId,
-              error: err instanceof Error ? err.message : String(err),
+              error: toError(err).message,
             })
           }
         }

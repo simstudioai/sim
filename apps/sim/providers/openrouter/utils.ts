@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
+import { toError } from '@/lib/core/utils/helpers'
 import { checkForForcedToolUsageOpenAI, createOpenAICompatibleStream } from '@/providers/utils'
 
 const logger = createLogger('OpenRouterUtils')
@@ -57,7 +58,7 @@ async function fetchModelCapabilities(): Promise<Map<string, ModelCapabilities>>
     return capabilities
   } catch (error) {
     logger.error('Error fetching OpenRouter model capabilities', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return new Map()
   }

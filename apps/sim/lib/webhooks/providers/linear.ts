@@ -2,6 +2,7 @@ import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { safeCompare } from '@/lib/core/security/encryption'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
@@ -240,7 +241,7 @@ export const linearHandler: WebhookProviderHandler = {
         throw error
       }
       logger.error(`[${ctx.requestId}] Error creating Linear webhook`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       throw new Error('Failed to create Linear webhook. Please verify your API key and try again.')
     }
@@ -289,7 +290,7 @@ export const linearHandler: WebhookProviderHandler = {
       }
     } catch (error) {
       logger.warn(`[${ctx.requestId}] Error deleting Linear webhook ${externalId} (non-fatal)`, {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   },

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { RedditIcon } from '@/components/icons'
+import { toError } from '@/lib/core/utils/helpers'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { parseTagDate } from '@/connectors/utils'
@@ -107,7 +108,7 @@ async function fetchPostComments(
   } catch (error) {
     logger.warn('Failed to fetch comments for post', {
       postId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return []
   }
@@ -412,7 +413,7 @@ export const redditConnector: ConnectorConfig = {
     } catch (error) {
       logger.warn('Failed to get Reddit post document', {
         externalId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return null
     }

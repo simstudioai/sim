@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { Cron } from 'croner'
 import cronstrue from 'cronstrue'
 import { formatDateTime } from '@/lib/core/utils/formatting'
+import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('ScheduleUtils')
 
@@ -256,7 +257,7 @@ export function createDateWithTimezone(
     } catch (fallbackError) {
       logger.error('Error during fallback date creation:', fallbackError)
       throw new Error(
-        `Failed to create date with timezone (${timezone}): ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`
+        `Failed to create date with timezone (${timezone}): ${toError(fallbackError).message}`
       )
     }
   }
@@ -428,7 +429,7 @@ export function calculateNextRunTime(
   } catch (error) {
     logger.error('Error calculating next run with Croner:', error)
     throw new Error(
-      `Failed to calculate next run time for schedule type ${scheduleType}: ${error instanceof Error ? error.message : String(error)}`
+      `Failed to calculate next run time for schedule type ${scheduleType}: ${toError(error).message}`
     )
   }
 }
@@ -480,7 +481,7 @@ export const parseCronToHumanReadable = (cronExpression: string, timezone?: stri
   } catch (error) {
     logger.warn('Failed to parse cron expression with cronstrue:', {
       cronExpression,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return `Schedule: ${cronExpression}${timezone && timezone !== 'UTC' ? ` (${getTimezoneAbbreviation(timezone)})` : ''}`
   }

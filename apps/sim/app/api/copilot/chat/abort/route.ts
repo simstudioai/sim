@@ -5,6 +5,7 @@ import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
 import { abortActiveStream, waitForPendingChatStream } from '@/lib/copilot/request/session'
 import { env } from '@/lib/core/config/env'
+import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('CopilotChatAbortAPI')
 const GO_EXPLICIT_ABORT_TIMEOUT_MS = 3000
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch((err) => {
     logger.warn('Abort request body parse failed; continuing with empty object', {
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
     return {}
   })
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
     const run = await getLatestRunForStream(streamId, authenticatedUserId).catch((err) => {
       logger.warn('getLatestRunForStream failed while resolving chatId for abort', {
         streamId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return null
     })
@@ -70,7 +71,7 @@ export async function POST(request: Request) {
   } catch (err) {
     logger.warn('Explicit abort marker request failed; proceeding with local abort', {
       streamId,
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
   }
 

@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { toError } from '@/lib/core/utils/helpers'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { getAllBlocks } from '@/blocks'
@@ -468,7 +469,7 @@ export class AgentBlockHandler implements BlockHandler {
 
         return data.data.tools
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error)
+        const errorMsg = toError(error).message
         if (this.isRetryableError(errorMsg) && attempt < maxAttempts - 1) {
           logger.warn(
             `[AgentHandler] Retryable error discovering tools from ${serverId} (attempt ${attempt + 1}):`,

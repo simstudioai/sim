@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { isAuthDisabled } from '@/lib/core/config/feature-flags'
+import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('SocketTokenAPI')
 
@@ -36,7 +37,7 @@ export async function POST() {
     }
 
     logger.error('Failed to generate socket token', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
     return NextResponse.json({ error: 'Failed to generate token' }, { status: 500 })

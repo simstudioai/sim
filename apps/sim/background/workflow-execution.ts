@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -172,7 +173,7 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
     }
   } catch (error: unknown) {
     logger.error(`[${requestId}] Workflow execution failed: ${workflowId}`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       executionId,
     })
 
@@ -185,7 +186,7 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
 
     await loggingSession.safeCompleteWithError({
       error: {
-        message: error instanceof Error ? error.message : String(error),
+        message: toError(error).message,
         stackTrace: error instanceof Error ? error.stack : undefined,
       },
       traceSpans,

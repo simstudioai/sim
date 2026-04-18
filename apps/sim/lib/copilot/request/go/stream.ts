@@ -26,6 +26,7 @@ import type {
   StreamEvent,
   StreamingContext,
 } from '@/lib/copilot/request/types'
+import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('CopilotGoStream')
 
@@ -200,7 +201,7 @@ export async function runStreamLoop(
       } catch (error) {
         logger.warn('Failed to forward stream event', {
           type: streamEvent.type,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
 

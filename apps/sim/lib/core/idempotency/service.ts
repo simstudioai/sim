@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getStorageMethod, type StorageMethod } from '@/lib/core/storage'
+import { sleep } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import { extractProviderIdentifierFromBody } from '@/lib/webhooks/providers'
 
@@ -293,7 +294,7 @@ export class IdempotencyService {
         throw new Error(currentResult.error || 'Previous operation failed')
       }
 
-      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+      await sleep(POLL_INTERVAL_MS)
     }
 
     throw new Error(`Timeout waiting for idempotency operation to complete: ${normalizedKey}`)

@@ -113,9 +113,10 @@ COPY --from=deps --chown=nextjs:nodejs /app/node_modules/isolated-vm ./node_modu
 # Copy the isolated-vm worker script
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-worker.cjs ./apps/sim/lib/execution/isolated-vm-worker.cjs
 
-# Copy the bundled worker artifacts
-COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/dist/pptx-worker.cjs ./apps/sim/dist/pptx-worker.cjs
-COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/dist/doc-worker.cjs ./apps/sim/dist/doc-worker.cjs
+# Copy the pre-built sandbox library bundles (pptxgenjs, docx, pdf-lib) that
+# run inside the V8 isolate. Committed into the repo; see
+# apps/sim/lib/execution/sandbox/bundles/build.ts to regenerate.
+COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/sandbox/bundles ./apps/sim/lib/execution/sandbox/bundles
 
 # Guardrails setup with pip caching
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/guardrails/requirements.txt ./apps/sim/lib/guardrails/requirements.txt
