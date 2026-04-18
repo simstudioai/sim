@@ -3130,6 +3130,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
             className='flex h-full shrink-0 cursor-pointer items-center pr-2 pl-0.5 text-[var(--text-muted)] opacity-0 transition-opacity hover:text-[var(--text-primary)] group-hover:opacity-100'
             onClick={handleChevronClick}
             draggable={false}
+            aria-label='Column options'
           >
             <ChevronDown className='h-[7px] w-[9px]' />
           </button>
@@ -3145,7 +3146,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
                   pointerEvents: 'none',
                 }}
                 tabIndex={-1}
-                aria-hidden
+                aria-hidden='true'
               />
             </DropdownMenuTrigger>
             <DropdownMenuContent
