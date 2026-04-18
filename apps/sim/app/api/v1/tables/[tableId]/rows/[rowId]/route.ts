@@ -137,33 +137,11 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    // Fetch existing row to merge partial update
-    const [existingRow] = await db
-      .select({ data: userTableRows.data })
-      .from(userTableRows)
-      .where(
-        and(
-          eq(userTableRows.id, rowId),
-          eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, validated.workspaceId)
-        )
-      )
-      .limit(1)
-
-    if (!existingRow) {
-      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
-    }
-
-    const mergedData = {
-      ...(existingRow.data as RowData),
-      ...(validated.data as RowData),
-    }
-
     const updatedRow = await updateRow(
       {
         tableId,
         rowId,
-        data: mergedData,
+        data: validated.data as RowData,
         workspaceId: validated.workspaceId,
       },
       table,
