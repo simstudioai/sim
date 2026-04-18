@@ -36,8 +36,9 @@ import { getBlock, getBlockByToolName } from '@/blocks'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 
 const DEFAULT_BLOCK_COLOR = '#6b7280'
-const TREE_PANE_WIDTH = 240
+const TREE_PANE_WIDTH = 300
 const INDENT_PX = 12
+const MIN_BAR_PCT = 0.5
 
 interface TraceViewProps {
   traceSpans: TraceSpan[]
@@ -47,6 +48,7 @@ interface FlatSpanEntry {
   span: TraceSpan
   depth: number
   parentIds: string[]
+  parentDuration?: number
 }
 
 interface BlockAppearance {
@@ -186,21 +188,28 @@ function formatTps(outputTokens: number | undefined, durationMs: number): string
 
 /**
  * Flattens the visible (expanded) span tree into a linear list for keyboard
- * navigation, carrying depth and the chain of parent ids for indent drawing.
+ * navigation, carrying depth, the chain of parent ids for indent drawing, and
+ * the immediate parent's duration for percentage-of-parent calculations.
  */
 function flattenVisible(spans: TraceSpan[], expanded: Set<string>): FlatSpanEntry[] {
   const out: FlatSpanEntry[] = []
-  const walk = (list: TraceSpan[], depth: number, parents: string[]) => {
+  const walk = (
+    list: TraceSpan[],
+    depth: number,
+    parents: string[],
+    parentDuration: number | undefined
+  ) => {
     for (const span of list) {
       const id = getSpanId(span)
-      out.push({ span, depth, parentIds: parents })
+      out.push({ span, depth, parentIds: parents, parentDuration })
       const children = getDisplayChildren(span)
       if (children.length > 0 && expanded.has(id)) {
-        walk(children, depth + 1, [...parents, id])
+        const ownDuration = span.duration || parseTime(span.endTime) - parseTime(span.startTime)
+        walk(children, depth + 1, [...parents, id], ownDuration)
       }
     }
   }
-  walk(spans, 0, [])
+  walk(spans, 0, [], undefined)
   return out
 }
 
@@ -270,8 +279,10 @@ function collectMatchingIds(spans: TraceSpan[], query: string): Set<string> {
 }
 
 /**
- * Row in the tree pane. Renders the span icon, name, duration, and indentation
- * guides. Clicking selects the span; the chevron toggles expansion.
+ * Row in the tree pane. Renders the span icon, name, duration, a hover tooltip
+ * with timing context, and a Gantt-style mini timeline bar below the row so the
+ * span's position within the run is visible at a glance. Clicking selects the
+ * span; the chevron toggles expansion.
  */
 const TraceTreeRow = memo(function TraceTreeRow({
   entry,
@@ -281,6 +292,8 @@ const TraceTreeRow = memo(function TraceTreeRow({
   onSelect,
   onToggleExpand,
   matchQuery,
+  runStartMs,
+  runTotalMs,
 }: {
   entry: FlatSpanEntry
   isSelected: boolean
@@ -289,22 +302,33 @@ const TraceTreeRow = memo(function TraceTreeRow({
   onSelect: (id: string) => void
   onToggleExpand: (id: string) => void
   matchQuery: string
+  runStartMs: number
+  runTotalMs: number
 }) {
-  const { span, depth } = entry
+  const { span, depth, parentDuration } = entry
   const id = getSpanId(span)
-  const duration = span.duration || parseTime(span.endTime) - parseTime(span.startTime)
+  const startMs = parseTime(span.startTime)
+  const endMs = parseTime(span.endTime)
+  const duration = span.duration || endMs - startMs
   const isRootWorkflow = depth === 0 && span.type?.toLowerCase() === 'workflow'
   const hasError = isRootWorkflow ? hasUnhandledErrorInTree(span) : hasErrorInTree(span)
   const { icon: BlockIcon, bgColor } = getBlockAppearance(span.type, span.name)
   const nameMatches = !!matchQuery && spanMatchesQuery(span, matchQuery)
 
+  const offsetMs = runStartMs > 0 ? Math.max(0, startMs - runStartMs) : 0
+  const offsetPct = runTotalMs > 0 ? Math.min(100, (offsetMs / runTotalMs) * 100) : 0
+  const rawDurationPct = runTotalMs > 0 ? (duration / runTotalMs) * 100 : 0
+  const durationPct = Math.max(MIN_BAR_PCT, Math.min(100 - offsetPct, rawDurationPct))
+  const pctOfTotal = runTotalMs > 0 ? (duration / runTotalMs) * 100 : null
+  const pctOfParent =
+    parentDuration && parentDuration > 0 ? (duration / parentDuration) * 100 : null
+
   return (
     <div
       className={cn(
-        'group relative flex min-w-0 cursor-pointer items-center gap-1.5 py-1 pr-2 transition-colors',
+        'group relative flex min-w-0 cursor-pointer flex-col transition-colors',
         isSelected ? 'bg-[var(--surface-3)]' : 'hover-hover:bg-[var(--surface-2)]'
       )}
-      style={{ paddingLeft: 8 + depth * INDENT_PX }}
       onClick={() => onSelect(id)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -318,44 +342,84 @@ const TraceTreeRow = memo(function TraceTreeRow({
       aria-expanded={canExpand ? isExpanded : undefined}
       aria-level={depth + 1}
     >
-      {canExpand ? (
-        <button
-          type='button'
-          className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded-sm text-[var(--text-tertiary)] transition-colors hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
-          onClick={(e) => {
-            e.stopPropagation()
-            onToggleExpand(id)
-          }}
-          aria-label={isExpanded ? 'Collapse' : 'Expand'}
-        >
-          <ChevronDown
-            className='h-[10px] w-[10px]'
-            style={{ transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }}
-          />
-        </button>
-      ) : (
-        <div className='h-[14px] w-[14px] flex-shrink-0' />
-      )}
-      {!isIterationType(span.type) && (
-        <div
-          className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
-          style={{ background: bgColor }}
-        >
-          {BlockIcon && <BlockIcon className='h-[9px] w-[9px] text-white' />}
-        </div>
-      )}
-      <span
-        className={cn(
-          'min-w-0 flex-1 truncate font-medium text-caption',
-          hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-secondary)]',
-          nameMatches && 'text-[var(--text-primary)]'
-        )}
+      <div
+        className='flex min-w-0 items-center gap-1.5 pt-1 pr-2'
+        style={{ paddingLeft: 8 + depth * INDENT_PX }}
       >
-        {span.name}
-      </span>
-      <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
-        {formatDuration(duration, { precision: 2 })}
-      </span>
+        {canExpand ? (
+          <button
+            type='button'
+            className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded-sm text-[var(--text-tertiary)] transition-colors hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleExpand(id)
+            }}
+            aria-label={isExpanded ? 'Collapse' : 'Expand'}
+          >
+            <ChevronDown
+              className={cn(
+                'h-[10px] w-[10px] transition-transform duration-100',
+                !isExpanded && '-rotate-90'
+              )}
+            />
+          </button>
+        ) : (
+          <div className='h-[14px] w-[14px] flex-shrink-0' />
+        )}
+        {!isIterationType(span.type) && (
+          <div
+            className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
+            style={{ background: bgColor }}
+          >
+            {BlockIcon && <BlockIcon className='h-[9px] w-[9px] text-white' />}
+          </div>
+        )}
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <span
+              className={cn(
+                'min-w-0 flex-1 truncate font-medium text-caption',
+                hasError ? 'text-[var(--text-error)]' : 'text-[var(--text-secondary)]',
+                nameMatches && 'text-[var(--text-primary)]'
+              )}
+            >
+              {span.name}
+            </span>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='right' className='max-w-[320px]'>
+            <div className='flex flex-col gap-0.5'>
+              <span className='font-medium'>{span.name}</span>
+              <span className='text-[var(--text-tertiary)] text-caption'>
+                {formatDuration(duration, { precision: 2 }) || '—'}
+                {offsetMs > 0 && ` · +${formatDuration(offsetMs, { precision: 2 })}`}
+              </span>
+              {pctOfTotal !== null && pctOfTotal >= 0.1 && (
+                <span className='text-[var(--text-tertiary)] text-caption'>
+                  {pctOfTotal.toFixed(pctOfTotal >= 10 ? 0 : 1)}% of total
+                  {pctOfParent !== null &&
+                    pctOfParent >= 0.1 &&
+                    ` · ${pctOfParent.toFixed(pctOfParent >= 10 ? 0 : 1)}% of parent`}
+                </span>
+              )}
+            </div>
+          </Tooltip.Content>
+        </Tooltip.Root>
+        <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption tabular-nums'>
+          {formatDuration(duration, { precision: 2 })}
+        </span>
+      </div>
+      <div className='pt-[3px] pr-2 pb-[5px] pl-2'>
+        <div className='relative h-[3px] w-full overflow-hidden rounded-full bg-[var(--border)]'>
+          <div
+            className='absolute h-full rounded-full'
+            style={{
+              left: `${offsetPct}%`,
+              width: `${durationPct}%`,
+              backgroundColor: hasError ? 'var(--text-error)' : bgColor,
+            }}
+          />
+        </div>
+      </div>
     </div>
   )
 })
@@ -448,8 +512,10 @@ function DetailCodeSection({
           {label}
         </span>
         <ChevronDown
-          className='h-[8px] w-[8px] text-[var(--text-tertiary)] transition-colors transition-transform group-hover:text-[var(--text-primary)]'
-          style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+          className={cn(
+            'h-[8px] w-[8px] text-[var(--text-tertiary)] transition-colors transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+            !isOpen && '-rotate-90'
+          )}
         />
       </div>
       {isOpen && (
@@ -458,7 +524,7 @@ function DetailCodeSection({
             <Code.Viewer
               code={jsonString}
               language='json'
-              className='!bg-[var(--surface-4)] dark:!bg-[var(--surface-3)] max-h-[360px] min-h-0 max-w-full rounded-md border-0 [word-break:break-all]'
+              className='!bg-[var(--surface-4)] dark:!bg-[var(--surface-3)] max-w-full rounded-md border-0 [word-break:break-all]'
               wrapText
               searchQuery={isSearchActive ? searchQuery : undefined}
               currentMatchIndex={currentMatchIndex}
@@ -759,36 +825,39 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
 export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set())
-  const [hasInitialized, setHasInitialized] = useState(false)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  const { normalizedSpans, allIds, totalDuration, firstRootId, blockCount } = useMemo(() => {
-    const sorted = normalizeAndSort(traceSpans ?? [])
-    let earliest = Number.POSITIVE_INFINITY
-    let latest = 0
-    for (const span of sorted) {
-      const s = parseTime(span.startTime)
-      const e = parseTime(span.endTime)
-      if (s < earliest) earliest = s
-      if (e > latest) latest = e
-    }
-    const ids = collectAllIds(sorted)
-    const count = ids.length
-    return {
-      normalizedSpans: sorted,
-      allIds: ids,
-      totalDuration: latest > earliest ? latest - earliest : 0,
-      firstRootId: sorted.length > 0 ? getSpanId(sorted[0]) : null,
-      blockCount: count,
-    }
-  }, [traceSpans])
+  const { normalizedSpans, allIds, totalDuration, runStartMs, firstRootId, blockCount } =
+    useMemo(() => {
+      const sorted = normalizeAndSort(traceSpans ?? [])
+      let earliest = Number.POSITIVE_INFINITY
+      let latest = 0
+      for (const span of sorted) {
+        const s = parseTime(span.startTime)
+        const e = parseTime(span.endTime)
+        if (s < earliest) earliest = s
+        if (e > latest) latest = e
+      }
+      const ids = collectAllIds(sorted)
+      const count = ids.length
+      const runStart = earliest !== Number.POSITIVE_INFINITY ? earliest : 0
+      return {
+        normalizedSpans: sorted,
+        allIds: ids,
+        totalDuration: latest > runStart ? latest - runStart : 0,
+        runStartMs: runStart,
+        firstRootId: sorted.length > 0 ? getSpanId(sorted[0]) : null,
+        blockCount: count,
+      }
+    }, [traceSpans])
 
-  useEffect(() => {
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set(allIds))
+  const [selectedId, setSelectedId] = useState<string | null>(firstRootId)
+  const [prevAllIds, setPrevAllIds] = useState(allIds)
+  if (prevAllIds !== allIds) {
+    setPrevAllIds(allIds)
     setExpandedNodes(new Set(allIds))
     setSelectedId(firstRootId)
-    setHasInitialized(true)
-  }, [allIds, firstRootId])
+  }
 
   const matchingIds = useMemo(
     () => (searchQuery ? collectMatchingIds(normalizedSpans, searchQuery) : null),
@@ -894,7 +963,7 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
         >
           {runStatus === 'error' ? 'Error' : 'Success'}
         </span>
-        <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] text-caption'>
+        <span className='flex-shrink-0 font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
           {formatDuration(totalDuration, { precision: 2 }) || '—'}
         </span>
         <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
@@ -949,7 +1018,7 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
           style={{ width: TREE_PANE_WIDTH }}
           role='tree'
         >
-          {hasInitialized && flatList.length === 0 && (
+          {flatList.length === 0 && (
             <div className='p-3 text-[var(--text-tertiary)] text-caption'>No matching spans</div>
           )}
           {flatList.map((entry) => {
@@ -965,6 +1034,8 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
                 onSelect={handleSelect}
                 onToggleExpand={handleToggleExpand}
                 matchQuery={searchQuery}
+                runStartMs={runStartMs}
+                runTotalMs={totalDuration}
               />
             )
           })}

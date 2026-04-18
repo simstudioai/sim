@@ -155,6 +155,7 @@ export interface WorkflowExecutionLog {
     >
     executionState?: SerializableExecutionState
     finalOutput?: any
+    workflowInput?: unknown
     errorDetails?: {
       blockId: string
       blockName: string

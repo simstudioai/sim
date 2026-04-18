@@ -20,7 +20,7 @@ import {
   SModalTabsTrigger,
   Tooltip,
 } from '@/components/emcn'
-import { Copy as CopyIcon, Search as SearchIcon } from '@/components/emcn/icons'
+import { Copy as CopyIcon, Redo, Search as SearchIcon } from '@/components/emcn/icons'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { cn } from '@/lib/core/utils/cn'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
@@ -269,6 +269,10 @@ interface LogDetailsProps {
   hasNext?: boolean
   /** Whether there is a previous log available */
   hasPrev?: boolean
+  /** Callback to retry a failed execution */
+  onRetryExecution?: () => void
+  /** Whether a retry is currently in progress */
+  isRetryPending?: boolean
 }
 
 /**
@@ -287,6 +291,8 @@ export const LogDetails = memo(function LogDetails({
   onNavigatePrev,
   hasNext = false,
   hasPrev = false,
+  onRetryExecution,
+  isRetryPending = false,
 }: LogDetailsProps) {
   const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<LogDetailsTab>('overview')
@@ -313,9 +319,7 @@ export const LogDetails = memo(function LogDetails({
   const showTraceTab =
     isWorkflowExecutionLog && !!log?.executionData?.traceSpans && !permissionConfig.hideTraceSpans
 
-  useEffect(() => {
-    if (activeTab === 'trace' && !showTraceTab) setActiveTab('overview')
-  }, [activeTab, showTraceTab])
+  const resolvedTab: LogDetailsTab = activeTab === 'trace' && !showTraceTab ? 'overview' : activeTab
 
   const workflowOutput = useMemo(() => {
     const executionData = log?.executionData as
@@ -323,6 +327,16 @@ export const LogDetails = memo(function LogDetails({
       | undefined
     if (!executionData?.finalOutput) return null
     return filterHiddenOutputKeys(executionData.finalOutput) as Record<string, unknown>
+  }, [log?.executionData])
+
+  const workflowInput = useMemo(() => {
+    const executionData = log?.executionData as { workflowInput?: unknown } | undefined
+    const raw = executionData?.workflowInput
+    if (raw === undefined || raw === null) return null
+    if (typeof raw === 'object' && !Array.isArray(raw)) {
+      return raw as Record<string, unknown>
+    }
+    return { input: raw } as Record<string, unknown>
   }, [log?.executionData])
 
   useEffect(() => {
@@ -397,6 +411,22 @@ export const LogDetails = memo(function LogDetails({
                 >
                   <ChevronUp className='h-[14px] w-[14px] rotate-180' />
                 </Button>
+                {log?.status === 'failed' && (log?.workflow?.id || log?.workflowId) && (
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <Button
+                        variant='ghost'
+                        className='!p-1'
+                        onClick={() => onRetryExecution?.()}
+                        disabled={isRetryPending}
+                        aria-label='Retry execution'
+                      >
+                        <Redo className='h-[14px] w-[14px]' />
+                      </Button>
+                    </Tooltip.Trigger>
+                    <Tooltip.Content side='bottom'>Retry</Tooltip.Content>
+                  </Tooltip.Root>
+                )}
                 <Button variant='ghost' className='!p-1' onClick={onClose} aria-label='Close'>
                   <X className='h-[14px] w-[14px]' />
                 </Button>
@@ -405,12 +435,12 @@ export const LogDetails = memo(function LogDetails({
 
             {/* Tabs */}
             <SModalTabs
-              value={activeTab}
+              value={resolvedTab}
               onValueChange={(v) => setActiveTab(v as LogDetailsTab)}
               className='mt-4 flex min-h-0 flex-1 flex-col'
             >
               <SModalTabsList
-                activeValue={activeTab}
+                activeValue={resolvedTab}
                 className='!px-0 border-[var(--border)] border-b'
               >
                 <SModalTabsTrigger value='overview'>Overview</SModalTabsTrigger>
@@ -552,6 +582,16 @@ export const LogDetails = memo(function LogDetails({
                         </Button>
                       </div>
                     )}
+
+                  {/* Workflow Input */}
+                  {isWorkflowExecutionLog && workflowInput && !permissionConfig.hideTraceSpans && (
+                    <div className='mt-1 flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
+                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                        Workflow Input
+                      </span>
+                      <WorkflowOutputSection output={workflowInput} />
+                    </div>
+                  )}
 
                   {/* Workflow Output */}
                   {isWorkflowExecutionLog && workflowOutput && !permissionConfig.hideTraceSpans && (

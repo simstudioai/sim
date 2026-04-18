@@ -73,6 +73,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       models: NonNullable<WorkflowExecutionLog['executionData']['models']>
     }
     executionState?: SerializableExecutionState
+    workflowInput?: unknown
   }): WorkflowExecutionLog['executionData'] {
     const {
       existingExecutionData,
@@ -82,6 +83,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       completionFailure,
       executionCost,
       executionState,
+      workflowInput,
     } = params
     const traceSpanCount = countTraceSpans(traceSpans)
 
@@ -117,6 +119,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       },
       models: executionCost.models,
       ...(executionState ? { executionState } : {}),
+      ...(workflowInput !== undefined ? { workflowInput } : {}),
     }
   }
 
@@ -365,6 +368,7 @@ export class ExecutionLogger implements IExecutionLoggerService {
       completionFailure,
       executionCost,
       executionState,
+      workflowInput,
     })
 
     const [updatedLog] = await db

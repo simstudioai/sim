@@ -13,6 +13,7 @@ import {
   Download,
   Library,
   RefreshCw,
+  toast,
 } from '@/components/emcn'
 import { DatePicker } from '@/components/emcn/components/date-picker/date-picker'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
@@ -50,11 +51,14 @@ import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/provide
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import {
+  fetchLogDetail,
+  logKeys,
   prefetchLogDetail,
   useCancelExecution,
   useDashboardStats,
   useLogDetail,
   useLogsList,
+  useRetryExecution,
 } from '@/hooks/queries/logs'
 import { useWorkflowMap, useWorkflows } from '@/hooks/queries/workflows'
 import { useDebounce } from '@/hooks/use-debounce'
@@ -71,6 +75,7 @@ import {
 import {
   DELETED_WORKFLOW_COLOR,
   DELETED_WORKFLOW_LABEL,
+  extractRetryInput,
   formatDate,
   getDisplayStatus,
   type LogStatus,
@@ -532,6 +537,7 @@ export default function Logs() {
   }, [contextMenuLog])
 
   const cancelExecution = useCancelExecution()
+  const retryExecution = useRetryExecution()
 
   const handleCancelExecution = useCallback(() => {
     const workflowId = contextMenuLog?.workflow?.id || contextMenuLog?.workflowId
@@ -541,6 +547,37 @@ export default function Logs() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contextMenuLog])
+
+  const retryLog = useCallback(
+    async (log: WorkflowLog | null) => {
+      const workflowId = log?.workflow?.id || log?.workflowId
+      const logId = log?.id
+      if (!workflowId || !logId) return
+
+      try {
+        const detailLog = await queryClient.fetchQuery({
+          queryKey: logKeys.detail(logId),
+          queryFn: ({ signal }) => fetchLogDetail(logId, signal),
+          staleTime: 30 * 1000,
+        })
+        const input = extractRetryInput(detailLog)
+        await retryExecution.mutateAsync({ workflowId, input })
+        toast.success('Retry started')
+      } catch {
+        toast.error('Failed to retry execution')
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  )
+
+  const handleRetryExecution = useCallback(() => {
+    retryLog(contextMenuLog)
+  }, [contextMenuLog, retryLog])
+
+  const handleRetrySidebarExecution = useCallback(() => {
+    retryLog(selectedLog)
+  }, [selectedLog, retryLog])
 
   const contextMenuWorkflowId = contextMenuLog?.workflow?.id || contextMenuLog?.workflowId
   const isFilteredByThisWorkflow = Boolean(
@@ -780,6 +817,8 @@ export default function Logs() {
         onNavigatePrev={handleNavigatePrev}
         hasNext={selectedLogIndex < sortedLogs.length - 1}
         hasPrev={selectedLogIndex > 0}
+        onRetryExecution={handleRetrySidebarExecution}
+        isRetryPending={retryExecution.isPending}
       />
     ),
     [
@@ -788,6 +827,8 @@ export default function Logs() {
       handleCloseSidebar,
       handleNavigateNext,
       handleNavigatePrev,
+      handleRetrySidebarExecution,
+      retryExecution.isPending,
       selectedLogIndex,
       sortedLogs.length,
     ]
@@ -1193,6 +1234,8 @@ export default function Logs() {
         onOpenWorkflow={handleOpenWorkflow}
         onOpenPreview={handleOpenPreview}
         onCancelExecution={handleCancelExecution}
+        onRetryExecution={handleRetryExecution}
+        isRetryPending={retryExecution.isPending}
         onToggleWorkflowFilter={handleToggleWorkflowFilter}
         onClearAllFilters={handleClearAllFilters}
         isFilteredByThisWorkflow={isFilteredByThisWorkflow}
