@@ -3,26 +3,25 @@
  *
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import {
+  authMock,
+  authMockFns,
+  createMockRequest,
+  permissionsMock,
+  permissionsMockFns,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockGetUserEntityPermissions } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
-}))
+const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
+vi.mock('@/lib/auth', () => authMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/events/sse-endpoint', () => ({
   createWorkspaceSSE: (_config: any) => {
     return async (request: any) => {
-      const session = await mockGetSession()
+      const session = await authMockFns.mockGetSession()
       if (!session?.user?.id) {
         return new Response('Unauthorized', { status: 401 })
       }
@@ -72,7 +71,7 @@ describe('MCP Events SSE Endpoint', () => {
   })
 
   it('returns 401 when session is missing', async () => {
-    mockGetSession.mockResolvedValue(null)
+    authMockFns.mockGetSession.mockResolvedValue(null)
 
     const request = createMockRequest(
       'GET',
@@ -89,7 +88,7 @@ describe('MCP Events SSE Endpoint', () => {
   })
 
   it('returns 400 when workspaceId is missing', async () => {
-    mockGetSession.mockResolvedValue({ user: defaultMockUser })
+    authMockFns.mockGetSession.mockResolvedValue({ user: defaultMockUser })
 
     const request = createMockRequest('GET', undefined, {}, 'http://localhost:3000/api/mcp/events')
 
@@ -101,7 +100,7 @@ describe('MCP Events SSE Endpoint', () => {
   })
 
   it('returns 403 when user lacks workspace access', async () => {
-    mockGetSession.mockResolvedValue({ user: defaultMockUser })
+    authMockFns.mockGetSession.mockResolvedValue({ user: defaultMockUser })
     mockGetUserEntityPermissions.mockResolvedValue(null)
 
     const request = createMockRequest(
@@ -120,7 +119,7 @@ describe('MCP Events SSE Endpoint', () => {
   })
 
   it('returns SSE stream when authorized', async () => {
-    mockGetSession.mockResolvedValue({ user: defaultMockUser })
+    authMockFns.mockGetSession.mockResolvedValue({ user: defaultMockUser })
     mockGetUserEntityPermissions.mockResolvedValue({ read: true })
 
     const request = createMockRequest(

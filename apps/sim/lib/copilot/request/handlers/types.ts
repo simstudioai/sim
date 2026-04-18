@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type {
   AsyncCompletionSignal,
   AsyncTerminalCompletionSnapshot,
@@ -24,7 +25,6 @@ import type {
   StreamingContext,
   ToolCallState,
 } from '@/lib/copilot/request/types'
-import { toError } from '@/lib/core/utils/helpers'
 
 export type StreamHandler = (
   event: StreamEvent,

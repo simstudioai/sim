@@ -1,12 +1,12 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import { safeCompare } from '@/lib/core/security/encryption'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
-import { toError } from '@/lib/core/utils/helpers'
 import type {
   AuthContext,
   FormatInputContext,

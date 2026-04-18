@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { sleep } from '@/lib/core/utils/helpers'
+import { sleep } from '@sim/utils/helpers'
 
 const logger = createLogger('OGCapturePreview')
 

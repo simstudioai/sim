@@ -178,7 +178,7 @@ export function formatDuration(
     ms = duration
     // Handle NaN/Infinity (e.g., cancelled blocks with no end time)
     if (!Number.isFinite(ms)) {
-      return '—'
+      return '\u2014'
     }
   }
 

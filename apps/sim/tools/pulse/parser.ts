@@ -1,4 +1,4 @@
-import { toError } from '@/lib/core/utils/helpers'
+import { toError } from '@sim/utils/errors'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import type { PulseParserInput, PulseParserOutput, PulseParserV2Input } from '@/tools/pulse/types'
 import type { ToolConfig } from '@/tools/types'

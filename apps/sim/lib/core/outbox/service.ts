@@ -1,8 +1,9 @@
 import { db } from '@sim/db'
 import { outboxEvent } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, lte } from 'drizzle-orm'
-import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('OutboxService')
 
@@ -250,7 +251,7 @@ async function runHandler(
   } catch (error) {
     const nextAttempts = event.attempts + 1
     const isDead = nextAttempts >= event.maxAttempts
-    const errMsg = error instanceof Error ? error.message : String(error)
+    const errMsg = toError(error).message
 
     if (isDead) {
       const updated = await updateIfLeaseHeld(event, {

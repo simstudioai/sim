@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@/lib/core/utils/helpers'
+import { toError } from '@sim/utils/errors'
 import { upsertCustomTools } from '@/lib/workflows/custom-tools/operations'
 
 const logger = createLogger('CustomToolsPersistence')

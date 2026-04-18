@@ -1,5 +1,5 @@
 import { createLogger, type Logger } from '@sim/logger'
-import { toError } from '@/lib/core/utils/helpers'
+import { toError } from '@sim/utils/errors'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { BlockType } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'

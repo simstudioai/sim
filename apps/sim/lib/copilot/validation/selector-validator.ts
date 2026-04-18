@@ -9,8 +9,8 @@ import {
   workflow,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
-import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('SelectorValidator')
 

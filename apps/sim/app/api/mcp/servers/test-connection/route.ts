@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
-import { toError } from '@/lib/core/utils/helpers'
 import { McpClient } from '@/lib/mcp/client'
 import {
   McpDnsResolutionError,

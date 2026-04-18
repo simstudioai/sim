@@ -1,25 +1,18 @@
-import { loggerMock } from '@sim/testing'
+import { redisConfigMock, redisConfigMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetRedisClient, mockOnRedisReconnect, mockGetStorageMethod, reconnectCallbacks } =
-  vi.hoisted(() => {
-    const callbacks: Array<() => void> = []
-    return {
-      mockGetRedisClient: vi.fn(() => null),
-      mockOnRedisReconnect: vi.fn((cb: () => void) => {
-        callbacks.push(cb)
-      }),
-      mockGetStorageMethod: vi.fn(() => 'db'),
-      reconnectCallbacks: callbacks,
-    }
-  })
+const { mockGetStorageMethod, reconnectCallbacks } = vi.hoisted(() => {
+  const callbacks: Array<() => void> = []
+  return {
+    mockGetStorageMethod: vi.fn(() => 'db'),
+    reconnectCallbacks: callbacks,
+  }
+})
 
-vi.mock('@sim/logger', () => loggerMock)
+const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
+const mockOnRedisReconnect = redisConfigMockFns.mockOnRedisReconnect
 
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: mockGetRedisClient,
-  onRedisReconnect: mockOnRedisReconnect,
-}))
+vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 
 vi.mock('@/lib/core/storage', () => ({
   getStorageMethod: mockGetStorageMethod,
@@ -39,6 +32,9 @@ describe('rate limit storage factory', () => {
   beforeEach(() => {
     mockGetRedisClient.mockReset().mockReturnValue(null)
     mockGetStorageMethod.mockReset().mockReturnValue('db')
+    mockOnRedisReconnect.mockImplementation((cb: () => void) => {
+      reconnectCallbacks.push(cb)
+    })
     resetStorageAdapter()
   })
 

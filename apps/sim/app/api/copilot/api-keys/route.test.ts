@@ -3,33 +3,22 @@
  *
  * @vitest-environment node
  */
+import { authMock, authMockFns, createEnvMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockFetch } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
+const { mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
 }))
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
+vi.mock('@/lib/auth', () => authMock)
 
 vi.mock('@/lib/copilot/constants', () => ({
   SIM_AGENT_API_URL_DEFAULT: 'https://agent.sim.example.com',
   SIM_AGENT_API_URL: 'https://agent.sim.example.com',
 }))
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: {
-    COPILOT_API_KEY: 'test-api-key',
-  },
-  getEnv: vi.fn(),
-  isTruthy: (value: string | boolean | number | undefined) =>
-    typeof value === 'string' ? value.toLowerCase() === 'true' || value === '1' : Boolean(value),
-  isFalsy: (value: string | boolean | number | undefined) =>
-    typeof value === 'string' ? value.toLowerCase() === 'false' || value === '0' : value === false,
-}))
+vi.mock('@/lib/core/config/env', () => createEnvMock({ COPILOT_API_KEY: 'test-api-key' }))
 
 import { DELETE, GET } from '@/app/api/copilot/api-keys/route'
 
@@ -41,7 +30,7 @@ describe('Copilot API Keys API Route', () => {
 
   describe('GET', () => {
     it('should return 401 when user is not authenticated', async () => {
-      mockGetSession.mockResolvedValue(null)
+      authMockFns.mockGetSession.mockResolvedValue(null)
 
       const request = new NextRequest('http://localhost:3000/api/copilot/api-keys')
       const response = await GET(request)
@@ -52,7 +41,9 @@ describe('Copilot API Keys API Route', () => {
     })
 
     it('should return list of API keys with masked values', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       const mockApiKeys = [
         {
@@ -90,7 +81,9 @@ describe('Copilot API Keys API Route', () => {
     })
 
     it('should return empty array when user has no API keys', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -106,7 +99,9 @@ describe('Copilot API Keys API Route', () => {
     })
 
     it('should forward userId to Sim Agent', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -130,7 +125,9 @@ describe('Copilot API Keys API Route', () => {
     })
 
     it('should return error when Sim Agent returns non-ok response', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       mockFetch.mockResolvedValueOnce({
         ok: false,
@@ -147,7 +144,9 @@ describe('Copilot API Keys API Route', () => {
     })
 
     it('should return 500 when Sim Agent returns invalid response', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -163,7 +162,9 @@ describe('Copilot API Keys API Route', () => {
     })
 
     it('should handle network errors gracefully', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       mockFetch.mockRejectedValueOnce(new Error('Network error'))
 
@@ -176,7 +177,9 @@ describe('Copilot API Keys API Route', () => {
     })
 
     it('should handle API keys with empty apiKey string', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       const mockApiKeys = [
         {
@@ -202,7 +205,9 @@ describe('Copilot API Keys API Route', () => {
     })
 
     it('should handle JSON parsing errors from Sim Agent', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -220,7 +225,7 @@ describe('Copilot API Keys API Route', () => {
 
   describe('DELETE', () => {
     it('should return 401 when user is not authenticated', async () => {
-      mockGetSession.mockResolvedValue(null)
+      authMockFns.mockGetSession.mockResolvedValue(null)
 
       const request = new NextRequest('http://localhost:3000/api/copilot/api-keys?id=key-123')
       const response = await DELETE(request)
@@ -231,7 +236,9 @@ describe('Copilot API Keys API Route', () => {
     })
 
     it('should return 400 when id parameter is missing', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       const request = new NextRequest('http://localhost:3000/api/copilot/api-keys')
       const response = await DELETE(request)
@@ -242,7 +249,9 @@ describe('Copilot API Keys API Route', () => {
     })
 
     it('should successfully delete an API key', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -270,7 +279,9 @@ describe('Copilot API Keys API Route', () => {
     })
 
     it('should return error when Sim Agent returns non-ok response', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       mockFetch.mockResolvedValueOnce({
         ok: false,
@@ -287,7 +298,9 @@ describe('Copilot API Keys API Route', () => {
     })
 
     it('should return 500 when Sim Agent returns invalid response', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -303,7 +316,9 @@ describe('Copilot API Keys API Route', () => {
     })
 
     it('should handle network errors gracefully', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       mockFetch.mockRejectedValueOnce(new Error('Network error'))
 
@@ -316,7 +331,9 @@ describe('Copilot API Keys API Route', () => {
     })
 
     it('should handle JSON parsing errors from Sim Agent on delete', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123', email: 'test@example.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'user-123', email: 'test@example.com' },
+      })
 
       mockFetch.mockResolvedValueOnce({
         ok: true,

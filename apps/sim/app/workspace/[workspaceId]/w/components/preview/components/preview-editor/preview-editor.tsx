@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { formatDuration } from '@sim/utils/formatting'
 import {
   ArrowDown,
   ArrowUp,
@@ -28,7 +29,6 @@ import {
   Tooltip,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { formatDuration } from '@/lib/core/utils/formatting'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import {
   buildCanonicalIndex,

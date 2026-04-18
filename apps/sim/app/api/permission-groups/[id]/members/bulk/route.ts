@@ -1,12 +1,12 @@
 import { db } from '@sim/db'
 import { member, permissionGroup, permissionGroupMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { hasAccessControlAccess } from '@/lib/billing'
-import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('PermissionGroupBulkMembers')
 

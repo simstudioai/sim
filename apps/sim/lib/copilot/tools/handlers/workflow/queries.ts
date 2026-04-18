@@ -1,6 +1,6 @@
+import { toError } from '@sim/utils/errors'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { formatNormalizedWorkflowForCopilot } from '@/lib/copilot/tools/shared/workflow-utils'
-import { toError } from '@/lib/core/utils/helpers'
 import { mcpService } from '@/lib/mcp/service'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { getEffectiveBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'

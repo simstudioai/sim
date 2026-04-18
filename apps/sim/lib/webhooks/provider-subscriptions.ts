@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
-import { toError } from '@/lib/core/utils/helpers'
 import { getProviderHandler } from '@/lib/webhooks/providers'
 
 const logger = createLogger('WebhookProviderSubscriptions')

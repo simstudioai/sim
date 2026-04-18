@@ -1,5 +1,5 @@
+import { toError } from '@sim/utils/errors'
 import { MistralIcon } from '@/components/icons'
-import { toError } from '@/lib/core/utils/helpers'
 import { AuthMode, type BlockConfig, IntegrationType, type SubBlockType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { MistralParserOutput } from '@/tools/mistral/types'

@@ -2,22 +2,25 @@
  * @vitest-environment node
  */
 
-import { createMockRequest } from '@sim/testing'
+import {
+  createMockRequest,
+  executionPreprocessingMock,
+  executionPreprocessingMockFns,
+  featureFlagsMock,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGenerateId,
-  mockPreprocessExecution,
-  mockEnqueue,
-  mockGetJobQueue,
-  mockShouldExecuteInline,
-} = vi.hoisted(() => ({
-  mockGenerateId: vi.fn(),
-  mockPreprocessExecution: vi.fn(),
-  mockEnqueue: vi.fn(),
-  mockGetJobQueue: vi.fn(),
-  mockShouldExecuteInline: vi.fn(),
-}))
+const { mockGenerateId, mockEnqueue, mockGetJobQueue, mockShouldExecuteInline } = vi.hoisted(
+  () => ({
+    mockGenerateId: vi.fn(),
+    mockEnqueue: vi.fn(),
+    mockGetJobQueue: vi.fn(),
+    mockShouldExecuteInline: vi.fn(),
+  })
+)
+
+const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
 
 vi.mock('@sim/db', () => ({
   db: {},
@@ -26,19 +29,7 @@ vi.mock('@sim/db', () => ({
   workflowDeploymentVersion: {},
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  credentialSet: {},
-  subscription: {},
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(),
@@ -47,7 +38,7 @@ vi.mock('drizzle-orm', () => ({
   or: vi.fn(),
 }))
 
-vi.mock('@/lib/core/utils/uuid', () => ({
+vi.mock('@sim/utils/id', () => ({
   generateId: mockGenerateId,
   generateShortId: vi.fn(() => 'mock-short-id'),
   isValidUuid: vi.fn((v: string) =>
@@ -66,9 +57,7 @@ vi.mock('@/lib/core/async-jobs', () => ({
   shouldExecuteInline: mockShouldExecuteInline,
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isProd: false,
-}))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 vi.mock('@/lib/core/security/encryption', () => ({
   safeCompare: vi.fn().mockReturnValue(true),
@@ -78,9 +67,7 @@ vi.mock('@/lib/environment/utils', () => ({
   getEffectiveDecryptedEnv: vi.fn().mockResolvedValue({}),
 }))
 
-vi.mock('@/lib/execution/preprocessing', () => ({
-  preprocessExecution: mockPreprocessExecution,
-}))
+vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 
 vi.mock('@/lib/webhooks/pending-verification', () => ({
   getPendingWebhookVerification: vi.fn(),

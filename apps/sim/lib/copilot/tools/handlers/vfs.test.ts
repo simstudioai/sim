@@ -2,7 +2,6 @@
  * @vitest-environment node
  */
 
-import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TOOL_RESULT_MAX_INLINE_CHARS } from '@/lib/copilot/constants'
 
@@ -14,7 +13,6 @@ const { readChatUpload } = vi.hoisted(() => ({
   readChatUpload: vi.fn(),
 }))
 
-vi.mock('@sim/logger', () => loggerMock)
 vi.mock('@/lib/copilot/vfs', () => ({
   getOrMaterializeVFS,
 }))

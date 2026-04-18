@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { Socket } from 'socket.io'
 import { auth } from '@/lib/auth'
 import { ANONYMOUS_USER, ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { isAuthDisabled } from '@/lib/core/config/feature-flags'
-import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('SocketAuth')
 

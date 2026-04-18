@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { safeCompare } from '@/lib/core/security/encryption'
-import { generateId } from '@/lib/core/utils/uuid'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   DeleteSubscriptionContext,

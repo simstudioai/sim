@@ -1,9 +1,9 @@
 import { db } from '@sim/db'
 import { oauthApplication } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
-import { toError } from '@/lib/core/utils/helpers'
-import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('cimd')
 

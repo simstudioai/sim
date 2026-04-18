@@ -1,8 +1,23 @@
 import { vi } from 'vitest'
 
 /**
- * Mock module for @/lib/audit/log.
- * Use with vi.mock() to replace the real audit logger in tests.
+ * Controllable mock functions for `@/lib/audit/log`.
+ * Exposes `mockRecordAudit` so tests can assert or override behavior per test.
+ *
+ * @example
+ * ```ts
+ * import { auditMockFns } from '@sim/testing'
+ *
+ * expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(...)
+ * auditMockFns.mockRecordAudit.mockRejectedValueOnce(new Error('audit failed'))
+ * ```
+ */
+export const auditMockFns = {
+  mockRecordAudit: vi.fn(),
+}
+
+/**
+ * Static mock module for `@/lib/audit/log`.
  *
  * @example
  * ```ts
@@ -10,7 +25,7 @@ import { vi } from 'vitest'
  * ```
  */
 export const auditMock = {
-  recordAudit: vi.fn(),
+  recordAudit: auditMockFns.mockRecordAudit,
   AuditAction: {
     API_KEY_CREATED: 'api_key.created',
     API_KEY_UPDATED: 'api_key.updated',

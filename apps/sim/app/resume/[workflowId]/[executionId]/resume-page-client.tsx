@@ -1,8 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+
+const logger = createLogger('ResumePage')
+
 import {
   Badge,
   Button,
@@ -592,7 +596,7 @@ export default function ResumeExecutionPage({
         }
       } catch (err) {
         if ((err as any)?.name !== 'AbortError') {
-          console.error('Failed to load pause context detail', err)
+          logger.error('Failed to load pause context detail', err)
         }
       } finally {
         setLoadingDetail(false)
@@ -626,7 +630,7 @@ export default function ResumeExecutionPage({
         setSelectedContextId(first)
       }
     } catch (err) {
-      console.error('Failed to refresh execution detail', err)
+      logger.error('Failed to refresh execution detail', err)
     } finally {
       setRefreshingExecution(false)
     }
@@ -691,7 +695,7 @@ export default function ResumeExecutionPage({
           setFormErrors({})
         }
       } catch (err) {
-        console.error('Failed to refresh pause context detail', err)
+        logger.error('Failed to refresh pause context detail', err)
       } finally {
         if (showLoader) setLoadingDetail(false)
       }

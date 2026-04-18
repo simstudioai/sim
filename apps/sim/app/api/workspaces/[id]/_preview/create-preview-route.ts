@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { toError } from '@/lib/core/utils/helpers'
 import { MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'

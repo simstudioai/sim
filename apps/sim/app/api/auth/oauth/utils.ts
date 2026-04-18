@@ -2,9 +2,9 @@ import { createSign } from 'crypto'
 import { db } from '@sim/db'
 import { account, credential, credentialSetMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { decryptSecret } from '@/lib/core/security/encryption'
-import { toError } from '@/lib/core/utils/helpers'
 import { refreshOAuthToken } from '@/lib/oauth'
 import {
   getMicrosoftRefreshTokenExpiry,

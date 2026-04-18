@@ -4,11 +4,11 @@
  * @vitest-environment node
  */
 
+import { authMock, authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockGetSession,
   mockVerifyFileAccess,
   mockVerifyWorkspaceFileAccess,
   mockUseBlobStorage,
@@ -25,7 +25,6 @@ const {
   mockGetStorageProviderUploads,
   mockIsUsingCloudStorageUploads,
 } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
   mockVerifyFileAccess: vi.fn().mockResolvedValue(true),
   mockVerifyWorkspaceFileAccess: vi.fn().mockResolvedValue(true),
   mockUseBlobStorage: { value: false },
@@ -46,9 +45,7 @@ const {
   mockIsUsingCloudStorageUploads: vi.fn(),
 }))
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
+vi.mock('@/lib/auth', () => authMock)
 
 vi.mock('@/app/api/files/authorization', () => ({
   verifyFileAccess: mockVerifyFileAccess,
@@ -108,9 +105,9 @@ function setupFileApiMocks(
   const { authenticated = true, storageProvider = 's3', cloudEnabled = true } = options
 
   if (authenticated) {
-    mockGetSession.mockResolvedValue({ user: defaultMockUser })
+    authMockFns.mockGetSession.mockResolvedValue({ user: defaultMockUser })
   } else {
-    mockGetSession.mockResolvedValue(null)
+    authMockFns.mockGetSession.mockResolvedValue(null)
   }
 
   const useBlobStorage = storageProvider === 'blob' && cloudEnabled

@@ -1,15 +1,16 @@
 /**
  * @vitest-environment node
  */
+import { permissionsMock, permissionsMockFns, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSelect, mockTransaction, mockArchiveWorkflowsForWorkspace, mockGetWorkspaceWithOwner } =
-  vi.hoisted(() => ({
-    mockSelect: vi.fn(),
-    mockTransaction: vi.fn(),
-    mockArchiveWorkflowsForWorkspace: vi.fn(),
-    mockGetWorkspaceWithOwner: vi.fn(),
-  }))
+const { mockSelect, mockTransaction, mockArchiveWorkflowsForWorkspace } = vi.hoisted(() => ({
+  mockSelect: vi.fn(),
+  mockTransaction: vi.fn(),
+  mockArchiveWorkflowsForWorkspace: vi.fn(),
+}))
+
+const mockGetWorkspaceWithOwner = permissionsMockFns.mockGetWorkspaceWithOwner
 
 vi.mock('@sim/db', () => ({
   db: {
@@ -18,36 +19,13 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  apiKey: { type: 'api_key_type' },
-  document: { deletedAt: 'document_deleted_at', knowledgeBaseId: 'document_kb_id' },
-  knowledgeBase: { deletedAt: 'kb_deleted_at' },
-  knowledgeConnector: { deletedAt: 'knowledge_connector_deleted_at', knowledgeBaseId: 'kc_kb_id' },
-  mcpServers: { deletedAt: 'mcp_servers_deleted_at' },
-  userTableDefinitions: { archivedAt: 'table_archived_at' },
-  workflowSchedule: { archivedAt: 'schedule_archived_at' },
-  workspace: { archivedAt: 'workspace_archived_at' },
-  workflowMcpServer: { isPublic: 'workflow_mcp_server_is_public' },
-  workspaceFiles: { deletedAt: 'workspace_file_deleted_at' },
-  workspaceInvitation: { status: 'workspace_invitation_status' },
-  workspaceNotificationSubscription: { active: 'workspace_notification_active' },
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('@/lib/workflows/lifecycle', () => ({
   archiveWorkflowsForWorkspace: (...args: unknown[]) => mockArchiveWorkflowsForWorkspace(...args),
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceWithOwner: (...args: unknown[]) => mockGetWorkspaceWithOwner(...args),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { archiveWorkspace } from './lifecycle'
 

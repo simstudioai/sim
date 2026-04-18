@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import {
@@ -15,7 +17,6 @@ import {
   SSE_RESPONSE_HEADERS,
 } from '@/lib/copilot/request/session'
 import { toStreamBatchEvent } from '@/lib/copilot/request/session/types'
-import { sleep, toError } from '@/lib/core/utils/helpers'
 
 export const maxDuration = 3600
 

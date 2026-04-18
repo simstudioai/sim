@@ -9,15 +9,6 @@ const { mockGetWorkflowState, mockVerifyWorkflowAccess } = vi.hoisted(() => ({
   mockVerifyWorkflowAccess: vi.fn(),
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
-
 vi.mock('@sim/db', () => ({
   db: { select: vi.fn() },
   user: { image: 'image' },

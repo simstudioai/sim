@@ -1,9 +1,9 @@
 import { db } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { eq, sql } from 'drizzle-orm'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
-import { toError } from '@/lib/core/utils/helpers'
 import { executionLogger } from '@/lib/logs/execution/logger'
 import {
   calculateCostSummary,

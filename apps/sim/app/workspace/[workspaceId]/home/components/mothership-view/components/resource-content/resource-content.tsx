@@ -2,6 +2,7 @@
 
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { formatDuration } from '@sim/utils/formatting'
 import { Square } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button, Eye, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
@@ -21,7 +22,6 @@ import {
   reportManualRunToolStop,
 } from '@/lib/copilot/tools/client/run-tool-execution'
 import { cn } from '@/lib/core/utils/cn'
-import { formatDuration } from '@/lib/core/utils/formatting'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
   downloadWorkspaceFile,

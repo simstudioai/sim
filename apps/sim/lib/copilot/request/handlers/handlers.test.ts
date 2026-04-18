@@ -2,11 +2,8 @@
  * @vitest-environment node
  */
 
-import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TraceCollector } from '@/lib/copilot/request/trace'
-
-vi.mock('@sim/logger', () => loggerMock)
 
 const { isSimExecuted, executeTool, ensureHandlersRegistered } = vi.hoisted(() => ({
   isSimExecuted: vi.fn().mockReturnValue(true),

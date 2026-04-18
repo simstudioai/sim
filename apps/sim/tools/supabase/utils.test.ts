@@ -1,11 +1,10 @@
 /**
  * @vitest-environment node
  */
+import { featureFlagsMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isHosted: false,
-}))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
 

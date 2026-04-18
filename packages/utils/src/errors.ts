@@ -1,4 +1,14 @@
 /**
+ * Normalizes an unknown caught value into an Error instance.
+ * Replaces the common `e instanceof Error ? e : new Error(String(e))` pattern in catch clauses.
+ */
+export function toError(value: unknown): Error {
+  if (value instanceof Error) return value
+  if (typeof value === 'string') return new Error(value)
+  return new Error(String(value))
+}
+
+/**
  * Returns PostgreSQL error code (e.g. `23505` for unique_violation) when present on a thrown value.
  * Normalizes common Drizzle / `postgres` driver shapes and walks `cause` chains.
  */

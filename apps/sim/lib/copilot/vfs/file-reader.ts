@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@/lib/core/utils/helpers'
+import { toError } from '@sim/utils/errors'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'

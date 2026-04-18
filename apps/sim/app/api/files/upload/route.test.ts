@@ -3,14 +3,11 @@
  *
  * @vitest-environment node
  */
+import { authMock, authMockFns, hybridAuthMock, hybridAuthMockFns, schemaMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
-  const mockGetSession = vi.fn()
-  const mockCheckHybridAuth = vi.fn()
-  const mockCheckSessionOrInternalAuth = vi.fn()
-  const mockCheckInternalAuth = vi.fn()
   const mockVerifyFileAccess = vi.fn()
   const mockVerifyWorkspaceFileAccess = vi.fn()
   const mockVerifyKBFileAccess = vi.fn()
@@ -24,10 +21,6 @@ const mocks = vi.hoisted(() => {
   const mockStorageUploadFile = vi.fn()
 
   return {
-    mockGetSession,
-    mockCheckHybridAuth,
-    mockCheckSessionOrInternalAuth,
-    mockCheckInternalAuth,
     mockVerifyFileAccess,
     mockVerifyWorkspaceFileAccess,
     mockVerifyKBFileAccess,
@@ -42,29 +35,7 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  workflowFolder: {
-    id: 'id',
-    userId: 'userId',
-    parentId: 'parentId',
-    updatedAt: 'updatedAt',
-    workspaceId: 'workspaceId',
-    sortOrder: 'sortOrder',
-    createdAt: 'createdAt',
-  },
-  workflow: { id: 'id', folderId: 'folderId', userId: 'userId', updatedAt: 'updatedAt' },
-  account: { userId: 'userId', providerId: 'providerId' },
-  user: { email: 'email', id: 'id' },
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
@@ -91,7 +62,7 @@ vi.mock('drizzle-orm', () => ({
   sql: vi.fn((strings: unknown, ...values: unknown[]) => ({ type: 'sql', sql: strings, values })),
 }))
 
-vi.mock('@/lib/core/utils/uuid', () => ({
+vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn(() => 'test-uuid'),
   generateShortId: vi.fn(() => 'mock-short-id'),
   isValidUuid: vi.fn((v: string) =>
@@ -99,16 +70,9 @@ vi.mock('@/lib/core/utils/uuid', () => ({
   ),
 }))
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mocks.mockGetSession,
-}))
+vi.mock('@/lib/auth', () => authMock)
 
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkHybridAuth: mocks.mockCheckHybridAuth,
-  checkSessionOrInternalAuth: mocks.mockCheckSessionOrInternalAuth,
-  checkInternalAuth: mocks.mockCheckInternalAuth,
-}))
+vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 
 vi.mock('@/app/api/files/authorization', () => ({
   verifyFileAccess: mocks.mockVerifyFileAccess,
@@ -160,12 +124,12 @@ function setupFileApiMocks(
   })
 
   if (authenticated) {
-    mocks.mockGetSession.mockResolvedValue({ user: { id: 'test-user-id' } })
+    authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'test-user-id' } })
   } else {
-    mocks.mockGetSession.mockResolvedValue(null)
+    authMockFns.mockGetSession.mockResolvedValue(null)
   }
 
-  mocks.mockCheckHybridAuth.mockResolvedValue({
+  hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({
     success: authenticated,
     userId: authenticated ? 'test-user-id' : undefined,
     error: authenticated ? undefined : 'Unauthorized',
@@ -367,7 +331,7 @@ describe('File Upload Security Tests', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mocks.mockGetSession.mockResolvedValue({
+    authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'test-user-id' },
     })
 
@@ -529,7 +493,7 @@ describe('File Upload Security Tests', () => {
 
   describe('Authentication Requirements', () => {
     it('should reject uploads without authentication', async () => {
-      mocks.mockGetSession.mockResolvedValue(null)
+      authMockFns.mockGetSession.mockResolvedValue(null)
 
       const formData = new FormData()
       const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' })

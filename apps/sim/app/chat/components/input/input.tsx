@@ -3,10 +3,10 @@
 import type React from 'react'
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { ArrowUp, Mic, Paperclip, X } from 'lucide-react'
 import { Badge, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { generateId } from '@/lib/core/utils/uuid'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { VoiceInput } from '@/app/chat/components/input/voice-input'
 

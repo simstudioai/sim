@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { ToolExecutionResult, ToolHandler } from '@/lib/copilot/tool-executor/types'
 import { routeExecution } from '@/lib/copilot/tools/server/router'
-import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('ServerToolAdapter')
 

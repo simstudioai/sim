@@ -1,11 +1,12 @@
 /**
  * @vitest-environment node
  */
+import { schemaMock, urlsMock, urlsMockFns } from '@sim/testing'
 import type Stripe from 'stripe'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockBlockOrgMembers, mockDbSelect, mockLogger, mockUnblockOrgMembers, selectResponses } =
-  vi.hoisted(() => {
+const { mockBlockOrgMembers, mockDbSelect, mockUnblockOrgMembers, selectResponses } = vi.hoisted(
+  () => {
     const selectResponses: Array<{ limitResult?: unknown; whereResult?: unknown }> = []
     const mockDbSelect = vi.fn(() => {
       const nextResponse = selectResponses.shift()
@@ -31,16 +32,11 @@ const { mockBlockOrgMembers, mockDbSelect, mockLogger, mockUnblockOrgMembers, se
     return {
       mockBlockOrgMembers: vi.fn(),
       mockDbSelect,
-      mockLogger: {
-        debug: vi.fn(),
-        error: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-      },
       mockUnblockOrgMembers: vi.fn(),
       selectResponses,
     }
-  })
+  }
+)
 
 vi.mock('@sim/db', () => ({
   db: {
@@ -48,32 +44,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  member: {
-    organizationId: 'member.organizationId',
-    role: 'member.role',
-    userId: 'member.userId',
-  },
-  organization: {},
-  subscription: {
-    referenceId: 'subscription.referenceId',
-    stripeSubscriptionId: 'subscription.stripeSubscriptionId',
-  },
-  user: {
-    email: 'user.email',
-    id: 'user.id',
-    name: 'user.name',
-  },
-  userStats: {
-    billingBlocked: 'userStats.billingBlocked',
-    billingBlockedReason: 'userStats.billingBlockedReason',
-    userId: 'userStats.userId',
-  },
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn(() => mockLogger),
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(() => 'and'),
@@ -150,9 +121,7 @@ vi.mock('@/lib/billing/webhooks/idempotency', () => ({
   },
 }))
 
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: vi.fn(() => 'https://sim.test'),
-}))
+vi.mock('@/lib/core/utils/urls', () => urlsMock)
 
 vi.mock('@/lib/messaging/email/mailer', () => ({
   sendEmail: vi.fn(),
@@ -196,6 +165,7 @@ describe('invoice billing recovery', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     selectResponses.length = 0
+    urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
     mockBlockOrgMembers.mockResolvedValue(2)
     mockUnblockOrgMembers.mockResolvedValue(2)
   })

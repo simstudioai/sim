@@ -1,10 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { loggerMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
-
-vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/lib/execution/cancellation', () => ({
   isExecutionCancelled: vi.fn(),

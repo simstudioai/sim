@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { env } from '@/lib/core/config/env'
+
+const logger = createLogger('StarsRoute')
 
 function formatStarCount(num: number): string {
   if (num < 1000) return String(num)
@@ -22,14 +25,14 @@ export async function GET() {
     })
 
     if (!response.ok) {
-      console.warn('GitHub API request failed:', response.status)
+      logger.warn('GitHub API request failed:', response.status)
       return NextResponse.json({ stars: formatStarCount(19400) })
     }
 
     const data = await response.json()
     return NextResponse.json({ stars: formatStarCount(Number(data?.stargazers_count ?? 19400)) })
   } catch (error) {
-    console.warn('Error fetching GitHub stars:', error)
+    logger.warn('Error fetching GitHub stars:', error)
     return NextResponse.json({ stars: formatStarCount(19400) })
   }
 }

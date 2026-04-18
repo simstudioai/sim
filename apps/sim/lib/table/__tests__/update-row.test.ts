@@ -3,8 +3,8 @@
  */
 import { databaseMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { updateRow } from '../service'
-import type { TableDefinition } from '../types'
+import { updateRow } from '@/lib/table/service'
+import type { TableDefinition } from '@/lib/table/types'
 
 const EXISTING_ROW = {
   id: 'row-1',

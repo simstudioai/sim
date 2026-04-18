@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
 import type { Edge } from 'reactflow'
 import { buildMockExecutionPlan } from '@/lib/academy/mock-execution'
 import type {
@@ -12,7 +13,6 @@ import type {
 } from '@/lib/academy/types'
 import { validateExercise } from '@/lib/academy/validation'
 import { cn } from '@/lib/core/utils/cn'
-import { sleep } from '@/lib/core/utils/helpers'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'

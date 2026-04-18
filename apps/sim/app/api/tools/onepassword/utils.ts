@@ -10,9 +10,9 @@ import type {
   Website,
 } from '@1password/sdk'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import * as ipaddr from 'ipaddr.js'
 import { secureFetchWithPinnedIP } from '@/lib/core/security/input-validation.server'
-import { toError } from '@/lib/core/utils/helpers'
 
 /** Connect-format field type strings returned by normalization. */
 type ConnectFieldType =

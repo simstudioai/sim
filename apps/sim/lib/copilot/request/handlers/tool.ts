@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { upsertAsyncToolCall } from '@/lib/copilot/async-runs/repository'
 import { STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
 import {
@@ -26,7 +27,6 @@ import type {
 import { getToolEntry, isSimExecuted } from '@/lib/copilot/tool-executor'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
-import { toError } from '@/lib/core/utils/helpers'
 import type { ToolScope } from './types'
 import {
   abortPendingToolIfStreamDead,

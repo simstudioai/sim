@@ -8,6 +8,8 @@
  */
 
 import {
+  authMock,
+  authMockFns,
   createSession,
   createWorkflowRecord,
   databaseMock,
@@ -16,14 +18,11 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockGetActiveWorkflowContext } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
+const { mockGetActiveWorkflowContext } = vi.hoisted(() => ({
   mockGetActiveWorkflowContext: vi.fn(),
 }))
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
+vi.mock('@/lib/auth', () => authMock)
 
 vi.mock('@/lib/workflows/active-context', () => ({
   getActiveWorkflowContext: mockGetActiveWorkflowContext,
@@ -47,7 +46,7 @@ describe('validateWorkflowPermissions', () => {
 
   describe('authentication', () => {
     it('should return 401 when no session exists', async () => {
-      mockGetSession.mockResolvedValue(null)
+      authMockFns.mockGetSession.mockResolvedValue(null)
 
       const result = await validateWorkflowPermissions('wf-1', 'req-1', 'read')
 
@@ -56,7 +55,7 @@ describe('validateWorkflowPermissions', () => {
     })
 
     it('should return 401 when session has no user id', async () => {
-      mockGetSession.mockResolvedValue({ user: {} })
+      authMockFns.mockGetSession.mockResolvedValue({ user: {} })
 
       const result = await validateWorkflowPermissions('wf-1', 'req-1', 'read')
 
@@ -66,7 +65,7 @@ describe('validateWorkflowPermissions', () => {
 
   describe('workflow not found', () => {
     it('should return 404 when workflow does not exist', async () => {
-      mockGetSession.mockResolvedValue(mockSession)
+      authMockFns.mockGetSession.mockResolvedValue(mockSession)
       mockGetActiveWorkflowContext.mockResolvedValue(null)
 
       const result = await validateWorkflowPermissions('non-existent', 'req-1', 'read')
@@ -78,7 +77,9 @@ describe('validateWorkflowPermissions', () => {
 
   describe('owner access', () => {
     it('should deny access to workflow owner without workspace permissions for read action', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'owner-1', email: 'owner-1@test.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'owner-1', email: 'owner-1@test.com' },
+      })
       mockGetActiveWorkflowContext.mockResolvedValue({
         workflow: mockWorkflow,
         workspaceId: 'ws-1',
@@ -95,7 +96,9 @@ describe('validateWorkflowPermissions', () => {
     })
 
     it('should deny access to workflow owner without workspace permissions for write action', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'owner-1', email: 'owner-1@test.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'owner-1', email: 'owner-1@test.com' },
+      })
       mockGetActiveWorkflowContext.mockResolvedValue({
         workflow: mockWorkflow,
         workspaceId: 'ws-1',
@@ -112,7 +115,9 @@ describe('validateWorkflowPermissions', () => {
     })
 
     it('should deny access to workflow owner without workspace permissions for admin action', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'owner-1', email: 'owner-1@test.com' } })
+      authMockFns.mockGetSession.mockResolvedValue({
+        user: { id: 'owner-1', email: 'owner-1@test.com' },
+      })
       mockGetActiveWorkflowContext.mockResolvedValue({
         workflow: mockWorkflow,
         workspaceId: 'ws-1',
@@ -131,7 +136,7 @@ describe('validateWorkflowPermissions', () => {
 
   describe('workspace member access with permissions', () => {
     beforeEach(() => {
-      mockGetSession.mockResolvedValue(mockSession)
+      authMockFns.mockGetSession.mockResolvedValue(mockSession)
     })
 
     it('should grant read access to user with read permission', async () => {
@@ -235,7 +240,7 @@ describe('validateWorkflowPermissions', () => {
 
   describe('no workspace permission', () => {
     it('should deny access to user without any workspace permission', async () => {
-      mockGetSession.mockResolvedValue(mockSession)
+      authMockFns.mockGetSession.mockResolvedValue(mockSession)
       mockGetActiveWorkflowContext.mockResolvedValue({
         workflow: mockWorkflow,
         workspaceId: 'ws-1',
@@ -260,7 +265,7 @@ describe('validateWorkflowPermissions', () => {
         workspaceId: null,
       })
 
-      mockGetSession.mockResolvedValue(mockSession)
+      authMockFns.mockGetSession.mockResolvedValue(mockSession)
       mockGetActiveWorkflowContext.mockResolvedValue({
         workflow: workflowWithoutWorkspace,
         workspaceId: '',
@@ -278,7 +283,7 @@ describe('validateWorkflowPermissions', () => {
         workspaceId: null,
       })
 
-      mockGetSession.mockResolvedValue(mockSession)
+      authMockFns.mockGetSession.mockResolvedValue(mockSession)
       mockGetActiveWorkflowContext.mockResolvedValue({
         workflow: workflowWithoutWorkspace,
         workspaceId: '',
@@ -292,7 +297,7 @@ describe('validateWorkflowPermissions', () => {
 
   describe('default action', () => {
     it('should default to read action when not specified', async () => {
-      mockGetSession.mockResolvedValue(mockSession)
+      authMockFns.mockGetSession.mockResolvedValue(mockSession)
       mockGetActiveWorkflowContext.mockResolvedValue({
         workflow: mockWorkflow,
         workspaceId: 'ws-1',

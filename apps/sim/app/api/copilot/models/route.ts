@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
-import { toError } from '@/lib/core/utils/helpers'
 
 interface AvailableModel {
   id: string
