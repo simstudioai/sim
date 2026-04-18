@@ -367,17 +367,6 @@ export function Table({
     return null
   }, [dropTargetColumnName, dragColumnName, dropSide, displayColumns, columnWidths])
 
-  const dragSourceBounds = useMemo(() => {
-    if (!dragColumnName) return null
-    let left = CHECKBOX_COL_WIDTH
-    for (const col of displayColumns) {
-      const w = columnWidths[col.name] ?? COL_WIDTH
-      if (col.name === dragColumnName) return { left, width: w }
-      left += w
-    }
-    return null
-  }, [dragColumnName, displayColumns, columnWidths])
-
   const isAllRowsSelected = useMemo(() => {
     if (checkedRows.size > 0 && rows.length > 0 && checkedRows.size >= rows.length) {
       for (const row of rows) {
@@ -1968,7 +1957,6 @@ export function Table({
                       onResizeStart={handleColumnResizeStart}
                       onResize={handleColumnResize}
                       onResizeEnd={handleColumnResizeEnd}
-                      isDragging={dragColumnName === column.name}
                       onDragStart={handleColumnDragStart}
                       onDragOver={handleColumnDragOver}
                       onDragEnd={handleColumnDragEnd}
@@ -2043,12 +2031,6 @@ export function Table({
             <div
               className='-translate-x-[1.5px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]'
               style={{ left: resizeIndicatorLeft }}
-            />
-          )}
-          {dragSourceBounds !== null && (
-            <div
-              className='pointer-events-none absolute top-0 z-[15] h-full bg-[var(--bg)] opacity-50'
-              style={{ left: dragSourceBounds.left, width: dragSourceBounds.width }}
             />
           )}
           {dropColumnBounds !== null && (
@@ -2898,7 +2880,6 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onResizeStart,
   onResize,
   onResizeEnd,
-  isDragging,
   onDragStart,
   onDragOver,
   onDragEnd,
@@ -2923,7 +2904,6 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onResizeStart: (columnName: string) => void
   onResize: (columnName: string, width: number) => void
   onResizeEnd: () => void
-  isDragging?: boolean
   onDragStart?: (columnName: string) => void
   onDragOver?: (columnName: string, side: 'left' | 'right') => void
   onDragEnd?: () => void
@@ -3045,7 +3025,6 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
     <th
       className={cn(
         'group relative border-[var(--border)] border-r border-b bg-[var(--bg)] p-0 text-left align-middle',
-        isDragging && 'opacity-40',
         isColumnSelected && 'bg-[rgba(37,99,235,0.06)]'
       )}
       draggable={!readOnly && !isRenaming}
