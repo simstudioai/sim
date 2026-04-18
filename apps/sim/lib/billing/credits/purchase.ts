@@ -193,7 +193,7 @@ export async function purchaseCredits(params: PurchaseCreditsParams): Promise<Pu
         description: `Prepaid credits ($${amountDollars})`,
         metadata: creditMetadata,
       },
-      { idempotencyKey }
+      { idempotencyKey: `${idempotencyKey}-item` }
     )
 
     // Finalize and pay
