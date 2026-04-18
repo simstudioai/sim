@@ -38,7 +38,7 @@ import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 const DEFAULT_BLOCK_COLOR = '#6b7280'
 const TREE_PANE_WIDTH = 300
 const INDENT_PX = 12
-const ROW_BASE_PADDING_LEFT = 12
+const ROW_BASE_PADDING_LEFT = 14
 const MIN_BAR_PCT = 0.5
 
 interface TraceViewProps {
@@ -344,7 +344,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
       aria-level={depth + 1}
     >
       <div
-        className='flex min-w-0 items-center gap-1.5 pt-1 pr-2'
+        className='flex min-w-0 items-center gap-1.5 pt-1 pr-3.5'
         style={{ paddingLeft: ROW_BASE_PADDING_LEFT + depth * INDENT_PX }}
       >
         {canExpand ? (
@@ -409,7 +409,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
           {formatDuration(duration, { precision: 2 })}
         </span>
       </div>
-      <div className='pt-[3px] pr-2 pb-[5px] pl-2'>
+      <div className='px-3.5 pt-[3px] pb-[5px]'>
         <div className='relative h-[3px] w-full overflow-hidden rounded-full bg-[var(--border)]'>
           <div
             className='absolute h-full rounded-full'
