@@ -9,11 +9,11 @@ import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-const logger = createLogger('PdfPreviewAPI')
+const logger = createLogger('DocxPreviewAPI')
 
 /**
- * POST /api/workspaces/[id]/pdf/preview
- * Compile PDF-Lib source code and return the binary PDF for streaming preview.
+ * POST /api/workspaces/[id]/docx/preview
+ * Compile docx source code and return the binary DOCX for streaming preview.
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: workspaceId } = await params
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const buffer = await runSandboxTask(
-      'pdf-generate',
+      'docx-generate',
       { code, workspaceId },
       { ownerKey: `user:${session.user.id}`, signal: req.signal }
     )
@@ -54,14 +54,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
-        'Content-Type': 'application/pdf',
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'Content-Length': String(buffer.length),
         'Cache-Control': 'private, no-store',
       },
     })
   } catch (err) {
     const message = toError(err).message
-    logger.error('PDF preview generation failed', { error: message, workspaceId })
+    logger.error('DOCX preview generation failed', { error: message, workspaceId })
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

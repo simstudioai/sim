@@ -1,6 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { toError } from '@/lib/core/utils/helpers'
+import { MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
@@ -39,8 +41,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'code is required' }, { status: 400 })
     }
 
-    const MAX_CODE_BYTES = 512 * 1024
-    if (Buffer.byteLength(code, 'utf-8') > MAX_CODE_BYTES) {
+    if (Buffer.byteLength(code, 'utf-8') > MAX_DOCUMENT_PREVIEW_CODE_BYTES) {
       return NextResponse.json({ error: 'code exceeds maximum size' }, { status: 413 })
     }
 
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       },
     })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'PPTX generation failed'
+    const message = toError(err).message
     logger.error('PPTX preview generation failed', { error: message, workspaceId })
     return NextResponse.json({ error: message }, { status: 500 })
   }

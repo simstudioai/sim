@@ -23,19 +23,21 @@ vi.mock('@/lib/execution/sandbox/run-task', () => ({
   runSandboxTask: mockRunSandboxTask,
 }))
 
-import { POST } from '@/app/api/workspaces/[id]/pdf/preview/route'
+import { POST } from '@/app/api/workspaces/[id]/docx/preview/route'
 
-describe('PDF preview API route', () => {
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+
+describe('DOCX preview API route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     mockVerifyWorkspaceMembership.mockResolvedValue(true)
-    mockRunSandboxTask.mockResolvedValue(Buffer.from('%PDF-test'))
+    mockRunSandboxTask.mockResolvedValue(Buffer.from('PK\x03\x04docx'))
   })
 
-  it('returns a generated PDF for authorized workspace members', async () => {
+  it('returns a generated DOCX for authorized workspace members', async () => {
     const request = new NextRequest(
-      'http://localhost:3000/api/workspaces/workspace-1/pdf/preview',
+      'http://localhost:3000/api/workspaces/workspace-1/docx/preview',
       {
         method: 'POST',
         headers: {
@@ -50,20 +52,20 @@ describe('PDF preview API route', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('Content-Type')).toBe('application/pdf')
+    expect(response.headers.get('Content-Type')).toBe(DOCX_MIME)
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
     expect(mockVerifyWorkspaceMembership).toHaveBeenCalledWith('user-1', 'workspace-1')
     expect(mockRunSandboxTask).toHaveBeenCalledWith(
-      'pdf-generate',
+      'docx-generate',
       { code: 'return 1', workspaceId: 'workspace-1' },
       { ownerKey: 'user:user-1', signal: request.signal }
     )
-    expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('%PDF-test')
+    expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('PK\x03\x04docx')
   })
 
   it('rejects requests without code', async () => {
     const request = new NextRequest(
-      'http://localhost:3000/api/workspaces/workspace-1/pdf/preview',
+      'http://localhost:3000/api/workspaces/workspace-1/docx/preview',
       {
         method: 'POST',
         headers: {
@@ -84,7 +86,7 @@ describe('PDF preview API route', () => {
 
   it('rejects oversized preview source payloads', async () => {
     const request = new NextRequest(
-      'http://localhost:3000/api/workspaces/workspace-1/pdf/preview',
+      'http://localhost:3000/api/workspaces/workspace-1/docx/preview',
       {
         method: 'POST',
         headers: {
@@ -107,7 +109,7 @@ describe('PDF preview API route', () => {
     mockGetSession.mockResolvedValue(null)
 
     const request = new NextRequest(
-      'http://localhost:3000/api/workspaces/workspace-1/pdf/preview',
+      'http://localhost:3000/api/workspaces/workspace-1/docx/preview',
       {
         method: 'POST',
         headers: {
@@ -131,7 +133,7 @@ describe('PDF preview API route', () => {
     mockVerifyWorkspaceMembership.mockResolvedValue(false)
 
     const request = new NextRequest(
-      'http://localhost:3000/api/workspaces/workspace-1/pdf/preview',
+      'http://localhost:3000/api/workspaces/workspace-1/docx/preview',
       {
         method: 'POST',
         headers: {
@@ -152,7 +154,7 @@ describe('PDF preview API route', () => {
 
   it('returns 400 for requests with invalid JSON bodies', async () => {
     const request = new NextRequest(
-      'http://localhost:3000/api/workspaces/workspace-1/pdf/preview',
+      'http://localhost:3000/api/workspaces/workspace-1/docx/preview',
       {
         method: 'POST',
         headers: {
@@ -171,11 +173,11 @@ describe('PDF preview API route', () => {
     expect(mockRunSandboxTask).not.toHaveBeenCalled()
   })
 
-  it('returns 500 when PDF generation throws', async () => {
+  it('returns 500 when DOCX generation throws', async () => {
     mockRunSandboxTask.mockRejectedValue(new Error('boom: sandbox failed'))
 
     const request = new NextRequest(
-      'http://localhost:3000/api/workspaces/workspace-1/pdf/preview',
+      'http://localhost:3000/api/workspaces/workspace-1/docx/preview',
       {
         method: 'POST',
         headers: {
