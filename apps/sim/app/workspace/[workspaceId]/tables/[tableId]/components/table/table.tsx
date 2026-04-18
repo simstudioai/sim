@@ -272,11 +272,16 @@ export function Table({
 
   const getColumnWidths = useCallback(() => columnWidthsRef.current, [])
 
+  const handleColumnWidthsChange = useCallback((widths: Record<string, number>) => {
+    setColumnWidths(widths)
+  }, [])
+
   const { pushUndo, undo, redo } = useTableUndo({
     workspaceId,
     tableId,
     onColumnOrderChange: handleColumnOrderChange,
     onColumnRename: handleColumnRename,
+    onColumnWidthsChange: handleColumnWidthsChange,
     getColumnWidths,
   })
   const undoRef = useRef(undo)

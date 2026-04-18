@@ -36,6 +36,7 @@ interface UseTableUndoProps {
   tableId: string
   onColumnOrderChange?: (order: string[]) => void
   onColumnRename?: (oldName: string, newName: string) => void
+  onColumnWidthsChange?: (widths: Record<string, number>) => void
   getColumnWidths?: () => Record<string, number>
 }
 
@@ -44,6 +45,7 @@ export function useTableUndo({
   tableId,
   onColumnOrderChange,
   onColumnRename,
+  onColumnWidthsChange,
   getColumnWidths,
 }: UseTableUndoProps) {
   const push = useTableUndoStore((s) => s.push)
@@ -71,6 +73,8 @@ export function useTableUndo({
   onColumnOrderChangeRef.current = onColumnOrderChange
   const onColumnRenameRef = useRef(onColumnRename)
   onColumnRenameRef.current = onColumnRename
+  const onColumnWidthsChangeRef = useRef(onColumnWidthsChange)
+  onColumnWidthsChangeRef.current = onColumnWidthsChange
   const getColumnWidthsRef = useRef(getColumnWidths)
   getColumnWidthsRef.current = getColumnWidths
 
@@ -234,10 +238,12 @@ export function useTableUndo({
                       metadata.columnOrder = action.previousOrder
                     }
                     if (action.previousWidth !== null) {
-                      metadata.columnWidths = {
+                      const merged = {
                         ...(getColumnWidthsRef.current?.() ?? {}),
                         [action.columnName]: action.previousWidth,
                       }
+                      metadata.columnWidths = merged
+                      onColumnWidthsChangeRef.current?.(merged)
                     }
                     if (Object.keys(metadata).length > 0) {
                       updateMetadataMutation.mutate(metadata)
