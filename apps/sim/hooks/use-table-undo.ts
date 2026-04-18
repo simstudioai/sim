@@ -228,19 +228,19 @@ export function useTableUndo({
                       }))
                       batchUpdateRowsMutation.mutate({ updates })
                     }
+                    const metadata: Record<string, unknown> = {}
                     if (action.previousOrder) {
                       onColumnOrderChangeRef.current?.(action.previousOrder)
-                      updateMetadataMutation.mutate({
-                        columnOrder: action.previousOrder,
-                        ...(action.previousWidth !== null
-                          ? {
-                              columnWidths: {
-                                ...(getColumnWidthsRef.current?.() ?? {}),
-                                [action.columnName]: action.previousWidth,
-                              },
-                            }
-                          : {}),
-                      })
+                      metadata.columnOrder = action.previousOrder
+                    }
+                    if (action.previousWidth !== null) {
+                      metadata.columnWidths = {
+                        ...(getColumnWidthsRef.current?.() ?? {}),
+                        [action.columnName]: action.previousWidth,
+                      }
+                    }
+                    if (Object.keys(metadata).length > 0) {
+                      updateMetadataMutation.mutate(metadata)
                     }
                   },
                 }

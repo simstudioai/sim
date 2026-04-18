@@ -1257,9 +1257,11 @@ export function Table({
             }
           }
           undoCells.push({ rowId: row.id, oldData, newData })
-          mutateRef.current({ rowId: row.id, data: newData })
         }
         if (undoCells.length > 0) {
+          batchUpdateRef.current({
+            updates: undoCells.map((c) => ({ rowId: c.rowId, data: c.newData })),
+          })
           pushUndoRef.current({ type: 'update-cells', cells: undoCells })
         }
         return
