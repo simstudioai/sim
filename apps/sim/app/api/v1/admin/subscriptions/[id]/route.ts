@@ -134,10 +134,11 @@ export const DELETE = withAdminAuthParams<RouteParams>(async (request, context) 
     // (overage bill, usage reset, Pro restore, org delete) via
     // `handleSubscriptionDeleted`, so no outbox needed here.
     const stripe = requireStripeClient()
-    await stripe.subscriptions.cancel(existing.stripeSubscriptionId, {
-      prorate: true,
-      invoice_now: true,
-    })
+    await stripe.subscriptions.cancel(
+      existing.stripeSubscriptionId,
+      { prorate: true, invoice_now: true },
+      { idempotencyKey: `admin-cancel:${existing.stripeSubscriptionId}` }
+    )
 
     logger.info('Admin API: Triggered immediate subscription cancellation on Stripe', {
       subscriptionId,

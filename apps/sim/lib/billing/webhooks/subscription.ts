@@ -269,6 +269,7 @@ export async function handleSubscriptionDeleted(
 
           const itemIdemKey = `final-overage-item:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
           const invoiceIdemKey = `final-overage-invoice:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
+          const finalizeIdemKey = `final-overage-finalize:${customerId}:${stripeSubscriptionId}:${billingPeriod}`
 
           const overageInvoice = await stripe.invoices.create(
             {
@@ -305,7 +306,11 @@ export async function handleSubscriptionDeleted(
           )
 
           if (overageInvoice.id) {
-            await stripe.invoices.finalizeInvoice(overageInvoice.id)
+            await stripe.invoices.finalizeInvoice(
+              overageInvoice.id,
+              {},
+              { idempotencyKey: finalizeIdemKey }
+            )
           }
 
           logger.info('Created final overage invoice for cancelled subscription', {

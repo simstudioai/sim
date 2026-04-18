@@ -1,18 +1,19 @@
 import { db } from '@sim/db'
 import { member, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import {
   getHighestPrioritySubscription,
   type HighestPrioritySubscription,
 } from '@/lib/billing/core/plan'
-import { getUserUsageLimit } from '@/lib/billing/core/usage'
+import { getPooledOrgCurrentPeriodCost, getUserUsageLimit } from '@/lib/billing/core/usage'
 import {
   computeDailyRefreshConsumed,
   getOrgMemberRefreshBounds,
 } from '@/lib/billing/credits/daily-refresh'
 import { getPlanTierDollars, isPaid } from '@/lib/billing/plan-helpers'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
+import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { toError } from '@/lib/core/utils/helpers'
 
@@ -50,23 +51,10 @@ async function computePooledOrgUsage(
     periodEnd: Date | null
   }
 ): Promise<number> {
-  const teamMembers = await db
-    .select({ userId: member.userId })
-    .from(member)
-    .where(eq(member.organizationId, organizationId))
+  const { memberIds, currentPeriodCost } = await getPooledOrgCurrentPeriodCost(organizationId)
+  if (memberIds.length === 0) return 0
 
-  if (teamMembers.length === 0) return 0
-
-  const memberIds = teamMembers.map((tm) => tm.userId)
-  const memberStatsRows = await db
-    .select({ current: userStats.currentPeriodCost, total: userStats.totalCost })
-    .from(userStats)
-    .where(inArray(userStats.userId, memberIds))
-
-  let pooled = 0
-  for (const stats of memberStatsRows) {
-    pooled += Number.parseFloat(stats.current?.toString() || stats.total.toString())
-  }
+  let pooled = currentPeriodCost
 
   if (isPaid(sub.plan) && sub.periodStart) {
     const planDollars = getPlanTierDollars(sub.plan)
@@ -99,9 +87,7 @@ export async function checkUsageStatus(
     if (!isBillingEnabled) {
       const statsRecords = await db.select().from(userStats).where(eq(userStats.userId, userId))
       const currentUsage =
-        statsRecords.length > 0
-          ? Number.parseFloat(statsRecords[0].currentPeriodCost?.toString())
-          : 0
+        statsRecords.length > 0 ? toNumber(toDecimal(statsRecords[0].currentPeriodCost)) : 0
 
       return {
         percentUsed: Math.min((currentUsage / 1000) * 100, 100),
@@ -150,9 +136,7 @@ export async function checkUsageStatus(
         }
       }
 
-      const rawUsage = Number.parseFloat(
-        statsRecords[0].currentPeriodCost?.toString() || statsRecords[0].totalCost.toString()
-      )
+      const rawUsage = toNumber(toDecimal(statsRecords[0].currentPeriodCost))
 
       let refresh = 0
       if (sub && isPaid(sub.plan) && sub.periodStart) {
@@ -296,16 +280,12 @@ export async function checkServerSideUsageLimits(
         blocked: userStats.billingBlocked,
         blockedReason: userStats.billingBlockedReason,
         current: userStats.currentPeriodCost,
-        total: userStats.totalCost,
       })
       .from(userStats)
       .where(eq(userStats.userId, userId))
       .limit(1)
 
-    const currentUsage =
-      stats.length > 0
-        ? Number.parseFloat(stats[0].current?.toString() || stats[0].total.toString())
-        : 0
+    const currentUsage = stats.length > 0 ? toNumber(toDecimal(stats[0].current)) : 0
 
     if (stats.length > 0 && stats[0].blocked) {
       const message =

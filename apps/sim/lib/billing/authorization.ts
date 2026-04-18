@@ -1,8 +1,6 @@
-import { db } from '@sim/db'
-import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
 import { hasPaidSubscription } from '@/lib/billing'
+import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 
 const logger = createLogger('BillingAuthorization')
@@ -24,14 +22,10 @@ export async function authorizeSubscriptionReference(
   referenceId: string,
   action?: string
 ): Promise<boolean> {
-  // `isOrgScopedSubscription` returns `false` when referenceId === userId,
-  // which is exactly the "personal subscription" case we want to allow
-  // without further checks.
   if (!isOrgScopedSubscription({ referenceId }, userId)) {
     return true
   }
 
-  // Only block duplicate subscriptions during upgrade/checkout, not cancel/restore/list
   if (action === 'upgrade-subscription' && (await hasPaidSubscription(referenceId))) {
     logger.warn('Blocking checkout - active subscription already exists for organization', {
       userId,
@@ -40,12 +34,5 @@ export async function authorizeSubscriptionReference(
     return false
   }
 
-  const members = await db
-    .select()
-    .from(schema.member)
-    .where(and(eq(schema.member.userId, userId), eq(schema.member.organizationId, referenceId)))
-
-  const member = members[0]
-
-  return member?.role === 'owner' || member?.role === 'admin'
+  return isOrganizationOwnerOrAdmin(userId, referenceId)
 }

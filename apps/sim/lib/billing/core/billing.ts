@@ -29,7 +29,13 @@ import { createLogger } from '@sim/logger'
 const logger = createLogger('Billing')
 
 /**
- * Get organization subscription directly by organization ID
+ * Get the organization's subscription row when its status is one of
+ * `ENTITLED_SUBSCRIPTION_STATUSES` (includes `past_due`). Use this
+ * when making billing-side decisions (overage math, limit reads,
+ * webhooks) where `past_due` still counts as an active paid tenant.
+ * For product-access gating use `getOrganizationSubscriptionUsable`
+ * (from `core/subscription.ts`), which excludes `past_due`.
+ * Returns `null` when there is no entitled sub.
  */
 export async function getOrganizationSubscription(organizationId: string) {
   try {
@@ -83,6 +89,13 @@ export async function isSubscriptionOrgScoped(sub: { referenceId: string }): Pro
  * query. Used by org-scoped summary and overage calculations so we don't
  * call `getUserUsageData` per-member — that helper now returns the entire
  * pool for org-scoped subs, which would N-times-count the usage.
+ *
+ * The `currentPeriodCost` sum here is semantically identical to
+ * `getPooledOrgCurrentPeriodCost` (same `LEFT JOIN` + `toDecimal`
+ * null handling); this helper bundles the copilot fields in the same
+ * round-trip. Never fall back to lifetime `totalCost` on nulls — the
+ * column is `NOT NULL DEFAULT '0'` and mixing scopes would break
+ * current-period billing math.
  */
 async function aggregateOrgMemberStats(organizationId: string): Promise<{
   memberIds: string[]
@@ -124,6 +137,54 @@ async function aggregateOrgMemberStats(organizationId: string): Promise<{
 }
 
 /**
+ * Compute an org's overage amount from already-fetched pool/departed
+ * inputs. Internally performs one daily-refresh DB read to subtract
+ * refresh credits; callers are expected to have already loaded the
+ * pooled `currentPeriodCost` and `departedMemberUsage` (threshold
+ * billing passes lock-held values; `calculateSubscriptionOverage`
+ * passes lockless values from `aggregateOrgMemberStats`). Both
+ * callers route through this to keep the overage math in one place.
+ */
+export async function computeOrgOverageAmount(params: {
+  plan: string | null
+  seats: number | null
+  periodStart: Date | null
+  periodEnd: Date | null
+  organizationId: string
+  pooledCurrentPeriodCost: number
+  departedMemberUsage: number
+  memberIds: string[]
+}): Promise<{
+  effectiveUsage: number
+  baseSubscriptionAmount: number
+  dailyRefreshDeduction: number
+  totalOverage: number
+}> {
+  const totalUsage = params.pooledCurrentPeriodCost + params.departedMemberUsage
+
+  let dailyRefreshDeduction = 0
+  const planDollars = getPlanTierDollars(params.plan)
+  if (planDollars > 0 && params.periodStart && params.memberIds.length > 0) {
+    const userBounds = await getOrgMemberRefreshBounds(params.organizationId, params.periodStart)
+    dailyRefreshDeduction = await computeDailyRefreshConsumed({
+      userIds: params.memberIds,
+      periodStart: params.periodStart,
+      periodEnd: params.periodEnd ?? null,
+      planDollars,
+      seats: params.seats || 1,
+      userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
+    })
+  }
+
+  const effectiveUsage = Math.max(0, totalUsage - dailyRefreshDeduction)
+  const { basePrice } = getPlanPricing(params.plan ?? '')
+  const baseSubscriptionAmount = (params.seats || 1) * basePrice
+  const totalOverage = Math.max(0, effectiveUsage - baseSubscriptionAmount)
+
+  return { effectiveUsage, baseSubscriptionAmount, dailyRefreshDeduction, totalOverage }
+}
+
+/**
  * Calculate overage amount for a subscription
  * Shared logic between invoice.finalized and customer.subscription.deleted handlers
  */
@@ -150,7 +211,6 @@ export async function calculateSubscriptionOverage(sub: {
 
   if (isOrgScoped) {
     const pooled = await aggregateOrgMemberStats(sub.referenceId)
-    const totalTeamUsageDecimal = toDecimal(pooled.currentPeriodCost)
 
     const orgData = await db
       .select({ departedMemberUsage: organization.departedMemberUsage })
@@ -158,41 +218,31 @@ export async function calculateSubscriptionOverage(sub: {
       .where(eq(organization.id, sub.referenceId))
       .limit(1)
 
-    const departedUsageDecimal =
-      orgData.length > 0 ? toDecimal(orgData[0].departedMemberUsage) : new Decimal(0)
+    const departedMemberUsage =
+      orgData.length > 0 ? toNumber(toDecimal(orgData[0].departedMemberUsage)) : 0
 
-    const totalUsageWithDepartedDecimal = totalTeamUsageDecimal.plus(departedUsageDecimal)
+    const { totalOverage, effectiveUsage, baseSubscriptionAmount } = await computeOrgOverageAmount({
+      plan: sub.plan,
+      seats: sub.seats ?? null,
+      periodStart: sub.periodStart ?? null,
+      periodEnd: sub.periodEnd ?? null,
+      organizationId: sub.referenceId,
+      pooledCurrentPeriodCost: pooled.currentPeriodCost,
+      departedMemberUsage,
+      memberIds: pooled.memberIds,
+    })
 
-    let dailyRefreshDeduction = 0
-    const planDollars = getPlanTierDollars(sub.plan)
-    if (planDollars > 0 && sub.periodStart) {
-      const userBounds = await getOrgMemberRefreshBounds(sub.referenceId, sub.periodStart)
-      dailyRefreshDeduction = await computeDailyRefreshConsumed({
-        userIds: pooled.memberIds,
-        periodStart: sub.periodStart,
-        periodEnd: sub.periodEnd ?? null,
-        planDollars,
-        seats: sub.seats || 1,
-        userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
-      })
-    }
-
-    const effectiveUsageDecimal = Decimal.max(
-      0,
-      totalUsageWithDepartedDecimal.minus(toDecimal(dailyRefreshDeduction))
-    )
-    const { basePrice } = getPlanPricing(sub.plan ?? '')
-    const baseSubscriptionAmount = (sub.seats || 1) * basePrice
-    totalOverageDecimal = Decimal.max(0, effectiveUsageDecimal.minus(baseSubscriptionAmount))
+    totalOverageDecimal = toDecimal(totalOverage)
 
     logger.info('Calculated org-scoped overage', {
       subscriptionId: sub.id,
       plan: sub.plan,
-      currentMemberUsage: toNumber(totalTeamUsageDecimal),
-      departedMemberUsage: toNumber(departedUsageDecimal),
-      totalUsage: toNumber(totalUsageWithDepartedDecimal),
+      currentMemberUsage: pooled.currentPeriodCost,
+      departedMemberUsage,
+      totalUsage: pooled.currentPeriodCost + departedMemberUsage,
+      effectiveUsage,
       baseSubscriptionAmount,
-      totalOverage: toNumber(totalOverageDecimal),
+      totalOverage,
     })
   } else if (isPro(sub.plan)) {
     // Read user_stats directly (not via `getUserUsageData`). Priority

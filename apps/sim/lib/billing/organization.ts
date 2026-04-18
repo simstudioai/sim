@@ -13,6 +13,7 @@ import { hasPaidSubscription } from '@/lib/billing'
 import { getPlanPricing } from '@/lib/billing/core/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { isEnterprise, isPaid, isTeam } from '@/lib/billing/plan-helpers'
+import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('BillingOrganization')
@@ -276,7 +277,7 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
 
         const currentLimit =
           orgData.length > 0 && orgData[0].orgUsageLimit
-            ? Number.parseFloat(orgData[0].orgUsageLimit)
+            ? toNumber(toDecimal(orgData[0].orgUsageLimit))
             : 0
 
         // Update if no limit set, or if new seat-based minimum is higher

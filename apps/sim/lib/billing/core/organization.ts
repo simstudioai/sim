@@ -1,46 +1,22 @@
 import { db } from '@sim/db'
-import { member, organization, subscription, user, userStats } from '@sim/db/schema'
+import { member, organization, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
-import { getPlanPricing } from '@/lib/billing/core/billing'
+import { getOrganizationSubscription, getPlanPricing } from '@/lib/billing/core/billing'
 import {
   computeDailyRefreshConsumed,
   getOrgMemberRefreshBounds,
 } from '@/lib/billing/credits/daily-refresh'
 import { getPlanTierDollars, isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
 import {
-  ENTITLED_SUBSCRIPTION_STATUSES,
   getEffectiveSeats,
   getFreeTierLimit,
   hasUsableSubscriptionStatus,
 } from '@/lib/billing/subscriptions/utils'
+import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 
 const logger = createLogger('OrganizationBilling')
-
-/**
- * Get organization subscription directly by organization ID
- * This is for our new pattern where referenceId = organizationId
- */
-async function getOrganizationSubscription(organizationId: string) {
-  try {
-    const orgSubs = await db
-      .select()
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.referenceId, organizationId),
-          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
-        )
-      )
-      .limit(1)
-
-    return orgSubs.length > 0 ? orgSubs[0] : null
-  } catch (error) {
-    logger.error('Error getting organization subscription', { error, organizationId })
-    return null
-  }
-}
 
 function roundCurrency(value: number): number {
   return Math.round(value * 100) / 100
@@ -179,16 +155,14 @@ export async function getOrganizationBillingData(
     let totalUsageLimit: number
 
     if (isEnterprise(subscription.plan)) {
-      const configuredLimit = organizationData.orgUsageLimit
-        ? Number.parseFloat(organizationData.orgUsageLimit)
-        : 0
+      const configuredLimit = toNumber(toDecimal(organizationData.orgUsageLimit))
       minimumBillingAmount = configuredLimit
       totalUsageLimit = configuredLimit
     } else {
       minimumBillingAmount = licensedSeats * pricePerSeat
 
       const configuredLimit = organizationData.orgUsageLimit
-        ? Number.parseFloat(organizationData.orgUsageLimit)
+        ? toNumber(toDecimal(organizationData.orgUsageLimit))
         : null
       totalUsageLimit =
         configuredLimit !== null

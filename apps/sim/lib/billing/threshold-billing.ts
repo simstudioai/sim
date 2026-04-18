@@ -1,21 +1,20 @@
 import { db } from '@sim/db'
 import { member, organization, subscription, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { DEFAULT_OVERAGE_THRESHOLD } from '@/lib/billing/constants'
 import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
-import { calculateSubscriptionOverage, getPlanPricing } from '@/lib/billing/core/billing'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { calculateSubscriptionOverage, computeOrgOverageAmount } from '@/lib/billing/core/billing'
 import {
-  computeDailyRefreshConsumed,
-  getOrgMemberRefreshBounds,
-} from '@/lib/billing/credits/daily-refresh'
-import { getPlanTierDollars, isEnterprise, isFree, isPaid } from '@/lib/billing/plan-helpers'
+  getHighestPrioritySubscription,
+  getOrganizationSubscriptionUsable,
+} from '@/lib/billing/core/subscription'
+import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import {
   hasUsableSubscriptionAccess,
   isOrgScopedSubscription,
-  USABLE_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
+import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { env } from '@/lib/core/config/env'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
@@ -23,11 +22,6 @@ import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 const logger = createLogger('ThresholdBilling')
 
 const OVERAGE_THRESHOLD = env.OVERAGE_THRESHOLD_DOLLARS || DEFAULT_OVERAGE_THRESHOLD
-
-function parseDecimal(value: string | number | null | undefined): number {
-  if (value === null || value === undefined) return 0
-  return Number.parseFloat(value.toString())
-}
 
 export async function checkAndBillOverageThreshold(userId: string): Promise<void> {
   try {
@@ -82,7 +76,7 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
         periodStart: userSubscription.periodStart,
         periodEnd: userSubscription.periodEnd,
       })
-      const billedOverageThisPeriod = parseDecimal(stats.billedOverageThisPeriod)
+      const billedOverageThisPeriod = toNumber(toDecimal(stats.billedOverageThisPeriod))
       const unbilledOverage = Math.max(0, currentOverage - billedOverageThisPeriod)
 
       logger.debug('Threshold billing check', {
@@ -118,7 +112,7 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
       // Apply credits to reduce the amount to bill (use stats from locked row)
       let amountToBill = unbilledOverage
       let creditsApplied = 0
-      const creditBalance = Number.parseFloat(stats.creditBalance?.toString() || '0')
+      const creditBalance = toNumber(toDecimal(stats.creditBalance))
 
       if (creditBalance > 0) {
         creditsApplied = Math.min(creditBalance, amountToBill)
@@ -220,23 +214,12 @@ export async function checkAndBillOrganizationOverageThreshold(
 
     logger.debug('Starting organization threshold billing check', { organizationId, threshold })
 
-    const orgSubscriptions = await db
-      .select()
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.referenceId, organizationId),
-          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
-        )
-      )
-      .limit(1)
+    const orgSubscription = await getOrganizationSubscriptionUsable(organizationId)
 
-    if (orgSubscriptions.length === 0) {
+    if (!orgSubscription) {
       logger.debug('No active subscription for organization', { organizationId })
       return
     }
-
-    const orgSubscription = orgSubscriptions[0]
     logger.debug('Found organization subscription', {
       organizationId,
       plan: orgSubscription.plan,
@@ -305,9 +288,9 @@ export async function checkAndBillOrganizationOverageThreshold(
         return
       }
 
-      let totalTeamUsage = parseDecimal(ownerStatsLock[0].currentPeriodCost)
-      const totalBilledOverage = parseDecimal(ownerStatsLock[0].billedOverageThisPeriod)
-      const orgCreditBalance = Number.parseFloat(orgLock[0].creditBalance?.toString() || '0')
+      let pooledCurrentPeriodCost = toNumber(toDecimal(ownerStatsLock[0].currentPeriodCost))
+      const totalBilledOverage = toNumber(toDecimal(ownerStatsLock[0].billedOverageThisPeriod))
+      const orgCreditBalance = toNumber(toDecimal(orgLock[0].creditBalance))
 
       const nonOwnerIds = members.filter((m) => m.userId !== owner.userId).map((m) => m.userId)
 
@@ -321,41 +304,33 @@ export async function checkAndBillOrganizationOverageThreshold(
           .where(inArray(userStats.userId, nonOwnerIds))
 
         for (const stats of memberStatsRows) {
-          totalTeamUsage += parseDecimal(stats.currentPeriodCost)
+          pooledCurrentPeriodCost += toNumber(toDecimal(stats.currentPeriodCost))
         }
       }
 
-      totalTeamUsage += parseDecimal(orgLock[0].departedMemberUsage)
+      const departedMemberUsage = toNumber(toDecimal(orgLock[0].departedMemberUsage))
 
-      let dailyRefreshDeduction = 0
-      if (isPaid(orgSubscription.plan) && orgSubscription.periodStart) {
-        const planDollars = getPlanTierDollars(orgSubscription.plan)
-        if (planDollars > 0) {
-          const allMemberIds = members.map((m) => m.userId)
-          const userBounds = await getOrgMemberRefreshBounds(
-            organizationId,
-            orgSubscription.periodStart
-          )
-          dailyRefreshDeduction = await computeDailyRefreshConsumed({
-            userIds: allMemberIds,
-            periodStart: orgSubscription.periodStart,
-            periodEnd: orgSubscription.periodEnd ?? null,
-            planDollars,
-            seats: orgSubscription.seats || 1,
-            userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
-          })
-        }
-      }
+      const {
+        totalOverage: currentOverage,
+        baseSubscriptionAmount: basePrice,
+        effectiveUsage: effectiveTeamUsage,
+      } = await computeOrgOverageAmount({
+        plan: orgSubscription.plan,
+        seats: orgSubscription.seats ?? null,
+        periodStart: orgSubscription.periodStart ?? null,
+        periodEnd: orgSubscription.periodEnd ?? null,
+        organizationId,
+        pooledCurrentPeriodCost,
+        departedMemberUsage,
+        memberIds: members.map((m) => m.userId),
+      })
 
-      const effectiveTeamUsage = Math.max(0, totalTeamUsage - dailyRefreshDeduction)
-      const { basePrice: basePricePerSeat } = getPlanPricing(orgSubscription.plan)
-      const basePrice = basePricePerSeat * (orgSubscription.seats || 1)
-      const currentOverage = Math.max(0, effectiveTeamUsage - basePrice)
       const unbilledOverage = Math.max(0, currentOverage - totalBilledOverage)
 
       logger.debug('Organization threshold billing check', {
         organizationId,
-        totalTeamUsage,
+        totalTeamUsage: pooledCurrentPeriodCost + departedMemberUsage,
+        effectiveTeamUsage,
         basePrice,
         currentOverage,
         totalBilledOverage,

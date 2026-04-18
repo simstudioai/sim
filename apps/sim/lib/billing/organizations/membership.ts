@@ -18,6 +18,7 @@ import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { isPaid, sqlIsPro } from '@/lib/billing/plan-helpers'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
@@ -177,12 +178,10 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
         .limit(1)
 
       if (stats) {
-        const currentUsage = stats.currentPeriodCost || '0'
-        const snapshotUsage = stats.proPeriodCostSnapshot || '0'
-        const snapshotNum = Number.parseFloat(snapshotUsage)
+        const currentNum = toNumber(toDecimal(stats.currentPeriodCost))
+        const snapshotNum = toNumber(toDecimal(stats.proPeriodCostSnapshot))
 
         if (snapshotNum > 0) {
-          const currentNum = Number.parseFloat(currentUsage)
           const restoredUsage = (currentNum + snapshotNum).toString()
 
           await db
@@ -198,8 +197,8 @@ export async function restoreUserProSubscription(userId: string): Promise<Restor
 
           logger.info('Restored Pro usage snapshot', {
             userId,
-            previousUsage: currentUsage,
-            snapshotUsage,
+            previousUsage: currentNum,
+            snapshotUsage: snapshotNum,
             restoredUsage,
           })
         }
@@ -599,7 +598,7 @@ export async function removeUserFromOrganization(
           .limit(1)
 
         if (departingUserStats?.currentPeriodCost) {
-          const usage = Number.parseFloat(departingUserStats.currentPeriodCost)
+          const usage = toNumber(toDecimal(departingUserStats.currentPeriodCost))
           if (usage > 0) {
             await db
               .update(organization)

@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { member, organization, userStats } from '@sim/db/schema'
+import { organization, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPro, isTeam } from '@/lib/billing/plan-helpers'
@@ -209,15 +209,4 @@ export async function canPurchaseCredits(userId: string): Promise<boolean> {
   }
   // Enterprise users must contact support to purchase credits
   return isPro(subscription.plan) || isTeam(subscription.plan)
-}
-
-export async function isOrgAdmin(userId: string, organizationId: string): Promise<boolean> {
-  const memberRows = await db
-    .select({ role: member.role })
-    .from(member)
-    .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
-    .limit(1)
-
-  if (memberRows.length === 0) return false
-  return memberRows[0].role === 'owner' || memberRows[0].role === 'admin'
 }

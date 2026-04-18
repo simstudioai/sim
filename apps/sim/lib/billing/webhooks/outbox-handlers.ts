@@ -2,8 +2,8 @@ import { db } from '@sim/db'
 import { subscription as subscriptionTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import type Stripe from 'stripe'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { resolveDefaultPaymentMethod } from '@/lib/billing/stripe-payment-method'
 import type { OutboxHandler } from '@/lib/core/outbox/service'
 
 const logger = createLogger('BillingOutboxHandlers')
@@ -78,41 +78,6 @@ const stripeSyncCancelAtPeriodEnd: OutboxHandler<StripeSyncCancelAtPeriodEndPayl
   })
 }
 
-/**
- * Resolve the payment method to use for auto-collection. Matches the
- * pre-refactor behavior: subscription PM first, customer PM second.
- * Without this, Stripe falls back to customer PM only when the invoice
- * is attached to a subscription — but we create an ad-hoc invoice not
- * linked to the subscription, so we resolve explicitly.
- */
-async function resolveDefaultPaymentMethod(
-  stripe: Stripe,
-  stripeSubscriptionId: string,
-  customerId: string
-): Promise<string | undefined> {
-  const toId = (pm: string | Stripe.PaymentMethod | null | undefined): string | undefined =>
-    typeof pm === 'string' ? pm : pm?.id
-
-  try {
-    const sub = await stripe.subscriptions.retrieve(stripeSubscriptionId)
-    const subPm = toId(sub.default_payment_method)
-    if (subPm) return subPm
-
-    const customer = await stripe.customers.retrieve(customerId)
-    if (customer && !('deleted' in customer)) {
-      return toId((customer as Stripe.Customer).invoice_settings?.default_payment_method)
-    }
-  } catch (error) {
-    logger.warn('Failed to resolve default payment method', {
-      stripeSubscriptionId,
-      customerId,
-      error: error instanceof Error ? error.message : error,
-    })
-  }
-
-  return undefined
-}
-
 const stripeThresholdOverageInvoice: OutboxHandler<StripeThresholdOverageInvoicePayload> = async (
   payload,
   ctx
@@ -124,7 +89,7 @@ const stripeThresholdOverageInvoice: OutboxHandler<StripeThresholdOverageInvoice
   // invoice (no subscription link) falls back to customer-level PM
   // only, which may not be set for customers onboarded via Checkout
   // Subscription flows.
-  const defaultPaymentMethod = await resolveDefaultPaymentMethod(
+  const { paymentMethodId: defaultPaymentMethod } = await resolveDefaultPaymentMethod(
     stripe,
     payload.stripeSubscriptionId,
     payload.customerId
@@ -135,6 +100,8 @@ const stripeThresholdOverageInvoice: OutboxHandler<StripeThresholdOverageInvoice
   // side.
   const invoiceIdemKey = `${payload.invoiceIdemKeyStem}:${ctx.eventId}`
   const itemIdemKey = `${payload.itemIdemKeyStem}:${ctx.eventId}`
+  const finalizeIdemKey = `${payload.invoiceIdemKeyStem}:finalize:${ctx.eventId}`
+  const payIdemKey = `${payload.invoiceIdemKeyStem}:pay:${ctx.eventId}`
 
   // `auto_advance: false` + explicit finalize mirrors pre-refactor
   // behavior: we control exactly when the invoice finalizes, so it
@@ -168,15 +135,19 @@ const stripeThresholdOverageInvoice: OutboxHandler<StripeThresholdOverageInvoice
     { idempotencyKey: itemIdemKey }
   )
 
-  const finalized = await stripe.invoices.finalizeInvoice(invoice.id)
+  const finalized = await stripe.invoices.finalizeInvoice(
+    invoice.id,
+    {},
+    { idempotencyKey: finalizeIdemKey }
+  )
 
-  // If Stripe didn't auto-charge on finalize (e.g. `open` status with
-  // a known PM), attempt payment explicitly. Payment failures are
-  // non-fatal to the handler — the invoice is finalized and will
-  // retry charging via Stripe's own dunning.
   if (finalized.status === 'open' && finalized.id && defaultPaymentMethod) {
     try {
-      await stripe.invoices.pay(finalized.id, { payment_method: defaultPaymentMethod })
+      await stripe.invoices.pay(
+        finalized.id,
+        { payment_method: defaultPaymentMethod },
+        { idempotencyKey: payIdemKey }
+      )
     } catch (payError) {
       logger.warn('Auto-pay failed for threshold overage invoice — Stripe dunning will retry', {
         invoiceId: finalized.id,

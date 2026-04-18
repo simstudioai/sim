@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { member, organization, settings, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { eq, inArray } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import {
   getEmailSubject,
   renderCreditsExhaustedEmail,
@@ -40,6 +40,40 @@ const logger = createLogger('UsageManagement')
 export interface OrgUsageLimitResult {
   limit: number
   minimum: number
+}
+
+/**
+ * Sum `currentPeriodCost` across all members of an organization.
+ * The single source of truth for pooled-usage reads so every caller
+ * applies identical null-handling and query shape. Does NOT apply
+ * daily-refresh deduction — callers layer that on top themselves
+ * because refresh math needs the caller's `sub` context (plan,
+ * period, seats, per-user bounds).
+ *
+ * Uses `LEFT JOIN` so members whose `userStats` row is missing still
+ * appear (contributing 0), which keeps `memberIds` complete for
+ * downstream refresh / bounds computations.
+ */
+export async function getPooledOrgCurrentPeriodCost(
+  organizationId: string
+): Promise<{ memberIds: string[]; currentPeriodCost: number }> {
+  const rows = await db
+    .select({
+      userId: member.userId,
+      currentPeriodCost: userStats.currentPeriodCost,
+    })
+    .from(member)
+    .leftJoin(userStats, eq(member.userId, userStats.userId))
+    .where(eq(member.organizationId, organizationId))
+
+  let pooled = new Decimal(0)
+  const memberIds: string[] = []
+  for (const row of rows) {
+    memberIds.push(row.userId)
+    pooled = pooled.plus(toDecimal(row.currentPeriodCost))
+  }
+
+  return { memberIds, currentPeriodCost: toNumber(pooled) }
 }
 
 /**
@@ -184,24 +218,9 @@ export async function getUserUsageData(userId: string): Promise<UsageData> {
       )
       limit = orgLimit.limit
 
-      const teamMembers = await db
-        .select({ userId: member.userId })
-        .from(member)
-        .where(eq(member.organizationId, subscription.referenceId))
-      orgMemberIds = teamMembers.map((m) => m.userId)
-
-      if (orgMemberIds.length > 0) {
-        const rows = await db
-          .select({ current: userStats.currentPeriodCost })
-          .from(userStats)
-          .where(inArray(userStats.userId, orgMemberIds))
-
-        let pooled = toDecimal(0)
-        for (const row of rows) {
-          pooled = pooled.plus(toDecimal(row.current))
-        }
-        currentUsage = toNumber(pooled)
-      }
+      const pooled = await getPooledOrgCurrentPeriodCost(subscription.referenceId)
+      orgMemberIds = pooled.memberIds
+      currentUsage = pooled.currentPeriodCost
     } else {
       limit = stats.currentUsageLimit
         ? toNumber(toDecimal(stats.currentUsageLimit))
@@ -620,25 +639,10 @@ export async function getEffectiveCurrentPeriodCost(userId: string): Promise<num
   let refreshUserIds: string[] = [userId]
 
   if (orgScoped && subscription) {
-    const teamMembers = await db
-      .select({ userId: member.userId })
-      .from(member)
-      .where(eq(member.organizationId, subscription.referenceId))
-
-    if (teamMembers.length === 0) return 0
-
-    const memberIds = teamMembers.map((m) => m.userId)
-    refreshUserIds = memberIds
-    const rows = await db
-      .select({ current: userStats.currentPeriodCost })
-      .from(userStats)
-      .where(inArray(userStats.userId, memberIds))
-
-    let pooled = new Decimal(0)
-    for (const r of rows) {
-      pooled = pooled.plus(toDecimal(r.current))
-    }
-    rawCost = toNumber(pooled)
+    const pooled = await getPooledOrgCurrentPeriodCost(subscription.referenceId)
+    if (pooled.memberIds.length === 0) return 0
+    refreshUserIds = pooled.memberIds
+    rawCost = pooled.currentPeriodCost
   } else {
     const rows = await db
       .select({ current: userStats.currentPeriodCost })

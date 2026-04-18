@@ -120,6 +120,36 @@ vi.mock('@/lib/billing/stripe-client', () => ({
   requireStripeClient: vi.fn(),
 }))
 
+vi.mock('@/lib/billing/stripe-payment-method', () => ({
+  resolveDefaultPaymentMethod: vi.fn(async () => ({
+    paymentMethodId: undefined,
+    collectionMethod: 'charge_automatically',
+  })),
+  getPaymentMethodId: vi.fn(),
+  getCustomerId: vi.fn(),
+}))
+
+vi.mock('@/lib/billing/subscriptions/utils', () => ({
+  ENTITLED_SUBSCRIPTION_STATUSES: ['active', 'trialing', 'past_due'],
+}))
+
+vi.mock('@/lib/billing/utils/decimal', () => ({
+  toDecimal: vi.fn((v: string | number | null | undefined) => {
+    if (v === null || v === undefined || v === '') return { toNumber: () => 0 }
+    return { toNumber: () => Number(v) }
+  }),
+  toNumber: vi.fn((d: { toNumber: () => number }) => d.toNumber()),
+}))
+
+vi.mock('@/lib/billing/webhooks/idempotency', () => ({
+  stripeWebhookIdempotency: {
+    executeWithIdempotency: vi.fn(
+      async (_provider: string, _identifier: string, operation: () => Promise<unknown>) =>
+        operation()
+    ),
+  },
+}))
+
 vi.mock('@/lib/core/utils/urls', () => ({
   getBaseUrl: vi.fn(() => 'https://sim.test'),
 }))

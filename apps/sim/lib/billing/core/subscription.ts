@@ -90,6 +90,35 @@ export async function syncSubscriptionPlan(
 }
 
 /**
+ * Get the organization's subscription row when its status is one of
+ * `USABLE_SUBSCRIPTION_STATUSES` (product access — stricter than
+ * `ENTITLED_SUBSCRIPTION_STATUSES` which also includes `past_due`).
+ * Use this for feature-gating ("can this org use the product right
+ * now"). Use `getOrganizationSubscription` (from `core/billing.ts`)
+ * when you need the billing-side entitlement row that includes
+ * past-due subscriptions. Returns `null` when there is no usable sub.
+ */
+export async function getOrganizationSubscriptionUsable(organizationId: string) {
+  try {
+    const [orgSub] = await db
+      .select()
+      .from(subscription)
+      .where(
+        and(
+          eq(subscription.referenceId, organizationId),
+          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
+        )
+      )
+      .limit(1)
+
+    return orgSub ?? null
+  } catch (error) {
+    logger.error('Error getting usable organization subscription', { error, organizationId })
+    return null
+  }
+}
+
+/**
  * Check if a referenceId (user ID or org ID) has a paid subscription row.
  * Used for duplicate subscription prevention and transfer safety.
  *
@@ -226,16 +255,7 @@ export async function isEnterpriseOrgAdminOrOwner(userId: string): Promise<boole
       return false
     }
 
-    const [orgSub] = await db
-      .select()
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.referenceId, memberRecord.organizationId),
-          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
-        )
-      )
-      .limit(1)
+    const orgSub = await getOrganizationSubscriptionUsable(memberRecord.organizationId)
 
     const isEnterprise = orgSub && checkEnterprisePlan(orgSub)
 
@@ -290,16 +310,7 @@ export async function isTeamOrgAdminOrOwner(userId: string): Promise<boolean> {
       return false
     }
 
-    const [orgSub] = await db
-      .select()
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.referenceId, memberRecord.organizationId),
-          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
-        )
-      )
-      .limit(1)
+    const orgSub = await getOrganizationSubscriptionUsable(memberRecord.organizationId)
 
     const hasTeamPlan = orgSub && (checkTeamPlan(orgSub) || checkEnterprisePlan(orgSub))
 
@@ -339,16 +350,7 @@ export async function isOrganizationOnTeamOrEnterprisePlan(
       return false
     }
 
-    const [orgSub] = await db
-      .select()
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.referenceId, organizationId),
-          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
-        )
-      )
-      .limit(1)
+    const orgSub = await getOrganizationSubscriptionUsable(organizationId)
 
     return !!orgSub && (checkTeamPlan(orgSub) || checkEnterprisePlan(orgSub))
   } catch (error) {
@@ -375,16 +377,7 @@ export async function isOrganizationOnEnterprisePlan(organizationId: string): Pr
       return false
     }
 
-    const [orgSub] = await db
-      .select()
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.referenceId, organizationId),
-          inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
-        )
-      )
-      .limit(1)
+    const orgSub = await getOrganizationSubscriptionUsable(organizationId)
 
     return !!orgSub && checkEnterprisePlan(orgSub)
   } catch (error) {
