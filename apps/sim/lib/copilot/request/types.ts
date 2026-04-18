@@ -140,6 +140,19 @@ export interface OrchestratorOptions {
 
 export interface OrchestratorResult {
   success: boolean
+  /**
+   * True iff the non-success outcome was a user-initiated cancel
+   * (abort signal fired or client disconnected). Lets callers treat
+   * cancels differently from actual errors — notably, `buildOnComplete`
+   * must NOT finalize the chat row on cancel, because the browser's
+   * `/api/copilot/chat/stop` POST owns writing the partial assistant
+   * content and clearing `conversationId` in one UPDATE. Finalizing
+   * here would race and clear `conversationId` first, making the stop
+   * UPDATE match zero rows and the partial content vanish on refetch.
+   *
+   * Always false when `success=true`.
+   */
+  cancelled?: boolean
   content: string
   contentBlocks: ContentBlock[]
   toolCalls: ToolCallSummary[]

@@ -90,15 +90,36 @@ export async function fetchGo(url: string, options: OutboundFetchOptions = {}): 
     return response
   } catch (error) {
     span.setAttribute(TraceAttr.HttpResponseHeadersMs, Math.round(performance.now() - start))
-    span.setStatus({
-      code: SpanStatusCode.ERROR,
-      message: error instanceof Error ? error.message : String(error),
-    })
+    // AbortError isn't a real failure — it's the caller (user Stop,
+    // orchestrator deadline, reader disconnect) asking the fetch to
+    // stop. Record the exception event so the trace still carries the
+    // forensic detail, but skip `codes.ERROR` so dashboards don't
+    // treat every abort as a 5xx-class incident. Mirrors the Go-side
+    // carve-out for `context.Canceled` in `StreamSpan.RecordError`.
     span.recordException(error instanceof Error ? error : new Error(String(error)))
+    if (!isFetchAbortError(error)) {
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: error instanceof Error ? error.message : String(error),
+      })
+    }
     throw error
   } finally {
     span.end()
   }
+}
+
+/**
+ * Matches every fetch-abort shape the Node/browser runtimes produce:
+ * DOMException `AbortError`, plain `Error` with `name === 'AbortError'`,
+ * and undici's `code === 'ABORT_ERR'`. Kept local to this module so
+ * there's no cross-cutting dependency; the canonical version lives in
+ * `lib/copilot/request/otel.ts` (`isCancellationError`).
+ */
+function isFetchAbortError(err: unknown): boolean {
+  if (err == null || typeof err !== 'object') return false
+  const e = err as { name?: unknown; code?: unknown }
+  return e.name === 'AbortError' || e.code === 'ABORT_ERR'
 }
 
 function safeParseUrl(url: string): URL | null {

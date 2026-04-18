@@ -42,6 +42,53 @@ function isGenAIMessageCaptureEnabled(): boolean {
 }
 
 /**
+ * Returns true if `err` is a user-initiated / upstream cancellation
+ * rather than a genuine failure. We check every flavor that the
+ * JS/Node runtime surfaces when an `AbortSignal` fires:
+ *
+ *   - `DOMException` with `name === 'AbortError'` (browser + Node 18+ fetch)
+ *   - plain `Error` with `name === 'AbortError'` (older polyfills)
+ *   - Node's undici-shaped `code === 'ABORT_ERR'`
+ *   - Bare `'AbortError'` strings rethrown as errors
+ *
+ * Callers use this to suppress `SpanStatusCode.ERROR` on cancel paths —
+ * dashboards should not light up red every time a user hits Stop.
+ * Matches the Go-side treatment of `context.Canceled` /
+ * `context.DeadlineExceeded` in `internal/core/errors.go:RecordError`
+ * and `internal/storage/postgres/tracing.go:dbSpan.End`.
+ */
+function isCancellationError(err: unknown): boolean {
+  if (err == null) return false
+  if (typeof err === 'object') {
+    const e = err as { name?: unknown; code?: unknown; message?: unknown }
+    if (e.name === 'AbortError') return true
+    if (e.code === 'ABORT_ERR') return true
+    // Some wrappers stringify into the message but lose the name.
+    if (typeof e.message === 'string' && /aborted|AbortError/i.test(e.message)) {
+      return true
+    }
+  }
+  return false
+}
+
+/**
+ * Apply terminal status to `span` based on whether the thrown `error`
+ * is a real failure or a cancellation. Always records the exception
+ * event for forensics; only sets `codes.ERROR` for real failures.
+ * Centralized so every span wrapper has identical classification.
+ */
+function markSpanForError(span: Span, error: unknown): void {
+  const asError = error instanceof Error ? error : new Error(String(error))
+  span.recordException(asError)
+  if (!isCancellationError(error)) {
+    span.setStatus({
+      code: SpanStatusCode.ERROR,
+      message: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
+/**
  * Canonical OTel GenAI message shape used for both input and output
  * attributes. Kept minimal — only the three part types we actually
  * emit: `text`, `tool_call`, and `tool_call_response`. Adding more
@@ -205,11 +252,7 @@ export async function withIncomingGoSpan<T>(
         span.setStatus({ code: SpanStatusCode.OK })
         return result
       } catch (error) {
-        span.setStatus({
-          code: SpanStatusCode.ERROR,
-          message: error instanceof Error ? error.message : String(error),
-        })
-        span.recordException(error instanceof Error ? error : new Error(String(error)))
+        markSpanForError(span, error)
         throw error
       } finally {
         span.end()
@@ -253,11 +296,7 @@ export async function withCopilotSpan<T>(
       span.setStatus({ code: SpanStatusCode.OK })
       return result
     } catch (error) {
-      span.setStatus({
-        code: SpanStatusCode.ERROR,
-        message: error instanceof Error ? error.message : String(error),
-      })
-      span.recordException(error instanceof Error ? error : new Error(String(error)))
+      markSpanForError(span, error)
       throw error
     } finally {
       span.end()
@@ -308,11 +347,7 @@ export async function withCopilotToolSpan<T>(
         span.setStatus({ code: SpanStatusCode.OK })
         return result
       } catch (error) {
-        span.setStatus({
-          code: SpanStatusCode.ERROR,
-          message: error instanceof Error ? error.message : String(error),
-        })
-        span.recordException(error instanceof Error ? error : new Error(String(error)))
+        markSpanForError(span, error)
         throw error
       } finally {
         span.end()
@@ -522,17 +557,25 @@ export function startCopilotOtelRoot(scope: CopilotOtelScope): CopilotOtelRoot {
   const finish: CopilotOtelRoot['finish'] = (outcome, error) => {
     if (finished) return
     finished = true
-    span.setAttribute(
-      TraceAttr.CopilotRequestOutcome,
-      outcome ?? RequestTraceV1Outcome.success
-    )
+    const resolvedOutcome = outcome ?? RequestTraceV1Outcome.success
+    span.setAttribute(TraceAttr.CopilotRequestOutcome, resolvedOutcome)
     if (error) {
-      span.setStatus({
-        code: SpanStatusCode.ERROR,
-        message: error instanceof Error ? error.message : String(error),
-      })
-      span.recordException(error instanceof Error ? error : new Error(String(error)))
-    } else if (outcome === RequestTraceV1Outcome.success) {
+      // `markSpanForError` records the exception event but only sets
+      // `codes.ERROR` for real failures — a cancellation-shaped error
+      // here stays `unset` (or `OK` if we resolve it below) so the
+      // trace doesn't look red when the user intentionally stopped.
+      markSpanForError(span, error)
+      if (isCancellationError(error)) {
+        span.setStatus({ code: SpanStatusCode.OK })
+      }
+    } else if (
+      resolvedOutcome === RequestTraceV1Outcome.success ||
+      resolvedOutcome === RequestTraceV1Outcome.cancelled
+    ) {
+      // Explicitly mark cancelled outcomes as OK so dashboards keying
+      // off span status don't treat "user hit Stop" as a failure — the
+      // rich detail lives on `copilot.request.cancel_reason` and the
+      // `request.cancelled` event.
       span.setStatus({ code: SpanStatusCode.OK })
     }
     span.end()
@@ -612,20 +655,21 @@ export async function withCopilotOtelContext<T>(
     ? span
     : trace.wrapSpanContext(createFallbackSpanContext())
   const otelContext = trace.setSpan(parentContext, carrierSpan)
-  let sawError = false
+  let terminalStatusSet = false
 
   try {
-    return await context.with(otelContext, () => fn(otelContext))
+    const result = await context.with(otelContext, () => fn(otelContext))
+    span.setStatus({ code: SpanStatusCode.OK })
+    terminalStatusSet = true
+    return result
   } catch (error) {
-    sawError = true
-    span.setStatus({
-      code: SpanStatusCode.ERROR,
-      message: error instanceof Error ? error.message : String(error),
-    })
-    span.recordException(error instanceof Error ? error : new Error(String(error)))
+    markSpanForError(span, error)
+    terminalStatusSet = true
     throw error
   } finally {
-    if (!sawError) {
+    if (!terminalStatusSet) {
+      // Extremely defensive: should be unreachable, but avoids leaking
+      // an unset span status if some future refactor breaks both arms.
       span.setStatus({ code: SpanStatusCode.OK })
     }
     span.end()

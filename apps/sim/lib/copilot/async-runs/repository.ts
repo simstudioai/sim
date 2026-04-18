@@ -47,15 +47,27 @@ async function withDbSpan<T>(
     const result = await fn()
     return result
   } catch (error) {
+    // AbortError / cancellation is a control-flow outcome, not a DB
+    // failure. Record the exception event but skip `codes.ERROR` so
+    // the trace doesn't show red spans for every aborted request
+    // that happened to have an in-flight async-runs query.
     span.recordException(error instanceof Error ? error : new Error(String(error)))
-    span.setStatus({
-      code: SpanStatusCode.ERROR,
-      message: error instanceof Error ? error.message : String(error),
-    })
+    if (!isAbortError(error)) {
+      span.setStatus({
+        code: SpanStatusCode.ERROR,
+        message: error instanceof Error ? error.message : String(error),
+      })
+    }
     throw error
   } finally {
     span.end()
   }
+}
+
+function isAbortError(err: unknown): boolean {
+  if (err == null || typeof err !== 'object') return false
+  const e = err as { name?: unknown; code?: unknown }
+  return e.name === 'AbortError' || e.code === 'ABORT_ERR'
 }
 
 export interface CreateRunSegmentInput {
@@ -168,28 +180,31 @@ export async function getLatestRunForExecution(executionId: string) {
   )
 }
 
+/**
+ * Deliberately UN-instrumented with OTel spans. Called from a 250ms
+ * poll loop in `app/api/copilot/chat/stream/route.ts` during every
+ * resume SSE connection — at 4 Hz for the whole lifetime of the
+ * connection, emitting a span per poll blew up long traces with
+ * hundreds of noop DB spans (observed ~240 spans/minute during
+ * reproduction).
+ *
+ * If we ever need visibility into this query's latency, add a Prom
+ * histogram (aggregates cleanly) rather than per-call spans at 4 Hz.
+ * The raw query is also fired once-off from several non-polling call
+ * sites; those get accurate DB latency from the request-level
+ * postgres instrumentation lower down the stack.
+ */
 export async function getLatestRunForStream(streamId: string, userId?: string) {
-  return withDbSpan(
-    'copilot.async_runs.get_latest_for_stream',
-    'SELECT',
-    'copilot_runs',
-    {
-      'copilot.stream_id': streamId,
-      'copilot.user_id': userId,
-    },
-    async () => {
-      const conditions = userId
-        ? and(eq(copilotRuns.streamId, streamId), eq(copilotRuns.userId, userId))
-        : eq(copilotRuns.streamId, streamId)
-      const [run] = await db
-        .select()
-        .from(copilotRuns)
-        .where(conditions)
-        .orderBy(desc(copilotRuns.startedAt))
-        .limit(1)
-      return run ?? null
-    }
-  )
+  const conditions = userId
+    ? and(eq(copilotRuns.streamId, streamId), eq(copilotRuns.userId, userId))
+    : eq(copilotRuns.streamId, streamId)
+  const [run] = await db
+    .select()
+    .from(copilotRuns)
+    .where(conditions)
+    .orderBy(desc(copilotRuns.startedAt))
+    .limit(1)
+  return run ?? null
 }
 
 export async function getRunSegment(runId: string) {

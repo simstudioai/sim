@@ -138,35 +138,86 @@ export function MessageActions({ content, chatId, userQuery, requestId }: Messag
     }
   }, [])
 
-  if (!content) return null
+  // Render the action row whenever there's ANYTHING to act on. For a
+  // normal assistant turn that's `content`; for an aborted / error /
+  // content-less turn it's the `requestId` alone — users still need to
+  // be able to grab the trace ID for bug reports in those cases.
+  const hasContent = Boolean(content)
+  if (!hasContent && !requestId) return null
+
+  const canSubmitFeedback = Boolean(chatId && userQuery)
 
   return (
     <>
       <div className='flex items-center gap-0.5'>
-        <button
-          type='button'
-          aria-label='Copy message'
-          onClick={copyToClipboard}
-          className={BUTTON_CLASS}
-        >
-          {copied ? <Check className={ICON_CLASS} /> : <Copy className={ICON_CLASS} />}
-        </button>
-        <button
-          type='button'
-          aria-label='Like'
-          onClick={() => handleFeedbackClick('up')}
-          className={BUTTON_CLASS}
-        >
-          <ThumbsUp className={ICON_CLASS} />
-        </button>
-        <button
-          type='button'
-          aria-label='Dislike'
-          onClick={() => handleFeedbackClick('down')}
-          className={BUTTON_CLASS}
-        >
-          <ThumbsDown className={ICON_CLASS} />
-        </button>
+        {hasContent && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <button
+                type='button'
+                aria-label='Copy message'
+                onClick={copyToClipboard}
+                className={BUTTON_CLASS}
+              >
+                {copied ? <Check className={ICON_CLASS} /> : <Copy className={ICON_CLASS} />}
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>
+              {copied ? 'Copied message' : 'Copy message'}
+            </Tooltip.Content>
+          </Tooltip.Root>
+        )}
+        {canSubmitFeedback && (
+          <>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <button
+                  type='button'
+                  aria-label='Like'
+                  onClick={() => handleFeedbackClick('up')}
+                  className={BUTTON_CLASS}
+                >
+                  <ThumbsUp className={ICON_CLASS} />
+                </button>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>Good response</Tooltip.Content>
+            </Tooltip.Root>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <button
+                  type='button'
+                  aria-label='Dislike'
+                  onClick={() => handleFeedbackClick('down')}
+                  className={BUTTON_CLASS}
+                >
+                  <ThumbsDown className={ICON_CLASS} />
+                </button>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>Bad response</Tooltip.Content>
+            </Tooltip.Root>
+          </>
+        )}
+        {requestId && (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <button
+                type='button'
+                aria-label='Copy request ID'
+                onClick={copyRequestId}
+                className={BUTTON_CLASS}
+              >
+                {copiedRequestId ? (
+                  <Check className={ICON_CLASS} />
+                ) : (
+                  <Copy className={ICON_CLASS} />
+                )}
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>
+              {copiedRequestId ? 'Copied request ID' : 'Copy request ID'}
+            </Tooltip.Content>
+          </Tooltip.Root>
+        )}
       </div>
 
       <Modal open={pendingFeedback !== null} onOpenChange={handleModalClose}>

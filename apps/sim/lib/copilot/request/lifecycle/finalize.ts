@@ -5,6 +5,10 @@ import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import {
+  type RequestTraceV1Outcome,
+  RequestTraceV1Outcome as RequestTraceV1OutcomeConst,
+} from '@/lib/copilot/generated/request-trace-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import type { StreamWriter } from '@/lib/copilot/request/session'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
@@ -15,20 +19,33 @@ const getTracer = () => trace.getTracer('sim-copilot-finalize', '1.0.0')
 
 /**
  * Single finalization path for stream results.
- * Handles abort / error / success and publishes the terminal event.
- * Replaces duplicated blocks in the old chat-streaming.ts.
+ *
+ * `outcome` is the classifier's resolved verdict from the caller — it
+ * encodes "was this cancelled, errored, or completed" WITHOUT relying
+ * on the raw `abortController.signal.aborted` boolean. That matters
+ * because a client can disconnect mid-stream without the abort
+ * controller ever firing (the SSE `cancel()` callback only sets
+ * `publisher.clientDisconnected`); the lifecycle classifies THAT as
+ * `cancelled` too, but a prior API passed `aborted: false` into this
+ * function, sending us down `handleError` and persisting an `error`
+ * terminal state + run status. Now the outcome is the source of truth.
  */
 export async function finalizeStream(
   result: OrchestratorResult,
   publisher: StreamWriter,
   runId: string,
-  aborted: boolean,
+  outcome: RequestTraceV1Outcome,
   requestId: string
 ): Promise<void> {
-  const outcome = aborted ? 'aborted' : result.success ? 'success' : 'error'
+  const spanOutcome =
+    outcome === RequestTraceV1OutcomeConst.cancelled
+      ? 'aborted'
+      : outcome === RequestTraceV1OutcomeConst.success
+        ? 'success'
+        : 'error'
   const span = getTracer().startSpan('copilot.finalize_stream', {
     attributes: {
-      [TraceAttr.CopilotFinalizeOutcome]: outcome,
+      [TraceAttr.CopilotFinalizeOutcome]: spanOutcome,
       'copilot.run.id': runId,
       'copilot.request.id': requestId,
       [TraceAttr.CopilotResultToolCalls]: result.toolCalls?.length ?? 0,
@@ -39,9 +56,9 @@ export async function finalizeStream(
     },
   })
   try {
-    if (aborted) {
+    if (outcome === RequestTraceV1OutcomeConst.cancelled) {
       await handleAborted(result, publisher, runId, requestId)
-    } else if (!result.success) {
+    } else if (outcome === RequestTraceV1OutcomeConst.error) {
       span.setStatus({
         code: SpanStatusCode.ERROR,
         message: result.error || 'orchestration failed',

@@ -405,14 +405,29 @@ function buildOnComplete(params: {
 
     if (!chatId) return
 
+    // One-writer rule on cancel paths: `/api/copilot/chat/stop` is the
+    // single DB writer when the user hit Stop (or the client
+    // disconnected). It writes the partial assistant message AND
+    // clears `conversationId` in the same UPDATE, filtered on
+    // `conversationId = streamId`. If `finalizeAssistantTurn` races
+    // ahead here and clears `conversationId` first, stop's UPDATE
+    // matches zero rows and the partial content silently vanishes on
+    // chat refetch (repro: trace c18de3e2 → `copilot.stop.outcome =
+    // 'no_matching_row'`).
+    //
+    // So: on cancel, skip finalize here and let /chat/stop run the
+    // terminal write. On real backend errors (`!success` without
+    // `cancelled`) we DO want to finalize — it clears the stream
+    // marker so the chat isn't stuck with a non-null `conversationId`
+    // and blocking future messages.
+    if (result.cancelled) return
+
     try {
       await finalizeAssistantTurn({
         chatId,
         userMessageId,
         ...(result.success
-          ? {
-              assistantMessage: buildPersistedAssistantMessage(result, requestId),
-            }
+          ? { assistantMessage: buildPersistedAssistantMessage(result, requestId) }
           : {}),
       })
 

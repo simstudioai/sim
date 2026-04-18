@@ -49,7 +49,7 @@ export async function requestExplicitStreamAbort(params: {
       spanName: 'sim → go /api/streams/explicit-abort',
       operation: 'explicit_abort',
       attributes: {
-        'copilot.stream.id': streamId,
+        [TraceAttr.StreamId]: streamId,
         ...(chatId ? { [TraceAttr.ChatId]: chatId } : {}),
       },
     })

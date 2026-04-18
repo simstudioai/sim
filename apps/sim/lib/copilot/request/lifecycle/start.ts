@@ -278,30 +278,42 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             })
 
             lifecycleResult = result
-            outcome = abortController.signal.aborted
-              ? RequestTraceV1Outcome.cancelled
-              : result.success
-                ? RequestTraceV1Outcome.success
+            // Outcome classification (priority order):
+            //   1. `result.success` → success. The orchestrator
+            //      reporting "finished cleanly" wins over any later
+            //      signal change. Matters for the narrow race where
+            //      the user clicks Stop a beat after the stream
+            //      completed.
+            //   2. `signal.aborted` (from `abortActiveStream` or the
+            //      Redis-marker poller) OR `clientDisconnected` with
+            //      a non-success result → cancelled. `recordCancelled`
+            //      further refines into explicit_stop / client_disconnect
+            //      / unknown via `signal.reason`.
+            //   3. Otherwise → error.
+            outcome = result.success
+              ? RequestTraceV1Outcome.success
+              : abortController.signal.aborted || publisher.clientDisconnected
+                ? RequestTraceV1Outcome.cancelled
                 : RequestTraceV1Outcome.error
             if (outcome === RequestTraceV1Outcome.cancelled) {
               recordCancelled()
             }
-            await finalizeStream(
-              result,
-              publisher,
-              runId,
-              abortController.signal.aborted,
-              requestId
-            )
+            // Pass the resolved outcome — not `signal.aborted` — so
+            // `finalizeStream` classifies the same way we did above.
+            // A client-disconnect-without-controller-abort still needs
+            // to hit `handleAborted` (not `handleError`) so the chat
+            // row gets `cancelled` terminal state instead of `error`.
+            await finalizeStream(result, publisher, runId, outcome, requestId)
           } catch (error) {
-            outcome = abortController.signal.aborted
+            // Error-path classification: if the abort signal fired or
+            // the client disconnected, treat the thrown error as a
+            // cancel (same rationale as the try-path above).
+            const wasCancelled =
+              abortController.signal.aborted || publisher.clientDisconnected
+            outcome = wasCancelled
               ? RequestTraceV1Outcome.cancelled
               : RequestTraceV1Outcome.error
             if (outcome === RequestTraceV1Outcome.cancelled) {
-              // Error-path cancel: typically the stream raised before
-              // it saw the abort signal. Same classification rules as
-              // the happy path — we just also thread the error's
-              // message onto the event for triage.
               recordCancelled(error instanceof Error ? error.message : String(error))
             }
             if (publisher.clientDisconnected) {
@@ -318,13 +330,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               toolCalls: [],
               error: 'An unexpected error occurred while processing the response.',
             }
-            await finalizeStream(
-              syntheticResult,
-              publisher,
-              runId,
-              abortController.signal.aborted,
-              requestId
-            )
+            await finalizeStream(syntheticResult, publisher, runId, outcome, requestId)
           } finally {
             collector.endSpan(
               requestSpan,
@@ -390,6 +396,26 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
       })
     },
     cancel() {
+      // The browser's SSE reader closed. Flip `clientDisconnected` so
+      // in-flight `publisher.publish` calls silently no-op (prevents
+      // enqueueing on a closed controller).
+      //
+      // Intentionally does NOT fire the AbortController here. The
+      // abort controller is reserved for actual "abort this request"
+      // semantics (driven by `abortActiveStream()` on an explicit Stop
+      // or the Redis-marker poller for cross-node Stops). Firing it
+      // on browser disconnect means a successful stream that loses
+      // its reader at the last moment would get retroactively
+      // classified as aborted — which skips persisting the assistant
+      // message (see trace 707f2614 where the whole response
+      // disappeared after completion).
+      //
+      // Trade-off: on a true tab close, the orchestrator keeps reading
+      // events from Go until Go's stream ends, with `publish` no-op'ing
+      // each one. That's wasted LLM work but it's safe — the message
+      // gets persisted and the next chat reload shows it. An
+      // explicit Stop short-circuits this path cleanly via the
+      // /chat/abort handler, which DOES fire the AbortController.
       publisher.markDisconnected()
     },
   })

@@ -71,6 +71,39 @@ export async function POST(request: Request) {
       }
       if (chatId) rootSpan.setAttribute(TraceAttr.ChatId, chatId)
 
+      // ORDER MATTERS: local abort FIRST, Go explicit-abort SECOND.
+      //
+      // Sim and Go each own a separate Redis instance and do not share
+      // state through it — the only signal that crosses the service
+      // boundary is this HTTP call. So the race to win is purely
+      // Sim-internal:
+      //
+      //   - `abortActiveStream` flips the AbortController (reason =
+      //     AbortReason.UserStop) that's wrapped around the in-flight
+      //     `fetchGo('/api/mothership', ...)` SSE stream. Once flipped,
+      //     the stream throws AbortError on the next chunk read, and
+      //     the lifecycle catch block's classifier sees
+      //     `signal.aborted = true` with an explicit-stop reason → the
+      //     root span gets stamped `cancel_reason = explicit_stop` and
+      //     the `request.cancelled` event fires correctly.
+      //
+      //   - If we call Go first (old order), Go's context cancels from
+      //     its own explicit-abort handler, the /api/mothership stream
+      //     errors with "context canceled", and Sim's catch block fires
+      //     BEFORE we've flipped the local AbortController. At that
+      //     point `signal.aborted` is still false, so the classifier
+      //     falls through to `client_disconnect` / `unknown` and the
+      //     root ends up as `outcome = error` — which is what we saw
+      //     in trace 25f31730082078cef54653b1740caf12.
+      //
+      // Go's explicit-abort endpoint still runs second: it's what tells
+      // Go-side billing "this was intentional, flush the paused ledger"
+      // and is unaffected by the reorder (Go's context is already
+      // cancelled by the time we get there; the endpoint's job is
+      // billing semantics, not cancelling in-flight work).
+      const aborted = await abortActiveStream(streamId)
+      rootSpan.setAttribute(TraceAttr.CopilotAbortLocalAborted, aborted)
+
       let goAbortOk = false
       try {
         const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -94,7 +127,7 @@ export async function POST(request: Request) {
           spanName: 'sim → go /api/streams/explicit-abort',
           operation: 'explicit_abort',
           attributes: {
-            'copilot.stream.id': streamId,
+            [TraceAttr.StreamId]: streamId,
             ...(chatId ? { [TraceAttr.ChatId]: chatId } : {}),
           },
         }).finally(() => clearTimeout(timeout))
@@ -103,15 +136,12 @@ export async function POST(request: Request) {
         }
         goAbortOk = true
       } catch (err) {
-        logger.warn('Explicit abort marker request failed; proceeding with local abort', {
+        logger.warn('Explicit abort marker request failed after local abort', {
           streamId,
           error: err instanceof Error ? err.message : String(err),
         })
       }
       rootSpan.setAttribute(TraceAttr.CopilotAbortGoMarkerOk, goAbortOk)
-
-      const aborted = await abortActiveStream(streamId)
-      rootSpan.setAttribute(TraceAttr.CopilotAbortLocalAborted, aborted)
 
       if (chatId) {
         // `waitForPendingChatStream` blocks up to 8s waiting for the

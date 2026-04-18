@@ -179,16 +179,26 @@ export function MothershipChat({
                     onOptionSelect={isLastMessage ? onSubmit : undefined}
                     onWorkspaceResourceSelect={onWorkspaceResourceSelect}
                   />
-                  {!isThisStreaming && (msg.content || msg.contentBlocks?.length) && (
-                    <div className='mt-2.5'>
-                      <MessageActions
-                        content={msg.content}
-                        chatId={chatId}
-                        userQuery={precedingUserMsg?.content}
-                        requestId={msg.requestId}
-                      />
-                    </div>
-                  )}
+                  {/*
+                    Render the actions row whenever the assistant turn has
+                    settled (not streaming) AND there's anything to act on.
+                    We intentionally include `requestId` in the trigger so
+                    that aborted or content-less turns still surface the
+                    copy-trace-ID button — dropping the row in those cases
+                    makes it impossible for a user to grab the request ID
+                    needed for bug reports.
+                  */}
+                  {!isThisStreaming &&
+                    (msg.content || msg.contentBlocks?.length || msg.requestId) && (
+                      <div className='mt-2.5'>
+                        <MessageActions
+                          content={msg.content}
+                          chatId={chatId}
+                          userQuery={precedingUserMsg?.content}
+                          requestId={msg.requestId}
+                        />
+                      </div>
+                    )}
                 </div>
               )
             })}

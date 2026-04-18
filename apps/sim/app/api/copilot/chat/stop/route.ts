@@ -58,6 +58,14 @@ const StopSchema = z.object({
   streamId: z.string(),
   content: z.string(),
   contentBlocks: z.array(ContentBlockSchema).optional(),
+  /**
+   * Optional because older clients may not send it, but strongly
+   * recommended: without it, the stopped assistant message persisted
+   * below loses its `requestId`, which breaks the "Copy request ID"
+   * button in the UI (it's the only handle the user has for filing
+   * bug reports about a hung / bad turn).
+   */
+  requestId: z.string().optional(),
 })
 
 /**
@@ -84,13 +92,16 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        const { chatId, streamId, content, contentBlocks } = StopSchema.parse(await req.json())
+        const { chatId, streamId, content, contentBlocks, requestId } = StopSchema.parse(
+          await req.json()
+        )
         span.setAttributes({
           [TraceAttr.ChatId]: chatId,
           [TraceAttr.StreamId]: streamId,
           [TraceAttr.UserId]: session.user.id,
           [TraceAttr.CopilotStopContentLength]: content.length,
           [TraceAttr.CopilotStopBlocksCount]: contentBlocks?.length ?? 0,
+          ...(requestId ? { [TraceAttr.RequestId]: requestId } : {}),
         })
 
         const [row] = await db
@@ -141,6 +152,13 @@ export async function POST(req: NextRequest) {
             content,
             timestamp: new Date().toISOString(),
             contentBlocks: synthesizedStoppedBlocks,
+            // Preserve the requestId onto the persisted aborted message
+            // so the UI's "Copy request ID" button keeps working after
+            // the chat history refetches and replaces the in-memory
+            // streaming message with this persisted version. Without
+            // this, the button blinks out ~1-2s after the user hits
+            // Stop because the refetched message has no requestId.
+            ...(requestId ? { requestId } : {}),
           })
           const assistantMessage: PersistedMessage = normalized
           setClause.messages = sql`${copilotChats.messages} || ${JSON.stringify([assistantMessage])}::jsonb`

@@ -294,6 +294,7 @@ export const LlmErrorStage = {
   HttpStatus: "http_status",
   Invoke: "invoke",
   MarshalRequest: "marshal_request",
+  StreamClose: "stream_close",
 } as const;
 
 export type LlmErrorStageKey = keyof typeof LlmErrorStage;

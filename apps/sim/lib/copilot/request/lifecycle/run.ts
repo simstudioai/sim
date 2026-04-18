@@ -125,6 +125,15 @@ export async function runCopilotLifecycle(
 
     const result: OrchestratorResult = {
       success: context.errors.length === 0 && !context.wasAborted,
+      // `cancelled` is an explicit discriminator so callers can tell
+      // "user hit Stop" (don't clear the chat row; /chat/stop owns it)
+      // from "backend errored" (do clear the row so the chat isn't
+      // stuck with a non-null `conversationId`). An error that also
+      // happens to fire the abort signal still counts as an error
+      // path, but practically that doesn't happen in the success
+      // branch here — if there are errors we never reach a
+      // wasAborted-without-errors state.
+      cancelled: context.wasAborted && context.errors.length === 0,
       content: context.accumulatedContent,
       contentBlocks: context.contentBlocks,
       toolCalls: buildToolCallSummaries(context),
@@ -139,9 +148,23 @@ export async function runCopilotLifecycle(
   } catch (error) {
     const err = error instanceof Error ? error : new Error('Copilot orchestration failed')
     logger.error('Copilot orchestration failed', { error: err.message })
-    await lifecycleOptions.onError?.(err)
+    // If the abort signal fired, this throw is a consequence of the
+    // cancel (publisher.publish fails once the client disconnects, a
+    // downstream Go read throws on ctx cancel, etc.) — NOT a real
+    // backend error. Don't invoke `onError`, because on the cancel
+    // path `/api/copilot/chat/stop` is the single DB writer and
+    // `onError` would race with it via `finalizeAssistantTurn`,
+    // clearing `conversationId` before stop's UPDATE can match (see
+    // `buildOnComplete` in chat/post.ts for the full rationale).
+    // Return `cancelled: true` so upstream classification stays
+    // consistent with the success-path cancel result.
+    const wasCancelled = lifecycleOptions.abortSignal?.aborted ?? false
+    if (!wasCancelled) {
+      await lifecycleOptions.onError?.(err)
+    }
     return {
       success: false,
+      cancelled: wasCancelled,
       content: '',
       contentBlocks: [],
       toolCalls: [],

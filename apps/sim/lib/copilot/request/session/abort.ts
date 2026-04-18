@@ -257,9 +257,9 @@ export const AbortReason = {
   /** Same-process stop: browser→Sim→abortActiveStream. */
   UserStop: 'user_stop:abortActiveStream',
   /**
-   * Cross-process stop: the SIM node that held the SSE didn't receive
-   * the Stop HTTP call, but it polled the Redis abort marker that the
-   * node that DID receive it wrote, and aborts on the poll.
+   * Cross-process stop: the Sim node that holds the SSE didn't
+   * receive the Stop HTTP call, but it polled the Redis abort marker
+   * that the node that DID receive it wrote, and aborts on the poll.
    */
   RedisPoller: 'redis_abort_marker:poller',
   /** Internal timeout on the outbound explicit-abort fetch to Go. */
