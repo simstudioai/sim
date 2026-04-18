@@ -25,9 +25,10 @@ export async function setUsageLimitForCredits(
 ): Promise<void> {
   try {
     const { basePrice } = getPlanPricing(plan)
-    // `||` not `??` — 0 is never a valid seat count for a paid sub.
+
     const seatCount = seats || 1
-    const planBase = Number(basePrice) * seatCount
+    const planBase =
+      entityType === 'organization' ? Number(basePrice) * seatCount : Number(basePrice)
     const creditBalanceNum = Number(creditBalance)
     const newLimit = planBase + creditBalanceNum
 
