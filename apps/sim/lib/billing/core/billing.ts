@@ -6,7 +6,7 @@ import {
   getHighestPrioritySubscription,
   type SubscriptionMetadata,
 } from '@/lib/billing/core/subscription'
-import { getUserUsageData } from '@/lib/billing/core/usage'
+import { getOrgUsageLimit, getUserUsageData } from '@/lib/billing/core/usage'
 import { getCreditBalance } from '@/lib/billing/credits/balance'
 import {
   computeDailyRefreshConsumed,
@@ -361,18 +361,50 @@ export async function getSimplifiedBillingSummary(
       // for org-scoped subs, which would N-times-count.
       const pooled = await aggregateOrgMemberStats(organizationId)
 
-      const totalCurrentUsage = pooled.currentPeriodCost
+      const rawCurrentUsage = pooled.currentPeriodCost
       const totalCopilotCost = pooled.currentPeriodCopilotCost
       const totalLastPeriodCopilotCost = pooled.lastPeriodCopilotCost
 
+      // Deduct daily-refresh credits against this specific org's pool.
+      // `usageData` is derived from the caller's priority subscription
+      // and may not match the requested org (multi-org admins, personal
+      // priority sub, etc.), so it cannot be reused here.
+      let refreshDeduction = 0
+      if (isPaid(plan) && subscription.periodStart) {
+        const planDollars = getPlanTierDollars(plan)
+        if (planDollars > 0) {
+          const userBounds = await getOrgMemberRefreshBounds(
+            organizationId,
+            subscription.periodStart
+          )
+          refreshDeduction = await computeDailyRefreshConsumed({
+            userIds: pooled.memberIds,
+            periodStart: subscription.periodStart,
+            periodEnd: subscription.periodEnd ?? null,
+            planDollars,
+            seats: subscription.seats || 1,
+            userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
+          })
+        }
+      }
+      const effectiveCurrentUsage = Math.max(0, rawCurrentUsage - refreshDeduction)
+
+      const { limit: orgUsageLimit } = await getOrgUsageLimit(
+        organizationId,
+        plan,
+        subscription.seats ?? null
+      )
+
       const percentUsed =
-        usageData.limit > 0 ? Math.round((usageData.currentUsage / usageData.limit) * 100) : 0
+        orgUsageLimit > 0 ? Math.round((effectiveCurrentUsage / orgUsageLimit) * 100) : 0
+      const isExceeded = effectiveCurrentUsage >= orgUsageLimit
+      const isWarning = !isExceeded && percentUsed >= 80
 
       // Calculate days remaining in billing period
-      const daysRemaining = usageData.billingPeriodEnd
+      const daysRemaining = subscription.periodEnd
         ? Math.max(
             0,
-            Math.ceil((usageData.billingPeriodEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+            Math.ceil((subscription.periodEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
           )
         : 0
 
@@ -382,11 +414,11 @@ export async function getSimplifiedBillingSummary(
       return {
         type: 'organization',
         plan: subscription.plan,
-        currentUsage: totalCurrentUsage,
-        usageLimit: usageData.limit,
+        currentUsage: effectiveCurrentUsage,
+        usageLimit: orgUsageLimit,
         percentUsed,
-        isWarning: percentUsed >= 80 && percentUsed < 100,
-        isExceeded: usageData.currentUsage >= usageData.limit,
+        isWarning,
+        isExceeded,
         daysRemaining,
         creditBalance: orgCredits.balance,
         billingInterval: orgBillingInterval,
@@ -405,13 +437,13 @@ export async function getSimplifiedBillingSummary(
         cancelAtPeriodEnd: subscription.cancelAtPeriodEnd || undefined,
         // Usage details
         usage: {
-          current: usageData.currentUsage,
-          limit: usageData.limit,
+          current: effectiveCurrentUsage,
+          limit: orgUsageLimit,
           percentUsed,
-          isWarning: percentUsed >= 80 && percentUsed < 100,
-          isExceeded: usageData.currentUsage >= usageData.limit,
-          billingPeriodStart: usageData.billingPeriodStart,
-          billingPeriodEnd: usageData.billingPeriodEnd,
+          isWarning,
+          isExceeded,
+          billingPeriodStart: subscription.periodStart ?? null,
+          billingPeriodEnd: subscription.periodEnd ?? null,
           lastPeriodCost: usageData.lastPeriodCost,
           lastPeriodCopilotCost: totalLastPeriodCopilotCost,
           daysRemaining,

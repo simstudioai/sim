@@ -250,7 +250,8 @@ export async function checkUsageStatus(
 
     const percentUsed =
       effectiveLimit > 0 ? Math.min((currentUsage / effectiveLimit) * 100, 100) : 100
-    const isExceeded = effectiveLimit > 0 && currentUsage >= effectiveLimit
+
+    const isExceeded = currentUsage >= effectiveLimit
     const isWarning = !isExceeded && percentUsed >= WARNING_THRESHOLD
 
     logger.info('Final usage statistics', {
