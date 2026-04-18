@@ -206,7 +206,7 @@ export function Home({ chatId }: HomeProps = {}) {
       workspace_id: workspaceId,
       view: 'mothership',
     })
-    stopGeneration()
+    void stopGeneration().catch(() => {})
   }, [stopGeneration, workspaceId])
 
   const handleSubmit = useCallback(
