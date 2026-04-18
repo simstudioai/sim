@@ -1773,13 +1773,23 @@ export function Table({
     setDeletingColumns(null)
 
     let currentOrder = columnOrderRef.current ? [...columnOrderRef.current] : null
+    const cols = schemaColumnsRef.current
+    const originalPositions = new Map<
+      string,
+      { position: number; def: (typeof cols)[number] | undefined }
+    >()
+    for (const name of columnsToDelete) {
+      const def = cols.find((c) => c.name === name)
+      originalPositions.set(name, { position: def ? cols.indexOf(def) : cols.length, def })
+    }
+    const deletedOriginalPositions: number[] = []
 
     const deleteNext = (index: number) => {
       if (index >= columnsToDelete.length) return
       const columnToDelete = columnsToDelete[index]
-      const cols = schemaColumnsRef.current
-      const colDef = cols.find((c) => c.name === columnToDelete)
-      const colPosition = colDef ? cols.indexOf(colDef) : cols.length
+      const entry = originalPositions.get(columnToDelete)!
+      const adjustedPosition =
+        entry.position - deletedOriginalPositions.filter((p) => p < entry.position).length
       const currentRows = rowsRef.current
       const cellData = currentRows
         .filter((r) => r.data[columnToDelete] != null)
@@ -1789,13 +1799,14 @@ export function Table({
 
       deleteColumnMutation.mutate(columnToDelete, {
         onSuccess: () => {
+          deletedOriginalPositions.push(entry.position)
           pushUndoRef.current({
             type: 'delete-column',
             columnName: columnToDelete,
-            columnType: colDef?.type ?? 'string',
-            columnPosition: colPosition >= 0 ? colPosition : cols.length,
-            columnUnique: colDef?.unique ?? false,
-            columnRequired: colDef?.required ?? false,
+            columnType: entry.def?.type ?? 'string',
+            columnPosition: adjustedPosition >= 0 ? adjustedPosition : cols.length,
+            columnUnique: entry.def?.unique ?? false,
+            columnRequired: entry.def?.required ?? false,
             cellData,
             previousOrder: orderSnapshot,
             previousWidth,
