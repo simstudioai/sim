@@ -102,12 +102,14 @@ export function validateFlatWorkspaceFileName(fileName: string): string | null {
   return null
 }
 
-function getDocumentFormatInfo(fileName: string): {
+export interface DocumentFormatInfo {
   isDoc: boolean
   formatName?: 'PPTX' | 'DOCX' | 'PDF'
   sourceMime?: string
   taskId?: SandboxTaskId
-} {
+}
+
+export function getDocumentFormatInfo(fileName: string): DocumentFormatInfo {
   const lowerName = fileName.toLowerCase()
   if (lowerName.endsWith('.pptx')) {
     return {

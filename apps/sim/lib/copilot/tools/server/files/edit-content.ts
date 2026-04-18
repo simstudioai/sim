@@ -7,9 +7,8 @@ import {
 import { toError } from '@/lib/core/utils/helpers'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { updateWorkspaceFileContent } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 import { consumeLatestFileIntent } from './file-intent-store'
-import { inferContentType } from './workspace-file'
+import { getDocumentFormatInfo, inferContentType } from './workspace-file'
 
 const logger = createLogger('EditContentServerTool')
 
@@ -21,40 +20,6 @@ type EditContentResult = {
   success: boolean
   message: string
   data?: Record<string, unknown>
-}
-
-function getDocumentFormatInfo(fileName: string): {
-  isDoc: boolean
-  formatName?: string
-  sourceMime?: string
-  taskId?: SandboxTaskId
-} {
-  const lowerName = fileName.toLowerCase()
-  if (lowerName.endsWith('.pptx')) {
-    return {
-      isDoc: true,
-      formatName: 'PPTX',
-      sourceMime: 'text/x-pptxgenjs',
-      taskId: 'pptx-generate',
-    }
-  }
-  if (lowerName.endsWith('.docx')) {
-    return {
-      isDoc: true,
-      formatName: 'DOCX',
-      sourceMime: 'text/x-docxjs',
-      taskId: 'docx-generate',
-    }
-  }
-  if (lowerName.endsWith('.pdf')) {
-    return {
-      isDoc: true,
-      formatName: 'PDF',
-      sourceMime: 'text/x-pdflibjs',
-      taskId: 'pdf-generate',
-    }
-  }
-  return { isDoc: false }
 }
 
 export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentResult> = {
