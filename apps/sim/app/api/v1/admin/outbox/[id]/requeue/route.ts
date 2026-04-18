@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { outboxEvent } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
@@ -56,16 +57,7 @@ export const POST = withAdminAuthParams<{ id: string }>(async (_request, { param
       requeued: result[0],
     })
   } catch (error) {
-    logger.error('Failed to requeue outbox event', {
-      eventId: id,
-      error: error instanceof Error ? error.message : error,
-    })
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    )
+    logger.error('Failed to requeue outbox event', { eventId: id, error: toError(error).message })
+    return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
   }
 })

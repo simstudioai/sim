@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { billingOutboxHandlers } from '@/lib/billing/webhooks/outbox-handlers'
@@ -33,16 +34,9 @@ export async function GET(request: NextRequest) {
       result,
     })
   } catch (error) {
-    logger.error('Outbox processing failed', {
-      requestId,
-      error: error instanceof Error ? error.message : error,
-    })
+    logger.error('Outbox processing failed', { requestId, error: toError(error).message })
     return NextResponse.json(
-      {
-        success: false,
-        requestId,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      },
+      { success: false, requestId, error: toError(error).message },
       { status: 500 }
     )
   }

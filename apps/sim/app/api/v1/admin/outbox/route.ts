@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { outboxEvent } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
@@ -77,15 +78,7 @@ export const GET = withAdminAuth(async (request: NextRequest) => {
       counts,
     })
   } catch (error) {
-    logger.error('Failed to list outbox events', {
-      error: error instanceof Error ? error.message : error,
-    })
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    )
+    logger.error('Failed to list outbox events', { error: toError(error).message })
+    return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
   }
 })
