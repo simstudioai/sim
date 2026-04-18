@@ -3099,6 +3099,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
   onDragLeave?: () => void
 }) {
   const renameInputRef = useRef<HTMLInputElement>(null)
+  const didDragRef = useRef(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 })
 
@@ -3146,6 +3147,7 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
         e.preventDefault()
         return
       }
+      didDragRef.current = true
       e.dataTransfer.effectAllowed = 'move'
       e.dataTransfer.setData('text/plain', column.name)
 
@@ -3194,6 +3196,10 @@ const ColumnHeaderMenu = React.memo(function ColumnHeaderMenu({
 
   const handleHeaderClick = useCallback(
     (e: React.MouseEvent) => {
+      if (didDragRef.current) {
+        didDragRef.current = false
+        return
+      }
       if (isRenaming) return
       onColumnSelect(colIndex, e.shiftKey)
     },

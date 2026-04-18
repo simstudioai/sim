@@ -254,10 +254,20 @@ export function useTableUndo({
             } else {
               deleteColumnMutation.mutate(action.columnName, {
                 onSuccess: () => {
+                  const metadata: Record<string, unknown> = {}
                   if (action.previousOrder) {
                     const newOrder = action.previousOrder.filter((n) => n !== action.columnName)
                     onColumnOrderChangeRef.current?.(newOrder)
-                    updateMetadataMutation.mutate({ columnOrder: newOrder })
+                    metadata.columnOrder = newOrder
+                  }
+                  if (action.previousWidth !== null) {
+                    const currentWidths = getColumnWidthsRef.current?.() ?? {}
+                    const { [action.columnName]: _, ...rest } = currentWidths
+                    metadata.columnWidths = rest
+                    onColumnWidthsChangeRef.current?.(rest)
+                  }
+                  if (Object.keys(metadata).length > 0) {
+                    updateMetadataMutation.mutate(metadata)
                   }
                 },
               })
