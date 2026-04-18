@@ -34,7 +34,6 @@ import {
   getPlanTierDollars,
   isEnterprise,
   isFree,
-  isOrgPlan,
   isPaid,
   isPro,
   isTeam,
@@ -294,12 +293,12 @@ export function Subscription() {
   const usageLimitRef = useRef<UsageLimitRef | null>(null)
   const hasInitializedInterval = useRef(false)
 
-  const hasOrgPlan = isOrgPlan(subscriptionData?.data?.plan)
+  const hasOrgScopedSubscription = Boolean(subscriptionData?.data?.isOrgScoped)
   const isLoading =
     isSubscriptionLoading ||
     isUsageLimitLoading ||
     isWorkspaceLoading ||
-    (hasOrgPlan && isOrgBillingLoading)
+    (hasOrgScopedSubscription && isOrgBillingLoading)
 
   const isCancelledAtPeriodEnd = subscriptionData?.data?.cancelAtPeriodEnd === true
 
@@ -311,6 +310,12 @@ export function Subscription() {
     isPaid:
       isPaid(subscriptionData?.data?.plan) &&
       hasPaidSubscriptionStatus(subscriptionData?.data?.status),
+    /**
+     * True when the subscription is attached to an org (regardless of plan
+     * name). Drives routing of usage-limit edits and whether we show pooled
+     * or personal usage.
+     */
+    isOrgScoped: Boolean(subscriptionData?.data?.isOrgScoped),
     plan: subscriptionData?.data?.plan || 'free',
     status: subscriptionData?.data?.status || 'inactive',
     seats: getEffectiveSeats(subscriptionData?.data),
@@ -364,16 +369,12 @@ export function Subscription() {
   const isTeamAdmin = ['owner', 'admin'].includes(userRole)
 
   const planIncludedAmount =
-    (subscription.isTeam || subscription.isEnterprise) &&
-    isTeamAdmin &&
-    organizationBillingData?.data
+    subscription.isOrgScoped && isTeamAdmin && organizationBillingData?.data
       ? organizationBillingData.data.minimumBillingAmount
       : getPlanTierCredits(subscription.plan) / CREDIT_MULTIPLIER
 
   const effectiveUsageLimit =
-    (subscription.isTeam || subscription.isEnterprise) &&
-    isTeamAdmin &&
-    organizationBillingData?.data
+    subscription.isOrgScoped && isTeamAdmin && organizationBillingData?.data
       ? organizationBillingData.data.totalUsageLimit
       : usageLimitData.currentLimit || usage.limit
 
@@ -381,8 +382,7 @@ export function Subscription() {
     subscription.isPaid && planIncludedAmount > 0 && effectiveUsageLimit > planIncludedAmount
 
   const effectiveCurrentUsage =
-    (subscription.isTeam || subscription.isEnterprise) &&
-    organizationBillingData?.data?.totalCurrentUsage != null
+    subscription.isOrgScoped && organizationBillingData?.data?.totalCurrentUsage != null
       ? organizationBillingData.data.totalCurrentUsage
       : usage.current
 
@@ -390,8 +390,7 @@ export function Subscription() {
 
   const handleToggleOnDemand = useCallback(async () => {
     try {
-      const isOrgContext =
-        (subscription.isTeam || subscription.isEnterprise) && isTeamAdmin && activeOrgId
+      const isOrgContext = subscription.isOrgScoped && isTeamAdmin && activeOrgId
 
       if (isOnDemandActive) {
         if (!canDisableOnDemand) return
@@ -420,8 +419,7 @@ export function Subscription() {
   }, [
     isOnDemandActive,
     canDisableOnDemand,
-    subscription.isTeam,
-    subscription.isEnterprise,
+    subscription.isOrgScoped,
     isTeamAdmin,
     activeOrgId,
     planIncludedAmount,
@@ -435,6 +433,7 @@ export function Subscription() {
       isTeam: subscription.isTeam,
       isEnterprise: subscription.isEnterprise,
       isPaid: subscription.isPaid,
+      isOrgScoped: subscription.isOrgScoped,
       plan: subscription.plan || 'free',
       status: subscription.status || 'inactive',
     },
@@ -448,6 +447,7 @@ export function Subscription() {
       isTeam: subscription.isTeam,
       isEnterprise: subscription.isEnterprise,
       isPaid: subscription.isPaid,
+      isOrgScoped: subscription.isOrgScoped,
       plan: subscription.plan || 'free',
       status: subscription.status || 'inactive',
     },
@@ -502,7 +502,7 @@ export function Subscription() {
       return
     }
     if (isBlocked) {
-      const context = subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
+      const context = subscription.isOrgScoped ? 'organization' : 'user'
       openBillingPortal.mutate(
         {
           context,
@@ -529,8 +529,7 @@ export function Subscription() {
     isDispute,
     isBlocked,
     subscription.isFree,
-    subscription.isTeam,
-    subscription.isEnterprise,
+    subscription.isOrgScoped,
     activeOrgId,
     doUpgrade,
     logger,
@@ -591,13 +590,12 @@ export function Subscription() {
                 : undefined
           }
           current={
-            (subscription.isTeam || subscription.isEnterprise) &&
-            organizationBillingData?.data?.totalCurrentUsage != null
+            subscription.isOrgScoped && organizationBillingData?.data?.totalCurrentUsage != null
               ? organizationBillingData.data.totalCurrentUsage
               : usage.current
           }
           limit={
-            subscription.isEnterprise || subscription.isTeam
+            subscription.isOrgScoped
               ? organizationBillingData?.data?.totalUsageLimit
               : !subscription.isFree &&
                   (permissions.canEditUsageLimit || permissions.showTeamMemberView)
@@ -612,31 +610,19 @@ export function Subscription() {
               <UsageLimit
                 ref={usageLimitRef}
                 currentLimit={
-                  (subscription.isTeam || subscription.isEnterprise) &&
-                  isTeamAdmin &&
-                  organizationBillingData?.data
+                  subscription.isOrgScoped && isTeamAdmin && organizationBillingData?.data
                     ? organizationBillingData.data.totalUsageLimit
                     : usageLimitData.currentLimit || usage.limit
                 }
                 currentUsage={usage.current}
                 canEdit={permissions.canEditUsageLimit}
                 minimumLimit={
-                  (subscription.isTeam || subscription.isEnterprise) &&
-                  isTeamAdmin &&
-                  organizationBillingData?.data
+                  subscription.isOrgScoped && isTeamAdmin && organizationBillingData?.data
                     ? organizationBillingData.data.minimumBillingAmount
                     : usageLimitData.minimumLimit
                 }
-                context={
-                  (subscription.isTeam || subscription.isEnterprise) && isTeamAdmin
-                    ? 'organization'
-                    : 'user'
-                }
-                organizationId={
-                  (subscription.isTeam || subscription.isEnterprise) && isTeamAdmin
-                    ? activeOrgId
-                    : undefined
-                }
+                context={subscription.isOrgScoped && isTeamAdmin ? 'organization' : 'user'}
+                organizationId={subscription.isOrgScoped && isTeamAdmin ? activeOrgId : undefined}
                 onLimitUpdated={() => logger.info('Usage limit updated')}
               />
             ) : undefined
@@ -905,7 +891,7 @@ export function Subscription() {
           setManagePlanModalOpen(false)
           if (!betterAuthSubscription.cancel) return
           try {
-            const isOrgSub = (subscription.isTeam || subscription.isEnterprise) && activeOrgId
+            const isOrgSub = subscription.isOrgScoped && activeOrgId
             const referenceId = isOrgSub ? activeOrgId : session?.user?.id || ''
             const returnUrl = getBaseUrl() + window.location.pathname
             await betterAuthSubscription.cancel({ returnUrl, referenceId })
@@ -917,7 +903,7 @@ export function Subscription() {
         onRestore={async () => {
           if (!betterAuthSubscription.restore) return
           try {
-            const isOrgSub = (subscription.isTeam || subscription.isEnterprise) && activeOrgId
+            const isOrgSub = subscription.isOrgScoped && activeOrgId
             const referenceId = isOrgSub ? activeOrgId : session?.user?.id || ''
             await betterAuthSubscription.restore({ referenceId })
             await refetchSubscription()
@@ -937,9 +923,7 @@ export function Subscription() {
               <CreditBalance
                 balance={subscriptionData?.data?.creditBalance ?? 0}
                 canPurchase={hasUsablePaidAccess && permissions.canEditUsageLimit}
-                entityType={
-                  subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
-                }
+                entityType={subscription.isOrgScoped ? 'organization' : 'user'}
                 isLoading={isLoading}
                 onPurchaseComplete={() => refetchSubscription()}
               />
@@ -974,8 +958,7 @@ export function Subscription() {
                   disabled={openBillingPortal.isPending}
                   onClick={() => {
                     const portalWindow = window.open('', '_blank')
-                    const context =
-                      subscription.isTeam || subscription.isEnterprise ? 'organization' : 'user'
+                    const context = subscription.isOrgScoped ? 'organization' : 'user'
                     openBillingPortal.mutate(
                       {
                         context,

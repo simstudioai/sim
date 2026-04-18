@@ -5,7 +5,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { getPlanPricing } from '@/lib/billing/core/billing'
 import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
-import { getPlanTierDollars, isEnterprise, isPaid, isTeam } from '@/lib/billing/plan-helpers'
+import { getPlanTierDollars, isEnterprise, isPaid } from '@/lib/billing/plan-helpers'
 import {
   ENTITLED_SUBSCRIPTION_STATUSES,
   getEffectiveSeats,
@@ -162,7 +162,12 @@ export async function getOrganizationBillingData(
     // Get per-seat pricing for the plan
     const { basePrice: pricePerSeat } = getPlanPricing(subscription.plan)
 
-    const licensedSeats = subscription.seats ?? 0
+    // Licensed seats mirrors Stripe's subscription quantity. Default to 1
+    // for null rows to match the unified `basePrice × (seats ?? 1)` formula
+    // used in `getOrgUsageLimit`, `updateOrganizationUsageLimit`, overage,
+    // and threshold billing — so admin dashboard math agrees with
+    // enforcement math.
+    const licensedSeats = subscription.seats ?? 1
 
     // For seat count used in UI (invitations, team management):
     // Team: seats column (Stripe quantity)
@@ -263,18 +268,25 @@ export async function updateOrganizationUsageLimit(
       }
     }
 
-    // Only team plans can update their usage limits
-    if (!isTeam(subscription.plan)) {
+    // Any non-enterprise, non-free plan attached to an org can have its
+    // usage limit edited at the org level. This intentionally covers
+    // `pro_*` plans that have been transferred to an organization —
+    // they pool usage and are enforced against `organization.orgUsageLimit`
+    // just like team plans are.
+    if (!isPaid(subscription.plan)) {
       return {
         success: false,
-        error: 'Only team organizations can update usage limits',
+        error: 'Organization is not on a paid plan',
       }
     }
 
     const { basePrice } = getPlanPricing(subscription.plan)
-    const minimumLimit = (subscription.seats ?? 0) * basePrice
+    // Minimum = basePrice × seats (or × 1 if no seat count), mirroring
+    // Stripe's `price × quantity`. Keep this in sync with
+    // `getOrgUsageLimit` and `setUsageLimitForCredits`.
+    const seatCount = subscription.seats ?? 1
+    const minimumLimit = seatCount * basePrice
 
-    // Validate new limit is not below minimum
     if (newLimit < minimumLimit) {
       return {
         success: false,

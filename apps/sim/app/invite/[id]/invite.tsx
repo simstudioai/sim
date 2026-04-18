@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { client, useSession } from '@/lib/auth/auth-client'
 import { InviteLayout, InviteStatusCard } from '@/app/invite/components'
+import { organizationKeys } from '@/hooks/queries/organization'
+import { subscriptionKeys } from '@/hooks/queries/subscription'
 
 const logger = createLogger('InviteById')
 
@@ -166,6 +169,7 @@ export default function Invite() {
   const inviteId = params.id as string
   const searchParams = useSearchParams()
   const { data: session, isPending } = useSession()
+  const queryClient = useQueryClient()
   const [invitationDetails, setInvitationDetails] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<InviteError | null>(null)
@@ -344,6 +348,16 @@ export default function Invite() {
         await client.organization.setActive({
           organizationId: orgId,
         })
+
+        // Invalidate billing / org caches so `/workspace` doesn't flash the
+        // user's pre-join personal subscription while the new team-scoped
+        // data is being refetched. Accept-flow side effects (snapshot,
+        // storage transfer, plan sync, member insert) have already
+        // committed by the time we reach here.
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: subscriptionKeys.all }),
+          queryClient.invalidateQueries({ queryKey: organizationKeys.all }),
+        ])
 
         setAccepted(true)
 

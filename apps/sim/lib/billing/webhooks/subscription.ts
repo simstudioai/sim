@@ -2,11 +2,11 @@ import { db } from '@sim/db'
 import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, ne } from 'drizzle-orm'
-import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
+import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { hasPaidSubscription } from '@/lib/billing/core/subscription'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { restoreUserProSubscription } from '@/lib/billing/organizations/membership'
-import { isEnterprise, isPaid, isPro, isTeam } from '@/lib/billing/plan-helpers'
+import { isEnterprise, isPaid, isPro } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import {
@@ -330,7 +330,11 @@ export async function handleSubscriptionDeleted(subscription: {
     let organizationDeleted = false
     let membersSynced = 0
 
-    if (isTeam(subscription.plan)) {
+    // Route cleanup by subscription scope (where the referenceId points),
+    // not plan name. A `pro_*` attached to an org needs org-level cleanup,
+    // not the per-user sync path (which would treat `referenceId` as a user
+    // id and silently do nothing for members).
+    if (await isSubscriptionOrgScoped(subscription)) {
       const cleanup = await cleanupOrganizationSubscription(subscription.referenceId)
       restoredProCount = cleanup.restoredProCount
       membersSynced = cleanup.membersSynced

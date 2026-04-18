@@ -16,7 +16,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
-import { isOrgPlan, sqlIsPro } from '@/lib/billing/plan-helpers'
+import { isPaid, sqlIsPro } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
@@ -414,7 +414,10 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
       )
       .limit(1)
 
-    const orgIsPaid = orgSub && isOrgPlan(orgSub.plan)
+    // Any paid subscription attached to the org (team, enterprise, or
+    // `pro_*` transferred to the org) makes the org a paid tenant for
+    // the purposes of cleaning up the joining user's personal Pro usage.
+    const orgIsPaid = orgSub && isPaid(orgSub.plan)
 
     let memberId = ''
 
@@ -627,7 +630,10 @@ export async function removeUserFromOrganization(
               )
             )
 
-          hasAnyPaidTeam = orgPaidSubs.some((s) => isOrgPlan(s.plan))
+          // Any paid sub attached to an org the user is still a member
+          // of should prevent restoring their personal Pro — they're still
+          // covered by the org's plan, whatever its name.
+          hasAnyPaidTeam = orgPaidSubs.some((s) => isPaid(s.plan))
         }
 
         if (!hasAnyPaidTeam) {

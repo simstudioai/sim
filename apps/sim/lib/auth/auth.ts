@@ -37,7 +37,7 @@ import {
 } from '@/lib/auth/cimd'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
-import { writeBillingInterval } from '@/lib/billing/core/subscription'
+import { syncSubscriptionPlan, writeBillingInterval } from '@/lib/billing/core/subscription'
 import { handleNewUser } from '@/lib/billing/core/usage'
 import {
   ensureOrganizationForTeamSubscription,
@@ -2904,6 +2904,11 @@ export const auth = betterAuth({
                     { subscriptionId: subscription.id, dbPlan: subscription.plan, priceId }
                   )
                 }
+
+                // Persist the Stripe-resolved plan name to our DB row before
+                // any downstream work so subsequent reads see the fresh plan.
+                await syncSubscriptionPlan(subscription.id, subscription.plan, planFromStripe)
+
                 const subscriptionForOrg = {
                   ...subscription,
                   plan: planFromStripe ?? subscription.plan,
@@ -2981,6 +2986,13 @@ export const auth = betterAuth({
                     { subscriptionId: subscription.id, dbPlan: subscription.plan }
                   )
                 }
+
+                // Sync the DB's `plan` column to whatever Stripe currently
+                // says. better-auth's upgrade flow updates Stripe price,
+                // seats, and referenceId, but historically left `plan`
+                // stale (see `pro_6000` attached to an org in prod).
+                await syncSubscriptionPlan(subscription.id, subscription.plan, planFromStripe)
+
                 const subscriptionForOrg = {
                   ...subscription,
                   plan: planFromStripe ?? subscription.plan,

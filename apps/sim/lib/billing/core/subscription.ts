@@ -62,6 +62,37 @@ export async function writeBillingInterval(
 }
 
 /**
+ * Sync the subscription's `plan` column to match what Stripe currently
+ * says it is. This closes a historical gap where Stripe-side plan changes
+ * (e.g. Pro → Team upgrades, tier swaps) updated `seats` / `referenceId` /
+ * pricing at Stripe but left the DB's `plan` column stale (see
+ * customer sub `pro_6000` attached to an org with `seats=2`).
+ *
+ * Returns `true` if a write was issued, `false` if no update was needed.
+ */
+export async function syncSubscriptionPlan(
+  subscriptionId: string,
+  currentPlan: string | null,
+  planFromStripe: string | null
+): Promise<boolean> {
+  if (!planFromStripe) return false
+  if (currentPlan === planFromStripe) return false
+
+  await db
+    .update(subscription)
+    .set({ plan: planFromStripe })
+    .where(eq(subscription.id, subscriptionId))
+
+  logger.info('Synced subscription plan name from Stripe', {
+    subscriptionId,
+    previousPlan: currentPlan,
+    newPlan: planFromStripe,
+  })
+
+  return true
+}
+
+/**
  * Check if a referenceId (user ID or org ID) has a paid subscription row.
  * Used for duplicate subscription prevention and transfer safety.
  *

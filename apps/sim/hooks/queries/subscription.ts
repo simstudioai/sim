@@ -17,11 +17,6 @@ export interface BillingUsageData {
   lastPeriodCopilotCost: number
   daysRemaining: number
   copilotCost: number
-  currentCredits: number
-  limitCredits: number
-  lastPeriodCostCredits: number
-  lastPeriodCopilotCostCredits: number
-  copilotCostCredits: number
 }
 
 /**
@@ -30,10 +25,7 @@ export interface BillingUsageData {
 export interface SubscriptionBillingData {
   type: 'individual' | 'organization'
   plan: string
-  basePrice: number
   currentUsage: number
-  overageAmount: number
-  totalProjected: number
   usageLimit: number
   percentUsed: number
   isWarning: boolean
@@ -41,18 +33,22 @@ export interface SubscriptionBillingData {
   daysRemaining: number
   creditBalance: number
   billingInterval: 'month' | 'year'
-  tierCredits: number
-  basePriceCredits: number
-  currentUsageCredits: number
-  overageAmountCredits: number
-  totalProjectedCredits: number
-  usageLimitCredits: number
   isPaid: boolean
   isPro: boolean
   isTeam: boolean
   isEnterprise: boolean
+  /**
+   * Whether the subscription is attached to an organization. Includes
+   * `pro_*` plans that have been transferred to an org; use this for
+   * scope-based decisions instead of `isTeam` / `isEnterprise`.
+   */
+  isOrgScoped: boolean
+  /** Present when `isOrgScoped` is true. */
+  organizationId: string | null
   status: string | null
   seats: number | null
+  /** Raw subscription metadata JSON from Stripe (e.g. billingInterval). */
+  metadata: unknown
   stripeSubscriptionId: string | null
   periodEnd: string | null
   cancelAtPeriodEnd?: boolean
@@ -61,16 +57,6 @@ export interface SubscriptionBillingData {
   billingBlockedReason?: 'payment_failed' | 'dispute' | null
   blockedByOrgOwner?: boolean
   organization?: { id: string; role: 'owner' | 'admin' | 'member' }
-  organizationData?: {
-    seatCount: number
-    memberCount: number
-    totalBasePrice: number
-    totalCurrentUsage: number
-    totalOverage: number
-    totalBasePriceCredits: number
-    totalCurrentUsageCredits: number
-    totalOverageCredits: number
-  }
 }
 
 /**

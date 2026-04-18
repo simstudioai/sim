@@ -93,7 +93,10 @@ export function getEffectiveSeats(subscription: any): number {
     return 0
   }
 
-  if (isTeam(subscription.plan)) {
+  // Team plans and `pro_*` plans attached to an organization both expose
+  // licensed seats via the `seats` column on the Stripe subscription.
+  // Personally-scoped `pro_*` subs have no seat concept, so they return 0.
+  if (isTeam(subscription.plan) || isPro(subscription.plan)) {
     return subscription.seats ?? 0
   }
 
@@ -109,9 +112,34 @@ export function checkTeamPlan(subscription: any): boolean {
 }
 
 /**
- * Get the minimum usage limit for an individual user (used for validation)
- * Only applicable for plans with individual limits (Free/Pro)
- * Team and Enterprise plans use organization-level limits instead
+ * Returns true if the subscription's `referenceId` points at an organization
+ * (i.e. it is not the caller's own `userId`).
+ *
+ * Prefer this over plan-name checks (`isOrgPlan`, `isTeam`) when deciding
+ * whether reads/writes of the usage limit should be routed through the
+ * organization or the user. A subscription with plan `pro_6000` whose
+ * `referenceId` is an org id is org-scoped and must be treated as such,
+ * even though `isTeam`/`isOrgPlan` return false for its plan name.
+ *
+ * Callers should pass the user id whose perspective is being evaluated
+ * (normally the authenticated user or the billed-account user).
+ */
+export function isOrgScopedSubscription(
+  subscription: { referenceId?: string | null } | null | undefined,
+  userId: string
+): boolean {
+  if (!subscription?.referenceId) return false
+  return subscription.referenceId !== userId
+}
+
+/**
+ * Get the minimum usage limit for an individual user (used for validation).
+ *
+ * Callers should only invoke this for **personally-scoped** subscriptions —
+ * any org-scoped subscription (team, enterprise, or `pro_*` attached to an
+ * organization) uses the organization-level limit instead. Callers are
+ * responsible for gating with `isOrgScopedSubscription` before calling.
+ *
  * @param subscription The subscription object
  * @returns The per-user minimum limit in dollars
  */
@@ -127,9 +155,6 @@ export function getPerUserMinimumLimit(subscription: any): number {
   }
 
   if (isOrgPlan(subscription.plan)) {
-    // Team and Enterprise don't have individual limits - they use organization limits
-    // This function should not be called for these plans
-    // Returning 0 to indicate no individual minimum
     return 0
   }
 

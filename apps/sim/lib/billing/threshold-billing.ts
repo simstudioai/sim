@@ -8,16 +8,11 @@ import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/b
 import { calculateSubscriptionOverage, getPlanPricing } from '@/lib/billing/core/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
-import {
-  getPlanTierDollars,
-  isEnterprise,
-  isFree,
-  isPaid,
-  isTeam,
-} from '@/lib/billing/plan-helpers'
+import { getPlanTierDollars, isEnterprise, isFree, isPaid } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import {
   hasUsableSubscriptionAccess,
+  isOrgScopedSubscription,
   USABLE_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
 import { env } from '@/lib/core/config/env'
@@ -128,10 +123,14 @@ export async function checkAndBillOverageThreshold(userId: string): Promise<void
       return
     }
 
-    if (isTeam(userSubscription.plan)) {
-      logger.debug('Team plan detected - triggering org-level threshold billing', {
+    // Any org-scoped subscription (team plan, or `pro_*` attached to an org)
+    // is billed at the org level. The plan-name heuristic (`isTeam`) misses
+    // `pro_*` plans whose `referenceId` is an org id.
+    if (isOrgScopedSubscription(userSubscription, userId)) {
+      logger.debug('Org-scoped subscription detected - triggering org-level threshold billing', {
         userId,
         organizationId: userSubscription.referenceId,
+        plan: userSubscription.plan,
       })
       await checkAndBillOrganizationOverageThreshold(userSubscription.referenceId)
       return
@@ -328,8 +327,9 @@ export async function checkAndBillOrganizationOverageThreshold(
       stripeSubscriptionId: orgSubscription.stripeSubscriptionId,
     })
 
-    if (!isTeam(orgSubscription.plan)) {
-      logger.debug('Organization plan is not team, skipping', {
+    if (isEnterprise(orgSubscription.plan) || isFree(orgSubscription.plan)) {
+      // Enterprise: no overage concept. Free: not billable.
+      logger.debug('Organization plan not eligible for overage billing, skipping', {
         organizationId,
         plan: orgSubscription.plan,
       })
@@ -426,7 +426,9 @@ export async function checkAndBillOrganizationOverageThreshold(
 
       const effectiveTeamUsage = Math.max(0, totalTeamUsage - dailyRefreshDeduction)
       const { basePrice: basePricePerSeat } = getPlanPricing(orgSubscription.plan)
-      const basePrice = basePricePerSeat * (orgSubscription.seats ?? 0)
+      // Base = basePrice × seats, matching Stripe's `price × quantity`.
+      // Personal Pro (seats null) collapses to basePrice × 1.
+      const basePrice = basePricePerSeat * (orgSubscription.seats ?? 1)
       const currentOverage = Math.max(0, effectiveTeamUsage - basePrice)
       const unbilledOverage = Math.max(0, currentOverage - totalBilledOverage)
 

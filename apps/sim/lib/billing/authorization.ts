@@ -3,23 +3,31 @@ import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { hasPaidSubscription } from '@/lib/billing'
+import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 
 const logger = createLogger('BillingAuthorization')
 
 /**
- * Check if a user is authorized to manage billing for a given reference ID
- * Reference ID can be either a user ID (individual subscription) or organization ID (team subscription)
+ * Check if a user is authorized to manage billing for a given reference ID.
+ * Reference ID can be either a user ID (personal subscription) or an
+ * organization ID (org-scoped subscription — team, enterprise, or a
+ * `pro_*` plan transferred to an org).
  *
- * This function also performs duplicate subscription validation for organizations:
- * - Rejects if an organization already has an active subscription (prevents duplicates)
- * - Personal subscriptions (referenceId === userId) skip this check to allow upgrades
+ * This function also performs duplicate subscription validation for
+ * organizations:
+ * - Rejects if an organization already has an active subscription (prevents
+ *   duplicates).
+ * - Personal subscriptions skip this check to allow upgrades.
  */
 export async function authorizeSubscriptionReference(
   userId: string,
   referenceId: string,
   action?: string
 ): Promise<boolean> {
-  if (referenceId === userId) {
+  // `isOrgScopedSubscription` returns `false` when referenceId === userId,
+  // which is exactly the "personal subscription" case we want to allow
+  // without further checks.
+  if (!isOrgScopedSubscription({ referenceId }, userId)) {
     return true
   }
 

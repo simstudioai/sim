@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { client } from '@/lib/auth/auth-client'
-import { isEnterprise, isTeam } from '@/lib/billing/plan-helpers'
+import { isEnterprise, isPaid, isTeam } from '@/lib/billing/plan-helpers'
 import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 
 const logger = createLogger('OrganizationQueries')
@@ -87,13 +87,17 @@ async function fetchOrganizationSubscription(orgId: string, _signal?: AbortSigna
     return null
   }
 
-  const teamSubscription = response.data?.find(
-    (sub: any) => hasPaidSubscriptionStatus(sub.status) && isTeam(sub.plan)
+  // Any paid subscription attached to the org counts as its active sub.
+  // Priority: Enterprise > Team > Pro (matches `getHighestPrioritySubscription`).
+  // This intentionally includes `pro_*` plans that have been transferred
+  // to the org — they are pooled org-scoped subscriptions.
+  const entitled = (response.data || []).filter(
+    (sub: any) => hasPaidSubscriptionStatus(sub.status) && isPaid(sub.plan)
   )
-  const enterpriseSubscription = response.data?.find(
-    (sub: any) => hasPaidSubscriptionStatus(sub.status) && isEnterprise(sub.plan)
-  )
-  const activeSubscription = enterpriseSubscription || teamSubscription
+  const enterpriseSubscription = entitled.find((sub: any) => isEnterprise(sub.plan))
+  const teamSubscription = entitled.find((sub: any) => isTeam(sub.plan))
+  const proSubscription = entitled.find((sub: any) => !isEnterprise(sub.plan) && !isTeam(sub.plan))
+  const activeSubscription = enterpriseSubscription || teamSubscription || proSubscription
 
   return activeSubscription || null
 }

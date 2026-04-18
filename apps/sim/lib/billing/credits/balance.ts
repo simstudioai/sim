@@ -4,8 +4,11 @@ import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { isOrgPlan, isPro, isTeam } from '@/lib/billing/plan-helpers'
-import { hasUsableSubscriptionAccess } from '@/lib/billing/subscriptions/utils'
+import { isPro, isTeam } from '@/lib/billing/plan-helpers'
+import {
+  hasUsableSubscriptionAccess,
+  isOrgScopedSubscription,
+} from '@/lib/billing/subscriptions/utils'
 import { Decimal, toDecimal, toFixedString, toNumber } from '@/lib/billing/utils/decimal'
 
 const logger = createLogger('CreditBalance')
@@ -19,7 +22,10 @@ export interface CreditBalanceInfo {
 export async function getCreditBalance(userId: string): Promise<CreditBalanceInfo> {
   const subscription = await getHighestPrioritySubscription(userId)
 
-  if (subscription && isOrgPlan(subscription.plan)) {
+  // Credits live on the entity that owns the subscription. For any
+  // org-scoped sub (including `pro_*` plans attached to an org), credits
+  // are read from `organization.creditBalance`.
+  if (isOrgScopedSubscription(subscription, userId) && subscription) {
     const orgRows = await db
       .select({ creditBalance: organization.creditBalance })
       .from(organization)
@@ -155,11 +161,11 @@ export async function deductFromCredits(userId: string, cost: number): Promise<D
   }
 
   const subscription = await getHighestPrioritySubscription(userId)
-  const isTeamOrEnterprise = isOrgPlan(subscription?.plan)
+  const orgScoped = isOrgScopedSubscription(subscription, userId)
 
   let creditsUsed: number
 
-  if (isTeamOrEnterprise && subscription?.referenceId) {
+  if (orgScoped && subscription?.referenceId) {
     creditsUsed = await atomicDeductOrgCredits(subscription.referenceId, cost)
   } else {
     creditsUsed = await atomicDeductUserCredits(userId, cost)
@@ -172,7 +178,7 @@ export async function deductFromCredits(userId: string, cost: number): Promise<D
       userId,
       creditsUsed,
       overflow,
-      entityType: isTeamOrEnterprise ? 'organization' : 'user',
+      entityType: orgScoped ? 'organization' : 'user',
     })
   }
 

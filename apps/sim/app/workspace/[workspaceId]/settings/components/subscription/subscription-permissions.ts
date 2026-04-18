@@ -17,6 +17,12 @@ export interface SubscriptionState {
   isTeam: boolean
   isEnterprise: boolean
   isPaid: boolean
+  /**
+   * True when the subscription's `referenceId` is an organization. Source
+   * of truth for scope-based decisions — `pro_*` plans that have been
+   * transferred to an org are org-scoped even though `isTeam` is false.
+   */
+  isOrgScoped: boolean
   plan: string
   status: string
 }
@@ -30,21 +36,30 @@ export function getSubscriptionPermissions(
   subscription: SubscriptionState,
   userRole: UserRole
 ): SubscriptionPermissions {
-  const { isFree, isPro, isTeam, isEnterprise, isPaid } = subscription
+  const { isFree, isPro, isTeam, isEnterprise, isPaid, isOrgScoped } = subscription
   const { isTeamAdmin } = userRole
+
+  // "Org-scoped non-admin" collapses all the "team member" behaviors
+  // (hidden edit, hidden cancel, no upgrade plans, pooled view, etc.).
+  // This includes members of `pro_*` orgs that aren't admins/owners.
+  const orgMemberOnly = isOrgScoped && !isTeamAdmin
+  const orgAdminOrSolo = !isOrgScoped || isTeamAdmin
 
   const isEnterpriseMember = isEnterprise && !isTeamAdmin
   const canViewUsageInfo = !isEnterpriseMember
 
   return {
     canUpgradeToPro: isFree,
-    canUpgradeToTeam: isFree || (isPro && !isTeam),
-    canViewEnterprise: !isEnterprise && !(isTeam && !isTeamAdmin), // Don't show to enterprise users or team members
-    canManageTeam: isTeam && isTeamAdmin,
-    canEditUsageLimit: (isFree || (isPro && !isTeam) || (isTeam && isTeamAdmin)) && !isEnterprise, // Free users see upgrade badge, Pro (non-team) users and team admins see pencil
-    canCancelSubscription: isPaid && !isEnterprise && !(isTeam && !isTeamAdmin), // Team members can't cancel
-    showTeamMemberView: isTeam && !isTeamAdmin,
-    showUpgradePlans: isFree || (isPro && !isTeam) || (isTeam && isTeamAdmin), // Free users, Pro users, Team owners see plans
+    canUpgradeToTeam: isFree || (isPro && !isOrgScoped),
+    canViewEnterprise: !isEnterprise && !orgMemberOnly,
+    canManageTeam: isOrgScoped && isTeamAdmin && !isEnterprise,
+    // Edit the limit when: paid plan (not free, not enterprise) AND either
+    // personally-scoped or acting as an org admin/owner.
+    canEditUsageLimit: (isFree || (isPaid && !isEnterprise)) && orgAdminOrSolo,
+    canCancelSubscription: isPaid && !isEnterprise && orgAdminOrSolo,
+    showTeamMemberView: orgMemberOnly,
+    showUpgradePlans:
+      (isFree || (isPro && !isOrgScoped) || (isTeam && isTeamAdmin)) && !isEnterprise,
     isEnterpriseMember,
     canViewUsageInfo,
   }
@@ -55,22 +70,24 @@ export function getVisiblePlans(
   userRole: UserRole
 ): ('pro' | 'team' | 'enterprise')[] {
   const plans: ('pro' | 'team' | 'enterprise')[] = []
-  const { isFree, isPro, isTeam } = subscription
+  const { isFree, isPro, isTeam, isOrgScoped } = subscription
   const { isTeamAdmin } = userRole
 
   // Free users see all plans
   if (isFree) {
     plans.push('pro', 'team', 'enterprise')
   }
-  // Pro users see team and enterprise
-  else if (isPro && !isTeam) {
+  // Personally-scoped Pro: can upgrade to team or enterprise
+  else if (isPro && !isOrgScoped) {
     plans.push('team', 'enterprise')
   }
-  // Team owners see only enterprise (no team plan since they already have it)
-  else if (isTeam && isTeamAdmin) {
+  // Team/org owners/admins: only enterprise (already on a team-level plan)
+  else if (isOrgScoped && isTeamAdmin && !isTeam) {
+    plans.push('enterprise')
+  } else if (isTeam && isTeamAdmin) {
     plans.push('enterprise')
   }
-  // Team members, Enterprise users see no plans
+  // Team/org members, Enterprise users see no plans
 
   return plans
 }

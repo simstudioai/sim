@@ -14,7 +14,7 @@ import {
   workspaceInvitation,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getEmailSubject, renderInvitationEmail } from '@/components/emails'
@@ -22,7 +22,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasAccessControlAccess } from '@/lib/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
-import { isOrgPlan, sqlIsPro } from '@/lib/billing/plan-helpers'
+import { isPaid, sqlIsPro } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -356,7 +356,10 @@ export async function PUT(
             .limit(1)
 
           const orgSub = orgSubs[0]
-          const orgIsPaid = orgSub && isOrgPlan(orgSub.plan)
+          // Any paid subscription attached to the org triggers the
+          // "snapshot my personal Pro usage and cancel it" flow — includes
+          // `pro_*` plans transferred to the org, not just team/enterprise.
+          const orgIsPaid = orgSub && isPaid(orgSub.plan)
 
           if (orgIsPaid) {
             const userId = session.user.id
@@ -409,6 +412,41 @@ export async function PUT(
               if (personalPro.cancelAtPeriodEnd !== true) {
                 personalProToCancel = personalPro
               }
+            }
+
+            // Transfer the joining user's accumulated personal storage
+            // bytes into the organization's pool. After this point
+            // `isOrgScopedSubscription` returns true for the user, so
+            // `getUserStorageUsage`/`incrementStorageUsage`/`decrementStorageUsage`
+            // all route through `organization.storageUsedBytes`. Without
+            // this transfer, pre-join bytes would be orphaned on the
+            // user's row and subsequent decrements (deleting a pre-join
+            // file after joining) would wrongly reduce the org pool.
+            const storageRows = await tx
+              .select({ storageUsedBytes: userStats.storageUsedBytes })
+              .from(userStats)
+              .where(eq(userStats.userId, userId))
+              .limit(1)
+
+            const bytesToTransfer = storageRows[0]?.storageUsedBytes ?? 0
+            if (bytesToTransfer > 0) {
+              await tx
+                .update(organization)
+                .set({
+                  storageUsedBytes: sql`${organization.storageUsedBytes} + ${bytesToTransfer}`,
+                })
+                .where(eq(organization.id, organizationId))
+
+              await tx
+                .update(userStats)
+                .set({ storageUsedBytes: 0 })
+                .where(eq(userStats.userId, userId))
+
+              logger.info('Transferred personal storage bytes to org pool on join', {
+                userId,
+                organizationId,
+                bytes: bytesToTransfer,
+              })
             }
           }
         } catch (error) {

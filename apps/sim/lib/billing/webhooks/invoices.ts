@@ -11,11 +11,11 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { getEmailSubject, PaymentFailedEmail, renderCreditPurchaseEmail } from '@/components/emails'
-import { calculateSubscriptionOverage } from '@/lib/billing/core/billing'
+import { calculateSubscriptionOverage, isSubscriptionOrgScoped } from '@/lib/billing/core/billing'
 import { addCredits, getCreditBalance, removeCredits } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
 import { blockOrgMembers, unblockOrgMembers } from '@/lib/billing/organizations/membership'
-import { isEnterprise, isOrgPlan, isTeam } from '@/lib/billing/plan-helpers'
+import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -263,11 +263,13 @@ async function sendPaymentFailureEmails(
     const amountDue = invoice.amount_due / 100 // Convert cents to dollars
     const { lastFourDigits, failureReason } = await getPaymentMethodDetails(invoice)
 
-    // Get users to notify
+    // Get users to notify based on subscription scope (determined by the
+    // subscription's referenceId, not its plan name — `pro_*` plans can be
+    // attached to orgs and must notify org owners/admins).
     let usersToNotify: Array<{ email: string; name: string | null }> = []
+    const orgScoped = await isSubscriptionOrgScoped(sub)
 
-    if (isOrgPlan(sub.plan)) {
-      // For team/enterprise, notify all owners and admins
+    if (orgScoped) {
       const members = await db
         .select({
           userId: member.userId,
@@ -276,7 +278,6 @@ async function sendPaymentFailureEmails(
         .from(member)
         .where(eq(member.organizationId, sub.referenceId))
 
-      // Get owner/admin user details
       const ownerAdminIds = members
         .filter((m) => m.role === 'owner' || m.role === 'admin')
         .map((m) => m.userId)
@@ -290,7 +291,6 @@ async function sendPaymentFailureEmails(
         usersToNotify = users.filter((u) => u.email && quickValidateEmail(u.email).isValid)
       }
     } else {
-      // For individual plans, notify the user
       const users = await db
         .select({ email: user.email, name: user.name })
         .from(user)
@@ -343,15 +343,17 @@ async function sendPaymentFailureEmails(
 }
 
 /**
- * Get total billed overage for a subscription, handling team vs individual plans
- * For team plans: sums billedOverageThisPeriod across all members
- * For other plans: gets billedOverageThisPeriod for the user
+ * Get total billed overage for a subscription, handling org-scoped vs
+ * personally-scoped plans.
+ * - Org-scoped (team, enterprise, or `pro_*` attached to an org):
+ *   stored on the org owner's `userStats.billedOverageThisPeriod`.
+ * - Personally-scoped: the user's own `billedOverageThisPeriod`.
  */
 export async function getBilledOverageForSubscription(sub: {
   plan: string | null
   referenceId: string
 }): Promise<number> {
-  if (isTeam(sub.plan)) {
+  if (await isSubscriptionOrgScoped(sub)) {
     const ownerRows = await db
       .select({ userId: member.userId })
       .from(member)
@@ -386,7 +388,7 @@ export async function getBilledOverageForSubscription(sub: {
 }
 
 export async function resetUsageForSubscription(sub: { plan: string | null; referenceId: string }) {
-  if (isOrgPlan(sub.plan)) {
+  if (await isSubscriptionOrgScoped(sub)) {
     const membersRows = await db
       .select({ userId: member.userId })
       .from(member)
@@ -432,23 +434,45 @@ export async function resetUsageForSubscription(sub: { plan: string | null; refe
       .where(eq(userStats.userId, sub.referenceId))
       .limit(1)
     if (currentStats.length > 0) {
-      // For Pro plans, combine current + snapshot for lastPeriodCost, then clear both
       const current = Number.parseFloat(currentStats[0].current?.toString() || '0')
       const snapshot = Number.parseFloat(currentStats[0].snapshot?.toString() || '0')
-      const totalLastPeriod = (current + snapshot).toString()
       const currentCopilot = currentStats[0].currentCopilot || '0'
 
-      await db
-        .update(userStats)
-        .set({
-          lastPeriodCost: totalLastPeriod,
-          lastPeriodCopilotCost: currentCopilot,
-          currentPeriodCost: '0',
-          currentPeriodCopilotCost: '0',
-          proPeriodCostSnapshot: '0', // Clear snapshot at period end
-          billedOverageThisPeriod: '0', // Clear threshold billing tracker at period end
-        })
-        .where(eq(userStats.userId, sub.referenceId))
+      // Attribution rule (mirrors `calculateSubscriptionOverage` personal
+      // Pro branch): if the user joined a paid org mid-cycle,
+      // `proPeriodCostSnapshot` holds the pre-join usage that was billed
+      // on this invoice, while `currentPeriodCost` is post-join usage
+      // that's still being billed by the org. Preserve `currentPeriodCost`
+      // (and `currentPeriodCopilotCost`) so the org's next cycle-close
+      // captures them; only retire the snapshot and personal-billing
+      // trackers here. `lastPeriodCopilotCost` is cleared because the
+      // invitation-accept flow resets `currentPeriodCopilotCost` (without
+      // snapshotting it), so the personal Pro's final period had no
+      // trackable copilot usage to report as "last period".
+      if (snapshot > 0) {
+        await db
+          .update(userStats)
+          .set({
+            lastPeriodCost: snapshot.toString(),
+            lastPeriodCopilotCost: '0',
+            proPeriodCostSnapshot: '0',
+            billedOverageThisPeriod: '0',
+          })
+          .where(eq(userStats.userId, sub.referenceId))
+      } else {
+        const totalLastPeriod = (current + snapshot).toString()
+        await db
+          .update(userStats)
+          .set({
+            lastPeriodCost: totalLastPeriod,
+            lastPeriodCopilotCost: currentCopilot,
+            currentPeriodCost: '0',
+            currentPeriodCopilotCost: '0',
+            proPeriodCostSnapshot: '0',
+            billedOverageThisPeriod: '0',
+          })
+          .where(eq(userStats.userId, sub.referenceId))
+      }
     }
   }
 }
@@ -487,7 +511,19 @@ async function handleCreditPurchaseSuccess(invoice: Stripe.Invoice): Promise<voi
 
   if (subscription.length > 0) {
     const sub = subscription[0]
-    const { balance: newCreditBalance } = await getCreditBalance(entityId)
+    // `getCreditBalance` is keyed by user id. For org-scoped entities we
+    // read from the owner's perspective so it traverses through to
+    // `organization.creditBalance`.
+    let balanceUserId = entityId
+    if (entityType === 'organization') {
+      const ownerRow = await db
+        .select({ userId: member.userId })
+        .from(member)
+        .where(and(eq(member.organizationId, entityId), eq(member.role, 'owner')))
+        .limit(1)
+      balanceUserId = ownerRow[0]?.userId ?? (purchasedBy || entityId)
+    }
+    const { balance: newCreditBalance } = await getCreditBalance(balanceUserId)
     await setUsageLimitForCredits(entityType, entityId, sub.plan, sub.seats, newCreditBalance)
   }
 
@@ -499,11 +535,12 @@ async function handleCreditPurchaseSuccess(invoice: Stripe.Invoice): Promise<voi
     purchasedBy,
   })
 
-  // Send confirmation emails
+  // Send confirmation emails. `getCreditBalance` requires a user id even
+  // when the underlying entity is an organization — for org-scoped
+  // purchases, pass the purchaser (guaranteed to be an org member) so the
+  // helper routes to `organization.creditBalance`.
   try {
-    const { balance: newBalance } = await getCreditBalance(
-      entityType === 'organization' ? entityId : purchasedBy || entityId
-    )
+    const { balance: newBalance } = await getCreditBalance(purchasedBy || entityId)
     let recipients: Array<{ email: string; name: string | null }> = []
 
     if (entityType === 'organization') {
@@ -578,10 +615,11 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
     }
 
     const { sub } = resolvedInvoice
+    const subIsOrgScoped = await isSubscriptionOrgScoped(sub)
 
     // Only reset usage here if the tenant was previously blocked; otherwise invoice.created already reset it
     let wasBlocked = false
-    if (isOrgPlan(sub.plan)) {
+    if (subIsOrgScoped) {
       const membersRows = await db
         .select({ userId: member.userId })
         .from(member)
@@ -611,7 +649,7 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
     const shouldUnblock = !isProrationInvoice || (invoice.amount_paid ?? 0) > 0
 
     if (shouldUnblock) {
-      if (isOrgPlan(sub.plan)) {
+      if (subIsOrgScoped) {
         await unblockOrgMembers(sub.referenceId, 'payment_failed')
       } else {
         await db
@@ -695,9 +733,9 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
         stripeSubscriptionId,
       })
 
-      if (isOrgPlan(sub.plan)) {
+      if (await isSubscriptionOrgScoped(sub)) {
         const memberCount = await blockOrgMembers(sub.referenceId, 'payment_failed')
-        logger.info('Blocked team/enterprise members due to payment failure', {
+        logger.info('Blocked org members due to payment failure', {
           invoiceType: invoiceType ?? 'subscription',
           memberCount,
           organizationId: sub.referenceId,
@@ -794,9 +832,20 @@ export async function handleInvoiceFinalized(event: Stripe.Event) {
     // Apply credits to reduce overage at end of cycle
     let creditsApplied = 0
     if (remainingOverage > 0) {
-      const entityType = isOrgPlan(sub.plan) ? 'organization' : 'user'
+      const entityType = (await isSubscriptionOrgScoped(sub)) ? 'organization' : 'user'
       const entityId = sub.referenceId
-      const { balance: creditBalance } = await getCreditBalance(entityId)
+      // `getCreditBalance` is keyed by user id; when we need the org balance
+      // we call it on the org owner to read the pooled org credits.
+      let balanceUserId = entityId
+      if (entityType === 'organization') {
+        const ownerRow = await db
+          .select({ userId: member.userId })
+          .from(member)
+          .where(and(eq(member.organizationId, entityId), eq(member.role, 'owner')))
+          .limit(1)
+        balanceUserId = ownerRow[0]?.userId ?? entityId
+      }
+      const { balance: creditBalance } = await getCreditBalance(balanceUserId)
 
       if (creditBalance > 0) {
         creditsApplied = Math.min(creditBalance, remainingOverage)

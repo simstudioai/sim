@@ -7,8 +7,6 @@ import { getSession } from '@/lib/auth'
 import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
 import { getSimplifiedBillingSummary } from '@/lib/billing/core/billing'
 import { getOrganizationBillingData } from '@/lib/billing/core/organization'
-import { dollarsToCredits } from '@/lib/billing/credits/conversion'
-import { getPlanTierCredits } from '@/lib/billing/plan-helpers'
 
 const logger = createLogger('UnifiedBillingAPI')
 
@@ -107,7 +105,6 @@ export async function GET(request: NextRequest) {
         )
       }
 
-      // Transform data to match component expectations
       billingData = {
         organizationId: rawBillingData.organizationId,
         organizationName: rawBillingData.organizationName,
@@ -122,17 +119,10 @@ export async function GET(request: NextRequest) {
         averageUsagePerMember: rawBillingData.averageUsagePerMember,
         billingPeriodStart: rawBillingData.billingPeriodStart?.toISOString() || null,
         billingPeriodEnd: rawBillingData.billingPeriodEnd?.toISOString() || null,
-        tierCredits: getPlanTierCredits(rawBillingData.subscriptionPlan),
-        totalCurrentUsageCredits: dollarsToCredits(rawBillingData.totalCurrentUsage),
-        totalUsageLimitCredits: dollarsToCredits(rawBillingData.totalUsageLimit),
-        minimumBillingAmountCredits: dollarsToCredits(rawBillingData.minimumBillingAmount),
-        averageUsagePerMemberCredits: dollarsToCredits(rawBillingData.averageUsagePerMember),
         members: rawBillingData.members.map((m) => ({
           ...m,
           joinedAt: m.joinedAt.toISOString(),
           lastActive: m.lastActive?.toISOString() || null,
-          currentUsageCredits: dollarsToCredits(m.currentUsage),
-          usageLimitCredits: dollarsToCredits(m.usageLimit),
         })),
       }
 

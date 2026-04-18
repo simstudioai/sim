@@ -1,11 +1,18 @@
 import { db } from '@sim/db'
-import { member, organization, userStats } from '@sim/db/schema'
+import { member, organization, subscription, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
-import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
+import {
+  getHighestPrioritySubscription,
+  type HighestPrioritySubscription,
+} from '@/lib/billing/core/plan'
 import { getUserUsageLimit } from '@/lib/billing/core/usage'
 import { computeDailyRefreshConsumed } from '@/lib/billing/credits/daily-refresh'
-import { getPlanTierDollars, isOrgPlan, isPaid } from '@/lib/billing/plan-helpers'
+import { getPlanTierDollars, isPaid } from '@/lib/billing/plan-helpers'
+import {
+  ENTITLED_SUBSCRIPTION_STATUSES,
+  isOrgScopedSubscription,
+} from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { toError } from '@/lib/core/utils/helpers'
 
@@ -19,6 +26,16 @@ interface UsageData {
   isExceeded: boolean
   currentUsage: number
   limit: number
+  /**
+   * Whether the returned `currentUsage`/`limit` represent the user's
+   * individual slice (`'user'`) or the organization's pooled total and cap
+   * (`'organization'`). When `isExceeded` is driven by an org pool check,
+   * the pooled values are surfaced here so downstream error messages are
+   * accurate.
+   */
+  scope: 'user' | 'organization'
+  /** Present only when `scope === 'organization'`. */
+  organizationId: string | null
 }
 
 /**
@@ -45,134 +62,213 @@ export async function checkUsageStatus(
         isExceeded: false,
         currentUsage,
         limit: 1000,
+        scope: 'user',
+        organizationId: null,
       }
     }
 
-    // Get usage limit from user_stats (per-user cap)
-    const limit = await getUserUsageLimit(userId, preloadedSubscription)
+    // Resolve the highest-priority subscription once so every branch below
+    // agrees on scope. The caller may have already loaded it.
+    const sub =
+      preloadedSubscription !== undefined
+        ? preloadedSubscription
+        : await getHighestPrioritySubscription(userId)
+
+    // Primary limit from user_stats or org (routed by scope).
+    const limit = await getUserUsageLimit(userId, sub)
     logger.info('Using stored usage limit', { userId, limit })
 
-    // Get actual usage from the database
-    const statsRecords = await db.select().from(userStats).where(eq(userStats.userId, userId))
+    // Usage baseline.
+    //   Org-scoped: pooled sum across all org members (with pooled refresh).
+    //   Personal:   user's own currentPeriodCost (with personal refresh).
+    const subIsOrgScoped = isOrgScopedSubscription(sub, userId)
 
-    // If no stats record exists, create a default one
-    if (statsRecords.length === 0) {
-      logger.info('No usage stats found for user', { userId, limit })
+    let currentUsage = 0
+    let effectiveLimit = limit
+    let scope: 'user' | 'organization' = subIsOrgScoped ? 'organization' : 'user'
+    let blockingOrgId: string | null = subIsOrgScoped && sub ? sub.referenceId : null
 
-      return {
-        percentUsed: 0,
-        isWarning: false,
-        isExceeded: false,
-        currentUsage: 0,
-        limit,
+    if (subIsOrgScoped && sub) {
+      const teamMembers = await db
+        .select({ userId: member.userId })
+        .from(member)
+        .where(eq(member.organizationId, sub.referenceId))
+
+      let pooled = 0
+      if (teamMembers.length > 0) {
+        const memberIds = teamMembers.map((tm) => tm.userId)
+        const memberStatsRows = await db
+          .select({ current: userStats.currentPeriodCost, total: userStats.totalCost })
+          .from(userStats)
+          .where(inArray(userStats.userId, memberIds))
+
+        for (const stats of memberStatsRows) {
+          pooled += Number.parseFloat(stats.current?.toString() || stats.total.toString())
+        }
+
+        if (isPaid(sub.plan) && sub.periodStart) {
+          const planDollars = getPlanTierDollars(sub.plan)
+          if (planDollars > 0) {
+            const refresh = await computeDailyRefreshConsumed({
+              userIds: memberIds,
+              periodStart: sub.periodStart,
+              periodEnd: sub.periodEnd ?? null,
+              planDollars,
+              seats: sub.seats ?? 1,
+            })
+            pooled = Math.max(0, pooled - refresh)
+          }
+        }
       }
+      currentUsage = pooled
+    } else {
+      // Personally-scoped: use this user's own row (defensive default 0).
+      const statsRecords = await db
+        .select()
+        .from(userStats)
+        .where(eq(userStats.userId, userId))
+        .limit(1)
+
+      if (statsRecords.length === 0) {
+        logger.info('No usage stats found for user', { userId, limit })
+        return {
+          percentUsed: 0,
+          isWarning: false,
+          isExceeded: false,
+          currentUsage: 0,
+          limit,
+          scope: 'user',
+          organizationId: null,
+        }
+      }
+
+      const rawUsage = Number.parseFloat(
+        statsRecords[0].currentPeriodCost?.toString() || statsRecords[0].totalCost.toString()
+      )
+
+      let refresh = 0
+      if (sub && isPaid(sub.plan) && sub.periodStart) {
+        const planDollars = getPlanTierDollars(sub.plan)
+        if (planDollars > 0) {
+          refresh = await computeDailyRefreshConsumed({
+            userIds: [userId],
+            periodStart: sub.periodStart,
+            periodEnd: sub.periodEnd ?? null,
+            planDollars,
+          })
+        }
+      }
+      currentUsage = Math.max(0, rawUsage - refresh)
     }
 
-    const rawUsage = Number.parseFloat(
-      statsRecords[0].currentPeriodCost?.toString() || statsRecords[0].totalCost.toString()
-    )
-
-    // Deduct daily refresh credits for individual paid plans only.
-    // Org plans apply refresh at the pooled level in the org usage check below.
-    let dailyRefreshDeduction = 0
-    if (
-      preloadedSubscription &&
-      isPaid(preloadedSubscription.plan) &&
-      !isOrgPlan(preloadedSubscription.plan) &&
-      preloadedSubscription.periodStart
-    ) {
-      const planDollars = getPlanTierDollars(preloadedSubscription.plan)
-      if (planDollars > 0) {
-        dailyRefreshDeduction = await computeDailyRefreshConsumed({
-          userIds: [userId],
-          periodStart: preloadedSubscription.periodStart,
-          periodEnd: preloadedSubscription.periodEnd ?? null,
-          planDollars,
-        })
-      }
-    }
-
-    const currentUsage = Math.max(0, rawUsage - dailyRefreshDeduction)
-
-    const percentUsed = Math.min((currentUsage / limit) * 100, 100)
-
-    let isExceeded = currentUsage >= limit
-    let isWarning = percentUsed >= WARNING_THRESHOLD && percentUsed < 100
+    // Defense-in-depth: even when the user's priority sub is personal, they
+    // may still be a member of an org whose pool has blown its cap (e.g.
+    // billed-account scenarios). Enforce every entitled-org cap they belong
+    // to and override the returned values when one is actually blocking —
+    // that way the error message surfaces the org number, not personal.
     try {
       const memberships = await db
         .select({ organizationId: member.organizationId })
         .from(member)
         .where(eq(member.userId, userId))
-      if (memberships.length > 0) {
-        for (const m of memberships) {
-          const orgRows = await db
-            .select({ id: organization.id, orgUsageLimit: organization.orgUsageLimit })
-            .from(organization)
-            .where(eq(organization.id, m.organizationId))
-            .limit(1)
-          if (orgRows.length) {
-            const org = orgRows[0]
-            const teamMembers = await db
-              .select({ userId: member.userId })
-              .from(member)
-              .where(eq(member.organizationId, org.id))
 
-            let pooledUsage = 0
-            if (teamMembers.length > 0) {
-              const memberIds = teamMembers.map((tm) => tm.userId)
-              const allMemberStats = await db
-                .select({ current: userStats.currentPeriodCost, total: userStats.totalCost })
-                .from(userStats)
-                .where(inArray(userStats.userId, memberIds))
+      for (const m of memberships) {
+        // Skip the org the primary sub is already keyed to; we've already
+        // computed pooled usage against its cap above.
+        if (subIsOrgScoped && sub && sub.referenceId === m.organizationId) continue
 
-              for (const stats of allMemberStats) {
-                pooledUsage += Number.parseFloat(
-                  stats.current?.toString() || stats.total.toString()
-                )
-              }
-            }
-            if (
-              preloadedSubscription &&
-              isPaid(preloadedSubscription.plan) &&
-              preloadedSubscription.periodStart
-            ) {
-              const planDollars = getPlanTierDollars(preloadedSubscription.plan)
-              if (planDollars > 0) {
-                const memberIds = teamMembers.map((tm) => tm.userId)
-                const orgRefreshDeduction = await computeDailyRefreshConsumed({
-                  userIds: memberIds,
-                  periodStart: preloadedSubscription.periodStart,
-                  periodEnd: preloadedSubscription.periodEnd ?? null,
-                  planDollars,
-                  seats: preloadedSubscription.seats ?? 1,
-                })
-                pooledUsage = Math.max(0, pooledUsage - orgRefreshDeduction)
-              }
-            }
+        // Pull the full org subscription row — refresh math below needs
+        // THAT org's plan/period/seats, not the caller's primary sub.
+        const [orgSub] = await db
+          .select({
+            plan: subscription.plan,
+            seats: subscription.seats,
+            periodStart: subscription.periodStart,
+            periodEnd: subscription.periodEnd,
+          })
+          .from(subscription)
+          .where(
+            and(
+              eq(subscription.referenceId, m.organizationId),
+              inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+            )
+          )
+          .limit(1)
+        if (!orgSub) continue
 
-            const orgCap = org.orgUsageLimit ? Number.parseFloat(String(org.orgUsageLimit)) : 0
-            if (!orgCap || Number.isNaN(orgCap)) {
-              logger.warn('Organization missing usage limit', { orgId: org.id })
-            }
-            if (pooledUsage >= orgCap) {
-              isExceeded = true
-              isWarning = false
-              break
-            }
+        const [org] = await db
+          .select({ id: organization.id, orgUsageLimit: organization.orgUsageLimit })
+          .from(organization)
+          .where(eq(organization.id, m.organizationId))
+          .limit(1)
+        if (!org) continue
+
+        const teamMembers = await db
+          .select({ userId: member.userId })
+          .from(member)
+          .where(eq(member.organizationId, org.id))
+
+        let pooledUsage = 0
+        if (teamMembers.length > 0) {
+          const memberIds = teamMembers.map((tm) => tm.userId)
+          const allMemberStats = await db
+            .select({ current: userStats.currentPeriodCost, total: userStats.totalCost })
+            .from(userStats)
+            .where(inArray(userStats.userId, memberIds))
+
+          for (const stats of allMemberStats) {
+            pooledUsage += Number.parseFloat(stats.current?.toString() || stats.total.toString())
           }
+        }
+
+        // Refresh is driven by the org's OWN subscription period, plan
+        // dollars, and seats — not the caller's primary sub (which may be
+        // a personal Pro in this branch).
+        if (isPaid(orgSub.plan) && orgSub.periodStart) {
+          const planDollars = getPlanTierDollars(orgSub.plan)
+          if (planDollars > 0) {
+            const memberIds = teamMembers.map((tm) => tm.userId)
+            const orgRefreshDeduction = await computeDailyRefreshConsumed({
+              userIds: memberIds,
+              periodStart: orgSub.periodStart,
+              periodEnd: orgSub.periodEnd ?? null,
+              planDollars,
+              seats: orgSub.seats ?? 1,
+            })
+            pooledUsage = Math.max(0, pooledUsage - orgRefreshDeduction)
+          }
+        }
+
+        const orgCap = org.orgUsageLimit ? Number.parseFloat(String(org.orgUsageLimit)) : 0
+        if (!orgCap || Number.isNaN(orgCap)) {
+          logger.warn('Organization missing usage limit', { orgId: org.id })
+        }
+        if (orgCap > 0 && pooledUsage >= orgCap) {
+          currentUsage = pooledUsage
+          effectiveLimit = orgCap
+          scope = 'organization'
+          blockingOrgId = org.id
+          break
         }
       }
     } catch (error) {
       logger.warn('Error checking organization usage limits', { error, userId })
     }
 
+    const percentUsed =
+      effectiveLimit > 0 ? Math.min((currentUsage / effectiveLimit) * 100, 100) : 100
+    const isExceeded = effectiveLimit > 0 && currentUsage >= effectiveLimit
+    const isWarning = !isExceeded && percentUsed >= WARNING_THRESHOLD
+
     logger.info('Final usage statistics', {
       userId,
       currentUsage,
-      limit,
+      limit: effectiveLimit,
       percentUsed,
       isWarning,
       isExceeded,
+      scope,
+      organizationId: blockingOrgId,
     })
 
     return {
@@ -180,7 +276,9 @@ export async function checkUsageStatus(
       isWarning,
       isExceeded,
       currentUsage,
-      limit,
+      limit: effectiveLimit,
+      scope,
+      organizationId: blockingOrgId,
     }
   } catch (error) {
     logger.error('Error checking usage status', {
@@ -200,6 +298,8 @@ export async function checkUsageStatus(
       isExceeded: true, // Block execution when we can't determine status
       currentUsage: 0,
       limit: 0, // Zero limit forces blocking
+      scope: 'user',
+      organizationId: null,
     }
   }
 }
@@ -354,13 +454,18 @@ export async function checkServerSideUsageLimits(
 
     const usageData = await checkUsageStatus(userId, preloadedSubscription)
 
+    const formattedUsage = (usageData.currentUsage ?? 0).toFixed(2)
+    const formattedLimit = (usageData.limit ?? 0).toFixed(2)
+    const exceededMessage =
+      usageData.scope === 'organization'
+        ? `Organization usage limit exceeded: $${formattedUsage} pooled of $${formattedLimit} organization limit. Ask a team admin to raise the organization usage limit to continue.`
+        : `Usage limit exceeded: $${formattedUsage} used of $${formattedLimit} limit. Please upgrade your plan or raise your usage limit to continue.`
+
     return {
       isExceeded: usageData.isExceeded,
       currentUsage: usageData.currentUsage,
       limit: usageData.limit,
-      message: usageData.isExceeded
-        ? `Usage limit exceeded: ${usageData.currentUsage?.toFixed(2) || 0}$ used of ${usageData.limit?.toFixed(2) || 0}$ limit. Please upgrade your plan to continue.`
-        : undefined,
+      message: usageData.isExceeded ? exceededMessage : undefined,
     }
   } catch (error) {
     logger.error('Error in server-side usage limit check', {
