@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Paperclip } from 'lucide-react'
 import {
   DropdownMenu,
@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import { Plus, Sim } from '@/components/emcn/icons'
+import { cn } from '@/lib/core/utils/cn'
 import {
   buildWorkflowFolderTree,
   type useAvailableResources,
@@ -41,6 +42,7 @@ export const PlusMenuDropdown = React.memo(
     const [open, setOpen] = useState(false)
     const [search, setSearch] = useState('')
     const [anchorPos, setAnchorPos] = useState<{ left: number; top: number } | null>(null)
+    const [activeIndex, setActiveIndex] = useState(0)
     const buttonRef = useRef<HTMLButtonElement>(null)
     const searchRef = useRef<HTMLInputElement>(null)
     const contentRef = useRef<HTMLDivElement>(null)
@@ -55,6 +57,7 @@ export const PlusMenuDropdown = React.memo(
       }
       setOpen(true)
       setSearch('')
+      setActiveIndex(0)
     }, [])
 
     React.useImperativeHandle(ref, () => ({ open: doOpen }), [doOpen])
@@ -77,25 +80,48 @@ export const PlusMenuDropdown = React.memo(
       onResourceSelect(resource)
       setOpen(false)
       setSearch('')
+      setActiveIndex(0)
     }
 
+    // Sync DOM scroll to the keyboard-highlighted filtered row.
+    useEffect(() => {
+      if (!filteredItems || filteredItems.length === 0) return
+      const row = contentRef.current?.querySelector<HTMLElement>(
+        `[data-filtered-idx="${activeIndex}"]`
+      )
+      row?.scrollIntoView({ block: 'nearest' })
+    }, [activeIndex, filteredItems])
+
+    const getVisibleMenuItems = (): HTMLElement[] =>
+      Array.from(
+        contentRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []
+      ).filter((el) => el.offsetParent !== null)
+
     const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (!filteredItems) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          getVisibleMenuItems()[0]?.focus()
+        }
+        return
+      }
+      if (filteredItems.length === 0) return
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        const firstItem = contentRef.current?.querySelector<HTMLElement>('[role="menuitem"]')
-        firstItem?.focus()
-      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        setActiveIndex((i) => Math.min(i + 1, filteredItems.length - 1))
+      } else if (e.key === 'ArrowUp') {
         e.preventDefault()
-        const first = filteredItems?.[0]
-        if (first) handleSelect({ type: first.type, id: first.item.id, title: first.item.name })
+        setActiveIndex((i) => Math.max(i - 1, 0))
+      } else if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
+        e.preventDefault()
+        const target = filteredItems[activeIndex] ?? filteredItems[0]
+        if (target) handleSelect({ type: target.type, id: target.item.id, title: target.item.name })
       }
     }
 
     const handleContentKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (e.key === 'ArrowUp') {
-        const items = Array.from(
-          contentRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []
-        )
+        const items = getVisibleMenuItems()
         if (items[0] && items[0] === document.activeElement) {
           e.preventDefault()
           searchRef.current?.focus()
@@ -114,6 +140,7 @@ export const PlusMenuDropdown = React.memo(
       if (!isOpen) {
         setSearch('')
         setAnchorPos(null)
+        setActiveIndex(0)
         onClose()
       }
     }
@@ -157,100 +184,110 @@ export const PlusMenuDropdown = React.memo(
               ref={searchRef}
               placeholder='Search resources...'
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value)
+                setActiveIndex(0)
+              }}
               onKeyDown={handleSearchKeyDown}
             />
             <div className='min-h-0 flex-1 overflow-y-auto'>
-              {filteredItems ? (
-                filteredItems.length > 0 ? (
-                  filteredItems.map(({ type, item }) => {
+              {/* Always-mounted; swapping this subtree with filtered results makes Radix's
+                  menu FocusScope steal focus from the search input back to the content root. */}
+              <div hidden={filteredItems !== null}>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setOpen(false)
+                    onFileSelect()
+                  }}
+                >
+                  <Paperclip className='h-[14px] w-[14px]' strokeWidth={2} />
+                  <span>Attachments</span>
+                </DropdownMenuItem>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Sim className='h-[14px] w-[14px]' fill='currentColor' />
+                    <span>Workspace</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    {workflowTree.length > 0 && (
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger>
+                          <div
+                            className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
+                            style={{
+                              backgroundColor: '#808080',
+                              borderColor: '#80808060',
+                              backgroundClip: 'padding-box',
+                            }}
+                          />
+                          <span>Workflows</span>
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent>
+                          <WorkflowFolderTreeItems nodes={workflowTree} onSelect={handleSelect} />
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+                    )}
+                    {availableResources
+                      .filter(({ type }) => type !== 'workflow' && type !== 'folder')
+                      .map(({ type, items }) => {
+                        if (items.length === 0) return null
+                        const config = getResourceConfig(type)
+                        const Icon = config.icon
+                        return (
+                          <DropdownMenuSub key={type}>
+                            <DropdownMenuSubTrigger>
+                              <Icon className='h-[14px] w-[14px]' />
+                              <span>{config.label}</span>
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent>
+                              {items.map((item) => (
+                                <DropdownMenuItem
+                                  key={item.id}
+                                  onClick={() => {
+                                    handleSelect({ type, id: item.id, title: item.name })
+                                  }}
+                                >
+                                  {config.renderDropdownItem({ item })}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuSubContent>
+                          </DropdownMenuSub>
+                        )
+                      })}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              </div>
+              {/* Plain buttons, not DropdownMenuItem: mount/unmount must not mutate Radix's
+                  menu Collection, or FocusScope restores focus to the content root. */}
+              {filteredItems !== null &&
+                (filteredItems.length > 0 ? (
+                  filteredItems.map(({ type, item }, index) => {
                     const config = getResourceConfig(type)
+                    const isActive = index === activeIndex
                     return (
-                      <DropdownMenuItem
+                      <button
                         key={`${type}:${item.id}`}
+                        type='button'
+                        role='menuitem'
+                        data-filtered-idx={index}
+                        onMouseEnter={() => setActiveIndex(index)}
                         onClick={() => {
-                          handleSelect({
-                            type,
-                            id: item.id,
-                            title: item.name,
-                          })
+                          handleSelect({ type, id: item.id, title: item.name })
                         }}
+                        className={cn(
+                          'relative flex w-full min-w-0 cursor-pointer select-none items-center gap-2 rounded-[5px] px-2 py-1.5 text-left font-medium text-[var(--text-body)] text-caption outline-none transition-colors [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
+                          isActive && 'bg-[var(--surface-active)]'
+                        )}
                       >
                         {config.renderDropdownItem({ item })}
-                      </DropdownMenuItem>
+                      </button>
                     )
                   })
                 ) : (
                   <div className='px-2 py-1.5 text-center font-medium text-[var(--text-tertiary)] text-caption'>
                     No results
                   </div>
-                )
-              ) : (
-                <>
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setOpen(false)
-                      onFileSelect()
-                    }}
-                  >
-                    <Paperclip className='h-[14px] w-[14px]' strokeWidth={2} />
-                    <span>Attachments</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      <Sim className='h-[14px] w-[14px]' fill='currentColor' />
-                      <span>Workspace</span>
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                      {workflowTree.length > 0 && (
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger>
-                            <div
-                              className='h-[14px] w-[14px] flex-shrink-0 rounded-[3px] border-[2px]'
-                              style={{
-                                backgroundColor: '#808080',
-                                borderColor: '#80808060',
-                                backgroundClip: 'padding-box',
-                              }}
-                            />
-                            <span>Workflows</span>
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuSubContent>
-                            <WorkflowFolderTreeItems nodes={workflowTree} onSelect={handleSelect} />
-                          </DropdownMenuSubContent>
-                        </DropdownMenuSub>
-                      )}
-                      {availableResources
-                        .filter(({ type }) => type !== 'workflow' && type !== 'folder')
-                        .map(({ type, items }) => {
-                          if (items.length === 0) return null
-                          const config = getResourceConfig(type)
-                          const Icon = config.icon
-                          return (
-                            <DropdownMenuSub key={type}>
-                              <DropdownMenuSubTrigger>
-                                <Icon className='h-[14px] w-[14px]' />
-                                <span>{config.label}</span>
-                              </DropdownMenuSubTrigger>
-                              <DropdownMenuSubContent>
-                                {items.map((item) => (
-                                  <DropdownMenuItem
-                                    key={item.id}
-                                    onClick={() => {
-                                      handleSelect({ type, id: item.id, title: item.name })
-                                    }}
-                                  >
-                                    {config.renderDropdownItem({ item })}
-                                  </DropdownMenuItem>
-                                ))}
-                              </DropdownMenuSubContent>
-                            </DropdownMenuSub>
-                          )
-                        })}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                </>
-              )}
+                ))}
             </div>
           </DropdownMenuContent>
         </DropdownMenu>

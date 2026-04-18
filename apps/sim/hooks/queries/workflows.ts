@@ -69,6 +69,11 @@ export function useWorkflows(workspaceId?: string, options?: { scope?: WorkflowQ
   })
 }
 
+// Module-scoped so TanStack Query caches the select result by function identity;
+// an inline arrow would return a new reference every render.
+const selectWorkflowMap = (data: WorkflowMetadata[]): Record<string, WorkflowMetadata> =>
+  Object.fromEntries(data.map((w) => [w.id, w]))
+
 /**
  * Returns workflows as a `Record<string, WorkflowMetadata>` keyed by ID.
  * Uses the `select` option so the transformation runs inside React Query
@@ -82,7 +87,7 @@ export function useWorkflowMap(workspaceId?: string, options?: { scope?: Workflo
     queryFn: workspaceId ? getWorkflowListQueryOptions(workspaceId, scope).queryFn : skipToken,
     placeholderData: keepPreviousData,
     staleTime: WORKFLOW_LIST_STALE_TIME,
-    select: (data) => Object.fromEntries(data.map((w) => [w.id, w])),
+    select: selectWorkflowMap,
   })
 }
 
