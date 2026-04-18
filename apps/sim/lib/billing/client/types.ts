@@ -25,6 +25,9 @@ export interface SubscriptionData {
   isPro: boolean
   isTeam: boolean
   isEnterprise: boolean
+  /** True when the subscription's `referenceId` is an organization. */
+  isOrgScoped: boolean
+  organizationId: string | null
   plan: string
   status: string | null
   seats: number | null
@@ -59,6 +62,8 @@ export interface SubscriptionStore {
     isPro: boolean
     isTeam: boolean
     isEnterprise: boolean
+    isOrgScoped: boolean
+    organizationId: string | null
     isFree: boolean
     plan: string
     status: string | null
