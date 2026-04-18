@@ -266,7 +266,7 @@ export function Table({
     if (updatedOrder) setColumnOrder(updatedOrder)
     updateMetadataRef.current({
       columnWidths: updatedWidths,
-      columnOrder: updatedOrder,
+      ...(updatedOrder ? { columnOrder: updatedOrder } : {}),
     })
   }, [])
 
@@ -758,7 +758,7 @@ export function Table({
     let maxWidth = COL_WIDTH_MIN
 
     const measure = document.createElement('span')
-    measure.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;font:inherit'
+    measure.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap'
     document.body.appendChild(measure)
 
     try {
