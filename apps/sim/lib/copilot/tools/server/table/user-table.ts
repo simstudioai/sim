@@ -5,6 +5,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import {
   buildAutoMapping,
@@ -980,13 +981,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           return { success: false, message: `Unknown operation: ${operation}` }
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      const cause =
-        error instanceof Error && error.cause
-          ? error.cause instanceof Error
-            ? error.cause.message
-            : String(error.cause)
-          : undefined
+      const errorMessage = toError(error).message
+      const cause = error instanceof Error && error.cause ? toError(error.cause).message : undefined
       logger.error('Table operation failed', {
         operation,
         error: errorMessage,

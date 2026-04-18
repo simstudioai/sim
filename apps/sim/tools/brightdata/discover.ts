@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { sleep, toError } from '@/lib/core/utils/helpers'
 import type { BrightDataDiscoverParams, BrightDataDiscoverResponse } from '@/tools/brightdata/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -178,18 +179,18 @@ export const brightDataDiscoverTool: ToolConfig<
           }
         }
 
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+        await sleep(POLL_INTERVAL_MS)
         elapsedTime += POLL_INTERVAL_MS
       } catch (error) {
         logger.error('Error polling for discover task:', {
-          message: error instanceof Error ? error.message : String(error),
+          message: toError(error).message,
           taskId,
         })
 
         return {
           ...result,
           success: false,
-          error: `Error polling for discover task: ${error instanceof Error ? error.message : String(error)}`,
+          error: `Error polling for discover task: ${toError(error).message}`,
         }
       }
     }

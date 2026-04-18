@@ -3,6 +3,7 @@ import type { Socket } from 'socket.io'
 import { auth } from '@/lib/auth'
 import { ANONYMOUS_USER, ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { isAuthDisabled } from '@/lib/core/config/feature-flags'
+import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('SocketAuth')
 
@@ -75,7 +76,7 @@ export async function authenticateSocket(socket: AuthenticatedSocket, next: (err
 
       next()
     } catch (tokenError) {
-      const errorMessage = tokenError instanceof Error ? tokenError.message : String(tokenError)
+      const errorMessage = toError(tokenError).message
       const errorStack = tokenError instanceof Error ? tokenError.stack : undefined
 
       logger.warn(`Token validation failed for socket ${socket.id}:`, {

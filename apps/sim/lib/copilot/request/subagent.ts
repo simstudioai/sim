@@ -18,6 +18,7 @@ import type {
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { getWorkflowById } from '@/lib/workflows/utils'
@@ -78,7 +79,7 @@ export async function orchestrateSubagentStream(
       logger.warn('Failed to generate workspace context for subagent request', {
         agentId,
         workspaceId: resolvedWorkspaceId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }

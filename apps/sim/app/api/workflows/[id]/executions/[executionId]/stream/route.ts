@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { sleep, toError } from '@/lib/core/utils/helpers'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import {
   type ExecutionStreamStatus,
@@ -101,7 +102,7 @@ export async function GET(
           }
 
           while (!closed && Date.now() < pollDeadline) {
-            await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+            await sleep(POLL_INTERVAL_MS)
             if (closed) return
 
             const newEvents = await readExecutionEvents(executionId, lastEventId)
@@ -135,7 +136,7 @@ export async function GET(
         } catch (error) {
           logger.error('Error in reconnection stream', {
             executionId,
-            error: error instanceof Error ? error.message : String(error),
+            error: toError(error).message,
           })
           if (!closed) {
             try {

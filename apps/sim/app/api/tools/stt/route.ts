@@ -7,6 +7,7 @@ import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+import { sleep } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import { getMimeTypeFromExtension, isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
 import {
@@ -663,7 +664,7 @@ async function transcribeWithAssemblyAI(
       throw new Error(`AssemblyAI transcription failed: ${transcript.error}`)
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 5000))
+    await sleep(5000)
     attempts++
   }
 

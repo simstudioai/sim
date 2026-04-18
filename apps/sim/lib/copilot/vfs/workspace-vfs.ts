@@ -51,6 +51,7 @@ import {
   serializeVersions,
   serializeWorkflowMeta,
 } from '@/lib/copilot/vfs/serializers'
+import { toError } from '@/lib/core/utils/helpers'
 import {
   getAccessibleEnvCredentials,
   getAccessibleOAuthCredentials,
@@ -472,7 +473,7 @@ export class WorkspaceVFS {
       logger.warn('Failed to list workspace files for readFileContent', {
         workspaceId: this._workspaceId,
         path,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return null
     }
@@ -560,7 +561,7 @@ export class WorkspaceVFS {
         } catch (err) {
           logger.warn('Failed to load workflow state', {
             workflowId: wf.id,
-            error: err instanceof Error ? err.message : String(err),
+            error: toError(err).message,
           })
         }
 
@@ -586,7 +587,7 @@ export class WorkspaceVFS {
         } catch (err) {
           logger.warn('Failed to load execution logs', {
             workflowId: wf.id,
-            error: err instanceof Error ? err.message : String(err),
+            error: toError(err).message,
           })
         }
 
@@ -607,7 +608,7 @@ export class WorkspaceVFS {
         } catch (err) {
           logger.warn('Failed to load deployment data', {
             workflowId: wf.id,
-            error: err instanceof Error ? err.message : String(err),
+            error: toError(err).message,
           })
         }
       })
@@ -683,7 +684,7 @@ export class WorkspaceVFS {
         } catch (err) {
           logger.warn('Failed to load KB documents', {
             knowledgeBaseId: kb.id,
-            error: err instanceof Error ? err.message : String(err),
+            error: toError(err).message,
           })
         }
 
@@ -717,7 +718,7 @@ export class WorkspaceVFS {
         } catch (err) {
           logger.warn('Failed to load KB connectors', {
             knowledgeBaseId: kb.id,
-            error: err instanceof Error ? err.message : String(err),
+            error: toError(err).message,
           })
         }
       })
@@ -765,7 +766,7 @@ export class WorkspaceVFS {
     } catch (err) {
       logger.warn('Failed to materialize tables', {
         workspaceId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return []
     }
@@ -807,7 +808,7 @@ export class WorkspaceVFS {
     } catch (err) {
       logger.warn('Failed to materialize files', {
         workspaceId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return []
     }
@@ -936,7 +937,7 @@ export class WorkspaceVFS {
       } catch (err) {
         logger.warn('Failed to compute needsRedeployment', {
           workflowId,
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
       }
     }
@@ -983,7 +984,7 @@ export class WorkspaceVFS {
     } catch (err) {
       logger.warn('Failed to materialize custom tools', {
         workspaceId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return []
     }
@@ -1020,7 +1021,7 @@ export class WorkspaceVFS {
     } catch (err) {
       logger.warn('Failed to materialize MCP servers', {
         workspaceId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return []
     }
@@ -1053,7 +1054,7 @@ export class WorkspaceVFS {
     } catch (err) {
       logger.warn('Failed to materialize skills', {
         workspaceId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return []
     }
@@ -1117,7 +1118,7 @@ export class WorkspaceVFS {
     } catch (err) {
       logger.warn('Failed to materialize tasks', {
         workspaceId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return []
     }
@@ -1210,7 +1211,7 @@ export class WorkspaceVFS {
         } catch (err) {
           logger.warn('Failed to load job execution logs', {
             jobId: job.id,
-            error: err instanceof Error ? err.message : String(err),
+            error: toError(err).message,
           })
         }
       }
@@ -1229,7 +1230,7 @@ export class WorkspaceVFS {
     } catch (err) {
       logger.warn('Failed to materialize jobs', {
         workspaceId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return []
     }
@@ -1327,7 +1328,7 @@ export class WorkspaceVFS {
     } catch (err) {
       logger.warn('Failed to materialize recently deleted resources', {
         workspaceId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
     }
   }
@@ -1392,7 +1393,7 @@ export class WorkspaceVFS {
     } catch (err) {
       logger.warn('Failed to materialize environment data', {
         workspaceId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       })
       return { oauthIntegrations: [], envVariables: [] }
     }

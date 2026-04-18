@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { isSameOrigin } from '@/lib/core/utils/validation'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { safeAccountInsert } from '@/app/api/auth/oauth/utils'
 
@@ -113,7 +114,7 @@ export async function GET(request: NextRequest) {
 
     const returnUrl = request.cookies.get('shopify_return_url')?.value
 
-    const redirectUrl = returnUrl || `${baseUrl}/workspace`
+    const redirectUrl = returnUrl && isSameOrigin(returnUrl) ? returnUrl : `${baseUrl}/workspace`
     const finalUrl = new URL(redirectUrl)
     finalUrl.searchParams.set('shopify_connected', 'true')
 

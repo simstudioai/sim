@@ -7,6 +7,7 @@ export {
   performChatUndeploy,
 } from './chat-deploy'
 export {
+  notifySocketDeploymentChanged,
   type PerformActivateVersionParams,
   type PerformActivateVersionResult,
   type PerformFullDeployParams,

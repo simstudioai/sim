@@ -6,6 +6,7 @@ import { createLogger } from '@sim/logger'
 import * as ipaddr from 'ipaddr.js'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
+import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('InputValidation')
 
@@ -111,7 +112,7 @@ export async function validateUrlWithDNS(
     logger.warn('DNS lookup failed for URL', {
       paramName,
       hostname,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return {
       isValid: false,
@@ -175,7 +176,7 @@ export async function validateDatabaseHost(
     logger.warn('DNS lookup failed for database host', {
       paramName,
       hostname: host,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return {
       isValid: false,

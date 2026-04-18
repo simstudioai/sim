@@ -604,9 +604,9 @@ const SubBlockRow = memo(function SubBlockRow({
 
   const { data: workflowMapForLookup = {} } = useWorkflowMap(workspaceId)
   const workflowSelectionName = useMemo(() => {
-    if (subBlock?.id !== 'workflowId' || typeof rawValue !== 'string') return null
+    if (subBlock?.type !== 'workflow-selector' || typeof rawValue !== 'string') return null
     return workflowMapForLookup[rawValue]?.name ?? null
-  }, [workflowMapForLookup, subBlock?.id, rawValue])
+  }, [workflowMapForLookup, subBlock?.type, rawValue])
 
   const { data: mcpServers = [] } = useMcpServers(workspaceId || '')
   const mcpServerDisplayName = useMemo(() => {
@@ -632,12 +632,12 @@ const SubBlockRow = memo(function SubBlockRow({
 
   const { data: tables = [] } = useTablesList(workspaceId || '')
   const tableDisplayName = useMemo(() => {
-    if (subBlock?.id !== 'tableId' || typeof rawValue !== 'string') {
+    if (subBlock?.type !== 'table-selector' || typeof rawValue !== 'string') {
       return null
     }
     const table = tables.find((t) => t.id === rawValue)
     return table?.name ?? null
-  }, [subBlock?.id, rawValue, tables])
+  }, [subBlock?.type, rawValue, tables])
 
   const webhookUrlDisplayValue = useMemo(() => {
     if (!subBlock?.id?.startsWith('webhookUrlDisplay') || !blockId) {
@@ -862,8 +862,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const contentRef = useRef<HTMLDivElement>(null)
 
   const params = useParams()
-  // In sandbox mode pass empty strings so all workspace-scoped queries are disabled
-  const currentWorkflowId = isSandbox ? '' : (params.workflowId as string)
   const workspaceId = isSandbox ? '' : (params.workspaceId as string)
 
   const {
@@ -876,6 +874,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     ringStyles,
     runPathStatus,
   } = useBlockVisual({ blockId: id, data, isPending, isSelected: selected })
+
+  const currentWorkflowId = isSandbox ? '' : (params.workflowId as string) || activeWorkflowId || ''
 
   const currentBlock = currentWorkflow.getBlockById(id)
 

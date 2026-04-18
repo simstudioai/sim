@@ -72,7 +72,7 @@ export const env = createEnv({
     STRIPE_PRICE_TEAM_25_YR:               z.string().min(1).optional(),           // Team Pro: $255/seat/yr
     STRIPE_PRICE_TEAM_100_MO:              z.string().min(1).optional(),           // Team Max: $100/seat/mo
     STRIPE_PRICE_TEAM_100_YR:              z.string().min(1).optional(),           // Team Max: $1,020/seat/yr
-    OVERAGE_THRESHOLD_DOLLARS:             z.number().optional().default(50),      // Dollar threshold for incremental overage billing (default: $50)
+    OVERAGE_THRESHOLD_DOLLARS:             z.number().optional().default(100),     // Dollar threshold for incremental overage billing (default: $100)
 
     // Email & Communication
     EMAIL_VERIFICATION_ENABLED:            z.boolean().optional(),                 // Enable email verification for user registration and login (defaults to false)
@@ -232,6 +232,9 @@ export const env = createEnv({
     IVM_DISTRIBUTED_LEASE_MIN_TTL_MS:      z.string().optional().default('120000'), // Min TTL for distributed in-flight leases (ms)
     IVM_QUEUE_TIMEOUT_MS:                  z.string().optional().default('300000'), // Max queue wait before rejection (ms)
     IVM_MAX_EXECUTIONS_PER_WORKER:         z.string().optional().default('500'),    // Max lifetime executions before worker is recycled
+    IVM_MAX_BROKER_ARGS_JSON_CHARS:        z.string().optional().default('262144'),  // Max JSON payload size for sandbox task broker args (isolate→host)
+    IVM_MAX_BROKER_RESULT_JSON_CHARS:      z.string().optional().default('16777216'),// Max JSON payload size for sandbox task broker results (host→isolate)
+    IVM_MAX_BROKERS_PER_EXECUTION:         z.string().optional().default('1000'),    // Max broker calls per sandbox task execution
 
     // Knowledge Base Processing Configuration - Shared across all processing methods
     KB_CONFIG_MAX_DURATION:                z.number().optional().default(600),     // Max processing duration in seconds (10 minutes)
@@ -275,6 +278,8 @@ export const env = createEnv({
     SUPABASE_CLIENT_SECRET:                z.string().optional(),                  // Supabase OAuth client secret
     NOTION_CLIENT_ID:                      z.string().optional(),                  // Notion OAuth client ID
     NOTION_CLIENT_SECRET:                  z.string().optional(),                  // Notion OAuth client secret
+    MONDAY_CLIENT_ID:                      z.string().optional(),                  // Monday.com OAuth client ID
+    MONDAY_CLIENT_SECRET:                  z.string().optional(),                  // Monday.com OAuth client secret
     DISCORD_CLIENT_ID:                     z.string().optional(),                  // Discord OAuth client ID
     DISCORD_CLIENT_SECRET:                 z.string().optional(),                  // Discord OAuth client secret
     DOCUSIGN_CLIENT_ID:                    z.string().optional(),                  // DocuSign OAuth client ID

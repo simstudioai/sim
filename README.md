@@ -142,13 +142,15 @@ See the [environment variables reference](https://docs.sim.ai/self-hosting/envir
 - **Database**: PostgreSQL with [Drizzle ORM](https://orm.drizzle.team)
 - **Authentication**: [Better Auth](https://better-auth.com)
 - **UI**: [Shadcn](https://ui.shadcn.com/), [Tailwind CSS](https://tailwindcss.com)
-- **State Management**: [Zustand](https://zustand-demo.pmnd.rs/)
+- **Streaming Markdown**: [Streamdown](https://github.com/vercel/streamdown)
+- **State Management**: [Zustand](https://zustand-demo.pmnd.rs/), [TanStack Query](https://tanstack.com/query)
 - **Flow Editor**: [ReactFlow](https://reactflow.dev/)
 - **Docs**: [Fumadocs](https://fumadocs.vercel.app/)
 - **Monorepo**: [Turborepo](https://turborepo.org/)
 - **Realtime**: [Socket.io](https://socket.io/)
 - **Background Jobs**: [Trigger.dev](https://trigger.dev/)
 - **Remote Code Execution**: [E2B](https://www.e2b.dev/)
+- **Isolated Code Execution**: [isolated-vm](https://github.com/laverdet/isolated-vm)
 
 ## Contributing
 

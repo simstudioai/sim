@@ -12,14 +12,25 @@
  */
 
 import { db } from '@sim/db'
-import { usageLog } from '@sim/db/schema'
+import { member, usageLog, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, gte, inArray, lt, sql, sum } from 'drizzle-orm'
+import { and, eq, gte, inArray, lt, or, sql, sum } from 'drizzle-orm'
 import { DAILY_REFRESH_RATE } from '@/lib/billing/constants'
 
 const logger = createLogger('DailyRefresh')
 
 const MS_PER_DAY = 86_400_000
+
+/**
+ * Optional per-user date window. `usageLog` rows outside
+ * `[userStart, userEnd)` are excluded from that user's contribution.
+ * Used to slice refresh around a mid-cycle org join so pre-join and
+ * post-join refresh are billed by the right subscription.
+ */
+export interface PerUserBounds {
+  userStart?: Date | null
+  userEnd?: Date | null
+}
 
 /**
  * Compute the total daily refresh credits consumed in the current billing period
@@ -36,8 +47,9 @@ export async function computeDailyRefreshConsumed(params: {
   periodEnd?: Date | null
   planDollars: number
   seats?: number
+  userBounds?: Record<string, PerUserBounds>
 }): Promise<number> {
-  const { userIds, periodStart, periodEnd, planDollars, seats = 1 } = params
+  const { userIds, periodStart, periodEnd, planDollars, seats = 1, userBounds } = params
 
   if (planDollars <= 0 || userIds.length === 0) return 0
 
@@ -51,6 +63,39 @@ export async function computeDailyRefreshConsumed(params: {
   const dayCount = Math.ceil((cap.getTime() - periodStart.getTime()) / MS_PER_DAY)
   if (dayCount <= 0) return 0
 
+  const unboundedUsers = userBounds ? userIds.filter((id) => !(id in userBounds)) : userIds
+
+  const boundedClauses = userBounds
+    ? Object.entries(userBounds).flatMap(([userId, bounds]) => {
+        if (!userIds.includes(userId)) return []
+        const effectiveStart =
+          bounds.userStart && bounds.userStart > periodStart ? bounds.userStart : periodStart
+        const effectiveEnd = bounds.userEnd && bounds.userEnd < cap ? bounds.userEnd : cap
+        if (effectiveEnd <= effectiveStart) return []
+        return [
+          and(
+            eq(usageLog.userId, userId),
+            gte(usageLog.createdAt, effectiveStart),
+            lt(usageLog.createdAt, effectiveEnd)
+          ),
+        ]
+      })
+    : []
+
+  const rowFilters =
+    unboundedUsers.length > 0
+      ? [
+          and(
+            inArray(usageLog.userId, unboundedUsers),
+            gte(usageLog.createdAt, periodStart),
+            lt(usageLog.createdAt, cap)
+          ),
+          ...boundedClauses,
+        ]
+      : boundedClauses
+
+  if (rowFilters.length === 0) return 0
+
   const rows = await db
     .select({
       dayIndex:
@@ -60,13 +105,7 @@ export async function computeDailyRefreshConsumed(params: {
       dayTotal: sum(usageLog.cost).as('day_total'),
     })
     .from(usageLog)
-    .where(
-      and(
-        inArray(usageLog.userId, userIds),
-        gte(usageLog.createdAt, periodStart),
-        lt(usageLog.createdAt, cap)
-      )
-    )
+    .where(rowFilters.length === 1 ? rowFilters[0] : or(...rowFilters))
     .groupBy(sql`day_index`)
 
   let totalConsumed = 0
@@ -81,6 +120,7 @@ export async function computeDailyRefreshConsumed(params: {
     days: dayCount,
     dailyRefreshDollars,
     totalConsumed,
+    hasUserBounds: Boolean(userBounds),
   })
 
   return totalConsumed
@@ -91,4 +131,26 @@ export async function computeDailyRefreshConsumed(params: {
  */
 export function getDailyRefreshDollars(planDollars: number): number {
   return planDollars * DAILY_REFRESH_RATE
+}
+
+export async function getOrgMemberRefreshBounds(
+  organizationId: string,
+  periodStart: Date
+): Promise<Record<string, { userStart: Date }>> {
+  const rows = await db
+    .select({
+      userId: member.userId,
+      snapshotAt: userStats.proPeriodCostSnapshotAt,
+    })
+    .from(member)
+    .leftJoin(userStats, eq(member.userId, userStats.userId))
+    .where(eq(member.organizationId, organizationId))
+
+  const bounds: Record<string, { userStart: Date }> = {}
+  for (const row of rows) {
+    if (row.snapshotAt && row.snapshotAt > periodStart) {
+      bounds[row.userId] = { userStart: row.snapshotAt }
+    }
+  }
+  return bounds
 }

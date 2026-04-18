@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core/execution-limits'
 import { IdempotencyService, webhookIdempotency } from '@/lib/core/idempotency'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -180,7 +181,7 @@ export async function resolveWebhookExecutionProviderConfig<
   try {
     return await resolveWebhookRecordProviderConfig(webhookRecord, userId, workspaceId)
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
     throw new Error(
       `Failed to resolve webhook provider config for ${provider} webhook ${webhookRecord.id}: ${errorMessage}`
     )
@@ -502,7 +503,7 @@ async function executeWebhookJobInternal(
       provider: payload.provider,
     }
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
     const errorStack = error instanceof Error ? error.stack : undefined
 
     logger.error(`[${requestId}] Webhook execution failed`, {

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@/lib/core/utils/helpers'
 import {
   downloadWorkspaceFile,
   getWorkspaceFile,
@@ -153,7 +154,7 @@ export async function loadWorkspaceFileTextForPreview(
     logger.warn('Failed to load workspace file text for preview', {
       workspaceId,
       fileId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return undefined
   }

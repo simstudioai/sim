@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { RowData } from '@/lib/table'
 import { deleteRow, updateRow } from '@/lib/table'
@@ -134,32 +135,11 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const [existingRow] = await db
-      .select({ data: userTableRows.data })
-      .from(userTableRows)
-      .where(
-        and(
-          eq(userTableRows.id, rowId),
-          eq(userTableRows.tableId, tableId),
-          eq(userTableRows.workspaceId, validated.workspaceId)
-        )
-      )
-      .limit(1)
-
-    if (!existingRow) {
-      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
-    }
-
-    const mergedData = {
-      ...(existingRow.data as RowData),
-      ...(validated.data as RowData),
-    }
-
     const updatedRow = await updateRow(
       {
         tableId,
         rowId,
-        data: mergedData,
+        data: validated.data as RowData,
         workspaceId: validated.workspaceId,
       },
       table,
@@ -193,7 +173,7 @@ export async function PATCH(request: NextRequest, { params }: RowRouteParams) {
       )
     }
 
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
 
     if (errorMessage === 'Row not found') {
       return NextResponse.json({ error: errorMessage }, { status: 404 })
@@ -260,7 +240,7 @@ export async function DELETE(request: NextRequest, { params }: RowRouteParams) {
       )
     }
 
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    const errorMessage = toError(error).message
 
     if (errorMessage === 'Row not found') {
       return NextResponse.json({ error: errorMessage }, { status: 404 })

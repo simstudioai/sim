@@ -12,6 +12,7 @@ import {
 import { getSession } from '@/lib/auth'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
+import { toError } from '@/lib/core/utils/helpers'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { generateId } from '@/lib/core/utils/uuid'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -159,7 +160,7 @@ async function testWebhook(subscription: typeof workspaceNotificationSubscriptio
     }
   } catch (error: unknown) {
     logger.warn('Webhook test failed', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return { success: false, error: 'Failed to deliver webhook' }
   }
@@ -273,7 +274,7 @@ async function testSlack(
     }
   } catch (error: unknown) {
     logger.warn('Slack test notification failed', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return { success: false, error: 'Failed to send Slack notification' }
   }

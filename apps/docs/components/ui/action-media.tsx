@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { cn, getAssetUrl } from '@/lib/utils'
 import { Lightbox } from './lightbox'
 
@@ -50,11 +50,14 @@ export function ActionImage({ src, alt, enableLightbox = true }: ActionImageProp
 }
 
 export function ActionVideo({ src, alt, enableLightbox = true }: ActionVideoProps) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const startTimeRef = useRef(0)
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
   const resolvedSrc = getAssetUrl(src)
 
   const handleClick = () => {
     if (enableLightbox) {
+      startTimeRef.current = videoRef.current?.currentTime ?? 0
       setIsLightboxOpen(true)
     }
   }
@@ -62,6 +65,7 @@ export function ActionVideo({ src, alt, enableLightbox = true }: ActionVideoProp
   return (
     <>
       <video
+        ref={videoRef}
         src={resolvedSrc}
         autoPlay
         loop
@@ -80,6 +84,7 @@ export function ActionVideo({ src, alt, enableLightbox = true }: ActionVideoProp
           src={src}
           alt={alt}
           type='video'
+          startTime={startTimeRef.current}
         />
       )}
     </>

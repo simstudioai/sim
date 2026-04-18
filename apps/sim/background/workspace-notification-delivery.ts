@@ -20,6 +20,7 @@ import { RateLimiter } from '@/lib/core/rate-limiter'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { formatDuration } from '@/lib/core/utils/formatting'
+import { toError } from '@/lib/core/utils/helpers'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { generateId } from '@/lib/core/utils/uuid'
 import type { TraceSpan, WorkflowExecutionLog } from '@/lib/logs/types'
@@ -225,7 +226,7 @@ async function deliverWebhook(
     }
   } catch (error: unknown) {
     logger.warn('Webhook delivery failed', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       webhookUrl: webhookConfig.url,
     })
     return {

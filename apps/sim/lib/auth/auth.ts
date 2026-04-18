@@ -39,6 +39,7 @@ import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import {
   getOrganizationIdForSubscriptionReference,
+  syncSubscriptionPlan,
   writeBillingInterval,
 } from '@/lib/billing/core/subscription'
 import { handleNewUser } from '@/lib/billing/core/usage'
@@ -75,6 +76,7 @@ import {
   isSignupEmailValidationEnabled,
 } from '@/lib/core/config/feature-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { toError } from '@/lib/core/utils/helpers'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { generateId } from '@/lib/core/utils/uuid'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
@@ -625,6 +627,7 @@ export const auth = betterAuth({
         'zoom',
         'wordpress',
         'linear',
+        'monday',
         'attio',
         'shopify',
         'trello',
@@ -797,7 +800,7 @@ export const auth = betterAuth({
           } catch (err) {
             logger.warn('CIMD resolution failed', {
               clientId,
-              error: err instanceof Error ? err.message : String(err),
+              error: toError(err).message,
             })
           }
         }
@@ -2029,6 +2032,59 @@ export const auth = betterAuth({
           },
         },
 
+        // Monday.com provider
+        {
+          providerId: 'monday',
+          clientId: env.MONDAY_CLIENT_ID as string,
+          clientSecret: env.MONDAY_CLIENT_SECRET as string,
+          authorizationUrl: 'https://auth.monday.com/oauth2/authorize',
+          tokenUrl: 'https://auth.monday.com/oauth2/token',
+          userInfoUrl: 'https://api.monday.com/v2',
+          scopes: getCanonicalScopesForProvider('monday'),
+          responseType: 'code',
+          pkce: false,
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/monday`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://api.monday.com/v2', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'API-Version': '2024-10',
+                  Authorization: tokens.accessToken ?? '',
+                },
+                body: JSON.stringify({ query: '{ me { id name email } }' }),
+              })
+
+              if (!response.ok) {
+                await response.text().catch(() => {})
+                logger.error('Error fetching Monday.com user info:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
+              }
+
+              const data = await response.json()
+              const user = data.data?.me
+              if (!user) return null
+
+              const now = new Date()
+              return {
+                id: `${user.id.toString()}-${generateId()}`,
+                name: user.name || 'Monday.com User',
+                email: user.email || `${user.id}@monday.user`,
+                emailVerified: !!user.email,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Monday.com getUserInfo:', { error })
+              return null
+            }
+          },
+        },
+
         // Reddit provider
         {
           providerId: 'reddit',
@@ -2851,6 +2907,9 @@ export const auth = betterAuth({
                     { subscriptionId: subscription.id, dbPlan: subscription.plan, priceId }
                   )
                 }
+
+                await syncSubscriptionPlan(subscription.id, subscription.plan, planFromStripe)
+
                 const subscriptionForOrg = {
                   ...subscription,
                   plan: planFromStripe ?? subscription.plan,
@@ -2868,7 +2927,7 @@ export const auth = betterAuth({
                       referenceId: subscription.referenceId,
                       dbPlan: subscription.plan,
                       planFromStripe,
-                      error: orgError instanceof Error ? orgError.message : String(orgError),
+                      error: toError(orgError).message,
                       stack: orgError instanceof Error ? orgError.stack : undefined,
                     }
                   )
@@ -2930,6 +2989,9 @@ export const auth = betterAuth({
                     { subscriptionId: subscription.id, dbPlan: subscription.plan }
                   )
                 }
+
+                await syncSubscriptionPlan(subscription.id, subscription.plan, planFromStripe)
+
                 const subscriptionForOrg = {
                   ...subscription,
                   plan: planFromStripe ?? subscription.plan,
@@ -2960,7 +3022,7 @@ export const auth = betterAuth({
                       dbPlan: subscription.plan,
                       planFromStripe,
                       isUpgradeToTeam,
-                      error: orgError instanceof Error ? orgError.message : String(orgError),
+                      error: toError(orgError).message,
                       stack: orgError instanceof Error ? orgError.stack : undefined,
                     }
                   )
@@ -3007,6 +3069,7 @@ export const auth = betterAuth({
                 await writeBillingInterval(resolvedSubscription.id, isAnnual ? 'year' : 'month')
               },
               onSubscriptionDeleted: async ({
+                event,
                 subscription,
               }: {
                 event: Stripe.Event
@@ -3014,18 +3077,24 @@ export const auth = betterAuth({
                 subscription: any
               }) => {
                 logger.info('[onSubscriptionDeleted] Subscription deleted', {
+                  eventId: event.id,
                   subscriptionId: subscription.id,
                   referenceId: subscription.referenceId,
                 })
 
                 try {
-                  await handleSubscriptionDeleted(subscription)
+                  await handleSubscriptionDeleted(subscription, event.id)
                 } catch (error) {
                   logger.error('[onSubscriptionDeleted] Failed to handle subscription deletion', {
+                    eventId: event.id,
                     subscriptionId: subscription.id,
                     referenceId: subscription.referenceId,
                     error,
                   })
+                  // Rethrow so the Stripe webhook retries — otherwise
+                  // the final overage invoice, usage reset, org cleanup,
+                  // and personal Pro restore can be permanently skipped.
+                  throw error
                 }
               },
             },

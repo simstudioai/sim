@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 
@@ -97,7 +98,7 @@ export async function GET(request: NextRequest) {
           }
         } catch (error) {
           logger.error(`[${requestId}] Error sanitizing template ${template.id}`, {
-            error: error instanceof Error ? error.message : String(error),
+            error: toError(error).message,
           })
           return null
         }
@@ -112,7 +113,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(response)
   } catch (error) {
     logger.error(`[${requestId}] Error fetching approved sanitized templates`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
     return NextResponse.json(

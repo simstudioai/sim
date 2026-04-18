@@ -1,5 +1,6 @@
 import { createLogger, type Logger } from '@sim/logger'
 import { redactApiKeys } from '@/lib/core/security/redaction'
+import { toError } from '@/lib/core/utils/helpers'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   containsUserFileWithMetadata,
@@ -475,7 +476,7 @@ export class BlockExecutor {
         this.execLogger.warn('Block start callback failed', {
           blockId,
           blockType,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
     }
@@ -521,7 +522,7 @@ export class BlockExecutor {
         this.execLogger.warn('Block completion callback failed', {
           blockId,
           blockType,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
     }

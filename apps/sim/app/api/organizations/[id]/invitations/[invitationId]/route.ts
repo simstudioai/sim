@@ -313,7 +313,7 @@ export async function PUT(
       const membershipResult = await ensureUserInOrganization({
         userId: session.user.id,
         organizationId,
-        role: orgInvitation.role,
+        role: orgInvitation.role as 'admin' | 'member' | 'owner',
       })
 
       if (!membershipResult.success) {

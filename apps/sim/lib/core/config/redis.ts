@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import Redis from 'ioredis'
 import { env } from '@/lib/core/config/env'
+import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('Redis')
 
@@ -38,7 +39,7 @@ function startPingHealthCheck(redis: Redis): void {
       pingFailures++
       logger.warn('Redis PING failed', {
         consecutiveFailures: pingFailures,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
 
       if (pingFailures >= MAX_PING_FAILURES) {

@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
@@ -136,7 +137,7 @@ export async function POST(req: NextRequest) {
         ? `Headless copilot request failed [messageId:${messageId}]`
         : 'Headless copilot request failed',
       {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       }
     )
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })

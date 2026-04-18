@@ -34,6 +34,7 @@ import {
 import { Lock, Unlock, Upload } from '@/components/emcn/icons'
 import { VariableIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
+import { toError } from '@/lib/core/utils/helpers'
 import { captureEvent } from '@/lib/posthog/client'
 import { generateWorkflowJson } from '@/lib/workflows/operations/import-export'
 import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
@@ -320,7 +321,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
         })
         .catch((err) => {
           logger.error('Failed to fetch/apply edit_workflow state', {
-            error: err instanceof Error ? err.message : String(err),
+            error: toError(err).message,
             workflowId,
           })
         })

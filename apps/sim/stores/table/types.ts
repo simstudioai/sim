@@ -32,6 +32,17 @@ export type TableUndoAction =
     }
   | { type: 'delete-rows'; rows: DeletedRowSnapshot[] }
   | { type: 'create-column'; columnName: string; position: number }
+  | {
+      type: 'delete-column'
+      columnName: string
+      columnType: string
+      columnPosition: number
+      columnUnique: boolean
+      columnRequired: boolean
+      cellData: Array<{ rowId: string; value: unknown }>
+      previousOrder: string[] | null
+      previousWidth: number | null
+    }
   | { type: 'rename-column'; oldName: string; newName: string }
   | { type: 'update-column-type'; columnName: string; previousType: string; newType: string }
   | {
@@ -42,6 +53,7 @@ export type TableUndoAction =
       newValue: boolean
     }
   | { type: 'rename-table'; tableId: string; previousName: string; newName: string }
+  | { type: 'reorder-columns'; previousOrder: string[]; newOrder: string[] }
 
 export interface UndoEntry {
   id: string

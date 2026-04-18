@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
+import { sleep, toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
@@ -296,7 +297,7 @@ export function useWorkflowExecution() {
     async (error: any, operation: string) => {
       logger.error(`Debug ${operation} Error:`, error)
 
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage = toError(error).message
       const errorResult = {
         success: false,
         output: {},
@@ -1901,7 +1902,7 @@ export function useWorkflowExecution() {
 
         if (attempt > 0) {
           const delay = Math.min(BASE_DELAY_MS * 2 ** (attempt - 1), MAX_DELAY_MS)
-          await new Promise((resolve) => setTimeout(resolve, delay))
+          await sleep(delay)
           if (cleanupRan || reconnectionComplete) return
         }
 

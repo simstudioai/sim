@@ -115,6 +115,7 @@
     "microsoft_planner",
     "microsoft_teams",
     "mistral_parse",
+    "monday",
     "mongodb",
     "mysql",
     "neo4j",

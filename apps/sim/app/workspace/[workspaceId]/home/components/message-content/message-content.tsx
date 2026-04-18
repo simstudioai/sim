@@ -157,7 +157,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
     }
 
     if (block.type === 'text') {
-      if (!block.content?.trim()) continue
+      if (!block.content) continue
       if (block.subagent) {
         if (group && group.agentName === block.subagent) {
           group.isDelegating = false

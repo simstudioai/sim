@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import * as ipaddr from 'ipaddr.js'
 import { getAllowedMcpDomainsFromEnv } from '@/lib/core/config/feature-flags'
 import { isPrivateOrReservedIP } from '@/lib/core/security/input-validation.server'
+import { toError } from '@/lib/core/utils/helpers'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 
 const logger = createLogger('McpDomainCheck')
@@ -173,7 +174,7 @@ export async function validateMcpServerSsrf(url: string | undefined): Promise<vo
     if (error instanceof McpSsrfError) throw error
     logger.warn('DNS lookup failed for MCP server URL', {
       hostname,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     throw new McpDnsResolutionError(cleanHostname)
   }

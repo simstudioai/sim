@@ -56,6 +56,9 @@ export function useFolders(workspaceId?: string, options?: { scope?: FolderQuery
   })
 }
 
+const selectFolderMap = (folders: WorkflowFolder[]): Record<string, WorkflowFolder> =>
+  Object.fromEntries(folders.map((folder) => [folder.id, folder]))
+
 export function useFolderMap(workspaceId?: string) {
   return useQuery({
     queryKey: folderKeys.list(workspaceId),
@@ -63,7 +66,7 @@ export function useFolderMap(workspaceId?: string) {
     enabled: Boolean(workspaceId),
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
-    select: (folders) => Object.fromEntries(folders.map((folder) => [folder.id, folder])),
+    select: selectFolderMap,
   })
 }
 

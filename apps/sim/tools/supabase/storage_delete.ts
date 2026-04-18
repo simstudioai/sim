@@ -3,6 +3,7 @@ import {
   type SupabaseStorageDeleteParams,
   type SupabaseStorageDeleteResponse,
 } from '@/tools/supabase/types'
+import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const storageDeleteTool: ToolConfig<
@@ -43,7 +44,7 @@ export const storageDeleteTool: ToolConfig<
 
   request: {
     url: (params) => {
-      return `https://${params.projectId}.supabase.co/storage/v1/object/${params.bucket}`
+      return `${supabaseBaseUrl(params.projectId)}/storage/v1/object/${params.bucket}`
     },
     method: 'DELETE',
     headers: (params) => ({

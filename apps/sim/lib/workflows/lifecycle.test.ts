@@ -56,6 +56,11 @@ vi.mock('@/lib/core/config/env', () => ({
     SOCKET_SERVER_URL: 'http://socket.test',
     INTERNAL_API_SECRET: 'secret',
   },
+  getEnv: vi.fn(),
+}))
+
+vi.mock('@/lib/core/utils/urls', () => ({
+  getSocketServerUrl: vi.fn().mockReturnValue('http://socket.test'),
 }))
 
 vi.mock('@/lib/core/telemetry', () => ({

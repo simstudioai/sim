@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { generateId } from '@/lib/core/utils/uuid'
 import {
@@ -124,7 +125,7 @@ export async function POST(request: NextRequest) {
       throw insertError
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
+    const message = toError(error).message
     logger.error(`[${requestId}] CSV import failed:`, error)
 
     const isClientError =

@@ -31,6 +31,7 @@ import type {
 } from '@/lib/copilot/request/types'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { env } from '@/lib/core/config/env'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 
@@ -187,7 +188,7 @@ async function runCheckpointLoop(
           } catch (error) {
             logger.warn('Failed to mark run as paused_waiting_for_tool', {
               runId: options.runId,
-              error: error instanceof Error ? error.message : String(error),
+              error: toError(error).message,
             })
           }
         }
@@ -258,7 +259,7 @@ async function runCheckpointLoop(
           attempt: resumeAttempt + 1,
           maxAttempts: MAX_RESUME_ATTEMPTS,
           backoffMs: backoff,
-          error: streamError instanceof Error ? streamError.message : String(streamError),
+          error: toError(streamError).message,
         })
         await sleepWithAbort(backoff, options.abortSignal)
         continue
@@ -490,7 +491,7 @@ async function ensureHeadlessRunIdentity(input: {
     logger.warn('Failed to create headless run identity', {
       chatId: input.chatId,
       messageId: input.messageId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return {}
   }

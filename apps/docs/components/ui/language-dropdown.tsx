@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { Check } from 'lucide-react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import {
@@ -25,24 +24,9 @@ export function LanguageDropdown() {
   const params = useParams()
   const router = useRouter()
 
-  const [currentLang, setCurrentLang] = useState(() => {
-    const langFromParams = params?.lang as string
-    return langFromParams && Object.keys(languages).includes(langFromParams) ? langFromParams : 'en'
-  })
-
-  useEffect(() => {
-    const langFromParams = params?.lang as string
-
-    if (langFromParams && Object.keys(languages).includes(langFromParams)) {
-      if (langFromParams !== currentLang) {
-        setCurrentLang(langFromParams)
-      }
-    } else {
-      if (currentLang !== 'en') {
-        setCurrentLang('en')
-      }
-    }
-  }, [params])
+  const langFromParams = params?.lang as string
+  const currentLang =
+    langFromParams && Object.keys(languages).includes(langFromParams) ? langFromParams : 'en'
 
   const handleLanguageChange = (locale: string) => {
     if (locale === currentLang) return

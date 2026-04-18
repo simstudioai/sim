@@ -12,6 +12,7 @@ import {
   persistChatResources,
   removeChatResources,
 } from '@/lib/copilot/resources/persistence'
+import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('CopilotResourceEffects')
 
@@ -38,7 +39,7 @@ export async function handleResourceSideEffects(
       removeChatResources(chatId, deleted).catch((err) => {
         logger.warn('Failed to remove chat resources after deletion', {
           chatId,
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
       })
 
@@ -72,7 +73,7 @@ export async function handleResourceSideEffects(
       persistChatResources(chatId, resources).catch((err) => {
         logger.warn('Failed to persist chat resources', {
           chatId,
-          error: err instanceof Error ? err.message : String(err),
+          error: toError(err).message,
         })
       })
 

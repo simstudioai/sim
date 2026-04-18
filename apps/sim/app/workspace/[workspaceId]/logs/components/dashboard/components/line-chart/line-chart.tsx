@@ -293,7 +293,7 @@ function LineChartComponent({
                       className='inline-block h-[6px] w-[6px] rounded-xs'
                       style={{ backgroundColor: resolvedColors[s.id || ''] || s.color }}
                     />
-                    <span style={{ color: 'hsl(var(--muted-foreground))' }}>{s.label}</span>
+                    <span className='text-[var(--text-muted)]'>{s.label}</span>
                   </button>
                 )
               })}

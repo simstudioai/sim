@@ -1,5 +1,6 @@
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { formatNormalizedWorkflowForCopilot } from '@/lib/copilot/tools/shared/workflow-utils'
+import { toError } from '@/lib/core/utils/helpers'
 import { mcpService } from '@/lib/mcp/service'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { getEffectiveBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
@@ -33,7 +34,7 @@ export async function executeListUserWorkspaces(
 
     return { success: true, output: { workspaces } }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -59,7 +60,7 @@ export async function executeListFolders(
       },
     }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -153,7 +154,7 @@ export async function executeGetWorkflowData(
 
     return { success: false, error: `Unknown data_type: ${dataType}` }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -238,7 +239,7 @@ export async function executeGetBlockOutputs(
     const payload = { blocks: results, variables }
     return { success: true, output: payload }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -390,7 +391,7 @@ export async function executeGetBlockUpstreamReferences(
     const payload = { results }
     return { success: true, output: payload }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }
 
@@ -483,6 +484,6 @@ export async function executeGetDeployedWorkflowState(
       }
     }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) }
+    return { success: false, error: toError(error).message }
   }
 }

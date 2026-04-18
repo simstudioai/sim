@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { sleep } from '@/lib/core/utils/helpers'
 import type { BrowserUseRunTaskParams, BrowserUseRunTaskResponse } from '@/tools/browser_use/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -165,7 +166,7 @@ async function pollForCompletion(
         }
       }
 
-      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+      await sleep(POLL_INTERVAL_MS)
       continue
     }
 
@@ -188,7 +189,7 @@ async function pollForCompletion(
       liveUrlLogged = true
     }
 
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+    await sleep(POLL_INTERVAL_MS)
   }
 
   const finalResult = await fetchTaskStatus(taskId, apiKey)

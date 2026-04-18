@@ -367,12 +367,12 @@ Sim uses a **base subscription + overage** billing model:
 
 ### Threshold Billing
 
-When on-demand is enabled and unbilled overage reaches $50, Sim automatically bills the full unbilled amount.
+When on-demand is enabled and unbilled overage reaches $100, Sim automatically bills the full unbilled amount.
 
 **Example:**
-- Day 10: $70 overage → Bill $70 immediately
-- Day 15: Additional $35 usage ($105 total) → Already billed, no action
-- Day 20: Another $50 usage ($155 total, $85 unbilled) → Bill $85 immediately
+- Day 10: $120 overage → Bill $120 immediately
+- Day 15: Additional $60 usage ($180 total) → Already billed, no action
+- Day 20: Another $80 usage ($260 total, $140 unbilled) → Bill $140 immediately
 
 This spreads large overage charges throughout the month instead of one large bill at period end.
 
@@ -480,5 +480,5 @@ import { FAQ } from '@/components/ui/faq'
   { question: "What happens when I exceed my plan's credit limit?", answer: "By default, your usage is capped at your plan's included credits and runs will stop. If you enable on-demand billing or manually raise your usage limit in Settings, you can continue running workflows and pay for the overage at the end of the billing period." },
   { question: "How does the 1.1x hosted model multiplier work?", answer: "When you use Sim's hosted API keys (instead of bringing your own), a 1.1x multiplier is applied to the base model pricing for Agent blocks. This covers infrastructure and API management costs. You can avoid this multiplier by using your own API keys via the BYOK feature." },
   { question: "Are there any free options for AI models?", answer: "Yes. If you run local models through Ollama or VLLM, there are no API costs for those model calls. You still pay the base run charge of 1 credit per run." },
-  { question: "When does threshold billing trigger?", answer: "When on-demand billing is enabled and your unbilled overage reaches $50, Sim automatically bills the full unbilled amount. This spreads large charges throughout the month instead of accumulating one large bill at period end." },
+  { question: "When does threshold billing trigger?", answer: "When on-demand billing is enabled and your unbilled overage reaches $100, Sim automatically bills the full unbilled amount. This spreads large charges throughout the month instead of accumulating one large bill at period end." },
 ]} />

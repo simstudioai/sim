@@ -4,6 +4,7 @@ import nodemailer from 'nodemailer'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { RawFileInputArraySchema } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
@@ -223,7 +224,7 @@ export async function POST(request: NextRequest) {
     }
 
     logger.error(`[${requestId}] Error sending email via SMTP:`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       code: isNodeError(error) ? error.code : undefined,
       responseCode: hasResponseCode(error) ? error.responseCode : undefined,
     })

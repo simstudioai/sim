@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import {
   McpDnsResolutionError,
@@ -44,11 +45,7 @@ export const GET = withMcpAuth('read')(
       return createMcpSuccessResponse({ servers })
     } catch (error) {
       logger.error(`[${requestId}] Error listing MCP servers:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to list MCP servers'),
-        'Failed to list MCP servers',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to list MCP servers', 500)
     }
   }
 )
@@ -220,11 +217,7 @@ export const POST = withMcpAuth('write')(
       return createMcpSuccessResponse({ serverId }, 201)
     } catch (error) {
       logger.error(`[${requestId}] Error registering MCP server:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to register MCP server'),
-        'Failed to register MCP server',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to register MCP server', 500)
     }
   }
 )
@@ -297,11 +290,7 @@ export const DELETE = withMcpAuth('admin')(
       return createMcpSuccessResponse({ message: `Server ${serverId} deleted successfully` })
     } catch (error) {
       logger.error(`[${requestId}] Error deleting MCP server:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to delete MCP server'),
-        'Failed to delete MCP server',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to delete MCP server', 500)
     }
   }
 )

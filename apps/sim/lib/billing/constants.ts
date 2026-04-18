@@ -32,7 +32,7 @@ export const SEARCH_TOOL_COST = 0.01
  * Default threshold (in dollars) for incremental overage billing
  * When unbilled overage reaches this amount, an invoice item is created
  */
-export const DEFAULT_OVERAGE_THRESHOLD = 50
+export const DEFAULT_OVERAGE_THRESHOLD = 100
 
 /**
  * Available credit tiers. Each tier maps a credit amount to the underlying dollar cost.
