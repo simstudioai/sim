@@ -754,20 +754,19 @@ export function Table({
     let maxWidth = COL_WIDTH_MIN
 
     const measure = document.createElement('span')
-    measure.style.cssText =
-      'position:absolute;visibility:hidden;white-space:nowrap;font:inherit;padding:0 8px'
+    measure.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;font:inherit'
     document.body.appendChild(measure)
 
     measure.className = 'font-medium text-small'
     measure.textContent = columnName
-    maxWidth = Math.max(maxWidth, measure.offsetWidth + 48)
+    maxWidth = Math.max(maxWidth, measure.offsetWidth + 36)
 
     measure.className = 'text-small'
     for (const row of currentRows) {
       const val = row.data[columnName]
       if (val == null) continue
       measure.textContent = String(val)
-      maxWidth = Math.max(maxWidth, measure.offsetWidth + 20)
+      maxWidth = Math.max(maxWidth, measure.offsetWidth + 17)
     }
 
     document.body.removeChild(measure)
