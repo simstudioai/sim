@@ -862,8 +862,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
   const contentRef = useRef<HTMLDivElement>(null)
 
   const params = useParams()
-  // In sandbox mode pass empty strings so all workspace-scoped queries are disabled
-  const currentWorkflowId = isSandbox ? '' : (params.workflowId as string)
   const workspaceId = isSandbox ? '' : (params.workspaceId as string)
 
   const {
@@ -876,6 +874,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     ringStyles,
     runPathStatus,
   } = useBlockVisual({ blockId: id, data, isPending, isSelected: selected })
+
+  const currentWorkflowId = isSandbox ? '' : (params.workflowId as string) || activeWorkflowId || ''
 
   const currentBlock = currentWorkflow.getBlockById(id)
 
