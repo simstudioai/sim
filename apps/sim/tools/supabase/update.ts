@@ -1,4 +1,5 @@
 import type { SupabaseUpdateParams, SupabaseUpdateResponse } from '@/tools/supabase/types'
+import { supabaseBaseUrl } from '@/tools/supabase/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse> = {
@@ -50,7 +51,7 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
   request: {
     url: (params) => {
       // Construct the URL for the Supabase REST API with select to return updated data
-      let url = `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`
+      let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${params.table}?select=*`
 
       // Add filters (required for update) - using PostgREST syntax
       if (params.filter?.trim()) {

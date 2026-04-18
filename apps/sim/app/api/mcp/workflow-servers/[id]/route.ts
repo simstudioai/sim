@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { toError } from '@/lib/core/utils/helpers'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
@@ -63,11 +64,7 @@ export const GET = withMcpAuth<RouteParams>('read')(
       return createMcpSuccessResponse({ server, tools })
     } catch (error) {
       logger.error(`[${requestId}] Error getting workflow MCP server:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to get workflow MCP server'),
-        'Failed to get workflow MCP server',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to get workflow MCP server', 500)
     }
   }
 )
@@ -146,11 +143,7 @@ export const PATCH = withMcpAuth<RouteParams>('write')(
       return createMcpSuccessResponse({ server: updatedServer })
     } catch (error) {
       logger.error(`[${requestId}] Error updating workflow MCP server:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to update workflow MCP server'),
-        'Failed to update workflow MCP server',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to update workflow MCP server', 500)
     }
   }
 )
@@ -201,11 +194,7 @@ export const DELETE = withMcpAuth<RouteParams>('admin')(
       return createMcpSuccessResponse({ message: `Server ${serverId} deleted successfully` })
     } catch (error) {
       logger.error(`[${requestId}] Error deleting workflow MCP server:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to delete workflow MCP server'),
-        'Failed to delete workflow MCP server',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to delete workflow MCP server', 500)
     }
   }
 )

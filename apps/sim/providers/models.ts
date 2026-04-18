@@ -59,6 +59,9 @@ export interface ModelDefinition {
   contextWindow?: number
   /** ISO date string (YYYY-MM-DD) when the model was first publicly released */
   releaseDate?: string
+  recommended?: boolean
+  speedOptimized?: boolean
+  deprecated?: boolean
 }
 
 export interface ProviderDefinition {
@@ -216,6 +219,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1050000,
         releaseDate: '2026-03-05',
+        recommended: true,
       },
       {
         id: 'gpt-5.4-mini',
@@ -256,6 +260,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 400000,
         releaseDate: '2026-03-17',
+        speedOptimized: true,
       },
       // GPT-5.2 family
       {
@@ -504,6 +509,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 128000,
         releaseDate: '2024-05-13',
+        deprecated: true,
       },
     ],
   },
@@ -519,6 +525,26 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
       toolUsageControl: true,
     },
     models: [
+      {
+        id: 'claude-opus-4-7',
+        pricing: {
+          input: 5.0,
+          cachedInput: 0.5,
+          output: 25.0,
+          updatedAt: '2026-04-16',
+        },
+        capabilities: {
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 128000,
+          thinking: {
+            levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+            default: 'high',
+          },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-04-16',
+        recommended: true,
+      },
       {
         id: 'claude-opus-4-6',
         pricing: {
@@ -558,6 +584,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-02-17',
+        recommended: true,
       },
       {
         id: 'claude-opus-4-5',
@@ -676,6 +703,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2025-10-15',
+        speedOptimized: true,
       },
       {
         id: 'claude-3-haiku-20240307',
@@ -691,6 +719,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 200000,
         releaseDate: '2024-03-07',
+        deprecated: true,
       },
     ],
   },
@@ -1151,6 +1180,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1048576,
         releaseDate: '2026-02-19',
+        recommended: true,
       },
       {
         id: 'gemini-3.1-flash-lite-preview',
@@ -1234,6 +1264,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1048576,
         releaseDate: '2025-06-17',
+        speedOptimized: true,
       },
       {
         id: 'gemini-2.0-flash',
@@ -2676,6 +2707,58 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
 
 export function getProviderModels(providerId: string): string[] {
   return PROVIDER_DEFINITIONS[providerId]?.models.map((m) => m.id) || []
+}
+
+export const DYNAMIC_MODEL_PROVIDERS = ['ollama', 'vllm', 'openrouter', 'fireworks'] as const
+
+function getAllStaticModelIds(): string[] {
+  const ids: string[] = []
+  for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
+    if ((DYNAMIC_MODEL_PROVIDERS as readonly string[]).includes(providerId)) continue
+    for (const model of provider.models) ids.push(model.id)
+  }
+  return ids
+}
+
+const STATIC_MODEL_ID_SET = new Set(getAllStaticModelIds().map((id) => id.toLowerCase()))
+
+export function isKnownModelId(modelId: string): boolean {
+  if (!modelId || typeof modelId !== 'string') return false
+  const trimmed = modelId.trim()
+  if (!trimmed) return false
+
+  if (STATIC_MODEL_ID_SET.has(trimmed.toLowerCase())) return true
+
+  const lowered = trimmed.toLowerCase()
+  for (const provider of DYNAMIC_MODEL_PROVIDERS) {
+    if (lowered.startsWith(`${provider}/`)) return true
+  }
+
+  return false
+}
+
+function getRecommendedModels(): string[] {
+  const models: string[] = []
+  for (const [providerId, provider] of Object.entries(PROVIDER_DEFINITIONS)) {
+    if ((DYNAMIC_MODEL_PROVIDERS as readonly string[]).includes(providerId)) continue
+    for (const model of provider.models) {
+      if (model.recommended) models.push(model.id)
+    }
+  }
+  return models
+}
+
+export function suggestModelIdsForUnknownModel(_modelId: string, limit = 5): string[] {
+  const recommended = getRecommendedModels()
+  if (recommended.length > 0) return recommended.slice(0, limit)
+
+  return [
+    PROVIDER_DEFINITIONS.anthropic.defaultModel,
+    PROVIDER_DEFINITIONS.openai.defaultModel,
+    PROVIDER_DEFINITIONS.google.defaultModel,
+  ]
+    .filter(Boolean)
+    .slice(0, limit)
 }
 
 export function getBaseModelProviders(): Record<string, ProviderId> {

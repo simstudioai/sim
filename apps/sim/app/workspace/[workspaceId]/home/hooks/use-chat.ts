@@ -3,16 +3,20 @@ import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
 import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
+import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
 import type {
   PersistedFileAttachment,
   PersistedMessage,
 } from '@/lib/copilot/chat/persisted-message'
-import { MOTHERSHIP_CHAT_API_PATH } from '@/lib/copilot/constants'
+import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
+import { resolveStreamToolOutcome } from '@/lib/copilot/chat/stream-tool-outcome'
+import { MOTHERSHIP_CHAT_API_PATH, STREAM_STORAGE_KEY } from '@/lib/copilot/constants'
 import type {
   MothershipStreamV1ErrorPayload,
   MothershipStreamV1ToolUI,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
+  MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
   MothershipStreamV1ResourceOp,
   MothershipStreamV1RunKind,
@@ -58,12 +62,16 @@ import {
   WorkspaceFile,
   WorkspaceFileOperation,
 } from '@/lib/copilot/generated/tool-catalog-v1'
-import { parsePersistedStreamEventEnvelopeJson } from '@/lib/copilot/request/session/contract'
+import {
+  type ParseStreamEventEnvelopeFailure,
+  parsePersistedStreamEventEnvelope,
+  parsePersistedStreamEventEnvelopeJson,
+} from '@/lib/copilot/request/session/contract'
 import {
   type FilePreviewSession,
   isFilePreviewSession,
 } from '@/lib/copilot/request/session/file-preview-session-contract'
-import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/copilot/request/session/types'
+import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
 import {
   extractResourcesFromToolResult,
   isResourceToolName,
@@ -78,6 +86,7 @@ import {
   reportManualRunToolStop,
 } from '@/lib/copilot/tools/client/run-tool-execution'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
+import { sleep, toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
@@ -168,6 +177,8 @@ const RECONNECT_TAIL_ERROR =
 const MAX_RECONNECT_ATTEMPTS = 10
 const RECONNECT_BASE_DELAY_MS = 1000
 const RECONNECT_MAX_DELAY_MS = 30_000
+const QUEUED_SEND_HANDOFF_STORAGE_KEY = `${STREAM_STORAGE_KEY}:queued-send-handoff`
+const QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY = `${STREAM_STORAGE_KEY}:queued-send-handoff-claim`
 
 const logger = createLogger('useChat')
 
@@ -182,6 +193,100 @@ type ActiveTurn = {
   assistantMessageId: string
   optimisticUserMessage: ChatMessage
   optimisticAssistantMessage: ChatMessage
+}
+
+interface QueuedSendHandoffState {
+  id: string
+  chatId: string
+  workspaceId: string
+  supersededStreamId: string | null
+  userMessageId: string
+  message: string
+  fileAttachments?: FileAttachmentForApi[]
+  contexts?: ChatContext[]
+  requestedAt: number
+}
+
+interface QueuedSendHandoffSeed {
+  id: string
+  chatId: string
+  supersededStreamId: string | null
+  userMessageId?: string
+}
+
+function readQueuedSendHandoffState(): QueuedSendHandoffState | null {
+  if (typeof window === 'undefined') return null
+
+  try {
+    const raw = window.sessionStorage.getItem(QUEUED_SEND_HANDOFF_STORAGE_KEY)
+    if (!raw) return null
+
+    const parsed = JSON.parse(raw) as Partial<QueuedSendHandoffState>
+    if (
+      typeof parsed?.id !== 'string' ||
+      typeof parsed.chatId !== 'string' ||
+      typeof parsed.workspaceId !== 'string' ||
+      typeof parsed.userMessageId !== 'string' ||
+      typeof parsed.message !== 'string' ||
+      typeof parsed.requestedAt !== 'number'
+    ) {
+      return null
+    }
+
+    return {
+      id: parsed.id,
+      chatId: parsed.chatId,
+      workspaceId: parsed.workspaceId,
+      supersededStreamId:
+        typeof parsed.supersededStreamId === 'string' ? parsed.supersededStreamId : null,
+      userMessageId: parsed.userMessageId,
+      message: parsed.message,
+      ...(Array.isArray(parsed.fileAttachments)
+        ? { fileAttachments: parsed.fileAttachments as FileAttachmentForApi[] }
+        : {}),
+      ...(Array.isArray(parsed.contexts) ? { contexts: parsed.contexts as ChatContext[] } : {}),
+      requestedAt: parsed.requestedAt,
+    }
+  } catch {
+    return null
+  }
+}
+
+function writeQueuedSendHandoffState(state: QueuedSendHandoffState) {
+  if (typeof window === 'undefined') return
+  window.sessionStorage.setItem(QUEUED_SEND_HANDOFF_STORAGE_KEY, JSON.stringify(state))
+}
+
+function clearQueuedSendHandoffState(expectedId?: string) {
+  if (typeof window === 'undefined') return
+  if (expectedId) {
+    const current = readQueuedSendHandoffState()
+    if (current && current.id !== expectedId) {
+      return
+    }
+  }
+  window.sessionStorage.removeItem(QUEUED_SEND_HANDOFF_STORAGE_KEY)
+}
+
+function readQueuedSendHandoffClaim(): string | null {
+  if (typeof window === 'undefined') return null
+  return window.sessionStorage.getItem(QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY)
+}
+
+function writeQueuedSendHandoffClaim(id: string) {
+  if (typeof window === 'undefined') return
+  window.sessionStorage.setItem(QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY, id)
+}
+
+function clearQueuedSendHandoffClaim(expectedId?: string) {
+  if (typeof window === 'undefined') return
+  if (expectedId) {
+    const current = readQueuedSendHandoffClaim()
+    if (current && current !== expectedId) {
+      return
+    }
+  }
+  window.sessionStorage.removeItem(QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY)
 }
 
 function stringParam(value: unknown): string | undefined {
@@ -509,6 +614,33 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
+const STREAM_SCHEMA_ENFORCEMENT_PREFIX = 'Client stream schema enforcement failed.'
+
+class StreamSchemaValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'StreamSchemaValidationError'
+  }
+}
+
+function createStreamSchemaValidationError(
+  failure: ParseStreamEventEnvelopeFailure,
+  context?: string
+): StreamSchemaValidationError {
+  const details = failure.errors?.filter(Boolean).join('; ')
+  return new StreamSchemaValidationError(
+    [STREAM_SCHEMA_ENFORCEMENT_PREFIX, context, failure.message, details].filter(Boolean).join(' ')
+  )
+}
+
+function createBatchSchemaValidationError(message: string): StreamSchemaValidationError {
+  return new StreamSchemaValidationError([STREAM_SCHEMA_ENFORCEMENT_PREFIX, message].join(' '))
+}
+
+function isStreamSchemaValidationError(error: unknown): error is StreamSchemaValidationError {
+  return error instanceof StreamSchemaValidationError
+}
+
 function parseStreamBatchResponse(value: unknown): StreamBatchResponse {
   if (!isRecord(value)) {
     throw new Error('Invalid stream batch response')
@@ -516,20 +648,41 @@ function parseStreamBatchResponse(value: unknown): StreamBatchResponse {
 
   const rawEvents = Array.isArray(value.events) ? value.events : []
   const events: StreamBatchEvent[] = []
-  for (const entry of rawEvents) {
-    if (!isStreamBatchEvent(entry)) {
-      throw new Error('Invalid stream batch event')
+  for (const [index, entry] of rawEvents.entries()) {
+    if (!isRecord(entry)) {
+      throw createBatchSchemaValidationError(`Reconnect batch event ${index + 1} is not an object.`)
     }
-    events.push(entry)
+    if (
+      typeof entry.eventId !== 'number' ||
+      !Number.isFinite(entry.eventId) ||
+      typeof entry.streamId !== 'string'
+    ) {
+      throw createBatchSchemaValidationError(
+        `Reconnect batch event ${index + 1} is missing required metadata.`
+      )
+    }
+
+    const parsedEvent = parsePersistedStreamEventEnvelope(entry.event)
+    if (!parsedEvent.ok) {
+      throw createStreamSchemaValidationError(parsedEvent, `Reconnect batch event ${index + 1}.`)
+    }
+
+    events.push({
+      eventId: entry.eventId,
+      streamId: entry.streamId,
+      event: parsedEvent.event,
+    })
   }
 
   const rawPreviewSessions = Array.isArray(value.previewSessions)
     ? value.previewSessions
     : undefined
   const previewSessions =
-    rawPreviewSessions?.map((session) => {
+    rawPreviewSessions?.map((session, index) => {
       if (!isFilePreviewSession(session)) {
-        throw new Error('Invalid stream preview session')
+        throw createBatchSchemaValidationError(
+          `Reconnect preview session ${index + 1} failed validation.`
+        )
       }
       return session
     }) ?? undefined
@@ -540,6 +693,122 @@ function parseStreamBatchResponse(value: unknown): StreamBatchResponse {
     ...(previewSessions ? { previewSessions } : {}),
     status: typeof value.status === 'string' ? value.status : 'unknown',
   }
+}
+
+function toRawPersistedContentBlock(block: ContentBlock): Record<string, unknown> | null {
+  switch (block.type) {
+    case 'text':
+      return {
+        type: MothershipStreamV1EventType.text,
+        ...(block.subagent ? { lane: 'subagent' } : {}),
+        content: block.content ?? '',
+      }
+    case 'tool_call':
+      if (!block.toolCall) {
+        return null
+      }
+      return {
+        type: MothershipStreamV1EventType.tool,
+        phase: MothershipStreamV1ToolPhase.call,
+        toolCall: {
+          id: block.toolCall.id,
+          name: block.toolCall.name,
+          state: block.toolCall.status,
+          ...(block.toolCall.params ? { params: block.toolCall.params } : {}),
+          ...(block.toolCall.result ? { result: block.toolCall.result } : {}),
+          ...(block.toolCall.calledBy ? { calledBy: block.toolCall.calledBy } : {}),
+          ...(block.toolCall.displayTitle
+            ? {
+                display: {
+                  title: block.toolCall.displayTitle,
+                },
+              }
+            : {}),
+        },
+      }
+    case 'subagent':
+      return {
+        type: MothershipStreamV1EventType.span,
+        kind: MothershipStreamV1SpanPayloadKind.subagent,
+        lifecycle: MothershipStreamV1SpanLifecycleEvent.start,
+        content: block.content ?? '',
+      }
+    case 'subagent_end':
+      return {
+        type: MothershipStreamV1EventType.span,
+        kind: MothershipStreamV1SpanPayloadKind.subagent,
+        lifecycle: MothershipStreamV1SpanLifecycleEvent.end,
+      }
+    case 'stopped':
+      return {
+        type: MothershipStreamV1EventType.complete,
+        status: MothershipStreamV1CompletionStatus.cancelled,
+      }
+    default:
+      return null
+  }
+}
+
+function buildAssistantSnapshotMessage(params: {
+  id: string
+  content: string
+  contentBlocks: ContentBlock[]
+  requestId?: string
+}): PersistedMessage {
+  const rawContentBlocks = params.contentBlocks
+    .map(toRawPersistedContentBlock)
+    .filter((block): block is Record<string, unknown> => block !== null)
+
+  return normalizeMessage({
+    id: params.id,
+    role: 'assistant',
+    content: params.content,
+    timestamp: new Date().toISOString(),
+    ...(params.requestId ? { requestId: params.requestId } : {}),
+    ...(rawContentBlocks.length > 0 ? { contentBlocks: rawContentBlocks } : {}),
+  })
+}
+
+function markMessageStopped(message: PersistedMessage): PersistedMessage {
+  if (!message.contentBlocks?.some((block) => block.toolCall?.state === 'executing')) {
+    return message
+  }
+
+  const nextBlocks = message.contentBlocks.map((block) => {
+    if (block.toolCall?.state !== 'executing') {
+      return block
+    }
+
+    return {
+      ...block,
+      toolCall: {
+        ...block.toolCall,
+        state: 'cancelled' as const,
+        display: {
+          ...(block.toolCall.display ?? {}),
+          title: 'Stopped by user',
+        },
+      },
+    }
+  })
+
+  if (
+    !nextBlocks.some(
+      (block) =>
+        block.type === MothershipStreamV1EventType.complete &&
+        block.status === MothershipStreamV1CompletionStatus.cancelled
+    )
+  ) {
+    nextBlocks.push({
+      type: MothershipStreamV1EventType.complete,
+      status: MothershipStreamV1CompletionStatus.cancelled,
+    })
+  }
+
+  return normalizeMessage({
+    ...message,
+    contentBlocks: nextBlocks,
+  })
 }
 
 function buildChatHistoryHydrationKey(chatHistory: TaskChatHistory): string {
@@ -615,22 +884,10 @@ function resolveLiveToolStatus(
   payload: Partial<{
     status: string
     success: boolean
+    output: unknown
   }>
 ): ToolCallStatus {
-  switch (payload.status) {
-    case MothershipStreamV1ToolOutcome.success:
-      return ToolCallStatus.success
-    case MothershipStreamV1ToolOutcome.error:
-      return ToolCallStatus.error
-    case MothershipStreamV1ToolOutcome.cancelled:
-      return ToolCallStatus.cancelled
-    case MothershipStreamV1ToolOutcome.skipped:
-      return ToolCallStatus.skipped
-    case MothershipStreamV1ToolOutcome.rejected:
-      return ToolCallStatus.rejected
-    default:
-      return payload.success === true ? ToolCallStatus.success : ToolCallStatus.error
-  }
+  return resolveStreamToolOutcome(payload) as ToolCallStatus
 }
 
 /** Adds a workflow to the React Query cache with a top-insertion sort order if it doesn't already exist. */
@@ -756,7 +1013,7 @@ export function useChat(
   const pathname = usePathname()
   const router = useRouter()
   const queryClient = useQueryClient()
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [pendingMessages, setPendingMessages] = useState<ChatMessage[]>([])
   const [isSending, setIsSending] = useState(false)
   const [isReconnecting, setIsReconnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -802,6 +1059,22 @@ export function useChat(
 
   const activeResourceIdRef = useRef(effectiveActiveResourceId)
   activeResourceIdRef.current = effectiveActiveResourceId
+
+  const upsertTaskChatHistory = useCallback(
+    (chatId: string, updater: (current: TaskChatHistory) => TaskChatHistory) => {
+      queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(chatId), (current) => {
+        const base: TaskChatHistory = current ?? {
+          id: chatId,
+          title: null,
+          messages: [],
+          activeStreamId: null,
+          resources: resourcesRef.current,
+        }
+        return updater(base)
+      })
+    },
+    [queryClient]
+  )
 
   const {
     previewSession,
@@ -923,6 +1196,7 @@ export function useChat(
     (opts: { streamId: string; assistantId: string; gen: number }) => Promise<boolean>
   >(async () => false)
   const finalizeRef = useRef<(options?: { error?: boolean }) => void>(() => {})
+  const recoveringQueuedSendHandoffIdRef = useRef<string | null>(null)
 
   const resetEphemeralPreviewState = useCallback(
     (options?: { removeStreamingResource?: boolean }) => {
@@ -1049,7 +1323,7 @@ export function useChat(
     setResolvedChatId(undefined)
     appliedChatHistoryKeyRef.current = undefined
     abortControllerRef.current = null
-    setMessages([])
+    setPendingMessages([])
     setError(null)
     setTransportIdle()
     setResources([])
@@ -1059,38 +1333,11 @@ export function useChat(
     clearQueueDispatchState()
   }, [clearActiveTurn, clearQueueDispatchState, resetEphemeralPreviewState, setTransportIdle])
 
-  const mergeServerMessagesWithActiveTurn = useCallback(
-    (serverMessages: ChatMessage[], previousMessages: ChatMessage[]) => {
-      const activeTurn = activeTurnRef.current
-      if (!activeTurn || !sendingRef.current) {
-        return serverMessages
-      }
-
-      const nextMessages = [...serverMessages]
-      const localStreamingUser =
-        previousMessages.find(
-          (message) => message.id === activeTurn.userMessageId && message.role === 'user'
-        ) ?? activeTurn.optimisticUserMessage
-      const localStreamingAssistant =
-        previousMessages.find(
-          (message) => message.id === activeTurn.assistantMessageId && message.role === 'assistant'
-        ) ?? activeTurn.optimisticAssistantMessage
-
-      if (!nextMessages.some((message) => message.id === localStreamingUser.id)) {
-        nextMessages.push(localStreamingUser)
-      }
-
-      if (!nextMessages.some((message) => message.id === localStreamingAssistant.id)) {
-        nextMessages.push(localStreamingAssistant)
-      }
-
-      return nextMessages
-    },
-    []
+  const { data: chatHistory } = useChatHistory(resolvedChatId)
+  const messages = useMemo(
+    () => chatHistory?.messages.map(toDisplayMessage) ?? pendingMessages,
+    [chatHistory, pendingMessages]
   )
-
-  const { data: chatHistory } = useChatHistory(initialChatId)
-
   const addResource = useCallback((resource: MothershipResource): boolean => {
     if (resourcesRef.current.some((r) => r.type === resource.type && r.id === resource.id)) {
       return false
@@ -1216,12 +1463,12 @@ export function useChat(
   )
 
   useEffect(() => {
+    const streamOwnerId = chatIdRef.current
+    const navigatedToDifferentChat =
+      sendingRef.current &&
+      initialChatId !== streamOwnerId &&
+      (initialChatId !== undefined || streamOwnerId !== undefined)
     if (sendingRef.current) {
-      const streamOwnerId = chatIdRef.current
-      const navigatedToDifferentChat =
-        initialChatId !== streamOwnerId &&
-        (initialChatId !== undefined || streamOwnerId !== undefined)
-
       if (navigatedToDifferentChat) {
         const abandonedChatId = streamOwnerId
         // Detach the current UI from the old stream without cancelling it on the server.
@@ -1244,7 +1491,7 @@ export function useChat(
     clearActiveTurn()
     setResolvedChatId(initialChatId)
     appliedChatHistoryKeyRef.current = undefined
-    setMessages([])
+    setPendingMessages([])
     setError(null)
     setTransportIdle()
     setResources([])
@@ -1292,13 +1539,6 @@ export function useChat(
     if (!activeStreamId && locallyTerminalStreamIdRef.current) {
       locallyTerminalStreamIdRef.current = undefined
     }
-    const shouldPreserveLocalActiveTurn = sendingRef.current && activeTurnRef.current !== null
-
-    if (shouldPreserveLocalActiveTurn) {
-      setMessages((prev) => mergeServerMessagesWithActiveTurn(mappedMessages, prev))
-    } else {
-      setMessages(mappedMessages)
-    }
 
     void recoverPendingClientWorkflowTools(mappedMessages)
 
@@ -1317,7 +1557,11 @@ export function useChat(
     const persistedResources = chatHistory.resources.filter((r) => r.id !== 'streaming-file')
     if (persistedResources.length > 0) {
       setResources(persistedResources)
-      setActiveResourceId(persistedResources[persistedResources.length - 1].id)
+      setActiveResourceId((prev) =>
+        prev && persistedResources.some((r) => r.id === prev)
+          ? prev
+          : persistedResources[persistedResources.length - 1].id
+      )
 
       for (const resource of persistedResources) {
         if (resource.type !== 'workflow') continue
@@ -1343,7 +1587,7 @@ export function useChat(
       lastCursorRef.current = '0'
       setTransportReconnecting()
 
-      const assistantId = generateId()
+      const assistantId = getLiveAssistantMessageId(activeStreamId)
 
       const reconnect = async () => {
         const initialSnapshot = chatHistory.streamSnapshot
@@ -1402,7 +1646,6 @@ export function useChat(
     queryClient,
     recoverPendingClientWorkflowTools,
     seedPreviewSessions,
-    mergeServerMessagesWithActiveTurn,
     setTransportIdle,
     setTransportReconnecting,
   ])
@@ -1513,22 +1756,41 @@ export function useChat(
       const flush = () => {
         if (isStale()) return
         streamingBlocksRef.current = [...blocks]
-        const snapshot: Partial<ChatMessage> = {
-          content: runningText,
-          contentBlocks: [...blocks],
-        }
-        if (streamRequestId) snapshot.requestId = streamRequestId
-        setMessages((prev) => {
-          if (expectedGen !== undefined && streamGenRef.current !== expectedGen) return prev
-          const idx = prev.findIndex((m) => m.id === assistantId)
-          if (idx >= 0) {
-            return prev.map((m) => (m.id === assistantId ? { ...m, ...snapshot } : m))
+        const activeChatId = chatIdRef.current
+        if (!activeChatId) {
+          const snapshot: Partial<ChatMessage> = {
+            content: runningText,
+            contentBlocks: [...blocks],
           }
-          return [
-            ...prev,
-            { id: assistantId, role: 'assistant' as const, content: '', ...snapshot },
-          ]
+          if (streamRequestId) snapshot.requestId = streamRequestId
+          setPendingMessages((prev) => {
+            if (expectedGen !== undefined && streamGenRef.current !== expectedGen) return prev
+            const idx = prev.findIndex((m) => m.id === assistantId)
+            if (idx >= 0) {
+              return prev.map((m) => (m.id === assistantId ? { ...m, ...snapshot } : m))
+            }
+            return [
+              ...prev,
+              { id: assistantId, role: 'assistant' as const, content: '', ...snapshot },
+            ]
+          })
+          return
+        }
+
+        const assistantMessage = buildAssistantSnapshotMessage({
+          id: assistantId,
+          content: runningText,
+          contentBlocks: blocks,
+          ...(streamRequestId ? { requestId: streamRequestId } : {}),
         })
+        upsertTaskChatHistory(activeChatId, (current) => ({
+          ...current,
+          messages: [
+            ...current.messages.filter((message) => message.id !== assistantId),
+            assistantMessage,
+          ],
+          activeStreamId: streamIdRef.current ?? current.activeStreamId,
+        }))
       }
 
       const flushText = () => {
@@ -1575,12 +1837,14 @@ export function useChat(
 
           const parsedResult = parsePersistedStreamEventEnvelopeJson(raw)
           if (!parsedResult.ok) {
-            logger.warn('Failed to parse chat SSE event', {
+            const error = createStreamSchemaValidationError(parsedResult, 'Live SSE event.')
+            logger.error('Rejected chat SSE event due to client-side schema enforcement', {
               reason: parsedResult.reason,
               message: parsedResult.message,
               errors: parsedResult.errors,
+              error: error.message,
             })
-            continue
+            throw error
           }
           const parsed = parsedResult.event
 
@@ -1632,14 +1896,23 @@ export function useChat(
                   const userMsg = pendingUserMsgRef.current
                   const activeStreamId = streamIdRef.current
                   if (userMsg && activeStreamId) {
+                    const assistantMessage = buildAssistantSnapshotMessage({
+                      id:
+                        activeTurnRef.current?.assistantMessageId ??
+                        getLiveAssistantMessageId(activeStreamId),
+                      content: streamingContentRef.current,
+                      contentBlocks: streamingBlocksRef.current,
+                    })
+                    const seededMessages = [userMsg, assistantMessage]
                     queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(payloadChatId), {
                       id: payloadChatId,
                       title: null,
-                      messages: [userMsg],
+                      messages: seededMessages,
                       activeStreamId,
                       resources: resourcesRef.current,
                     })
                   }
+                  setPendingMessages([])
                   if (!workflowIdRef.current) {
                     window.history.replaceState(
                       null,
@@ -2215,6 +2488,7 @@ export function useChat(
       workspaceId,
       router,
       queryClient,
+      upsertTaskChatHistory,
       addResource,
       removeResource,
       applyPreviewSessionUpdate,
@@ -2239,7 +2513,7 @@ export function useChat(
       } catch (error) {
         logger.warn('Failed to load chat history while recovering stream', {
           chatId,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
         return null
       }
@@ -2473,7 +2747,7 @@ export function useChat(
           if (isStaleReconnect()) return true
 
           setTransportReconnecting()
-          await new Promise((resolve) => setTimeout(resolve, delayMs))
+          await sleep(delayMs)
           if (streamGenRef.current !== gen) {
             if (!sendingRef.current) {
               setTransportIdle()
@@ -2529,10 +2803,21 @@ export function useChat(
             }
             return true
           }
+          if (isStreamSchemaValidationError(err)) {
+            logger.error('Reconnect halted by client-side stream schema enforcement', {
+              streamId,
+              attempt: attempt + 1,
+              error: err.message,
+            })
+            if (streamGenRef.current === gen) {
+              setError(err.message)
+            }
+            return false
+          }
           logger.warn('Reconnect attempt failed', {
             streamId,
             attempt: attempt + 1,
-            error: err instanceof Error ? err.message : String(err),
+            error: toError(err).message,
           })
         }
       }
@@ -2622,28 +2907,32 @@ export function useChat(
     []
   )
 
-  const invalidateChatQueries = useCallback(() => {
-    const activeChatId = chatIdRef.current
-    if (activeChatId) {
-      queryClient.invalidateQueries({
-        queryKey: taskKeys.detail(activeChatId),
-      })
-    }
-    queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
-  }, [workspaceId, queryClient])
+  const invalidateChatQueries = useCallback(
+    (options?: { includeDetail?: boolean }) => {
+      const activeChatId = chatIdRef.current
+      if (options?.includeDetail !== false && activeChatId) {
+        queryClient.invalidateQueries({
+          queryKey: taskKeys.detail(activeChatId),
+        })
+      }
+      queryClient.invalidateQueries({ queryKey: taskKeys.list(workspaceId) })
+    },
+    [workspaceId, queryClient]
+  )
 
   const messagesRef = useRef(messages)
   messagesRef.current = messages
 
   const finalize = useCallback(
     (options?: { error?: boolean }) => {
+      const hasQueuedFollowUp = !options?.error && messageQueueRef.current.length > 0
       reconcileTerminalPreviewSessions()
       locallyTerminalStreamIdRef.current =
         streamIdRef.current ?? activeTurnRef.current?.userMessageId ?? undefined
       clearActiveTurn()
       setTransportIdle()
       abortControllerRef.current = null
-      invalidateChatQueries()
+      invalidateChatQueries({ includeDetail: !hasQueuedFollowUp })
 
       if (!options?.error) {
         const cid = chatIdRef.current
@@ -2656,7 +2945,7 @@ export function useChat(
         return
       }
 
-      if (messageQueueRef.current.length > 0) {
+      if (hasQueuedFollowUp) {
         void enqueueQueueDispatchRef.current({ type: 'send_head' })
       }
     },
@@ -2669,7 +2958,9 @@ export function useChat(
       message: string,
       fileAttachments?: FileAttachmentForApi[],
       contexts?: ChatContext[],
-      pendingStopOverride?: Promise<void> | null
+      pendingStopOverride?: Promise<void> | null,
+      onOptimisticSendApplied?: () => void,
+      queuedSendHandoff?: QueuedSendHandoffSeed
     ) => {
       if (!message.trim() || !workspaceId) return false
       const pendingStop = pendingStopOverride ?? pendingStopPromiseRef.current
@@ -2681,8 +2972,8 @@ export function useChat(
       setTransportStreaming()
       locallyTerminalStreamIdRef.current = undefined
 
-      const userMessageId = generateId()
-      const assistantId = generateId()
+      const userMessageId = queuedSendHandoff?.userMessageId ?? generateId()
+      const assistantId = getLiveAssistantMessageId(userMessageId)
 
       streamIdRef.current = userMessageId
       lastCursorRef.current = '0'
@@ -2700,6 +2991,19 @@ export function useChat(
           : undefined
 
       const requestChatId = selectedChatIdRef.current ?? chatIdRef.current
+      if (queuedSendHandoff) {
+        writeQueuedSendHandoffState({
+          id: queuedSendHandoff.id,
+          chatId: queuedSendHandoff.chatId,
+          workspaceId,
+          supersededStreamId: queuedSendHandoff.supersededStreamId,
+          userMessageId,
+          message,
+          ...(fileAttachments ? { fileAttachments } : {}),
+          ...(contexts ? { contexts } : {}),
+          requestedAt: Date.now(),
+        })
+      }
       const messageContexts = contexts?.map((c) => ({
         kind: c.kind,
         label: c.label,
@@ -2749,21 +3053,33 @@ export function useChat(
         optimisticAssistantMessage,
       }
 
+      if (requestChatId) {
+        await queryClient.cancelQueries({ queryKey: taskKeys.detail(requestChatId) })
+      }
+
       const applyOptimisticSend = () => {
+        const assistantSnapshot = buildAssistantSnapshotMessage({
+          id: assistantId,
+          content: '',
+          contentBlocks: [],
+        })
         if (requestChatId) {
-          queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(requestChatId), (old) => {
-            if (!old) return undefined
-            const nextMessages = old.messages.filter((m) => m.id !== userMessageId)
-            return {
-              ...old,
-              resources: old.resources.filter((r) => r.id !== 'streaming-file'),
-              messages: [...nextMessages, cachedUserMsg],
-              activeStreamId: userMessageId,
-            }
-          })
+          upsertTaskChatHistory(requestChatId, (current) => ({
+            ...current,
+            resources: current.resources.filter((resource) => resource.id !== 'streaming-file'),
+            messages: [
+              ...current.messages.filter(
+                (persistedMessage) =>
+                  persistedMessage.id !== userMessageId && persistedMessage.id !== assistantId
+              ),
+              cachedUserMsg,
+              assistantSnapshot,
+            ],
+            activeStreamId: userMessageId,
+          }))
         }
 
-        setMessages((prev) => {
+        setPendingMessages((prev) => {
           const nextMessages = prev.filter((m) => m.id !== userMessageId && m.id !== assistantId)
           return [...nextMessages, optimisticUserMessage, optimisticAssistantMessage]
         })
@@ -2771,20 +3087,27 @@ export function useChat(
 
       const rollbackOptimisticSend = () => {
         if (requestChatId) {
-          queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(requestChatId), (old) => {
-            if (!old) return undefined
-            return {
-              ...old,
-              messages: old.messages.filter((m) => m.id !== userMessageId),
-              activeStreamId: old.activeStreamId === userMessageId ? null : old.activeStreamId,
-            }
-          })
+          upsertTaskChatHistory(requestChatId, (current) => ({
+            ...current,
+            messages: current.messages.filter(
+              (persistedMessage) =>
+                persistedMessage.id !== userMessageId && persistedMessage.id !== assistantId
+            ),
+            activeStreamId:
+              current.activeStreamId === userMessageId ? null : current.activeStreamId,
+          }))
         }
 
-        setMessages((prev) => prev.filter((m) => m.id !== userMessageId && m.id !== assistantId))
+        setPendingMessages((prev) =>
+          prev.filter(
+            (pendingMessage) =>
+              pendingMessage.id !== userMessageId && pendingMessage.id !== assistantId
+          )
+        )
       }
 
       applyOptimisticSend()
+      onOptimisticSendApplied?.()
       consumedByTranscript = true
 
       const abortController = new AbortController()
@@ -2794,8 +3117,9 @@ export function useChat(
         if (pendingStop) {
           try {
             await pendingStop
-            // Query invalidation from the stop barrier can briefly stomp the optimistic tail.
-            // Re-apply it before the real POST so the mothership UI stays immediate.
+            if (requestChatId) {
+              await queryClient.cancelQueries({ queryKey: taskKeys.detail(requestChatId) })
+            }
             applyOptimisticSend()
           } catch (err) {
             rollbackOptimisticSend()
@@ -2859,6 +3183,10 @@ export function useChat(
           throw new Error(errorData.error || `Request failed: ${response.status}`)
         }
 
+        if (queuedSendHandoff) {
+          clearQueuedSendHandoffState(queuedSendHandoff.id)
+        }
+
         if (!response.body) throw new Error('No response body')
 
         const streamResult = await processSSEStream(response.body.getReader(), assistantId, gen)
@@ -2888,6 +3216,13 @@ export function useChat(
         }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return consumedByTranscript
+        if (isStreamSchemaValidationError(err)) {
+          setError(err.message)
+          if (streamGenRef.current === gen) {
+            finalize({ error: true })
+          }
+          return consumedByTranscript
+        }
 
         const activeStreamId = streamIdRef.current
         if (activeStreamId && streamGenRef.current === gen) {
@@ -2910,6 +3245,7 @@ export function useChat(
     [
       workspaceId,
       queryClient,
+      upsertTaskChatHistory,
       processSSEStream,
       finalize,
       resumeOrFinalize,
@@ -2939,6 +3275,69 @@ export function useChat(
     },
     [workspaceId, startSendMessage]
   )
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const clearClaim = () => {
+      clearQueuedSendHandoffClaim()
+    }
+
+    window.addEventListener('pagehide', clearClaim)
+    window.addEventListener('beforeunload', clearClaim)
+    return () => {
+      window.removeEventListener('pagehide', clearClaim)
+      window.removeEventListener('beforeunload', clearClaim)
+    }
+  }, [])
+  useEffect(() => {
+    if (!workspaceId || !chatHistory || sendingRef.current || pendingStopPromiseRef.current) return
+
+    const handoff = readQueuedSendHandoffState()
+    if (!handoff) return
+    if (handoff.workspaceId !== workspaceId || handoff.chatId !== chatHistory.id) return
+    if (recoveringQueuedSendHandoffIdRef.current === handoff.id) return
+    if (readQueuedSendHandoffClaim() === handoff.id) return
+
+    if (
+      chatHistory.activeStreamId === handoff.userMessageId ||
+      chatHistory.messages.some((message) => message.id === handoff.userMessageId)
+    ) {
+      clearQueuedSendHandoffState(handoff.id)
+      clearQueuedSendHandoffClaim(handoff.id)
+      return
+    }
+
+    if (chatHistory.activeStreamId === handoff.supersededStreamId) {
+      return
+    }
+
+    if (chatHistory.activeStreamId && chatHistory.activeStreamId !== handoff.supersededStreamId) {
+      clearQueuedSendHandoffState(handoff.id)
+      clearQueuedSendHandoffClaim(handoff.id)
+      return
+    }
+
+    recoveringQueuedSendHandoffIdRef.current = handoff.id
+    writeQueuedSendHandoffClaim(handoff.id)
+    void startSendMessage(
+      handoff.message,
+      handoff.fileAttachments,
+      handoff.contexts,
+      null,
+      undefined,
+      {
+        id: handoff.id,
+        chatId: handoff.chatId,
+        supersededStreamId: handoff.supersededStreamId,
+        userMessageId: handoff.userMessageId,
+      }
+    ).finally(() => {
+      if (recoveringQueuedSendHandoffIdRef.current === handoff.id) {
+        recoveringQueuedSendHandoffIdRef.current = null
+      }
+      clearQueuedSendHandoffClaim(handoff.id)
+    })
+  }, [workspaceId, chatHistory, startSendMessage])
   const cancelActiveWorkflowExecutions = useCallback(() => {
     const execState = useExecutionStore.getState()
     const consoleStore = useTerminalConsoleStore.getState()
@@ -2963,7 +3362,7 @@ export function useChat(
         input: {},
         output: {},
         success: false,
-        error: 'Execution was cancelled',
+        error: 'Run was cancelled',
         durationMs: 0,
         startedAt: now.toISOString(),
         executionOrder: Number.MAX_SAFE_INTEGER,
@@ -2971,7 +3370,7 @@ export function useChat(
         workflowId,
         blockId: 'cancelled',
         executionId: executionId ?? undefined,
-        blockName: 'Execution Cancelled',
+        blockName: 'Run Cancelled',
         blockType: 'cancelled',
       })
 
@@ -2990,6 +3389,7 @@ export function useChat(
     }
 
     const wasSending = sendingRef.current
+    const activeChatId = chatIdRef.current
     const sid =
       streamIdRef.current ||
       activeTurnRef.current?.userMessageId ||
@@ -3012,24 +3412,36 @@ export function useChat(
     abortControllerRef.current = null
     setTransportIdle()
 
-    setMessages((prev) =>
-      prev.map((msg) => {
-        if (!msg.contentBlocks?.some((b) => b.toolCall?.status === 'executing')) return msg
-        const updated = msg.contentBlocks!.map((block) => {
-          if (block.toolCall?.status !== 'executing') return block
-          return {
-            ...block,
-            toolCall: {
-              ...block.toolCall,
-              status: 'cancelled' as const,
-              displayTitle: 'Stopped by user',
-            },
+    if (activeChatId) {
+      await queryClient.cancelQueries({ queryKey: taskKeys.detail(activeChatId) })
+      upsertTaskChatHistory(activeChatId, (current) => ({
+        ...current,
+        messages: current.messages.map(markMessageStopped),
+      }))
+    } else {
+      setPendingMessages((prev) =>
+        prev.map((msg) => {
+          if (!msg.contentBlocks?.some((block) => block.toolCall?.status === 'executing')) {
+            return msg
           }
+          const updatedBlocks = msg.contentBlocks.map((block) => {
+            if (block.toolCall?.status !== 'executing') {
+              return block
+            }
+            return {
+              ...block,
+              toolCall: {
+                ...block.toolCall,
+                status: 'cancelled' as const,
+                displayTitle: 'Stopped by user',
+              },
+            }
+          })
+          updatedBlocks.push({ type: 'stopped' as const })
+          return { ...msg, contentBlocks: updatedBlocks }
         })
-        updated.push({ type: 'stopped' as const })
-        return { ...msg, contentBlocks: updated }
-      })
-    )
+      )
+    }
 
     // Cancel active run-tool executions before waiting for the server-side stream
     // shutdown barrier; otherwise the abort settle can sit behind tool execution teardown.
@@ -3099,6 +3511,7 @@ export function useChat(
     persistPartialResponse,
     queryClient,
     resetEphemeralPreviewState,
+    upsertTaskChatHistory,
     clearActiveTurn,
     setTransportIdle,
   ])
@@ -3122,16 +3535,27 @@ export function useChat(
 
         let originalIndex = 0
         let removedFromQueue = false
+        const removeQueuedMessage = () => {
+          if (removedFromQueue || action.epoch !== queueDispatchEpochRef.current) {
+            return
+          }
+          removedFromQueue = true
+          setMessageQueue((prev) => prev.filter((queued) => queued.id !== msg.id))
+        }
 
         try {
           const currentIndex = messageQueueRef.current.findIndex((queued) => queued.id === msg.id)
           if (currentIndex !== -1) {
             originalIndex = currentIndex
-            removedFromQueue = true
-            setMessageQueue((prev) => prev.filter((queued) => queued.id !== msg.id))
           }
 
-          const consumed = await startSendMessage(msg.content, msg.fileAttachments, msg.contexts)
+          const consumed = await startSendMessage(
+            msg.content,
+            msg.fileAttachments,
+            msg.contexts,
+            undefined,
+            removeQueuedMessage
+          )
           if (!consumed && removedFromQueue && action.epoch === queueDispatchEpochRef.current) {
             setMessageQueue((prev) => {
               if (prev.some((queued) => queued.id === msg.id)) return prev
@@ -3174,6 +3598,8 @@ export function useChat(
   enqueueQueueDispatchRef.current = enqueueQueueDispatch
 
   const removeFromQueue = useCallback((id: string) => {
+    clearQueuedSendHandoffState(id)
+    clearQueuedSendHandoffClaim(id)
     setMessageQueue((prev) => prev.filter((m) => m.id !== id))
   }, [])
 
@@ -3196,6 +3622,13 @@ export function useChat(
 
       let originalIndex = initialIndex
       let removedFromQueue = false
+      const removeQueuedMessage = () => {
+        if (removedFromQueue || epoch !== queueDispatchEpochRef.current) {
+          return
+        }
+        removedFromQueue = true
+        setMessageQueue((prev) => prev.filter((queued) => queued.id !== msg.id))
+      }
       const restoreQueuedMessage = () => {
         if (!removedFromQueue || epoch !== queueDispatchEpochRef.current) {
           return
@@ -3215,15 +3648,29 @@ export function useChat(
         }
 
         originalIndex = currentIndex
-        removedFromQueue = true
-        setMessageQueue((prev) => prev.filter((queued) => queued.id !== msg.id))
 
+        const queuedSendHandoff =
+          sendingRef.current && workspaceId
+            ? {
+                id: msg.id,
+                chatId: selectedChatIdRef.current ?? chatIdRef.current ?? '',
+                supersededStreamId:
+                  streamIdRef.current ||
+                  activeTurnRef.current?.userMessageId ||
+                  queryClient.getQueryData<TaskChatHistory>(
+                    taskKeys.detail(selectedChatIdRef.current ?? chatIdRef.current)
+                  )?.activeStreamId ||
+                  null,
+              }
+            : undefined
         const pendingStop = sendingRef.current ? stopGeneration() : pendingStopPromiseRef.current
         const consumed = await startSendMessage(
           msg.content,
           msg.fileAttachments,
           msg.contexts,
-          pendingStop
+          pendingStop,
+          removeQueuedMessage,
+          queuedSendHandoff?.chatId ? queuedSendHandoff : undefined
         )
 
         if (!consumed) {
@@ -3248,6 +3695,8 @@ export function useChat(
   const editQueuedMessage = useCallback((id: string): QueuedMessage | undefined => {
     const msg = messageQueueRef.current.find((m) => m.id === id)
     if (!msg) return undefined
+    clearQueuedSendHandoffState(id)
+    clearQueuedSendHandoffClaim(id)
     setMessageQueue((prev) => prev.filter((m) => m.id !== id))
     return msg
   }, [])

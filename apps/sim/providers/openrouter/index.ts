@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
+import { toError } from '@/lib/core/utils/helpers'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
@@ -311,7 +312,7 @@ export const openRouterProvider: ProviderConfig = {
           } catch (error) {
             const toolCallEndTime = Date.now()
             logger.error('Error processing tool call (OpenRouter):', {
-              error: error instanceof Error ? error.message : String(error),
+              error: toError(error).message,
               toolName,
             })
 
@@ -601,7 +602,7 @@ export const openRouterProvider: ProviderConfig = {
       const totalDuration = providerEndTime - providerStartTime
 
       const errorDetails: Record<string, any> = {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
         duration: totalDuration,
       }
       if (error && typeof error === 'object') {
@@ -614,7 +615,7 @@ export const openRouterProvider: ProviderConfig = {
       }
 
       logger.error('Error in OpenRouter request:', errorDetails)
-      throw new ProviderError(error instanceof Error ? error.message : String(error), {
+      throw new ProviderError(toError(error).message, {
         startTime: providerStartTimeISO,
         endTime: providerEndTimeISO,
         duration: totalDuration,

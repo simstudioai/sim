@@ -42,6 +42,13 @@ export function isPaid(plan: string | null | undefined): boolean {
   return isPro(plan) || isTeam(plan) || isEnterprise(plan)
 }
 
+/**
+ * True when the plan **name** is a team/enterprise plan. This is a
+ * plan-name check, NOT a scope check — a `pro_*` plan attached to an
+ * organization is org-scoped at the billing level even though this
+ * returns `false` for it. For scope decisions use
+ * `isOrgScopedSubscription` (sync) or `isSubscriptionOrgScoped` (async).
+ */
 export function isOrgPlan(plan: string | null | undefined): boolean {
   return isTeam(plan) || isEnterprise(plan)
 }

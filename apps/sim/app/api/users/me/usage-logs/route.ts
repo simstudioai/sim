@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { getUserUsageLogs, type UsageLogSource } from '@/lib/billing/core/usage-log'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('UsageLogsAPI')
 
@@ -109,7 +110,7 @@ export async function GET(req: NextRequest) {
     })
   } catch (error) {
     logger.error('Failed to get usage logs', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
 
     return NextResponse.json(

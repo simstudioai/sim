@@ -316,6 +316,7 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
       title: 'Export Format',
       type: 'dropdown',
       options: [
+        { label: 'Auto (best format for file type)', id: 'auto' },
         { label: 'Plain Text (text/plain)', id: 'text/plain' },
         { label: 'HTML (text/html)', id: 'text/html' },
         { label: 'PDF (application/pdf)', id: 'application/pdf' },
@@ -333,7 +334,8 @@ Return ONLY the query string - no explanations, no quotes around the whole thing
         },
         { label: 'CSV (text/csv)', id: 'text/csv' },
       ],
-      placeholder: 'Optional: Choose export format for Google Docs/Sheets/Slides',
+      value: () => 'auto',
+      placeholder: 'Export format for Google Docs/Sheets/Slides',
       condition: { field: 'operation', value: 'download' },
     },
     {
@@ -867,7 +869,7 @@ Return ONLY the message text - no subject line, no greetings/signatures, no extr
           destinationFolderId: effectiveDestinationFolderId,
           file: normalizedFile,
           pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
-          mimeType: mimeType,
+          mimeType: mimeType === 'auto' ? undefined : mimeType,
           type: shareType, // Map shareType to type for share tool
           starred: starredValue,
           sendNotification: sendNotificationValue,

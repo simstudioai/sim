@@ -1,4 +1,5 @@
 import { isAzureConfigured, isHosted, isOllamaConfigured } from '@/lib/core/config/feature-flags'
+import { toError } from '@/lib/core/utils/helpers'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/blocks/types'
 import {
@@ -385,9 +386,7 @@ export function parseOptionalJsonInput<T = unknown>(value: unknown, label: strin
     try {
       return JSON.parse(trimmed) as T
     } catch (error) {
-      throw new Error(
-        `Invalid JSON for ${label}: ${error instanceof Error ? error.message : String(error)}`
-      )
+      throw new Error(`Invalid JSON for ${label}: ${toError(error).message}`)
     }
   }
 

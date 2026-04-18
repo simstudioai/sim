@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { ToolExecutionResult, ToolHandler } from '@/lib/copilot/tool-executor/types'
 import { routeExecution } from '@/lib/copilot/tools/server/router'
+import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('ServerToolAdapter')
 
@@ -35,7 +36,7 @@ export function createServerToolHandler(toolId: string): ToolHandler {
       }
       return { success: true, output: result }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
+      const message = toError(error).message
       logger.error('Server tool execution failed', {
         toolId,
         error: message,

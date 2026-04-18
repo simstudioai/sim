@@ -6,6 +6,7 @@ import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import {
   assertActiveWorkspaceAccess,
@@ -110,7 +111,7 @@ export async function POST(req: NextRequest) {
         chatId: effectiveChatId,
       }).catch((error) => {
         reqLogger.warn('Failed to send explicit abort for mothership execution', {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       })
     }

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { GoogleSheetsIcon } from '@/components/icons'
+import { toError } from '@/lib/core/utils/helpers'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { parseTagDate } from '@/connectors/utils'
@@ -129,7 +130,7 @@ async function fetchSpreadsheetModifiedTime(
     return data.modifiedTime
   } catch (error) {
     logger.warn('Error fetching modifiedTime from Drive API', {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return undefined
   }
@@ -189,7 +190,7 @@ async function sheetToDocument(
     }
   } catch (error) {
     logger.warn(`Failed to extract content from sheet: ${sheet.title}`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return null
   }
@@ -310,7 +311,7 @@ export const googleSheetsConnector: ConnectorConfig = {
         fetchSpreadsheetModifiedTime(accessToken, spreadsheetId),
       ])
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
+      const message = toError(error).message
       if (message.includes('404')) {
         logger.info('Spreadsheet not found (possibly deleted)', { spreadsheetId })
         return null

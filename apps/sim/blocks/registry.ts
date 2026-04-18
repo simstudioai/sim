@@ -18,6 +18,7 @@ import { AthenaBlock } from '@/blocks/blocks/athena'
 import { AttioBlock } from '@/blocks/blocks/attio'
 import { BoxBlock } from '@/blocks/blocks/box'
 import { BrandfetchBlock } from '@/blocks/blocks/brandfetch'
+import { BrightDataBlock } from '@/blocks/blocks/brightdata'
 import { BrowserUseBlock } from '@/blocks/blocks/browser_use'
 import { CalComBlock } from '@/blocks/blocks/calcom'
 import { CalendlyBlock } from '@/blocks/blocks/calendly'
@@ -128,6 +129,7 @@ import {
   MistralParseV2Block,
   MistralParseV3Block,
 } from '@/blocks/blocks/mistral_parse'
+import { MondayBlock } from '@/blocks/blocks/monday'
 import { MongoDBBlock } from '@/blocks/blocks/mongodb'
 import { MothershipBlock } from '@/blocks/blocks/mothership'
 import { MySQLBlock } from '@/blocks/blocks/mysql'
@@ -244,8 +246,9 @@ export const registry: Record<string, BlockConfig> = {
   ashby: AshbyBlock,
   athena: AthenaBlock,
   attio: AttioBlock,
-  brandfetch: BrandfetchBlock,
   box: BoxBlock,
+  brandfetch: BrandfetchBlock,
+  brightdata: BrightDataBlock,
   browser_use: BrowserUseBlock,
   calcom: CalComBlock,
   calendly: CalendlyBlock,
@@ -369,6 +372,7 @@ export const registry: Record<string, BlockConfig> = {
   mistral_parse: MistralParseBlock,
   mistral_parse_v2: MistralParseV2Block,
   mistral_parse_v3: MistralParseV3Block,
+  monday: MondayBlock,
   mongodb: MongoDBBlock,
   mothership: MothershipBlock,
   mysql: MySQLBlock,

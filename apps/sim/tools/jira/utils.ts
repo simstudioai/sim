@@ -6,6 +6,51 @@ const logger = createLogger('JiraUtils')
 const MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024
 
 /**
+ * Converts a value to ADF format. If the value is already an ADF document object,
+ * it is returned as-is. If it is a plain string, it is wrapped in a single-paragraph ADF doc.
+ */
+export function toAdf(value: string | Record<string, unknown>): Record<string, unknown> {
+  if (typeof value === 'object') {
+    if (value.type === 'doc') {
+      return value
+    }
+    if (value.type && Array.isArray(value.content)) {
+      return { type: 'doc', version: 1, content: [value] }
+    }
+  }
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      if (typeof parsed === 'object' && parsed !== null && parsed.type === 'doc') {
+        return parsed
+      }
+      if (
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        parsed.type &&
+        Array.isArray(parsed.content)
+      ) {
+        return { type: 'doc', version: 1, content: [parsed] }
+      }
+    } catch {
+      // Not JSON — treat as plain text below
+    }
+  }
+  return {
+    type: 'doc',
+    version: 1,
+    content: [
+      {
+        type: 'paragraph',
+        content: [
+          { type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) },
+        ],
+      },
+    ],
+  }
+}
+
+/**
  * Extracts plain text from Atlassian Document Format (ADF) content.
  * Returns null if content is falsy.
  */

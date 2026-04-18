@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { safeCompare } from '@/lib/core/security/encryption'
+import { toError } from '@/lib/core/utils/helpers'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import type {
   AuthContext,
@@ -83,7 +84,7 @@ async function resolveZoomChallengeSecrets(
         return { secretToken }
       } catch (error) {
         logger.warn(`[${requestId}] Failed to resolve Zoom webhook secret for challenge`, {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
           path,
         })
         return { secretToken: '' }

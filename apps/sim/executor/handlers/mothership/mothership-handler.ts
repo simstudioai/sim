@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import type { BlockOutput } from '@/blocks/types'
@@ -91,7 +92,7 @@ export class MothershipBlockHandler implements BlockHandler {
                 logger.warn('Failed to poll workflow cancellation for Mothership block', {
                   blockId: block.id,
                   executionId,
-                  error: error instanceof Error ? error.message : String(error),
+                  error: toError(error).message,
                 })
               })
               .finally(() => {

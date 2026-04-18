@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { sleep, toError } from '@/lib/core/utils/helpers'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import {
   type ExecutionStreamStatus,
@@ -48,14 +49,11 @@ export async function GET(
 
     const meta = await getExecutionMeta(executionId)
     if (!meta) {
-      return NextResponse.json({ error: 'Execution buffer not found or expired' }, { status: 404 })
+      return NextResponse.json({ error: 'Run buffer not found or expired' }, { status: 404 })
     }
 
     if (meta.workflowId && meta.workflowId !== workflowId) {
-      return NextResponse.json(
-        { error: 'Execution does not belong to this workflow' },
-        { status: 403 }
-      )
+      return NextResponse.json({ error: 'Run does not belong to this workflow' }, { status: 403 })
     }
 
     const fromParam = req.nextUrl.searchParams.get('from')
@@ -104,7 +102,7 @@ export async function GET(
           }
 
           while (!closed && Date.now() < pollDeadline) {
-            await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+            await sleep(POLL_INTERVAL_MS)
             if (closed) return
 
             const newEvents = await readExecutionEvents(executionId, lastEventId)
@@ -138,7 +136,7 @@ export async function GET(
         } catch (error) {
           logger.error('Error in reconnection stream', {
             executionId,
-            error: error instanceof Error ? error.message : String(error),
+            error: toError(error).message,
           })
           if (!closed) {
             try {

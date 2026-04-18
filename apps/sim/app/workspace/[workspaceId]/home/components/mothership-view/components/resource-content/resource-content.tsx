@@ -684,12 +684,10 @@ function EmbeddedLog({ logId }: EmbeddedLogProps) {
           </div>
         </div>
 
-        {/* Execution ID */}
+        {/* Run ID */}
         {log.executionId && (
           <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2'>
-            <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-              Execution ID
-            </span>
+            <span className='font-medium text-[var(--text-tertiary)] text-caption'>Run ID</span>
             <span className='truncate font-medium text-[var(--text-secondary)] text-sm'>
               {log.executionId}
             </span>

@@ -5,13 +5,15 @@ import {
   session,
   subscription as subscriptionTable,
   user,
+  userStats,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { hasPaidSubscription } from '@/lib/billing'
 import { getPlanPricing } from '@/lib/billing/core/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
-import { isTeam } from '@/lib/billing/plan-helpers'
+import { isEnterprise, isPaid, isTeam } from '@/lib/billing/plan-helpers'
+import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('BillingOrganization')
@@ -258,10 +260,12 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
       // Organization subscription - set org usage limit and sync member limits
       const organizationId = subscription.referenceId
 
-      // Set orgUsageLimit for team plans (enterprise is set via webhook with custom pricing)
-      if (isTeam(subscription.plan)) {
+      // Set orgUsageLimit for any paid non-enterprise plan attached to
+      // the org. Enterprise is set via webhook with custom pricing.
+      // Min = basePrice × seats, mirroring Stripe's `price × quantity`.
+      if (isPaid(subscription.plan) && !isEnterprise(subscription.plan)) {
         const { basePrice } = getPlanPricing(subscription.plan)
-        const seats = subscription.seats ?? 1
+        const seats = subscription.seats || 1
         const orgLimit = seats * basePrice
 
         // Only set if not already set or if updating to a higher value based on seats
@@ -273,7 +277,7 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
 
         const currentLimit =
           orgData.length > 0 && orgData[0].orgUsageLimit
-            ? Number.parseFloat(orgData[0].orgUsageLimit)
+            ? toNumber(toDecimal(orgData[0].orgUsageLimit))
             : 0
 
         // Update if no limit set, or if new seat-based minimum is higher
@@ -286,8 +290,9 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
             })
             .where(eq(organization.id, organizationId))
 
-          logger.info('Set organization usage limit for team plan', {
+          logger.info('Set organization usage limit', {
             organizationId,
+            plan: subscription.plan,
             seats,
             basePrice,
             orgLimit,
@@ -322,6 +327,64 @@ export async function syncSubscriptionUsageLimits(subscription: SubscriptionData
           subscriptionId: subscription.id,
           plan: subscription.plan,
         })
+
+        // Bulk version of the per-member transfer in invitation-accept:
+        // catches members whose personal bytes never made it into the
+        // org pool (e.g. org upgraded free → paid after they joined).
+        // `.for('update')` row-locks so concurrent increment/decrement
+        // calls cannot slip between the snapshot SELECT and the
+        // zeroing UPDATE and get silently dropped. Idempotent — zeroed
+        // rows are filtered out.
+        if (isPaid(subscription.plan)) {
+          try {
+            const memberIds = members.map((m) => m.userId)
+            await db.transaction(async (tx) => {
+              const personalStorageRows = await tx
+                .select({
+                  userId: userStats.userId,
+                  bytes: userStats.storageUsedBytes,
+                })
+                .from(userStats)
+                .where(inArray(userStats.userId, memberIds))
+                .for('update')
+
+              const toTransfer = personalStorageRows.filter((r) => (r.bytes ?? 0) > 0)
+              const totalBytes = toTransfer.reduce((acc, r) => acc + (r.bytes ?? 0), 0)
+
+              if (totalBytes === 0) return
+
+              await tx
+                .update(organization)
+                .set({
+                  storageUsedBytes: sql`${organization.storageUsedBytes} + ${totalBytes}`,
+                })
+                .where(eq(organization.id, organizationId))
+
+              await tx
+                .update(userStats)
+                .set({ storageUsedBytes: 0 })
+                .where(
+                  inArray(
+                    userStats.userId,
+                    toTransfer.map((r) => r.userId)
+                  )
+                )
+
+              logger.info('Transferred personal storage bytes to org pool during sync', {
+                organizationId,
+                subscriptionId: subscription.id,
+                memberCount: toTransfer.length,
+                totalBytes,
+              })
+            })
+          } catch (storageError) {
+            logger.error('Failed to transfer personal storage to org pool', {
+              organizationId,
+              subscriptionId: subscription.id,
+              error: storageError,
+            })
+          }
+        }
       }
     }
   } catch (error) {

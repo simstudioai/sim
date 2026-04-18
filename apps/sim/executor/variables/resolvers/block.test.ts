@@ -383,6 +383,47 @@ describe('BlockResolver', () => {
       expect(resolver.resolve('<start.input>', ctx)).toBe(RESOLVED_EMPTY)
     })
 
+    it.concurrent(
+      'should return RESOLVED_EMPTY for nested json path on function block that did not execute',
+      () => {
+        // Repro for the branched-trigger CRM workflow bug: a function block
+        // on an untaken branch is referenced via a nested path under its
+        // `result` (declared `type: 'json'`). The resolver must not validate
+        // the path against the declared top-level schema keys in this case.
+        const workflow = createTestWorkflow([
+          { id: 'normalize-email', name: 'NormalizeEmail', type: 'function' },
+          { id: 'normalize-calendar', name: 'NormalizeCalendar', type: 'function' },
+        ])
+        const resolver = new BlockResolver(workflow)
+        const ctx = createTestContext('current', {
+          'normalize-email': { result: { summary: 'email summary' }, stdout: '' },
+        })
+
+        expect(resolver.resolve('<NormalizeEmail.result.summary>', ctx)).toBe('email summary')
+        expect(resolver.resolve('<NormalizeCalendar.result.summary>', ctx)).toBe(RESOLVED_EMPTY)
+        expect(resolver.resolve('<NormalizeCalendar.result>', ctx)).toBe(RESOLVED_EMPTY)
+      }
+    )
+
+    it.concurrent(
+      'should return RESOLVED_EMPTY for nested json path on executed block when data is missing',
+      () => {
+        // Even for a block that ran, drilling into a `json`-typed field that
+        // the runtime output didn't include should resolve to empty rather
+        // than throw — `json` explicitly means dynamic shape.
+        const workflow = createTestWorkflow([
+          { id: 'normalize-email', name: 'NormalizeEmail', type: 'function' },
+        ])
+        const resolver = new BlockResolver(workflow)
+        const ctx = createTestContext('current', {
+          'normalize-email': { result: { subject: 'hi' }, stdout: '' },
+        })
+
+        expect(resolver.resolve('<NormalizeEmail.result.subject>', ctx)).toBe('hi')
+        expect(resolver.resolve('<NormalizeEmail.result.summary>', ctx)).toBe(RESOLVED_EMPTY)
+      }
+    )
+
     it.concurrent('should fall back to context blockStates', () => {
       const workflow = createTestWorkflow([{ id: 'source' }])
       const resolver = new BlockResolver(workflow)

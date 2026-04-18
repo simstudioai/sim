@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { MothershipStreamV1EventType } from '@/lib/copilot/generated/mothership-stream-v1'
+import { toError } from '@/lib/core/utils/helpers'
 import { appendEvents } from './buffer'
 import type { PersistedStreamEventEnvelope } from './contract'
 import { createEvent } from './event'
@@ -73,7 +74,7 @@ export class StreamWriter {
         logger.warn('Keepalive enqueue failed, marking client disconnected', {
           streamId: this.streamId,
           requestId: this.requestId,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
     }, this.keepaliveMs)
@@ -132,7 +133,7 @@ export class StreamWriter {
         streamId: this.streamId,
         requestId: this.requestId,
         seq: envelope.seq,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
     }
   }
@@ -178,14 +179,14 @@ export class StreamWriter {
         this.lastPersistenceError = null
       })
       .catch((error) => {
-        this.lastPersistenceError = error instanceof Error ? error : new Error(String(error))
+        this.lastPersistenceError = toError(error)
         logger.warn('Failed to persist stream envelope batch', {
           streamId: this.streamId,
           requestId: this.requestId,
           batchSize: batch.length,
           firstSeq: batch[0]?.seq,
           lastSeq: batch[batch.length - 1]?.seq,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       })
   }

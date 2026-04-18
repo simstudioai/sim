@@ -1,0 +1,54 @@
+---
+title: Outlook
+description: Available Outlook triggers for automating workflows
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="outlook"
+  color="#E0E0E0"
+/>
+
+Outlook provides 1 trigger for automating workflows based on events.
+
+All triggers below are **polling-based** — they check for new data on a schedule rather than receiving push notifications.
+
+## Triggers
+
+### Outlook Email Trigger
+
+Triggers when new emails are received in Outlook (requires Microsoft credentials)
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerCredentials` | string | Yes | This trigger requires outlook credentials to access your account. |
+| `folderIds` | string | No | Choose which Outlook folders to monitor. Leave empty to monitor all emails. |
+| `folderFilterBehavior` | string | Yes | Include only emails from selected folders, or exclude emails from selected folders |
+| `markAsRead` | boolean | No | Automatically mark emails as read after processing |
+| `includeAttachments` | boolean | No | Download and include email attachments in the trigger payload |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email` | object | email output from the tool |
+|   ↳ `id` | string | Outlook message ID |
+|   ↳ `conversationId` | string | Outlook conversation ID |
+|   ↳ `subject` | string | Email subject line |
+|   ↳ `from` | string | Sender email address |
+|   ↳ `to` | string | Recipient email address |
+|   ↳ `cc` | string | CC recipients |
+|   ↳ `date` | string | Email date in ISO format |
+|   ↳ `bodyText` | string | Plain text email body |
+|   ↳ `bodyHtml` | string | HTML email body |
+|   ↳ `hasAttachments` | boolean | Whether email has attachments |
+|   ↳ `attachments` | file[] | Array of email attachments as files \(if includeAttachments is enabled\) |
+|   ↳ `isRead` | boolean | Whether email is read |
+|   ↳ `folderId` | string | Outlook folder ID where email is located |
+|   ↳ `messageId` | string | Message ID for threading |
+|   ↳ `threadId` | string | Thread ID for conversation threading |
+| `timestamp` | string | Event timestamp |
+

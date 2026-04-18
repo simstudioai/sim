@@ -77,14 +77,14 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
           <>
             <DropdownMenuItem onSelect={onCancelExecution}>
               <X />
-              Cancel Execution
+              Cancel Run
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>
         )}
         <DropdownMenuItem disabled={!hasExecutionId} onSelect={onCopyExecutionId}>
           <Copy />
-          Copy Execution ID
+          Copy Run ID
         </DropdownMenuItem>
         <DropdownMenuItem disabled={!hasExecutionId} onSelect={onCopyLink}>
           <Link />

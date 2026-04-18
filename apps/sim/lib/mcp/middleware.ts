@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createMcpErrorResponse } from '@/lib/mcp/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -125,7 +126,7 @@ async function validateMcpAuth(
     return {
       success: false,
       errorResponse: createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Authentication validation failed'),
+        toError(error),
         'Authentication validation failed',
         500
       ),
@@ -193,11 +194,7 @@ export function withMcpAuth<TParams = Record<string, string>>(
           `[${(authResult as AuthResult).context.requestId}] Error in MCP route handler:`,
           error
         )
-        return createMcpErrorResponse(
-          error instanceof Error ? error : new Error('Internal server error'),
-          'Internal server error',
-          500
-        )
+        return createMcpErrorResponse(toError(error), 'Internal server error', 500)
       }
     }
   }

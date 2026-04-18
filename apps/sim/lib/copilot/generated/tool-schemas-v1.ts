@@ -266,6 +266,25 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  debug: {
+    parameters: {
+      properties: {
+        context: {
+          description:
+            'Pre-gathered context: workflow state JSON, block schemas, error logs. The debug agent will skip re-reading anything included here.',
+          type: 'string',
+        },
+        request: {
+          description:
+            'What to debug. Include error messages, block IDs, and any context about the failure.',
+          type: 'string',
+        },
+      },
+      required: ['request'],
+      type: 'object',
+    },
+    resultSchema: undefined,
+  },
   delete_file: {
     parameters: {
       type: 'object',
@@ -1872,7 +1891,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         path: {
           type: 'string',
-          description: "Path to the file to read (e.g. 'workflows/My Workflow/state.json').",
+          description:
+            "Path to the file to read (e.g. 'workflows/My Workflow/state.json' or 'workflows/Projects/Q1/My Workflow/state.json').",
         },
       },
       required: ['path'],
@@ -2067,6 +2087,23 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['workflowId', 'version'],
+    },
+    resultSchema: undefined,
+  },
+  run: {
+    parameters: {
+      properties: {
+        context: {
+          description: 'Pre-gathered context: workflow state, block IDs, input requirements.',
+          type: 'string',
+        },
+        request: {
+          description: 'What to run or what logs to check.',
+          type: 'string',
+        },
+      },
+      required: ['request'],
+      type: 'object',
     },
     resultSchema: undefined,
   },
@@ -2597,6 +2634,22 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             limit: {
               type: 'number',
               description: 'Maximum rows to return or affect (optional, default 100)',
+            },
+            mapping: {
+              type: 'object',
+              description:
+                'Optional explicit CSV-header → table-column mapping for import_file, as { "csvHeader": "columnName" | null }. When omitted, headers are auto-matched by sanitized name (case-insensitive fallback). Use null to skip a CSV column.',
+              additionalProperties: {
+                type: 'string',
+                description:
+                  'Target column name on the table. Use null to skip this CSV header instead of a column name.',
+              },
+            },
+            mode: {
+              type: 'string',
+              description:
+                "Import mode for import_file. 'append' (default) adds rows; 'replace' truncates existing rows in a transaction before inserting the new rows.",
+              enum: ['append', 'replace'],
             },
             name: {
               type: 'string',

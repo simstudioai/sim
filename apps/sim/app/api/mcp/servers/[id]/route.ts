@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { toError } from '@/lib/core/utils/helpers'
 import {
   McpDnsResolutionError,
   McpDomainNotAllowedError,
@@ -138,11 +139,7 @@ export const PATCH = withMcpAuth<{ id: string }>('write')(
       return createMcpSuccessResponse({ server: updatedServer })
     } catch (error) {
       logger.error(`[${requestId}] Error updating MCP server:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to update MCP server'),
-        'Failed to update MCP server',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to update MCP server', 500)
     }
   }
 )

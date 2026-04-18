@@ -89,6 +89,7 @@ vi.mock('@/lib/workflows/persistence/utils', () => ({
 }))
 vi.mock('@/lib/workflows/orchestration', () => ({
   performChatUndeploy: mockPerformChatUndeploy,
+  notifySocketDeploymentChanged: vi.fn().mockResolvedValue(undefined),
 }))
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),

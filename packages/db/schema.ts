@@ -768,6 +768,7 @@ export const userStats = pgTable('user_stats', {
   billedOverageThisPeriod: decimal('billed_overage_this_period').notNull().default('0'), // Amount of overage already billed via threshold billing
   // Pro usage snapshot when joining a team (to prevent double-billing)
   proPeriodCostSnapshot: decimal('pro_period_cost_snapshot').default('0'), // Snapshot of Pro usage when joining team
+  proPeriodCostSnapshotAt: timestamp('pro_period_cost_snapshot_at'), // When the snapshot was captured (= join moment). Used to cap daily-refresh computation so post-join refresh isn't deducted from pre-join personal Pro usage (and vice-versa for the org's pooled refresh).
   // Pre-purchased credits (for Pro users only)
   creditBalance: decimal('credit_balance').notNull().default('0'),
   // Copilot usage tracking
@@ -1968,6 +1969,30 @@ export const idempotencyKey = pgTable(
   (table) => ({
     // Index for cleanup operations by creation time
     createdAtIdx: index('idempotency_key_created_at_idx').on(table.createdAt),
+  })
+)
+
+export const outboxEvent = pgTable(
+  'outbox_event',
+  {
+    id: text('id').primaryKey(),
+    eventType: text('event_type').notNull(),
+    payload: json('payload').notNull(),
+    status: text('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    maxAttempts: integer('max_attempts').notNull().default(10),
+    availableAt: timestamp('available_at').notNull().defaultNow(),
+    lockedAt: timestamp('locked_at'),
+    lastError: text('last_error'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    processedAt: timestamp('processed_at'),
+  },
+  (table) => ({
+    statusAvailableIdx: index('outbox_event_status_available_idx').on(
+      table.status,
+      table.availableAt
+    ),
+    lockedAtIdx: index('outbox_event_locked_at_idx').on(table.lockedAt),
   })
 )
 

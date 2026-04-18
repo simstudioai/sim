@@ -30,6 +30,7 @@ import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import type { ChunkingStrategy, StrategyOptions } from '@/lib/chunkers/types'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
@@ -1820,7 +1821,7 @@ export async function deleteDocumentStorageFiles(
       } catch (error) {
         logger.warn(`[${requestId}] Failed to delete document storage file`, {
           documentId: doc.id,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
     })

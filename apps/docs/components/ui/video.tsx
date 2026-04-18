@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { getAssetUrl } from '@/lib/utils'
+import { useRef, useState } from 'react'
+import { cn, getAssetUrl } from '@/lib/utils'
 import { Lightbox } from './lightbox'
 
 interface VideoProps {
@@ -12,6 +12,8 @@ interface VideoProps {
   muted?: boolean
   playsInline?: boolean
   enableLightbox?: boolean
+  width?: number
+  height?: number
 }
 
 export function Video({
@@ -22,11 +24,16 @@ export function Video({
   muted = true,
   playsInline = true,
   enableLightbox = true,
+  width,
+  height,
 }: VideoProps) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const startTimeRef = useRef(0)
   const [isLightboxOpen, setIsLightboxOpen] = useState(false)
 
   const handleVideoClick = () => {
     if (enableLightbox) {
+      startTimeRef.current = videoRef.current?.currentTime ?? 0
       setIsLightboxOpen(true)
     }
   }
@@ -34,11 +41,17 @@ export function Video({
   return (
     <>
       <video
+        ref={videoRef}
         autoPlay={autoPlay}
         loop={loop}
         muted={muted}
         playsInline={playsInline}
-        className={`${className} ${enableLightbox ? 'cursor-pointer transition-opacity hover:opacity-95' : ''}`}
+        width={width}
+        height={height}
+        className={cn(
+          className,
+          enableLightbox && 'cursor-pointer transition-opacity hover:opacity-95'
+        )}
         src={getAssetUrl(src)}
         onClick={handleVideoClick}
       />
@@ -50,6 +63,7 @@ export function Video({
           src={src}
           alt={`Video: ${src}`}
           type='video'
+          startTime={startTimeRef.current}
         />
       )}
     </>

@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { WordpressIcon } from '@/components/icons'
+import { toError } from '@/lib/core/utils/helpers'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
@@ -230,7 +231,7 @@ export const wordpressConnector: ConnectorConfig = {
     } catch (error) {
       logger.warn('Failed to get WordPress document', {
         externalId,
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return null
     }

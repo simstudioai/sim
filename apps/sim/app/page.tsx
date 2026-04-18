@@ -1,13 +1,11 @@
 import type { Metadata } from 'next'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { SITE_URL } from '@/lib/core/utils/urls'
 import Landing from '@/app/(landing)/landing'
 
 export const revalidate = 3600
 
-const baseUrl = getBaseUrl()
-
 export const metadata: Metadata = {
-  metadataBase: new URL(baseUrl),
+  metadataBase: new URL(SITE_URL),
   title: {
     absolute: 'Sim — The AI Workspace | Build, Deploy & Manage AI Agents',
   },
@@ -28,7 +26,7 @@ export const metadata: Metadata = {
     description:
       'Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect 1,000+ integrations and every major LLM to create agents that automate real work — visually, conversationally, or with code.',
     type: 'website',
-    url: baseUrl,
+    url: SITE_URL,
     siteName: 'Sim',
     locale: 'en_US',
     images: [
@@ -54,10 +52,10 @@ export const metadata: Metadata = {
     },
   },
   alternates: {
-    canonical: baseUrl,
+    canonical: SITE_URL,
     languages: {
-      'en-US': baseUrl,
-      'x-default': baseUrl,
+      'en-US': SITE_URL,
+      'x-default': SITE_URL,
     },
   },
   robots: {

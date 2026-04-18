@@ -157,7 +157,7 @@ function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
     }
 
     if (block.type === 'text') {
-      if (!block.content?.trim()) continue
+      if (!block.content) continue
       if (block.subagent) {
         if (group && group.agentName === block.subagent) {
           group.isDelegating = false
@@ -384,7 +384,6 @@ export function MessageContent({
   const hasSubagentEnded = blocks.some((b) => b.type === 'subagent_end')
   const showTrailingThinking =
     isStreaming && !hasTrailingContent && (hasSubagentEnded || allLastGroupToolsDone)
-  const hasStructuredSegments = segments.some((segment) => segment.type !== 'text')
   const lastOpenSubagentGroupId = [...segments]
     .reverse()
     .find(
@@ -404,7 +403,6 @@ export function MessageContent({
                 isStreaming={isStreaming}
                 onOptionSelect={onOptionSelect}
                 onWorkspaceResourceSelect={onWorkspaceResourceSelect}
-                smoothStreaming={!hasStructuredSegments}
               />
             )
           case 'agent_group': {

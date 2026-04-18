@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
@@ -82,11 +83,7 @@ export const GET = withMcpAuth('read')(
       return createMcpSuccessResponse({ servers: serversWithToolNames })
     } catch (error) {
       logger.error(`[${requestId}] Error listing workflow MCP servers:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to list workflow MCP servers'),
-        'Failed to list workflow MCP servers',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to list workflow MCP servers', 500)
     }
   }
 )
@@ -221,11 +218,7 @@ export const POST = withMcpAuth('write')(
       return createMcpSuccessResponse({ server, addedTools }, 201)
     } catch (error) {
       logger.error(`[${requestId}] Error creating workflow MCP server:`, error)
-      return createMcpErrorResponse(
-        error instanceof Error ? error : new Error('Failed to create workflow MCP server'),
-        'Failed to create workflow MCP server',
-        500
-      )
+      return createMcpErrorResponse(toError(error), 'Failed to create workflow MCP server', 500)
     }
   }
 )

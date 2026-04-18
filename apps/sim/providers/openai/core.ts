@@ -1,5 +1,6 @@
 import type { Logger } from '@sim/logger'
 import type OpenAI from 'openai'
+import { toError } from '@/lib/core/utils/helpers'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import type { Message, ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'
@@ -813,7 +814,7 @@ export async function executeResponsesProviderRequest(
       duration: totalDuration,
     })
 
-    throw new ProviderError(error instanceof Error ? error.message : String(error), {
+    throw new ProviderError(toError(error).message, {
       startTime: providerStartTimeISO,
       endTime: providerEndTimeISO,
       duration: totalDuration,

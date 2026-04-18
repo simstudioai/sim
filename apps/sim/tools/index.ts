@@ -9,6 +9,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { sleep, toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl, getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { isUserFile } from '@/lib/core/utils/user-file'
@@ -163,6 +164,43 @@ async function normalizeCopilotFileParams(
       )
     }
   }
+}
+
+function readExplicitCredentialSelector(params: Record<string, unknown>): string | undefined {
+  for (const key of ['credentialId', 'oauthCredential', 'credential'] as const) {
+    const value = params[key]
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim()
+    }
+  }
+  return undefined
+}
+
+function normalizeCopilotCredentialParams(params: Record<string, unknown>): void {
+  const credentialId = typeof params.credentialId === 'string' ? params.credentialId.trim() : ''
+  if (credentialId && !params.credential && !params.oauthCredential) {
+    params.credential = credentialId
+  }
+}
+
+function enforceCopilotCredentialSelection(
+  toolId: string,
+  tool: ToolConfig,
+  params: Record<string, unknown>,
+  scope: ToolExecutionScope
+): void {
+  if (!scope.copilotToolExecution || !tool.oauth?.required) {
+    return
+  }
+
+  if (readExplicitCredentialSelector(params)) {
+    return
+  }
+
+  const toolLabel = tool.name || toolId
+  throw new Error(
+    `Copilot must pass credentialId for ${toolLabel}. Read environment/credentials.json and pass the exact credentialId for provider "${tool.oauth.provider}".`
+  )
 }
 
 /** Result from hosted key injection */
@@ -339,7 +377,7 @@ async function executeWithRetry<T>(
       logger.warn(
         `[${requestId}] Rate limited for ${toolId} (${envVarName}), retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})`
       )
-      await new Promise((resolve) => setTimeout(resolve, delayMs))
+      await sleep(delayMs)
     }
   }
 
@@ -615,7 +653,7 @@ function isBodySizeLimitError(errorMessage: string): boolean {
  * @returns false if not a size limit error (caller should continue handling)
  */
 function handleBodySizeLimitError(error: unknown, requestId: string, context: string): boolean {
-  const errorMessage = error instanceof Error ? error.message : String(error)
+  const errorMessage = toError(error).message
 
   if (isBodySizeLimitError(errorMessage)) {
     logger.error(`[${requestId}] Request body size limit exceeded for ${context}:`, {
@@ -789,6 +827,8 @@ export async function executeTool(
     }
 
     await normalizeCopilotFileParams(tool, contextParams, scope)
+    normalizeCopilotCredentialParams(contextParams)
+    enforceCopilotCredentialSelection(toolId, tool, contextParams, scope)
 
     // Inject hosted API key if tool supports it and user didn't provide one
     const hostedKeyInfo = await injectHostedKeyIfNeeded(
@@ -898,7 +938,7 @@ export async function executeTool(
         if (contextParams.workflowId) contextParams.workflowId = undefined
       } catch (error: any) {
         logger.error(`[${requestId}] Error fetching access token for ${toolId}:`, {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
         throw error
       }
@@ -916,7 +956,7 @@ export async function executeTool(
           finalResult = await tool.postProcess(result, contextParams, executeTool)
         } catch (error) {
           logger.error(`[${requestId}] Post-processing error for ${toolId}:`, {
-            error: error instanceof Error ? error.message : String(error),
+            error: toError(error).message,
           })
           finalResult = result
         }
@@ -971,7 +1011,7 @@ export async function executeTool(
         finalResult = await tool.postProcess(result, contextParams, executeTool)
       } catch (error) {
         logger.error(`[${requestId}] Post-processing error for ${toolId}:`, {
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
         finalResult = result
       }
@@ -1008,7 +1048,7 @@ export async function executeTool(
     }
   } catch (error: any) {
     logger.error(`[${requestId}] Error executing tool ${toolId}:`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
       stack: error instanceof Error ? error.stack : undefined,
     })
 
@@ -1292,8 +1332,7 @@ async function executeToolRequest(
           )
         } catch (validationError) {
           logger.error(`[${requestId}] Custom tool validation failed for ${toolId}:`, {
-            error:
-              validationError instanceof Error ? validationError.message : String(validationError),
+            error: toError(validationError).message,
           })
           throw validationError
         }
@@ -1501,7 +1540,7 @@ async function executeToolRequest(
           responseData = await response.json()
         } catch (jsonError) {
           logger.error(`[${requestId}] JSON parse error for ${toolId}:`, {
-            error: jsonError instanceof Error ? jsonError.message : String(jsonError),
+            error: toError(jsonError).message,
           })
           throw new Error(`Failed to parse response from ${toolId}: ${jsonError}`)
         }
@@ -1543,7 +1582,7 @@ async function executeToolRequest(
         return data
       } catch (transformError) {
         logger.error(`[${requestId}] Transform response error for ${toolId}:`, {
-          error: transformError instanceof Error ? transformError.message : String(transformError),
+          error: toError(transformError).message,
         })
         throw transformError
       }
@@ -1560,7 +1599,7 @@ async function executeToolRequest(
     handleBodySizeLimitError(error, requestId, toolId)
 
     logger.error(`[${requestId}] Internal request error for ${toolId}:`, {
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
 
     // Let the error bubble up to be handled in the main executeTool function
@@ -1828,7 +1867,7 @@ async function executeMcpTool(
     const duration = endTime.getTime() - new Date(actualStartTime).getTime()
 
     // Check if this is a body size limit error
-    const errorMsg = error instanceof Error ? error.message : String(error)
+    const errorMsg = toError(error).message
     if (isBodySizeLimitError(errorMsg)) {
       logger.error(`[${actualRequestId}] Request body size limit exceeded for mcp:${toolId}:`, {
         originalError: errorMsg,

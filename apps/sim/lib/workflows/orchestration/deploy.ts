@@ -5,7 +5,7 @@ import { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { getBaseUrl } from '@/lib/core/utils/urls'
+import { getBaseUrl, getSocketServerUrl } from '@/lib/core/utils/urls'
 import { removeMcpToolsForWorkflow, syncMcpToolsForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
@@ -30,6 +30,30 @@ import {
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DeployOrchestration')
+
+/**
+ * Notifies the socket server that a workflow's deployment state has changed,
+ * so all connected clients can refresh their deployment queries.
+ */
+export async function notifySocketDeploymentChanged(workflowId: string): Promise<void> {
+  try {
+    const response = await fetch(`${getSocketServerUrl()}/api/workflow-deployed`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': env.INTERNAL_API_SECRET,
+      },
+      body: JSON.stringify({ workflowId }),
+    })
+    if (!response.ok) {
+      logger.warn(
+        `Socket deployment notification failed (${response.status}) for workflow ${workflowId}`
+      )
+    }
+  } catch (error) {
+    logger.error('Error sending workflow deployed event to socket server', error)
+  }
+}
 
 export interface PerformFullDeployParams {
   workflowId: string
@@ -222,6 +246,8 @@ export async function performFullDeploy(
     request,
   })
 
+  await notifySocketDeploymentChanged(workflowId)
+
   return {
     success: true,
     deployedAt,
@@ -295,6 +321,8 @@ export async function performFullUndeploy(
     resourceName: (workflowData.name as string) || undefined,
     description: `Undeployed workflow "${(workflowData.name as string) || workflowId}"`,
   })
+
+  await notifySocketDeploymentChanged(workflowId)
 
   return { success: true }
 }
@@ -509,6 +537,8 @@ export async function performActivateVersion(
     },
   })
 
+  await notifySocketDeploymentChanged(workflowId)
+
   return {
     success: true,
     deployedAt: result.deployedAt,
@@ -596,8 +626,7 @@ export async function performRevertToVersion(
     .where(eq(workflowTable.id, workflowId))
 
   try {
-    const socketServerUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
-    await fetch(`${socketServerUrl}/api/workflow-reverted`, {
+    await fetch(`${getSocketServerUrl()}/api/workflow-reverted`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -5,7 +5,9 @@ import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
+import { buildEffectiveChatTranscript } from '@/lib/copilot/chat/effective-transcript'
 import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
+import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
@@ -17,6 +19,7 @@ import { readEvents } from '@/lib/copilot/request/session/buffer'
 import { readFilePreviewSessions } from '@/lib/copilot/request/session/file-preview-session'
 import { type StreamBatchEvent, toStreamBatchEvent } from '@/lib/copilot/request/session/types'
 import { taskPubSub } from '@/lib/copilot/tasks'
+import { toError } from '@/lib/core/utils/helpers'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('MothershipChatAPI')
@@ -64,7 +67,7 @@ export async function GET(
             logger.warn('Failed to read preview sessions for mothership chat', {
               chatId,
               conversationId: chat.conversationId,
-              error: error instanceof Error ? error.message : String(error),
+              error: toError(error).message,
             })
             return []
           }),
@@ -73,7 +76,7 @@ export async function GET(
           logger.warn('Failed to fetch latest run for mothership chat snapshot', {
             chatId,
             conversationId: chat.conversationId,
-            error: error instanceof Error ? error.message : String(error),
+            error: toError(error).message,
           })
           return null
         })
@@ -88,17 +91,28 @@ export async function GET(
         logger.warn('Failed to read stream snapshot for mothership chat', {
           chatId,
           conversationId: chat.conversationId,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       }
     }
+
+    const normalizedMessages = Array.isArray(chat.messages)
+      ? chat.messages
+          .filter((message): message is Record<string, unknown> => Boolean(message))
+          .map(normalizeMessage)
+      : []
+    const effectiveMessages = buildEffectiveChatTranscript({
+      messages: normalizedMessages,
+      activeStreamId: chat.conversationId || null,
+      ...(streamSnapshot ? { streamSnapshot } : {}),
+    })
 
     return NextResponse.json({
       success: true,
       chat: {
         id: chat.id,
         title: chat.title,
-        messages: Array.isArray(chat.messages) ? chat.messages : [],
+        messages: effectiveMessages,
         conversationId: chat.conversationId || null,
         resources: Array.isArray(chat.resources) ? chat.resources : [],
         createdAt: chat.createdAt,

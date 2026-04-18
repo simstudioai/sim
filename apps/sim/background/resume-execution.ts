@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
+import { toError } from '@/lib/core/utils/helpers'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 
 const logger = createLogger('TriggerResumeExecution')
@@ -61,7 +62,7 @@ export async function executeResumeJob(payload: ResumeExecutionPayload) {
     logger.error('Background resume execution failed', {
       resumeExecutionId,
       workflowId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     throw error
   }

@@ -1,6 +1,7 @@
 import type React from 'react'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import { SITE_URL } from '@/lib/core/utils/urls'
 
 // TODO: Remove notFound() call to make academy pages public once content is ready
 const ACADEMY_ENABLED = false
@@ -12,7 +13,7 @@ export const metadata: Metadata = {
   },
   description:
     'Become a certified Sim partner — learn to build, integrate, and deploy AI workflows.',
-  metadataBase: new URL('https://sim.ai'),
+  metadataBase: new URL(SITE_URL),
   openGraph: {
     title: 'Sim Academy',
     description: 'Become a certified Sim partner.',

@@ -55,6 +55,8 @@ async function fetchWorkspaces(
   }
 }
 
+const selectWorkspaces = (data: WorkspacesResponse): Workspace[] => data.workspaces
+
 /**
  * Fetches the current user's workspaces.
  * Returns only the workspace array. Use `useWorkspacesWithMetadata` when
@@ -64,7 +66,7 @@ export function useWorkspacesQuery(enabled = true, scope: WorkspaceQueryScope = 
   return useQuery({
     queryKey: workspaceKeys.list(scope),
     queryFn: ({ signal }) => fetchWorkspaces(scope, signal),
-    select: (data) => data.workspaces,
+    select: selectWorkspaces,
     enabled,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,

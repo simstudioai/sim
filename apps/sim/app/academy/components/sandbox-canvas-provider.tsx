@@ -12,6 +12,7 @@ import type {
 } from '@/lib/academy/types'
 import { validateExercise } from '@/lib/academy/validation'
 import { cn } from '@/lib/core/utils/cn'
+import { sleep } from '@/lib/core/utils/helpers'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -323,7 +324,7 @@ export function SandboxCanvasProvider({
       for (let i = 0; i < plan.length; i++) {
         const step = plan[i]
         setActiveBlocks(workflowId, new Set([step.blockId]))
-        await new Promise((resolve) => setTimeout(resolve, step.delay))
+        await sleep(step.delay)
         addConsole({
           workflowId,
           blockId: step.blockId,

@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { pendingCredentialDraft, user } from '@sim/db/schema'
 import { and, eq, lt } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { toError } from '@/lib/core/utils/helpers'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getAllOAuthServices } from '@/lib/oauth/utils'
 
@@ -36,11 +37,11 @@ export async function executeOAuthGetAuthLink(
       : `${baseUrl}/workspace`
     return {
       success: false,
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
       output: {
         message: `Could not generate a direct OAuth link for ${providerName}. Connect manually from the workspace.`,
         oauth_url: workspaceUrl,
-        error: err instanceof Error ? err.message : String(err),
+        error: toError(err).message,
       },
     }
   }

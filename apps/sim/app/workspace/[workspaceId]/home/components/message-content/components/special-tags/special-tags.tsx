@@ -415,7 +415,7 @@ function OptionsDisplay({ data, onSelect }: OptionsDisplayProps) {
   if (entries.length === 0) return null
 
   return (
-    <div className='animate-stream-fade-in'>
+    <div>
       {disabled ? (
         <button
           type='button'
@@ -608,7 +608,7 @@ function CredentialDisplay({ data }: { data: CredentialTagData }) {
       href={data.value}
       target='_blank'
       rel='noopener noreferrer'
-      className='flex animate-stream-fade-in items-center gap-2 rounded-lg border border-[var(--divider)] px-3 py-2.5 transition-colors hover-hover:bg-[var(--surface-5)]'
+      className='flex items-center gap-2 rounded-lg border border-[var(--divider)] px-3 py-2.5 transition-colors hover-hover:bg-[var(--surface-5)]'
     >
       {createElement(Icon, { className: 'h-[16px] w-[16px] shrink-0' })}
       <span className='flex-1 font-base text-[var(--text-body)] text-sm'>
@@ -623,7 +623,7 @@ function MothershipErrorDisplay({ data }: { data: MothershipErrorTagData }) {
   const detail = data.code ? `${data.message} (${data.code})` : data.message
 
   return (
-    <p className='animate-stream-fade-in font-base text-[13px] text-[var(--text-secondary)] italic leading-[20px]'>
+    <p className='font-base text-[13px] text-[var(--text-secondary)] italic leading-[20px]'>
       {detail}
     </p>
   )
@@ -635,7 +635,7 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
   const buttonLabel = data.action === 'upgrade_plan' ? 'Upgrade Plan' : 'Increase Limit'
 
   return (
-    <div className='animate-stream-fade-in rounded-xl border border-amber-300/40 bg-amber-50/50 px-4 py-3 dark:border-amber-500/20 dark:bg-amber-950/20'>
+    <div className='rounded-xl border border-amber-300/40 bg-amber-50/50 px-4 py-3 dark:border-amber-500/20 dark:bg-amber-950/20'>
       <div className='flex items-center gap-2'>
         <svg
           className='h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400'

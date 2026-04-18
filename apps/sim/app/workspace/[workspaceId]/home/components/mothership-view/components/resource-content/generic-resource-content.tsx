@@ -13,7 +13,11 @@ export function GenericResourceContent({ data }: GenericResourceContentProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const el = bottomRef.current
+    const container = el?.parentElement
+    if (container) {
+      container.scrollTop = container.scrollHeight
+    }
   }, [data.entries.length])
 
   if (data.entries.length === 0) {

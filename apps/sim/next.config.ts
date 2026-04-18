@@ -94,8 +94,7 @@ const nextConfig: NextConfig = {
     '/*': [
       './node_modules/sharp/**/*',
       './node_modules/@img/**/*',
-      './dist/pptx-worker.cjs',
-      './dist/doc-worker.cjs',
+      './lib/execution/sandbox/bundles/*.cjs',
     ],
   },
   experimental: {
@@ -149,6 +148,15 @@ const nextConfig: NextConfig = {
   ],
   async headers() {
     return [
+      {
+        source: '/:all*(svg|jpg|jpeg|png|gif|ico|webp|avif|woff|woff2|ttf|eot)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, stale-while-revalidate=604800',
+          },
+        ],
+      },
       {
         source: '/.well-known/:path*',
         headers: [
@@ -329,10 +337,10 @@ const nextConfig: NextConfig = {
         ],
       },
       // Apply security headers to routes not handled by middleware runtime CSP
-      // Middleware handles: /, /workspace/*
+      // Middleware handles: /, /login, /signup, /workspace/*
       // Exclude chat and form routes which have their own permissive embed headers
       {
-        source: '/((?!workspace|chat|form).*)',
+        source: '/((?!workspace|chat|form|login|signup|$).*)',
         headers: [
           {
             key: 'X-Content-Type-Options',
@@ -386,12 +394,12 @@ const nextConfig: NextConfig = {
     redirects.push(
       {
         source: '/building/:path*',
-        destination: 'https://sim.ai/blog/:path*',
+        destination: 'https://www.sim.ai/blog/:path*',
         permanent: true,
       },
       {
         source: '/studio/:path*',
-        destination: 'https://sim.ai/blog/:path*',
+        destination: 'https://www.sim.ai/blog/:path*',
         permanent: true,
       }
     )

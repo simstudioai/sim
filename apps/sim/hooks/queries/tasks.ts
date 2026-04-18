@@ -485,21 +485,23 @@ export function useRemoveChatResource(chatId?: string) {
     onMutate: async ({ resourceType, resourceId }) => {
       if (!chatId) return
       await queryClient.cancelQueries({ queryKey: taskKeys.detail(chatId) })
-      const previous = queryClient.getQueryData<TaskChatHistory>(taskKeys.detail(chatId))
-      if (previous) {
-        queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(chatId), {
-          ...previous,
-          resources: previous.resources.filter(
-            (r) => !(r.type === resourceType && r.id === resourceId)
-          ),
-        })
-      }
-      return { previous }
+      const removed: TaskChatHistory['resources'] = []
+      queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(chatId), (prev) => {
+        if (!prev) return prev
+        const next: TaskChatHistory['resources'] = []
+        for (const r of prev.resources) {
+          if (r.type === resourceType && r.id === resourceId) removed.push(r)
+          else next.push(r)
+        }
+        return removed.length > 0 ? { ...prev, resources: next } : prev
+      })
+      return { removed }
     },
     onError: (_err, _variables, context) => {
-      if (context?.previous && chatId) {
-        queryClient.setQueryData(taskKeys.detail(chatId), context.previous)
-      }
+      if (!chatId || !context?.removed.length) return
+      queryClient.setQueryData<TaskChatHistory>(taskKeys.detail(chatId), (prev) =>
+        prev ? { ...prev, resources: [...prev.resources, ...context.removed] } : prev
+      )
     },
     onSettled: () => {
       if (chatId) {

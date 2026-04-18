@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import type { BlogMeta } from '@/lib/blog/schema'
+import { SITE_URL } from '@/lib/core/utils/urls'
 
 export function buildPostMetadata(post: BlogMeta): Metadata {
   const base = new URL(post.canonical)
@@ -85,10 +86,10 @@ export function buildArticleJsonLd(post: BlogMeta) {
     publisher: {
       '@type': 'Organization',
       name: 'Sim',
-      url: 'https://sim.ai',
+      url: SITE_URL,
       logo: {
         '@type': 'ImageObject',
-        url: 'https://sim.ai/logo/primary/medium.png',
+        url: `${SITE_URL}/logo/primary/medium.png`,
       },
     },
     mainEntityOfPage: {
@@ -112,8 +113,8 @@ export function buildBreadcrumbJsonLd(post: BlogMeta) {
   return {
     '@type': 'BreadcrumbList',
     itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sim.ai' },
-      { '@type': 'ListItem', position: 2, name: 'Blog', item: 'https://sim.ai/blog' },
+      { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
+      { '@type': 'ListItem', position: 2, name: 'Blog', item: `${SITE_URL}/blog` },
       { '@type': 'ListItem', position: 3, name: post.title, item: post.canonical },
     ],
   }
@@ -150,22 +151,22 @@ export function buildCollectionPageJsonLd() {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
     name: 'Sim Blog',
-    url: 'https://sim.ai/blog',
+    url: `${SITE_URL}/blog`,
     description: 'Announcements, insights, and guides for building AI agents.',
     publisher: {
       '@type': 'Organization',
       name: 'Sim',
-      url: 'https://sim.ai',
+      url: SITE_URL,
       logo: {
         '@type': 'ImageObject',
-        url: 'https://sim.ai/logo/primary/medium.png',
+        url: `${SITE_URL}/logo/primary/medium.png`,
       },
     },
     inLanguage: 'en-US',
     isPartOf: {
       '@type': 'WebSite',
       name: 'Sim',
-      url: 'https://sim.ai',
+      url: SITE_URL,
     },
   }
 }

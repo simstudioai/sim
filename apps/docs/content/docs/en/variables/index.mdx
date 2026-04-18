@@ -1,0 +1,90 @@
+---
+title: Variables
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { FAQ } from '@/components/ui/faq'
+
+Sim has two systems for injecting dynamic values into your workflows: **workflow variables** for in-run state and **environment variables** for secrets and configuration.
+
+## Variable Syntax at a Glance
+
+| Syntax | What it references | Example |
+|--------|-------------------|---------|
+| `<variable.name>` | Workflow variable | `<variable.counter>` |
+| `<variable.obj.prop>` | Nested property | `<variable.config.retryCount>` |
+| `<blockname.field>` | Block output | `<agent.content>` |
+| `<loop.index>` | Loop iteration (inside loop) | `<loop.currentItem>` |
+| `<parallel.index>` | Parallel instance (inside parallel) | `<parallel.currentItem>` |
+| `{{KEY}}` | Environment variable | `{{OPENAI_API_KEY}}` |
+
+Type `<` in any block text field to open the variable picker and browse available references.
+
+## Workflow Variables
+
+Workflow variables are a global store that any block can read or update during execution. They're defined in the **Variables** panel in the sidebar and support text, numbers, booleans, objects, and arrays.
+
+Key behaviors:
+- **Global scope**: Accessible from any block in the workflow
+- **Run-scoped persistence**: Changes during a run are visible to subsequent blocks, but each new execution resets variables to their initial values
+- **Nested access**: Use dot notation for object properties (`<variable.config.timeout>`)
+- **Updated via the Variables block**: Use the [Variables block](/blocks/variables) to modify variable values mid-workflow
+
+<Card title="Workflow Variables" href="/variables/workflow-variables">
+  Full guide on creating, accessing, and updating workflow variables
+</Card>
+
+## Environment Variables
+
+Environment variables store sensitive values like API keys, tokens, and configuration that should never appear in logs or be visible in the workflow canvas.
+
+### Creating Environment Variables
+
+1. Go to **Settings** in your workspace
+2. Open the **Secrets** tab
+3. Click **Add** and enter a key-value pair
+
+### Personal vs. Workspace
+
+| Scope | Visibility | Use case |
+|-------|-----------|----------|
+| **Workspace** | All workspace members | Shared API keys, team configuration |
+| **Personal** | Only you | Your personal tokens, dev credentials |
+
+When both a workspace and personal variable share the same key, the workspace value takes precedence.
+
+### Using Environment Variables
+
+Reference them with double curly braces in any block field:
+
+```
+{{API_KEY}}
+```
+
+<Callout type="info">
+  Environment variable names must start with a letter or underscore and contain only letters, numbers, and underscores (e.g., `MY_API_KEY`).
+</Callout>
+
+### Environment Variables vs. Credentials
+
+| | Environment Variables | Credentials |
+|--|----------------------|-------------|
+| **Format** | Key-value string pairs | OAuth tokens, API keys with provider context |
+| **Syntax** | `{{KEY}}` | Selected via dropdown in block config |
+| **Best for** | Custom API keys, configuration values, feature flags | OAuth services (Slack, GitHub, Google), managed connections |
+| **Management** | Settings → Secrets | Settings → Credentials |
+
+Use environment variables when you have a raw API key or config value. Use [credentials](/credentials) when connecting to a service that needs OAuth or managed token refresh.
+
+## Name Conflicts
+
+If a workflow variable and a block output share the same name, Sim resolves the reference in a fixed priority order: loop and parallel context first, then workflow variables, then environment variables, then block outputs. To avoid confusion, use distinct names for your variables and blocks.
+
+<FAQ items={[
+  { question: "What's the difference between workflow variables and environment variables?", answer: "Workflow variables store runtime data (text, numbers, objects, arrays) that blocks can read and modify during execution. They use <variable.name> syntax. Environment variables store sensitive configuration like API keys using {{KEY}} syntax. They never appear in logs and are managed at the workspace or personal level." },
+  { question: "Can I use environment variables in the Function block?", answer: "Yes. Use the double curly brace syntax {{KEY}} directly in your code. The value is substituted before execution, so the actual secret never appears in logs or outputs." },
+  { question: "How do I share an API key with my team?", answer: "Create a workspace-scoped environment variable in Settings → Secrets. All workspace members will be able to use it in their workflows via {{KEY}} syntax." },
+  { question: "What happens if a variable name has spaces or mixed case?", answer: "Variable resolution is case-insensitive and ignores spaces. A variable named 'My Counter' can be referenced as <variable.mycounter> or <variable.My Counter>. However, using consistent naming (like camelCase) is recommended." },
+  { question: "Can I reference environment variables in the Agent system prompt?", answer: "Yes. You can use {{KEY}} syntax in any text field, including system prompts, to inject environment variable values." },
+]} />

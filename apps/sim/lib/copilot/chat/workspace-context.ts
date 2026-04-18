@@ -12,6 +12,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, count, eq, inArray, isNull } from 'drizzle-orm'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
+import { toError } from '@/lib/core/utils/helpers'
 import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
@@ -446,7 +447,7 @@ export async function generateWorkspaceContext(
   } catch (err) {
     logger.error('Failed to generate workspace context', {
       workspaceId,
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
     return '## Workspace\n(unavailable)\n\n## Workflows\n(unavailable)\n\n## Knowledge Bases\n(unavailable)\n\n## Tables\n(unavailable)\n\n## Files\n(unavailable)\n\n## Connected Integrations\n(unavailable)'
   }

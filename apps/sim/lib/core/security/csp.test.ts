@@ -175,6 +175,16 @@ describe('generateRuntimeCSP', () => {
     expect(csp).not.toMatch(/\s{3,}/)
     expect(csp.trim()).toBe(csp)
   })
+
+  it('should allow blob URLs for iframe-based PDF previews', () => {
+    const csp = generateRuntimeCSP()
+    const frameSrcDirective = csp
+      .split('; ')
+      .find((directive) => directive.startsWith('frame-src '))
+
+    expect(frameSrcDirective).toBeDefined()
+    expect(frameSrcDirective).toContain('blob:')
+  })
 })
 
 describe('addCSPSource', () => {

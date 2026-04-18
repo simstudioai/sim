@@ -1,9 +1,10 @@
 import { source } from '@/lib/source'
+import { DOCS_BASE_URL } from '@/lib/urls'
 
 export const revalidate = false
 
 export async function GET() {
-  const baseUrl = 'https://docs.sim.ai'
+  const baseUrl = DOCS_BASE_URL
 
   try {
     const pages = source.getPages().filter((page) => {
@@ -61,7 +62,7 @@ ${Object.entries(sections)
 
 - Full documentation content: ${baseUrl}/llms-full.txt
 - Individual page content: ${baseUrl}/llms.mdx/[page-path]
-- API documentation: ${baseUrl}/sdks/
+- API documentation: ${baseUrl}/api-reference/
 - Tool integrations: ${baseUrl}/tools/
 
 ## Statistics

@@ -296,13 +296,10 @@ export const LogDetails = memo(function LogDetails({
     }
   }, [log?.id])
 
-  const isWorkflowExecutionLog = useMemo(() => {
-    if (!log) return false
-    return (
-      (log.trigger === 'manual' && !!log.duration) ||
-      (log.executionData?.enhanced && log.executionData?.traceSpans)
-    )
-  }, [log])
+  const isWorkflowExecutionLog =
+    !!log &&
+    ((log.trigger === 'manual' && !!log.duration) ||
+      !!(log.executionData?.enhanced && log.executionData?.traceSpans))
 
   const hasCostInfo = isWorkflowExecutionLog && log?.cost
 
@@ -337,10 +334,7 @@ export const LogDetails = memo(function LogDetails({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, onClose, hasPrev, hasNext, onNavigatePrev, onNavigateNext])
 
-  const formattedTimestamp = useMemo(
-    () => (log ? formatDate(log.createdAt) : null),
-    [log?.createdAt]
-  )
+  const formattedTimestamp = log ? formatDate(log.createdAt) : null
 
   const logStatus = getDisplayStatus(log?.status)
 
@@ -448,11 +442,11 @@ export const LogDetails = memo(function LogDetails({
                   </div>
                 </div>
 
-                {/* Execution ID */}
+                {/* Run ID */}
                 {log.executionId && (
                   <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2'>
                     <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                      Execution ID
+                      Run ID
                     </span>
                     <span className='truncate font-medium text-[var(--text-secondary)] text-sm'>
                       {log.executionId}
@@ -576,7 +570,7 @@ export const LogDetails = memo(function LogDetails({
                       <div className='flex flex-col gap-2.5 rounded-md p-2.5'>
                         <div className='flex items-center justify-between'>
                           <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                            Base Execution:
+                            Base Run:
                           </span>
                           <span className='font-medium text-[var(--text-secondary)] text-caption'>
                             {formatCost(BASE_EXECUTION_CHARGE)}
@@ -643,8 +637,8 @@ export const LogDetails = memo(function LogDetails({
 
                     <div className='flex items-center justify-center rounded-md bg-[var(--surface-2)] p-2 text-center'>
                       <p className='font-medium text-[var(--text-subtle)] text-xs'>
-                        Total cost includes a base execution charge of{' '}
-                        {formatCost(BASE_EXECUTION_CHARGE)} plus any model and tool usage costs.
+                        Total cost includes a base run charge of {formatCost(BASE_EXECUTION_CHARGE)}{' '}
+                        plus any model and tool usage costs.
                       </p>
                     </div>
                   </div>

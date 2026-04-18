@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { Edge } from 'reactflow'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateId } from '@/lib/core/utils/uuid'
 import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import {
@@ -544,7 +545,7 @@ export class Serializer {
         : blockConfig.tools.access[0]
     } catch (error) {
       logger.warn('Tool selection failed during serialization, using default:', {
-        error: error instanceof Error ? error.message : String(error),
+        error: toError(error).message,
       })
       return blockConfig.tools.access[0]
     }

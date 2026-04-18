@@ -8,6 +8,7 @@ import {
 import { getAsyncToolCalls } from '@/lib/copilot/async-runs/repository'
 import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { toError } from '@/lib/core/utils/helpers'
 import { createPubSubChannel } from '@/lib/events/pubsub'
 
 const logger = createLogger('CopilotOrchestratorPersistence')
@@ -31,7 +32,7 @@ export async function getToolConfirmation(
   const [row] = await getAsyncToolCalls([toolCallId]).catch((err) => {
     logger.warn('Failed to fetch async tool calls', {
       toolCallId,
-      error: err instanceof Error ? err.message : String(err),
+      error: toError(err).message,
     })
     return []
   })
@@ -81,7 +82,7 @@ export function publishToolConfirmation(event: AsyncCompletionEnvelope): void {
       .catch((error) => {
         logger.warn('Failed to persist tool confirmation in Redis', {
           toolCallId: event.toolCallId,
-          error: error instanceof Error ? error.message : String(error),
+          error: toError(error).message,
         })
       })
   } else {

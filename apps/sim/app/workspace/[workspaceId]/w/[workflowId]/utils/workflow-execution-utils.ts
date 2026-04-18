@@ -449,7 +449,7 @@ export function addExecutionErrorConsoleEntry(
   const isPreExecutionError = params.isPreExecutionError ?? false
   if (!isPreExecutionError && hasBlockError) return
 
-  const errorMessage = params.error || 'Execution failed'
+  const errorMessage = params.error || 'Run failed'
   const isTimeout = errorMessage.toLowerCase().includes('timed out')
   const timing = buildExecutionTiming(params.durationMs)
 
@@ -469,7 +469,7 @@ export function addExecutionErrorConsoleEntry(
       ? 'Workflow Validation'
       : isTimeout
         ? 'Timeout Error'
-        : 'Execution Error',
+        : 'Run Error',
     blockType: isPreExecutionError ? 'validation' : 'error',
   })
 }
@@ -514,7 +514,7 @@ export function addHttpErrorConsoleEntry(
     workflowId: params.workflowId,
     blockId: isValidationError ? 'validation' : 'execution-error',
     executionId: params.executionId,
-    blockName: isValidationError ? 'Workflow Validation' : 'Execution Error',
+    blockName: isValidationError ? 'Workflow Validation' : 'Run Error',
     blockType: isValidationError ? 'validation' : 'error',
   })
 }
@@ -537,7 +537,7 @@ export function addCancelledConsoleEntry(
     input: {},
     output: {},
     success: false,
-    error: 'Execution was cancelled',
+    error: 'Run was cancelled',
     durationMs: timing.durationMs,
     startedAt: timing.startedAt,
     executionOrder: Number.MAX_SAFE_INTEGER,
@@ -545,7 +545,7 @@ export function addCancelledConsoleEntry(
     workflowId: params.workflowId,
     blockId: 'cancelled',
     executionId: params.executionId,
-    blockName: 'Execution Cancelled',
+    blockName: 'Run Cancelled',
     blockType: 'cancelled',
   })
 }
@@ -652,7 +652,7 @@ export async function executeWorkflowWithFullLogging(
 
   if (!response.ok) {
     const error = await response.json()
-    const errorMessage = error.error || 'Workflow execution failed'
+    const errorMessage = error.error || 'Workflow run failed'
     addHttpErrorConsoleEntry(addConsole, {
       workflowId: wfId,
       executionId,
@@ -721,14 +721,14 @@ export async function executeWorkflowWithFullLogging(
           executionResult = {
             success: false,
             output: {},
-            error: 'Execution was cancelled',
+            error: 'Run was cancelled',
             logs: accumulatedBlockLogs,
           }
         },
 
         onExecutionError: (data) => {
           setCurrentExecutionId(wfId, null)
-          const errorMessage = data.error || 'Execution failed'
+          const errorMessage = data.error || 'Run failed'
           executionResult = {
             success: false,
             output: {},

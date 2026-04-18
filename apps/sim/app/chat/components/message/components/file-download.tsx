@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { ArrowDown, Download, Loader2, Music } from 'lucide-react'
 import { Button } from '@/components/emcn'
 import { DefaultFileIcon, getDocumentIcon } from '@/components/icons/document-icons'
+import { sleep } from '@/lib/core/utils/helpers'
 import type { ChatFile } from '@/app/chat/components/message/message'
 
 const logger = createLogger('ChatFileDownload')
@@ -157,7 +158,7 @@ export function ChatFileDownloadAll({ files }: ChatFileDownloadAllProps) {
           logger.info(`Downloaded file ${i + 1}/${files.length}: ${file.name}`)
 
           if (i < files.length - 1) {
-            await new Promise((resolve) => setTimeout(resolve, 150))
+            await sleep(150)
           }
         } catch (error) {
           logger.error(`Failed to download file ${file.name}:`, error)

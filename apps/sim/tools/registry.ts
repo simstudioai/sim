@@ -236,6 +236,16 @@ import {
   boxSignResendRequestTool,
 } from '@/tools/box_sign'
 import { brandfetchGetBrandTool, brandfetchSearchTool } from '@/tools/brandfetch'
+import {
+  brightDataCancelSnapshotTool,
+  brightDataDiscoverTool,
+  brightDataDownloadSnapshotTool,
+  brightDataScrapeDatasetTool,
+  brightDataScrapeUrlTool,
+  brightDataSerpSearchTool,
+  brightDataSnapshotStatusTool,
+  brightDataSyncScrapeTool,
+} from '@/tools/brightdata'
 import { browserUseRunTaskTool } from '@/tools/browser_use'
 import {
   calcomCancelBookingTool,
@@ -1696,6 +1706,21 @@ import {
 } from '@/tools/microsoft_teams'
 import { mistralParserTool, mistralParserV2Tool, mistralParserV3Tool } from '@/tools/mistral'
 import {
+  mondayArchiveItemTool,
+  mondayCreateGroupTool,
+  mondayCreateItemTool,
+  mondayCreateSubitemTool,
+  mondayCreateUpdateTool,
+  mondayDeleteItemTool,
+  mondayGetBoardTool,
+  mondayGetItemsTool,
+  mondayGetItemTool,
+  mondayListBoardsTool,
+  mondayMoveItemToGroupTool,
+  mondaySearchItemsTool,
+  mondayUpdateItemTool,
+} from '@/tools/monday'
+import {
   mongodbDeleteTool,
   mongodbExecuteTool,
   mongodbInsertTool,
@@ -2921,6 +2946,14 @@ export const tools: Record<string, ToolConfig> = {
   athena_stop_query: athenaStopQueryTool,
   brandfetch_get_brand: brandfetchGetBrandTool,
   brandfetch_search: brandfetchSearchTool,
+  brightdata_cancel_snapshot: brightDataCancelSnapshotTool,
+  brightdata_discover: brightDataDiscoverTool,
+  brightdata_download_snapshot: brightDataDownloadSnapshotTool,
+  brightdata_scrape_dataset: brightDataScrapeDatasetTool,
+  brightdata_scrape_url: brightDataScrapeUrlTool,
+  brightdata_serp_search: brightDataSerpSearchTool,
+  brightdata_snapshot_status: brightDataSnapshotStatusTool,
+  brightdata_sync_scrape: brightDataSyncScrapeTool,
   box_copy_file: boxCopyFileTool,
   box_create_folder: boxCreateFolderTool,
   box_delete_file: boxDeleteFileTool,
@@ -3599,6 +3632,19 @@ export const tools: Record<string, ToolConfig> = {
   dspy_predict: predictTool,
   dspy_chain_of_thought: chainOfThoughtTool,
   dspy_react: reactTool,
+  monday_archive_item: mondayArchiveItemTool,
+  monday_create_group: mondayCreateGroupTool,
+  monday_create_item: mondayCreateItemTool,
+  monday_create_subitem: mondayCreateSubitemTool,
+  monday_create_update: mondayCreateUpdateTool,
+  monday_delete_item: mondayDeleteItemTool,
+  monday_get_board: mondayGetBoardTool,
+  monday_get_item: mondayGetItemTool,
+  monday_get_items: mondayGetItemsTool,
+  monday_list_boards: mondayListBoardsTool,
+  monday_move_item_to_group: mondayMoveItemToGroupTool,
+  monday_search_items: mondaySearchItemsTool,
+  monday_update_item: mondayUpdateItemTool,
   mongodb_query: mongodbQueryTool,
   mongodb_insert: mongodbInsertTool,
   mongodb_update: mongodbUpdateTool,

@@ -6,7 +6,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
+import { toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import {
   loadWorkflowFromNormalizedTables,
@@ -149,7 +151,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   } catch (error) {
     logger.error('Failed to fetch workflow state', {
       workflowId,
-      error: error instanceof Error ? error.message : String(error),
+      error: toError(error).message,
     })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
@@ -305,8 +307,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     logger.info(`[${requestId}] Successfully saved workflow ${workflowId} state in ${elapsed}ms`)
 
     try {
-      const socketUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
-      const notifyResponse = await fetch(`${socketUrl}/api/workflow-updated`, {
+      const notifyResponse = await fetch(`${getSocketServerUrl()}/api/workflow-updated`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
