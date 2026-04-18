@@ -1338,6 +1338,13 @@
       "when": 1776502306122,
       "tag": "0191_unusual_mongu",
       "breakpoints": true
+    },
+    {
+      "idx": 192,
+      "version": "7",
+      "when": 1776536703628,
+      "tag": "0192_aberrant_sabretooth",
+      "breakpoints": true
     }
   ]
 }
