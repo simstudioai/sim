@@ -587,19 +587,19 @@ export const LogDetails = memo(function LogDetails({
 
                     {/* Workflow State */}
                     {showWorkflowState && (
-                      <button
-                        type='button'
-                        onClick={() => setIsExecutionSnapshotOpen(true)}
-                        className='flex h-[48px] items-center justify-between p-2 text-left transition-colors hover-hover:bg-[var(--surface-2)]'
-                      >
+                      <div className='flex h-[48px] items-center justify-between p-2'>
                         <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                           Workflow State
                         </span>
-                        <span className='flex items-center gap-1.5 font-medium text-[var(--text-secondary)] text-caption'>
+                        <Button
+                          variant='default'
+                          onClick={() => setIsExecutionSnapshotOpen(true)}
+                          className='gap-1.5'
+                        >
                           View Snapshot
-                          <Eye className='h-[12px] w-[12px]' />
-                        </span>
-                      </button>
+                          <Eye className='h-3 w-3' />
+                        </Button>
+                      </div>
                     )}
                   </div>
 
