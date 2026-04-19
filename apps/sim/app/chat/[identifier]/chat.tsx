@@ -47,8 +47,6 @@ const DEFAULT_VOICE_SETTINGS = {
   voiceId: 'EXAVITQu4vr4xnSDxMaL', // Default ElevenLabs voice (Bella)
 }
 
-const INITIAL_STARS = '25.8k'
-
 /**
  * Converts a File object to a base64 data URL
  */
@@ -423,7 +421,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   return (
     <div className='dark fixed inset-0 z-[100] flex flex-col bg-[var(--landing-bg)] text-[var(--landing-text)]'>
       {/* Header component */}
-      <ChatHeader chatConfig={chatConfig} starCount={starCount ?? INITIAL_STARS} />
+      <ChatHeader chatConfig={chatConfig} starCount={starCount} />
 
       {/* Message Container component */}
       <ChatMessageContainer
