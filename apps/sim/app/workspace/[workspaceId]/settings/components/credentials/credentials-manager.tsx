@@ -913,7 +913,7 @@ export function CredentialsManager() {
     const text = e.clipboardData.getData('text').trim()
     if (!text) return
 
-    const lines = text.split('\n').filter((line) => line.trim())
+    const lines = text.split(/\r?\n/).filter((line) => line.trim())
     if (lines.length === 0) return
 
     const inputType = (e.target as HTMLInputElement).getAttribute('data-input-type') as
@@ -945,7 +945,7 @@ export function CredentialsManager() {
     const text = e.clipboardData.getData('text').trim()
     if (!text) return
 
-    const lines = text.split('\n').filter((line) => line.trim())
+    const lines = text.split(/\r?\n/).filter((line) => line.trim())
     if (lines.length === 0) return
 
     const inputType = (e.target as HTMLInputElement).getAttribute('data-input-type') as
