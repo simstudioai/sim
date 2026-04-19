@@ -3,13 +3,7 @@
  *
  * @vitest-environment node
  */
-import {
-  authMock,
-  authMockFns,
-  schemaMock,
-  workflowsUtilsMock,
-  workflowsUtilsMockFns,
-} from '@sim/testing'
+import { authMockFns, workflowsUtilsMock, workflowsUtilsMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,16 +29,12 @@ const {
   mockGetAccessibleCopilotChat: vi.fn(),
 }))
 
-vi.mock('@/lib/auth', () => authMock)
-
 vi.mock('@sim/db', () => ({
   db: {
     select: mockSelect,
     insert: mockInsert,
   },
 }))
-
-vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),

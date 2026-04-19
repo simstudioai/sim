@@ -4,15 +4,11 @@
  * @vitest-environment node
  */
 import {
-  authMock,
   authMockFns,
   createMockRequest,
-  hybridAuthMock,
   hybridAuthMockFns,
   permissionsMock,
   permissionsMockFns,
-  requestUtilsMock,
-  schemaMock,
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
@@ -158,12 +154,6 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => schemaMock)
-
-vi.mock('@/lib/auth', () => authMock)
-
-vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
-
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('drizzle-orm', () => ({
@@ -188,8 +178,6 @@ vi.mock('drizzle-orm', () => ({
   })),
   desc: vi.fn().mockImplementation((field: unknown) => ({ field, operator: 'desc' })),
 }))
-
-vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
 vi.mock('@/lib/workflows/custom-tools/operations', () => ({
   upsertCustomTools: (...args: unknown[]) => mockUpsertCustomTools(...args),

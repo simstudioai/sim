@@ -43,7 +43,10 @@ export {
   createMockSql,
   createMockSqlOperators,
   databaseMock,
+  dbChainMock,
+  dbChainMockFns,
   drizzleOrmMock,
+  resetDbChainMock,
 } from './database.mock'
 // Encryption mocks
 export { encryptionMock, encryptionMockFns } from './encryption.mock'

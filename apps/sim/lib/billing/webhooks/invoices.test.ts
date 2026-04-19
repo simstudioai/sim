@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { schemaMock, urlsMock, urlsMockFns } from '@sim/testing'
+import { urlsMock, urlsMockFns } from '@sim/testing'
 import type Stripe from 'stripe'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -43,8 +43,6 @@ vi.mock('@sim/db', () => ({
     select: mockDbSelect,
   },
 }))
-
-vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(() => 'and'),

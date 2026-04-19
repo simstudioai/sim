@@ -3,14 +3,7 @@
  *
  * @vitest-environment node
  */
-import {
-  auditMock,
-  authMock,
-  authMockFns,
-  createMockRequest,
-  knowledgeApiUtilsMock,
-  schemaMock,
-} from '@sim/testing'
+import { auditMock, authMockFns, createMockRequest, knowledgeApiUtilsMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockDbChain } = vi.hoisted(() => {
@@ -27,13 +20,9 @@ const { mockDbChain } = vi.hoisted(() => {
   return { mockDbChain }
 })
 
-vi.mock('@/lib/auth', () => authMock)
-
 vi.mock('@sim/db', () => ({
   db: mockDbChain,
 }))
-
-vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 

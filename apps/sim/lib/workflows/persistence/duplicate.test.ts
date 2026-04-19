@@ -4,7 +4,6 @@
 import {
   permissionsMock,
   permissionsMockFns,
-  schemaMock,
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
@@ -28,8 +27,6 @@ vi.mock('drizzle-orm', () => ({
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
-
-vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('@sim/db', () => ({
   db: mockDb,

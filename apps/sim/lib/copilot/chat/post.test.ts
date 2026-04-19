@@ -3,11 +3,9 @@
  */
 
 import {
-  authMock,
   authMockFns,
   permissionsMock,
   permissionsMockFns,
-  schemaMock,
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
@@ -43,8 +41,6 @@ const {
 }))
 
 const getSession = authMockFns.mockGetSession
-
-vi.mock('@/lib/auth', () => authMock)
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
@@ -99,8 +95,6 @@ vi.mock('@sim/db', () => ({
     })),
   },
 }))
-
-vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn(() => ({})),

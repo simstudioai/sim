@@ -8,7 +8,6 @@
  */
 
 import {
-  authMock,
   authMockFns,
   createSession,
   createWorkflowRecord,
@@ -21,8 +20,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { mockGetActiveWorkflowContext } = vi.hoisted(() => ({
   mockGetActiveWorkflowContext: vi.fn(),
 }))
-
-vi.mock('@/lib/auth', () => authMock)
 
 vi.mock('@/lib/workflows/active-context', () => ({
   getActiveWorkflowContext: mockGetActiveWorkflowContext,

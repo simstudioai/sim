@@ -5,30 +5,21 @@
  */
 import {
   auditMock,
-  authMock,
   authMockFns,
   databaseMock,
-  requestUtilsMock,
-  schemaMock,
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/auth', () => authMock)
-
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
-
-vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(),
   eq: vi.fn(),
   isNull: vi.fn(),
 }))
-
-vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
 vi.mock('@/lib/audit/log', () => auditMock)
 

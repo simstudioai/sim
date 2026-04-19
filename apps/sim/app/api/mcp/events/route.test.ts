@@ -3,18 +3,10 @@
  *
  * @vitest-environment node
  */
-import {
-  authMock,
-  authMockFns,
-  createMockRequest,
-  permissionsMock,
-  permissionsMockFns,
-} from '@sim/testing'
+import { authMockFns, createMockRequest, permissionsMock, permissionsMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
-
-vi.mock('@/lib/auth', () => authMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 

@@ -4,11 +4,12 @@
  * @vitest-environment node
  */
 import {
+  dbChainMock,
+  dbChainMockFns,
   encryptionMock,
   executionPreprocessingMock,
   executionPreprocessingMockFns,
   loggingSessionMock,
-  requestUtilsMock,
   workflowsApiUtilsMock,
   workflowsApiUtilsMockFns,
 } from '@sim/testing'
@@ -59,25 +60,19 @@ const createMockStream = () => {
   })
 }
 
-const {
-  mockDbSelect,
-  mockAddCorsHeaders,
-  mockValidateChatAuth,
-  mockSetChatAuthCookie,
-  mockValidateAuthToken,
-} = vi.hoisted(() => ({
-  mockDbSelect: vi.fn(),
-  mockAddCorsHeaders: vi.fn().mockImplementation((response: Response) => response),
-  mockValidateChatAuth: vi.fn().mockResolvedValue({ authorized: true }),
-  mockSetChatAuthCookie: vi.fn(),
-  mockValidateAuthToken: vi.fn().mockReturnValue(false),
-}))
+const { mockAddCorsHeaders, mockValidateChatAuth, mockSetChatAuthCookie, mockValidateAuthToken } =
+  vi.hoisted(() => ({
+    mockAddCorsHeaders: vi.fn().mockImplementation((response: Response) => response),
+    mockValidateChatAuth: vi.fn().mockResolvedValue({ authorized: true }),
+    mockSetChatAuthCookie: vi.fn(),
+    mockValidateAuthToken: vi.fn().mockReturnValue(false),
+  }))
 
 const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
 const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
 
 vi.mock('@sim/db', () => ({
-  db: { select: mockDbSelect },
+  ...dbChainMock,
   chat: {},
   workflow: {},
 }))
@@ -116,8 +111,6 @@ vi.mock('@/lib/core/utils/sse', () => ({
     'X-Accel-Buffering': 'no',
   },
 }))
-
-vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
@@ -201,7 +194,7 @@ describe('Chat Identifier API Route', () => {
       return new Response(JSON.stringify(data), { status: 200 })
     })
 
-    mockDbSelect.mockImplementation((fields: Record<string, unknown>) => {
+    dbChainMockFns.select.mockImplementation((fields: Record<string, unknown>) => {
       if (fields && fields.isDeployed !== undefined) {
         return {
           from: vi.fn().mockReturnValue({
@@ -239,7 +232,7 @@ describe('Chat Identifier API Route', () => {
     })
 
     it('should return 404 for non-existent identifier', async () => {
-      mockDbSelect.mockImplementation(() => {
+      dbChainMockFns.select.mockImplementation(() => {
         return {
           from: vi.fn().mockReturnValue({
             where: vi.fn().mockReturnValue({
@@ -262,7 +255,7 @@ describe('Chat Identifier API Route', () => {
     })
 
     it('should return 403 for inactive chat', async () => {
-      mockDbSelect.mockImplementation(() => {
+      dbChainMockFns.select.mockImplementation(() => {
         return {
           from: vi.fn().mockReturnValue({
             where: vi.fn().mockReturnValue({
@@ -310,7 +303,7 @@ describe('Chat Identifier API Route', () => {
   })
 
   describe('POST endpoint', () => {
-    it('should handle authentication requests without input', async () => {
+    it('should return chat config on successful authentication', async () => {
       const req = createMockNextRequest('POST', { password: 'test-password' })
       const params = Promise.resolve({ identifier: 'password-protected-chat' })
 
@@ -319,7 +312,10 @@ describe('Chat Identifier API Route', () => {
       expect(response.status).toBe(200)
 
       const data = await response.json()
-      expect(data).toHaveProperty('authenticated', true)
+      expect(data).toHaveProperty('id', 'chat-id')
+      expect(data).toHaveProperty('title', 'Test Chat')
+      expect(data).toHaveProperty('customizations')
+      expect(data.customizations).toHaveProperty('welcomeMessage', 'Welcome to the test chat')
 
       expect(mockSetChatAuthCookie).toHaveBeenCalled()
     })

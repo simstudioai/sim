@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { hybridAuthMock, hybridAuthMockFns } from '@sim/testing'
+import { hybridAuthMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -46,8 +46,6 @@ vi.mock('fs/promises', () => ({
   access: vi.fn().mockResolvedValue(undefined),
   stat: vi.fn().mockResolvedValue({ isFile: () => true, size: 100 }),
 }))
-
-vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 
 vi.mock('@/app/api/files/authorization', () => ({
   verifyFileAccess: mockVerifyFileAccess,

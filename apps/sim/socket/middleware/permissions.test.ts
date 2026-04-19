@@ -8,16 +8,12 @@
  */
 
 import {
-  authMock,
   expectPermissionAllowed,
   expectPermissionDenied,
   ROLE_ALLOWED_OPERATIONS,
   SOCKET_OPERATIONS,
 } from '@sim/testing'
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/lib/auth', () => authMock)
-
+import { describe, expect, it } from 'vitest'
 import { checkRolePermission } from '@/socket/middleware/permissions'
 
 describe('checkRolePermission', () => {

@@ -1,10 +1,12 @@
 /**
  * @vitest-environment node
  */
-import { databaseMock } from '@sim/testing'
+import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { updateRow } from '@/lib/table/service'
 import type { TableDefinition } from '@/lib/table/types'
+
+vi.mock('@sim/db', () => dbChainMock)
 
 const EXISTING_ROW = {
   id: 'row-1',
@@ -37,21 +39,10 @@ const TABLE: TableDefinition = {
 }
 
 describe('updateRow — partial merge', () => {
-  let mockSet: ReturnType<typeof vi.fn>
-
   beforeEach(() => {
     vi.clearAllMocks()
-
-    // db.select() → used by getRowById to fetch the existing row
-    const mockLimit = vi.fn().mockResolvedValue([EXISTING_ROW])
-    const mockSelectWhere = vi.fn().mockReturnValue({ limit: mockLimit })
-    const mockFrom = vi.fn().mockReturnValue({ where: mockSelectWhere })
-    databaseMock.db.select.mockReturnValue({ from: mockFrom })
-
-    // db.update() → captures what merged data gets written
-    const mockUpdateWhere = vi.fn().mockResolvedValue([])
-    mockSet = vi.fn().mockReturnValue({ where: mockUpdateWhere })
-    databaseMock.db.update.mockReturnValue({ set: mockSet })
+    resetDbChainMock()
+    dbChainMockFns.limit.mockResolvedValue([EXISTING_ROW])
   })
 
   it('preserves columns not included in the partial update', async () => {
@@ -62,7 +53,7 @@ describe('updateRow — partial merge', () => {
     )
 
     expect(result.data).toEqual({ name: 'Alice', age: 31 })
-    expect(mockSet).toHaveBeenCalledWith(
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({ data: { name: 'Alice', age: 31 } })
     )
   })
@@ -75,7 +66,7 @@ describe('updateRow — partial merge', () => {
     )
 
     expect(result.data).toEqual({ name: 'Bob', age: 30 })
-    expect(mockSet).toHaveBeenCalledWith(
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({ data: { name: 'Bob', age: 30 } })
     )
   })
@@ -88,7 +79,7 @@ describe('updateRow — partial merge', () => {
     )
 
     expect(result.data).toEqual({ name: 'Alice', age: null })
-    expect(mockSet).toHaveBeenCalledWith(
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({ data: { name: 'Alice', age: null } })
     )
   })
@@ -104,10 +95,7 @@ describe('updateRow — partial merge', () => {
   })
 
   it('throws when the row does not exist', async () => {
-    const mockLimit = vi.fn().mockResolvedValue([])
-    const mockSelectWhere = vi.fn().mockReturnValue({ limit: mockLimit })
-    const mockFrom = vi.fn().mockReturnValue({ where: mockSelectWhere })
-    databaseMock.db.select.mockReturnValue({ from: mockFrom })
+    dbChainMockFns.limit.mockResolvedValueOnce([])
 
     await expect(
       updateRow(

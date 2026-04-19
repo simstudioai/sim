@@ -1,10 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { databaseMock, schemaMock } from '@sim/testing'
+import { databaseMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/db/schema', () => schemaMock)
 vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn(() => 'generated-uuid-1'),
   generateShortId: vi.fn(() => 'generated-short-1'),

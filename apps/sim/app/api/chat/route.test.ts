@@ -4,10 +4,10 @@
  * @vitest-environment node
  */
 import {
-  authMock,
   authMockFns,
   createEnvMock,
-  schemaMock,
+  dbChainMock,
+  dbChainMockFns,
   workflowsApiUtilsMock,
   workflowsApiUtilsMockFns,
   workflowsOrchestrationMock,
@@ -16,32 +16,15 @@ import {
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSelect, mockFrom, mockWhere, mockLimit, mockCheckWorkflowAccessForChatCreation } =
-  vi.hoisted(() => ({
-    mockSelect: vi.fn(),
-    mockFrom: vi.fn(),
-    mockWhere: vi.fn(),
-    mockLimit: vi.fn(),
-    mockCheckWorkflowAccessForChatCreation: vi.fn(),
-  }))
+const { mockCheckWorkflowAccessForChatCreation } = vi.hoisted(() => ({
+  mockCheckWorkflowAccessForChatCreation: vi.fn(),
+}))
 
 const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
 const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
 const mockPerformChatDeploy = workflowsOrchestrationMockFns.mockPerformChatDeploy
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mockSelect,
-  },
-}))
-
-vi.mock('@sim/db/schema', () => schemaMock)
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
-  eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
-  isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
-}))
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
 
@@ -50,8 +33,6 @@ vi.mock('@/app/api/chat/utils', () => ({
 }))
 
 vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
-
-vi.mock('@/lib/auth', () => authMock)
 
 vi.mock('@/lib/core/config/env', () =>
   createEnvMock({
@@ -65,10 +46,6 @@ import { GET, POST } from '@/app/api/chat/route'
 describe('Chat API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-
-    mockSelect.mockReturnValue({ from: mockFrom })
-    mockFrom.mockReturnValue({ where: mockWhere })
-    mockWhere.mockReturnValue({ limit: mockLimit })
 
     mockCreateSuccessResponse.mockImplementation((data) => {
       return new Response(JSON.stringify(data), {
@@ -108,14 +85,14 @@ describe('Chat API Route', () => {
       })
 
       const mockDeployments = [{ id: 'deployment-1' }, { id: 'deployment-2' }]
-      mockWhere.mockResolvedValue(mockDeployments)
+      dbChainMockFns.where.mockResolvedValueOnce(mockDeployments)
 
       const req = new NextRequest('http://localhost:3000/api/chat')
       const response = await GET(req)
 
       expect(response.status).toBe(200)
       expect(mockCreateSuccessResponse).toHaveBeenCalledWith({ deployments: mockDeployments })
-      expect(mockWhere).toHaveBeenCalled()
+      expect(dbChainMockFns.where).toHaveBeenCalled()
     })
 
     it('should handle errors when fetching deployments', async () => {
@@ -123,7 +100,7 @@ describe('Chat API Route', () => {
         user: { id: 'user-id' },
       })
 
-      mockWhere.mockRejectedValue(new Error('Database error'))
+      dbChainMockFns.where.mockRejectedValueOnce(new Error('Database error'))
 
       const req = new NextRequest('http://localhost:3000/api/chat')
       const response = await GET(req)
@@ -178,7 +155,7 @@ describe('Chat API Route', () => {
         },
       }
 
-      mockLimit.mockResolvedValueOnce([{ id: 'existing-chat' }]) // Identifier exists
+      dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'existing-chat' }]) // Identifier exists
       mockCheckWorkflowAccessForChatCreation.mockResolvedValue({ hasAccess: false })
 
       const req = new NextRequest('http://localhost:3000/api/chat', {
@@ -206,7 +183,7 @@ describe('Chat API Route', () => {
         },
       }
 
-      mockLimit.mockResolvedValueOnce([]) // Identifier is available
+      dbChainMockFns.limit.mockResolvedValueOnce([]) // Identifier is available
       mockCheckWorkflowAccessForChatCreation.mockResolvedValue({ hasAccess: false })
 
       const req = new NextRequest('http://localhost:3000/api/chat', {
@@ -237,7 +214,7 @@ describe('Chat API Route', () => {
         },
       }
 
-      mockLimit.mockResolvedValueOnce([]) // Identifier is available
+      dbChainMockFns.limit.mockResolvedValueOnce([]) // Identifier is available
       mockCheckWorkflowAccessForChatCreation.mockResolvedValue({
         hasAccess: true,
         workflow: { userId: 'user-id', workspaceId: null, isDeployed: true },
@@ -277,7 +254,7 @@ describe('Chat API Route', () => {
         outputConfigs: [{ blockId: 'agent-1', path: 'content' }],
       }
 
-      mockLimit.mockResolvedValueOnce([])
+      dbChainMockFns.limit.mockResolvedValueOnce([])
       mockCheckWorkflowAccessForChatCreation.mockResolvedValue({
         hasAccess: true,
         workflow: { userId: 'user-id', workspaceId: null, isDeployed: true },
@@ -319,7 +296,7 @@ describe('Chat API Route', () => {
         },
       }
 
-      mockLimit.mockResolvedValueOnce([]) // Identifier is available
+      dbChainMockFns.limit.mockResolvedValueOnce([]) // Identifier is available
       mockCheckWorkflowAccessForChatCreation.mockResolvedValue({
         hasAccess: true,
         workflow: { userId: 'other-user-id', workspaceId: 'workspace-123', isDeployed: true },
@@ -356,7 +333,7 @@ describe('Chat API Route', () => {
         },
       }
 
-      mockLimit.mockResolvedValueOnce([]) // Identifier is available
+      dbChainMockFns.limit.mockResolvedValueOnce([]) // Identifier is available
       mockCheckWorkflowAccessForChatCreation.mockResolvedValue({
         hasAccess: false,
       })
@@ -390,7 +367,7 @@ describe('Chat API Route', () => {
         },
       }
 
-      mockLimit.mockResolvedValueOnce([]) // Identifier is available
+      dbChainMockFns.limit.mockResolvedValueOnce([]) // Identifier is available
       mockCheckWorkflowAccessForChatCreation.mockRejectedValue(new Error('Permission check failed'))
 
       const req = new NextRequest('http://localhost:3000/api/chat', {
@@ -418,7 +395,7 @@ describe('Chat API Route', () => {
         },
       }
 
-      mockLimit.mockResolvedValueOnce([]) // Identifier is available
+      dbChainMockFns.limit.mockResolvedValueOnce([]) // Identifier is available
       mockCheckWorkflowAccessForChatCreation.mockResolvedValue({
         hasAccess: true,
         workflow: { userId: 'user-id', workspaceId: null, isDeployed: false },
