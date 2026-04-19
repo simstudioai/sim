@@ -10,10 +10,10 @@ import {
   useRef,
   useState,
 } from 'react'
+import { generateId } from '@sim/utils/id'
 import { X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/core/utils/cn'
-import { generateId } from '@/lib/core/utils/uuid'
 
 const AUTO_DISMISS_MS = 5000
 const EXIT_ANIMATION_MS = 200

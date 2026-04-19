@@ -126,7 +126,7 @@ vi.mock('drizzle-orm', () => ({
   lte: vi.fn((col, val) => ({ _op: 'lte', col, val })),
 }))
 
-vi.mock('@/lib/core/utils/uuid', () => ({
+vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn(() => 'test-event-id'),
 }))
 

@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockDbState, mockGenerateId } = vi.hoisted(() => ({
@@ -42,28 +43,11 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  organization: {
-    id: 'organization.id',
-    slug: 'organization.slug',
-  },
-  member: {
-    id: 'member.id',
-    userId: 'member.userId',
-    organizationId: 'member.organizationId',
-    role: 'member.role',
-    createdAt: 'member.createdAt',
-  },
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
-  eq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
-  ne: vi.fn((field: unknown, value: unknown) => ({ type: 'ne', field, value })),
-}))
-
-vi.mock('@/lib/core/utils/uuid', () => ({
+vi.mock('@sim/utils/id', () => ({
   generateId: mockGenerateId,
+  generateShortId: vi.fn(() => 'short-id'),
 }))
 
 import {

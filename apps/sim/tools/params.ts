@@ -169,7 +169,7 @@ function getBlockConfigurations(): Record<string, BlockConfig> {
         blockConfigCache![block.type] = block
       })
     } catch (error) {
-      console.warn('Could not load block configuration:', error)
+      logger.warn('Could not load block configuration:', error)
       blockConfigCache = {}
     }
   }

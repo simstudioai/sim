@@ -1,6 +1,9 @@
 'use client'
 
 import { useCallback, useEffect } from 'react'
+import { createLogger } from '@sim/logger'
+
+const logger = createLogger('UseStreamCleanup')
 
 /**
  * Generic hook to handle stream cleanup on page unload and component unmount
@@ -15,7 +18,7 @@ export function useStreamCleanup(cleanup: () => void) {
     try {
       cleanup()
     } catch (error) {
-      console.warn('Error during stream cleanup:', error)
+      logger.warn('Error during stream cleanup:', error)
     }
   }, [cleanup])
 

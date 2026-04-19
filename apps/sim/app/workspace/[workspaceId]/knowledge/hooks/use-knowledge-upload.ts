@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
 import { useQueryClient } from '@tanstack/react-query'
-import { sleep } from '@/lib/core/utils/helpers'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 

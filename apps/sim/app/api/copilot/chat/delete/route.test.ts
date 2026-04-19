@@ -3,19 +3,17 @@
  *
  * @vitest-environment node
  */
+import { authMock, authMockFns, schemaMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDelete, mockWhere, mockGetSession, mockGetAccessibleCopilotChat } = vi.hoisted(() => ({
+const { mockDelete, mockWhere, mockGetAccessibleCopilotChat } = vi.hoisted(() => ({
   mockDelete: vi.fn(),
   mockWhere: vi.fn(),
-  mockGetSession: vi.fn(),
   mockGetAccessibleCopilotChat: vi.fn(),
 }))
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
+vi.mock('@/lib/auth', () => authMock)
 
 vi.mock('@sim/db', () => ({
   db: {
@@ -23,13 +21,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  copilotChats: {
-    id: 'id',
-    userId: 'userId',
-    workspaceId: 'workspaceId',
-  },
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
@@ -58,7 +50,7 @@ describe('Copilot Chat Delete API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockGetSession.mockResolvedValue(null)
+    authMockFns.mockGetSession.mockResolvedValue(null)
 
     const mockReturning = vi.fn().mockResolvedValue([{ workspaceId: 'ws-1' }])
     mockWhere.mockReturnValue({ returning: mockReturning })
@@ -72,7 +64,7 @@ describe('Copilot Chat Delete API Route', () => {
 
   describe('DELETE', () => {
     it('should return 401 when user is not authenticated', async () => {
-      mockGetSession.mockResolvedValue(null)
+      authMockFns.mockGetSession.mockResolvedValue(null)
 
       const req = createMockRequest('DELETE', {
         chatId: 'chat-123',
@@ -86,7 +78,7 @@ describe('Copilot Chat Delete API Route', () => {
     })
 
     it('should successfully delete a chat', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const req = createMockRequest('DELETE', {
         chatId: 'chat-123',
@@ -103,7 +95,7 @@ describe('Copilot Chat Delete API Route', () => {
     })
 
     it('should return 500 for invalid request body - missing chatId', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const req = createMockRequest('DELETE', {})
 
@@ -115,7 +107,7 @@ describe('Copilot Chat Delete API Route', () => {
     })
 
     it('should return 500 for invalid request body - chatId is not a string', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const req = createMockRequest('DELETE', {
         chatId: 12345,
@@ -129,7 +121,7 @@ describe('Copilot Chat Delete API Route', () => {
     })
 
     it('should handle database errors gracefully', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       mockWhere.mockRejectedValueOnce(new Error('Database connection failed'))
 
@@ -145,7 +137,7 @@ describe('Copilot Chat Delete API Route', () => {
     })
 
     it('should handle JSON parsing errors in request body', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const req = new NextRequest('http://localhost:3000/api/copilot/chat/delete', {
         method: 'DELETE',
@@ -163,7 +155,7 @@ describe('Copilot Chat Delete API Route', () => {
     })
 
     it('should delete chat even if it does not exist (idempotent)', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       mockGetAccessibleCopilotChat.mockResolvedValueOnce(null)
 
@@ -179,7 +171,7 @@ describe('Copilot Chat Delete API Route', () => {
     })
 
     it('should delete chat with empty string chatId (validation should fail)', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const req = createMockRequest('DELETE', {
         chatId: '',

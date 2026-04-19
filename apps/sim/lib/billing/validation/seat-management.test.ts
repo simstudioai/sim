@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockDbResults, mockFeatureFlags, mockGetOrganizationSubscription } = vi.hoisted(() => ({
@@ -27,43 +28,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  invitation: {
-    organizationId: 'invitation.organizationId',
-    status: 'invitation.status',
-    email: 'invitation.email',
-  },
-  member: {
-    organizationId: 'member.organizationId',
-    userId: 'member.userId',
-    role: 'member.role',
-    createdAt: 'member.createdAt',
-  },
-  organization: {
-    id: 'organization.id',
-    name: 'organization.name',
-  },
-  subscription: {
-    id: 'subscription.id',
-  },
-  user: {
-    id: 'user.id',
-    name: 'user.name',
-    email: 'user.email',
-  },
-  userStats: {
-    userId: 'userStats.userId',
-    lastActive: 'userStats.lastActive',
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
-  count: vi.fn(() => ({ type: 'count' })),
-  eq: vi.fn((field: unknown, value: unknown) => ({ type: 'eq', field, value })),
-  gt: vi.fn((field: unknown, value: unknown) => ({ type: 'gt', field, value })),
-  ne: vi.fn((field: unknown, value: unknown) => ({ type: 'ne', field, value })),
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('@/lib/billing/core/billing', () => ({
   getOrganizationSubscription: mockGetOrganizationSubscription,
@@ -87,15 +52,6 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
 
 vi.mock('@/lib/messaging/email/validation', () => ({
   quickValidateEmail: vi.fn((email: string) => ({ isValid: email.includes('@') })),
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
 }))
 
 import { getOrganizationSeatInfo } from '@/lib/billing/validation/seat-management'

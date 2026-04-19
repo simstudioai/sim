@@ -1,11 +1,11 @@
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { parse as csvParse } from 'csv-parse/sync'
 import { eq } from 'drizzle-orm'
 import { FunctionExecute, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { toError } from '@/lib/core/utils/helpers'
 import { getTableById } from '@/lib/table/service'
 
 const logger = createLogger('CopilotToolResultTables')

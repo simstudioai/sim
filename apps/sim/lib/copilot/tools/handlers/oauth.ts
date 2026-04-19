@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
 import { pendingCredentialDraft, user } from '@sim/db/schema'
+import { toError } from '@sim/utils/errors'
 import { and, eq, lt } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { toError } from '@/lib/core/utils/helpers'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getAllOAuthServices } from '@/lib/oauth/utils'
 

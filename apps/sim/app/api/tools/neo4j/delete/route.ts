@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { generateId } from '@/lib/core/utils/uuid'
 import { createNeo4jDriver, validateCypherQuery } from '@/app/api/tools/neo4j/utils'
 
 const logger = createLogger('Neo4jDeleteAPI')

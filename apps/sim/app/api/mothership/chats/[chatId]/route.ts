@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -19,7 +20,6 @@ import { readEvents } from '@/lib/copilot/request/session/buffer'
 import { readFilePreviewSessions } from '@/lib/copilot/request/session/file-preview-session'
 import { type StreamBatchEvent, toStreamBatchEvent } from '@/lib/copilot/request/session/types'
 import { taskPubSub } from '@/lib/copilot/tasks'
-import { toError } from '@/lib/core/utils/helpers'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('MothershipChatAPI')

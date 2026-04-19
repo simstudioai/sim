@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { formatDuration } from '@sim/utils/formatting'
 import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Search, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
@@ -18,7 +19,6 @@ import {
 import { Copy as CopyIcon, Search as SearchIcon } from '@/components/emcn/icons'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { cn } from '@/lib/core/utils/cn'
-import { formatDuration } from '@/lib/core/utils/formatting'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {

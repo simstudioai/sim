@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react'
+import { generateId } from '@sim/utils/id'
 import { Plus } from 'lucide-react'
 import { Trash } from '@/components/emcn/icons/trash'
-import { generateId } from '@/lib/core/utils/uuid'
 import 'prismjs/components/prism-json'
 import Editor from 'react-simple-code-editor'
 import {

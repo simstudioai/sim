@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { member, organization } from '@sim/db/schema'
+import { generateId } from '@sim/utils/id'
 import { and, eq, ne } from 'drizzle-orm'
-import { generateId } from '@/lib/core/utils/uuid'
 
 const ORGANIZATION_SLUG_REGEX = /^[a-z0-9-_]+$/
 

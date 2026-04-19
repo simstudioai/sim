@@ -1,10 +1,10 @@
 import { auditLog, db } from '@sim/db'
 import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateShortId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import type { AuditActionType, AuditResourceTypeValue } from '@/lib/audit/types'
 import { getClientIp } from '@/lib/core/utils/request'
-import { generateShortId } from '@/lib/core/utils/uuid'
 
 export type { AuditActionType, AuditResourceTypeValue } from '@/lib/audit/types'
 export { AuditAction, AuditResourceType } from '@/lib/audit/types'

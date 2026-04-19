@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { academyCertificate, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateShortId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -9,7 +10,6 @@ import type { CertificateMetadata } from '@/lib/academy/types'
 import { getSession } from '@/lib/auth'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
-import { generateShortId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('AcademyCertificatesAPI')
 

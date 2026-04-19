@@ -1,10 +1,10 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
-import { toError } from '@/lib/core/utils/helpers'
-import { generateId } from '@/lib/core/utils/uuid'
 import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
 

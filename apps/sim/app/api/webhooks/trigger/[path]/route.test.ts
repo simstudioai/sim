@@ -3,22 +3,28 @@
  *
  * @vitest-environment node
  */
-import { createMockRequest, loggerMock, requestUtilsMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  createMockRequest,
+  encryptionMock,
+  executionPreprocessingMock,
+  executionPreprocessingMockFns,
+  loggingSessionMock,
+  requestUtilsMock,
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+  workflowsUtilsMock,
+} from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** Mock execution dependencies for webhook tests */
 function mockExecutionDependencies() {
-  vi.mock('@/lib/core/security/encryption', () => ({
-    decryptSecret: vi.fn().mockResolvedValue({ decrypted: 'decrypted-value' }),
-  }))
+  vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
   vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
     buildTraceSpans: vi.fn().mockReturnValue({ traceSpans: [], totalDuration: 100 }),
   }))
 
-  vi.mock('@/lib/workflows/utils', () => ({
-    updateWorkflowRunCounts: vi.fn().mockResolvedValue(undefined),
-  }))
+  vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
   vi.mock('@/serializer', () => ({
     Serializer: vi.fn().mockImplementation(() => ({
@@ -170,34 +176,9 @@ vi.mock('@/executor', () => ({
   })),
 }))
 
-vi.mock('@/lib/execution/preprocessing', () => ({
-  preprocessExecution: vi.fn().mockResolvedValue({
-    success: true,
-    actorUserId: 'test-user-id',
-    workflowRecord: {
-      id: 'test-workflow-id',
-      userId: 'test-user-id',
-      isDeployed: true,
-      workspaceId: 'test-workspace-id',
-    },
-    userSubscription: {
-      plan: 'pro',
-      status: 'active',
-    },
-    rateLimitInfo: {
-      allowed: true,
-      remaining: 100,
-      resetAt: new Date(),
-    },
-  }),
-}))
+vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 
-vi.mock('@/lib/logs/execution/logging-session', () => ({
-  LoggingSession: vi.fn().mockImplementation(() => ({
-    safeStart: vi.fn().mockResolvedValue(undefined),
-    safeCompleteWithError: vi.fn().mockResolvedValue(undefined),
-  })),
-}))
+vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
 vi.mock('@/lib/workspaces/utils', () => ({
   getWorkspaceBillingSettings: vi.fn().mockResolvedValue(null),
@@ -223,16 +204,7 @@ vi.mock('@/lib/core/rate-limiter', () => ({
   },
 }))
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadWorkflowFromNormalizedTables: vi.fn().mockResolvedValue({
-    blocks: {},
-    edges: [],
-    loops: {},
-    parallels: {},
-    isFromNormalizedTables: true,
-  }),
-  blockExistsInDeployment: vi.fn().mockResolvedValue(true),
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 vi.mock('@/lib/webhooks/processor', () => ({
   findAllWebhooksForPath: vi.fn().mockImplementation(async (options: { path: string }) => {
@@ -381,8 +353,6 @@ vi.mock('drizzle-orm/postgres-js', () => ({
 
 vi.mock('postgres', () => vi.fn().mockReturnValue({}))
 
-vi.mock('@sim/logger', () => loggerMock)
-
 vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
 process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
@@ -397,6 +367,35 @@ describe('Webhook Trigger API Route', () => {
     testData.webhooks.length = 0
     testData.workflows.length = 0
 
+    executionPreprocessingMockFns.mockPreprocessExecution.mockResolvedValue({
+      success: true,
+      actorUserId: 'test-user-id',
+      workflowRecord: {
+        id: 'test-workflow-id',
+        userId: 'test-user-id',
+        isDeployed: true,
+        workspaceId: 'test-workspace-id',
+      },
+      userSubscription: {
+        plan: 'pro',
+        status: 'active',
+      },
+      rateLimitInfo: {
+        allowed: true,
+        remaining: 100,
+        resetAt: new Date(),
+      },
+    })
+
+    workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables.mockResolvedValue({
+      blocks: {},
+      edges: [],
+      loops: {},
+      parallels: {},
+      isFromNormalizedTables: true,
+    })
+    workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment.mockResolvedValue(true)
+
     mockExecutionDependencies()
     mockTriggerDevSdk()
 
@@ -410,10 +409,6 @@ describe('Webhook Trigger API Route', () => {
     handleWhatsAppVerificationMock.mockResolvedValue(null)
     processGenericDeduplicationMock.mockResolvedValue(null)
     processWebhookMock.mockResolvedValue(new Response('Webhook processed', { status: 200 }))
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
   })
 
   it('should handle 404 for non-existent webhooks', async () => {

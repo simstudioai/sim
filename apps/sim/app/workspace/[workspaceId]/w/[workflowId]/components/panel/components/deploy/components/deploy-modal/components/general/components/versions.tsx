@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { formatDateTime } from '@sim/utils/formatting'
 import clsx from 'clsx'
 import { FileText, MoreVertical, Pencil, RotateCcw, SendToBack } from 'lucide-react'
 import {
@@ -12,7 +13,6 @@ import {
   Skeleton,
   Tooltip,
 } from '@/components/emcn'
-import { formatDateTime } from '@/lib/core/utils/formatting'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { useUpdateDeploymentVersion } from '@/hooks/queries/deployments'
 import { VersionDescriptionModal } from './version-description-modal'

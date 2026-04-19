@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef } from 'react'
+import { generateId } from '@sim/utils/id'
 import { Plus } from 'lucide-react'
 import {
   Badge,
@@ -12,7 +13,6 @@ import {
   Trash,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { generateId } from '@/lib/core/utils/uuid'
 import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'

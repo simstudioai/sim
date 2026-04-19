@@ -1,12 +1,18 @@
 /**
  * @vitest-environment node
  */
-import { auditMock, createMockRequest } from '@sim/testing'
+import {
+  auditMock,
+  authMock,
+  authMockFns,
+  createMockRequest,
+  permissionsMock,
+  permissionsMockFns,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockGetSession,
-  mockGetWorkspaceWithOwner,
   mockGetWorkspaceInvitePolicy,
   mockValidateInvitationsAllowed,
   mockValidateSeatAvailability,
@@ -16,10 +22,7 @@ const {
   mockCancelPendingInvitation,
   mockFindPendingGrantForWorkspaceEmail,
   mockDbResults,
-  mockLogger,
 } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockGetWorkspaceWithOwner: vi.fn(),
   mockGetWorkspaceInvitePolicy: vi.fn(),
   mockValidateInvitationsAllowed: vi.fn().mockResolvedValue(undefined),
   mockValidateSeatAvailability: vi.fn(),
@@ -29,7 +32,6 @@ const {
   mockCancelPendingInvitation: vi.fn(),
   mockFindPendingGrantForWorkspaceEmail: vi.fn(),
   mockDbResults: { value: [] as any[] },
-  mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
 
 vi.mock('@sim/db', () => ({
@@ -51,44 +53,11 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  user: { id: 'user_id', email: 'user_email', name: 'user_name' },
-  workspace: { id: 'workspace_id', name: 'workspace_name', archivedAt: 'archived_at' },
-  permissions: {
-    entityId: 'entity_id',
-    entityType: 'entity_type',
-    userId: 'user_id',
-    permissionType: 'permission_type',
-  },
-  permissionTypeEnum: { enumValues: ['admin', 'write', 'read'] as const },
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
-  eq: vi.fn((field: unknown, value: unknown) => ({ type: 'eq', field, value })),
-  inArray: vi.fn((field: unknown, values: unknown[]) => ({ type: 'inArray', field, values })),
-  isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
-  sql: Object.assign(
-    vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({
-      type: 'sql',
-      strings,
-      values,
-    })),
-    { raw: vi.fn((value: unknown) => ({ type: 'sql.raw', value })) }
-  ),
-}))
+vi.mock('@/lib/auth', () => authMock)
 
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue(mockLogger),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/workspaces/policy', () => ({
   getWorkspaceInvitePolicy: mockGetWorkspaceInvitePolicy,
@@ -123,7 +92,7 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
   InvitationsNotAllowedError: class InvitationsNotAllowedError extends Error {},
 }))
 
-vi.mock('@/lib/audit/log', async () => auditMock)
+vi.mock('@/lib/audit/log', () => auditMock)
 
 vi.mock('@/lib/posthog/server', () => ({
   captureServerEvent: vi.fn(),
@@ -134,6 +103,9 @@ vi.mock('@/lib/core/telemetry', () => ({
     workspaceMemberInvited: vi.fn(),
   },
 }))
+
+const mockGetSession = authMockFns.mockGetSession
+const mockGetWorkspaceWithOwner = permissionsMockFns.mockGetWorkspaceWithOwner
 
 import { UPGRADE_TO_INVITE_REASON } from '@/lib/workspaces/policy-constants'
 import { POST } from '@/app/api/workspaces/invitations/route'

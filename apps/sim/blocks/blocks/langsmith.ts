@@ -1,5 +1,5 @@
+import { toError } from '@sim/utils/errors'
 import { LangsmithIcon } from '@/components/icons'
-import { toError } from '@/lib/core/utils/helpers'
 import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import type { LangsmithResponse } from '@/tools/langsmith/types'
 

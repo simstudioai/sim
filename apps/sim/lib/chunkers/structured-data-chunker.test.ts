@@ -2,11 +2,8 @@
  * @vitest-environment node
  */
 
-import { loggerMock } from '@sim/testing'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { StructuredDataChunker } from './structured-data-chunker'
-
-vi.mock('@sim/logger', () => loggerMock)
 
 describe('StructuredDataChunker', () => {
   describe('isStructuredData', () => {

@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockDbResults } = vi.hoisted(() => ({
@@ -30,43 +31,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  member: {
-    userId: 'user_id',
-    organizationId: 'organization_id',
-    role: 'role',
-  },
-  organization: {
-    id: 'organization_id',
-  },
-  subscription: {
-    id: 'id',
-    referenceId: 'reference_id',
-    status: 'status',
-    metadata: 'metadata',
-  },
-  user: {
-    id: 'id',
-    email: 'email',
-    name: 'name',
-  },
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...args: unknown[]) => ({ type: 'and', args })),
-  eq: vi.fn((field: unknown, value: unknown) => ({ type: 'eq', field, value })),
-  inArray: vi.fn((field: unknown, values: unknown[]) => ({ type: 'inArray', field, values })),
-  sql: vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('@/lib/billing/core/access', () => ({
   getEffectiveBillingStatus: vi.fn(),

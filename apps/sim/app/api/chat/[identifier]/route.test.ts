@@ -3,8 +3,16 @@
  *
  * @vitest-environment node
  */
-import { loggerMock, requestUtilsMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  encryptionMock,
+  executionPreprocessingMock,
+  executionPreprocessingMockFns,
+  loggingSessionMock,
+  requestUtilsMock,
+  workflowsApiUtilsMock,
+  workflowsApiUtilsMockFns,
+} from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Creates a mock NextRequest with cookies support for testing.
@@ -57,29 +65,16 @@ const {
   mockValidateChatAuth,
   mockSetChatAuthCookie,
   mockValidateAuthToken,
-  mockCreateErrorResponse,
-  mockCreateSuccessResponse,
 } = vi.hoisted(() => ({
   mockDbSelect: vi.fn(),
   mockAddCorsHeaders: vi.fn().mockImplementation((response: Response) => response),
   mockValidateChatAuth: vi.fn().mockResolvedValue({ authorized: true }),
   mockSetChatAuthCookie: vi.fn(),
   mockValidateAuthToken: vi.fn().mockReturnValue(false),
-  mockCreateErrorResponse: vi
-    .fn()
-    .mockImplementation((message: string, status: number, code?: string) => {
-      return new Response(
-        JSON.stringify({
-          error: code || 'Error',
-          message,
-        }),
-        { status }
-      )
-    }),
-  mockCreateSuccessResponse: vi.fn().mockImplementation((data: unknown) => {
-    return new Response(JSON.stringify(data), { status: 200 })
-  }),
 }))
+
+const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
+const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
 
 vi.mock('@sim/db', () => ({
   db: { select: mockDbSelect },
@@ -99,42 +94,11 @@ vi.mock('@/app/api/chat/utils', () => ({
   setChatAuthCookie: mockSetChatAuthCookie,
 }))
 
-vi.mock('@sim/logger', () => loggerMock)
+vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
 
-vi.mock('@/app/api/workflows/utils', () => ({
-  createErrorResponse: mockCreateErrorResponse,
-  createSuccessResponse: mockCreateSuccessResponse,
-}))
+vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 
-vi.mock('@/lib/execution/preprocessing', () => ({
-  preprocessExecution: vi.fn().mockResolvedValue({
-    success: true,
-    actorUserId: 'test-user-id',
-    workflowRecord: {
-      id: 'test-workflow-id',
-      userId: 'test-user-id',
-      isDeployed: true,
-      workspaceId: 'test-workspace-id',
-      variables: {},
-    },
-    userSubscription: {
-      plan: 'pro',
-      status: 'active',
-    },
-    rateLimitInfo: {
-      allowed: true,
-      remaining: 100,
-      resetAt: new Date(),
-    },
-  }),
-}))
-
-vi.mock('@/lib/logs/execution/logging-session', () => ({
-  LoggingSession: vi.fn().mockImplementation(() => ({
-    safeStart: vi.fn().mockResolvedValue(undefined),
-    safeCompleteWithError: vi.fn().mockResolvedValue(undefined),
-  })),
-}))
+vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
 vi.mock('@/lib/workflows/streaming/streaming', () => ({
   createStreamingResponse: vi.fn().mockImplementation(async () => createMockStream()),
@@ -155,9 +119,7 @@ vi.mock('@/lib/core/utils/sse', () => ({
 
 vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: vi.fn().mockResolvedValue({ decrypted: 'test-password' }),
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'
@@ -202,6 +164,27 @@ describe('Chat Identifier API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
+    executionPreprocessingMockFns.mockPreprocessExecution.mockResolvedValue({
+      success: true,
+      actorUserId: 'test-user-id',
+      workflowRecord: {
+        id: 'test-workflow-id',
+        userId: 'test-user-id',
+        isDeployed: true,
+        workspaceId: 'test-workspace-id',
+        variables: {},
+      },
+      userSubscription: {
+        plan: 'pro',
+        status: 'active',
+      },
+      rateLimitInfo: {
+        allowed: true,
+        remaining: 100,
+        resetAt: new Date(),
+      },
+    })
+
     mockAddCorsHeaders.mockImplementation((response: Response) => response)
     mockValidateChatAuth.mockResolvedValue({ authorized: true })
     mockValidateAuthToken.mockReturnValue(false)
@@ -236,10 +219,6 @@ describe('Chat Identifier API Route', () => {
         }),
       }
     })
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
   })
 
   describe('GET endpoint', () => {

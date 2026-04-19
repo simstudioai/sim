@@ -3,31 +3,31 @@
  *
  * @vitest-environment node
  */
-import { createEnvMock } from '@sim/testing'
+import {
+  authMock,
+  authMockFns,
+  createEnvMock,
+  schemaMock,
+  workflowsApiUtilsMock,
+  workflowsApiUtilsMockFns,
+  workflowsOrchestrationMock,
+  workflowsOrchestrationMockFns,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockSelect,
-  mockFrom,
-  mockWhere,
-  mockLimit,
-  mockCreateSuccessResponse,
-  mockCreateErrorResponse,
-  mockCheckWorkflowAccessForChatCreation,
-  mockPerformChatDeploy,
-  mockGetSession,
-} = vi.hoisted(() => ({
-  mockSelect: vi.fn(),
-  mockFrom: vi.fn(),
-  mockWhere: vi.fn(),
-  mockLimit: vi.fn(),
-  mockCreateSuccessResponse: vi.fn(),
-  mockCreateErrorResponse: vi.fn(),
-  mockCheckWorkflowAccessForChatCreation: vi.fn(),
-  mockPerformChatDeploy: vi.fn(),
-  mockGetSession: vi.fn(),
-}))
+const { mockSelect, mockFrom, mockWhere, mockLimit, mockCheckWorkflowAccessForChatCreation } =
+  vi.hoisted(() => ({
+    mockSelect: vi.fn(),
+    mockFrom: vi.fn(),
+    mockWhere: vi.fn(),
+    mockLimit: vi.fn(),
+    mockCheckWorkflowAccessForChatCreation: vi.fn(),
+  }))
+
+const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
+const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
+const mockPerformChatDeploy = workflowsOrchestrationMockFns.mockPerformChatDeploy
 
 vi.mock('@sim/db', () => ({
   db: {
@@ -35,10 +35,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  chat: { userId: 'userId', identifier: 'identifier', archivedAt: 'archivedAt' },
-  workflow: { id: 'id', userId: 'userId', isDeployed: 'isDeployed' },
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
@@ -46,22 +43,15 @@ vi.mock('drizzle-orm', () => ({
   isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
 }))
 
-vi.mock('@/app/api/workflows/utils', () => ({
-  createSuccessResponse: mockCreateSuccessResponse,
-  createErrorResponse: mockCreateErrorResponse,
-}))
+vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
 
 vi.mock('@/app/api/chat/utils', () => ({
   checkWorkflowAccessForChatCreation: mockCheckWorkflowAccessForChatCreation,
 }))
 
-vi.mock('@/lib/workflows/orchestration', () => ({
-  performChatDeploy: mockPerformChatDeploy,
-}))
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
+vi.mock('@/lib/auth', () => authMock)
 
 vi.mock('@/lib/core/config/env', () =>
   createEnvMock({
@@ -101,13 +91,9 @@ describe('Chat API Route', () => {
     })
   })
 
-  afterEach(() => {
-    vi.clearAllMocks()
-  })
-
   describe('GET', () => {
     it('should return 401 when user is not authenticated', async () => {
-      mockGetSession.mockResolvedValue(null)
+      authMockFns.mockGetSession.mockResolvedValue(null)
 
       const req = new NextRequest('http://localhost:3000/api/chat')
       const response = await GET(req)
@@ -117,7 +103,7 @@ describe('Chat API Route', () => {
     })
 
     it('should return chat deployments for authenticated user', async () => {
-      mockGetSession.mockResolvedValue({
+      authMockFns.mockGetSession.mockResolvedValue({
         user: { id: 'user-id' },
       })
 
@@ -133,7 +119,7 @@ describe('Chat API Route', () => {
     })
 
     it('should handle errors when fetching deployments', async () => {
-      mockGetSession.mockResolvedValue({
+      authMockFns.mockGetSession.mockResolvedValue({
         user: { id: 'user-id' },
       })
 
@@ -149,7 +135,7 @@ describe('Chat API Route', () => {
 
   describe('POST', () => {
     it('should return 401 when user is not authenticated', async () => {
-      mockGetSession.mockResolvedValue(null)
+      authMockFns.mockGetSession.mockResolvedValue(null)
 
       const req = new NextRequest('http://localhost:3000/api/chat', {
         method: 'POST',
@@ -162,7 +148,7 @@ describe('Chat API Route', () => {
     })
 
     it('should validate request data', async () => {
-      mockGetSession.mockResolvedValue({
+      authMockFns.mockGetSession.mockResolvedValue({
         user: { id: 'user-id' },
       })
 
@@ -178,7 +164,7 @@ describe('Chat API Route', () => {
     })
 
     it('should reject if identifier already exists', async () => {
-      mockGetSession.mockResolvedValue({
+      authMockFns.mockGetSession.mockResolvedValue({
         user: { id: 'user-id' },
       })
 
@@ -206,7 +192,7 @@ describe('Chat API Route', () => {
     })
 
     it('should reject if workflow not found', async () => {
-      mockGetSession.mockResolvedValue({
+      authMockFns.mockGetSession.mockResolvedValue({
         user: { id: 'user-id' },
       })
 
@@ -237,7 +223,7 @@ describe('Chat API Route', () => {
     })
 
     it('should allow chat deployment when user owns workflow directly', async () => {
-      mockGetSession.mockResolvedValue({
+      authMockFns.mockGetSession.mockResolvedValue({
         user: { id: 'user-id', email: 'user@example.com' },
       })
 
@@ -275,7 +261,7 @@ describe('Chat API Route', () => {
     })
 
     it('passes chat customizations and outputConfigs through in the API request shape', async () => {
-      mockGetSession.mockResolvedValue({
+      authMockFns.mockGetSession.mockResolvedValue({
         user: { id: 'user-id', email: 'user@example.com' },
       })
 
@@ -319,7 +305,7 @@ describe('Chat API Route', () => {
     })
 
     it('should allow chat deployment when user has workspace admin permission', async () => {
-      mockGetSession.mockResolvedValue({
+      authMockFns.mockGetSession.mockResolvedValue({
         user: { id: 'user-id', email: 'user@example.com' },
       })
 
@@ -356,7 +342,7 @@ describe('Chat API Route', () => {
     })
 
     it('should reject when workflow is in workspace but user lacks admin permission', async () => {
-      mockGetSession.mockResolvedValue({
+      authMockFns.mockGetSession.mockResolvedValue({
         user: { id: 'user-id' },
       })
 
@@ -390,7 +376,7 @@ describe('Chat API Route', () => {
     })
 
     it('should handle workspace permission check errors gracefully', async () => {
-      mockGetSession.mockResolvedValue({
+      authMockFns.mockGetSession.mockResolvedValue({
         user: { id: 'user-id' },
       })
 
@@ -418,7 +404,7 @@ describe('Chat API Route', () => {
     })
 
     it('should call performChatDeploy for undeployed workflow', async () => {
-      mockGetSession.mockResolvedValue({
+      authMockFns.mockGetSession.mockResolvedValue({
         user: { id: 'user-id', email: 'user@example.com' },
       })
 

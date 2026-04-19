@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -43,18 +44,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  member: {
-    role: 'role',
-    userId: 'user_id',
-    organizationId: 'organization_id',
-  },
-  workspace: {
-    ownerId: 'owner_id',
-    organizationId: 'organization_id',
-    workspaceMode: 'workspace_mode',
-  },
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('@/lib/billing/organizations/membership', () => ({
   getUserOrganization: mockGetUserOrganization,
@@ -72,22 +62,6 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
   get isBillingEnabled() {
     return mockFeatureFlags.isBillingEnabled
   },
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
-  count: vi.fn(() => ({ type: 'count' })),
-  eq: vi.fn((field: unknown, value: unknown) => ({ type: 'eq', field, value })),
-  isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
 }))
 
 import {

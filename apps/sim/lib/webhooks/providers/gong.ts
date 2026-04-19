@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import * as jose from 'jose'
 import { NextResponse } from 'next/server'
-import { toError } from '@/lib/core/utils/helpers'
 import type {
   AuthContext,
   FormatInputContext,

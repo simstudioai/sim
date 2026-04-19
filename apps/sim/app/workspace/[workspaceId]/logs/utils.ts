@@ -1,7 +1,7 @@
 import React from 'react'
+import { formatDuration } from '@sim/utils/formatting'
 import { format } from 'date-fns'
 import { Badge } from '@/components/emcn'
-import { formatDuration } from '@/lib/core/utils/formatting'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { getBlock } from '@/blocks/registry'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'

@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { TOOL_RESULT_MAX_INLINE_CHARS } from '@/lib/copilot/constants'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
-import { toError } from '@/lib/core/utils/helpers'
 import { listChatUploads, readChatUpload } from './upload-file-reader'
 
 const logger = createLogger('VfsTools')

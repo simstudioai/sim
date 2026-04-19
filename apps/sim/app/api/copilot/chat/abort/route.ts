@@ -1,11 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
 import { abortActiveStream, waitForPendingChatStream } from '@/lib/copilot/request/session'
 import { env } from '@/lib/core/config/env'
-import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('CopilotChatAbortAPI')
 const GO_EXPLICIT_ABORT_TIMEOUT_MS = 3000

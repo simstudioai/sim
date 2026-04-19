@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { loggerMock } from '@sim/testing'
+import { schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockDbSelect = vi.fn()
@@ -18,13 +18,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  usageLog: {
-    userId: 'user_id',
-    createdAt: 'created_at',
-    cost: 'cost',
-  },
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => {
   const sqlTag = () => {
@@ -42,7 +36,6 @@ vi.mock('drizzle-orm', () => {
   }
 })
 
-vi.mock('@sim/logger', () => loggerMock)
 vi.mock('@/lib/billing/constants', () => ({
   DAILY_REFRESH_RATE: 0.01,
 }))

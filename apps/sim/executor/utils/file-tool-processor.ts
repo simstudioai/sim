@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@/lib/core/utils/helpers'
+import { toError } from '@sim/utils/errors'
 import { isUserFile } from '@/lib/core/utils/user-file'
 import { uploadExecutionFile, uploadFileFromRawData } from '@/lib/uploads/contexts/execution'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'

@@ -3,7 +3,7 @@
  */
 
 import { createLogger } from '@sim/logger'
-import { toError } from '@/lib/core/utils/helpers'
+import { toError } from '@sim/utils/errors'
 import { createTokenizationError } from '@/lib/tokenization/errors'
 import {
   estimateInputTokens,

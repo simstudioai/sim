@@ -1,10 +1,10 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { generateId } from '@/lib/core/utils/uuid'
 import {
   bulkDocumentOperation,
   bulkDocumentOperationByFilter,

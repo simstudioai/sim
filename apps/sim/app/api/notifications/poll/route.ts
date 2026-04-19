@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
+import { generateShortId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
-import { generateShortId } from '@/lib/core/utils/uuid'
 import { pollInactivityAlerts } from '@/lib/notifications/inactivity-polling'
 
 const logger = createLogger('InactivityAlertPoll')

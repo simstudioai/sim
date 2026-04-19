@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import {
   ASYNC_TOOL_STATUS,
   type AsyncCompletionEnvelope,
@@ -8,7 +9,6 @@ import {
 import { getAsyncToolCalls } from '@/lib/copilot/async-runs/repository'
 import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
 import { getRedisClient } from '@/lib/core/config/redis'
-import { toError } from '@/lib/core/utils/helpers'
 import { createPubSubChannel } from '@/lib/events/pubsub'
 
 const logger = createLogger('CopilotOrchestratorPersistence')

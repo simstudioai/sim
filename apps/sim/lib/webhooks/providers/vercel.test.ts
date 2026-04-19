@@ -3,17 +3,8 @@
  */
 import crypto from 'crypto'
 import { createMockRequest } from '@sim/testing'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { vercelHandler } from '@/lib/webhooks/providers/vercel'
-
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
 
 describe('vercelHandler', () => {
   describe('verifyAuth', () => {

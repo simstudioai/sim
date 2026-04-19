@@ -1,4 +1,4 @@
-import { setupGlobalFetchMock } from '@sim/testing'
+import { schemaMock, setupGlobalFetchMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { getAllBlocks } from '@/blocks'
 import { BlockType, isMcpTool } from '@/executor/constants'
@@ -102,14 +102,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  mcpServers: {
-    id: 'id',
-    workspaceId: 'workspaceId',
-    connectionStatus: 'connectionStatus',
-    deletedAt: 'deletedAt',
-  },
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 const mockGetCustomToolById = vi.fn()
 

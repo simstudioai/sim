@@ -3,32 +3,22 @@
  *
  * @vitest-environment node
  */
+import { authMock, authMockFns, schemaMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockSelect,
-  mockFrom,
-  mockWhere,
-  mockLimit,
-  mockUpdate,
-  mockSet,
-  mockUpdateWhere,
-  mockGetSession,
-} = vi.hoisted(() => ({
-  mockSelect: vi.fn(),
-  mockFrom: vi.fn(),
-  mockWhere: vi.fn(),
-  mockLimit: vi.fn(),
-  mockUpdate: vi.fn(),
-  mockSet: vi.fn(),
-  mockUpdateWhere: vi.fn(),
-  mockGetSession: vi.fn(),
-}))
+const { mockSelect, mockFrom, mockWhere, mockLimit, mockUpdate, mockSet, mockUpdateWhere } =
+  vi.hoisted(() => ({
+    mockSelect: vi.fn(),
+    mockFrom: vi.fn(),
+    mockWhere: vi.fn(),
+    mockLimit: vi.fn(),
+    mockUpdate: vi.fn(),
+    mockSet: vi.fn(),
+    mockUpdateWhere: vi.fn(),
+  }))
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
+vi.mock('@/lib/auth', () => authMock)
 
 vi.mock('@sim/db', () => ({
   db: {
@@ -37,14 +27,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  copilotChats: {
-    id: 'id',
-    userId: 'userId',
-    messages: 'messages',
-    updatedAt: 'updatedAt',
-  },
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
@@ -65,7 +48,7 @@ describe('Copilot Chat Update Messages API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockGetSession.mockResolvedValue(null)
+    authMockFns.mockGetSession.mockResolvedValue(null)
 
     mockSelect.mockReturnValue({ from: mockFrom })
     mockFrom.mockReturnValue({ where: mockWhere })
@@ -82,7 +65,7 @@ describe('Copilot Chat Update Messages API Route', () => {
 
   describe('POST', () => {
     it('should return 401 when user is not authenticated', async () => {
-      mockGetSession.mockResolvedValue(null)
+      authMockFns.mockGetSession.mockResolvedValue(null)
 
       const req = createMockRequest('POST', {
         chatId: 'chat-123',
@@ -104,7 +87,7 @@ describe('Copilot Chat Update Messages API Route', () => {
     })
 
     it('should return 400 for invalid request body - missing chatId', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const req = createMockRequest('POST', {
         messages: [
@@ -125,7 +108,7 @@ describe('Copilot Chat Update Messages API Route', () => {
     })
 
     it('should return 400 for invalid request body - missing messages', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const req = createMockRequest('POST', {
         chatId: 'chat-123',
@@ -139,7 +122,7 @@ describe('Copilot Chat Update Messages API Route', () => {
     })
 
     it('should return 400 for invalid message structure - missing required fields', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const req = createMockRequest('POST', {
         chatId: 'chat-123',
@@ -158,7 +141,7 @@ describe('Copilot Chat Update Messages API Route', () => {
     })
 
     it('should return 400 for invalid message role', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const req = createMockRequest('POST', {
         chatId: 'chat-123',
@@ -180,7 +163,7 @@ describe('Copilot Chat Update Messages API Route', () => {
     })
 
     it('should return 404 when chat is not found', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       mockLimit.mockResolvedValueOnce([])
 
@@ -204,7 +187,7 @@ describe('Copilot Chat Update Messages API Route', () => {
     })
 
     it('should return 404 when chat belongs to different user', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       mockLimit.mockResolvedValueOnce([])
 
@@ -228,7 +211,7 @@ describe('Copilot Chat Update Messages API Route', () => {
     })
 
     it('should successfully update chat messages', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const existingChat = {
         id: 'chat-123',
@@ -275,7 +258,7 @@ describe('Copilot Chat Update Messages API Route', () => {
     })
 
     it('should successfully update chat messages with optional fields', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const existingChat = {
         id: 'chat-456',
@@ -361,7 +344,7 @@ describe('Copilot Chat Update Messages API Route', () => {
     })
 
     it('should handle empty messages array', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const existingChat = {
         id: 'chat-789',
@@ -391,7 +374,7 @@ describe('Copilot Chat Update Messages API Route', () => {
     })
 
     it('should handle database errors during chat lookup', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       mockLimit.mockRejectedValueOnce(new Error('Database connection failed'))
 
@@ -415,7 +398,7 @@ describe('Copilot Chat Update Messages API Route', () => {
     })
 
     it('should handle database errors during update operation', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const existingChat = {
         id: 'chat-123',
@@ -448,7 +431,7 @@ describe('Copilot Chat Update Messages API Route', () => {
     })
 
     it('should handle JSON parsing errors in request body', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const req = new NextRequest('http://localhost:3000/api/copilot/chat/update-messages', {
         method: 'POST',
@@ -466,7 +449,7 @@ describe('Copilot Chat Update Messages API Route', () => {
     })
 
     it('should handle large message arrays', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const existingChat = {
         id: 'chat-large',
@@ -503,7 +486,7 @@ describe('Copilot Chat Update Messages API Route', () => {
     })
 
     it('should handle messages with both user and assistant roles', async () => {
-      mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
+      authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
       const existingChat = {
         id: 'chat-mixed',

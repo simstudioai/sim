@@ -16,6 +16,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { isPaid, sqlIsPro } from '@/lib/billing/plan-helpers'
@@ -24,7 +25,6 @@ import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
-import { generateId } from '@/lib/core/utils/uuid'
 import { revokeWorkspaceCredentialMemberships } from '@/lib/credentials/access'
 
 const logger = createLogger('OrganizationMembership')

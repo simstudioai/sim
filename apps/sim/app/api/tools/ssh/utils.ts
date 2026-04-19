@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type Attributes, Client, type ConnectConfig } from 'ssh2'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
-import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('SSHUtils')
 

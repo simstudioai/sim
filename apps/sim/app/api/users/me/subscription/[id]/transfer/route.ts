@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -8,7 +9,6 @@ import { getSession } from '@/lib/auth'
 import { hasPaidSubscription } from '@/lib/billing'
 import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
-import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('SubscriptionTransferAPI')
 

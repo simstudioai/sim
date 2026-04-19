@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockDbSelect } = vi.hoisted(() => ({
@@ -13,54 +14,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  account: {
-    id: 'account.id',
-    userId: 'account.userId',
-    providerId: 'account.providerId',
-  },
-  credential: {
-    id: 'credential.id',
-    accountId: 'credential.accountId',
-    displayName: 'credential.displayName',
-    providerId: 'credential.providerId',
-    workspaceId: 'credential.workspaceId',
-    type: 'credential.type',
-  },
-  credentialMember: {
-    credentialId: 'credentialMember.credentialId',
-    userId: 'credentialMember.userId',
-    status: 'credentialMember.status',
-  },
-  document: {
-    id: 'document.id',
-    userExcluded: 'document.userExcluded',
-    archivedAt: 'document.archivedAt',
-    deletedAt: 'document.deletedAt',
-  },
-  knowledgeBase: {
-    id: 'knowledgeBase.id',
-    deletedAt: 'knowledgeBase.deletedAt',
-    workspaceId: 'knowledgeBase.workspaceId',
-  },
-  mcpServers: {
-    id: 'mcpServers.id',
-    enabled: 'mcpServers.enabled',
-    deletedAt: 'mcpServers.deletedAt',
-    workspaceId: 'mcpServers.workspaceId',
-  },
-  workflow: {
-    id: 'workflow.id',
-    archivedAt: 'workflow.archivedAt',
-  },
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...args: unknown[]) => ({ type: 'and', args })),

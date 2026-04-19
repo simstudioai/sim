@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { subscription as subscriptionTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -18,7 +19,6 @@ import {
   isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
-import { toError } from '@/lib/core/utils/helpers'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('SwitchPlan')

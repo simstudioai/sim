@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { ZodError } from 'zod'
-import { generateId } from '@/lib/core/utils/uuid'
 import {
   BLOCK_OPERATIONS,
   BLOCKS_OPERATIONS,

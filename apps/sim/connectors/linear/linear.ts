@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { LinearIcon } from '@/components/icons'
-import { toError } from '@/lib/core/utils/helpers'
 import type { RetryOptions } from '@/lib/knowledge/documents/utils'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'

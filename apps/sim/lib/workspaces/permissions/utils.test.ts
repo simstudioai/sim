@@ -1,32 +1,7 @@
-import { databaseMock, drizzleOrmMock } from '@sim/testing'
+import { schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/db', () => databaseMock)
-
-vi.mock('@sim/db/schema', () => ({
-  permissions: {
-    permissionType: 'permission_type',
-    userId: 'user_id',
-    entityType: 'entity_type',
-    entityId: 'entity_id',
-    id: 'permission_id',
-  },
-  permissionTypeEnum: {
-    enumValues: ['admin', 'write', 'read'] as const,
-  },
-  user: {
-    id: 'user_id',
-    email: 'user_email',
-    name: 'user_name',
-  },
-  workspace: {
-    id: 'workspace_id',
-    name: 'workspace_name',
-    ownerId: 'workspace_owner_id',
-  },
-}))
-
-vi.mock('drizzle-orm', () => drizzleOrmMock)
+vi.mock('@sim/db/schema', () => schemaMock)
 
 import { db } from '@sim/db'
 import {

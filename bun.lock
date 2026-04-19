@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "simstudio",
@@ -116,6 +115,7 @@
         "@react-email/components": "^0.0.34",
         "@react-email/render": "2.0.0",
         "@sim/logger": "workspace:*",
+        "@sim/utils": "workspace:*",
         "@socket.io/redis-adapter": "8.3.0",
         "@t3-oss/env-nextjs": "0.13.4",
         "@tanstack/react-query": "5.90.8",
@@ -332,6 +332,15 @@
     "packages/tsconfig": {
       "name": "@sim/tsconfig",
       "version": "0.0.0",
+    },
+    "packages/utils": {
+      "name": "@sim/utils",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@sim/tsconfig": "workspace:*",
+        "typescript": "^5.7.3",
+        "vitest": "^3.0.8",
+      },
     },
   },
   "trustedDependencies": [
@@ -1337,6 +1346,8 @@
     "@sim/testing": ["@sim/testing@workspace:packages/testing"],
 
     "@sim/tsconfig": ["@sim/tsconfig@workspace:packages/tsconfig"],
+
+    "@sim/utils": ["@sim/utils@workspace:packages/utils"],
 
     "@simplewebauthn/browser": ["@simplewebauthn/browser@13.3.0", "", {}, "sha512-BE/UWv6FOToAdVk0EokzkqQQDOWtNydYlY6+OrmiZ5SCNmb41VehttboTetUM3T/fr6EAFYVXjz4My2wg230rQ=="],
 

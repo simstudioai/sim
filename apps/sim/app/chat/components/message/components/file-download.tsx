@@ -2,10 +2,10 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
 import { ArrowDown, Download, Loader2, Music } from 'lucide-react'
 import { Button } from '@/components/emcn'
 import { DefaultFileIcon, getDocumentIcon } from '@/components/icons/document-icons'
-import { sleep } from '@/lib/core/utils/helpers'
 import type { ChatFile } from '@/app/chat/components/message/message'
 
 const logger = createLogger('ChatFileDownload')

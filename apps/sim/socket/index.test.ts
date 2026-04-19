@@ -4,7 +4,7 @@
  * @vitest-environment node
  */
 import { createServer, request as httpRequest } from 'http'
-import { createEnvMock, createMockLogger, databaseMock } from '@sim/testing'
+import { createEnvMock, createMockLogger } from '@sim/testing'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSocketIOServer } from '@/socket/config/socket'
 import { MemoryRoomManager } from '@/socket/rooms'
@@ -17,8 +17,6 @@ vi.mock('@/lib/auth', () => ({
     },
   },
 }))
-
-vi.mock('@sim/db', () => databaseMock)
 
 // Mock redis package to prevent actual Redis connections
 vi.mock('redis', () => ({

@@ -10,9 +10,9 @@ import {
   workflowSchedule,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { and, count, eq, inArray, isNull } from 'drizzle-orm'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
-import { toError } from '@/lib/core/utils/helpers'
 import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'

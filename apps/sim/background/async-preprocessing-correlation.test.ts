@@ -2,21 +2,24 @@
  * @vitest-environment node
  */
 
+import {
+  executionPreprocessingMock,
+  executionPreprocessingMockFns,
+  LoggingSessionMock,
+  loggingSessionMock,
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockPreprocessExecution,
   mockTask,
   mockDbUpdate,
   mockDbSelect,
   mockExecuteWorkflowCore,
-  mockLoggingSession,
-  mockBlockExistsInDeployment,
-  mockLoadDeployedWorkflowState,
   mockGetScheduleTimeValues,
   mockGetSubBlockValue,
 } = vi.hoisted(() => ({
-  mockPreprocessExecution: vi.fn(),
   mockTask: vi.fn((config) => config),
   mockDbUpdate: vi.fn(() => ({
     set: vi.fn(() => ({
@@ -25,12 +28,12 @@ const {
   })),
   mockDbSelect: vi.fn(),
   mockExecuteWorkflowCore: vi.fn(),
-  mockLoggingSession: vi.fn(),
-  mockBlockExistsInDeployment: vi.fn(),
-  mockLoadDeployedWorkflowState: vi.fn(),
   mockGetScheduleTimeValues: vi.fn(),
   mockGetSubBlockValue: vi.fn(),
 }))
+
+const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
+const mockLoadDeployedWorkflowState = workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState
 
 vi.mock('@trigger.dev/sdk', () => ({ task: mockTask }))
 
@@ -50,22 +53,9 @@ vi.mock('drizzle-orm', () => ({
   sql: Object.assign(vi.fn(), { raw: vi.fn() }),
 }))
 
-vi.mock('@/lib/execution/preprocessing', () => ({
-  preprocessExecution: mockPreprocessExecution,
-}))
+vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 
-vi.mock('@/lib/logs/execution/logging-session', () => ({
-  LoggingSession: vi.fn().mockImplementation(() => {
-    const instance = {
-      safeStart: vi.fn().mockResolvedValue(true),
-      safeCompleteWithError: vi.fn().mockResolvedValue(undefined),
-      markAsFailed: vi.fn().mockResolvedValue(undefined),
-      waitForPostExecution: vi.fn().mockResolvedValue(undefined),
-    }
-    mockLoggingSession(instance)
-    return instance
-  }),
-}))
+vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
 vi.mock('@/lib/core/execution-limits', () => ({
   createTimeoutAbortController: vi.fn(() => ({
@@ -93,10 +83,7 @@ vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
   },
 }))
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  blockExistsInDeployment: mockBlockExistsInDeployment,
-  loadDeployedWorkflowState: mockLoadDeployedWorkflowState,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 vi.mock('@/lib/workflows/schedules/utils', () => ({
   calculateNextRunTime: vi.fn(),
@@ -110,15 +97,6 @@ vi.mock('@/executor/execution/snapshot', () => ({
 
 vi.mock('@/executor/utils/errors', () => ({
   hasExecutionResult: vi.fn().mockReturnValue(false),
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
 }))
 
 import { executeScheduleJob } from './schedule-execution'
@@ -183,7 +161,7 @@ describe('async preprocessing correlation threading', () => {
       requestId: 'request-1',
     })
 
-    const loggingSession = mockLoggingSession.mock.calls[0]?.[0]
+    const loggingSession = LoggingSessionMock.mock.results[0]?.value
     expect(loggingSession).toBeDefined()
     expect(loggingSession.safeStart).not.toHaveBeenCalled()
     expect(mockExecuteWorkflowCore).toHaveBeenCalledWith(
@@ -221,7 +199,7 @@ describe('async preprocessing correlation threading', () => {
       scheduledFor: '2025-01-01T00:00:00.000Z',
     })
 
-    const loggingSession = mockLoggingSession.mock.calls[0]?.[0]
+    const loggingSession = LoggingSessionMock.mock.results[0]?.value
     expect(loggingSession).toBeDefined()
     expect(loggingSession.safeStart).not.toHaveBeenCalled()
     expect(mockExecuteWorkflowCore).toHaveBeenCalledWith(

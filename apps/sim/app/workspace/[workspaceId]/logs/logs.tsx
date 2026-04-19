@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { formatDuration } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
@@ -16,7 +17,6 @@ import {
 import { DatePicker } from '@/components/emcn/components/date-picker/date-picker'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { cn } from '@/lib/core/utils/cn'
-import { formatDuration } from '@/lib/core/utils/formatting'
 import {
   getEndDateFromTimeRange,
   getStartDateFromTimeRange,

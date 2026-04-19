@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@/lib/core/utils/helpers'
-import { generateId } from '@/lib/core/utils/uuid'
+import { toError } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'

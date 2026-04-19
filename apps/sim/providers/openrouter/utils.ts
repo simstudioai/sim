@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
-import { toError } from '@/lib/core/utils/helpers'
 import { checkForForcedToolUsageOpenAI, createOpenAICompatibleStream } from '@/providers/utils'
 
 const logger = createLogger('OpenRouterUtils')

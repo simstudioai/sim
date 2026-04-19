@@ -1,12 +1,12 @@
 import { db } from '@sim/db'
 import { idempotencyKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
+import { generateId } from '@sim/utils/id'
 import { eq, lt } from 'drizzle-orm'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getStorageMethod, type StorageMethod } from '@/lib/core/storage'
-import { sleep } from '@/lib/core/utils/helpers'
-import { generateId } from '@/lib/core/utils/uuid'
 import { extractProviderIdentifierFromBody } from '@/lib/webhooks/providers'
 
 const logger = createLogger('IdempotencyService')

@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@/lib/core/utils/helpers'
+import { toError } from '@sim/utils/errors'
 import { DEFAULTS } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { ParallelScope } from '@/executor/execution/state'

@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -74,25 +75,7 @@ vi.mock('@sim/db', () => {
   }
 })
 
-vi.mock('@sim/db/schema', () => ({
-  member: {
-    userId: 'user_id',
-    organizationId: 'organization_id',
-    role: 'role',
-  },
-  permissions: {
-    userId: 'user_id',
-    entityType: 'entity_type',
-    entityId: 'entity_id',
-    permissionType: 'permission_type',
-  },
-  workspace: {
-    id: 'id',
-    ownerId: 'owner_id',
-    organizationId: 'organization_id',
-    workspaceMode: 'workspace_mode',
-  },
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('@/lib/billing/organizations/membership', () => ({
   ensureUserInOrganization: mockEnsureUserInOrganization,
@@ -103,23 +86,9 @@ vi.mock('@/lib/billing/core/usage', () => ({
   syncUsageLimitsFromSubscription: mockSyncUsageLimitsFromSubscription,
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
-
-vi.mock('@/lib/core/utils/uuid', () => ({
+vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn().mockReturnValue('generated-id'),
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
-  eq: vi.fn((field: unknown, value: unknown) => ({ type: 'eq', field, value })),
-  inArray: vi.fn((field: unknown, values: unknown[]) => ({ type: 'inArray', field, values })),
+  generateShortId: vi.fn().mockReturnValue('short-id'),
 }))
 
 import {

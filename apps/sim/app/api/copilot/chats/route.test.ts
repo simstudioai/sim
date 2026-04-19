@@ -3,26 +3,15 @@
  *
  * @vitest-environment node
  */
+import { copilotHttpMock, copilotHttpMockFns, schemaMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockSelectDistinctOn,
-  mockFrom,
-  mockLeftJoin,
-  mockWhere,
-  mockOrderBy,
-  mockAuthenticate,
-  mockCreateUnauthorizedResponse,
-  mockCreateInternalServerErrorResponse,
-} = vi.hoisted(() => ({
+const { mockSelectDistinctOn, mockFrom, mockLeftJoin, mockWhere, mockOrderBy } = vi.hoisted(() => ({
   mockSelectDistinctOn: vi.fn(),
   mockFrom: vi.fn(),
   mockLeftJoin: vi.fn(),
   mockWhere: vi.fn(),
   mockOrderBy: vi.fn(),
-  mockAuthenticate: vi.fn(),
-  mockCreateUnauthorizedResponse: vi.fn(),
-  mockCreateInternalServerErrorResponse: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({
@@ -31,31 +20,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  copilotChats: {
-    id: 'id',
-    title: 'title',
-    workflowId: 'workflowId',
-    workspaceId: 'workspaceId',
-    userId: 'userId',
-    updatedAt: 'updatedAt',
-  },
-  workflow: {
-    id: 'id',
-    workspaceId: 'workspaceId',
-    archivedAt: 'archivedAt',
-  },
-  workspace: {
-    id: 'id',
-    archivedAt: 'archivedAt',
-  },
-  permissions: {
-    id: 'id',
-    entityType: 'entityType',
-    entityId: 'entityId',
-    userId: 'userId',
-  },
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
@@ -66,11 +31,7 @@ vi.mock('drizzle-orm', () => ({
   sql: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/request/http', () => ({
-  authenticateCopilotRequestSessionOnly: mockAuthenticate,
-  createUnauthorizedResponse: mockCreateUnauthorizedResponse,
-  createInternalServerErrorResponse: mockCreateInternalServerErrorResponse,
-}))
+vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
 
 import { GET } from '@/app/api/copilot/chats/route'
 
@@ -83,13 +44,6 @@ describe('Copilot Chats List API Route', () => {
     mockLeftJoin.mockReturnValue({ leftJoin: mockLeftJoin, where: mockWhere })
     mockWhere.mockReturnValue({ orderBy: mockOrderBy })
     mockOrderBy.mockResolvedValue([])
-
-    mockCreateUnauthorizedResponse.mockReturnValue(
-      new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
-    )
-    mockCreateInternalServerErrorResponse.mockImplementation(
-      (message: string) => new Response(JSON.stringify({ error: message }), { status: 500 })
-    )
   })
 
   afterEach(() => {
@@ -98,7 +52,7 @@ describe('Copilot Chats List API Route', () => {
 
   describe('GET', () => {
     it('should return 401 when user is not authenticated', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: null,
         isAuthenticated: false,
       })
@@ -112,7 +66,7 @@ describe('Copilot Chats List API Route', () => {
     })
 
     it('should return empty chats array when user has no chats', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -131,7 +85,7 @@ describe('Copilot Chats List API Route', () => {
     })
 
     it('should return list of chats for authenticated user', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -165,7 +119,7 @@ describe('Copilot Chats List API Route', () => {
     })
 
     it('should return chats ordered by updatedAt descending', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -202,7 +156,7 @@ describe('Copilot Chats List API Route', () => {
     })
 
     it('should handle chats with null workflowId', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -226,7 +180,7 @@ describe('Copilot Chats List API Route', () => {
     })
 
     it('should handle database errors gracefully', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -242,7 +196,7 @@ describe('Copilot Chats List API Route', () => {
     })
 
     it('should only return chats belonging to authenticated user', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -265,7 +219,7 @@ describe('Copilot Chats List API Route', () => {
     })
 
     it('should return 401 when userId is null despite isAuthenticated being true', async () => {
-      mockAuthenticate.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: null,
         isAuthenticated: true,
       })

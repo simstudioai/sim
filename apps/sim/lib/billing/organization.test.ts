@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { loggerMock } from '@sim/testing'
+import { schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -38,31 +38,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  member: {
-    id: 'member.id',
-    organizationId: 'member.organizationId',
-    role: 'member.role',
-    userId: 'member.userId',
-  },
-  organization: {
-    id: 'organization.id',
-    orgUsageLimit: 'organization.orgUsageLimit',
-  },
-  subscription: {
-    id: 'subscription.id',
-  },
-  user: {
-    id: 'user.id',
-    name: 'user.name',
-    email: 'user.email',
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
-  eq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('@/lib/billing', () => ({
   hasPaidSubscription: vi.fn(),
@@ -92,8 +68,6 @@ vi.mock('@/lib/billing/organizations/create-organization', () => ({
 vi.mock('@/lib/workspaces/organization-workspaces', () => ({
   attachOwnedWorkspacesToOrganization: mockAttachOwnedWorkspacesToOrganization,
 }))
-
-vi.mock('@sim/logger', () => loggerMock)
 
 import { ensureOrganizationForTeamSubscription } from '@/lib/billing/organization'
 

@@ -8,12 +8,12 @@ import {
   workspace,
 } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { tasks } from '@trigger.dev/sdk'
 import { and, eq, gt, ne, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { Webhook } from 'svix'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
-import { generateId } from '@/lib/core/utils/uuid'
 import { executeInboxTask } from '@/lib/mothership/inbox/executor'
 import type { AgentMailWebhookPayload, RejectionReason } from '@/lib/mothership/inbox/types'
 

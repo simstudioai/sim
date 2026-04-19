@@ -1,23 +1,28 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import {
+  auditMock,
+  createMockRequest,
+  hybridAuthMock,
+  hybridAuthMockFns,
+  permissionsMock,
+  permissionsMockFns,
+  schemaMock,
+  workflowsApiUtilsMock,
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing'
 import { drizzleOrmMock } from '@sim/testing/mocks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckSessionOrInternalAuth,
-  mockGetUserEntityPermissions,
-  mockWorkflowCreated,
-  mockDbSelect,
-  mockDbInsert,
-} = vi.hoisted(() => ({
-  mockCheckSessionOrInternalAuth: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
+const { mockWorkflowCreated, mockDbSelect, mockDbInsert } = vi.hoisted(() => ({
   mockWorkflowCreated: vi.fn(),
   mockDbSelect: vi.fn(),
   mockDbInsert: vi.fn(),
 }))
+
+const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
 vi.mock('drizzle-orm', () => ({
   ...drizzleOrmMock,
@@ -38,55 +43,15 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  workflowFolder: {
-    id: 'id',
-    userId: 'userId',
-    parentId: 'parentId',
-    updatedAt: 'updatedAt',
-    workspaceId: 'workspaceId',
-    sortOrder: 'sortOrder',
-    createdAt: 'createdAt',
-  },
-  workflow: {
-    id: 'id',
-    folderId: 'folderId',
-    userId: 'userId',
-    name: 'name',
-    archivedAt: 'archivedAt',
-    updatedAt: 'updatedAt',
-    workspaceId: 'workspaceId',
-    sortOrder: 'sortOrder',
-    createdAt: 'createdAt',
-  },
-  permissions: {
-    entityId: 'entityId',
-    userId: 'userId',
-    entityType: 'entityType',
-  },
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
-vi.mock('@/lib/audit/log', () => ({
-  recordAudit: vi.fn(),
-  AuditAction: { WORKFLOW_CREATED: 'workflow.created' },
-  AuditResourceType: { WORKFLOW: 'workflow' },
-}))
+vi.mock('@/lib/audit/log', () => auditMock)
 
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkHybridAuth: vi.fn(),
-  checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
-  checkInternalAuth: vi.fn(),
-}))
+vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: (...args: unknown[]) => mockGetUserEntityPermissions(...args),
-  workspaceExists: vi.fn(),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/app/api/workflows/utils', () => ({
-  verifyWorkspaceMembership: vi.fn(),
-}))
+vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
 
 vi.mock('@/lib/core/telemetry', () => ({
   PlatformEvents: {
@@ -102,9 +67,7 @@ vi.mock('@/lib/workflows/defaults', () => ({
   }),
 }))
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  saveWorkflowToNormalizedTables: vi.fn().mockResolvedValue({ success: true }),
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 import { POST } from '@/app/api/workflows/route'
 
@@ -116,13 +79,16 @@ describe('Workflows API Route - POST ordering', () => {
       randomUUID: vi.fn().mockReturnValue('workflow-new-id'),
     })
 
-    mockCheckSessionOrInternalAuth.mockResolvedValue({
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-123',
       userName: 'Test User',
       userEmail: 'test@example.com',
     })
     mockGetUserEntityPermissions.mockResolvedValue('write')
+    workflowsPersistenceUtilsMockFns.mockSaveWorkflowToNormalizedTables.mockResolvedValue({
+      success: true,
+    })
   })
 
   it('uses top insertion against mixed siblings (folders + workflows)', async () => {

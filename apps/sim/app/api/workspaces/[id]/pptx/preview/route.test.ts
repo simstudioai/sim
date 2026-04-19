@@ -1,23 +1,25 @@
 /**
  * @vitest-environment node
  */
+import {
+  authMock,
+  authMockFns,
+  workflowsApiUtilsMock,
+  workflowsApiUtilsMockFns,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
 
-const { mockGetSession, mockVerifyWorkspaceMembership, mockRunSandboxTask } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockVerifyWorkspaceMembership: vi.fn(),
+const { mockRunSandboxTask } = vi.hoisted(() => ({
   mockRunSandboxTask: vi.fn(),
 }))
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
+const mockVerifyWorkspaceMembership = workflowsApiUtilsMockFns.mockVerifyWorkspaceMembership
 
-vi.mock('@/app/api/workflows/utils', () => ({
-  verifyWorkspaceMembership: mockVerifyWorkspaceMembership,
-}))
+vi.mock('@/lib/auth', () => authMock)
+
+vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
 
 vi.mock('@/lib/execution/sandbox/run-task', () => ({
   runSandboxTask: mockRunSandboxTask,
@@ -30,7 +32,7 @@ const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.
 describe('PPTX preview API route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     mockVerifyWorkspaceMembership.mockResolvedValue(true)
     mockRunSandboxTask.mockResolvedValue(Buffer.from('PK\x03\x04pptx'))
   })
@@ -106,7 +108,7 @@ describe('PPTX preview API route', () => {
   })
 
   it('returns 401 for unauthenticated requests', async () => {
-    mockGetSession.mockResolvedValue(null)
+    authMockFns.mockGetSession.mockResolvedValue(null)
 
     const request = new NextRequest(
       'http://localhost:3000/api/workspaces/workspace-1/pptx/preview',

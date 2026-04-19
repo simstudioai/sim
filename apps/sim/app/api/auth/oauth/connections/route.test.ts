@@ -3,40 +3,35 @@
  *
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { authMock, authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockDb, mockLogger, mockParseProvider, mockJwtDecode, mockEq } = vi.hoisted(
-  () => {
-    const db = {
-      select: vi.fn().mockReturnThis(),
-      from: vi.fn().mockReturnThis(),
-      where: vi.fn().mockReturnThis(),
-      limit: vi.fn(),
-    }
-    const logger = {
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-      trace: vi.fn(),
-      fatal: vi.fn(),
-      child: vi.fn(),
-    }
-    return {
-      mockGetSession: vi.fn(),
-      mockDb: db,
-      mockLogger: logger,
-      mockParseProvider: vi.fn(),
-      mockJwtDecode: vi.fn(),
-      mockEq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
-    }
+const { mockDb, mockLogger, mockParseProvider, mockJwtDecode, mockEq } = vi.hoisted(() => {
+  const db = {
+    select: vi.fn().mockReturnThis(),
+    from: vi.fn().mockReturnThis(),
+    where: vi.fn().mockReturnThis(),
+    limit: vi.fn(),
   }
-)
+  const logger = {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    trace: vi.fn(),
+    fatal: vi.fn(),
+    child: vi.fn(),
+  }
+  return {
+    mockDb: db,
+    mockLogger: logger,
+    mockParseProvider: vi.fn(),
+    mockJwtDecode: vi.fn(),
+    mockEq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
+  }
+})
 
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
+vi.mock('@/lib/auth', () => authMock)
 
 vi.mock('@sim/db', () => ({
   db: mockDb,
@@ -78,7 +73,7 @@ describe('OAuth Connections API Route', () => {
   })
 
   it('should return connections successfully', async () => {
-    mockGetSession.mockResolvedValueOnce({
+    authMockFns.mockGetSession.mockResolvedValueOnce({
       user: { id: 'user-123' },
     })
 
@@ -134,7 +129,7 @@ describe('OAuth Connections API Route', () => {
   })
 
   it('should handle unauthenticated user', async () => {
-    mockGetSession.mockResolvedValueOnce(null)
+    authMockFns.mockGetSession.mockResolvedValueOnce(null)
 
     const req = createMockRequest('GET')
 
@@ -147,7 +142,7 @@ describe('OAuth Connections API Route', () => {
   })
 
   it('should handle user with no connections', async () => {
-    mockGetSession.mockResolvedValueOnce({
+    authMockFns.mockGetSession.mockResolvedValueOnce({
       user: { id: 'user-123' },
     })
 
@@ -170,7 +165,7 @@ describe('OAuth Connections API Route', () => {
   })
 
   it('should handle database error', async () => {
-    mockGetSession.mockResolvedValueOnce({
+    authMockFns.mockGetSession.mockResolvedValueOnce({
       user: { id: 'user-123' },
     })
 
@@ -189,7 +184,7 @@ describe('OAuth Connections API Route', () => {
   })
 
   it('should decode ID token for display name', async () => {
-    mockGetSession.mockResolvedValueOnce({
+    authMockFns.mockGetSession.mockResolvedValueOnce({
       user: { id: 'user-123' },
     })
 

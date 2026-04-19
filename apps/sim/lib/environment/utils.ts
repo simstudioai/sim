@@ -1,9 +1,9 @@
 import { db } from '@sim/db'
 import { environment, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
-import { generateId } from '@/lib/core/utils/uuid'
 import {
   getAccessibleEnvCredentials,
   syncPersonalEnvCredentialsForUser,

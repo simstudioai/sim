@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -7,7 +8,6 @@ import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { type AtomicClaimResult, billingIdempotency } from '@/lib/core/idempotency/service'
-import { toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
 
 const logger = createLogger('BillingUpdateCostAPI')

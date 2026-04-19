@@ -1,13 +1,13 @@
 import { db } from '@sim/db'
 import { member, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import {
   ensureUserInOrganization,
   reapplyPaidOrgJoinBillingForExistingMember,
 } from '@/lib/billing/organizations/membership'
-import { generateId } from '@/lib/core/utils/uuid'
 import { getOrganizationOwnerId, WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
 const logger = createLogger('OrganizationWorkspaces')

@@ -1,8 +1,12 @@
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+  workflowsUtilsMock,
+  workflowsUtilsMockFns,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  loadWorkflowFromNormalizedTablesMock,
-  loadDeployedWorkflowStateMock,
   getPersonalAndWorkspaceEnvMock,
   mergeSubblockStateWithValuesMock,
   safeStartMock,
@@ -11,7 +15,6 @@ const {
   safeCompleteWithCancellationMock,
   safeCompleteWithPauseMock,
   hasCompletedMock,
-  updateWorkflowRunCountsMock,
   clearExecutionCancellationMock,
   buildTraceSpansMock,
   serializeWorkflowMock,
@@ -20,8 +23,6 @@ const {
   executorConstructorMock,
   findStartBlockMock,
 } = vi.hoisted(() => ({
-  loadWorkflowFromNormalizedTablesMock: vi.fn(),
-  loadDeployedWorkflowStateMock: vi.fn(),
   getPersonalAndWorkspaceEnvMock: vi.fn(),
   mergeSubblockStateWithValuesMock: vi.fn(),
   safeStartMock: vi.fn(),
@@ -30,7 +31,6 @@ const {
   safeCompleteWithCancellationMock: vi.fn(),
   safeCompleteWithPauseMock: vi.fn(),
   hasCompletedMock: vi.fn(),
-  updateWorkflowRunCountsMock: vi.fn(),
   clearExecutionCancellationMock: vi.fn(),
   buildTraceSpansMock: vi.fn(),
   serializeWorkflowMock: vi.fn(),
@@ -40,14 +40,10 @@ const {
   findStartBlockMock: vi.fn(),
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
+const loadWorkflowFromNormalizedTablesMock =
+  workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
+const loadDeployedWorkflowStateMock = workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState
+const updateWorkflowRunCountsMock = workflowsUtilsMockFns.mockUpdateWorkflowRunCounts
 
 vi.mock('@/lib/environment/utils', () => ({
   getPersonalAndWorkspaceEnv: getPersonalAndWorkspaceEnvMock,
@@ -61,10 +57,7 @@ vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
   buildTraceSpans: buildTraceSpansMock,
 }))
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadWorkflowFromNormalizedTables: loadWorkflowFromNormalizedTablesMock,
-  loadDeployedWorkflowState: loadDeployedWorkflowStateMock,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 vi.mock('@/lib/workflows/subblocks', () => ({
   mergeSubblockStateWithValues: mergeSubblockStateWithValuesMock,
@@ -76,9 +69,7 @@ vi.mock('@/lib/workflows/triggers/triggers', () => ({
   },
 }))
 
-vi.mock('@/lib/workflows/utils', () => ({
-  updateWorkflowRunCounts: updateWorkflowRunCountsMock,
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/executor', () => ({
   Executor: vi.fn().mockImplementation((args) => {

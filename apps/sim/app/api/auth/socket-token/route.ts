@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { isAuthDisabled } from '@/lib/core/config/feature-flags'
-import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('SocketTokenAPI')
 

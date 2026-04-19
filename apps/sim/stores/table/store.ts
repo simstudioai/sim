@@ -3,9 +3,9 @@
  * Ephemeral — no persistence. Stacks are keyed by tableId.
  */
 
+import { generateShortId } from '@sim/utils/id'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { generateShortId } from '@/lib/core/utils/uuid'
 import type { TableUndoAction, TableUndoStacks, TableUndoState, UndoEntry } from './types'
 
 const STACK_CAPACITY = 100

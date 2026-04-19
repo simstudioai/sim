@@ -7,8 +7,8 @@ You are a professional software engineer. All code must follow best practices: a
 - **Logging**: Import `createLogger` from `@sim/logger`. Use `logger.info`, `logger.warn`, `logger.error` instead of `console.log`
 - **Comments**: Use TSDoc for documentation. No `====` separators. No non-TSDoc comments
 - **Styling**: Never update global styles. Keep all styling local to components
-- **ID Generation**: Never use `crypto.randomUUID()`, `nanoid`, or `uuid` package. Use `generateId()` (UUID v4) or `generateShortId()` (compact) from `@/lib/core/utils/uuid`
-- **Common Utilities**: Use shared helpers from `@/lib/core/utils/helpers` instead of inline implementations. `sleep(ms)` for delays, `toError(e)` to normalize caught values.
+- **ID Generation**: Never use `crypto.randomUUID()`, `nanoid`, or `uuid` package. Use `generateId()` (UUID v4) or `generateShortId()` (compact) from `@sim/utils/id`
+- **Common Utilities**: Use shared helpers from `@sim/utils` instead of inline implementations. `sleep(ms)` from `@sim/utils/helpers` for delays, `toError(e)` from `@sim/utils/errors` to normalize caught values.
 - **Package Manager**: Use `bun` and `bunx`, not `npm` and `npx`
 
 ## Architecture

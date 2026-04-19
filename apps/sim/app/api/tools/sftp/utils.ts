@@ -1,6 +1,6 @@
+import { toError } from '@sim/utils/errors'
 import { type Attributes, Client, type ConnectConfig, type SFTPWrapper } from 'ssh2'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
-import { toError } from '@/lib/core/utils/helpers'
 
 const S_IFMT = 0o170000
 const S_IFDIR = 0o040000

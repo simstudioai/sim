@@ -3,6 +3,7 @@
  *
  * @vitest-environment node
  */
+import { workflowsUtilsMock, workflowsUtilsMockFns } from '@sim/testing'
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -72,12 +73,7 @@ vi.mock('@/lib/core/async-jobs', () => ({
   shouldExecuteInline: vi.fn().mockReturnValue(false),
 }))
 
-vi.mock('@/lib/workflows/utils', () => ({
-  getWorkflowById: vi.fn().mockResolvedValue({
-    id: 'workflow-1',
-    workspaceId: 'workspace-1',
-  }),
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
@@ -120,7 +116,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@/lib/core/utils/uuid', () => ({
+vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn(() => 'schedule-execution-1'),
   generateShortId: vi.fn(() => 'mock-short-id'),
   isValidUuid: vi.fn((v: string) =>
@@ -184,6 +180,10 @@ function createMockRequest(): NextRequest {
 describe('Scheduled Workflow Execution API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    workflowsUtilsMockFns.mockGetWorkflowById.mockResolvedValue({
+      id: 'workflow-1',
+      workspaceId: 'workspace-1',
+    })
     mockFeatureFlags.isTriggerDevEnabled = false
     mockFeatureFlags.isHosted = false
     mockFeatureFlags.isProd = false

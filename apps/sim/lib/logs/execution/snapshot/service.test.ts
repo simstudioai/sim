@@ -1,30 +1,11 @@
 /**
  * @vitest-environment node
  */
-import { databaseMock, drizzleOrmMock, loggerMock } from '@sim/testing'
+import { databaseMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSchemaExports } = vi.hoisted(() => ({
-  mockSchemaExports: {
-    workflowExecutionSnapshots: {
-      id: 'id',
-      workflowId: 'workflow_id',
-      stateHash: 'state_hash',
-      stateData: 'state_data',
-      createdAt: 'created_at',
-    },
-    workflowExecutionLogs: {
-      id: 'id',
-      stateSnapshotId: 'state_snapshot_id',
-    },
-  },
-}))
-
-vi.mock('@sim/db', () => databaseMock)
-vi.mock('@sim/db/schema', () => mockSchemaExports)
-vi.mock('@sim/logger', () => loggerMock)
-vi.mock('drizzle-orm', () => drizzleOrmMock)
-vi.mock('@/lib/core/utils/uuid', () => ({
+vi.mock('@sim/db/schema', () => schemaMock)
+vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn(() => 'generated-uuid-1'),
   generateShortId: vi.fn(() => 'generated-short-1'),
   isValidUuid: vi.fn((v: string) =>

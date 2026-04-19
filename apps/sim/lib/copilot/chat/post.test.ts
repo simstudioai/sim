@@ -2,14 +2,23 @@
  * @vitest-environment node
  */
 
+import {
+  authMock,
+  authMockFns,
+  permissionsMock,
+  permissionsMockFns,
+  schemaMock,
+  workflowsUtilsMock,
+  workflowsUtilsMockFns,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const resolveWorkflowIdForUser = workflowsUtilsMockFns.mockResolveWorkflowIdForUser
+const getWorkflowById = workflowsUtilsMockFns.mockGetWorkflowById
+const getUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
+
 const {
-  getSession,
-  resolveWorkflowIdForUser,
-  getWorkflowById,
-  getUserEntityPermissions,
   getEffectiveDecryptedEnv,
   generateWorkspaceContext,
   processContextsServer,
@@ -21,10 +30,6 @@ const {
   releasePendingChatStream,
   resolveOrCreateChat,
 } = vi.hoisted(() => ({
-  getSession: vi.fn(),
-  resolveWorkflowIdForUser: vi.fn(),
-  getWorkflowById: vi.fn(),
-  getUserEntityPermissions: vi.fn(),
   getEffectiveDecryptedEnv: vi.fn(),
   generateWorkspaceContext: vi.fn(),
   processContextsServer: vi.fn(),
@@ -37,18 +42,13 @@ const {
   resolveOrCreateChat: vi.fn(),
 }))
 
-vi.mock('@/lib/auth', () => ({
-  getSession,
-}))
+const getSession = authMockFns.mockGetSession
 
-vi.mock('@/lib/workflows/utils', () => ({
-  resolveWorkflowIdForUser,
-  getWorkflowById,
-}))
+vi.mock('@/lib/auth', () => authMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions,
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
+
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/environment/utils', () => ({
   getEffectiveDecryptedEnv,
@@ -100,14 +100,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  copilotChats: {
-    id: 'id',
-    messages: 'messages',
-    conversationId: 'conversationId',
-    updatedAt: 'updatedAt',
-  },
-}))
+vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn(() => ({})),

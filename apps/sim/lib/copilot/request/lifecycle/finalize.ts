@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { updateRunStatus } from '@/lib/copilot/async-runs/repository'
 import {
   MothershipStreamV1CompletionStatus,
@@ -6,7 +7,6 @@ import {
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { StreamWriter } from '@/lib/copilot/request/session'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
-import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('CopilotStreamFinalize')
 
