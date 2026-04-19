@@ -316,6 +316,11 @@ export const LogDetails = memo(function LogDetails({
       !!(log.executionData?.enhanced && log.executionData?.traceSpans))
 
   const hasCostInfo = !!(isWorkflowExecutionLog && log?.cost)
+  const showWorkflowState =
+    isWorkflowExecutionLog &&
+    !!log?.executionId &&
+    log?.trigger !== 'mothership' &&
+    !permissionConfig.hideTraceSpans
   const showTraceTab =
     isWorkflowExecutionLog && !!log?.executionData?.traceSpans && !permissionConfig.hideTraceSpans
 
@@ -546,19 +551,29 @@ export const LogDetails = memo(function LogDetails({
 
                     {/* Duration */}
                     <div
-                      className={`flex h-[48px] items-center justify-between border-b p-2 ${log.deploymentVersion ? 'border-[var(--border)]' : 'border-transparent'}`}
+                      className={cn(
+                        'flex h-[48px] items-center justify-between border-b p-2',
+                        log.deploymentVersion || showWorkflowState
+                          ? 'border-[var(--border)]'
+                          : 'border-transparent'
+                      )}
                     >
                       <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                         Duration
                       </span>
-                      <span className='font-medium text-[var(--text-secondary)] text-small'>
+                      <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
                         {formatDuration(log.duration, { precision: 2 }) || '—'}
                       </span>
                     </div>
 
                     {/* Version */}
                     {log.deploymentVersion && (
-                      <div className='flex h-[48px] items-center gap-2 p-2'>
+                      <div
+                        className={cn(
+                          'flex h-[48px] items-center gap-2 p-2',
+                          showWorkflowState && 'border-[var(--border)] border-b'
+                        )}
+                      >
                         <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
                           Version
                         </span>
@@ -569,27 +584,24 @@ export const LogDetails = memo(function LogDetails({
                         </div>
                       </div>
                     )}
-                  </div>
 
-                  {/* Workflow State */}
-                  {isWorkflowExecutionLog &&
-                    log.executionId &&
-                    log.trigger !== 'mothership' &&
-                    !permissionConfig.hideTraceSpans && (
-                      <div className='-mt-2 flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2'>
+                    {/* Workflow State */}
+                    {showWorkflowState && (
+                      <button
+                        type='button'
+                        onClick={() => setIsExecutionSnapshotOpen(true)}
+                        className='flex h-[48px] items-center justify-between p-2 text-left transition-colors hover-hover:bg-[var(--surface-2)]'
+                      >
                         <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                           Workflow State
                         </span>
-                        <Button
-                          variant='active'
-                          onClick={() => setIsExecutionSnapshotOpen(true)}
-                          className='flex w-full items-center justify-between px-2.5 py-1.5'
-                        >
-                          <span className='font-medium text-caption'>View Snapshot</span>
-                          <Eye className='h-[14px] w-[14px]' />
-                        </Button>
-                      </div>
+                        <span className='flex items-center gap-1.5 font-medium text-[var(--text-secondary)] text-caption'>
+                          View Snapshot
+                          <Eye className='h-[12px] w-[12px]' />
+                        </span>
+                      </button>
                     )}
+                  </div>
 
                   {/* Workflow Input */}
                   {isWorkflowExecutionLog && workflowInput && !permissionConfig.hideTraceSpans && (

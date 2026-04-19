@@ -248,7 +248,7 @@ export function AutocompleteSearch({
         <DropdownMenuPrimitive.Portal>
           <DropdownMenuPrimitive.Content
             ref={dropdownRef}
-            className='z-50 rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-sm'
+            className='z-[70] rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-sm'
             style={{ width: dropdownWidth }}
             align='start'
             sideOffset={4}
