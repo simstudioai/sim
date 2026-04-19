@@ -892,17 +892,6 @@ export function CredentialsManager() {
     })
   }
 
-  const handleKeyValuePaste = (lines: string[]) => {
-    const parsedVars = parseValidEnvVars(lines)
-    if (parsedVars.length > 0) {
-      setEnvVars((prev) => {
-        const existingVars = prev.filter((v) => v.key || v.value)
-        return [...existingVars, ...parsedVars, createEmptyEnvVar()]
-      })
-      scrollToBottom()
-    }
-  }
-
   /**
    * Paste handler for personal env var rows.
    * Only prevents default when it actually handles the paste: KV patterns destructure into new rows,
@@ -932,7 +921,11 @@ export function CredentialsManager() {
     const parsedVars = parseValidEnvVars(lines)
     if (parsedVars.length > 0) {
       e.preventDefault()
-      handleKeyValuePaste(lines)
+      setEnvVars((prev) => {
+        const existingVars = prev.filter((v) => v.key || v.value)
+        return [...existingVars, ...parsedVars, createEmptyEnvVar()]
+      })
+      scrollToBottom()
     }
   }
 
