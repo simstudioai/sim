@@ -1,4 +1,3 @@
-import { schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const dbMocks = vi.hoisted(() => {
@@ -45,8 +44,6 @@ vi.mock('@sim/db', () => ({
     execute: dbMocks.execute,
   },
 }))
-
-vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   eq: dbMocks.eq,

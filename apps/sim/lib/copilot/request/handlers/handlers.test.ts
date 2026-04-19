@@ -24,17 +24,24 @@ vi.mock('@/lib/copilot/tool-executor', () => ({
   getToolEntry: vi.fn().mockReturnValue(undefined),
 }))
 
-vi.mock('@/lib/copilot/async-runs/repository', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/copilot/async-runs/repository')>(
-    '@/lib/copilot/async-runs/repository'
-  )
-  return {
-    ...actual,
-    upsertAsyncToolCall,
-    markAsyncToolRunning,
-    completeAsyncToolCall,
-  }
-})
+vi.mock('@/lib/copilot/async-runs/repository', () => ({
+  createRunSegment: vi.fn(),
+  updateRunStatus: vi.fn(),
+  getLatestRunForExecution: vi.fn(),
+  getLatestRunForStream: vi.fn(),
+  getRunSegment: vi.fn(),
+  createRunCheckpoint: vi.fn(),
+  getAsyncToolCall: vi.fn(),
+  markAsyncToolStatus: vi.fn(),
+  markAsyncToolDelivered: vi.fn(),
+  listAsyncToolCallsForRun: vi.fn(),
+  getAsyncToolCalls: vi.fn(),
+  claimCompletedAsyncToolCall: vi.fn(),
+  releaseCompletedAsyncToolClaim: vi.fn(),
+  upsertAsyncToolCall,
+  markAsyncToolRunning,
+  completeAsyncToolCall,
+}))
 
 import {
   MothershipStreamV1AsyncToolRecordStatus,

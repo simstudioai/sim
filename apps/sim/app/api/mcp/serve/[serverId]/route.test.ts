@@ -4,50 +4,29 @@
  * @vitest-environment node
  */
 import {
-  hybridAuthMock,
+  dbChainMock,
+  dbChainMockFns,
   hybridAuthMockFns,
   permissionsMock,
   permissionsMockFns,
-  schemaMock,
+  resetDbChainMock,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGenerateInternalToken,
-  mockDbSelect,
-  mockDbFrom,
-  mockDbInnerJoin,
-  mockDbWhere,
-  mockDbLimit,
-  fetchMock,
-} = vi.hoisted(() => ({
+const { mockGenerateInternalToken, fetchMock } = vi.hoisted(() => ({
   mockGenerateInternalToken: vi.fn(),
-  mockDbSelect: vi.fn(),
-  mockDbFrom: vi.fn(),
-  mockDbInnerJoin: vi.fn(),
-  mockDbWhere: vi.fn(),
-  mockDbLimit: vi.fn(),
   fetchMock: vi.fn(),
 }))
 
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
+vi.mock('@sim/db', () => dbChainMock)
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(),
   eq: vi.fn(),
   isNull: vi.fn(),
 }))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mockDbSelect,
-  },
-}))
-
-vi.mock('@sim/db/schema', () => schemaMock)
-
-vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
@@ -69,12 +48,7 @@ import { GET, POST } from '@/app/api/mcp/serve/[serverId]/route'
 describe('MCP Serve Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-
-    mockDbSelect.mockReturnValue({ from: mockDbFrom })
-    mockDbFrom.mockReturnValue({ innerJoin: mockDbInnerJoin, where: mockDbWhere })
-    mockDbInnerJoin.mockReturnValue({ where: mockDbWhere })
-    mockDbWhere.mockReturnValue({ limit: mockDbLimit })
-
+    resetDbChainMock()
     vi.stubGlobal('fetch', fetchMock)
   })
 
@@ -83,7 +57,7 @@ describe('MCP Serve Route', () => {
   })
 
   it('returns 401 for private server when auth fails', async () => {
-    mockDbLimit.mockResolvedValueOnce([
+    dbChainMockFns.limit.mockResolvedValueOnce([
       {
         id: 'server-1',
         name: 'Private Server',
@@ -107,7 +81,7 @@ describe('MCP Serve Route', () => {
   })
 
   it('returns 401 on GET for private server when auth fails', async () => {
-    mockDbLimit.mockResolvedValueOnce([
+    dbChainMockFns.limit.mockResolvedValueOnce([
       {
         id: 'server-1',
         name: 'Private Server',
@@ -128,7 +102,7 @@ describe('MCP Serve Route', () => {
   })
 
   it('forwards X-API-Key for private server api_key auth', async () => {
-    mockDbLimit
+    dbChainMockFns.limit
       .mockResolvedValueOnce([
         {
           id: 'server-1',
@@ -177,7 +151,7 @@ describe('MCP Serve Route', () => {
   })
 
   it('forwards internal token for private server session auth', async () => {
-    mockDbLimit
+    dbChainMockFns.limit
       .mockResolvedValueOnce([
         {
           id: 'server-1',

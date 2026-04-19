@@ -13,8 +13,12 @@ Use Vitest. Test files: `feature.ts` → `feature.test.ts`
 These modules are mocked globally — do NOT re-mock them in test files unless you need to override behavior:
 
 - `@sim/db` → `databaseMock`
+- `@sim/db/schema` → `schemaMock`
 - `drizzle-orm` → `drizzleOrmMock`
 - `@sim/logger` → `loggerMock`
+- `@/lib/auth` → `authMock`
+- `@/lib/auth/hybrid` → `hybridAuthMock` (with default session-delegating behavior)
+- `@/lib/core/utils/request` → `requestUtilsMock`
 - `@/stores/console/store`, `@/stores/terminal`, `@/stores/execution/store`
 - `@/blocks/registry`
 - `@trigger.dev/sdk`
@@ -192,23 +196,37 @@ hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
 
 ### Database chain mocking
 
-```typescript
-const { mockSelect, mockFrom, mockWhere } = vi.hoisted(() => ({
-  mockSelect: vi.fn(),
-  mockFrom: vi.fn(),
-  mockWhere: vi.fn(),
-}))
+Use the centralized `dbChainMock` + `dbChainMockFns` helpers — no `vi.hoisted()` or chain-wiring boilerplate needed.
 
-vi.mock('@sim/db', () => ({
-  db: { select: mockSelect },
-}))
+```typescript
+import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+
+vi.mock('@sim/db', () => dbChainMock)
+// Spread for custom exports: vi.mock('@sim/db', () => ({ ...dbChainMock, myTable: {...} }))
 
 beforeEach(() => {
-  mockSelect.mockReturnValue({ from: mockFrom })
-  mockFrom.mockReturnValue({ where: mockWhere })
-  mockWhere.mockResolvedValue([{ id: '1', name: 'test' }])
+  vi.clearAllMocks()
+  resetDbChainMock() // only needed if tests use permanent (non-`Once`) overrides
+})
+
+it('reads a row', async () => {
+  dbChainMockFns.limit.mockResolvedValueOnce([{ id: '1', name: 'test' }])
+  // exercise code that hits db.select().from().where().limit()
+  expect(dbChainMockFns.where).toHaveBeenCalled()
 })
 ```
+
+**Default chains supported:**
+- `select()/selectDistinct()/selectDistinctOn() → from() → where()/innerJoin()/leftJoin() → where() → limit()/orderBy()/returning()/groupBy()`
+- `insert() → values() → returning()/onConflictDoUpdate()/onConflictDoNothing()`
+- `update() → set() → where() → limit()/orderBy()/returning()`
+- `delete() → where() → limit()/orderBy()/returning()`
+- `db.execute()` resolves `[]`
+- `db.transaction(cb)` calls cb with `dbChainMock.db`
+
+All terminals default to `Promise.resolve([])`. Override per-test with `dbChainMockFns.<terminal>.mockResolvedValueOnce(...)`.
+
+Use `resetDbChainMock()` in `beforeEach` only when tests replace wiring with `.mockReturnValue` / `.mockResolvedValue` (permanent). Tests using only `...Once` variants don't need it.
 
 ## @sim/testing Package
 

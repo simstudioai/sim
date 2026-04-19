@@ -1,11 +1,10 @@
 /**
  * @vitest-environment node
  */
-import { authOAuthUtilsMock, schemaMock, urlsMock } from '@sim/testing'
+import { authOAuthUtilsMock, urlsMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => ({ db: {} }))
-vi.mock('@sim/db/schema', () => schemaMock)
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(),
   eq: vi.fn(),

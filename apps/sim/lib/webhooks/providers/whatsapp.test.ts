@@ -2,7 +2,6 @@
  * @vitest-environment node
  */
 import { createHmac } from 'node:crypto'
-import { schemaMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -10,8 +9,6 @@ vi.mock('@sim/db', () => ({
   db: {},
   workflowDeploymentVersion: {},
 }))
-
-vi.mock('@sim/db/schema', () => schemaMock)
 
 import { whatsappHandler } from './whatsapp'
 

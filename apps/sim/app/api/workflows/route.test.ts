@@ -4,11 +4,9 @@
 import {
   auditMock,
   createMockRequest,
-  hybridAuthMock,
   hybridAuthMockFns,
   permissionsMock,
   permissionsMockFns,
-  schemaMock,
   workflowsApiUtilsMock,
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
@@ -43,11 +41,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => schemaMock)
-
 vi.mock('@/lib/audit/log', () => auditMock)
-
-vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 

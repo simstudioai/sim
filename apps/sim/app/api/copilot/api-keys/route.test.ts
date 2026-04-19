@@ -3,15 +3,13 @@
  *
  * @vitest-environment node
  */
-import { authMock, authMockFns, createEnvMock } from '@sim/testing'
+import { authMockFns, createEnvMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
 }))
-
-vi.mock('@/lib/auth', () => authMock)
 
 vi.mock('@/lib/copilot/constants', () => ({
   SIM_AGENT_API_URL_DEFAULT: 'https://agent.sim.example.com',

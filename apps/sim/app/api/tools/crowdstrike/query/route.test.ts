@@ -1,14 +1,12 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest, hybridAuthMock, hybridAuthMockFns } from '@sim/testing'
+import { createMockRequest, hybridAuthMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { fetchMock } = vi.hoisted(() => ({
   fetchMock: vi.fn(),
 }))
-
-vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 
 import { POST } from '@/app/api/tools/crowdstrike/query/route'
 

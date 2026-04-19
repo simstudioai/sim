@@ -6,7 +6,6 @@
 import {
   createMockRequest,
   featureFlagsMock,
-  hybridAuthMock,
   hybridAuthMockFns,
   workflowsUtilsMock,
 } from '@sim/testing'
@@ -21,8 +20,6 @@ const { mockExecuteInE2B, mockExecuteInIsolatedVM } = vi.hoisted(() => ({
 vi.mock('@/lib/execution/isolated-vm', () => ({
   executeInIsolatedVM: mockExecuteInIsolatedVM,
 }))
-
-vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 
 vi.mock('@/lib/execution/e2b', () => ({
   executeInE2B: mockExecuteInE2B,

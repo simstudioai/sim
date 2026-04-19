@@ -1,14 +1,7 @@
 /**
  * @vitest-environment node
  */
-import {
-  authMock,
-  authMockFns,
-  createMockRequest,
-  permissionsMock,
-  permissionsMockFns,
-  schemaMock,
-} from '@sim/testing'
+import { authMockFns, createMockRequest, permissionsMock, permissionsMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -69,13 +62,9 @@ vi.mock('@sim/utils/id', () => ({
   ),
 }))
 
-vi.mock('@/lib/auth', () => authMock)
-
 vi.mock('@sim/db', () => ({
   db: mockDbChain,
 }))
-
-vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('resend', () => ({
   Resend: vi.fn().mockImplementation(() => ({

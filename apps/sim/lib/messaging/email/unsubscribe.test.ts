@@ -1,8 +1,6 @@
-import { createEnvMock, databaseMock, schemaMock } from '@sim/testing'
+import { createEnvMock, databaseMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EmailType } from '@/lib/messaging/email/mailer'
-
-vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn((a, b) => ({ type: 'eq', left: a, right: b })),

@@ -1,13 +1,7 @@
 /**
  * @vitest-environment node
  */
-import {
-  hybridAuthMock,
-  hybridAuthMockFns,
-  requestUtilsMock,
-  workflowsUtilsMock,
-  workflowsUtilsMockFns,
-} from '@sim/testing'
+import { hybridAuthMockFns, workflowsUtilsMock, workflowsUtilsMockFns } from '@sim/testing'
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -17,13 +11,9 @@ const { mockGetJobQueue, mockVerifyWorkflowAccess, mockGetJob } = vi.hoisted(() 
   mockGetJob: vi.fn(),
 }))
 
-vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
-
 vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: mockGetJobQueue,
 }))
-
-vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
 vi.mock('@/socket/middleware/permissions', () => ({
   verifyWorkflowAccess: mockVerifyWorkflowAccess,

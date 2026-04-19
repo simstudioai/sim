@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { hybridAuthMock, hybridAuthMockFns, requestUtilsMock } from '@sim/testing'
+import { hybridAuthMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
@@ -11,10 +11,6 @@ const { mockCheckAccess, mockBatchInsertRows, mockReplaceTableRows } = vi.hoiste
   mockBatchInsertRows: vi.fn(),
   mockReplaceTableRows: vi.fn(),
 }))
-
-vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
-
-vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
 vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn().mockReturnValue('deadbeefcafef00d'),
