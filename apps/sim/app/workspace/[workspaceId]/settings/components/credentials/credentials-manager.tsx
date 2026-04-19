@@ -157,9 +157,10 @@ function parseEnvVarLine(line: string): UIEnvironmentVariable | null {
   value = value.trim()
 
   if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("'") && value.endsWith("'")) ||
-    (value.startsWith('`') && value.endsWith('`'))
+    value.length >= 2 &&
+    ((value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'")) ||
+      (value.startsWith('`') && value.endsWith('`')))
   ) {
     value = value.slice(1, -1)
   }
@@ -904,7 +905,9 @@ export function CredentialsManager() {
 
   /**
    * Paste handler for personal env var rows.
-   * Always prevents default: KV patterns destructure into new rows; plain values overwrite the field.
+   * Only prevents default when it actually handles the paste: KV patterns destructure into new rows,
+   * plain values overwrite the field. Falls through to native paste if pattern is detected but all
+   * values are empty (e.g. KEY=), avoiding silently swallowed input.
    */
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>, index: number) => {
     const text = e.clipboardData.getData('text').trim()
@@ -913,8 +916,6 @@ export function CredentialsManager() {
     const lines = text.split('\n').filter((line) => line.trim())
     if (lines.length === 0) return
 
-    e.preventDefault()
-
     const inputType = (e.target as HTMLInputElement).getAttribute('data-input-type') as
       | 'key'
       | 'value'
@@ -922,12 +923,17 @@ export function CredentialsManager() {
     if (inputType) {
       const hasValidEnvVarPattern = lines.some((line) => parseEnvVarLine(line) !== null)
       if (!hasValidEnvVarPattern) {
+        e.preventDefault()
         handleSingleValuePaste(text, index, inputType)
         return
       }
     }
 
-    handleKeyValuePaste(lines)
+    const parsedVars = parseValidEnvVars(lines)
+    if (parsedVars.length > 0) {
+      e.preventDefault()
+      handleKeyValuePaste(lines)
+    }
   }
 
   /**

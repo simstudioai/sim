@@ -9,7 +9,10 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
+import {
+  createWorkspaceEnvCredentials,
+  deleteWorkspaceEnvCredentials,
+} from '@/lib/credentials/environment'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 
@@ -126,11 +129,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         set: { variables: merged, updatedAt: new Date() },
       })
 
-    await syncWorkspaceEnvCredentials({
-      workspaceId,
-      envKeys: Object.keys(merged),
-      actingUserId: userId,
-    })
+    const newKeys = Object.keys(variables).filter((k) => !(k in existingEncrypted))
+    await createWorkspaceEnvCredentials({ workspaceId, newKeys, actingUserId: userId })
 
     recordAudit({
       workspaceId,
@@ -215,11 +215,7 @@ export async function DELETE(
         set: { variables: current, updatedAt: new Date() },
       })
 
-    await syncWorkspaceEnvCredentials({
-      workspaceId,
-      envKeys: Object.keys(current),
-      actingUserId: userId,
-    })
+    await deleteWorkspaceEnvCredentials({ workspaceId, removedKeys: keys })
 
     recordAudit({
       workspaceId,

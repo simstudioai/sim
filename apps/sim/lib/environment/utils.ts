@@ -5,9 +5,9 @@ import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import {
+  createWorkspaceEnvCredentials,
   getAccessibleEnvCredentials,
   syncPersonalEnvCredentialsForUser,
-  syncWorkspaceEnvCredentials,
 } from '@/lib/credentials/environment'
 
 const logger = createLogger('EnvironmentUtils')
@@ -305,7 +305,8 @@ export async function upsertWorkspaceEnvVars(
       set: { variables: merged, updatedAt: new Date() },
     })
 
-  await syncWorkspaceEnvCredentials({ workspaceId, envKeys: Object.keys(merged), actingUserId })
+  const newKeys = Object.keys(newVars).filter((k) => !(k in existingWsEncrypted))
+  await createWorkspaceEnvCredentials({ workspaceId, newKeys, actingUserId })
 
   return updatedKeys
 }
