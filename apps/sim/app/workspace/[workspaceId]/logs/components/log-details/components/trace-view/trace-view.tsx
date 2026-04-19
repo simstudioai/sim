@@ -342,6 +342,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
       aria-selected={isSelected}
       aria-expanded={canExpand ? isExpanded : undefined}
       aria-level={depth + 1}
+      data-span-id={id}
     >
       <div
         className='flex min-w-0 items-center gap-1.5 pt-1 pr-3.5'
@@ -488,7 +489,7 @@ function DetailCodeSection({
   }, [activateSearch, closeContextMenu])
 
   return (
-    <div className='relative flex min-w-0 flex-col gap-1.5 overflow-hidden'>
+    <div className='relative flex min-w-0 flex-col gap-1.5'>
       <div
         className='group flex cursor-pointer items-center justify-between'
         onClick={() => setIsOpen((v) => !v)}
@@ -830,6 +831,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
  * follow block-by-block and segment-by-segment what happened and why.
  */
 export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps) {
+  const treeRef = useRef<HTMLDivElement>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
   const { normalizedSpans, allIds, totalDuration, runStartMs, firstRootId, blockCount } =
@@ -950,6 +952,14 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
     return () => window.removeEventListener('keydown', handler)
   }, [flatList, selectedId, expandedNodes, handleToggleExpand])
 
+  useEffect(() => {
+    if (!selectedId || !treeRef.current) return
+    const row = treeRef.current.querySelector<HTMLElement>(
+      `[data-span-id="${CSS.escape(selectedId)}"]`
+    )
+    row?.scrollIntoView({ block: 'nearest' })
+  }, [selectedId])
+
   if (!traceSpans || traceSpans.length === 0) {
     return (
       <div className='flex h-full items-center justify-center text-[var(--text-tertiary)] text-caption'>
@@ -1023,7 +1033,8 @@ export const TraceView = memo(function TraceView({ traceSpans }: TraceViewProps)
       {/* Tree + detail split */}
       <div className='flex min-h-0 flex-1'>
         <div
-          className='flex flex-shrink-0 flex-col overflow-y-auto border-[var(--border)] border-r'
+          ref={treeRef}
+          className='flex flex-shrink-0 flex-col overflow-y-auto border-[var(--border)] border-r pt-2'
           style={{ width: TREE_PANE_WIDTH }}
           role='tree'
         >
