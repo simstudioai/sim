@@ -157,11 +157,11 @@ const ModalContent = React.forwardRef<
         <ModalOverlay />
         <div
           className='pointer-events-none fixed inset-0 z-[var(--z-modal)] flex items-center justify-center'
-          style={{
-            paddingLeft: isWorkflowPage
-              ? 'calc(var(--sidebar-width) - var(--panel-width))'
-              : 'var(--sidebar-width)',
-          }}
+          style={
+            isWorkflowPage
+              ? { paddingLeft: 'calc(var(--sidebar-width) - var(--panel-width))' }
+              : undefined
+          }
         >
           <DialogPrimitive.Content
             ref={ref}

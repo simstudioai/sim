@@ -12,7 +12,6 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Eye,
   Input,
   SModalTabs,
   SModalTabsContent,
@@ -24,11 +23,11 @@ import { Copy as CopyIcon, Redo, Search as SearchIcon } from '@/components/emcn/
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { cn } from '@/lib/core/utils/cn'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
+import type { TraceSpan } from '@/lib/logs/types'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {
   ExecutionSnapshot,
   FileCards,
-  TraceSpans,
   TraceView,
 } from '@/app/workspace/[workspaceId]/logs/components'
 import { useLogDetailsResize } from '@/app/workspace/[workspaceId]/logs/hooks'
@@ -40,6 +39,7 @@ import {
   StatusBadge,
   TriggerBadge,
 } from '@/app/workspace/[workspaceId]/logs/utils'
+import { getBlock } from '@/blocks/registry'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { formatCost } from '@/providers/utils'
@@ -254,6 +254,97 @@ export const WorkflowOutputSection = memo(
   (prev, next) => prev.output === next.output
 )
 
+/**
+ * Compact horizontal timeline showing each block's execution as a proportional colored segment.
+ */
+function ExecutionTimeline({ traceSpans }: { traceSpans: TraceSpan[] }) {
+  const { segments, totalDuration } = useMemo(() => {
+    if (!traceSpans || traceSpans.length === 0) return { segments: [], totalDuration: 0 }
+
+    const rootSpan = traceSpans[0]
+    if (!rootSpan) return { segments: [], totalDuration: 0 }
+
+    const rootStart = new Date(rootSpan.startTime).getTime()
+    const rootEnd = new Date(rootSpan.endTime).getTime()
+    const total = rootSpan.duration || rootEnd - rootStart
+    if (total <= 0) return { segments: [], totalDuration: 0 }
+
+    const children = (rootSpan.children || []).filter(
+      (c) => c.type.toLowerCase() !== 'workflow' && c.name !== 'Start'
+    )
+    const segs = children.map((child) => {
+      const childStart = new Date(child.startTime).getTime()
+      const childEnd = new Date(child.endTime).getTime()
+      const childDuration = child.duration || childEnd - childStart
+      const startPct = ((childStart - rootStart) / total) * 100
+      const widthPct = (childDuration / total) * 100
+
+      const lowerType = child.type.toLowerCase()
+      const blockType = lowerType === 'model' ? 'agent' : lowerType
+      const blockConfig = getBlock(blockType)
+      const color =
+        lowerType === 'workflow'
+          ? '#6366F1'
+          : lowerType === 'loop' || lowerType === 'loop-iteration'
+            ? '#F59E0B'
+            : lowerType === 'parallel' || lowerType === 'parallel-iteration'
+              ? '#10B981'
+              : (blockConfig?.bgColor ?? '#6366F1')
+
+      return {
+        name: child.name,
+        color,
+        startPct: Math.max(0, Math.min(100, startPct)),
+        widthPct: Math.max(0.5, Math.min(100, widthPct)),
+        duration: childDuration,
+        status: child.status,
+      }
+    })
+
+    return { segments: segs, totalDuration: total }
+  }, [traceSpans])
+
+  if (segments.length === 0) return null
+
+  return (
+    <div className='flex flex-col gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
+      <div className='flex items-center justify-between'>
+        <span className='font-medium text-[var(--text-tertiary)] text-caption'>Execution</span>
+        <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+          {formatDuration(totalDuration, { precision: 2 })}
+        </span>
+      </div>
+      <div className='relative h-2 w-full overflow-hidden rounded-full bg-[var(--divider)]'>
+        {segments.map((seg, i) => (
+          <div
+            key={i}
+            className='absolute h-full opacity-80'
+            style={{
+              left: `${seg.startPct}%`,
+              width: `${seg.widthPct}%`,
+              backgroundColor: seg.color,
+            }}
+          />
+        ))}
+      </div>
+      <div className='flex flex-wrap gap-x-3 gap-y-1'>
+        {segments.map((seg, i) => (
+          <div key={i} className='flex items-center gap-1.5'>
+            <div
+              className='h-1.5 w-1.5 flex-shrink-0 rounded-full opacity-80'
+              style={{ backgroundColor: seg.color }}
+            />
+            <span className='font-medium text-[var(--text-tertiary)] text-caption'>{seg.name}</span>
+            <span className='font-medium text-[var(--text-subtle)] text-caption tabular-nums'>
+              {formatDuration(seg.duration, { precision: 1 })}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 interface LogDetailsProps {
   /** The log to display details for */
   log: WorkflowLog | null
@@ -296,7 +387,15 @@ export const LogDetails = memo(function LogDetails({
 }: LogDetailsProps) {
   const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<LogDetailsTab>('overview')
+  const [copiedRunId, setCopiedRunId] = useState(false)
+  const copiedRunIdTimerRef = useRef<number | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    return () => {
+      if (copiedRunIdTimerRef.current !== null) window.clearTimeout(copiedRunIdTimerRef.current)
+    }
+  }, [])
   const panelWidth = useLogDetailsUIStore((state) => state.panelWidth)
   const { handleMouseDown } = useLogDetailsResize()
   const { config: permissionConfig } = usePermissionConfig()
@@ -463,29 +562,33 @@ export const LogDetails = memo(function LogDetails({
                 className='mt-4 min-h-0 flex-1 overflow-y-auto'
               >
                 <div className='flex flex-col gap-2.5 pb-4'>
-                  {/* Timestamp & Workflow Row */}
-                  <div className='flex min-w-0 items-center gap-4 px-[1px]'>
-                    {/* Timestamp Card */}
-                    <div className='flex w-[140px] flex-shrink-0 flex-col gap-2'>
-                      <div className='font-medium text-[var(--text-tertiary)] text-caption'>
+                  {/* Execution Timeline */}
+                  {isWorkflowExecutionLog &&
+                    log.executionData?.traceSpans &&
+                    !permissionConfig.hideTraceSpans && (
+                      <ExecutionTimeline traceSpans={log.executionData.traceSpans} />
+                    )}
+
+                  {/* Details Section */}
+                  <div className='overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-2)] dark:bg-transparent'>
+                    {/* Timestamp */}
+                    <div className='flex h-12 min-w-0 items-center justify-between gap-4 px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
+                      <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
                         Timestamp
-                      </div>
-                      <div className='flex items-center gap-1.5'>
-                        <span className='font-medium text-[var(--text-secondary)] text-sm'>
-                          {formattedTimestamp?.compactDate || 'N/A'}
-                        </span>
-                        <span className='font-medium text-[var(--text-secondary)] text-sm'>
-                          {formattedTimestamp?.compactTime || 'N/A'}
-                        </span>
-                      </div>
+                      </span>
+                      <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                        {formattedTimestamp
+                          ? `${formattedTimestamp.compactDate} ${formattedTimestamp.compactTime}`
+                          : 'N/A'}
+                      </span>
                     </div>
 
-                    {/* Workflow Card */}
-                    <div className='flex w-0 min-w-0 flex-1 flex-col gap-2'>
-                      <div className='font-medium text-[var(--text-tertiary)] text-caption'>
+                    {/* Workflow / Job */}
+                    <div className='flex h-12 min-w-0 items-center justify-between gap-4 border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
+                      <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
                         {log.trigger === 'mothership' ? 'Job' : 'Workflow'}
-                      </div>
-                      <div className='flex min-w-0 items-center gap-2'>
+                      </span>
+                      <div className='flex min-w-0 items-center gap-1.5'>
                         {(() => {
                           const c =
                             log.trigger === 'mothership'
@@ -494,7 +597,7 @@ export const LogDetails = memo(function LogDetails({
                                 (!log.workflowId ? DELETED_WORKFLOW_COLOR : undefined)
                           return (
                             <div
-                              className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
+                              className='h-[8px] w-[8px] flex-shrink-0 rounded-[2px] border-[1.5px]'
                               style={{
                                 backgroundColor: c,
                                 borderColor: c ? workflowBorderColor(c) : undefined,
@@ -503,7 +606,7 @@ export const LogDetails = memo(function LogDetails({
                             />
                           )
                         })()}
-                        <span className='min-w-0 flex-1 truncate font-medium text-[var(--text-secondary)] text-sm'>
+                        <span className='min-w-0 truncate font-medium text-[var(--text-secondary)] text-caption'>
                           {log.trigger === 'mothership'
                             ? log.jobTitle || 'Untitled Job'
                             : log.workflow?.name ||
@@ -511,24 +614,39 @@ export const LogDetails = memo(function LogDetails({
                         </span>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Run ID */}
-                  {log.executionId && (
-                    <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2'>
-                      <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                        Run ID
-                      </span>
-                      <span className='truncate font-medium text-[var(--text-secondary)] text-sm'>
-                        {log.executionId}
-                      </span>
-                    </div>
-                  )}
+                    {/* Run ID — click to copy */}
+                    {log.executionId && (
+                      <div
+                        className='flex h-10 min-w-0 cursor-pointer items-center justify-between gap-4 border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'
+                        onClick={() => {
+                          navigator.clipboard.writeText(log.executionId!)
+                          if (copiedRunIdTimerRef.current) clearTimeout(copiedRunIdTimerRef.current)
+                          setCopiedRunId(true)
+                          copiedRunIdTimerRef.current = window.setTimeout(
+                            () => setCopiedRunId(false),
+                            1500
+                          )
+                        }}
+                      >
+                        <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
+                          Run ID
+                        </span>
+                        <span
+                          className={cn(
+                            'min-w-0 truncate font-medium text-caption tabular-nums transition-colors',
+                            copiedRunId
+                              ? 'text-[var(--text-success)]'
+                              : 'text-[var(--text-secondary)]'
+                          )}
+                        >
+                          {copiedRunId ? 'Copied!' : log.executionId}
+                        </span>
+                      </div>
+                    )}
 
-                  {/* Details Section */}
-                  <div className='-my-1 flex min-w-0 flex-col overflow-hidden'>
                     {/* Level */}
-                    <div className='flex h-[48px] items-center justify-between border-[var(--border)] border-b p-2'>
+                    <div className='flex h-10 items-center justify-between border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
                       <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                         Level
                       </span>
@@ -536,7 +654,7 @@ export const LogDetails = memo(function LogDetails({
                     </div>
 
                     {/* Trigger */}
-                    <div className='flex h-[48px] items-center justify-between border-[var(--border)] border-b p-2'>
+                    <div className='flex h-10 items-center justify-between border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
                       <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                         Trigger
                       </span>
@@ -550,14 +668,7 @@ export const LogDetails = memo(function LogDetails({
                     </div>
 
                     {/* Duration */}
-                    <div
-                      className={cn(
-                        'flex h-[48px] items-center justify-between border-b p-2',
-                        log.deploymentVersion || showWorkflowState
-                          ? 'border-[var(--border)]'
-                          : 'border-transparent'
-                      )}
-                    >
+                    <div className='flex h-10 items-center justify-between border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
                       <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                         Duration
                       </span>
@@ -568,12 +679,7 @@ export const LogDetails = memo(function LogDetails({
 
                     {/* Version */}
                     {log.deploymentVersion && (
-                      <div
-                        className={cn(
-                          'flex h-[48px] items-center gap-2 p-2',
-                          showWorkflowState && 'border-[var(--border)] border-b'
-                        )}
-                      >
+                      <div className='flex h-10 items-center gap-2 border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
                         <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
                           Version
                         </span>
@@ -587,25 +693,23 @@ export const LogDetails = memo(function LogDetails({
 
                     {/* Workflow State */}
                     {showWorkflowState && (
-                      <div className='flex h-[48px] items-center justify-between p-2'>
+                      <div
+                        className='flex h-10 cursor-pointer items-center justify-between border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'
+                        onClick={() => setIsExecutionSnapshotOpen(true)}
+                      >
                         <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                           Workflow State
                         </span>
-                        <Button
-                          variant='default'
-                          onClick={() => setIsExecutionSnapshotOpen(true)}
-                          className='gap-1.5'
-                        >
+                        <span className='font-medium text-[var(--text-secondary)] text-caption transition-colors hover:text-[var(--text-primary)]'>
                           View Snapshot
-                          <Eye className='h-3 w-3' />
-                        </Button>
+                        </span>
                       </div>
                     )}
                   </div>
 
                   {/* Workflow Input */}
                   {isWorkflowExecutionLog && workflowInput && !permissionConfig.hideTraceSpans && (
-                    <div className='mt-1 flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
+                    <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
                       <span className='font-medium text-[var(--text-tertiary)] text-caption'>
                         Workflow Input
                       </span>
@@ -615,7 +719,7 @@ export const LogDetails = memo(function LogDetails({
 
                   {/* Workflow Output */}
                   {isWorkflowExecutionLog && workflowOutput && !permissionConfig.hideTraceSpans && (
-                    <div className='mt-1 flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
+                    <div className='flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
                       <span
                         className={cn(
                           'font-medium text-caption',
@@ -630,18 +734,6 @@ export const LogDetails = memo(function LogDetails({
                     </div>
                   )}
 
-                  {/* Workflow Execution - Trace Spans */}
-                  {isWorkflowExecutionLog &&
-                    log.executionData?.traceSpans &&
-                    !permissionConfig.hideTraceSpans && (
-                      <div className='mt-1 flex flex-col gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-2 dark:bg-transparent'>
-                        <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                          Trace Span
-                        </span>
-                        <TraceSpans traceSpans={log.executionData.traceSpans} />
-                      </div>
-                    )}
-
                   {/* Files */}
                   {log.files && log.files.length > 0 && (
                     <FileCards files={log.files} isExecutionFile />
@@ -649,87 +741,71 @@ export const LogDetails = memo(function LogDetails({
 
                   {/* Cost Breakdown */}
                   {hasCostInfo && (
-                    <div className='flex flex-col gap-2'>
-                      <span className='px-[1px] font-medium text-[var(--text-tertiary)] text-caption'>
-                        Cost Breakdown
-                      </span>
-
-                      <div className='flex flex-col gap-1 rounded-md border border-[var(--border)]'>
-                        <div className='flex flex-col gap-2.5 rounded-md p-2.5'>
-                          <div className='flex items-center justify-between'>
-                            <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                              Base Run:
-                            </span>
-                            <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                              {formatCost(BASE_EXECUTION_CHARGE)}
-                            </span>
-                          </div>
-                          <div className='flex items-center justify-between'>
-                            <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                              Model Input:
-                            </span>
-                            <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                              {formatCost(log.cost?.input || 0)}
-                            </span>
-                          </div>
-                          <div className='flex items-center justify-between'>
-                            <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                              Model Output:
-                            </span>
-                            <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                              {formatCost(log.cost?.output || 0)}
-                            </span>
-                          </div>
-                          {(() => {
-                            const models = (log.cost as Record<string, unknown>)?.models as
-                              | Record<string, { toolCost?: number }>
-                              | undefined
-                            const totalToolCost = models
-                              ? Object.values(models).reduce(
-                                  (sum, m) => sum + (m?.toolCost || 0),
-                                  0
-                                )
-                              : 0
-                            return totalToolCost > 0 ? (
-                              <div className='flex items-center justify-between'>
-                                <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                                  Tool Usage:
-                                </span>
-                                <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                                  {formatCost(totalToolCost)}
-                                </span>
-                              </div>
-                            ) : null
-                          })()}
-                        </div>
-
-                        <div className='border-[var(--border)] border-t' />
-
-                        <div className='flex flex-col gap-2.5 rounded-md p-2.5'>
-                          <div className='flex items-center justify-between'>
-                            <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                              Total:
-                            </span>
-                            <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                              {formatCost(log.cost?.total || 0)}
-                            </span>
-                          </div>
-                          <div className='flex items-center justify-between'>
-                            <span className='font-medium text-[var(--text-tertiary)] text-caption'>
-                              Tokens:
-                            </span>
-                            <span className='font-medium text-[var(--text-secondary)] text-caption'>
-                              {log.cost?.tokens?.input || log.cost?.tokens?.prompt || 0} in /{' '}
-                              {log.cost?.tokens?.output || log.cost?.tokens?.completion || 0} out
-                            </span>
-                          </div>
-                        </div>
+                    <div className='overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface-2)] dark:bg-transparent'>
+                      <div className='flex h-10 items-center justify-between px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
+                        <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                          Base Run
+                        </span>
+                        <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                          {formatCost(BASE_EXECUTION_CHARGE)}
+                        </span>
                       </div>
-
-                      <div className='flex items-center justify-center rounded-md bg-[var(--surface-2)] p-2 text-center'>
-                        <p className='font-medium text-[var(--text-subtle)] text-xs'>
-                          Total cost includes a base run charge of{' '}
-                          {formatCost(BASE_EXECUTION_CHARGE)} plus any model and tool usage costs.
+                      <div className='flex h-10 items-center justify-between border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
+                        <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                          Model Input
+                        </span>
+                        <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                          {formatCost(log.cost?.input || 0)}
+                        </span>
+                      </div>
+                      <div className='flex h-10 items-center justify-between border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
+                        <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                          Model Output
+                        </span>
+                        <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                          {formatCost(log.cost?.output || 0)}
+                        </span>
+                      </div>
+                      {(() => {
+                        const models = (log.cost as Record<string, unknown>)?.models as
+                          | Record<string, { toolCost?: number }>
+                          | undefined
+                        const totalToolCost = models
+                          ? Object.values(models).reduce((sum, m) => sum + (m?.toolCost || 0), 0)
+                          : 0
+                        return totalToolCost > 0 ? (
+                          <div className='flex h-10 items-center justify-between border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
+                            <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                              Tool Usage
+                            </span>
+                            <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                              {formatCost(totalToolCost)}
+                            </span>
+                          </div>
+                        ) : null
+                      })()}
+                      <div className='border-[var(--border)] border-t' />
+                      <div className='flex h-10 items-center justify-between px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
+                        <span className='font-medium text-[var(--text-secondary)] text-caption'>
+                          Total
+                        </span>
+                        <span className='font-semibold text-[var(--text-primary)] text-caption tabular-nums'>
+                          {formatCost(log.cost?.total || 0)}
+                        </span>
+                      </div>
+                      <div className='flex h-10 items-center justify-between border-[var(--border)] border-t px-3 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03]'>
+                        <span className='font-medium text-[var(--text-tertiary)] text-caption'>
+                          Tokens
+                        </span>
+                        <span className='font-medium text-[var(--text-secondary)] text-caption tabular-nums'>
+                          {log.cost?.tokens?.input || log.cost?.tokens?.prompt || 0} in ·{' '}
+                          {log.cost?.tokens?.output || log.cost?.tokens?.completion || 0} out
+                        </span>
+                      </div>
+                      <div className='border-[var(--border)] border-t px-3 py-2'>
+                        <p className='font-medium text-[var(--text-tertiary)] text-xs'>
+                          Total includes a {formatCost(BASE_EXECUTION_CHARGE)} base charge plus
+                          model and tool usage.
                         </p>
                       </div>
                     </div>
