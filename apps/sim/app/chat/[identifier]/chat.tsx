@@ -184,7 +184,7 @@ export default function ChatClient({ identifier }: { identifier: string }) {
 
     container.addEventListener('scroll', handleScroll, { passive: true })
     return () => container.removeEventListener('scroll', handleScroll)
-  }, [])
+  }, [chatConfig, isVoiceFirstMode, authRequired])
 
   useEffect(() => {
     if (isStreamingResponse) {
