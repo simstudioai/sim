@@ -189,6 +189,8 @@ export function resetDbChainMock(): void {
 export const dbChainMock = {
   db: {
     select,
+    selectDistinct,
+    selectDistinctOn,
     insert,
     update,
     delete: del,

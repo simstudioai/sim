@@ -1,6 +1,6 @@
 'use client'
 
-import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { noop } from '@/lib/core/utils/request'
@@ -109,17 +109,21 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   const chatConfig = chatConfigResult?.kind === 'config' ? chatConfigResult.config : null
 
   const welcomeMessage = chatConfig?.customizations?.welcomeMessage
-  const displayMessages: ChatMessage[] = welcomeMessage
-    ? [
-        {
-          id: 'welcome',
-          content: welcomeMessage,
-          type: 'assistant',
-          timestamp: new Date(),
-          isInitialMessage: true,
-        },
-        ...messages,
-      ]
+  const welcomeChatMessage = useMemo<ChatMessage | null>(
+    () =>
+      welcomeMessage
+        ? {
+            id: 'welcome',
+            content: welcomeMessage,
+            type: 'assistant',
+            timestamp: new Date(),
+            isInitialMessage: true,
+          }
+        : null,
+    [welcomeMessage]
+  )
+  const displayMessages: ChatMessage[] = welcomeChatMessage
+    ? [welcomeChatMessage, ...messages]
     : messages
 
   const { isStreamingResponse, abortControllerRef, stopStreaming, handleStreamedResponse } =
