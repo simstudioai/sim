@@ -135,6 +135,7 @@ vi.mock('@/lib/core/telemetry', () => ({
   },
 }))
 
+import { UPGRADE_TO_INVITE_REASON } from '@/lib/workspaces/policy-constants'
 import { POST } from '@/app/api/workspaces/invitations/route'
 
 describe('POST /api/workspaces/invitations', () => {
@@ -187,7 +188,7 @@ describe('POST /api/workspaces/invitations', () => {
     })
     mockGetWorkspaceInvitePolicy.mockResolvedValueOnce({
       allowed: false,
-      reason: 'Upgrade to invite more members',
+      reason: UPGRADE_TO_INVITE_REASON,
       requiresSeat: false,
       organizationId: null,
       upgradeRequired: true,
@@ -204,7 +205,7 @@ describe('POST /api/workspaces/invitations', () => {
     const data = await response.json()
 
     expect(response.status).toBe(403)
-    expect(data.error).toBe('Upgrade to invite more members')
+    expect(data.error).toBe(UPGRADE_TO_INVITE_REASON)
     expect(data.upgradeRequired).toBe(true)
   })
 
@@ -219,7 +220,7 @@ describe('POST /api/workspaces/invitations', () => {
     })
     mockGetWorkspaceInvitePolicy.mockResolvedValueOnce({
       allowed: false,
-      reason: 'Upgrade to invite more members',
+      reason: UPGRADE_TO_INVITE_REASON,
       requiresSeat: false,
       organizationId: null,
       upgradeRequired: true,

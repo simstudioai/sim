@@ -5,7 +5,7 @@ import { and, count, eq, isNull } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getUserOrganization } from '@/lib/billing/organizations/membership'
-import { isEnterprise, isPro, isTeam } from '@/lib/billing/plan-helpers'
+import { isEnterprise, isMax, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { UPGRADE_TO_INVITE_REASON } from '@/lib/workspaces/policy-constants'
@@ -262,7 +262,8 @@ export async function getWorkspaceCreationPolicy({
   }
 
   const highestPrioritySubscription = await getHighestPrioritySubscription(userId)
-  const maxWorkspaces = isPro(highestPrioritySubscription?.plan) ? 3 : 1
+  const plan = highestPrioritySubscription?.plan
+  const maxWorkspaces = isMax(plan) ? 10 : isPro(plan) ? 3 : 1
   const currentWorkspaceCount = await countNonOrganizationOwnedWorkspaces(userId)
 
   if (currentWorkspaceCount >= maxWorkspaces) {

@@ -599,19 +599,6 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
       }
     }
 
-    const [orgSub] = await db
-      .select()
-      .from(subscriptionTable)
-      .where(
-        and(
-          eq(subscriptionTable.referenceId, organizationId),
-          inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
-        )
-      )
-      .limit(1)
-
-    const orgIsPaid = orgSub && isPaid(orgSub.plan)
-
     let memberId = ''
 
     await db.transaction(async (tx) => {
@@ -624,11 +611,28 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
         createdAt: new Date(),
       })
 
-      if (orgIsPaid && !skipBillingLogic) {
-        const joinBillingActions = await applyPaidOrgJoinBillingTx(tx, userId, organizationId)
-        billingActions.proUsageSnapshotted = joinBillingActions.proUsageSnapshotted
-        billingActions.proCancelledAtPeriodEnd = joinBillingActions.proCancelledAtPeriodEnd
+      if (skipBillingLogic) {
+        return
       }
+
+      const [orgSub] = await tx
+        .select({ plan: subscriptionTable.plan })
+        .from(subscriptionTable)
+        .where(
+          and(
+            eq(subscriptionTable.referenceId, organizationId),
+            inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+          )
+        )
+        .limit(1)
+
+      if (!orgSub || !isPaid(orgSub.plan)) {
+        return
+      }
+
+      const joinBillingActions = await applyPaidOrgJoinBillingTx(tx, userId, organizationId)
+      billingActions.proUsageSnapshotted = joinBillingActions.proUsageSnapshotted
+      billingActions.proCancelledAtPeriodEnd = joinBillingActions.proCancelledAtPeriodEnd
     })
 
     logger.info('Added user to organization', {

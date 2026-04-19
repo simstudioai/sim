@@ -95,6 +95,7 @@ import {
   getWorkspaceInvitePolicy,
   WORKSPACE_MODE,
 } from '@/lib/workspaces/policy'
+import { UPGRADE_TO_INVITE_REASON } from '@/lib/workspaces/policy-constants'
 
 describe('getWorkspaceCreationPolicy', () => {
   beforeEach(() => {
@@ -131,6 +132,37 @@ describe('getWorkspaceCreationPolicy', () => {
     expect(result.workspaceMode).toBe(WORKSPACE_MODE.PERSONAL)
     expect(result.maxWorkspaces).toBe(3)
     expect(result.currentWorkspaceCount).toBe(2)
+  })
+
+  it('allows max users to create up to ten personal workspaces', async () => {
+    mockGetHighestPrioritySubscription.mockResolvedValueOnce({
+      id: 'sub-1',
+      plan: 'pro_25000',
+      status: 'active',
+    })
+    mockDbResults.value = [[{ value: 5 }]]
+
+    const result = await getWorkspaceCreationPolicy({ userId: 'user-1' })
+
+    expect(result.canCreate).toBe(true)
+    expect(result.workspaceMode).toBe(WORKSPACE_MODE.PERSONAL)
+    expect(result.maxWorkspaces).toBe(10)
+    expect(result.currentWorkspaceCount).toBe(5)
+  })
+
+  it('blocks max users once they already own ten personal workspaces', async () => {
+    mockGetHighestPrioritySubscription.mockResolvedValueOnce({
+      id: 'sub-1',
+      plan: 'pro_25000',
+      status: 'active',
+    })
+    mockDbResults.value = [[{ value: 10 }]]
+
+    const result = await getWorkspaceCreationPolicy({ userId: 'user-1' })
+
+    expect(result.canCreate).toBe(false)
+    expect(result.maxWorkspaces).toBe(10)
+    expect(result.currentWorkspaceCount).toBe(10)
   })
 
   it('allows unlimited personal workspaces when billing is disabled', async () => {
@@ -244,7 +276,7 @@ describe('getWorkspaceInvitePolicy', () => {
 
     expect(result.allowed).toBe(false)
     expect(result.upgradeRequired).toBe(true)
-    expect(result.reason).toBe('Upgrade to invite more members')
+    expect(result.reason).toBe(UPGRADE_TO_INVITE_REASON)
   })
 
   it('allows org workspaces and flags them as seat-gated', async () => {
@@ -311,7 +343,7 @@ describe('getWorkspaceInvitePolicy', () => {
 
     expect(result.allowed).toBe(false)
     expect(result.upgradeRequired).toBe(true)
-    expect(result.reason).toBe('Upgrade to invite more members')
+    expect(result.reason).toBe(UPGRADE_TO_INVITE_REASON)
   })
 
   it('blocks grandfathered workspaces when the billed user is on a pro plan', async () => {

@@ -814,6 +814,7 @@ function WorkspaceHeaderImpl({
         onOpenChange={setIsInviteModalOpen}
         workspaceName={activeWorkspace?.name || 'Workspace'}
         inviteDisabledReason={inviteDisabledReason}
+        organizationId={activeWorkspaceFull?.organizationId ?? null}
       />
       {/* Delete Confirmation Modal */}
       <DeleteModal

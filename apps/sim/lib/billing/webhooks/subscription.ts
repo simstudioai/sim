@@ -145,6 +145,22 @@ export async function handleOrganizationPlanDowngrade(
     return
   }
 
+  const [currentRow] = await db
+    .select({ plan: subscription.plan })
+    .from(subscription)
+    .where(eq(subscription.id, subscriptionData.id))
+    .limit(1)
+
+  if (currentRow && (isTeam(currentRow.plan) || isEnterprise(currentRow.plan))) {
+    logger.info('Skipping plan downgrade transition - subscription is currently Team/Enterprise', {
+      subscriptionId: subscriptionData.id,
+      organizationId: subscriptionData.referenceId,
+      eventPlan: subscriptionData.plan,
+      currentPlan: currentRow.plan,
+    })
+    return
+  }
+
   const idempotencyIdentifier = stripeEventId ?? `plan-downgrade:${subscriptionData.id}`
 
   try {
