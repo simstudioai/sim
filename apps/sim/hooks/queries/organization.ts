@@ -387,8 +387,8 @@ export function useRemoveMember() {
       )
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to remove member')
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error.error || error.message || 'Failed to remove member')
       }
 
       return response.json()
@@ -430,6 +430,46 @@ export function useUpdateOrganizationMemberRole() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
+    },
+  })
+}
+
+interface TransferOwnershipParams {
+  orgId: string
+  newOwnerUserId: string
+  alsoLeave?: boolean
+}
+
+export function useTransferOwnership() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ orgId, newOwnerUserId, alsoLeave = false }: TransferOwnershipParams) => {
+      const response = await fetch(`/api/organizations/${orgId}/transfer-ownership`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newOwnerUserId, alsoLeave }),
+      })
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error.error || error.message || 'Failed to transfer ownership')
+      }
+      return response.json() as Promise<{
+        success: boolean
+        transferred: boolean
+        left: boolean
+        warning?: string
+        details?: Record<string, unknown>
+      }>
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.subscription(variables.orgId) })
+      queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
     },
   })
 }

@@ -7,6 +7,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { getPlanTierCredits, getPlanTierDollars } from '@/lib/billing/plan-helpers'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   generateSlug,
   getUsedSeats,
@@ -20,6 +21,7 @@ import {
   RemoveMemberDialog,
   TeamSeats,
   TeamSeatsOverview,
+  TransferOwnershipDialog,
 } from '@/app/workspace/[workspaceId]/settings/components/team-management/components'
 import {
   useCreateOrganization,
@@ -30,9 +32,10 @@ import {
   useOrganizationSubscription,
   useOrganizations,
   useRemoveMember,
+  useTransferOwnership,
   useUpdateSeats,
 } from '@/hooks/queries/organization'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
+import { useOpenBillingPortal, useSubscriptionData } from '@/hooks/queries/subscription'
 import { useAdminWorkspaces } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
@@ -68,6 +71,8 @@ export function TeamManagement() {
 
   const inviteMutation = useInviteMember()
   const removeMemberMutation = useRemoveMember()
+  const transferOwnershipMutation = useTransferOwnership()
+  const openBillingPortal = useOpenBillingPortal()
   const updateSeatsMutation = useUpdateSeats()
   const createOrgMutation = useCreateOrganization()
 
@@ -89,6 +94,8 @@ export function TeamManagement() {
     shouldReduceSeats: boolean
     isSelfRemoval?: boolean
   }>({ open: false, memberId: '', memberName: '', shouldReduceSeats: false })
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false)
+  const [transferPortalError, setTransferPortalError] = useState<string | null>(null)
   const [orgName, setOrgName] = useState('')
   const [orgSlug, setOrgSlug] = useState('')
   const [isAddSeatDialogOpen, setIsAddSeatDialogOpen] = useState(false)
@@ -209,7 +216,7 @@ export function TeamManagement() {
 
   const confirmRemoveMember = useCallback(
     async (shouldReduceSeats = false) => {
-      const { memberId } = removeMemberDialog
+      const { memberId, isSelfRemoval } = removeMemberDialog
       if (!session?.user || !activeOrganization?.id || !memberId) return
 
       try {
@@ -224,12 +231,93 @@ export function TeamManagement() {
           memberName: '',
           shouldReduceSeats: false,
         })
+
+        if (isSelfRemoval) {
+          window.location.href = '/workspace'
+        }
       } catch (error) {
         logger.error('Failed to remove member', error)
       }
     },
-    [removeMemberDialog.memberId, session?.user?.id, activeOrganization?.id, removeMemberMutation]
+    [
+      removeMemberDialog.memberId,
+      removeMemberDialog.isSelfRemoval,
+      session?.user?.id,
+      activeOrganization?.id,
+      removeMemberMutation,
+    ]
   )
+
+  const handleTransferDialogOpenChange = useCallback(
+    (next: boolean) => {
+      setTransferDialogOpen(next)
+      if (!next) {
+        transferOwnershipMutation.reset()
+        setTransferPortalError(null)
+      }
+    },
+    [transferOwnershipMutation]
+  )
+
+  const handleOpenTransferDialog = useCallback(() => {
+    transferOwnershipMutation.reset()
+    setTransferPortalError(null)
+    setTransferDialogOpen(true)
+  }, [transferOwnershipMutation])
+
+  const handleConfirmTransfer = useCallback(
+    async (newOwnerUserId: string) => {
+      if (!activeOrganization?.id) return
+
+      try {
+        const result = await transferOwnershipMutation.mutateAsync({
+          orgId: activeOrganization.id,
+          newOwnerUserId,
+          alsoLeave: true,
+        })
+
+        setTransferDialogOpen(false)
+
+        if (result.left) {
+          window.location.href = '/workspace'
+        }
+      } catch (error) {
+        logger.error('Failed to transfer ownership', error)
+      }
+    },
+    [activeOrganization?.id, transferOwnershipMutation]
+  )
+
+  const handleOpenTransferBillingPortal = useCallback(() => {
+    if (!activeOrganization?.id) return
+    setTransferPortalError(null)
+    const portalWindow = window.open('', '_blank')
+    openBillingPortal.mutate(
+      {
+        context: 'organization',
+        organizationId: activeOrganization.id,
+        returnUrl: `${getBaseUrl()}/workspace`,
+      },
+      {
+        onSuccess: (data) => {
+          if (portalWindow) {
+            portalWindow.location.href = data.url
+          } else {
+            window.location.href = data.url
+          }
+        },
+        onError: (error) => {
+          portalWindow?.close()
+          logger.error('Failed to open billing portal from transfer dialog', { error })
+          setTransferPortalError(
+            error instanceof Error
+              ? error.message
+              : 'Failed to open Stripe billing portal. Please try again.'
+          )
+        },
+      }
+    )
+  }, [activeOrganization?.id, openBillingPortal])
 
   const handleAddSeatDialog = useCallback(() => {
     if (subscriptionData && !checkEnterprisePlan(subscriptionData)) {
@@ -394,6 +482,22 @@ export function TeamManagement() {
         currentUserId={session?.user?.id ?? ''}
         isAdminOrOwner={adminOrOwner}
         onRemoveMember={handleRemoveMember}
+        onTransferOwnership={handleOpenTransferDialog}
+      />
+
+      <TransferOwnershipDialog
+        open={transferDialogOpen}
+        onOpenChange={handleTransferDialogOpenChange}
+        members={roster?.members ?? []}
+        isLoadingMembers={isLoadingRoster}
+        currentUserId={session?.user?.id ?? ''}
+        isSubmitting={transferOwnershipMutation.isPending}
+        error={transferOwnershipMutation.error}
+        portalError={transferPortalError}
+        hasPaidSubscription={Boolean(subscriptionData)}
+        isOpeningBillingPortal={openBillingPortal.isPending}
+        onConfirm={handleConfirmTransfer}
+        onOpenBillingPortal={handleOpenTransferBillingPortal}
       />
 
       <RemoveMemberDialog

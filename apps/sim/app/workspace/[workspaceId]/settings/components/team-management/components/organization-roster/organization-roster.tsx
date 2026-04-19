@@ -52,6 +52,7 @@ interface OrganizationRosterProps {
   currentUserId: string
   isAdminOrOwner: boolean
   onRemoveMember: (member: Member) => void
+  onTransferOwnership?: () => void
 }
 
 function apportionCredits(
@@ -324,6 +325,7 @@ export function OrganizationRoster({
   currentUserId,
   isAdminOrOwner,
   onRemoveMember,
+  onTransferOwnership,
 }: OrganizationRosterProps) {
   const [query, setQuery] = useState('')
   const [expandedRows, setExpandedRows] = useState<Set<string>>(() => new Set())
@@ -521,6 +523,7 @@ export function OrganizationRoster({
                 const isSelf = m.email === currentUserEmail
                 const credits = memberCredits[m.userId] ?? 0
                 const canRemove = isAdminOrOwner && m.role !== 'owner' && !isSelf
+                const canTransferAndLeave = isSelf && m.role === 'owner' && !!onTransferOwnership
                 return (
                   <Fragment key={rowKey}>
                     <TableRow>
@@ -592,6 +595,15 @@ export function OrganizationRoster({
                               className='h-8'
                             >
                               Remove
+                            </Button>
+                          )}
+                          {canTransferAndLeave && (
+                            <Button
+                              variant='ghost'
+                              onClick={() => onTransferOwnership?.()}
+                              className='h-8'
+                            >
+                              Leave
                             </Button>
                           )}
                         </div>

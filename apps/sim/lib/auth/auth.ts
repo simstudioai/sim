@@ -175,6 +175,22 @@ export const auth = betterAuth({
     updateAge: 24 * 60 * 60, // 24 hours (how often to refresh the expiry)
     freshAge: 60 * 60, // 1 hour (or set to 0 to disable completely)
   },
+  user: {
+    deleteUser: {
+      enabled: false,
+      beforeDelete: async (deletingUser) => {
+        const { isSoleOwnerOfPaidOrganization } = await import(
+          '@/lib/billing/organizations/membership'
+        )
+        const check = await isSoleOwnerOfPaidOrganization(deletingUser.id)
+        if (check.isBlocker) {
+          throw new Error(
+            `You are the owner of ${check.organizationName ?? 'an active paid organization'}. Transfer ownership before deleting your account.`
+          )
+        }
+      },
+    },
+  },
   databaseHooks: {
     user: {
       create: {

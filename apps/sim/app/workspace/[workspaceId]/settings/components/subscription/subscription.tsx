@@ -986,47 +986,91 @@ export function Subscription() {
           {subscription.isPaid &&
             !permissions.showTeamMemberView &&
             !permissions.isEnterpriseMember && (
-              <div className='flex items-center justify-between gap-4'>
-                <Label>Invoices</Label>
-                <Button
-                  variant='active'
-                  disabled={openBillingPortal.isPending}
-                  onClick={() => {
-                    const portalWindow = window.open('', '_blank')
-                    const context = subscription.isOrgScoped ? 'organization' : 'user'
-                    if (context === 'organization' && !billingOrganizationId) {
-                      portalWindow?.close()
-                      alert(
-                        'Organization billing context is unavailable. Please refresh and try again.'
-                      )
-                      return
-                    }
-                    openBillingPortal.mutate(
-                      {
-                        context,
-                        organizationId: billingOrganizationId ?? undefined,
-                        returnUrl: window.location.href,
-                      },
-                      {
-                        onSuccess: (data) => {
-                          if (portalWindow) {
-                            portalWindow.location.href = data.url
-                          } else {
-                            window.location.href = data.url
-                          }
-                        },
-                        onError: (error) => {
-                          portalWindow?.close()
-                          logger.error('Failed to open billing portal', { error })
-                          alert(error.message)
-                        },
+              <>
+                <div className='flex items-center justify-between gap-4'>
+                  <Label>Payment method</Label>
+                  <Button
+                    variant='active'
+                    disabled={openBillingPortal.isPending}
+                    onClick={() => {
+                      const portalWindow = window.open('', '_blank')
+                      const context = subscription.isOrgScoped ? 'organization' : 'user'
+                      if (context === 'organization' && !billingOrganizationId) {
+                        portalWindow?.close()
+                        alert(
+                          'Organization billing context is unavailable. Please refresh and try again.'
+                        )
+                        return
                       }
-                    )
-                  }}
-                >
-                  View Invoices
-                </Button>
-              </div>
+                      openBillingPortal.mutate(
+                        {
+                          context,
+                          organizationId: billingOrganizationId ?? undefined,
+                          returnUrl: window.location.href,
+                        },
+                        {
+                          onSuccess: (data) => {
+                            if (portalWindow) {
+                              portalWindow.location.href = data.url
+                            } else {
+                              window.location.href = data.url
+                            }
+                          },
+                          onError: (error) => {
+                            portalWindow?.close()
+                            logger.error('Failed to open billing portal', { error })
+                            alert(error.message)
+                          },
+                        }
+                      )
+                    }}
+                  >
+                    Manage in Stripe
+                  </Button>
+                </div>
+
+                <div className='flex items-center justify-between gap-4'>
+                  <Label>Invoices</Label>
+                  <Button
+                    variant='active'
+                    disabled={openBillingPortal.isPending}
+                    onClick={() => {
+                      const portalWindow = window.open('', '_blank')
+                      const context = subscription.isOrgScoped ? 'organization' : 'user'
+                      if (context === 'organization' && !billingOrganizationId) {
+                        portalWindow?.close()
+                        alert(
+                          'Organization billing context is unavailable. Please refresh and try again.'
+                        )
+                        return
+                      }
+                      openBillingPortal.mutate(
+                        {
+                          context,
+                          organizationId: billingOrganizationId ?? undefined,
+                          returnUrl: window.location.href,
+                        },
+                        {
+                          onSuccess: (data) => {
+                            if (portalWindow) {
+                              portalWindow.location.href = data.url
+                            } else {
+                              window.location.href = data.url
+                            }
+                          },
+                          onError: (error) => {
+                            portalWindow?.close()
+                            logger.error('Failed to open billing portal', { error })
+                            alert(error.message)
+                          },
+                        }
+                      )
+                    }}
+                  >
+                    View Invoices
+                  </Button>
+                </div>
+              </>
             )}
 
           {!isLoading && isTeamAdmin && !isOrganizationWorkspace && (
