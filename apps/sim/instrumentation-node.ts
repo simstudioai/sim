@@ -1,28 +1,6 @@
-/**
- * Sim OpenTelemetry - Server-side Instrumentation
- *
- * Mothership joint trace design
- * -----------------------------
- * Both Sim (this file) and the Go copilot server register under a single
- * OTel `service.name = "mothership"` so every request shows up as one
- * service in the OTLP backend. To keep the two halves distinguishable:
- *
- *   - Every span emitted by the mothership lifecycle on this process is
- *     prefixed with `sim-mothership: ` on start, and gets a
- *     `mothership.origin = "sim-mothership"` attribute.
- *   - The Go side does the same with `go-mothership: ` /
- *     `mothership.origin = "go-mothership"`.
- *
- * The `-mothership` suffix on the origin is deliberate: this Sim process
- * hosts plenty of non-mothership code (workflow executor, block runtime,
- * indexer clients) that may emit its own traces in the future. Making
- * the origin value explicit means a later "sim" origin can't collide
- * with the mothership side.
- *
- * So in any OTLP backend, filter by `mothership.origin` (exact) or by
- * operation name prefix (`sim-mothership:` / `go-mothership:`) to
- * cleanly split the two halves.
- */
+// Sim OTel bootstrap. Filter by `mothership.origin` or span-name
+// prefix (`sim-mothership:` / `go-mothership:`) to separate the two
+// halves of a mothership trace in the OTLP backend.
 
 import type { Attributes, Context, Link, SpanKind } from '@opentelemetry/api'
 import { DiagConsoleLogger, DiagLogLevel, diag, TraceFlags, trace } from '@opentelemetry/api'
@@ -41,21 +19,13 @@ diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.ERROR)
 
 const logger = createLogger('OTelInstrumentation')
 
-// Origin value lives on every mothership span as `mothership.origin`.
-// Longer form intentionally used (vs. plain "sim") so non-mothership
-// code running in this same Sim process can't collide if it later
-// starts emitting its own traces.
 const MOTHERSHIP_ORIGIN = 'sim-mothership' as const
 const SPAN_NAME_PREFIX = `${MOTHERSHIP_ORIGIN}: `
 
-// Short slug used only for `service.instance.id`. Kept as plain "sim"
-// so the instance id reads as `mothership-sim` — concise, already
-// scoped by `service.name = "mothership"` as the container.
 const SERVICE_INSTANCE_SLUG = 'sim' as const
 
 const DEFAULT_TELEMETRY_CONFIG = {
   endpoint: env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces',
-  // Joint Sim+Go service surface in Jaeger/Tempo. See header comment.
   serviceName: 'mothership',
   serviceVersion: '0.1.0',
   serverSide: { enabled: true },
@@ -67,33 +37,18 @@ const DEFAULT_TELEMETRY_CONFIG = {
   },
 }
 
-/**
- * Span name prefixes we keep after sampling.
- *
- * Scope: this process only traces *mothership / copilot* requests for now.
- * Anything outside that lifecycle (workflow executor, block runtime,
- * Next.js framework noise, etc.) is intentionally dropped so Jaeger only
- * shows the Sim half of a mothership trace.
- *
- * Any new prefix here should correspond to a span our copilot code
- * explicitly creates; adding a broad prefix (e.g. `http.`) risks
- * silently re-enabling non-copilot tracing.
- */
+// Allowlist of span-name prefixes exported from this process.
+// Non-mothership code (workflow executor, block runtime, framework
+// noise) is dropped. Broaden carefully — `http.` etc. would reopen
+// the firehose.
 const ALLOWED_SPAN_PREFIXES = ['gen_ai.', 'copilot.', 'sim →', 'sim.', 'tool.execute']
 
 function isBusinessSpan(spanName: string): boolean {
   return ALLOWED_SPAN_PREFIXES.some((prefix) => spanName.startsWith(prefix))
 }
 
-/**
- * Parse OTLP headers from the standard env var `OTEL_EXPORTER_OTLP_HEADERS`.
- *
- * Spec format: `key1=value1,key2=value2`, with values optionally
- * URL-encoded. We tolerate whitespace around entries and values that
- * themselves contain `=`. This is the mechanism every managed backend
- * (Honeycomb, Grafana Cloud, New Relic, Datadog) uses to receive its
- * auth token without any backend-specific code paths here.
- */
+// Parse `OTEL_EXPORTER_OTLP_HEADERS`: `key1=value1,key2=value2`
+// (URL-encoded values, whitespace tolerated).
 function parseOtlpHeadersEnv(raw: string): Record<string, string> {
   const out: Record<string, string> = {}
   if (!raw) return out
@@ -115,30 +70,9 @@ function parseOtlpHeadersEnv(raw: string): Record<string, string> {
   return out
 }
 
-/**
- * Normalize an OTLP base URL to the full traces-signal endpoint.
- *
- * The OTel HTTP exporter sends to whatever URL you give it verbatim
- * — no signal-path appending. Meanwhile, the OTel spec says
- * `OTEL_EXPORTER_OTLP_ENDPOINT` is a *base* URL and the SDK should
- * append `/v1/traces`. We reconcile by always ensuring the final
- * URL ends with `/v1/traces` unless the operator already put it
- * there.
- *
- * Rules:
- *   - If the URL already ends with `/v1/traces`, respect it.
- *   - Otherwise, append `/v1/traces` (dropping any trailing slash
- *     on the base first).
- *   - Malformed URLs pass through unchanged; the exporter will
- *     surface the error at first export.
- *
- * Examples:
- *   https://api.honeycomb.io                → https://api.honeycomb.io/v1/traces
- *   https://api.honeycomb.io/v1/traces      → https://api.honeycomb.io/v1/traces
- *   https://otlp-gateway-prod-us-east-3.grafana.net/otlp
- *                                           → …/otlp/v1/traces
- *   http://localhost:4318                   → http://localhost:4318/v1/traces
- */
+// Append `/v1/traces` to the OTLP base URL unless already present.
+// The HTTP exporter doesn't auto-suffix the signal path even though
+// the spec says the env var is a base URL.
 function normalizeOtlpTracesUrl(url: string): string {
   if (!url) return url
   try {
@@ -151,14 +85,9 @@ function normalizeOtlpTracesUrl(url: string): string {
   }
 }
 
-/**
- * Resolve the sampling ratio from env, with sensible fallbacks.
- *
- * Matches the Go side's `samplerFromEnv()` semantics so operators can
- * control both halves of the mothership trace tree from the same
- * variable. Invalid values degrade gracefully to the fallback.
- */
-function resolveSamplingRatio(isLocalEndpoint: boolean): number {
+// Sampling ratio from env (mirrors Go's `samplerFromEnv`); fallback
+// is 100% everywhere. Retention caps cost, not sampling.
+function resolveSamplingRatio(_isLocalEndpoint: boolean): number {
   const raw = process.env.TELEMETRY_SAMPLING_RATIO || process.env.OTEL_TRACES_SAMPLER_ARG || ''
   if (raw) {
     const parsed = Number.parseFloat(raw)
@@ -168,29 +97,12 @@ function resolveSamplingRatio(isLocalEndpoint: boolean): number {
       return parsed
     }
   }
-  // Local dev gets 100% for deterministic manual verification.
-  // Production default is also 100% — the 1-day retention at the
-  // backend caps storage cost, not sampling.
-  return isLocalEndpoint ? 1.0 : 1.0
+  return 1.0
 }
 
-/**
- * MothershipOriginSpanProcessor tags mothership-lifecycle spans with
- * `mothership.origin` and prepends the origin prefix to the span name
- * on start, before any downstream processor (BatchSpanProcessor)
- * reads it.
- *
- * Gated on `isBusinessSpan(name)` so only spans that already match
- * the mothership allowlist get the label. The sampler drops
- * non-mothership roots anyway, but keeping the tagger conditional
- * means that if the sampler is ever relaxed (or a different
- * instrumentation stream is added alongside mothership), unrelated
- * spans won't accidentally inherit the mothership origin.
- *
- * Implemented as its own processor rather than a resource attribute
- * so the backend span/operation list (which keys on span name) is
- * visually split between sim and go even when both share service.name.
- */
+// Tags allowed spans with `mothership.origin` and prepends
+// `sim-mothership:` to the span name so backends can visually split
+// the two halves even when service.name is shared.
 class MothershipOriginSpanProcessor implements SpanProcessor {
   onStart(span: Span): void {
     const name = span.name
@@ -225,11 +137,7 @@ async function initializeOpenTelemetry() {
       telemetryConfig = DEFAULT_TELEMETRY_CONFIG
     }
 
-    // Endpoint resolution: prefer the OTel spec env var, fall back to
-    // our legacy TELEMETRY_ENDPOINT so existing deploys keep working
-    // during rollout. Read process.env directly because
-    // @t3-oss/env-nextjs sometimes returns undefined for server vars
-    // that aren't listed in experimental__runtimeEnv.
+    // Prefer the OTel spec env var, fall back to legacy TELEMETRY_ENDPOINT.
     const resolvedEndpoint =
       process.env.OTEL_EXPORTER_OTLP_ENDPOINT ||
       process.env.TELEMETRY_ENDPOINT ||
@@ -263,14 +171,9 @@ async function initializeOpenTelemetry() {
       '@opentelemetry/sdk-trace-base'
     )
 
-    // Sampler responsibilities:
-    //   1. Drop Next.js framework spans (tagged with next.span_type).
-    //   2. If we're inside a sampled business trace (parent has SAMPLED), let
-    //      the child record so the full trace stays together.
-    //   3. For a business-span ROOT, decide afresh with the ratio sampler —
-    //      ignoring an unsampled Next.js HTTP parent. Delegating to
-    //      ParentBasedSampler here would use its localParentNotSampled
-    //      inner sampler (AlwaysOff by default) and veto every trace.
+    // Drops Next framework spans, inherits SAMPLED from business
+    // parents, and re-samples business roots fresh (don't delegate to
+    // ParentBased — its unsampled-parent path is AlwaysOff by default).
     const createBusinessSpanSampler = (rootRatioSampler: Sampler): Sampler => ({
       shouldSample(
         context: Context,
@@ -311,19 +214,7 @@ async function initializeOpenTelemetry() {
       },
     })
 
-    // Parse OTEL_EXPORTER_OTLP_HEADERS per the OTel spec: comma-
-    // separated `key=value` pairs, values optionally URL-encoded. This
-    // is how managed backends (Honeycomb, Grafana Cloud, New Relic)
-    // receive their API keys without needing a vendor-specific code
-    // path — flip the secret, redeploy, traces land in the new place.
     const otlpHeaders = parseOtlpHeadersEnv(process.env.OTEL_EXPORTER_OTLP_HEADERS || '')
-
-    // The @opentelemetry/exporter-trace-otlp-http exporter treats the
-    // `url` option as the complete POST target and does NOT append the
-    // `/v1/traces` signal path. The Go SDK, by contrast, does append
-    // it when only a host is given. Normalize here so operators can
-    // set the same `OTEL_EXPORTER_OTLP_ENDPOINT=https://api.honeycomb.io`
-    // for both services and have it Just Work.
     const exporterUrl = normalizeOtlpTracesUrl(telemetryConfig.endpoint)
 
     const exporter = new OTLPTraceExporter({
@@ -333,8 +224,7 @@ async function initializeOpenTelemetry() {
       keepAlive: false,
     })
 
-    // Surface export failures in the Sim log instead of letting
-    // BatchSpanProcessor silently drop them.
+    // Surface export failures (BatchSpanProcessor swallows them otherwise).
     const origExport = exporter.export.bind(exporter)
     exporter.export = (spans, resultCallback) => {
       origExport(spans, (result) => {
@@ -358,29 +248,16 @@ async function initializeOpenTelemetry() {
       exportTimeoutMillis: telemetryConfig.batchSettings.exportTimeoutMillis,
     })
 
-    // service.instance.id identifies this specific process within the
-    // shared `mothership` service. Jaeger's clock-skew adjuster groups
-    // spans by (service, instance) — without a unique instance per
-    // origin, Sim and Go spans fall into the same group, Jaeger sees
-    // multi-second cross-machine clock drift within one group, and its
-    // adjuster emits spurious "parent is not in the trace; skipping
-    // clock skew adjustment" warnings on every cross-process child.
-    // Using the short slug (`sim` / `go`) keeps the instance id as
-    // `mothership-sim` / `mothership-go` — already scoped by
-    // `service.name = "mothership"` as the container. The longer
-    // `mothership.origin = "sim-mothership"` value does the
-    // disambiguation at the attribute level.
+    // Unique instance id per origin keeps Jaeger's clock-skew adjuster
+    // from grouping Sim+Go spans together (they'd see multi-second
+    // drift as intra-service and emit spurious warnings).
     const serviceInstanceId = `${telemetryConfig.serviceName}-${SERVICE_INSTANCE_SLUG}`
     const resource = defaultResource().merge(
       resourceFromAttributes({
         [ATTR_SERVICE_NAME]: telemetryConfig.serviceName,
         [ATTR_SERVICE_VERSION]: telemetryConfig.serviceVersion,
-        // Explicit OTel env var wins; fall back to `DEPLOYMENT_ENVIRONMENT`
-        // for alt spellings; finally fall back to `NODE_ENV` so local dev
-        // (which rarely sets the otel vars) still produces a reasonable
-        // label. Matches the Go side's `resourceEnvFromEnv()` so Sim and
-        // Go always tag the same `deployment.environment` value for the
-        // same deploy.
+        // OTEL_ → DEPLOYMENT_ENVIRONMENT → NODE_ENV; matches Go's
+        // `resourceEnvFromEnv()` so both halves tag the same value.
         [ATTR_DEPLOYMENT_ENVIRONMENT]:
           process.env.OTEL_DEPLOYMENT_ENVIRONMENT ||
           process.env.DEPLOYMENT_ENVIRONMENT ||
@@ -395,16 +272,6 @@ async function initializeOpenTelemetry() {
       })
     )
 
-    // Sampling ratio resolution, in priority order:
-    //   1. `TELEMETRY_SAMPLING_RATIO` (our explicit, matches Go side)
-    //   2. `OTEL_TRACES_SAMPLER_ARG`  (OTel spec env var)
-    //   3. 1.0 for local endpoints (so dev traces are deterministic)
-    //   4. 1.0 otherwise (production wants every mothership request —
-    //      retention happens at the backend)
-    //
-    // `1.0` is the right default for mothership: every request is
-    // support-critical and we rely on the backend's retention (1 day
-    // in prod) to cap storage, not upstream sampling.
     const isLocalEndpoint = /localhost|127\.0\.0\.1/i.test(telemetryConfig.endpoint)
     const samplingRatio = resolveSamplingRatio(isLocalEndpoint)
     const rootRatioSampler = new TraceIdRatioBasedSampler(samplingRatio)
@@ -416,9 +283,7 @@ async function initializeOpenTelemetry() {
       origin: MOTHERSHIP_ORIGIN,
     })
 
-    // Order matters: the origin-prefix processor must run BEFORE the batch
-    // processor so the renamed span and the mothership.origin attribute are
-    // captured on export.
+    // Origin-prefix must run before batch so the rename/attr is captured.
     const spanProcessors: SpanProcessor[] = [new MothershipOriginSpanProcessor(), batchProcessor]
 
     const sdk = new NodeSDK({

@@ -1272,21 +1272,13 @@ export function useChat(
   const activeTurnRef = useRef<ActiveTurn | null>(null)
   const pendingUserMsgRef = useRef<PersistedMessage | null>(null)
   const streamIdRef = useRef<string | undefined>(undefined)
-  // W3C traceparent for the currently-streaming chat request. Sim's
-  // chat POST response returns this header built from the root
-  // gen_ai.agent.execute span; we echo it on every side-channel
-  // request (abort/stop/confirm/stream-replay) so they appear as
-  // child spans of the same trace instead of disconnected roots.
-  // Cleared when a new chat starts (overwritten by the next POST).
+  // W3C traceparent from the chat POST response; echoed on
+  // abort/stop/confirm/replay so side-channel calls join the same
+  // trace instead of becoming disconnected roots.
   const streamTraceparentRef = useRef<string | undefined>(undefined)
-  /**
-   * The `request.id` stamped on the active stream's trace events. Used
-   * to forward to the server-side Stop route so the persisted aborted
-   * assistant message keeps its requestId — which the UI needs for the
-   * "Copy request ID" button (the user's handle for bug reports on bad
-   * turns). Updated from the `trace` payload on every parsed stream
-   * event; reset by the caller when a new chat starts.
-   */
+  // The `request.id` from the active stream's trace events. Forwarded
+  // to /chat/stop so the persisted aborted message carries it (keeps
+  // the copy-request-ID button functional after refetch).
   const streamRequestIdRef = useRef<string | undefined>(undefined)
   const locallyTerminalStreamIdRef = useRef<string | undefined>(undefined)
   const lastCursorRef = useRef('0')
@@ -1327,11 +1319,6 @@ export function useChat(
     pendingUserMsgRef.current = null
     streamIdRef.current = undefined
     streamRequestIdRef.current = undefined
-    // Drop the previous stream's W3C traceparent so side-channel
-    // requests fired AFTER a turn ended don't propagate stale trace
-    // context. Without this the abort/confirm/stop handlers could
-    // still parent under the finished turn's span; each new chat POST
-    // overwrites this ref to the fresh turn's traceparent.
     streamTraceparentRef.current = undefined
     setCurrentChatTraceparent(undefined)
     lastCursorRef.current = '0'
@@ -1835,11 +1822,7 @@ export function useChat(
 
         while (true) {
           if (pendingLines.length === 0) {
-            // Once the terminal `complete` event has been processed,
-            // don't read another chunk — we've drained everything
-            // that was locally buffered alongside the terminator.
-            // Any further events would be a server-side bug (emitting
-            // after `complete`); don't hang waiting for them.
+            // Don't read another chunk after `complete` has drained.
             if (sawCompleteEvent) break
             const { done, value } = await reader.read()
             if (done) break
@@ -1880,9 +1863,6 @@ export function useChat(
 
           if (parsed.trace?.requestId && parsed.trace.requestId !== streamRequestId) {
             streamRequestId = parsed.trace.requestId
-            // Mirror into a ref so stopGeneration / persistPartialResponse
-            // can read the latest requestId without being re-created on
-            // every render (they close over the ref, not a stale value).
             streamRequestIdRef.current = streamRequestId
             flush()
           }
@@ -2500,25 +2480,11 @@ export function useChat(
             }
             case MothershipStreamV1EventType.complete: {
               sawCompleteEvent = true
-              // `complete` is the logical end-of-turn marker, NOT a
-              // guillotine on the read loop. The server commonly
-              // flushes a few more events in the SAME TCP chunk as
-              // the terminal `complete` — trailing text fragments,
-              // followup-action blocks, or run metadata — so we must
-              // drain everything that's already sitting in the
-              // `pendingLines` buffer before stopping. Bailing on
-              // first sight used to truncate the last sentence of
-              // the assistant response and drop followups on the
-              // floor, even though the server had persisted them
-              // correctly (trace 677af168, request
-              // 06ff631a-4d72-4862-ac5c-9dbdd0c380c2).
-              //
-              // We still avoid another `reader.read()` — events that
-              // arrive in a SUBSEQUENT chunk after `complete` would
-              // be a server bug; don't wait for them. Draining only
-              // what's already locally buffered strikes the balance:
-              // no lost events from the terminal chunk, no hang on
-              // a misbehaving transport.
+              // `complete` is the end-of-turn marker; drain whatever
+              // else arrived in the same TCP chunk (trailing text,
+              // followups, run metadata) before stopping. Do NOT
+              // await another read — events after `complete` would
+              // be a server bug.
               continue
             }
           }
@@ -2582,11 +2548,6 @@ export function useChat(
         `/api/mothership/chat/stream?streamId=${encodeURIComponent(streamId)}&after=${encodeURIComponent(afterCursor)}&batch=true`,
         {
           signal,
-          // Propagate the original chat trace so batch-replay spans
-          // nest under the same trace as the chat POST. Empty on
-          // page-reload reconnects (stored ref was wiped), in which
-          // case the resume handler starts its own root — unchanged
-          // from pre-linking behavior.
           ...(streamTraceparentRef.current
             ? { headers: { traceparent: streamTraceparentRef.current } }
             : {}),
@@ -2907,13 +2868,10 @@ export function useChat(
       streamId?: string
       content?: string
       blocks?: ContentBlock[]
-      // Caller-supplied snapshot. `stopGeneration` calls
-      // `clearActiveTurn()` BEFORE firing this, which nulls
-      // `streamRequestIdRef`; anyone relying on the ref at POST time
-      // would send `requestId: undefined` and the persisted message
-      // would lose its trace id handle (Copy-request-id button
-      // disappears on refetch — repro: trace de69695b).
+      // `stopGeneration` must snapshot these BEFORE clearActiveTurn()
+      // nulls the refs, or the fetch sees undefined.
       requestId?: string
+      traceparent?: string
     }) => {
       const chatId = overrides?.chatId ?? chatIdRef.current
       const streamId = overrides?.streamId ?? streamIdRef.current
@@ -2921,6 +2879,7 @@ export function useChat(
 
       const content = overrides?.content ?? streamingContentRef.current
       const requestId = overrides?.requestId ?? streamRequestIdRef.current
+      const traceparent = overrides?.traceparent ?? streamTraceparentRef.current
 
       const sourceBlocks = overrides?.blocks ?? streamingBlocksRef.current
       const storedBlocks = sourceBlocks.map((block) => {
@@ -2955,20 +2914,13 @@ export function useChat(
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(streamTraceparentRef.current ? { traceparent: streamTraceparentRef.current } : {}),
+            ...(traceparent ? { traceparent } : {}),
           },
           body: JSON.stringify({
             chatId,
             streamId,
             content,
             ...(storedBlocks.length > 0 && { contentBlocks: storedBlocks }),
-            // Forward the active stream's requestId so the server can
-            // stamp it onto the persisted aborted assistant message —
-            // keeps the "Copy request ID" button working after the
-            // in-memory streaming message gets replaced by the persisted
-            // one on chat history refetch. Pulled from the resolved
-            // `requestId` (override preferred over ref) because the ref
-            // may have been cleared by the time this fetch runs.
             ...(requestId ? { requestId } : {}),
           }),
         })
@@ -3265,16 +3217,8 @@ export function useChat(
           signal: abortController.signal,
         })
 
-        // Capture the server's root trace identity so we can propagate
-        // it on every subsequent side-channel call for this stream.
-        // See `streamTraceparentRef` comment above for full rationale.
-        // Fine to read even on non-ok responses — Sim still sets the
-        // header before validation fails so error traces are linked
-        // too; we just won't use it in that case because we return
-        // early below. Also mirror it into the module-level client-
-        // tool trace-context holder so tool-completion callbacks
-        // fired from non-React code paths (e.g. workflow runner) can
-        // echo it without having to thread a prop through.
+        // Capture for propagation on side-channel calls + non-React
+        // tool-completion callbacks (via trace-context singleton).
         const traceparent = response.headers.get('traceparent')
         if (traceparent) {
           streamTraceparentRef.current = traceparent
@@ -3522,10 +3466,12 @@ export function useChat(
       ...(block.options ? { options: [...block.options] } : {}),
       ...(block.toolCall ? { toolCall: { ...block.toolCall } } : {}),
     }))
-    // Snapshot BEFORE clearActiveTurn() nulls the ref. The
-    // persistPartialResponse fetch runs inside stopBarrier below,
-    // after several awaits — the ref is long gone by then.
+    // Snapshot BEFORE clearActiveTurn() nulls the refs. Both
+    // persistPartialResponse and the abort/stop fetches run inside
+    // stopBarrier below, after several awaits — the refs are long
+    // gone by the time the fetches serialize their headers.
     const stopRequestIdSnapshot = streamRequestIdRef.current
+    const stopTraceparentSnapshot = streamTraceparentRef.current
 
     locallyTerminalStreamIdRef.current = sid
     streamGenRef.current++
@@ -3587,8 +3533,8 @@ export function useChat(
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  ...(streamTraceparentRef.current
-                    ? { traceparent: streamTraceparentRef.current }
+                  ...(stopTraceparentSnapshot
+                    ? { traceparent: stopTraceparentSnapshot }
                     : {}),
                 },
                 body: JSON.stringify({
@@ -3614,6 +3560,7 @@ export function useChat(
             content: stopContentSnapshot,
             blocks: stopBlocksSnapshot,
             requestId: stopRequestIdSnapshot,
+            traceparent: stopTraceparentSnapshot,
           })
         }
 
@@ -3627,12 +3574,7 @@ export function useChat(
     pendingStopPromiseRef.current = stopBarrier
     try {
       await stopBarrier
-      // Notify downstream (onStreamEnd) and dispatch any queued
-      // follow-up message. Without this, a user who queued a message
-      // during streaming and then hit Stop would see the queued
-      // message stay queued until they manually re-sent — because
-      // `stopGeneration` previously short-circuited the whole turn-
-      // end pipeline.
+      // Dispatch queued follow-ups after Stop resolves.
       notifyTurnEnded({ error: false })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to stop the previous response')

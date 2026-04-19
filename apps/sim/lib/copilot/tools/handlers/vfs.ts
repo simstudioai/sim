@@ -169,7 +169,7 @@ export async function executeVfsRead(
           logger.warn('Upload read result too large', {
             path,
             hasAttachment: isImage,
-            contentPreview: uploadResult.content.slice(0, 120),
+            contentLength: uploadResult.content.length,
             serializedSize: serializedResultSize(uploadResult),
           })
           return {
@@ -211,7 +211,7 @@ export async function executeVfsRead(
         logger.warn('File read result too large', {
           path,
           hasAttachment: isImage,
-          contentPreview: fileContent.content.slice(0, 120),
+          contentLength: fileContent.content.length,
           serializedSize: serializedResultSize(fileContent),
         })
         return {

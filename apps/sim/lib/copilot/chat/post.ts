@@ -19,6 +19,10 @@ import {
 import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
+import {
+  CopilotChatPersistOutcome,
+  CopilotTransport,
+} from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { createBadRequestResponse, createUnauthorizedResponse } from '@/lib/copilot/request/http'
@@ -282,14 +286,14 @@ async function persistUserMessage(params: {
   return withCopilotSpan(
     TraceSpan.CopilotChatPersistUserMessage,
     {
-      'db.system': 'postgresql',
-      'db.sql.table': 'copilot_chats',
-      'chat.id': chatId,
-      'chat.user_message_id': userMessageId,
-      'chat.message_bytes': message.length,
-      'chat.file_attachment_count': fileAttachments?.length ?? 0,
-      'chat.context_count': contexts?.length ?? 0,
-      ...(workspaceId ? { 'workspace.id': workspaceId } : {}),
+      [TraceAttr.DbSystem]: 'postgresql',
+      [TraceAttr.DbSqlTable]: 'copilot_chats',
+      [TraceAttr.ChatId]: chatId,
+      [TraceAttr.ChatUserMessageId]: userMessageId,
+      [TraceAttr.ChatMessageBytes]: message.length,
+      [TraceAttr.ChatFileAttachmentCount]: fileAttachments?.length ?? 0,
+      [TraceAttr.ChatContextCount]: contexts?.length ?? 0,
+      ...(workspaceId ? { [TraceAttr.WorkspaceId]: workspaceId } : {}),
     },
     async (span) => {
       const userMsg = buildPersistedUserMessage({
@@ -311,7 +315,9 @@ async function persistUserMessage(params: {
 
       const messagesAfter = Array.isArray(updated?.messages) ? updated.messages : undefined
       span.setAttributes({
-        [TraceAttr.ChatPersistOutcome]: updated ? 'appended' : 'chat_not_found',
+        [TraceAttr.ChatPersistOutcome]: updated
+          ? CopilotChatPersistOutcome.Appended
+          : CopilotChatPersistOutcome.ChatNotFound,
         [TraceAttr.ChatMessagesAfter]: messagesAfter?.length ?? 0,
       })
 
@@ -401,21 +407,10 @@ function buildOnComplete(params: {
 
     if (!chatId) return
 
-    // One-writer rule on cancel paths: `/api/copilot/chat/stop` is the
-    // single DB writer when the user hit Stop (or the client
-    // disconnected). It writes the partial assistant message AND
-    // clears `conversationId` in the same UPDATE, filtered on
-    // `conversationId = streamId`. If `finalizeAssistantTurn` races
-    // ahead here and clears `conversationId` first, stop's UPDATE
-    // matches zero rows and the partial content silently vanishes on
-    // chat refetch (repro: trace c18de3e2 → `copilot.stop.outcome =
-    // 'no_matching_row'`).
-    //
-    // So: on cancel, skip finalize here and let /chat/stop run the
-    // terminal write. On real backend errors (`!success` without
-    // `cancelled`) we DO want to finalize — it clears the stream
-    // marker so the chat isn't stuck with a non-null `conversationId`
-    // and blocking future messages.
+    // On cancel, /chat/stop is the sole DB writer — it persists
+    // partial content AND clears conversationId in one UPDATE. If we
+    // finalize here first the filter misses and content vanishes.
+    // Real errors still finalize so the stream marker clears.
     if (result.cancelled) return
 
     try {
@@ -616,15 +611,9 @@ export async function handleUnifiedChatPost(req: NextRequest) {
   // Errors thrown from the handler before the stream starts are
   // finished here in the catch below.
   let otelRoot: ReturnType<typeof startCopilotOtelRoot> | undefined
-  // `requestId` is the canonical logical ID for this HTTP request —
-  // same value that flows into `request.id`/`sim.request_id` span
-  // attributes, the persisted `msg.requestId`, and eventually the
-  // Grafana trace-ID search box. Derived from otelRoot.requestId (= the
-  // OTel trace ID of the root span) as soon as that's created. Stays
-  // empty only in the narrow window before otelRoot is set — errors in
-  // that window can't be correlated to any trace anyway, and their log
-  // line carries the error message + stack which is the actually
-  // useful info.
+  // Canonical logical ID; assigned from otelRoot.requestId (the OTel
+  // trace ID) as soon as startCopilotOtelRoot runs. Empty only in the
+  // narrow pre-otelRoot window where errors don't correlate anyway.
   let requestId = ''
   const executionId = crypto.randomUUID()
   const runId = crypto.randomUUID()
@@ -641,44 +630,28 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     userMessageId = body.userMessageId || crypto.randomUUID()
 
     otelRoot = startCopilotOtelRoot({
-      // No explicit requestId — startCopilotOtelRoot derives it from
-      // the span's OTel trace ID so `msg.requestId` on the UI side
-      // ends up being the same value Grafana uses. See the scope
-      // doc-comment and the call site for why this is the desired
-      // direction of the unification.
       streamId: userMessageId,
       executionId,
       runId,
-      transport: 'stream',
-      // Truncated prompt for the dashboard "user message" column.
-      // Unconditional (no PII env gate) — a preview snippet is
-      // cheap and widely useful; full content is gated separately
-      // by setInputMessages above.
+      transport: CopilotTransport.Stream,
       userMessagePreview: body.message,
     })
-    // Promote the OTel-derived ID to the handler-level `requestId` so
-    // every downstream consumer (logs, orchestrator, onComplete,
-    // onError, persisted assistant message) uses the same value.
     if (otelRoot.requestId) {
       requestId = otelRoot.requestId
     }
-    // Emit `gen_ai.input.messages` on the root agent span for OTel
-    // GenAI spec compliance (Honeycomb's Gen AI view keys off this).
-    // Gated on OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
-    // internally — safe to always call.
+    // `setInputMessages` is internally gated on
+    // OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT; safe to call.
     otelRoot.setInputMessages({ userMessage: body.message })
 
-    // Wrap the rest of the handler so every nested withCopilotSpan /
-    // withDbSpan (persistUserMessage, createRunSegment, resolveBranch DB
-    // hits) attaches to the root via AsyncLocalStorage. Before this
-    // wrapper those spans became orphan roots and each showed up as a
-    // separate trace in Jaeger.
-    return await otelContextApi.with(otelRoot.context, async () => {
+    // Wrap the rest of the handler so nested spans attach to the
+    // root via AsyncLocalStorage (otherwise they orphan into new traces).
+    const activeOtelRoot = otelRoot
+    return await otelContextApi.with(activeOtelRoot.context, async () => {
       const branch = await withCopilotSpan(
         TraceSpan.CopilotChatResolveBranch,
         {
-          'branch.workflow_id': body.workflowId ?? '',
-          'branch.workspace_id': body.workspaceId ?? '',
+          [TraceAttr.WorkflowId]: body.workflowId ?? '',
+          [TraceAttr.WorkspaceId]: body.workspaceId ?? '',
         },
         () =>
           resolveBranch({
@@ -690,7 +663,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             mode: body.mode,
             provider: body.provider,
           }),
-        otelRoot!.context
+        activeOtelRoot.context
       )
       if (branch instanceof NextResponse) {
         return branch
@@ -705,8 +678,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         const chatResult = await withCopilotSpan(
           TraceSpan.CopilotChatResolveOrCreateChat,
           {
-            'chat.preexisting': !!body.chatId,
-            'chat.create_new': !!body.createNewChat,
+            [TraceAttr.ChatPreexisting]: !!body.chatId,
+            [TraceAttr.CopilotChatIsNew]: !!body.createNewChat,
           },
           () =>
             resolveOrCreateChat({
@@ -717,7 +690,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               model: branch.titleModel,
               type: branch.kind === 'workflow' ? 'copilot' : 'mothership',
             }),
-          otelRoot!.context
+          activeOtelRoot.context
         )
         currentChat = chatResult.chat
         actualChatId = chatResult.chatId || body.chatId
@@ -764,7 +737,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       // wait are all known. This turns dashboard slicing by
       // `copilot.surface` / `copilot.mode` / `copilot.interrupted_prior_stream`
       // into a simple TraceQL filter.
-      otelRoot!.setRequestShape({
+      activeOtelRoot.setRequestShape({
         branchKind: branch.kind,
         mode: body.mode,
         model: body.model,
@@ -797,16 +770,16 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         branch.kind === 'workspace'
           ? withCopilotSpan(
               TraceSpan.CopilotChatBuildWorkspaceContext,
-              { 'workspace.id': branch.workspaceId },
+              { [TraceAttr.WorkspaceId]: branch.workspaceId },
               () => generateWorkspaceContext(branch.workspaceId, authenticatedUserId),
-              otelRoot!.context
+              activeOtelRoot.context
             )
           : Promise.resolve(undefined)
       const agentContextsPromise = withCopilotSpan(
         TraceSpan.CopilotChatResolveAgentContexts,
         {
-          'contexts.count': normalizedContexts.length,
-          'attachments.count': body.resourceAttachments?.length ?? 0,
+          [TraceAttr.CopilotContextsCount]: normalizedContexts.length,
+          [TraceAttr.CopilotResourceAttachmentsCount]: body.resourceAttachments?.length ?? 0,
         },
         () =>
           resolveAgentContexts({
@@ -818,7 +791,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             chatId: actualChatId,
             requestId,
           }),
-        otelRoot!.context
+        activeOtelRoot.context
       )
       const persistedMessagesPromise = persistUserMessage({
         chatId: actualChatId,
@@ -828,11 +801,11 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         contexts: normalizedContexts,
         workspaceId,
         notifyWorkspaceStatus: branch.notifyWorkspaceStatus,
-        parentOtelContext: otelRoot!.context,
+        parentOtelContext: activeOtelRoot.context,
       })
       const executionContextPromise = withCopilotSpan(
         TraceSpan.CopilotChatBuildExecutionContext,
-        { 'branch.kind': branch.kind },
+        { [TraceAttr.CopilotBranchKind]: branch.kind },
         () =>
           branch.buildExecutionContext({
             userId: authenticatedUserId,
@@ -840,7 +813,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             userTimezone: body.userTimezone,
             messageId: userMessageId,
           }),
-        otelRoot!.context
+        activeOtelRoot.context
       )
 
       const [agentContexts, userPermission, workspaceContext, persistedMessages, executionContext] =
@@ -867,9 +840,9 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       const requestPayload = await withCopilotSpan(
         TraceSpan.CopilotChatBuildPayload,
         {
-          'branch.kind': branch.kind,
-          'attachments.count': body.fileAttachments?.length ?? 0,
-          'contexts.count': normalizedContexts.length,
+          [TraceAttr.CopilotBranchKind]: branch.kind,
+          [TraceAttr.CopilotFileAttachmentsCount]: body.fileAttachments?.length ?? 0,
+          [TraceAttr.CopilotContextsCount]: normalizedContexts.length,
         },
         () =>
           branch.kind === 'workflow'
@@ -902,14 +875,14 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 userTimezone: body.userTimezone,
                 workspaceContext,
               }),
-        otelRoot!.context
+        activeOtelRoot.context
       )
 
       if (actualChatId) {
-        otelRoot!.span.setAttribute(TraceAttr.ChatId, actualChatId)
+        activeOtelRoot.span.setAttribute(TraceAttr.ChatId, actualChatId)
       }
       if (workspaceId) {
-        otelRoot!.span.setAttribute(TraceAttr.WorkspaceId, workspaceId)
+        activeOtelRoot.span.setAttribute(TraceAttr.WorkspaceId, workspaceId)
       }
 
       const stream = createSSEStream({
@@ -926,7 +899,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         ...(branch.titleProvider ? { titleProvider: branch.titleProvider } : {}),
         requestId,
         workspaceId,
-        otelRoot: otelRoot!,
+        otelRoot: activeOtelRoot,
         orchestrateOptions: {
           userId: authenticatedUserId,
           ...(branch.kind === 'workflow' ? { workflowId: branch.workflowId } : {}),
@@ -962,7 +935,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       // all side-channel work on this request appear as child spans
       // of this same trace in Tempo instead of disconnected roots.
       // W3C traceparent format: `00-<trace-id>-<parent-id>-<flags>`.
-      const rootCtx = otelRoot!.span.spanContext()
+      const rootCtx = activeOtelRoot.span.spanContext()
       const rootTraceparent = `00-${rootCtx.traceId}-${rootCtx.spanId}-${
         (rootCtx.traceFlags & 0x1) === 0x1 ? '01' : '00'
       }`

@@ -41,8 +41,8 @@ export async function POST(req: NextRequest) {
     req.headers,
     TraceSpan.CopilotBillingUpdateCost,
     {
-      'http.method': 'POST',
-      'http.route': '/api/billing/update-cost',
+      [TraceAttr.HttpMethod]: 'POST',
+      [TraceAttr.HttpRoute]: '/api/billing/update-cost',
     },
     async (span) => updateCostInner(req, span)
   )
@@ -95,7 +95,6 @@ async function updateCostInner(
     if (!validation.success) {
       logger.warn(`[${requestId}] Invalid request body`, {
         errors: validation.error.issues,
-        body,
       })
       span.setAttribute(TraceAttr.BillingOutcome, BillingRouteOutcome.InvalidBody)
       span.setAttribute(TraceAttr.HttpStatusCode, 400)

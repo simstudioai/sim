@@ -9,27 +9,17 @@ import {
   type RequestTraceV1Outcome,
   RequestTraceV1Outcome as RequestTraceV1OutcomeConst,
 } from '@/lib/copilot/generated/request-trace-v1'
+import { CopilotFinalizeOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import type { StreamWriter } from '@/lib/copilot/request/session'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
 
 const logger = createLogger('CopilotStreamFinalize')
-// Lazy tracer resolution: see comment in lib/copilot/request/otel.ts.
 const getTracer = () => trace.getTracer('sim-copilot-finalize', '1.0.0')
 
-/**
- * Single finalization path for stream results.
- *
- * `outcome` is the classifier's resolved verdict from the caller — it
- * encodes "was this cancelled, errored, or completed" WITHOUT relying
- * on the raw `abortController.signal.aborted` boolean. That matters
- * because a client can disconnect mid-stream without the abort
- * controller ever firing (the SSE `cancel()` callback only sets
- * `publisher.clientDisconnected`); the lifecycle classifies THAT as
- * `cancelled` too, but a prior API passed `aborted: false` into this
- * function, sending us down `handleError` and persisting an `error`
- * terminal state + run status. Now the outcome is the source of truth.
- */
+// Single finalization path. `outcome` is the caller's resolved verdict
+// so we don't have to re-derive cancel vs error from raw signals.
 export async function finalizeStream(
   result: OrchestratorResult,
   publisher: StreamWriter,
@@ -39,15 +29,15 @@ export async function finalizeStream(
 ): Promise<void> {
   const spanOutcome =
     outcome === RequestTraceV1OutcomeConst.cancelled
-      ? 'aborted'
+      ? CopilotFinalizeOutcome.Aborted
       : outcome === RequestTraceV1OutcomeConst.success
-        ? 'success'
-        : 'error'
-  const span = getTracer().startSpan('copilot.finalize_stream', {
+        ? CopilotFinalizeOutcome.Success
+        : CopilotFinalizeOutcome.Error
+  const span = getTracer().startSpan(TraceSpan.CopilotFinalizeStream, {
     attributes: {
       [TraceAttr.CopilotFinalizeOutcome]: spanOutcome,
-      'copilot.run.id': runId,
-      'copilot.request.id': requestId,
+      [TraceAttr.RunId]: runId,
+      [TraceAttr.RequestId]: requestId,
       [TraceAttr.CopilotResultToolCalls]: result.toolCalls?.length ?? 0,
       [TraceAttr.CopilotResultContentBlocks]: result.contentBlocks?.length ?? 0,
       [TraceAttr.CopilotResultContentLength]: result.content?.length ?? 0,
@@ -66,6 +56,11 @@ export async function finalizeStream(
       await handleError(result, publisher, runId, requestId)
     } else {
       await handleSuccess(publisher, runId, requestId)
+    }
+    // Successful + cancelled paths fall through as status-unset → set
+    // OK so dashboards don't show "incomplete" for normal terminals.
+    if (outcome !== RequestTraceV1OutcomeConst.error) {
+      span.setStatus({ code: SpanStatusCode.OK })
     }
   } catch (error) {
     span.recordException(error instanceof Error ? error : new Error(String(error)))

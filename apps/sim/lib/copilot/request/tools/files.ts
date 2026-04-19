@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { FunctionExecute, UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
 import { CopilotOutputFileOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
@@ -156,8 +157,8 @@ export async function maybeWriteOutputToFile(
   return withCopilotSpan(
     TraceSpan.CopilotToolsWriteOutputFile,
     {
-      'tool.name': toolName,
-      'workspace.id': context.workspaceId,
+      [TraceAttr.ToolName]: toolName,
+      [TraceAttr.WorkspaceId]: context.workspaceId,
     },
     async (span) => {
       try {
@@ -216,8 +217,8 @@ export async function maybeWriteOutputToFile(
           error: message,
         })
         span.setAttribute(TraceAttr.CopilotOutputFileOutcome, CopilotOutputFileOutcome.Failed)
-        span.addEvent('copilot.output_file.error', {
-          'error.message': message.slice(0, 500),
+        span.addEvent(TraceEvent.CopilotOutputFileError, {
+          [TraceAttr.ErrorMessage]: message.slice(0, 500),
         })
         return {
           success: false,

@@ -38,7 +38,7 @@ export function createRequestId(): string {
   return generateId()
 }
 
-export function createShortRequestId(): string {
+function createShortRequestId(): string {
   return generateRequestId()
 }
 

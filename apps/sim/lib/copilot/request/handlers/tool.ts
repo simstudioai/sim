@@ -373,10 +373,10 @@ async function dispatchToolExecution(
       const pendingPromise = withCopilotSpan(
         TraceSpan.CopilotToolWaitForClientResult,
         {
-          'tool.name': toolName,
-          'tool.call_id': toolCallId,
-          'tool.timeout_ms': options.timeout || STREAM_TIMEOUT_MS,
-          ...(context.runId ? { 'run.id': context.runId } : {}),
+          [TraceAttr.ToolName]: toolName,
+          [TraceAttr.ToolCallId]: toolCallId,
+          [TraceAttr.ToolTimeoutMs]: options.timeout || STREAM_TIMEOUT_MS,
+          ...(context.runId ? { [TraceAttr.RunId]: context.runId } : {}),
         },
         async (span) => {
           await upsertAsyncToolCall({

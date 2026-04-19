@@ -1,4 +1,4 @@
-import { SpanStatusCode, trace } from '@opentelemetry/api'
+import { trace } from '@opentelemetry/api'
 import { db } from '@sim/db'
 import {
   type CopilotAsyncToolStatus,
@@ -10,6 +10,8 @@ import {
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
+import { markSpanForError } from '@/lib/copilot/request/otel'
 import {
   ASYNC_TOOL_STATUS,
   type AsyncCompletionData,
@@ -23,11 +25,9 @@ const logger = createLogger('CopilotAsyncRunsRepo')
 // can evaluate modules before instrumentation-node.ts finishes).
 const getAsyncRunsTracer = () => trace.getTracer('sim-copilot-async-runs', '1.0.0')
 
-/**
- * withDbSpan wraps an async DB operation in a client-kind OTel span with
- * canonical `db.*` attributes so every async-runs call is visible in traces
- * alongside the owning request.
- */
+// Wrap an async DB op in a client-kind span with canonical `db.*` attrs.
+// Cancellation is routed through `markSpanForError` so aborts record the
+// exception event but don't paint spans red.
 async function withDbSpan<T>(
   name: string,
   op: string,
@@ -44,30 +44,13 @@ async function withDbSpan<T>(
     },
   })
   try {
-    const result = await fn()
-    return result
+    return await fn()
   } catch (error) {
-    // AbortError / cancellation is a control-flow outcome, not a DB
-    // failure. Record the exception event but skip `codes.ERROR` so
-    // the trace doesn't show red spans for every aborted request
-    // that happened to have an in-flight async-runs query.
-    span.recordException(error instanceof Error ? error : new Error(String(error)))
-    if (!isAbortError(error)) {
-      span.setStatus({
-        code: SpanStatusCode.ERROR,
-        message: error instanceof Error ? error.message : String(error),
-      })
-    }
+    markSpanForError(span, error)
     throw error
   } finally {
     span.end()
   }
-}
-
-function isAbortError(err: unknown): boolean {
-  if (err == null || typeof err !== 'object') return false
-  const e = err as { name?: unknown; code?: unknown }
-  return e.name === 'AbortError' || e.code === 'ABORT_ERR'
 }
 
 export interface CreateRunSegmentInput {
@@ -88,19 +71,19 @@ export interface CreateRunSegmentInput {
 
 export async function createRunSegment(input: CreateRunSegmentInput) {
   return withDbSpan(
-    'copilot.async_runs.create_run_segment',
+    TraceSpan.CopilotAsyncRunsCreateRunSegment,
     'INSERT',
     'copilot_runs',
     {
-      'copilot.execution_id': input.executionId,
-      'copilot.chat_id': input.chatId,
-      'copilot.stream_id': input.streamId,
-      'copilot.user_id': input.userId,
-      'copilot.run.parent_id': input.parentRunId ?? undefined,
-      'copilot.run.agent': input.agent ?? undefined,
-      'copilot.run.model': input.model ?? undefined,
-      'copilot.run.provider': input.provider ?? undefined,
-      'copilot.run.status': input.status ?? 'active',
+      [TraceAttr.CopilotExecutionId]: input.executionId,
+      [TraceAttr.ChatId]: input.chatId,
+      [TraceAttr.StreamId]: input.streamId,
+      [TraceAttr.UserId]: input.userId,
+      [TraceAttr.CopilotRunParentId]: input.parentRunId ?? undefined,
+      [TraceAttr.CopilotRunAgent]: input.agent ?? undefined,
+      [TraceAttr.CopilotRunModel]: input.model ?? undefined,
+      [TraceAttr.CopilotRunProvider]: input.provider ?? undefined,
+      [TraceAttr.CopilotRunStatus]: input.status ?? 'active',
     },
     async () => {
       const [run] = await db
@@ -136,14 +119,14 @@ export async function updateRunStatus(
   } = {}
 ) {
   return withDbSpan(
-    'copilot.async_runs.update_run_status',
+    TraceSpan.CopilotAsyncRunsUpdateRunStatus,
     'UPDATE',
     'copilot_runs',
     {
-      'copilot.run.id': runId,
-      'copilot.run.status': status,
-      'copilot.run.has_error': !!updates.error,
-      'copilot.run.has_completed_at': !!updates.completedAt,
+      [TraceAttr.RunId]: runId,
+      [TraceAttr.CopilotRunStatus]: status,
+      [TraceAttr.CopilotRunHasError]: !!updates.error,
+      [TraceAttr.CopilotRunHasCompletedAt]: !!updates.completedAt,
     },
     async () => {
       const [run] = await db
@@ -164,10 +147,10 @@ export async function updateRunStatus(
 
 export async function getLatestRunForExecution(executionId: string) {
   return withDbSpan(
-    'copilot.async_runs.get_latest_for_execution',
+    TraceSpan.CopilotAsyncRunsGetLatestForExecution,
     'SELECT',
     'copilot_runs',
-    { 'copilot.execution_id': executionId },
+    { [TraceAttr.CopilotExecutionId]: executionId },
     async () => {
       const [run] = await db
         .select()
@@ -180,20 +163,8 @@ export async function getLatestRunForExecution(executionId: string) {
   )
 }
 
-/**
- * Deliberately UN-instrumented with OTel spans. Called from a 250ms
- * poll loop in `app/api/copilot/chat/stream/route.ts` during every
- * resume SSE connection — at 4 Hz for the whole lifetime of the
- * connection, emitting a span per poll blew up long traces with
- * hundreds of noop DB spans (observed ~240 spans/minute during
- * reproduction).
- *
- * If we ever need visibility into this query's latency, add a Prom
- * histogram (aggregates cleanly) rather than per-call spans at 4 Hz.
- * The raw query is also fired once-off from several non-polling call
- * sites; those get accurate DB latency from the request-level
- * postgres instrumentation lower down the stack.
- */
+// Un-instrumented: called from a 4 Hz resume poll; per-call spans
+// swamped traces. Use Prom histograms if latency visibility is needed.
 export async function getLatestRunForStream(streamId: string, userId?: string) {
   const conditions = userId
     ? and(eq(copilotRuns.streamId, streamId), eq(copilotRuns.userId, userId))
@@ -209,10 +180,10 @@ export async function getLatestRunForStream(streamId: string, userId?: string) {
 
 export async function getRunSegment(runId: string) {
   return withDbSpan(
-    'copilot.async_runs.get_run_segment',
+    TraceSpan.CopilotAsyncRunsGetRunSegment,
     'SELECT',
     'copilot_runs',
-    { 'copilot.run.id': runId },
+    { [TraceAttr.RunId]: runId },
     async () => {
       const [run] = await db.select().from(copilotRuns).where(eq(copilotRuns.id, runId)).limit(1)
       return run ?? null
@@ -228,12 +199,12 @@ export async function createRunCheckpoint(input: {
   providerRequest: Record<string, unknown>
 }) {
   return withDbSpan(
-    'copilot.async_runs.create_run_checkpoint',
+    TraceSpan.CopilotAsyncRunsCreateRunCheckpoint,
     'INSERT',
     'copilot_run_checkpoints',
     {
-      'copilot.run.id': input.runId,
-      'copilot.checkpoint.pending_tool_call_id': input.pendingToolCallId,
+      [TraceAttr.RunId]: input.runId,
+      [TraceAttr.CopilotCheckpointPendingToolCallId]: input.pendingToolCallId,
     },
     async () => {
       const [checkpoint] = await db
@@ -261,14 +232,14 @@ export async function upsertAsyncToolCall(input: {
   status?: CopilotAsyncToolStatus
 }) {
   return withDbSpan(
-    'copilot.async_runs.upsert_async_tool_call',
+    TraceSpan.CopilotAsyncRunsUpsertAsyncToolCall,
     'UPSERT',
     'copilot_async_tool_calls',
     {
-      'tool.call_id': input.toolCallId,
-      'tool.name': input.toolName,
-      'copilot.async_tool.status': input.status ?? 'pending',
-      'copilot.run.id': input.runId ?? undefined,
+      [TraceAttr.ToolCallId]: input.toolCallId,
+      [TraceAttr.ToolName]: input.toolName,
+      [TraceAttr.CopilotAsyncToolStatus]: input.status ?? 'pending',
+      [TraceAttr.RunId]: input.runId ?? undefined,
     },
     async () => {
       const existing = await getAsyncToolCall(input.toolCallId)
@@ -328,10 +299,10 @@ export async function upsertAsyncToolCall(input: {
 
 export async function getAsyncToolCall(toolCallId: string) {
   return withDbSpan(
-    'copilot.async_runs.get_async_tool_call',
+    TraceSpan.CopilotAsyncRunsGetAsyncToolCall,
     'SELECT',
     'copilot_async_tool_calls',
-    { 'tool.call_id': toolCallId },
+    { [TraceAttr.ToolCallId]: toolCallId },
     async () => {
       const [row] = await db
         .select()
@@ -355,14 +326,14 @@ export async function markAsyncToolStatus(
   } = {}
 ) {
   return withDbSpan(
-    'copilot.async_runs.mark_async_tool_status',
+    TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
     'UPDATE',
     'copilot_async_tool_calls',
     {
-      'tool.call_id': toolCallId,
-      'copilot.async_tool.status': status,
-      'copilot.async_tool.has_error': !!updates.error,
-      'copilot.async_tool.claimed_by': updates.claimedBy ?? undefined,
+      [TraceAttr.ToolCallId]: toolCallId,
+      [TraceAttr.CopilotAsyncToolStatus]: status,
+      [TraceAttr.CopilotAsyncToolHasError]: !!updates.error,
+      [TraceAttr.CopilotAsyncToolClaimedBy]: updates.claimedBy ?? undefined,
     },
     async () => {
       const claimedAt =
@@ -433,10 +404,10 @@ export async function markAsyncToolDelivered(toolCallId: string) {
 
 export async function listAsyncToolCallsForRun(runId: string) {
   return withDbSpan(
-    'copilot.async_runs.list_for_run',
+    TraceSpan.CopilotAsyncRunsListForRun,
     'SELECT',
     'copilot_async_tool_calls',
-    { 'copilot.run.id': runId },
+    { [TraceAttr.RunId]: runId },
     async () =>
       db
         .select()
@@ -449,10 +420,10 @@ export async function listAsyncToolCallsForRun(runId: string) {
 export async function getAsyncToolCalls(toolCallIds: string[]) {
   if (toolCallIds.length === 0) return []
   return withDbSpan(
-    'copilot.async_runs.get_many',
+    TraceSpan.CopilotAsyncRunsGetMany,
     'SELECT',
     'copilot_async_tool_calls',
-    { 'copilot.async_tool.ids_count': toolCallIds.length },
+    { [TraceAttr.CopilotAsyncToolIdsCount]: toolCallIds.length },
     async () =>
       db
         .select()
@@ -463,12 +434,12 @@ export async function getAsyncToolCalls(toolCallIds: string[]) {
 
 export async function claimCompletedAsyncToolCall(toolCallId: string, workerId: string) {
   return withDbSpan(
-    'copilot.async_runs.claim_completed',
+    TraceSpan.CopilotAsyncRunsClaimCompleted,
     'UPDATE',
     'copilot_async_tool_calls',
     {
-      'tool.call_id': toolCallId,
-      'copilot.async_tool.worker_id': workerId,
+      [TraceAttr.ToolCallId]: toolCallId,
+      [TraceAttr.CopilotAsyncToolWorkerId]: workerId,
     },
     async () => {
       const [row] = await db
@@ -493,12 +464,12 @@ export async function claimCompletedAsyncToolCall(toolCallId: string, workerId: 
 
 export async function releaseCompletedAsyncToolClaim(toolCallId: string, workerId: string) {
   return withDbSpan(
-    'copilot.async_runs.release_claim',
+    TraceSpan.CopilotAsyncRunsReleaseClaim,
     'UPDATE',
     'copilot_async_tool_calls',
     {
-      'tool.call_id': toolCallId,
-      'copilot.async_tool.worker_id': workerId,
+      [TraceAttr.ToolCallId]: toolCallId,
+      [TraceAttr.CopilotAsyncToolWorkerId]: workerId,
     },
     async () => {
       const [row] = await db

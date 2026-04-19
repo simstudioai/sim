@@ -134,7 +134,7 @@ export async function reportTrace(
     spanName: 'sim → go /api/traces',
     operation: 'report_trace',
     attributes: {
-      'copilot.request.id': trace.simRequestId ?? '',
+      [TraceAttr.RequestId]: trace.simRequestId ?? '',
       [TraceAttr.HttpRequestContentLength]: body.length,
       [TraceAttr.CopilotTraceSpanCount]: trace.spans?.length ?? 0,
     },

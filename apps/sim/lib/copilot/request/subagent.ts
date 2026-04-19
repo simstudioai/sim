@@ -58,11 +58,11 @@ export async function orchestrateSubagentStream(
   return withCopilotSpan(
     TraceSpan.CopilotSubagentExecute,
     {
-      'subagent.id': agentId,
-      'user.id': options.userId,
-      ...(options.simRequestId ? { 'sim.request_id': options.simRequestId } : {}),
-      ...(options.workflowId ? { 'workflow.id': options.workflowId } : {}),
-      ...(options.workspaceId ? { 'workspace.id': options.workspaceId } : {}),
+      [TraceAttr.SubagentId]: agentId,
+      [TraceAttr.UserId]: options.userId,
+      ...(options.simRequestId ? { [TraceAttr.SimRequestId]: options.simRequestId } : {}),
+      ...(options.workflowId ? { [TraceAttr.WorkflowId]: options.workflowId } : {}),
+      ...(options.workspaceId ? { [TraceAttr.WorkspaceId]: options.workspaceId } : {}),
     },
     async (otelSpan) => {
       const result = await orchestrateSubagentStreamInner(agentId, requestPayload, options)
@@ -137,9 +137,6 @@ async function orchestrateSubagentStreamInner(
           'Content-Type': 'application/json',
           ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
           'X-Client-Version': SIM_AGENT_VERSION,
-          // X-Sim-Request-ID removed — Go derives the logical request
-          // ID from the propagated W3C `traceparent` now. See
-          // lifecycle/run.ts for the full rationale.
         },
         body: JSON.stringify({
           ...requestPayload,

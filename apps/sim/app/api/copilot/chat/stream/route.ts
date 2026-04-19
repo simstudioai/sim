@@ -1,4 +1,4 @@
-import { context as otelContext, SpanStatusCode, trace } from '@opentelemetry/api'
+import { context as otelContext, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
@@ -11,9 +11,10 @@ import {
   CopilotTransport,
 } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { contextFromRequestHeaders } from '@/lib/copilot/request/go/propagation'
 import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
-import { getCopilotTracer } from '@/lib/copilot/request/otel'
+import { getCopilotTracer, markSpanForError } from '@/lib/copilot/request/otel'
 import {
   checkForReplayGap,
   createEvent,
@@ -141,7 +142,7 @@ export async function GET(request: NextRequest) {
   // linking behavior; no regression.
   const incomingContext = contextFromRequestHeaders(request.headers)
   const rootSpan = getCopilotTracer().startSpan(
-    'copilot.resume.request',
+    TraceSpan.CopilotResumeRequest,
     {
       attributes: {
         [TraceAttr.CopilotTransport]: batchMode ? CopilotTransport.Batch : CopilotTransport.Stream,
@@ -267,6 +268,16 @@ async function handleResumeRequestBody({
     let controllerClosed = false
     let sawTerminalEvent = false
     let currentRequestId = extractRunRequestId(run)
+    // Stamp the logical request id + chat id on the resume root as soon
+    // as we resolve them from the run row, so TraceQL joins work on
+    // resume legs the same way they do on the original POST.
+    if (currentRequestId) {
+      rootSpan.setAttribute(TraceAttr.RequestId, currentRequestId)
+      rootSpan.setAttribute(TraceAttr.SimRequestId, currentRequestId)
+    }
+    if (run?.chatId) {
+      rootSpan.setAttribute(TraceAttr.ChatId, run.chatId)
+    }
 
     const closeController = () => {
       if (controllerClosed) return
@@ -298,7 +309,7 @@ async function handleResumeRequestBody({
       const events = await readEvents(streamId, cursor)
       if (events.length > 0) {
         totalEventsFlushed += events.length
-        logger.info('[Resume] Flushing events', {
+        logger.debug('[Resume] Flushing events', {
           streamId,
           afterCursor: cursor,
           eventCount: events.length,
@@ -420,11 +431,7 @@ async function handleResumeRequestBody({
           reason: 'stream_replay_failed',
         })
       }
-      rootSpan.setStatus({
-        code: SpanStatusCode.ERROR,
-        message: error instanceof Error ? error.message : String(error),
-      })
-      rootSpan.recordException(error instanceof Error ? error : new Error(String(error)))
+      markSpanForError(rootSpan, error)
     } finally {
       request.signal.removeEventListener('abort', abortListener)
       closeController()

@@ -272,6 +272,7 @@ export type CopilotVfsOutcomeValue = (typeof CopilotVfsOutcome)[CopilotVfsOutcom
 export const CopilotVfsReadOutcome = {
   BinaryPlaceholder: 'binary_placeholder',
   DocumentParsed: 'document_parsed',
+  DocumentTooLarge: 'document_too_large',
   ImagePrepared: 'image_prepared',
   ImageTooLarge: 'image_too_large',
   ParseFailed: 'parse_failed',

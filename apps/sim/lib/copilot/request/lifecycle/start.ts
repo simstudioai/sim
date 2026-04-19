@@ -16,6 +16,7 @@ import {
 import {
   CopilotRequestCancelReason,
   type CopilotRequestCancelReasonValue,
+  CopilotTransport,
 } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
@@ -65,11 +66,8 @@ export interface StreamingOrchestrationParams {
   workspaceId?: string
   orchestrateOptions: Omit<CopilotLifecycleOptions, 'onEvent'>
   /**
-   * Pre-started gen_ai.agent.execute root returned by
-   * `startCopilotOtelRoot`. When provided, this stream binds every nested
-   * span to that root and calls `finish()` on termination. When omitted,
-   * this function starts its own root internally (kept for back-compat
-   * with the headless path).
+   * Pre-started root; child spans bind to it and `finish()` fires on
+   * termination. Omit to let the stream start its own root (headless).
    */
   otelRoot?: ReturnType<typeof startCopilotOtelRoot>
 }
@@ -93,11 +91,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
     otelRoot,
   } = params
 
-  // If the caller (POST handler) already started the gen_ai.agent.execute
-  // root so that pre-stream setup work (persistUserMessage, resource
-  // loads, etc.) could nest under it, reuse that root and finish it from
-  // our terminal code path via the idempotent `finish`. Otherwise start
-  // our own so the stream still gets a proper OTel trace.
+  // Reuse caller's root if provided; otherwise start our own.
   const activeOtelRoot =
     otelRoot ??
     startCopilotOtelRoot({
@@ -108,7 +102,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
       executionId,
       runId,
       streamId,
-      transport: 'stream',
+      transport: CopilotTransport.Stream,
     })
 
   const abortController = new AbortController()
@@ -116,30 +110,8 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
 
   const publisher = new StreamWriter({ streamId, chatId, requestId })
 
-  /**
-   * Classifies a cancelled outcome into one of the closed-vocabulary
-   * `CopilotRequestCancelReason` values, and records the result on the
-   * active OTel root span (attribute + event).
-   *
-   * Classification rules:
-   * - `signal.reason` is in the known explicit-stop set (see
-   *   `AbortReason.*`) → `ExplicitStop`.
-   * - Otherwise, `publisher.clientDisconnected` → `ClientDisconnect`.
-   * - Otherwise → `Unknown`, which is a latent bug: the stream aborted
-   *   with a reason we don't recognize and the client never dropped.
-   *   We log an error with the raw reason and record it on the span so
-   *   we can find whichever code path added a new `abort(...)` call
-   *   without updating the contract.
-   *
-   * IMPORTANT: `publisher.clientDisconnected` alone is NOT a reliable
-   * discriminator. When the user clicks Stop, `abortActiveStream`
-   * fires `abortController.abort(AbortReason.UserStop)`, which closes
-   * the SSE stream, which causes the BROWSER to disconnect its SSE
-   * reader, which propagates back as `publisher.markDisconnected()`.
-   * So on an explicit Stop you observe BOTH the explicit reason AND
-   * `clientDisconnected=true`. The reason string is the source of
-   * truth for intent; the disconnect flag is only a fallback.
-   */
+  // Classify cancel: signal.reason (explicit-stop set) wins, then
+  // clientDisconnected, else Unknown (latent contract bug — log it).
   const recordCancelled = (errorMessage?: string): CopilotRequestCancelReasonValue => {
     const rawReason = abortController.signal.reason
     let cancelReason: CopilotRequestCancelReasonValue
@@ -163,11 +135,8 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
                     return String(rawReason)
                   }
                 })()
-      // Not user-facing. Signals a contract violation: a code path
-      // aborted the stream with a reason that isn't in the known set,
-      // and the client didn't disconnect either. Whoever sees this
-      // should add the new reason to `AbortReason` / `isExplicitStopReason`
-      // (if it's explicit) or extend the classifier.
+      // Contract violation: add the new reason to AbortReason /
+      // isExplicitStopReason or extend the classifier.
       logger.error(`[${requestId}] Stream cancelled with unknown abort reason`, {
         streamId,
         chatId,
@@ -189,10 +158,8 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
     async start(controller) {
       publisher.attach(controller)
 
-      // Re-enter the root OTel context. Node's AsyncLocalStorage does
-      // not survive the Next.js handler -> ReadableStream.start boundary,
-      // so nested `withCopilotSpan` / `withDbSpan` calls would otherwise
-      // orphan into new traces.
+      // Re-enter the root OTel context — ALS doesn't survive the
+      // Next handler → ReadableStream.start boundary.
       await otelContextApi.with(activeOtelRoot.context, async () => {
         const otelContext = activeOtelRoot.context
         let rootOutcome: CopilotLifecycleOutcome = RequestTraceV1Outcome.error
@@ -315,7 +282,16 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
                 error: error instanceof Error ? error.message : 'Stream error',
               })
             }
-            logger.error(`[${requestId}] Unexpected orchestration error:`, error)
+            // Demote to warn when the throw came from a user-initiated
+            // cancel — it isn't an "unexpected" failure then, and the
+            // error-level log pollutes alerting on normal Stop presses.
+            const logFn =
+              outcome === RequestTraceV1Outcome.cancelled ? logger.warn : logger.error
+            logFn.call(
+              logger,
+              `[${requestId}] Orchestration ended with ${outcome}:`,
+              error
+            )
 
             const syntheticResult = {
               success: false as const,
@@ -367,7 +343,11 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
               usage: lifecycleResult?.usage,
               cost: lifecycleResult?.cost,
             })
-            reportTrace(trace, otelContext).catch(() => {})
+            reportTrace(trace, otelContext).catch((err) => {
+              logger.warn(`[${requestId}] Failed to report trace`, {
+                error: err instanceof Error ? err.message : String(err),
+              })
+            })
             rootOutcome = outcome
             if (lifecycleResult?.usage) {
               activeOtelRoot.span.setAttributes({
@@ -400,22 +380,11 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
       // in-flight `publisher.publish` calls silently no-op (prevents
       // enqueueing on a closed controller).
       //
-      // Intentionally does NOT fire the AbortController here. The
-      // abort controller is reserved for actual "abort this request"
-      // semantics (driven by `abortActiveStream()` on an explicit Stop
-      // or the Redis-marker poller for cross-node Stops). Firing it
-      // on browser disconnect means a successful stream that loses
-      // its reader at the last moment would get retroactively
-      // classified as aborted — which skips persisting the assistant
-      // message (see trace 707f2614 where the whole response
-      // disappeared after completion).
-      //
-      // Trade-off: on a true tab close, the orchestrator keeps reading
-      // events from Go until Go's stream ends, with `publish` no-op'ing
-      // each one. That's wasted LLM work but it's safe — the message
-      // gets persisted and the next chat reload shows it. An
-      // explicit Stop short-circuits this path cleanly via the
-      // /chat/abort handler, which DOES fire the AbortController.
+      // Browser disconnect is NOT an abort — firing the controller
+      // here retroactively reclassifies in-flight successful streams
+      // as aborted and skips assistant persistence. Let the
+      // orchestrator drain naturally; publish no-ops post-disconnect.
+      // Explicit Stop still fires the controller via /chat/abort.
       publisher.markDisconnected()
     },
   })

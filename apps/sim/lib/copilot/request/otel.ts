@@ -14,29 +14,18 @@ import { RequestTraceV1Outcome } from '@/lib/copilot/generated/request-trace-v1'
 import {
   CopilotBranchKind,
   CopilotSurface,
+  CopilotTransport,
 } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { contextFromRequestHeaders } from '@/lib/copilot/request/go/propagation'
 
-/**
- * OTel GenAI experimental semantic conventions env var. When set to a
- * truthy value, each `gen_ai.*` span carries the full input and
- * output conversation content as attributes. Mirrors the Go-side
- * gate in `copilot/internal/providers/telemetry.go` so operators
- * control both halves with one variable.
- *
- * Spec: https://opentelemetry.io/docs/specs/semconv/gen-ai/
- */
+// OTel GenAI content-capture env var (spec:
+// https://opentelemetry.io/docs/specs/semconv/gen-ai/). Mirrored on
+// the Go side so a single var controls both halves.
 const GENAI_CAPTURE_ENV = 'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT'
 
-/**
- * Attribute-size cap for `gen_ai.{input,output}.messages`. Most OTLP
- * backends reject attributes larger than ~64 KiB, so we truncate
- * proactively to keep the rest of the span alive if a conversation
- * runs long. Matches the Go-side cap to keep truncation behavior
- * symmetrical between the two halves.
- */
+// OTLP backends commonly reject attrs over 64 KiB; cap proactively.
 const GENAI_MESSAGE_ATTR_MAX_BYTES = 60 * 1024
 
 function isGenAIMessageCaptureEnabled(): boolean {
@@ -44,23 +33,9 @@ function isGenAIMessageCaptureEnabled(): boolean {
   return raw === 'true' || raw === '1' || raw === 'yes'
 }
 
-/**
- * Returns true if `err` is a user-initiated / upstream cancellation
- * rather than a genuine failure. We check every flavor that the
- * JS/Node runtime surfaces when an `AbortSignal` fires:
- *
- *   - `DOMException` with `name === 'AbortError'` (browser + Node 18+ fetch)
- *   - plain `Error` with `name === 'AbortError'` (older polyfills)
- *   - Node's undici-shaped `code === 'ABORT_ERR'`
- *   - Bare `'AbortError'` strings rethrown as errors
- *
- * Callers use this to suppress `SpanStatusCode.ERROR` on cancel paths —
- * dashboards should not light up red every time a user hits Stop.
- * Matches the Go-side treatment of `context.Canceled` /
- * `context.DeadlineExceeded` in `internal/core/errors.go:RecordError`
- * and `internal/storage/postgres/tracing.go:dbSpan.End`.
- */
-function isCancellationError(err: unknown): boolean {
+// True if `err` is an AbortSignal-fired cancellation (any runtime
+// flavor). Callers suppress ERROR status on cancel paths.
+export function isCancellationError(err: unknown): boolean {
   if (err == null) return false
   if (typeof err === 'object') {
     const e = err as { name?: unknown; code?: unknown; message?: unknown }
@@ -74,13 +49,8 @@ function isCancellationError(err: unknown): boolean {
   return false
 }
 
-/**
- * Apply terminal status to `span` based on whether the thrown `error`
- * is a real failure or a cancellation. Always records the exception
- * event for forensics; only sets `codes.ERROR` for real failures.
- * Centralized so every span wrapper has identical classification.
- */
-function markSpanForError(span: Span, error: unknown): void {
+// Record exception + set ERROR only for real failures (cancels stay unset).
+export function markSpanForError(span: Span, error: unknown): void {
   const asError = error instanceof Error ? error : new Error(String(error))
   span.recordException(asError)
   if (!isCancellationError(error)) {
@@ -91,13 +61,7 @@ function markSpanForError(span: Span, error: unknown): void {
   }
 }
 
-/**
- * Canonical OTel GenAI message shape used for both input and output
- * attributes. Kept minimal — only the three part types we actually
- * emit: `text`, `tool_call`, and `tool_call_response`. Adding more
- * part types is cheap, but every additional shape here has to be
- * mirrored in the Go serializer.
- */
+// OTel GenAI message shape (kept minimal). Mirror changes on the Go side.
 interface GenAIAgentPart {
   type: 'text' | 'tool_call' | 'tool_call_response'
   content?: string
@@ -140,12 +104,12 @@ function marshalAgentMessages(messages: GenAIAgentMessage[]): string | undefined
   return final.length <= GENAI_MESSAGE_ATTR_MAX_BYTES ? final : undefined
 }
 
-export interface CopilotAgentInputMessages {
+interface CopilotAgentInputMessages {
   userMessage?: string
   systemPrompt?: string
 }
 
-export interface CopilotAgentOutputMessages {
+interface CopilotAgentOutputMessages {
   assistantText?: string
   toolCalls?: Array<{
     id: string
@@ -196,25 +160,12 @@ function setAgentOutputMessages(span: Span, output: CopilotAgentOutputMessages):
   }
 }
 
-/**
- * Reuse the generated RequestTraceV1Outcome string values for every
- * lifecycle outcome field. This keeps our OTel attributes, internal
- * TraceCollector outcomes, and the trace-ingestion wire contract all
- * using the same three strings ("success" | "error" | "cancelled")
- * without scattering the literals through the codebase.
- */
 export type CopilotLifecycleOutcome =
   (typeof RequestTraceV1Outcome)[keyof typeof RequestTraceV1Outcome]
 
-/**
- * Resolve the tracer lazily on every call. With Next.js 16 + Turbopack dev
- * bundling, a module-level `trace.getTracer(...)` call can be evaluated
- * before the NodeSDK in `instrumentation-node.ts` installs the real
- * TracerProvider. If that happens, the cached tracer is the NoOpTracer,
- * which produces NoOpSpans whose `.end()` never reaches any processor —
- * silently disabling all OTel on the Sim side. Calling `trace.getTracer`
- * per request ensures we always pick up the currently-registered provider.
- */
+// Lazy tracer — Next 16/Turbopack can evaluate modules before NodeSDK
+// installs the real TracerProvider; resolving per call avoids a
+// cached NoOpTracer silently disabling OTel.
 export function getCopilotTracer() {
   return trace.getTracer('sim-ai-platform', '1.0.0')
 }
@@ -223,20 +174,8 @@ function getTracer() {
   return getCopilotTracer()
 }
 
-/**
- * Wrap an inbound Next.js route handler that Go calls into (e.g. billing
- * update-cost, api-key validate) so the Sim-side work shows up as a
- * child of the originating Go span in the same trace.
- *
- * Reads `traceparent` / `tracestate` from the request headers, installs
- * that remote span as the active parent, and starts a server-kind OTel
- * span around `fn`. Any `withCopilotSpan`/`withDbSpan`/etc. call below
- * nests automatically via AsyncLocalStorage.
- *
- * If the request has no trace context (e.g. hand-rolled curl, browser
- * test), this still produces a valid root span for the handler — you
- * just won't see the Go-side parent.
- */
+// Wrap an inbound handler that Go called into so its span parents
+// under the Go-side trace (via `traceparent`).
 export async function withIncomingGoSpan<T>(
   headers: Headers,
   spanName: string,
@@ -264,32 +203,14 @@ export async function withIncomingGoSpan<T>(
   )
 }
 
-/**
- * Generic helper for wrapping a copilot-lifecycle operation in an OTel
- * span. Use this for post-tool processing, session recovery, subagent
- * orchestration, async-runs DB calls, etc. — anywhere the work is part
- * of a mothership request and we want it reflected in the external OTLP
- * trace.
- *
- * The returned span honors the currently-active OTel context, so it
- * threads under `gen_ai.agent.execute` (or a `tool.execute` parent) if
- * one is live. If there's no active span, it becomes a root — which is
- * almost never what you want; call this from inside a mothership request
- * handler, not from arbitrary background code.
- */
+// Wrap a copilot-lifecycle op in an OTel span. Pass `parentContext`
+// explicitly when AsyncLocalStorage-tracked context can be dropped
+// across multiple awaits (otherwise the child falls back to a framework
+// span that the sampler drops).
 export async function withCopilotSpan<T>(
   spanName: string,
   attributes: Record<string, string | number | boolean> | undefined,
   fn: (span: Span) => Promise<T>,
-  /**
-   * Optional explicit parent context. Useful when the caller is in a
-   * code path where Next.js / Turbopack / multiple awaits can drop the
-   * AsyncLocalStorage-tracked context we installed at the top of the
-   * request — passing the captured root context explicitly guarantees
-   * the new span parents correctly instead of falling back to whatever
-   * framework span is currently active (which then gets dropped by our
-   * sampler, stranding this span in the trace).
-   */
   parentContext?: Context
 ): Promise<T> {
   const tracer = getTracer()
@@ -311,12 +232,8 @@ export async function withCopilotSpan<T>(
   return tracer.startActiveSpan(spanName, { attributes }, runBody)
 }
 
-/**
- * Run `fn` inside an OTel `tool.execute` span. This mirrors the internal
- * TraceCollector span that already wraps Sim-side tool work, so the
- * external OTLP trace reflects the actual tool execution (the Go side's
- * `tool.execute` is just the async enqueue and stays ~0ms).
- */
+// External OTel `tool.execute` span for Sim-side tool work (the Go
+// side's `tool.execute` is just the enqueue, stays ~0ms).
 export async function withCopilotToolSpan<T>(
   input: {
     toolName: string
@@ -341,7 +258,11 @@ export async function withCopilotToolSpan<T>(
         ...(typeof input.argsBytes === 'number'
           ? { [TraceAttr.ToolArgsBytes]: input.argsBytes }
           : {}),
-        ...(input.argsPreview ? { [TraceAttr.ToolArgsPreview]: input.argsPreview } : {}),
+        // argsPreview can leak pasted credentials in tool args; gate
+        // behind the GenAI content-capture env var.
+        ...(input.argsPreview && isGenAIMessageCaptureEnabled()
+          ? { [TraceAttr.ToolArgsPreview]: input.argsPreview }
+          : {}),
       },
     },
     async (span) => {
@@ -376,17 +297,11 @@ function createFallbackSpanContext(): SpanContext {
   }
 }
 
-export interface CopilotOtelScope {
-  /**
-   * Optional override for the logical request ID surfaced on
-   * `request.id` / `sim.request_id` span attributes. Leave unset on
-   * the primary chat POST path — `startCopilotOtelRoot` will derive
-   * it from the newly-created root span's OTel trace ID, which is the
-   * same 32-hex value that flows through `traceparent` and shows up
-   * in Grafana. Pass an explicit value only for paths that need a
-   * non-trace-derived identifier (e.g. headless / resume taking an
-   * ID from persisted state).
-   */
+interface CopilotOtelScope {
+  // Leave unset on the chat POST — startCopilotOtelRoot will derive
+  // from the root span's OTel trace ID (same value Grafana uses).
+  // Set explicitly on paths that need a non-trace-derived ID (headless,
+  // resume taking an ID from persisted state).
   requestId?: string
   route?: string
   chatId?: string
@@ -395,64 +310,38 @@ export interface CopilotOtelScope {
   runId?: string
   streamId?: string
   transport: 'headless' | 'stream'
-  /**
-   * First ~500 chars of the user's prompt, surfaced as
-   * `copilot.user.message_preview` on the root span. Lets dashboards
-   * show a "what was this request about" column without having to
-   * parse the full `gen_ai.input.messages` JSON attribute (which is
-   * also gated on a separate env var). Safe even when full-content
-   * capture is off — a preview snippet is useful for operators
-   * scanning trace lists, low-risk relative to full prompts.
-   */
   userMessagePreview?: string
 }
 
-/**
- * Max characters kept in `copilot.user.message_preview`. Chosen to
- * fit in a dashboard table cell without truncation (most Grafana
- * table cells render ~300 chars before wrapping), but long enough
- * to disambiguate requests in triage.
- */
+// Dashboard-column width; long enough for triage disambiguation.
 const USER_MESSAGE_PREVIEW_MAX_CHARS = 500
-
-/**
- * Build the canonical `gen_ai.agent.execute` attribute set from a scope.
- * Shared between `withCopilotOtelContext` (fully-managed lifetime) and
- * `startCopilotOtelRoot` (manually-managed, for handlers that need the
- * span to outlive the synchronous handler body — e.g. SSE routes).
- */
 function buildAgentSpanAttributes(
   scope: CopilotOtelScope & { requestId: string }
 ): Record<string, string | number | boolean> {
-  const preview = truncateUserMessagePreview(scope.userMessagePreview)
+  // Gated behind the same env var as full GenAI message capture — a
+  // 500-char preview is still user prompt content.
+  const preview = isGenAIMessageCaptureEnabled()
+    ? truncateUserMessagePreview(scope.userMessagePreview)
+    : undefined
   return {
-    'gen_ai.agent.name': 'mothership',
-    'gen_ai.agent.id': scope.transport === 'stream' ? 'mothership-stream' : 'mothership-headless',
-    'gen_ai.operation.name': scope.transport === 'stream' ? 'chat' : 'invoke_agent',
-    // `request.id` and `sim.request_id` intentionally carry the SAME
-    // value. For chat POSTs (where scope.requestId is not provided
-    // by the caller) this is the OTel trace ID of this root span —
-    // meaning the value pasted from the UI's "copy request ID"
-    // button works directly in Grafana's trace-ID search box.
-    'request.id': scope.requestId,
-    'sim.request_id': scope.requestId,
-    'copilot.route': scope.route ?? '',
-    'copilot.transport': scope.transport,
-    ...(scope.chatId ? { 'chat.id': scope.chatId } : {}),
-    ...(scope.workflowId ? { 'workflow.id': scope.workflowId } : {}),
-    ...(scope.executionId ? { 'workflow.execution_id': scope.executionId } : {}),
-    ...(scope.runId ? { 'run.id': scope.runId } : {}),
-    ...(scope.streamId ? { 'stream.id': scope.streamId } : {}),
-    ...(preview ? { 'copilot.user.message_preview': preview } : {}),
+    [TraceAttr.GenAiAgentName]: 'mothership',
+    [TraceAttr.GenAiAgentId]:
+      scope.transport === CopilotTransport.Stream ? 'mothership-stream' : 'mothership-headless',
+    [TraceAttr.GenAiOperationName]:
+      scope.transport === CopilotTransport.Stream ? 'chat' : 'invoke_agent',
+    [TraceAttr.RequestId]: scope.requestId,
+    [TraceAttr.SimRequestId]: scope.requestId,
+    [TraceAttr.CopilotRoute]: scope.route ?? '',
+    [TraceAttr.CopilotTransport]: scope.transport,
+    ...(scope.chatId ? { [TraceAttr.ChatId]: scope.chatId } : {}),
+    ...(scope.workflowId ? { [TraceAttr.WorkflowId]: scope.workflowId } : {}),
+    ...(scope.executionId ? { [TraceAttr.CopilotExecutionId]: scope.executionId } : {}),
+    ...(scope.runId ? { [TraceAttr.RunId]: scope.runId } : {}),
+    ...(scope.streamId ? { [TraceAttr.StreamId]: scope.streamId } : {}),
+    ...(preview ? { [TraceAttr.CopilotUserMessagePreview]: preview } : {}),
   }
 }
 
-/**
- * Collapse newlines and trim the user's prompt to a fixed length so
- * it fits cleanly in a single dashboard table cell. Non-strings are
- * ignored (the chat schema enforces string, but this is defensive
- * against upstream shape changes).
- */
 function truncateUserMessagePreview(raw: unknown): string | undefined {
   if (typeof raw !== 'string') return undefined
   const collapsed = raw.replace(/\s+/g, ' ').trim()
@@ -461,114 +350,41 @@ function truncateUserMessagePreview(raw: unknown): string | undefined {
   return `${collapsed.slice(0, USER_MESSAGE_PREVIEW_MAX_CHARS - 1)}…`
 }
 
-/**
- * Start a `gen_ai.agent.execute` root span with manually-managed
- * lifetime. Returns the span, its context, and a `finish` callback the
- * caller MUST invoke when the whole request lifecycle is over (including
- * any SSE streaming that outlives the Next.js handler return).
- *
- * Use this for the chat POST handler path:
- *   1. Start the root at the top so `persistUserMessage` and every other
- *      setup span is a child instead of orphaning into a new trace.
- *   2. Pass the context into `createSSEStream` so the stream callback
- *      re-enters it (AsyncLocalStorage does not survive the Next.js
- *      handler return into the ReadableStream runtime).
- *   3. Call `finish()` from the stream's terminal code path.
- *
- * Prefer `withCopilotOtelContext` when the work is fully inside one
- * async function (e.g. headless invoke) — it handles the lifecycle for
- * you.
- */
-/**
- * Request-shape metadata that's only known AFTER the branch resolves
- * (can't be set at startCopilotOtelRoot time). Stamped on the root
- * `gen_ai.agent.execute` span so dashboards can slice requests by how
- * they were sent: which product surface, which mode, which model, with
- * attachments or not, and whether the request arrived while a prior
- * stream was still alive (i.e. user hit send-to-interrupt).
- */
-export interface CopilotOtelRequestShape {
-  /**
-   * Product surface. Derived from `branch.kind` — "workflow" means the
-   * copilot sidebar (attached to a specific workflow), "workspace"
-   * means the mothership workspace-level chat. Also stamped as a
-   * human-friendly `copilot.surface` (`copilot` | `mothership`).
-   */
+// Request-shape metadata known only after branch resolution. Stamped
+// on the root span for dashboard filtering.
+interface CopilotOtelRequestShape {
   branchKind?: 'workflow' | 'workspace'
-  /** Mothership request mode — `agent`, `ask`, `build`, etc. */
   mode?: string
-  /** LLM model identifier the caller selected. */
   model?: string
-  /** LLM provider the caller selected (`anthropic`, `openai`, …). */
   provider?: string
-  /** Whether this POST created a brand-new chat. */
   createNewChat?: boolean
-  /** `true` when the caller sent `prefetch: true` (UI speculative send). */
   prefetch?: boolean
-  /** How many file attachments were present. */
   fileAttachmentsCount?: number
-  /** How many resource attachments (workspace files, knowledge, …). */
   resourceAttachmentsCount?: number
-  /** Free-form context blocks the caller attached. */
   contextsCount?: number
-  /** Explicit commands (e.g. slash commands) present in the request. */
   commandsCount?: number
-  /**
-   * Time spent waiting for the per-chat stream lock, in ms. Values
-   * above ~50ms strongly imply this request arrived while a prior
-   * stream for the same chat was still in flight (i.e. user pressed
-   * send-to-interrupt, or a tab refresh overlapped with an active
-   * request).
-   */
   pendingStreamWaitMs?: number
-  /** True if `pendingStreamWaitMs` was non-trivially long. */
   interruptedPriorStream?: boolean
 }
 
-export interface CopilotOtelRoot {
+interface CopilotOtelRoot {
   span: Span
   context: Context
   finish: (outcome?: CopilotLifecycleOutcome, error?: unknown) => void
-  /**
-   * Record `gen_ai.input.messages` on the root agent span. Gated on
-   * `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` — no-op when
-   * capture is disabled. Safe to call multiple times; the latest
-   * call wins.
-   */
   setInputMessages: (input: CopilotAgentInputMessages) => void
-  /**
-   * Record `gen_ai.output.messages` on the root agent span. Gated on
-   * the same env var as `setInputMessages`. Typically called from the
-   * stream finalize callback once the assistant's final content and
-   * invoked tool calls are known.
-   */
   setOutputMessages: (output: CopilotAgentOutputMessages) => void
-  /**
-   * Stamp request-shape attributes that are only known after the
-   * branch resolves (mode, provider, model, surface, attachment
-   * counts, interrupt signal). Safe to call multiple times — later
-   * calls override earlier ones for the same key.
-   */
   setRequestShape: (shape: CopilotOtelRequestShape) => void
 }
 
 export function startCopilotOtelRoot(
   scope: CopilotOtelScope
 ): CopilotOtelRoot & { requestId: string } {
-  // Create gen_ai.agent.execute as a TRUE root span — do not inherit
-  // from Next.js's HTTP handler span. The framework span is dropped by
-  // our sampler (it has `next.span_type`), so if we parented under it,
-  // this span would appear orphaned in Jaeger ("span has missing parent"
-  // warning) and any descendant whose AsyncLocalStorage propagation was
-  // disrupted would inherit the same dropped parent. Starting from
-  // ROOT_CONTEXT gives the mothership lifecycle its own clean trace tree.
+  // TRUE root — don't inherit from Next's HTTP handler span (the
+  // sampler drops those; we'd orphan the whole mothership tree).
   const parentContext = ROOT_CONTEXT
-  // Start the span FIRST with a placeholder requestId, so we can read
-  // its actual trace ID and stamp it as the canonical `request.id`.
-  // This makes the ID the UI exposes (via `msg.requestId`) identical
-  // to the trace ID Grafana uses — one ID, pasteable anywhere. When
-  // the caller provided an explicit override (resume / headless /
-  // tests) we keep that instead.
+  // Start with a placeholder `requestId`, then overwrite using the
+  // span's actual trace ID so the UI copy-button value pastes
+  // directly into Grafana.
   const span = getTracer().startSpan(
     TraceSpan.GenAiAgentExecute,
     { attributes: buildAgentSpanAttributes({ ...scope, requestId: '' }) },
@@ -578,18 +394,11 @@ export function startCopilotOtelRoot(
     ? span
     : trace.wrapSpanContext(createFallbackSpanContext())
   const spanContext = carrierSpan.spanContext()
-  // Derived ID: use the caller's override when given, otherwise the
-  // real OTel trace ID. Fall back to an empty string only when OTel
-  // itself failed to produce a valid span (shouldn't happen in prod
-  // but the carrier branch above already handles that defensively).
   const requestId =
     scope.requestId ??
     (spanContext.traceId && spanContext.traceId.length === 32 ? spanContext.traceId : '')
-  // Re-stamp with the resolved ID (overwriting the placeholder empties
-  // set above). Cheap — both `request.id` and `sim.request_id` get the
-  // same value.
-  span.setAttribute('request.id', requestId)
-  span.setAttribute('sim.request_id', requestId)
+  span.setAttribute(TraceAttr.RequestId, requestId)
+  span.setAttribute(TraceAttr.SimRequestId, requestId)
   const rootContext = trace.setSpan(parentContext, carrierSpan)
 
   let finished = false
@@ -599,10 +408,6 @@ export function startCopilotOtelRoot(
     const resolvedOutcome = outcome ?? RequestTraceV1Outcome.success
     span.setAttribute(TraceAttr.CopilotRequestOutcome, resolvedOutcome)
     if (error) {
-      // `markSpanForError` records the exception event but only sets
-      // `codes.ERROR` for real failures — a cancellation-shaped error
-      // here stays `unset` (or `OK` if we resolve it below) so the
-      // trace doesn't look red when the user intentionally stopped.
       markSpanForError(span, error)
       if (isCancellationError(error)) {
         span.setStatus({ code: SpanStatusCode.OK })
@@ -611,10 +416,8 @@ export function startCopilotOtelRoot(
       resolvedOutcome === RequestTraceV1Outcome.success ||
       resolvedOutcome === RequestTraceV1Outcome.cancelled
     ) {
-      // Explicitly mark cancelled outcomes as OK so dashboards keying
-      // off span status don't treat "user hit Stop" as a failure — the
-      // rich detail lives on `copilot.request.cancel_reason` and the
-      // `request.cancelled` event.
+      // Cancelled = OK so dashboards keying off span status don't
+      // treat Stop as a failure. Detail lives on cancel_reason.
       span.setStatus({ code: SpanStatusCode.OK })
     }
     span.end()
@@ -623,9 +426,6 @@ export function startCopilotOtelRoot(
   return {
     span,
     context: rootContext,
-    // Surface the resolved requestId so callers can thread it through
-    // trackers, log prefixes, and persisted `msg.requestId` without
-    // having to dig it back out of span attributes.
     requestId,
     finish,
     setInputMessages: (input) => setAgentInputMessages(span, input),
@@ -634,13 +434,7 @@ export function startCopilotOtelRoot(
   }
 }
 
-/**
- * Threshold (ms) above which we consider a pending-stream-lock wait
- * to indicate this request interrupted a prior in-flight stream. Well
- * above the typical uncontested acquire (<10ms) but below any normal
- * human-caused delay. Tuned to flag overlap cases — not perfect, but
- * useful for filtering dashboards.
- */
+// Pending-stream-lock wait above this = inferred send-to-interrupt.
 const INTERRUPT_WAIT_MS_THRESHOLD = 50
 
 function applyRequestShape(span: Span, shape: CopilotOtelRequestShape): void {
@@ -707,8 +501,8 @@ export async function withCopilotOtelContext<T>(
     scope.requestId ??
     (spanContext.traceId && spanContext.traceId.length === 32 ? spanContext.traceId : '')
   if (resolvedRequestId) {
-    span.setAttribute('request.id', resolvedRequestId)
-    span.setAttribute('sim.request_id', resolvedRequestId)
+    span.setAttribute(TraceAttr.RequestId, resolvedRequestId)
+    span.setAttribute(TraceAttr.SimRequestId, resolvedRequestId)
   }
   const otelContext = trace.setSpan(parentContext, carrierSpan)
   let terminalStatusSet = false

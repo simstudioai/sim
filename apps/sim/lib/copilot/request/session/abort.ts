@@ -131,9 +131,9 @@ export async function acquirePendingChatStream(
   return withCopilotSpan(
     TraceSpan.CopilotChatAcquirePendingStreamLock,
     {
-      'chat.id': chatId,
-      'stream.id': streamId,
-      'lock.timeout_ms': timeoutMs,
+      [TraceAttr.ChatId]: chatId,
+      [TraceAttr.StreamId]: streamId,
+      [TraceAttr.LockTimeoutMs]: timeoutMs,
     },
     async (span) => {
       const redis = getRedisClient()

@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import { FunctionExecute, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { CopilotTableOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
@@ -32,9 +33,9 @@ export async function maybeWriteOutputToTable(
   return withCopilotSpan(
     TraceSpan.CopilotToolsWriteOutputTable,
     {
-      'tool.name': toolName,
-      'copilot.table.id': outputTable,
-      'workspace.id': context.workspaceId,
+      [TraceAttr.ToolName]: toolName,
+      [TraceAttr.CopilotTableId]: outputTable,
+      [TraceAttr.WorkspaceId]: context.workspaceId,
     },
     async (span) => {
       try {
@@ -139,8 +140,8 @@ export async function maybeWriteOutputToTable(
           error: err instanceof Error ? err.message : String(err),
         })
         span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.Failed)
-        span.addEvent('copilot.table.error', {
-          'error.message': (err instanceof Error ? err.message : String(err)).slice(0, 500),
+        span.addEvent(TraceEvent.CopilotTableError, {
+          [TraceAttr.ErrorMessage]: (err instanceof Error ? err.message : String(err)).slice(0, 500),
         })
         return {
           success: false,
@@ -167,9 +168,9 @@ export async function maybeWriteReadCsvToTable(
   return withCopilotSpan(
     TraceSpan.CopilotToolsWriteCsvToTable,
     {
-      'tool.name': toolName,
-      'copilot.table.id': outputTable,
-      'workspace.id': context.workspaceId,
+      [TraceAttr.ToolName]: toolName,
+      [TraceAttr.CopilotTableId]: outputTable,
+      [TraceAttr.WorkspaceId]: context.workspaceId,
     },
     async (span) => {
       try {
@@ -286,8 +287,8 @@ export async function maybeWriteReadCsvToTable(
           error: err instanceof Error ? err.message : String(err),
         })
         span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.Failed)
-        span.addEvent('copilot.table.error', {
-          'error.message': (err instanceof Error ? err.message : String(err)).slice(0, 500),
+        span.addEvent(TraceEvent.CopilotTableError, {
+          [TraceAttr.ErrorMessage]: (err instanceof Error ? err.message : String(err)).slice(0, 500),
         })
         return {
           success: false,

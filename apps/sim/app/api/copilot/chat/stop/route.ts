@@ -58,27 +58,14 @@ const StopSchema = z.object({
   streamId: z.string(),
   content: z.string(),
   contentBlocks: z.array(ContentBlockSchema).optional(),
-  /**
-   * Optional because older clients may not send it, but strongly
-   * recommended: without it, the stopped assistant message persisted
-   * below loses its `requestId`, which breaks the "Copy request ID"
-   * button in the UI (it's the only handle the user has for filing
-   * bug reports about a hung / bad turn).
-   */
+  // Optional for older clients; when present, flows into msg.requestId
+  // so the UI's copy-request-ID button survives a stopped turn.
   requestId: z.string().optional(),
 })
 
-/**
- * POST /api/copilot/chat/stop
- * Persists partial assistant content when the user stops a stream mid-response.
- * Clears conversationId so the server-side onComplete won't duplicate the message.
- * The chat stream lock is intentionally left alone here; it is released only once
- * the aborted server stream actually unwinds.
- *
- * Hang-critical: runs a DB SELECT + UPDATE + pubsub publish. A slow DB
- * here makes the UI look frozen after the user clicks Stop. The root
- * span lets us tell whether stalls are DB-bound or pubsub-bound.
- */
+// POST /api/copilot/chat/stop — persists partial assistant content
+// when the user stops mid-stream. Lock release is handled by the
+// aborted server stream unwinding, not this handler.
 export async function POST(req: NextRequest) {
   return withIncomingGoSpan(
     req.headers,
@@ -152,12 +139,7 @@ export async function POST(req: NextRequest) {
             content,
             timestamp: new Date().toISOString(),
             contentBlocks: synthesizedStoppedBlocks,
-            // Preserve the requestId onto the persisted aborted message
-            // so the UI's "Copy request ID" button keeps working after
-            // the chat history refetches and replaces the in-memory
-            // streaming message with this persisted version. Without
-            // this, the button blinks out ~1-2s after the user hits
-            // Stop because the refetched message has no requestId.
+            // Persist so the UI copy-request-id button survives refetch.
             ...(requestId ? { requestId } : {}),
           })
           const assistantMessage: PersistedMessage = normalized
@@ -187,7 +169,10 @@ export async function POST(req: NextRequest) {
       } catch (error) {
         if (error instanceof z.ZodError) {
           span.setAttribute(TraceAttr.CopilotStopOutcome, CopilotStopOutcome.ValidationError)
-          return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+          return NextResponse.json(
+            { error: 'Invalid request data', details: error.errors },
+            { status: 400 }
+          )
         }
         logger.error('Error stopping chat stream:', error)
         span.setAttribute(TraceAttr.CopilotStopOutcome, CopilotStopOutcome.InternalError)

@@ -26,8 +26,8 @@ export async function POST(req: NextRequest) {
     req.headers,
     TraceSpan.CopilotAuthValidateApiKey,
     {
-      'http.method': 'POST',
-      'http.route': '/api/copilot/api-keys/validate',
+      [TraceAttr.HttpMethod]: 'POST',
+      [TraceAttr.HttpRoute]: '/api/copilot/api-keys/validate',
     },
     async (span) => {
       try {

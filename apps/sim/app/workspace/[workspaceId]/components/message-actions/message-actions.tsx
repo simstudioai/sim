@@ -140,12 +140,6 @@ export function MessageActions({ content, chatId, userQuery, requestId }: Messag
 
   const hasContent = Boolean(content)
   const canSubmitFeedback = Boolean(chatId && userQuery)
-
-  // Render the action row whenever there's something the user can
-  // actually act on: copy the message, or open the feedback modal
-  // (thumbs up / down). Request ID alone is not a reason to render the
-  // row anymore — it's only exposed from inside the thumbs-down modal,
-  // which requires both chatId and userQuery.
   if (!hasContent && !canSubmitFeedback) return null
 
   return (
@@ -198,15 +192,6 @@ export function MessageActions({ content, chatId, userQuery, requestId }: Messag
             </Tooltip.Root>
           </>
         )}
-        {/*
-          Intentionally NO root-row "Copy request ID" button here — it
-          rendered as an ambiguous standalone Copy icon next to the
-          message Copy icon, which was confusing (two indistinguishable
-          copy buttons side by side). The request ID only needs to be
-          grabbable from the thumbs-down feedback modal below, which is
-          the surface we actually want people to use when reporting a
-          bad response.
-        */}
       </div>
 
       <Modal open={pendingFeedback !== null} onOpenChange={handleModalClose}>

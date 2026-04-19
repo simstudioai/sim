@@ -4,6 +4,7 @@ import {
   RequestTraceV1Outcome,
   RequestTraceV1SpanStatus,
 } from '@/lib/copilot/generated/request-trace-v1'
+import { CopilotTransport } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import type { CopilotLifecycleOptions } from '@/lib/copilot/request/lifecycle/run'
 import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
 import { withCopilotOtelContext } from '@/lib/copilot/request/otel'
@@ -42,7 +43,7 @@ export async function runHeadlessCopilotLifecycle(
       workflowId: options.workflowId,
       executionId: options.executionId,
       runId: options.runId,
-      transport: 'headless',
+      transport: CopilotTransport.Headless,
     },
     async (otelContext) => {
       try {

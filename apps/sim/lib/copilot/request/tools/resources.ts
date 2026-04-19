@@ -46,8 +46,8 @@ export async function handleResourceSideEffects(
   return withCopilotSpan(
     TraceSpan.CopilotToolsHandleResourceSideEffects,
     {
-      'tool.name': toolName,
-      'chat.id': chatId,
+      [TraceAttr.ToolName]: toolName,
+      [TraceAttr.ChatId]: chatId,
     },
     async (span) => {
       let isDeleteOp = false

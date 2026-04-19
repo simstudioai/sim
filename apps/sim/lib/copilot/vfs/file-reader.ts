@@ -1,4 +1,4 @@
-import { type Span, SpanStatusCode, trace } from '@opentelemetry/api'
+import { type Span, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import {
   CopilotVfsOutcome,
@@ -6,31 +6,30 @@ import {
   CopilotVfsReadPath,
 } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
+import { markSpanForError } from '@/lib/copilot/request/otel'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 
-/**
- * Lazy tracer (see lib/copilot/request/otel.ts for the same pattern and
- * why we resolve on every call).
- */
+// Lazy tracer (same pattern as lib/copilot/request/otel.ts).
 function getVfsTracer() {
   return trace.getTracer('sim-copilot-vfs', '1.0.0')
 }
 
 function recordSpanError(span: Span, err: unknown) {
-  span.setStatus({
-    code: SpanStatusCode.ERROR,
-    message: err instanceof Error ? err.message : String(err),
-  })
-  span.recordException(err instanceof Error ? err : new Error(String(err)))
+  markSpanForError(span, err)
 }
 
 const logger = createLogger('FileReader')
 
 const MAX_TEXT_READ_BYTES = 5 * 1024 * 1024 // 5 MB
 const MAX_IMAGE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
+// Parseable-document byte cap. Large office/PDF files can still
+// produce huge extracted text; reject up front to avoid wasting a
+// download + parse only to blow past the tool-result budget.
+const MAX_PARSEABLE_READ_BYTES = 5 * 1024 * 1024 // 5 MB
 const MAX_IMAGE_DIMENSION = 1568
 const IMAGE_RESIZE_DIMENSIONS = [1568, 1280, 1024, 768]
 const IMAGE_QUALITY_STEPS = [85, 70, 55, 40]
@@ -190,11 +189,11 @@ async function prepareImageForVision(
                     mediaType: 'image/jpeg',
                   }
 
-              span.addEvent('copilot.vfs.resize_attempt', {
-                'copilot.vfs.resize.dimension': dimension,
-                'copilot.vfs.resize.quality': quality,
-                'copilot.vfs.resize.output_bytes': transformed.buffer.length,
-                'copilot.vfs.resize.fits_budget': transformed.buffer.length <= MAX_IMAGE_READ_BYTES,
+              span.addEvent(TraceEvent.CopilotVfsResizeAttempt, {
+                [TraceAttr.CopilotVfsResizeDimension]: dimension,
+                [TraceAttr.CopilotVfsResizeQuality]: quality,
+                [TraceAttr.CopilotVfsResizeOutputBytes]: transformed.buffer.length,
+                [TraceAttr.CopilotVfsResizeFitsBudget]: transformed.buffer.length <= MAX_IMAGE_READ_BYTES,
               })
 
               if (transformed.buffer.length <= MAX_IMAGE_READ_BYTES) {
@@ -230,10 +229,11 @@ async function prepareImageForVision(
                 quality,
                 error: err instanceof Error ? err.message : String(err),
               })
-              span.addEvent('copilot.vfs.resize_attempt_failed', {
-                'copilot.vfs.resize.dimension': dimension,
-                'copilot.vfs.resize.quality': quality,
-                'error.message': err instanceof Error ? err.message : String(err).slice(0, 500),
+              span.addEvent(TraceEvent.CopilotVfsResizeAttemptFailed, {
+                [TraceAttr.CopilotVfsResizeDimension]: dimension,
+                [TraceAttr.CopilotVfsResizeQuality]: quality,
+                [TraceAttr.ErrorMessage]:
+                  err instanceof Error ? err.message : String(err).slice(0, 500),
               })
             }
           }
@@ -348,6 +348,16 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
         const ext = getExtension(record.name)
         if (PARSEABLE_EXTENSIONS.has(ext)) {
           span.setAttribute(TraceAttr.CopilotVfsReadPath, CopilotVfsReadPath.ParseableDocument)
+          if (record.size > MAX_PARSEABLE_READ_BYTES) {
+            span.setAttribute(
+              TraceAttr.CopilotVfsReadOutcome,
+              CopilotVfsReadOutcome.DocumentTooLarge
+            )
+            return {
+              content: `[Document too large to parse inline: ${record.name} (${record.size} bytes, limit ${MAX_PARSEABLE_READ_BYTES})]`,
+              totalLines: 1,
+            }
+          }
           const buffer = await downloadWorkspaceFile(record)
           try {
             const { parseBuffer } = await import('@/lib/file-parsers')
@@ -366,8 +376,8 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
               ext,
               error: parseErr instanceof Error ? parseErr.message : String(parseErr),
             })
-            span.addEvent('copilot.vfs.parse_failed', {
-              'error.message':
+            span.addEvent(TraceEvent.CopilotVfsParseFailed, {
+              [TraceAttr.ErrorMessage]:
                 parseErr instanceof Error ? parseErr.message : String(parseErr).slice(0, 500),
             })
             span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ParseFailed)

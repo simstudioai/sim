@@ -168,7 +168,6 @@ export async function runStreamLoop(
   const bodyStart = performance.now()
   let firstEventMs: number | undefined
   let eventsReceived = 0
-  let bytesReceived = 0
   let endedOn = 'terminal'
 
   const reader = response.body.getReader()
@@ -187,11 +186,6 @@ export async function runStreamLoop(
         firstEventMs = Math.round(performance.now() - bodyStart)
       }
       eventsReceived += 1
-      try {
-        bytesReceived += JSON.stringify(raw ?? null).length
-      } catch {
-        // non-serializable event; skip byte accounting
-      }
       if (abortSignal?.aborted) {
         context.wasAborted = true
         return true
@@ -355,7 +349,6 @@ export async function runStreamLoop(
     bodySpan.attributes = {
       ...(bodySpan.attributes ?? {}),
       eventsReceived,
-      bytesReceived,
       firstEventMs,
       endedOn,
       durationMs: bodyDurationMs,

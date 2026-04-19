@@ -466,9 +466,6 @@ async function reportCompletion(
     })
     const res = await fetch(COPILOT_CONFIRM_API_PATH, {
       method: 'POST',
-      // Propagate the chat's root traceparent so the confirm handler
-      // becomes a child span of the original request's trace. See
-      // `trace-context.ts` for why this lives in a module singleton.
       headers: { 'Content-Type': 'application/json', ...traceparentHeader() },
       body,
     })

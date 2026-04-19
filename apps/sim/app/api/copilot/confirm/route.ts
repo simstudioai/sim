@@ -116,25 +116,16 @@ async function updateToolCallStatus(
   }
 }
 
-/**
- * POST /api/copilot/confirm
- * Accept client tool completion or detach confirmations.
- *
- * Hang-critical: this is the delivery path for client-executed tool
- * results. If this handler stalls (DB lock, Redis timeout, pubsub
- * failure), the `copilot.tool.wait_for_client_result` span on the
- * originating chat stream never resolves and the whole request looks
- * hung. The root span here gives us per-request visibility so we can
- * correlate a slow confirm with the chat-stream that was waiting on it
- * via `toolCallId`.
- */
+// POST /api/copilot/confirm — delivery path for client-executed tool
+// results. Correlate via `toolCallId` when the awaiting chat stream
+// stalls.
 export async function POST(req: NextRequest) {
   const tracker = createRequestTracker()
 
   return withIncomingGoSpan(
     req.headers,
     TraceSpan.CopilotConfirmToolResult,
-    { 'request.id': tracker.requestId },
+    { [TraceAttr.RequestId]: tracker.requestId },
     async (span) => {
       try {
         const { userId: authenticatedUserId, isAuthenticated } =
@@ -195,9 +186,8 @@ export async function POST(req: NextRequest) {
             message,
           })
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.UpdateFailed)
-          return createBadRequestResponse(
-            'Failed to update tool call status or tool call not found'
-          )
+          // DB write failed — 500, not 400. 400 is a client-shape error.
+          return createInternalServerErrorResponse('Failed to update tool call status')
         }
 
         span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.Delivered)

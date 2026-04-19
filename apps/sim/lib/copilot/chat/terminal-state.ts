@@ -26,11 +26,11 @@ export async function finalizeAssistantTurn({
   return withCopilotSpan(
     TraceSpan.CopilotChatFinalizeAssistantTurn,
     {
-      'db.system': 'postgresql',
-      'db.sql.table': 'copilot_chats',
-      'chat.id': chatId,
-      'chat.user_message_id': userMessageId,
-      'chat.has_assistant_message': !!assistantMessage,
+      [TraceAttr.DbSystem]: 'postgresql',
+      [TraceAttr.DbSqlTable]: 'copilot_chats',
+      [TraceAttr.ChatId]: chatId,
+      [TraceAttr.ChatUserMessageId]: userMessageId,
+      [TraceAttr.ChatHasAssistantMessage]: !!assistantMessage,
     },
     async (span) => {
       const [row] = await db

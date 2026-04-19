@@ -32,9 +32,9 @@ export async function checkForReplayGap(
   return withCopilotSpan(
     TraceSpan.CopilotRecoveryCheckReplayGap,
     {
-      'stream.id': streamId,
-      'copilot.recovery.requested_after_seq': requestedAfterSeq,
-      ...(requestId ? { 'request.id': requestId } : {}),
+      [TraceAttr.StreamId]: streamId,
+      [TraceAttr.CopilotRecoveryRequestedAfterSeq]: requestedAfterSeq,
+      ...(requestId ? { [TraceAttr.RequestId]: requestId } : {}),
     },
     async (span) => {
       const oldestSeq = await getOldestSeq(streamId)

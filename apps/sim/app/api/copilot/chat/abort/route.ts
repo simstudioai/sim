@@ -15,16 +15,8 @@ const logger = createLogger('CopilotChatAbortAPI')
 const GO_EXPLICIT_ABORT_TIMEOUT_MS = 3000
 const STREAM_ABORT_SETTLE_TIMEOUT_MS = 8000
 
-/**
- * POST /api/copilot/chat/abort
- *
- * Hang-critical: the client calls this when the user hits "stop". It
- * fans out to Go (explicit-abort marker) and then waits up to
- * STREAM_ABORT_SETTLE_TIMEOUT_MS (8s) for the prior chat stream to
- * unwind. If EITHER the Go fetch or the settle-wait hangs, the user
- * sees a "still shutting down" 409 — or worse, an unresolved Promise
- * on the client. The spans below pinpoint which phase stalled.
- */
+// POST /api/copilot/chat/abort — fires on user Stop; marks the Go
+// side aborted then waits for the prior stream to settle.
 export async function POST(request: Request) {
   return withIncomingGoSpan(
     request.headers,
@@ -71,36 +63,11 @@ export async function POST(request: Request) {
       }
       if (chatId) rootSpan.setAttribute(TraceAttr.ChatId, chatId)
 
-      // ORDER MATTERS: local abort FIRST, Go explicit-abort SECOND.
-      //
-      // Sim and Go each own a separate Redis instance and do not share
-      // state through it — the only signal that crosses the service
-      // boundary is this HTTP call. So the race to win is purely
-      // Sim-internal:
-      //
-      //   - `abortActiveStream` flips the AbortController (reason =
-      //     AbortReason.UserStop) that's wrapped around the in-flight
-      //     `fetchGo('/api/mothership', ...)` SSE stream. Once flipped,
-      //     the stream throws AbortError on the next chunk read, and
-      //     the lifecycle catch block's classifier sees
-      //     `signal.aborted = true` with an explicit-stop reason → the
-      //     root span gets stamped `cancel_reason = explicit_stop` and
-      //     the `request.cancelled` event fires correctly.
-      //
-      //   - If we call Go first (old order), Go's context cancels from
-      //     its own explicit-abort handler, the /api/mothership stream
-      //     errors with "context canceled", and Sim's catch block fires
-      //     BEFORE we've flipped the local AbortController. At that
-      //     point `signal.aborted` is still false, so the classifier
-      //     falls through to `client_disconnect` / `unknown` and the
-      //     root ends up as `outcome = error` — which is what we saw
-      //     in trace 25f31730082078cef54653b1740caf12.
-      //
-      // Go's explicit-abort endpoint still runs second: it's what tells
-      // Go-side billing "this was intentional, flush the paused ledger"
-      // and is unaffected by the reorder (Go's context is already
-      // cancelled by the time we get there; the endpoint's job is
-      // billing semantics, not cancelling in-flight work).
+      // Local abort before Go — lets the lifecycle classifier see
+      // `signal.aborted` with an explicit-stop reason before Go's
+      // context-canceled error propagates back. Go's endpoint runs
+      // second for billing-ledger flush; Go's context is already
+      // cancelled by then.
       const aborted = await abortActiveStream(streamId)
       rootSpan.setAttribute(TraceAttr.CopilotAbortLocalAborted, aborted)
 
@@ -144,16 +111,12 @@ export async function POST(request: Request) {
       rootSpan.setAttribute(TraceAttr.CopilotAbortGoMarkerOk, goAbortOk)
 
       if (chatId) {
-        // `waitForPendingChatStream` blocks up to 8s waiting for the
-        // prior stream's release. It's THE single most likely stall
-        // point in this handler — isolate it so a slow unwind shows up
-        // as this child span rather than unexplained root latency.
         const settled = await withCopilotSpan(
           TraceSpan.CopilotChatAbortWaitSettle,
           {
-            'chat.id': chatId,
-            'stream.id': streamId,
-            'settle.timeout_ms': STREAM_ABORT_SETTLE_TIMEOUT_MS,
+            [TraceAttr.ChatId]: chatId,
+            [TraceAttr.StreamId]: streamId,
+            [TraceAttr.SettleTimeoutMs]: STREAM_ABORT_SETTLE_TIMEOUT_MS,
           },
           async (settleSpan) => {
             const start = Date.now()

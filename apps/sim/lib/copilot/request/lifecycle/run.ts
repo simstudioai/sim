@@ -250,13 +250,6 @@ async function runCheckpointLoop(
             'Content-Type': 'application/json',
             ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
             'X-Client-Version': SIM_AGENT_VERSION,
-            // X-Sim-Request-ID header removed: Sim's logical request ID
-            // is now the OTel trace ID of the chat POST's root span,
-            // propagated to Go via the W3C `traceparent` header
-            // (injected by fetchGo below). Go's `RequestIdentity` picks
-            // the trace ID up from the extracted context automatically
-            // when no Sim-Request-ID header is present. Go keeps the
-            // reader around for back-compat with older Sim deploys.
           },
           body: JSON.stringify(payload),
         },
