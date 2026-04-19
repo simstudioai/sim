@@ -192,7 +192,8 @@ export const dbChainMock = {
     insert,
     update,
     delete: del,
-    transaction: vi.fn(async (cb: (tx: typeof dbChainMock.db) => unknown) => cb(dbChainMock.db)),
+    execute,
+    transaction,
   },
 }
 
