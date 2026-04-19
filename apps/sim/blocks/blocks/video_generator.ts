@@ -30,6 +30,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
         { label: 'Luma Dream Machine', id: 'luma' },
         { label: 'MiniMax Hailuo', id: 'minimax' },
         { label: 'Fal.ai (Multi-Model)', id: 'falai' },
+        { label: 'ModelsLab (Text/Image to Video)', id: 'modelslab' },
       ],
       value: () => 'runway',
       required: true,
@@ -328,6 +329,62 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
       condition: { field: 'provider', value: 'minimax' },
     },
 
+    // ModelsLab-specific: Mode (text2video or img2video)
+    {
+      id: 'model',
+      title: 'Mode',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'modelslab' },
+      options: [
+        { label: 'Text to Video', id: 'text2video' },
+        { label: 'Image to Video', id: 'img2video' },
+      ],
+      value: () => 'text2video',
+      required: false,
+    },
+
+    // ModelsLab-specific: Image URL (for img2video mode)
+    {
+      id: 'imageUrl',
+      title: 'Image URL',
+      type: 'short-input',
+      condition: { field: 'provider', value: 'modelslab' },
+      placeholder: 'Image URL for image-to-video (required for img2video mode)',
+      required: false,
+    },
+
+    // ModelsLab-specific: Width
+    {
+      id: 'width',
+      title: 'Width',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'modelslab' },
+      options: [
+        { label: '256', id: '256' },
+        { label: '512', id: '512' },
+        { label: '768', id: '768' },
+        { label: '1024', id: '1024' },
+      ],
+      value: () => '512',
+      required: false,
+    },
+
+    // ModelsLab-specific: Height
+    {
+      id: 'height',
+      title: 'Height',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'modelslab' },
+      options: [
+        { label: '256', id: '256' },
+        { label: '512', id: '512' },
+        { label: '768', id: '768' },
+        { label: '1024', id: '1024' },
+      ],
+      value: () => '512',
+      required: false,
+    },
+
     // API Key
     {
       id: 'apiKey',
@@ -340,7 +397,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
   ],
 
   tools: {
-    access: ['video_runway', 'video_veo', 'video_luma', 'video_minimax', 'video_falai'],
+    access: ['video_runway', 'video_veo', 'video_luma', 'video_minimax', 'video_falai', 'video_modelslab'],
     config: {
       tool: (params) => {
         // Select tool based on provider
@@ -355,6 +412,8 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
             return 'video_minimax'
           case 'falai':
             return 'video_falai'
+          case 'modelslab':
+            return 'video_modelslab'
           default:
             return 'video_runway'
         }
@@ -372,6 +431,9 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
         consistencyMode: params.consistencyMode,
         stylePreset: params.stylePreset,
         promptOptimizer: params.promptOptimizer,
+        imageUrl: params.imageUrl,
+        width: params.width ? Number(params.width) : undefined,
+        height: params.height ? Number(params.height) : undefined,
         cameraControl: params.cameraControl
           ? typeof params.cameraControl === 'string'
             ? JSON.parse(params.cameraControl)
@@ -384,7 +446,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
   inputs: {
     provider: {
       type: 'string',
-      description: 'Video generation provider (runway, veo, luma, minimax)',
+      description: 'Video generation provider (runway, veo, luma, minimax, modelslab)',
     },
     apiKey: { type: 'string', description: 'Provider API key' },
     model: {
@@ -419,6 +481,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
       type: 'json',
       description: 'Camera controls for Luma (pan, zoom, tilt, truck, tracking)',
     },
+    imageUrl: { type: 'string', description: 'Image URL for ModelsLab img2video mode' },
   },
 
   outputs: {
@@ -448,6 +511,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
         { label: 'Luma Dream Machine', id: 'luma' },
         { label: 'MiniMax Hailuo', id: 'minimax' },
         { label: 'Fal.ai (Multi-Model)', id: 'falai' },
+        { label: 'ModelsLab (Text/Image to Video)', id: 'modelslab' },
       ],
       value: () => 'runway',
       required: true,
@@ -709,6 +773,58 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
       type: 'switch',
       condition: { field: 'provider', value: 'minimax' },
     },
+    // ModelsLab-specific: Mode (text2video or img2video)
+    {
+      id: 'model',
+      title: 'Mode',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'modelslab' },
+      options: [
+        { label: 'Text to Video', id: 'text2video' },
+        { label: 'Image to Video', id: 'img2video' },
+      ],
+      value: () => 'text2video',
+      required: false,
+    },
+    // ModelsLab-specific: Image URL (for img2video mode)
+    {
+      id: 'imageUrl',
+      title: 'Image URL',
+      type: 'short-input',
+      condition: { field: 'provider', value: 'modelslab' },
+      placeholder: 'Image URL for image-to-video (required for img2video mode)',
+      required: false,
+    },
+    // ModelsLab-specific: Width
+    {
+      id: 'width',
+      title: 'Width',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'modelslab' },
+      options: [
+        { label: '256', id: '256' },
+        { label: '512', id: '512' },
+        { label: '768', id: '768' },
+        { label: '1024', id: '1024' },
+      ],
+      value: () => '512',
+      required: false,
+    },
+    // ModelsLab-specific: Height
+    {
+      id: 'height',
+      title: 'Height',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'modelslab' },
+      options: [
+        { label: '256', id: '256' },
+        { label: '512', id: '512' },
+        { label: '768', id: '768' },
+        { label: '1024', id: '1024' },
+      ],
+      value: () => '512',
+      required: false,
+    },
     {
       id: 'apiKey',
       title: 'API Key',
@@ -719,7 +835,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
     },
   ],
   tools: {
-    access: ['video_runway', 'video_veo', 'video_luma', 'video_minimax', 'video_falai'],
+    access: ['video_runway', 'video_veo', 'video_luma', 'video_minimax', 'video_falai', 'video_modelslab'],
     config: {
       tool: (params) => {
         switch (params.provider) {
@@ -733,6 +849,8 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
             return 'video_minimax'
           case 'falai':
             return 'video_falai'
+          case 'modelslab':
+            return 'video_modelslab'
           default:
             return 'video_runway'
         }
@@ -750,6 +868,9 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
         consistencyMode: params.consistencyMode,
         stylePreset: params.stylePreset,
         promptOptimizer: params.promptOptimizer,
+        imageUrl: params.imageUrl,
+        width: params.width ? Number(params.width) : undefined,
+        height: params.height ? Number(params.height) : undefined,
         cameraControl: params.cameraControl
           ? typeof params.cameraControl === 'string'
             ? JSON.parse(params.cameraControl)
@@ -761,7 +882,7 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
   inputs: {
     provider: {
       type: 'string',
-      description: 'Video generation provider (runway, veo, luma, minimax)',
+      description: 'Video generation provider (runway, veo, luma, minimax, modelslab)',
     },
     apiKey: { type: 'string', description: 'Provider API key' },
     model: {
@@ -796,5 +917,6 @@ export const VideoGeneratorV2Block: BlockConfig<VideoBlockResponse> = {
       type: 'json',
       description: 'Camera controls for Luma (pan, zoom, tilt, truck, tracking)',
     },
+    imageUrl: { type: 'string', description: 'Image URL for ModelsLab img2video mode' },
   },
 }

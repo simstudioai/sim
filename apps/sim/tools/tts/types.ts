@@ -9,6 +9,7 @@ export type TtsProvider =
   | 'google'
   | 'azure'
   | 'playht'
+  | 'modelslab'
 
 // OpenAI TTS Types
 export interface OpenAiTtsParams {

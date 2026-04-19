@@ -30,6 +30,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
         { label: 'Google Cloud TTS', id: 'google' },
         { label: 'Azure TTS', id: 'azure' },
         { label: 'PlayHT', id: 'playht' },
+        { label: 'ModelsLab', id: 'modelslab' },
       ],
       value: () => 'openai',
       required: true,
@@ -420,6 +421,61 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       required: false,
     },
 
+    // ModelsLab Voice ID
+    {
+      id: 'voice_id',
+      title: 'Voice',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'modelslab' },
+      options: [
+        { label: 'Madison', id: 'madison' },
+        { label: 'Joanna', id: 'joanna' },
+        { label: 'Matthew', id: 'matthew' },
+        { label: 'Salli', id: 'salli' },
+        { label: 'Kimberly', id: 'kimberly' },
+        { label: 'Kendra', id: 'kendra' },
+        { label: 'Ivy', id: 'ivy' },
+        { label: 'Justin', id: 'justin' },
+        { label: 'Joey', id: 'joey' },
+      ],
+      value: () => 'madison',
+      required: false,
+    },
+
+    // ModelsLab Language
+    {
+      id: 'language',
+      title: 'Language',
+      type: 'dropdown',
+      condition: { field: 'provider', value: 'modelslab' },
+      options: [
+        { label: 'English', id: 'en' },
+        { label: 'Spanish', id: 'es' },
+        { label: 'French', id: 'fr' },
+        { label: 'German', id: 'de' },
+        { label: 'Italian', id: 'it' },
+        { label: 'Portuguese', id: 'pt' },
+        { label: 'Hindi', id: 'hi' },
+        { label: 'Japanese', id: 'ja' },
+        { label: 'Chinese', id: 'zh' },
+      ],
+      value: () => 'en',
+      required: false,
+    },
+
+    // ModelsLab Speed
+    {
+      id: 'speed',
+      title: 'Speed',
+      type: 'slider',
+      condition: { field: 'provider', value: 'modelslab' },
+      min: 0.5,
+      max: 2.0,
+      step: 0.1,
+      value: () => '1.0',
+      required: false,
+    },
+
     // API Key (common to all providers)
     {
       id: 'apiKey',
@@ -440,6 +496,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
       'tts_google',
       'tts_azure',
       'tts_playht',
+      'tts_modelslab',
     ],
     config: {
       tool: (params) => {
@@ -459,6 +516,8 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
             return 'tts_azure'
           case 'playht':
             return 'tts_playht'
+          case 'modelslab':
+            return 'tts_modelslab'
           default:
             return 'tts_openai'
         }
@@ -538,6 +597,15 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
           }
         }
 
+        if (params.provider === 'modelslab') {
+          return {
+            ...baseParams,
+            voice_id: params.voice_id,
+            language: params.language,
+            speed: params.speed ? Number(params.speed) : undefined,
+          }
+        }
+
         return baseParams
       },
     },
@@ -546,7 +614,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
   inputs: {
     provider: {
       type: 'string',
-      description: 'TTS provider (openai, deepgram, elevenlabs, cartesia, google, azure, playht)',
+      description: 'TTS provider (openai, deepgram, elevenlabs, cartesia, google, azure, playht, modelslab)',
     },
     text: { type: 'string', description: 'Text to convert to speech' },
     apiKey: { type: 'string', description: 'Provider API key' },
@@ -576,6 +644,8 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
     // PlayHT
     userId: { type: 'string', description: 'PlayHT user ID' },
     quality: { type: 'string', description: 'Quality level (PlayHT)' },
+    // ModelsLab
+    voice_id: { type: 'string', description: 'Voice ID (ModelsLab)' },
   },
 
   outputs: {
