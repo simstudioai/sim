@@ -1,24 +1,16 @@
 import { db } from '@sim/db'
-import { invitation, invitationWorkspaceGrant, member } from '@sim/db/schema'
+import { invitation, invitationWorkspaceGrant } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
+import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { cancelInvitation, getInvitationById, normalizeEmail } from '@/lib/invitations/core'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('InvitationsAPI')
-
-async function isOrgAdmin(userId: string, organizationId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ role: member.role })
-    .from(member)
-    .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
-    .limit(1)
-  return row?.role === 'owner' || row?.role === 'admin'
-}
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -40,7 +32,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     let hasAdminView = false
     if (inv.organizationId) {
-      hasAdminView = await isOrgAdmin(session.user.id, inv.organizationId)
+      hasAdminView = await isOrganizationOwnerOrAdmin(session.user.id, inv.organizationId)
     }
     if (!hasAdminView && inv.grants.length > 0) {
       const adminChecks = await Promise.all(
@@ -131,7 +123,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           { status: 400 }
         )
       }
-      if (!(await isOrgAdmin(session.user.id, inv.organizationId))) {
+      if (!(await isOrganizationOwnerOrAdmin(session.user.id, inv.organizationId))) {
         return NextResponse.json(
           { error: 'Only an organization owner or admin can change invitation roles' },
           { status: 403 }
@@ -181,7 +173,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       actorId: session.user.id,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
-      action: AuditAction.ORG_INVITATION_CREATED,
+      action: AuditAction.ORG_INVITATION_UPDATED,
       resourceType: AuditResourceType.ORGANIZATION,
       resourceId: inv.organizationId ?? inv.id,
       description: `Updated invitation for ${inv.email}`,
@@ -220,7 +212,7 @@ export async function DELETE(
 
     let canCancel = false
     if (inv.organizationId) {
-      canCancel = await isOrgAdmin(session.user.id, inv.organizationId)
+      canCancel = await isOrganizationOwnerOrAdmin(session.user.id, inv.organizationId)
     }
     if (!canCancel && inv.grants.length > 0) {
       const adminChecks = await Promise.all(

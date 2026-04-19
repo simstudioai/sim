@@ -1,11 +1,12 @@
 import { db } from '@sim/db'
-import { member, user } from '@sim/db/schema'
+import { user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
+import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { isEnterprise, isTeam } from '@/lib/billing/plan-helpers'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { getInvitationById } from '@/lib/invitations/core'
@@ -18,15 +19,6 @@ import { getWorkspaceWithOwner, hasWorkspaceAdminAccess } from '@/lib/workspaces
 import { getWorkspaceInvitePolicy } from '@/lib/workspaces/policy'
 
 const logger = createLogger('InvitationResendAPI')
-
-async function isOrgAdmin(userId: string, organizationId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ role: member.role })
-    .from(member)
-    .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
-    .limit(1)
-  return row?.role === 'owner' || row?.role === 'admin'
-}
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -47,7 +39,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     let canResend = false
     if (inv.organizationId) {
-      canResend = await isOrgAdmin(session.user.id, inv.organizationId)
+      canResend = await isOrganizationOwnerOrAdmin(session.user.id, inv.organizationId)
     }
     if (!canResend && inv.grants.length > 0) {
       const adminChecks = await Promise.all(

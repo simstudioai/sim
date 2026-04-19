@@ -51,7 +51,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     actorEmail: session.user.email ?? undefined,
     action:
       inv.kind === 'workspace'
-        ? AuditAction.INVITATION_REVOKED
+        ? AuditAction.INVITATION_REJECTED
         : AuditAction.ORG_INVITATION_REJECTED,
     resourceType:
       inv.kind === 'workspace' ? AuditResourceType.WORKSPACE : AuditResourceType.ORGANIZATION,
