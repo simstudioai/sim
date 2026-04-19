@@ -162,7 +162,7 @@ export type SubBlockType =
   | 'text' // Read-only text display
   | 'router-input' // Router route definitions with descriptions
   | 'table-selector' // Table selector with link to view table
-  | 'slack-manifest-generator' // Slack app manifest generator with capability toggles
+  | 'slack-setup-wizard' // Slack app setup wizard (manifest + credentials) in a modal
 
 /**
  * Selector types that require display name hydration
@@ -303,6 +303,8 @@ export interface SubBlockConfig {
         icon?: React.ComponentType<{ className?: string }>
         group?: string
         hidden?: boolean
+        defaultChecked?: boolean
+        description?: string
       }[]
     | (() => {
         label: string
@@ -310,6 +312,8 @@ export interface SubBlockConfig {
         icon?: React.ComponentType<{ className?: string }>
         group?: string
         hidden?: boolean
+        defaultChecked?: boolean
+        description?: string
       }[])
   min?: number
   max?: number

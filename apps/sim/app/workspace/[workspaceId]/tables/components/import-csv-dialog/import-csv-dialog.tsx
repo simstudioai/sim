@@ -363,7 +363,7 @@ export function ImportCsvDialog({
             <div className='flex flex-col gap-4'>
               <div className='flex items-center justify-between gap-3 rounded-sm border border-[var(--border)] p-2'>
                 <div className='flex min-w-0 flex-col'>
-                  <span className='truncate text-caption text-[var(--text-primary)]'>
+                  <span className='truncate text-[var(--text-primary)] text-caption'>
                     {parsed.file.name}
                   </span>
                   <span className='text-[var(--text-tertiary)] text-xs'>

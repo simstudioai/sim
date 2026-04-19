@@ -1,0 +1,587 @@
+'use client'
+
+import { useCallback, useMemo, useState } from 'react'
+import { Check, Clipboard, Info } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
+import {
+  Button,
+  Checkbox,
+  Input,
+  Label,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  Tooltip,
+} from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
+import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useWebhookManagement } from '@/hooks/use-webhook-management'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import {
+  buildSlackManifest,
+  SLACK_CAPABILITIES,
+  type SlackCapability,
+  type SlackCapabilityGroup,
+} from '@/triggers/slack/capabilities'
+
+const DEFAULT_APP_NAME = 'Sim Workflow Bot'
+
+const GROUP_LABELS: Record<SlackCapabilityGroup, string> = {
+  trigger: 'Triggers',
+  action: 'Actions',
+}
+
+const GROUP_ORDER: readonly SlackCapabilityGroup[] = ['trigger', 'action'] as const
+
+const STEP_TITLES = [
+  'Configure your bot',
+  'Copy your manifest',
+  'Create the app in Slack',
+  'Paste your Signing Secret',
+  'Install and paste your Bot Token',
+  'All set',
+] as const
+
+const STEP_COUNT = STEP_TITLES.length
+
+interface SlackSetupWizardProps {
+  blockId: string
+  isPreview?: boolean
+  disabled?: boolean
+}
+
+/**
+ * Slack app setup wizard sub-block.
+ *
+ * @remarks
+ * The panel renders a single launcher button. The wizard lives in a modal
+ * that walks the user through: configuring the bot, copying the manifest,
+ * creating the app in Slack, pasting the Signing Secret, and pasting the
+ * Bot Token. Credentials are written directly into the sibling
+ * `signingSecret` and `botToken` sub-blocks via the shared sub-block store,
+ * so those fields in the panel are populated by the time the user clicks
+ * Done.
+ */
+export function SlackSetupWizard({
+  blockId,
+  isPreview = false,
+  disabled = false,
+}: SlackSetupWizardProps) {
+  const [open, setOpen] = useState<boolean>(false)
+
+  return (
+    <>
+      <Button
+        type='button'
+        variant='primary'
+        onClick={() => setOpen(true)}
+        disabled={isPreview || disabled}
+        className='w-full'
+      >
+        Set up Slack app
+      </Button>
+
+      <WizardModal
+        blockId={blockId}
+        open={open}
+        onOpenChange={setOpen}
+        isPreview={isPreview}
+        disabled={disabled}
+      />
+    </>
+  )
+}
+
+interface WizardModalProps {
+  blockId: string
+  open: boolean
+  onOpenChange: (next: boolean) => void
+  isPreview: boolean
+  disabled: boolean
+}
+
+function WizardModal({ blockId, open, onOpenChange, isPreview, disabled }: WizardModalProps) {
+  const [step, setStep] = useState<number>(0)
+
+  const { webhookUrl, isLoading } = useWebhookManagement({
+    blockId,
+    triggerId: 'slack_webhook',
+    useWebhookUrl: true,
+    isPreview,
+  })
+
+  const [appName, setAppName] = useSubBlockValue<string>(blockId, 'botDisplayName')
+  const [signingSecret, setSigningSecret] = useSubBlockValue<string>(blockId, 'signingSecret')
+  const [botToken, setBotToken] = useSubBlockValue<string>(blockId, 'botToken')
+  const selected = useCapabilitySelection(blockId)
+
+  const displayAppName = appName ?? DEFAULT_APP_NAME
+  const effectiveWebhookUrl = !isLoading && webhookUrl ? webhookUrl : null
+  const canCopy = effectiveWebhookUrl !== null
+  const controlsDisabled = isPreview || disabled
+
+  const manifestJson = useMemo(() => {
+    const manifest = buildSlackManifest(selected, {
+      appName: displayAppName.trim() || DEFAULT_APP_NAME,
+      webhookUrl: effectiveWebhookUrl,
+    })
+    return JSON.stringify(manifest, null, 2)
+  }, [selected, displayAppName, effectiveWebhookUrl])
+
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      if (!next) setStep(0)
+      onOpenChange(next)
+    },
+    [onOpenChange]
+  )
+
+  const handleBack = useCallback(() => {
+    setStep((s) => Math.max(0, s - 1))
+  }, [])
+
+  const handleNext = useCallback(() => {
+    setStep((s) => Math.min(STEP_COUNT - 1, s + 1))
+  }, [])
+
+  const handleDone = useCallback(() => {
+    handleOpenChange(false)
+  }, [handleOpenChange])
+
+  return (
+    <Modal open={open} onOpenChange={handleOpenChange}>
+      <ModalContent size='lg'>
+        <ModalHeader>
+          <div className='flex items-baseline justify-between gap-3'>
+            <span>{STEP_TITLES[step]}</span>
+            <span className='font-normal text-[var(--text-muted)] text-xs'>
+              Step {step + 1} of {STEP_COUNT}
+            </span>
+          </div>
+        </ModalHeader>
+
+        <StepProgress current={step} total={STEP_COUNT} />
+
+        <ModalBody className='min-h-[280px]'>
+          {step === 0 && (
+            <StepConfigure
+              blockId={blockId}
+              appName={displayAppName}
+              onAppNameChange={(v) => {
+                if (!controlsDisabled) setAppName(v)
+              }}
+              selected={selected}
+              disabled={controlsDisabled}
+            />
+          )}
+          {step === 1 && <StepCopy manifestJson={manifestJson} canCopy={canCopy} />}
+          {step === 2 && <StepCreate />}
+          {step === 3 && (
+            <StepSecret
+              blockId={blockId}
+              value={signingSecret ?? ''}
+              onChange={(v) => {
+                if (!controlsDisabled) setSigningSecret(v)
+              }}
+              disabled={controlsDisabled}
+            />
+          )}
+          {step === 4 && (
+            <StepToken
+              blockId={blockId}
+              value={botToken ?? ''}
+              onChange={(v) => {
+                if (!controlsDisabled) setBotToken(v)
+              }}
+              disabled={controlsDisabled}
+            />
+          )}
+          {step === 5 && (
+            <StepDone hasSigningSecret={Boolean(signingSecret)} hasBotToken={Boolean(botToken)} />
+          )}
+        </ModalBody>
+
+        <ModalFooter>
+          <Button variant='default' onClick={handleBack} disabled={step === 0}>
+            Back
+          </Button>
+          {step < STEP_COUNT - 1 ? (
+            <Button variant='primary' onClick={handleNext}>
+              Next
+            </Button>
+          ) : (
+            <Button variant='primary' onClick={handleDone}>
+              Done
+            </Button>
+          )}
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
+  )
+}
+
+interface StepProgressProps {
+  current: number
+  total: number
+}
+
+function StepProgress({ current, total: _total }: StepProgressProps) {
+  return (
+    <div className='flex gap-1.5 px-6 pb-4'>
+      {STEP_TITLES.map((title, i) => (
+        <div
+          key={title}
+          className={cn(
+            'h-1 flex-1 rounded-full transition-colors',
+            i <= current ? 'bg-[var(--brand-secondary)]' : 'bg-[var(--surface-5)]'
+          )}
+        />
+      ))}
+    </div>
+  )
+}
+
+interface StepConfigureProps {
+  blockId: string
+  appName: string
+  onAppNameChange: (next: string) => void
+  selected: ReadonlySet<string>
+  disabled: boolean
+}
+
+function StepConfigure({
+  blockId,
+  appName,
+  onAppNameChange,
+  selected,
+  disabled,
+}: StepConfigureProps) {
+  return (
+    <div className='space-y-4'>
+      <p className='text-[var(--text-secondary)] text-sm leading-relaxed'>
+        Pick a name and choose what events should trigger your workflow and what actions your bot
+        can take.
+      </p>
+      <div className='space-y-1.5'>
+        <Label
+          htmlFor={`${blockId}-wizard-bot-name`}
+          className='font-medium text-[var(--text-secondary)] text-xs'
+        >
+          Bot name
+        </Label>
+        <Input
+          id={`${blockId}-wizard-bot-name`}
+          value={appName}
+          onChange={(e) => onAppNameChange(e.target.value)}
+          disabled={disabled}
+          placeholder={DEFAULT_APP_NAME}
+          className='h-9 text-sm'
+        />
+      </div>
+      <div className='space-y-3'>
+        {GROUP_ORDER.map((group) => {
+          const items = SLACK_CAPABILITIES.filter((c) => c.group === group)
+          if (items.length === 0) return null
+          return (
+            <CapabilityGroup
+              key={group}
+              blockId={blockId}
+              label={GROUP_LABELS[group]}
+              capabilities={items}
+              selected={selected}
+              disabled={disabled}
+            />
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+interface StepCopyProps {
+  manifestJson: string
+  canCopy: boolean
+}
+
+function StepCopy({ manifestJson, canCopy }: StepCopyProps) {
+  const [copied, setCopied] = useState<boolean>(false)
+
+  const handleCopy = useCallback(() => {
+    if (!canCopy) return
+    navigator.clipboard.writeText(manifestJson)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }, [canCopy, manifestJson])
+
+  return (
+    <div className='space-y-3'>
+      <p className='text-[var(--text-secondary)] text-sm leading-relaxed'>
+        Copy the generated manifest. You'll paste it into Slack in the next step.
+      </p>
+      <button
+        type='button'
+        onClick={handleCopy}
+        disabled={!canCopy}
+        className={cn(
+          'flex w-full items-center justify-between rounded-md border border-[var(--border-muted)] bg-[var(--surface-1)] px-3 py-2 text-left transition-colors',
+          canCopy
+            ? 'cursor-pointer hover-hover:bg-[var(--surface-hover)]'
+            : 'cursor-not-allowed opacity-70'
+        )}
+      >
+        <span className='font-medium text-[var(--text-secondary)] text-sm'>
+          {canCopy ? 'Click to copy manifest' : 'Deploy once to lock in the webhook URL'}
+        </span>
+        {canCopy &&
+          (copied ? (
+            <Check className='h-3 w-3 text-[var(--text-success)]' />
+          ) : (
+            <Clipboard className='h-3 w-3 text-[var(--text-muted)]' />
+          ))}
+      </button>
+    </div>
+  )
+}
+
+function StepCreate() {
+  return (
+    <div className='space-y-3 text-[var(--text-secondary)] text-sm leading-relaxed'>
+      <p>
+        Open the{' '}
+        <a
+          href='https://api.slack.com/apps'
+          target='_blank'
+          rel='noopener noreferrer'
+          className='text-[var(--brand-secondary)] underline underline-offset-2'
+        >
+          Slack Apps page
+        </a>
+        , click <strong>Create New App</strong> → <strong>From a manifest</strong>, pick your
+        workspace, paste the manifest, and click <strong>Create</strong>.
+      </p>
+      <p>Leave that Slack tab open — you'll pull a couple of values out of it in the next steps.</p>
+    </div>
+  )
+}
+
+interface StepSecretProps {
+  blockId: string
+  value: string
+  onChange: (next: string) => void
+  disabled: boolean
+}
+
+function StepSecret({ blockId, value, onChange, disabled }: StepSecretProps) {
+  return (
+    <div className='space-y-3'>
+      <p className='text-[var(--text-secondary)] text-sm leading-relaxed'>
+        In your new Slack app, open <strong>Basic Information</strong>, find the{' '}
+        <strong>Signing Secret</strong>, and paste it here.
+      </p>
+      <div className='space-y-1.5'>
+        <Label
+          htmlFor={`${blockId}-wizard-signing-secret`}
+          className='font-medium text-[var(--text-secondary)] text-xs'
+        >
+          Signing Secret
+        </Label>
+        <Input
+          id={`${blockId}-wizard-signing-secret`}
+          type='password'
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          placeholder='Paste your signing secret'
+          className='h-9 text-sm'
+        />
+      </div>
+    </div>
+  )
+}
+
+interface StepTokenProps {
+  blockId: string
+  value: string
+  onChange: (next: string) => void
+  disabled: boolean
+}
+
+function StepToken({ blockId, value, onChange, disabled }: StepTokenProps) {
+  return (
+    <div className='space-y-3'>
+      <p className='text-[var(--text-secondary)] text-sm leading-relaxed'>
+        In Slack, open <strong>Install App</strong> → <strong>Install to Workspace</strong> and
+        authorize. Then copy the <strong>Bot User OAuth Token</strong> (starts with{' '}
+        <code>xoxb-</code>) and paste it here.
+      </p>
+      <div className='space-y-1.5'>
+        <Label
+          htmlFor={`${blockId}-wizard-bot-token`}
+          className='font-medium text-[var(--text-secondary)] text-xs'
+        >
+          Bot Token
+        </Label>
+        <Input
+          id={`${blockId}-wizard-bot-token`}
+          type='password'
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          placeholder='xoxb-...'
+          className='h-9 text-sm'
+        />
+      </div>
+    </div>
+  )
+}
+
+interface StepDoneProps {
+  hasSigningSecret: boolean
+  hasBotToken: boolean
+}
+
+function StepDone({ hasSigningSecret, hasBotToken }: StepDoneProps) {
+  return (
+    <div className='space-y-3 text-[var(--text-secondary)] text-sm leading-relaxed'>
+      <p>
+        Your Slack app is set up. The Signing Secret and Bot Token have been saved to the trigger —
+        you can edit them anytime from the panel.
+      </p>
+      <ul className='space-y-1'>
+        <StatusRow label='Signing Secret' ok={hasSigningSecret} />
+        <StatusRow label='Bot Token' ok={hasBotToken} />
+      </ul>
+      <p>Save the workflow and Slack will verify the webhook URL automatically.</p>
+    </div>
+  )
+}
+
+interface StatusRowProps {
+  label: string
+  ok: boolean
+}
+
+function StatusRow({ label, ok }: StatusRowProps) {
+  return (
+    <li className='flex items-center gap-2'>
+      <Check
+        className={cn(
+          'h-[14px] w-[14px]',
+          ok ? 'text-[var(--text-success)]' : 'text-[var(--text-muted)]'
+        )}
+      />
+      <span>
+        {label}
+        {!ok && <span className='ml-1 text-[var(--text-muted)]'>— missing</span>}
+      </span>
+    </li>
+  )
+}
+
+interface CapabilityGroupProps {
+  blockId: string
+  label: string
+  capabilities: readonly SlackCapability[]
+  selected: ReadonlySet<string>
+  disabled: boolean
+}
+
+function CapabilityGroup({
+  blockId,
+  label,
+  capabilities,
+  selected,
+  disabled,
+}: CapabilityGroupProps) {
+  return (
+    <div className='space-y-2'>
+      <div className='font-medium text-[var(--text-muted)] text-xs uppercase tracking-wide'>
+        {label}
+      </div>
+      <div className='flex flex-col gap-y-2.5'>
+        {capabilities.map((c) => (
+          <CapabilityRow
+            key={c.id}
+            blockId={blockId}
+            capability={c}
+            checked={selected.has(c.id)}
+            disabled={disabled}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+interface CapabilityRowProps {
+  blockId: string
+  capability: SlackCapability
+  checked: boolean
+  disabled: boolean
+}
+
+function CapabilityRow({ blockId, capability, checked, disabled }: CapabilityRowProps) {
+  const [, setValue] = useSubBlockValue<boolean>(blockId, capability.id)
+  const id = `${blockId}-wizard-${capability.id}`
+
+  const handleChange = useCallback(
+    (next: boolean) => {
+      if (disabled) return
+      setValue(next)
+    },
+    [disabled, setValue]
+  )
+
+  return (
+    <div className='flex items-center gap-1.5'>
+      <Checkbox
+        id={id}
+        checked={checked}
+        onCheckedChange={(v) => handleChange(v === true)}
+        disabled={disabled}
+      />
+      <Label
+        htmlFor={id}
+        className='cursor-pointer text-[var(--text-primary)] text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-60'
+      >
+        {capability.label}
+      </Label>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Info className='h-[14px] w-[14px] cursor-default text-[var(--text-muted)]' />
+        </Tooltip.Trigger>
+        <Tooltip.Content side='top' align='start' className='max-w-xs'>
+          <p>{capability.description}</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    </div>
+  )
+}
+
+/**
+ * Builds the set of enabled capability ids by reading each capability's
+ * individual sub-block value in a single shallow-compared store selector.
+ * A `null`/`undefined` store value falls back to the capability's
+ * `defaultChecked` so untouched configs still reflect the defaults.
+ */
+function useCapabilitySelection(blockId: string): ReadonlySet<string> {
+  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
+  const enabledFlags = useSubBlockStore(
+    useShallow((state) => {
+      const blockValues = activeWorkflowId
+        ? state.workflowValues[activeWorkflowId]?.[blockId]
+        : undefined
+      return SLACK_CAPABILITIES.map((c) => {
+        const raw = blockValues?.[c.id]
+        return typeof raw === 'boolean' ? raw : c.defaultChecked
+      })
+    })
+  )
+  return useMemo(
+    () => new Set(SLACK_CAPABILITIES.filter((_, i) => enabledFlags[i]).map((c) => c.id)),
+    [enabledFlags]
+  )
+}

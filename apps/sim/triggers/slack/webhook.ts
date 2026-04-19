@@ -11,6 +11,14 @@ export const slackWebhookTrigger: TriggerConfig = {
 
   subBlocks: [
     {
+      id: 'setupWizard',
+      title: 'Slack app setup',
+      type: 'slack-setup-wizard',
+      description: 'Walk through manifest creation, app install, and pasting credentials.',
+      hideFromPreview: true,
+      mode: 'trigger',
+    },
+    {
       id: 'webhookUrlDisplay',
       title: 'Webhook URL',
       type: 'short-input',
@@ -49,13 +57,6 @@ export const slackWebhookTrigger: TriggerConfig = {
       description:
         'Download and include file attachments from messages. Requires a bot token with files:read scope.',
       required: false,
-      mode: 'trigger',
-    },
-    {
-      id: 'manifestGenerator',
-      title: 'Slack App Setup',
-      type: 'slack-manifest-generator',
-      hideFromPreview: true,
       mode: 'trigger',
     },
   ],

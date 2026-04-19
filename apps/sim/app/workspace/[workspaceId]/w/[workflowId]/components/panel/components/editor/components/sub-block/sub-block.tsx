@@ -39,7 +39,7 @@ import {
   type SelectorOverrides,
   ShortInput,
   SkillInput,
-  SlackManifestGenerator,
+  SlackSetupWizard,
   SliderInput,
   SortBuilder,
   Switch,
@@ -818,7 +818,14 @@ function SubBlockComponent({
             blockId={blockId}
             subBlockId={config.id}
             title={config.title ?? ''}
-            options={config.options as { label: string; id: string }[]}
+            options={
+              config.options as {
+                label: string
+                id: string
+                defaultChecked?: boolean
+                description?: string
+              }[]
+            }
             isPreview={isPreview}
             subBlockValues={subBlockValues}
             disabled={isDisabled}
@@ -1130,10 +1137,8 @@ function SubBlockComponent({
             }
           />
         )
-      case 'slack-manifest-generator':
-        return (
-          <SlackManifestGenerator blockId={blockId} isPreview={isPreview} disabled={isDisabled} />
-        )
+      case 'slack-setup-wizard':
+        return <SlackSetupWizard blockId={blockId} isPreview={isPreview} disabled={isDisabled} />
       case 'messages-input':
         return (
           <MessagesInput

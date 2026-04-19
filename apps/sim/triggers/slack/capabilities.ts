@@ -3,8 +3,10 @@
  *
  * @remarks
  * Each capability maps to a set of bot OAuth scopes and bot events that must
- * be declared in the Slack app manifest for the capability to work.
- * See https://api.slack.com/reference/manifests for the manifest schema.
+ * be declared in the Slack app manifest for the capability to work. The `id`
+ * is also used as the sub-block storage key (shape: `trigger_*` / `action_*`)
+ * so the same object serves as both a checkbox-list option and a manifest
+ * builder entry. See https://api.slack.com/reference/manifests.
  */
 
 export type SlackCapabilityGroup = 'trigger' | 'action'
@@ -13,113 +15,121 @@ export interface SlackCapability {
   id: string
   label: string
   description: string
+  defaultChecked: boolean
   group: SlackCapabilityGroup
   scopes: readonly string[]
   events: readonly string[]
-  defaultEnabled: boolean
 }
 
 export const SLACK_CAPABILITIES: readonly SlackCapability[] = [
   {
-    id: 'mention',
+    id: 'trigger_mention',
     label: '@mention',
     description: 'Trigger the workflow when someone @-mentions your bot.',
+    defaultChecked: true,
     group: 'trigger',
     scopes: ['app_mentions:read'],
     events: ['app_mention'],
-    defaultEnabled: true,
   },
   {
-    id: 'dm',
+    id: 'trigger_dm',
     label: 'Direct message',
     description: 'Trigger the workflow when a user sends your bot a 1:1 direct message.',
+    defaultChecked: true,
     group: 'trigger',
     scopes: ['im:history', 'im:read'],
     events: ['message.im'],
-    defaultEnabled: true,
   },
   {
-    id: 'group_dm',
+    id: 'trigger_group_dm',
     label: 'Group direct message',
     description: 'Trigger on messages in multi-person DMs your bot is part of.',
+    defaultChecked: true,
     group: 'trigger',
     scopes: ['mpim:history', 'mpim:read'],
     events: ['message.mpim'],
-    defaultEnabled: true,
   },
   {
-    id: 'public_channel',
+    id: 'trigger_public_channel',
     label: 'Public channel message',
     description: 'Trigger on messages in public channels your bot has been invited to.',
+    defaultChecked: true,
     group: 'trigger',
     scopes: ['channels:history', 'channels:read'],
     events: ['message.channels'],
-    defaultEnabled: true,
   },
   {
-    id: 'private_channel',
+    id: 'trigger_private_channel',
     label: 'Private channel message',
     description: 'Trigger on messages in private channels your bot has been invited to.',
+    defaultChecked: true,
     group: 'trigger',
     scopes: ['groups:history', 'groups:read'],
     events: ['message.groups'],
-    defaultEnabled: true,
   },
   {
-    id: 'public_channel_reaction',
+    id: 'trigger_public_channel_reaction',
     label: 'Public channel reaction',
     description: 'Trigger when emoji reactions are added or removed in public channels.',
+    defaultChecked: true,
     group: 'trigger',
     scopes: ['reactions:read'],
     events: ['reaction_added', 'reaction_removed'],
-    defaultEnabled: true,
   },
   {
-    id: 'any_reaction',
+    id: 'trigger_any_reaction',
     label: 'Reaction (any channel)',
     description: 'Trigger on any emoji reaction your bot can see — public or private.',
+    defaultChecked: true,
     group: 'trigger',
     scopes: ['reactions:read'],
     events: ['reaction_added', 'reaction_removed'],
-    defaultEnabled: true,
   },
   {
-    id: 'send',
+    id: 'action_send',
     label: 'Send messages',
     description: 'Let the bot post messages into channels it is a member of.',
+    defaultChecked: true,
     group: 'action',
     scopes: ['chat:write'],
     events: [],
-    defaultEnabled: true,
   },
   {
-    id: 'add_reaction',
+    id: 'action_add_reaction',
     label: 'Add reactions',
     description: 'Let the bot add emoji reactions to messages.',
+    defaultChecked: true,
     group: 'action',
     scopes: ['reactions:write'],
     events: [],
-    defaultEnabled: true,
   },
   {
-    id: 'read_files',
+    id: 'action_read_files',
     label: 'Read file attachments',
     description: 'Let the bot download file attachments on incoming messages.',
+    defaultChecked: true,
     group: 'action',
     scopes: ['files:read'],
     events: [],
-    defaultEnabled: true,
   },
   {
-    id: 'read_users',
+    id: 'action_read_users',
     label: 'Look up users',
     description: 'Resolve user IDs to names, profiles, and email addresses.',
+    defaultChecked: true,
     group: 'action',
     scopes: ['users:read', 'users:read.email'],
     events: [],
-    defaultEnabled: true,
   },
 ] as const
+
+export const SLACK_TRIGGER_OPTIONS = SLACK_CAPABILITIES.filter((c) => c.group === 'trigger').map(
+  ({ id, label, description, defaultChecked }) => ({ id, label, description, defaultChecked })
+)
+
+export const SLACK_ACTION_OPTIONS = SLACK_CAPABILITIES.filter((c) => c.group === 'action').map(
+  ({ id, label, description, defaultChecked }) => ({ id, label, description, defaultChecked })
+)
 
 const WEBHOOK_URL_PLACEHOLDER = '<deploy workflow to generate webhook URL>'
 
