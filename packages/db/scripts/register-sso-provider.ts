@@ -254,6 +254,24 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
 </md:EntityDescriptor>`
     }
 
+    const escapeXml = (str: string) =>
+      str.replace(/[<>&"']/g, (c) => {
+        switch (c) {
+          case '<':
+            return '&lt;'
+          case '>':
+            return '&gt;'
+          case '&':
+            return '&amp;'
+          case '"':
+            return '&quot;'
+          case "'":
+            return '&apos;'
+          default:
+            return c
+        }
+      })
+
     const idpMetadataXml = process.env.SSO_SAML_IDP_METADATA
     let computedIdpMetadata: string
     if (idpMetadataXml) {
@@ -263,8 +281,9 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
         .replace(/-----BEGIN CERTIFICATE-----/g, '')
         .replace(/-----END CERTIFICATE-----/g, '')
         .replace(/\s/g, '')
+      const escapedEntryPoint = escapeXml(entryPoint)
       computedIdpMetadata = `<?xml version="1.0"?>
-<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${entryPoint}">
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${escapedEntryPoint}">
   <IDPSSODescriptor WantAuthnRequestsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
     <KeyDescriptor use="signing">
       <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
@@ -273,8 +292,8 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
         </ds:X509Data>
       </ds:KeyInfo>
     </KeyDescriptor>
-    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${entryPoint}"/>
-    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="${entryPoint}"/>
+    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${escapedEntryPoint}"/>
+    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="${escapedEntryPoint}"/>
   </IDPSSODescriptor>
 </EntityDescriptor>`
     }
