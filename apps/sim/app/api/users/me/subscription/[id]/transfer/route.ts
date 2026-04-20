@@ -80,18 +80,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         }
       }
 
-      if (sub.referenceId === organizationId) {
-        return { kind: 'noop', message: 'Subscription already belongs to this organization' }
-      }
-
-      if (sub.referenceId !== userId) {
-        return {
-          kind: 'error',
-          status: 403,
-          error: 'Unauthorized - subscription does not belong to user',
-        }
-      }
-
       const [org] = await tx
         .select({ id: organization.id })
         .from(organization)
@@ -113,6 +101,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           kind: 'error',
           status: 403,
           error: 'Unauthorized - user is not admin of organization',
+        }
+      }
+
+      if (sub.referenceId === organizationId) {
+        return { kind: 'noop', message: 'Subscription already belongs to this organization' }
+      }
+
+      if (sub.referenceId !== userId) {
+        return {
+          kind: 'error',
+          status: 403,
+          error: 'Unauthorized - subscription does not belong to user',
         }
       }
 

@@ -83,9 +83,12 @@ describe('POST /api/users/me/subscription/[id]/transfer', () => {
   })
 
   it('treats an already-transferred organization subscription as a successful no-op', async () => {
-    dbChainMockFns.for.mockResolvedValueOnce([
-      { id: 'sub-1', referenceId: 'org-1', plan: 'team', status: 'active' },
-    ])
+    dbChainMockFns.for
+      .mockResolvedValueOnce([
+        { id: 'sub-1', referenceId: 'org-1', plan: 'team', status: 'active' },
+      ])
+      .mockResolvedValueOnce([{ id: 'org-1' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([{ role: 'owner' }])
 
     const response = await makeRequest({ organizationId: 'org-1' })
 
@@ -93,6 +96,23 @@ describe('POST /api/users/me/subscription/[id]/transfer', () => {
     await expect(response.json()).resolves.toEqual({
       success: true,
       message: 'Subscription already belongs to this organization',
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects the noop probe when the requester is not a member of the target organization', async () => {
+    dbChainMockFns.for
+      .mockResolvedValueOnce([
+        { id: 'sub-1', referenceId: 'org-1', plan: 'team', status: 'active' },
+      ])
+      .mockResolvedValueOnce([{ id: 'org-1' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+
+    const response = await makeRequest({ organizationId: 'org-1' })
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Unauthorized - user is not admin of organization',
     })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
