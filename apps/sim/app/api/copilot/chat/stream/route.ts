@@ -168,11 +168,7 @@ export async function GET(request: NextRequest) {
       })
     )
   } catch (err) {
-    rootSpan.setStatus({
-      code: SpanStatusCode.ERROR,
-      message: err instanceof Error ? err.message : String(err),
-    })
-    rootSpan.recordException(err instanceof Error ? err : new Error(String(err)))
+    markSpanForError(rootSpan, err)
     rootSpan.end()
     throw err
   }

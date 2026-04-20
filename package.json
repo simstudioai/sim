@@ -35,8 +35,8 @@
     "trace-attribute-values-contract:check": "bun run scripts/sync-trace-attribute-values-contract.ts --check",
     "trace-events-contract:generate": "bun run scripts/sync-trace-events-contract.ts",
     "trace-events-contract:check": "bun run scripts/sync-trace-events-contract.ts --check",
-    "mship:generate": "bun run mship-contracts:generate && bun run mship-tools:generate && bun run trace-contracts:generate && bun run trace-spans-contract:generate && bun run trace-attributes-contract:generate && bun run trace-attribute-values-contract:generate && bun run trace-events-contract:generate",
-    "mship:check": "bun run mship-contracts:check && bun run mship-tools:check && bun run trace-contracts:check && bun run trace-spans-contract:check && bun run trace-attributes-contract:check && bun run trace-attribute-values-contract:check && bun run trace-events-contract:check",
+    "mship:generate": "bun run scripts/generate-mship-contracts.ts",
+    "mship:check": "bun run scripts/generate-mship-contracts.ts --check",
     "prepare": "bun husky",
     "type-check": "turbo run type-check",
     "release": "bun run scripts/create-single-release.ts"
