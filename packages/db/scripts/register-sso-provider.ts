@@ -427,12 +427,11 @@ async function registerSSOProvider(): Promise<boolean> {
 
     if (
       ssoConfig.providerType === 'saml' &&
-      !process.env.SSO_SAML_CALLBACK_URL &&
       !process.env.NEXT_PUBLIC_APP_URL &&
       !process.env.BETTER_AUTH_URL
     ) {
       logger.error(
-        'NEXT_PUBLIC_APP_URL or BETTER_AUTH_URL is required to generate the SAML callback URL. Set one of these or provide SSO_SAML_CALLBACK_URL explicitly.'
+        'NEXT_PUBLIC_APP_URL or BETTER_AUTH_URL is required for SAML — it is used as the SP entity ID in SP metadata. Set one of these env vars.'
       )
       return false
     }
