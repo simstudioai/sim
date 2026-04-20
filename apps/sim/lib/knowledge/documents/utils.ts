@@ -1,11 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import {
-  type SecureFetchOptions,
-  type SecureFetchResponse,
-  secureFetchWithPinnedIP,
-} from '@/lib/core/security/input-validation.server'
 
 const logger = createLogger('RetryUtils')
 
@@ -197,48 +192,6 @@ export async function fetchWithRetry(
       error.statusText = response.statusText
 
       // Pass Retry-After to the retry loop so it replaces exponential backoff
-      const retryAfter = response.headers.get('Retry-After')
-      if (retryAfter) {
-        const waitMs = Number.isNaN(Number(retryAfter))
-          ? Math.max(0, new Date(retryAfter).getTime() - Date.now())
-          : Number(retryAfter) * 1000
-        if (waitMs > 0) {
-          error.retryAfterMs = waitMs
-        }
-      }
-
-      throw error
-    }
-
-    return response
-  }, retryOptions)
-}
-
-/**
- * Wrapper for secure fetch requests with retry logic and DNS pinning.
- * Use when connecting to user-controlled hostnames that cannot be restricted
- * to a domain allowlist (e.g. self-hosted plugin endpoints). The DNS lookup
- * happens once during validation; this helper reuses that resolved IP so a
- * malicious nameserver cannot rebind to a private IP between validation and
- * the actual request.
- */
-export async function secureFetchWithPinnedIPAndRetry(
-  url: string,
-  resolvedIP: string,
-  options: SecureFetchOptions & { allowHttp?: boolean } = {},
-  retryOptions: RetryOptions = {}
-): Promise<SecureFetchResponse> {
-  return retryWithExponentialBackoff(async () => {
-    const response = await secureFetchWithPinnedIP(url, resolvedIP, options)
-
-    if (!response.ok && isRetryableError({ status: response.status })) {
-      const errorText = await response.text()
-      const error: HTTPError = new Error(
-        `HTTP ${response.status}: ${response.statusText} - ${errorText}`
-      )
-      error.status = response.status
-      error.statusText = response.statusText
-
       const retryAfter = response.headers.get('Retry-After')
       if (retryAfter) {
         const waitMs = Number.isNaN(Number(retryAfter))
