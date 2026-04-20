@@ -1,6 +1,6 @@
 import { db, member, ssoProvider } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { and, eq, or } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       }
 
       const whereClause = verifiedOrganizationId
-        ? or(eq(ssoProvider.userId, userId), eq(ssoProvider.organizationId, verifiedOrganizationId))
+        ? eq(ssoProvider.organizationId, verifiedOrganizationId)
         : eq(ssoProvider.userId, userId)
 
       const results = await db
