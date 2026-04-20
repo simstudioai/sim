@@ -16,10 +16,6 @@ const {
 
 vi.mock('@sim/db', () => dbChainMock)
 
-vi.mock('@/lib/billing', () => ({
-  hasPaidSubscription: vi.fn(),
-}))
-
 vi.mock('@/lib/billing/core/billing', () => ({
   getPlanPricing: vi.fn(),
 }))
