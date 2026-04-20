@@ -23,7 +23,7 @@ import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { consumeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { getProviderIdFromServiceId, type OAuthProvider } from '@/lib/oauth'
 import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal'
-import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/components/connector-selector-field'
+import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
@@ -118,12 +118,17 @@ export function AddConnectorModal({
 
   const dependentFieldIds = useMemo(() => {
     if (!connectorConfig) return new Map<string, string[]>()
-    const map = new Map<string, string[]>()
+    const map = new Map<string, Set<string>>()
     for (const field of connectorConfig.configFields) {
       const deps = getDependsOnFields(field.dependsOn)
       for (const dep of deps) {
-        const existing = map.get(dep) ?? []
-        existing.push(field.id)
+        const existing = map.get(dep) ?? new Set<string>()
+        existing.add(field.id)
+        if (field.canonicalParamId) {
+          for (const sibling of canonicalGroups.get(field.canonicalParamId) ?? []) {
+            existing.add(sibling.id)
+          }
+        }
         map.set(dep, existing)
       }
     }
@@ -142,11 +147,13 @@ export function AddConnectorModal({
       }
       if (allDependents.size > 0) {
         for (const field of group) {
-          map.set(field.id, [...allDependents])
+          map.set(field.id, new Set(allDependents))
         }
       }
     }
-    return map
+    const result = new Map<string, string[]>()
+    for (const [key, value] of map) result.set(key, [...value])
+    return result
   }, [connectorConfig, canonicalGroups])
 
   const handleSelectType = (type: string) => {
