@@ -356,7 +356,7 @@ export function SSO() {
         callbackUrl = config.callbackUrl || ''
         audience = config.audience || ''
         wantAssertionsSigned = config.wantAssertionsSigned ?? true
-        idpMetadata = config.idpMetadata || ''
+        idpMetadata = config.idpMetadata?.metadata || config.idpMetadata || ''
       }
 
       const snapshot = {

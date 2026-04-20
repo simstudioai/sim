@@ -1,6 +1,6 @@
-import { db, ssoProvider } from '@sim/db'
+import { db, member, ssoProvider } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { eq, or } from 'drizzle-orm'
+import { and, eq, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 
@@ -16,8 +16,21 @@ export async function GET(request: NextRequest) {
     if (session?.user?.id) {
       const userId = session.user.id
 
-      const whereClause = organizationId
-        ? or(eq(ssoProvider.userId, userId), eq(ssoProvider.organizationId, organizationId))
+      let verifiedOrganizationId: string | null = null
+      if (organizationId) {
+        const [membership] = await db
+          .select({ organizationId: member.organizationId })
+          .from(member)
+          .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
+          .limit(1)
+        if (!membership) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+        verifiedOrganizationId = membership.organizationId
+      }
+
+      const whereClause = verifiedOrganizationId
+        ? or(eq(ssoProvider.userId, userId), eq(ssoProvider.organizationId, verifiedOrganizationId))
         : eq(ssoProvider.userId, userId)
 
       const results = await db
