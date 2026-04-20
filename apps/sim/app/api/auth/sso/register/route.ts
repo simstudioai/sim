@@ -9,6 +9,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 
 const logger = createLogger('SSORegisterRoute')
 
@@ -32,6 +33,7 @@ const ssoRegistrationSchema = z.discriminatedUnion('providerType', [
     providerId: z.string().min(1, 'Provider ID is required'),
     issuer: z.string().url('Issuer must be a valid URL'),
     domain: z.string().min(1, 'Domain is required'),
+    orgId: z.string().optional(),
     mapping: mappingSchema,
     clientId: z.string().min(1, 'Client ID is required for OIDC'),
     clientSecret: z.string().min(1, 'Client Secret is required for OIDC'),
@@ -57,6 +59,7 @@ const ssoRegistrationSchema = z.discriminatedUnion('providerType', [
     providerId: z.string().min(1, 'Provider ID is required'),
     issuer: z.string().url('Issuer must be a valid URL'),
     domain: z.string().min(1, 'Domain is required'),
+    orgId: z.string().optional(),
     mapping: mappingSchema,
     entryPoint: z.string().url('Entry point must be a valid URL for SAML'),
     cert: z.string().min(1, 'Certificate is required for SAML'),
@@ -107,7 +110,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = parseResult.data
-    const { providerId, issuer, domain, providerType, mapping } = body
+    const { providerId, issuer, domain, providerType, mapping, orgId } = body
 
     const headers: Record<string, string> = {}
     request.headers.forEach((value, key) => {
@@ -119,6 +122,7 @@ export async function POST(request: NextRequest) {
       issuer,
       domain,
       mapping,
+      ...(orgId ? { organizationId: orgId } : {}),
     }
 
     if (providerType === 'oidc') {
@@ -324,7 +328,7 @@ export async function POST(request: NextRequest) {
       } = body
 
       const computedCallbackUrl =
-        callbackUrl || `${issuer.replace('/metadata', '')}/callback/${providerId}`
+        callbackUrl || `${getBaseUrl()}/api/auth/sso/callback/${providerId}`
 
       const escapeXml = (str: string) =>
         str.replace(/[<>&"']/g, (c) => {

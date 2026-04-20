@@ -1,17 +1,25 @@
 import { db, ssoProvider } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
-import { NextResponse } from 'next/server'
+import { eq, or } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 
 const logger = createLogger('SSOProvidersRoute')
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await getSession()
+    const { searchParams } = new URL(request.url)
+    const organizationId = searchParams.get('organizationId')
 
     let providers
     if (session?.user?.id) {
+      const userId = session.user.id
+
+      const whereClause = organizationId
+        ? or(eq(ssoProvider.userId, userId), eq(ssoProvider.organizationId, organizationId))
+        : eq(ssoProvider.userId, userId)
+
       const results = await db
         .select({
           id: ssoProvider.id,
@@ -24,18 +32,11 @@ export async function GET() {
           organizationId: ssoProvider.organizationId,
         })
         .from(ssoProvider)
-        .where(eq(ssoProvider.userId, session.user.id))
+        .where(whereClause)
 
       providers = results.map((provider) => ({
         ...provider,
-        providerType:
-          provider.oidcConfig && provider.samlConfig
-            ? 'oidc'
-            : provider.oidcConfig
-              ? 'oidc'
-              : provider.samlConfig
-                ? 'saml'
-                : ('oidc' as 'oidc' | 'saml'),
+        providerType: (provider.samlConfig ? 'saml' : 'oidc') as 'oidc' | 'saml',
       }))
     } else {
       const results = await db
