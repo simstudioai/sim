@@ -3,7 +3,13 @@
  *
  * @vitest-environment node
  */
-import { auditMock, authMock, authMockFns, createMockRequest, schemaMock } from '@sim/testing'
+import {
+  auditMock,
+  authMockFns,
+  createMockRequest,
+  permissionsMock,
+  permissionsMockFns,
+} from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockDbChain } = vi.hoisted(() => {
@@ -21,19 +27,13 @@ const { mockDbChain } = vi.hoisted(() => {
   return { mockDbChain }
 })
 
-vi.mock('@/lib/auth', () => authMock)
-
 vi.mock('@sim/db', () => ({
   db: mockDbChain,
 }))
 
-vi.mock('@sim/db/schema', () => schemaMock)
-
 vi.mock('@/lib/audit/log', () => auditMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: vi.fn().mockResolvedValue('admin'),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { GET, POST } from '@/app/api/knowledge/route'
 
@@ -49,6 +49,8 @@ describe('Knowledge Base API Route', () => {
         }
       }
     })
+
+    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('admin')
 
     vi.stubGlobal('crypto', {
       randomUUID: vi.fn().mockReturnValue('mock-uuid-1234-5678'),

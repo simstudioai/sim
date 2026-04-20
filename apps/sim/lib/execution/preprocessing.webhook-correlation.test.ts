@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 
-import { loggingSessionMock, schemaMock } from '@sim/testing'
+import { loggingSessionMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 
 const { mockGetWorkspaceBilledAccountUserId } = vi.hoisted(() => ({
@@ -10,7 +10,6 @@ const { mockGetWorkspaceBilledAccountUserId } = vi.hoisted(() => ({
 }))
 
 vi.mock('@sim/db', () => ({ db: {} }))
-vi.mock('@sim/db/schema', () => schemaMock)
 vi.mock('drizzle-orm', () => ({ eq: vi.fn() }))
 vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
   checkServerSideUsageLimits: vi.fn(),

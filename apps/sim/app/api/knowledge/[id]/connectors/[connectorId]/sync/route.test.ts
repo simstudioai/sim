@@ -4,11 +4,10 @@
 import {
   auditMock,
   createMockRequest,
-  hybridAuthMock,
   hybridAuthMockFns,
   knowledgeApiUtilsMock,
   knowledgeApiUtilsMockFns,
-  schemaMock,
+  requestUtilsMockFns,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -31,12 +30,7 @@ const { mockDispatchSync, mockDbChain } = vi.hoisted(() => {
 const mockCheckWriteAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseWriteAccess
 
 vi.mock('@sim/db', () => ({ db: mockDbChain }))
-vi.mock('@sim/db/schema', () => schemaMock)
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
-vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('test-req-id'),
-}))
 vi.mock('@/lib/knowledge/connectors/sync-engine', () => ({
   dispatchSync: mockDispatchSync,
 }))
@@ -49,6 +43,7 @@ describe('Connector Manual Sync API Route', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('test-req-id')
     mockDbChain.select.mockReturnThis()
     mockDbChain.from.mockReturnThis()
     mockDbChain.where.mockReturnThis()

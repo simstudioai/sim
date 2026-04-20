@@ -1,12 +1,10 @@
 import {
   auditMock,
-  authMock,
   authMockFns,
   createSession,
   createWorkspaceRecord,
   permissionsMock,
   permissionsMockFns,
-  schemaMock,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -65,8 +63,6 @@ const mockDbTransaction = vi.fn().mockImplementation(async (callback: any) => {
   })
 })
 
-vi.mock('@/lib/auth', () => authMock)
-
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/credentials/environment', () => ({
@@ -104,8 +100,6 @@ vi.mock('@sim/db', () => ({
     transaction: (callback: any) => mockDbTransaction(callback),
   },
 }))
-
-vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn((a: unknown, b: unknown) => ({ type: 'eq', a, b })),

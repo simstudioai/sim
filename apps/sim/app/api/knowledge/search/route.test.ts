@@ -8,12 +8,9 @@
 import {
   createEnvMock,
   createMockRequest,
-  hybridAuthMock,
   hybridAuthMockFns,
   knowledgeApiUtilsMock,
   knowledgeApiUtilsMockFns,
-  requestUtilsMock,
-  schemaMock,
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
@@ -63,19 +60,13 @@ vi.mock('drizzle-orm', () => ({
   })),
 }))
 
-vi.mock('@sim/db/schema', () => schemaMock)
-
 vi.mock('@sim/db', () => ({
   db: mockDbChain,
 }))
 
-vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
-
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/core/config/env', () => createEnvMock({ OPENAI_API_KEY: 'test-api-key' }))
-
-vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
 vi.mock('@/lib/documents/utils', () => ({
   retryWithExponentialBackoff: vi.fn().mockImplementation((fn) => fn()),

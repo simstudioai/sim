@@ -1,7 +1,11 @@
 import {
+  authMock,
   databaseMock,
   drizzleOrmMock,
+  hybridAuthMock,
   loggerMock,
+  requestUtilsMock,
+  schemaMock,
   setupGlobalFetchMock,
   setupGlobalStorageMocks,
 } from '@sim/testing'
@@ -12,8 +16,12 @@ setupGlobalFetchMock()
 setupGlobalStorageMocks()
 
 vi.mock('@sim/db', () => databaseMock)
+vi.mock('@sim/db/schema', () => schemaMock)
 vi.mock('drizzle-orm', () => drizzleOrmMock)
 vi.mock('@sim/logger', () => loggerMock)
+vi.mock('@/lib/auth', () => authMock)
+vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
+vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
 vi.mock('@/stores/console/store', () => ({
   useConsoleStore: {

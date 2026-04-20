@@ -3,30 +3,15 @@
  *
  * @vitest-environment node
  */
-import { authMock, authMockFns, schemaMock } from '@sim/testing'
+import { authMockFns, dbChainMock, dbChainMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDelete, mockWhere, mockGetAccessibleCopilotChat } = vi.hoisted(() => ({
-  mockDelete: vi.fn(),
-  mockWhere: vi.fn(),
+const { mockGetAccessibleCopilotChat } = vi.hoisted(() => ({
   mockGetAccessibleCopilotChat: vi.fn(),
 }))
 
-vi.mock('@/lib/auth', () => authMock)
-
-vi.mock('@sim/db', () => ({
-  db: {
-    delete: mockDelete,
-  },
-}))
-
-vi.mock('@sim/db/schema', () => schemaMock)
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
-  eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
-}))
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/copilot/chat/lifecycle', () => ({
   getAccessibleCopilotChat: mockGetAccessibleCopilotChat,
@@ -52,9 +37,7 @@ describe('Copilot Chat Delete API Route', () => {
 
     authMockFns.mockGetSession.mockResolvedValue(null)
 
-    const mockReturning = vi.fn().mockResolvedValue([{ workspaceId: 'ws-1' }])
-    mockWhere.mockReturnValue({ returning: mockReturning })
-    mockDelete.mockReturnValue({ where: mockWhere })
+    dbChainMockFns.returning.mockResolvedValue([{ workspaceId: 'ws-1' }])
     mockGetAccessibleCopilotChat.mockResolvedValue({ id: 'chat-123', userId: 'user-123' })
   })
 
@@ -90,8 +73,8 @@ describe('Copilot Chat Delete API Route', () => {
       const responseData = await response.json()
       expect(responseData).toEqual({ success: true })
 
-      expect(mockDelete).toHaveBeenCalled()
-      expect(mockWhere).toHaveBeenCalled()
+      expect(dbChainMockFns.delete).toHaveBeenCalled()
+      expect(dbChainMockFns.where).toHaveBeenCalled()
     })
 
     it('should return 500 for invalid request body - missing chatId', async () => {
@@ -123,7 +106,7 @@ describe('Copilot Chat Delete API Route', () => {
     it('should handle database errors gracefully', async () => {
       authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-123' } })
 
-      mockWhere.mockRejectedValueOnce(new Error('Database connection failed'))
+      dbChainMockFns.returning.mockRejectedValueOnce(new Error('Database connection failed'))
 
       const req = createMockRequest('DELETE', {
         chatId: 'chat-123',
@@ -180,7 +163,7 @@ describe('Copilot Chat Delete API Route', () => {
       const response = await DELETE(req)
 
       expect(response.status).toBe(200)
-      expect(mockDelete).toHaveBeenCalled()
+      expect(dbChainMockFns.delete).toHaveBeenCalled()
     })
   })
 })

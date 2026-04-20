@@ -4,37 +4,22 @@
  * @vitest-environment node
  */
 import {
-  hybridAuthMock,
+  dbChainMock,
+  dbChainMockFns,
   hybridAuthMockFns,
-  schemaMock,
+  resetDbChainMock,
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDbSelect, mockDbFrom, mockDbWhere, mockDbLimit } = vi.hoisted(() => ({
-  mockDbSelect: vi.fn(),
-  mockDbFrom: vi.fn(),
-  mockDbWhere: vi.fn(),
-  mockDbLimit: vi.fn(),
-}))
-
+vi.mock('@sim/db', () => dbChainMock)
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...args: unknown[]) => ({ type: 'and', args })),
   eq: vi.fn(),
   isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
 }))
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mockDbSelect,
-  },
-}))
-
-vi.mock('@sim/db/schema', () => schemaMock)
-
-vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
@@ -43,11 +28,7 @@ import { GET } from '@/app/api/workflows/[id]/chat/status/route'
 describe('Workflow Chat Status Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-
-    mockDbSelect.mockReturnValue({ from: mockDbFrom })
-    mockDbFrom.mockReturnValue({ where: mockDbWhere })
-    mockDbWhere.mockReturnValue({ limit: mockDbLimit })
-    mockDbLimit.mockResolvedValue([])
+    resetDbChainMock()
   })
 
   it('returns 401 when unauthenticated', async () => {
@@ -91,7 +72,7 @@ describe('Workflow Chat Status Route', () => {
       workflow: { id: 'wf-1', workspaceId: 'ws-1' },
       workspacePermission: 'read',
     })
-    mockDbLimit.mockResolvedValueOnce([
+    dbChainMockFns.limit.mockResolvedValueOnce([
       {
         id: 'chat-1',
         identifier: 'assistant',

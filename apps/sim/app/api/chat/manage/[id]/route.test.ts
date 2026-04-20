@@ -5,11 +5,12 @@
  */
 import {
   auditMock,
-  authMock,
   authMockFns,
+  dbChainMock,
+  dbChainMockFns,
   encryptionMock,
   encryptionMockFns,
-  schemaMock,
+  resetDbChainMock,
   workflowsApiUtilsMock,
   workflowsApiUtilsMockFns,
   workflowsOrchestrationMock,
@@ -20,18 +21,9 @@ import {
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSelect, mockFrom, mockWhere, mockLimit, mockUpdate, mockSet, mockCheckChatAccess } =
-  vi.hoisted(() => {
-    return {
-      mockSelect: vi.fn(),
-      mockFrom: vi.fn(),
-      mockWhere: vi.fn(),
-      mockLimit: vi.fn(),
-      mockUpdate: vi.fn(),
-      mockSet: vi.fn(),
-      mockCheckChatAccess: vi.fn(),
-    }
-  })
+const { mockCheckChatAccess } = vi.hoisted(() => ({
+  mockCheckChatAccess: vi.fn(),
+}))
 
 const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
 const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
@@ -47,14 +39,7 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
   isHosted: false,
   isProd: false,
 }))
-vi.mock('@/lib/auth', () => authMock)
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mockSelect,
-    update: mockUpdate,
-  },
-}))
-vi.mock('@sim/db/schema', () => schemaMock)
+vi.mock('@sim/db', () => dbChainMock)
 vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/core/utils/urls', () => ({
@@ -65,24 +50,13 @@ vi.mock('@/app/api/chat/utils', () => ({
 }))
 vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...conditions: unknown[]) => ({ type: 'and', conditions })),
-  eq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
-  isNull: vi.fn((field: unknown) => ({ type: 'isNull', field })),
-}))
 
 import { DELETE, GET, PATCH } from '@/app/api/chat/manage/[id]/route'
 
 describe('Chat Edit API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-
-    mockLimit.mockResolvedValue([])
-    mockSelect.mockReturnValue({ from: mockFrom })
-    mockFrom.mockReturnValue({ where: mockWhere })
-    mockWhere.mockReturnValue({ limit: mockLimit })
-    mockUpdate.mockReturnValue({ set: mockSet })
-    mockSet.mockReturnValue({ where: mockWhere })
+    resetDbChainMock()
     mockPerformChatUndeploy.mockResolvedValue({ success: true })
 
     mockCreateSuccessResponse.mockImplementation((data) => {
@@ -220,7 +194,7 @@ describe('Chat Edit API Route', () => {
       const response = await PATCH(req, { params: Promise.resolve({ id: 'chat-123' }) })
 
       expect(response.status).toBe(200)
-      expect(mockUpdate).toHaveBeenCalled()
+      expect(dbChainMockFns.update).toHaveBeenCalled()
       const data = await response.json()
       expect(data.id).toBe('chat-123')
       expect(data.chatUrl).toBe('http://localhost:3000/chat/test-chat')
@@ -241,9 +215,9 @@ describe('Chat Edit API Route', () => {
 
       mockCheckChatAccess.mockResolvedValue({ hasAccess: true, chat: mockChat })
 
-      mockLimit.mockReset()
-      mockLimit.mockResolvedValue([{ id: 'other-chat-id', identifier: 'new-identifier' }])
-      mockWhere.mockReturnValue({ limit: mockLimit })
+      dbChainMockFns.limit.mockResolvedValueOnce([
+        { id: 'other-chat-id', identifier: 'new-identifier' },
+      ])
 
       const req = new NextRequest('http://localhost:3000/api/chat/manage/chat-123', {
         method: 'PATCH',
@@ -311,7 +285,7 @@ describe('Chat Edit API Route', () => {
 
       expect(response.status).toBe(200)
       expect(mockEncryptSecret).not.toHaveBeenCalled()
-      expect(mockSet).toHaveBeenCalledWith(
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
         expect.objectContaining({
           authType: 'password',
           allowedEmails: [],
@@ -319,7 +293,7 @@ describe('Chat Edit API Route', () => {
         })
       )
 
-      const updatePayload = mockSet.mock.calls[0]?.[0]
+      const updatePayload = dbChainMockFns.set.mock.calls[0]?.[0]
       expect(updatePayload.password).toBeUndefined()
     })
 

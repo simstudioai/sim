@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { authMock, authMockFns, hybridAuthMock, hybridAuthMockFns, schemaMock } from '@sim/testing'
+import { authMockFns, hybridAuthMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
@@ -25,8 +25,6 @@ const mocks = vi.hoisted(() => {
     mockDownloadFile,
   }
 })
-
-vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),
@@ -60,10 +58,6 @@ vi.mock('@sim/utils/id', () => ({
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
   ),
 }))
-
-vi.mock('@/lib/auth', () => authMock)
-
-vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 
 vi.mock('@/app/api/files/authorization', () => ({
   verifyFileAccess: mocks.mockVerifyFileAccess,

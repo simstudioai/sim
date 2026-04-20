@@ -1,7 +1,6 @@
 /**
  * @vitest-environment node
  */
-import { schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockDbSelect = vi.fn()
@@ -17,8 +16,6 @@ vi.mock('@sim/db', () => ({
     }),
   },
 }))
-
-vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => {
   const sqlTag = () => {

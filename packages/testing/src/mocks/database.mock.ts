@@ -57,6 +57,149 @@ export function createMockSqlOperators() {
 }
 
 /**
+ * Pre-wired chain of vi.fn()s for drizzle-style DB queries.
+ *
+ * Each builder step is a stable, module-level `vi.fn()` — safe to reference
+ * inside hoisted `vi.mock()` factories (same pattern as `authMockFns`). Chains
+ * are wired at module load time:
+ *
+ * - `select().from().where()` → returns a builder with `.limit` / `.orderBy` /
+ *   `.returning` / `.groupBy` terminals
+ * - `select().from().innerJoin()|leftJoin()` → returns the same where-builder
+ * - `insert().values().returning()` / `update().set().where()` / `delete().where()`
+ *
+ * Terminals (`limit`, `orderBy`, `returning`, `groupBy`, `values`) default to
+ * resolving `[]` (or `undefined` for `values`). Override per-test with
+ * `dbChainMockFns.limit.mockResolvedValueOnce([...])`.
+ *
+ * `vi.clearAllMocks()` clears call history but preserves default wiring. Tests
+ * that replace a wiring with `mockReturnValue(...)` (not `...Once`) must re-wire
+ * in their own `beforeEach`.
+ *
+ * @example
+ * ```ts
+ * import { dbChainMock, dbChainMockFns } from '@sim/testing'
+ * vi.mock('@sim/db', () => dbChainMock)
+ *
+ * it('finds rows', async () => {
+ *   dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'w-1' }])
+ *   // ... exercise code that hits db.select().from().where().limit() ...
+ *   expect(dbChainMockFns.where).toHaveBeenCalled()
+ * })
+ * ```
+ */
+const limit = vi.fn(() => Promise.resolve([] as unknown[]))
+const orderBy = vi.fn(() => Promise.resolve([] as unknown[]))
+const returning = vi.fn(() => Promise.resolve([] as unknown[]))
+const groupBy = vi.fn(() => Promise.resolve([] as unknown[]))
+const execute = vi.fn(() => Promise.resolve([] as unknown[]))
+
+const onConflictDoUpdate = vi.fn(() => ({ returning }) as unknown as Promise<void>)
+const onConflictDoNothing = vi.fn(() => ({ returning }) as unknown as Promise<void>)
+
+const whereBuilder = () => ({ limit, orderBy, returning, groupBy })
+const where = vi.fn(whereBuilder)
+
+const joinBuilder = (): { where: typeof where; innerJoin: any; leftJoin: any } => ({
+  where,
+  innerJoin,
+  leftJoin,
+})
+const innerJoin: ReturnType<typeof vi.fn> = vi.fn(joinBuilder)
+const leftJoin: ReturnType<typeof vi.fn> = vi.fn(joinBuilder)
+const from = vi.fn(joinBuilder)
+
+const select = vi.fn(() => ({ from }))
+const selectDistinct = vi.fn(() => ({ from }))
+const selectDistinctOn = vi.fn(() => ({ from }))
+const values = vi.fn(() => ({ returning, onConflictDoUpdate, onConflictDoNothing }))
+const insert = vi.fn(() => ({ values }))
+const set = vi.fn(() => ({ where }))
+const update = vi.fn(() => ({ set }))
+const del = vi.fn(() => ({ where }))
+const transaction: ReturnType<typeof vi.fn> = vi.fn(
+  async (cb: (tx: typeof dbChainMock.db) => unknown) => cb(dbChainMock.db)
+)
+
+export const dbChainMockFns = {
+  select,
+  selectDistinct,
+  selectDistinctOn,
+  from,
+  where,
+  limit,
+  orderBy,
+  returning,
+  innerJoin,
+  leftJoin,
+  groupBy,
+  execute,
+  insert,
+  values,
+  onConflictDoUpdate,
+  onConflictDoNothing,
+  update,
+  set,
+  delete: del,
+  transaction,
+}
+
+/**
+ * Re-applies the default chain wiring to every `dbChainMockFns` entry. Call
+ * this in `beforeEach` (after `vi.clearAllMocks()`) if any test uses
+ * `mockReturnValue` / `mockResolvedValue` (permanent overrides) — this
+ * guarantees the next test starts with fresh defaults.
+ *
+ * Not needed if tests exclusively use the `...Once` variants, since those
+ * auto-expire after one call.
+ */
+export function resetDbChainMock(): void {
+  select.mockImplementation(() => ({ from }))
+  selectDistinct.mockImplementation(() => ({ from }))
+  selectDistinctOn.mockImplementation(() => ({ from }))
+  from.mockImplementation(joinBuilder)
+  innerJoin.mockImplementation(joinBuilder)
+  leftJoin.mockImplementation(joinBuilder)
+  where.mockImplementation(whereBuilder)
+  insert.mockImplementation(() => ({ values }))
+  values.mockImplementation(() => ({ returning, onConflictDoUpdate, onConflictDoNothing }))
+  onConflictDoUpdate.mockImplementation(() => ({ returning }) as unknown as Promise<void>)
+  onConflictDoNothing.mockImplementation(() => ({ returning }) as unknown as Promise<void>)
+  update.mockImplementation(() => ({ set }))
+  set.mockImplementation(() => ({ where }))
+  del.mockImplementation(() => ({ where }))
+  limit.mockImplementation(() => Promise.resolve([] as unknown[]))
+  orderBy.mockImplementation(() => Promise.resolve([] as unknown[]))
+  returning.mockImplementation(() => Promise.resolve([] as unknown[]))
+  groupBy.mockImplementation(() => Promise.resolve([] as unknown[]))
+  execute.mockImplementation(() => Promise.resolve([] as unknown[]))
+  transaction.mockImplementation(async (cb: (tx: typeof dbChainMock.db) => unknown) =>
+    cb(dbChainMock.db)
+  )
+}
+
+/**
+ * Static mock module for `@sim/db` backed by `dbChainMockFns`.
+ *
+ * @example
+ * ```ts
+ * vi.mock('@sim/db', () => dbChainMock)
+ * ```
+ */
+export const dbChainMock = {
+  db: {
+    select,
+    selectDistinct,
+    selectDistinctOn,
+    insert,
+    update,
+    delete: del,
+    execute,
+    transaction,
+  },
+}
+
+/**
  * Creates a mock database connection.
  */
 export function createMockDb() {

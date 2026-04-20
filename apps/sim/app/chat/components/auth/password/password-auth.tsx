@@ -1,7 +1,8 @@
 'use client'
 
-import { type KeyboardEvent, useState } from 'react'
+import { useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Input, Label } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -9,27 +10,20 @@ import AuthBackground from '@/app/(auth)/components/auth-background'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
 import Navbar from '@/app/(landing)/components/navbar/navbar'
+import { useChatPasswordAuth } from '@/hooks/queries/chats'
 
 const logger = createLogger('PasswordAuth')
 
 interface PasswordAuthProps {
   identifier: string
-  onAuthSuccess: () => void
 }
 
-export default function PasswordAuth({ identifier, onAuthSuccess }: PasswordAuthProps) {
+export default function PasswordAuth({ identifier }: PasswordAuthProps) {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showValidationError, setShowValidationError] = useState(false)
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
-  const [isAuthenticating, setIsAuthenticating] = useState(false)
-
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      handleAuthenticate()
-    }
-  }
+  const authenticate = useChatPasswordAuth(identifier)
 
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newPassword = e.target.value
@@ -45,36 +39,13 @@ export default function PasswordAuth({ identifier, onAuthSuccess }: PasswordAuth
       return
     }
 
-    setIsAuthenticating(true)
-
     try {
-      const payload = { password }
-
-      const response = await fetch(`/api/chat/${identifier}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        setPasswordErrors([errorData.error || 'Invalid password. Please try again.'])
-        setShowValidationError(true)
-        return
-      }
-
-      onAuthSuccess()
+      await authenticate.mutateAsync({ password })
       setPassword('')
     } catch (error) {
       logger.error('Authentication error:', error)
-      setPasswordErrors(['An error occurred during authentication'])
+      setPasswordErrors([toError(error).message || 'Invalid password. Please try again.'])
       setShowValidationError(true)
-    } finally {
-      setIsAuthenticating(false)
     }
   }
 
@@ -120,7 +91,6 @@ export default function PasswordAuth({ identifier, onAuthSuccess }: PasswordAuth
                         placeholder='Enter password'
                         value={password}
                         onChange={handlePasswordChange}
-                        onKeyDown={handleKeyDown}
                         className={cn(
                           'pr-10',
                           showValidationError &&
@@ -160,10 +130,10 @@ export default function PasswordAuth({ identifier, onAuthSuccess }: PasswordAuth
 
                 <button
                   type='submit'
-                  disabled={!password.trim() || isAuthenticating}
+                  disabled={!password.trim() || authenticate.isPending}
                   className={AUTH_SUBMIT_BTN}
                 >
-                  {isAuthenticating ? (
+                  {authenticate.isPending ? (
                     <span className='flex items-center gap-2'>
                       <Loader2 className='h-4 w-4 animate-spin' />
                       Authenticating...

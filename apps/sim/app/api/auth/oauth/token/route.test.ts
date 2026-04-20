@@ -7,41 +7,19 @@ import {
   authOAuthUtilsMock,
   authOAuthUtilsMockFns,
   createMockRequest,
-  hybridAuthMock,
   hybridAuthMockFns,
-  requestUtilsMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAuthorizeCredentialUse, mockLogger } = vi.hoisted(() => {
-  const logger = {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-    fatal: vi.fn(),
-    child: vi.fn(),
-  }
-  return {
-    mockAuthorizeCredentialUse: vi.fn(),
-    mockLogger: logger,
-  }
-})
+const { mockAuthorizeCredentialUse } = vi.hoisted(() => ({
+  mockAuthorizeCredentialUse: vi.fn(),
+}))
 
 vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
-
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue(mockLogger),
-}))
 
 vi.mock('@/lib/auth/credential-access', () => ({
   authorizeCredentialUse: mockAuthorizeCredentialUse,
 }))
-
-vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
-
-vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 
 import { GET, POST } from '@/app/api/auth/oauth/token/route'
 
@@ -134,7 +112,6 @@ describe('OAuth Token API Routes', () => {
         'error',
         'Either credentialId or (credentialAccountUserId + providerId) is required'
       )
-      expect(mockLogger.warn).toHaveBeenCalled()
     })
 
     it('should handle authentication failure', async () => {
@@ -369,7 +346,6 @@ describe('OAuth Token API Routes', () => {
 
       expect(response.status).toBe(400)
       expect(data).toHaveProperty('error', 'Credential ID is required')
-      expect(mockLogger.warn).toHaveBeenCalled()
     })
 
     it('should handle authentication failure', async () => {

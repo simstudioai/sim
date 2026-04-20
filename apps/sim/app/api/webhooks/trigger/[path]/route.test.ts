@@ -9,7 +9,6 @@ import {
   executionPreprocessingMock,
   executionPreprocessingMockFns,
   loggingSessionMock,
-  requestUtilsMock,
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
   workflowsUtilsMock,
@@ -352,8 +351,6 @@ vi.mock('drizzle-orm/postgres-js', () => ({
 }))
 
 vi.mock('postgres', () => vi.fn().mockReturnValue({}))
-
-vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
 process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
 

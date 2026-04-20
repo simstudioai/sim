@@ -5,7 +5,6 @@
  */
 import {
   auditMock,
-  authMock,
   authMockFns,
   createMockRequest,
   permissionsMock,
@@ -36,7 +35,6 @@ vi.mock('drizzle-orm', () => ({
   ...drizzleOrmMock,
   min: vi.fn((field) => ({ type: 'min', field })),
 }))
-vi.mock('@/lib/auth', () => authMock)
 vi.mock('@sim/logger', () => ({
   createLogger: vi.fn().mockReturnValue(mockLogger),
 }))

@@ -3,7 +3,14 @@
  *
  * @vitest-environment node
  */
-import { workflowsUtilsMock, workflowsUtilsMockFns } from '@sim/testing'
+import {
+  dbChainMock,
+  dbChainMockFns,
+  requestUtilsMockFns,
+  resetDbChainMock,
+  workflowsUtilsMock,
+  workflowsUtilsMockFns,
+} from '@sim/testing'
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,40 +19,25 @@ const {
   mockExecuteScheduleJob,
   mockExecuteJobInline,
   mockFeatureFlags,
-  mockDbReturning,
-  mockDbUpdate,
   mockEnqueue,
   mockStartJob,
   mockCompleteJob,
   mockMarkJobFailed,
-} = vi.hoisted(() => {
-  const mockDbReturning = vi.fn().mockReturnValue([])
-  const mockDbWhere = vi.fn().mockReturnValue({ returning: mockDbReturning })
-  const mockDbSet = vi.fn().mockReturnValue({ where: mockDbWhere })
-  const mockDbUpdate = vi.fn().mockReturnValue({ set: mockDbSet })
-  const mockEnqueue = vi.fn().mockResolvedValue('job-id-1')
-  const mockStartJob = vi.fn().mockResolvedValue(undefined)
-  const mockCompleteJob = vi.fn().mockResolvedValue(undefined)
-  const mockMarkJobFailed = vi.fn().mockResolvedValue(undefined)
-
-  return {
-    mockVerifyCronAuth: vi.fn().mockReturnValue(null),
-    mockExecuteScheduleJob: vi.fn().mockResolvedValue(undefined),
-    mockExecuteJobInline: vi.fn().mockResolvedValue(undefined),
-    mockFeatureFlags: {
-      isTriggerDevEnabled: false,
-      isHosted: false,
-      isProd: false,
-      isDev: true,
-    },
-    mockDbReturning,
-    mockDbUpdate,
-    mockEnqueue,
-    mockStartJob,
-    mockCompleteJob,
-    mockMarkJobFailed,
-  }
-})
+} = vi.hoisted(() => ({
+  mockVerifyCronAuth: vi.fn().mockReturnValue(null),
+  mockExecuteScheduleJob: vi.fn().mockResolvedValue(undefined),
+  mockExecuteJobInline: vi.fn().mockResolvedValue(undefined),
+  mockFeatureFlags: {
+    isTriggerDevEnabled: false,
+    isHosted: false,
+    isProd: false,
+    isDev: true,
+  },
+  mockEnqueue: vi.fn().mockResolvedValue('job-id-1'),
+  mockStartJob: vi.fn().mockResolvedValue(undefined),
+  mockCompleteJob: vi.fn().mockResolvedValue(undefined),
+  mockMarkJobFailed: vi.fn().mockResolvedValue(undefined),
+}))
 
 vi.mock('@/lib/auth/internal', () => ({
   verifyCronAuth: mockVerifyCronAuth,
@@ -58,10 +50,6 @@ vi.mock('@/background/schedule-execution', () => ({
 }))
 
 vi.mock('@/lib/core/config/feature-flags', () => mockFeatureFlags)
-
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('test-request-id'),
-}))
 
 vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: vi.fn().mockResolvedValue({
@@ -88,9 +76,7 @@ vi.mock('drizzle-orm', () => ({
 }))
 
 vi.mock('@sim/db', () => ({
-  db: {
-    update: mockDbUpdate,
-  },
+  ...dbChainMock,
   workflowSchedule: {
     id: 'id',
     workflowId: 'workflowId',
@@ -180,6 +166,8 @@ function createMockRequest(): NextRequest {
 describe('Scheduled Workflow Execution API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
+    requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('test-request-id')
     workflowsUtilsMockFns.mockGetWorkflowById.mockResolvedValue({
       id: 'workflow-1',
       workspaceId: 'workspace-1',
@@ -188,11 +176,11 @@ describe('Scheduled Workflow Execution API Route', () => {
     mockFeatureFlags.isHosted = false
     mockFeatureFlags.isProd = false
     mockFeatureFlags.isDev = true
-    mockDbReturning.mockReturnValue([])
+    dbChainMockFns.returning.mockReturnValue([])
   })
 
   it('should execute scheduled workflows with Trigger.dev disabled', async () => {
-    mockDbReturning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
+    dbChainMockFns.returning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
 
@@ -205,7 +193,7 @@ describe('Scheduled Workflow Execution API Route', () => {
 
   it('should queue schedules to Trigger.dev when enabled', async () => {
     mockFeatureFlags.isTriggerDevEnabled = true
-    mockDbReturning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
+    dbChainMockFns.returning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
 
@@ -216,7 +204,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should handle case with no due schedules', async () => {
-    mockDbReturning.mockReturnValueOnce([]).mockReturnValueOnce([])
+    dbChainMockFns.returning.mockReturnValueOnce([]).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
 
@@ -227,7 +215,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should execute multiple schedules in parallel', async () => {
-    mockDbReturning.mockReturnValueOnce(MULTIPLE_SCHEDULES).mockReturnValueOnce([])
+    dbChainMockFns.returning.mockReturnValueOnce(MULTIPLE_SCHEDULES).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
 
@@ -237,7 +225,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should execute mothership jobs inline', async () => {
-    mockDbReturning.mockReturnValueOnce([]).mockReturnValueOnce(SINGLE_JOB)
+    dbChainMockFns.returning.mockReturnValueOnce([]).mockReturnValueOnce(SINGLE_JOB)
 
     const response = await GET(createMockRequest())
 
@@ -253,7 +241,7 @@ describe('Scheduled Workflow Execution API Route', () => {
   })
 
   it('should enqueue schedule with correlation metadata via job queue', async () => {
-    mockDbReturning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
+    dbChainMockFns.returning.mockReturnValueOnce(SINGLE_SCHEDULE).mockReturnValueOnce([])
 
     const response = await GET(createMockRequest())
 

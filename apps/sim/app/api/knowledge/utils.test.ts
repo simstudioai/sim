@@ -82,16 +82,21 @@ vi.stubGlobal(
   })
 )
 
-vi.mock('@sim/db', () => {
+vi.mock('@sim/db', async () => {
+  const { schemaMock } = (await import('@sim/testing')) as typeof import('@sim/testing')
+  const tableNameFor = (table: any) => {
+    if (table === schemaMock.knowledgeBase) return 'knowledge_base'
+    if (table === schemaMock.document) return 'document'
+    if (table === schemaMock.embedding) return 'embedding'
+    return ''
+  }
   const selectBuilder = {
     from(table: any) {
       return {
         where() {
           return {
             limit(n: number) {
-              const tableSymbols = Object.getOwnPropertySymbols(table || {})
-              const baseNameSymbol = tableSymbols.find((s) => s.toString().includes('BaseName'))
-              const tableName = baseNameSymbol ? table[baseNameSymbol] : ''
+              const tableName = tableNameFor(table)
 
               if (tableName === 'knowledge_base') {
                 return Promise.resolve(kbRows.slice(0, n))
@@ -117,9 +122,7 @@ vi.mock('@sim/db', () => {
       update: (table: any) => ({
         set: (payload: any) => ({
           where: () => {
-            const tableSymbols = Object.getOwnPropertySymbols(table || {})
-            const baseNameSymbol = tableSymbols.find((s) => s.toString().includes('BaseName'))
-            const tableName = baseNameSymbol ? table[baseNameSymbol] : ''
+            const tableName = tableNameFor(table)
             if (tableName === 'knowledge_base') {
               dbOps.order.push('updateKb')
               dbOps.updatePayloads.push(payload)

@@ -1,12 +1,7 @@
 /**
  * @vitest-environment node
  */
-import {
-  authMock,
-  authMockFns,
-  workflowsApiUtilsMock,
-  workflowsApiUtilsMockFns,
-} from '@sim/testing'
+import { authMockFns, workflowsApiUtilsMock, workflowsApiUtilsMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
@@ -16,8 +11,6 @@ const { mockRunSandboxTask } = vi.hoisted(() => ({
 }))
 
 const mockVerifyWorkspaceMembership = workflowsApiUtilsMockFns.mockVerifyWorkspaceMembership
-
-vi.mock('@/lib/auth', () => authMock)
 
 vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
 
