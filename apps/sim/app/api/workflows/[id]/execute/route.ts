@@ -316,6 +316,7 @@ async function handleExecutePost(
           isPublicApi: workflowTable.isPublicApi,
           isDeployed: workflowTable.isDeployed,
           userId: workflowTable.userId,
+          workspaceId: workflowTable.workspaceId,
         })
         .from(workflowTable)
         .where(eq(workflowTable.id, workflowId))
@@ -330,10 +331,14 @@ async function handleExecutePost(
         return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
       }
 
-      const { getUserPermissionConfig } = await import('@/ee/access-control/utils/permission-check')
-      const ownerConfig = await getUserPermissionConfig(wf.userId)
-      if (ownerConfig?.disablePublicApi) {
-        return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+      if (wf.workspaceId) {
+        const { getUserPermissionConfig } = await import(
+          '@/ee/access-control/utils/permission-check'
+        )
+        const ownerConfig = await getUserPermissionConfig(wf.userId, wf.workspaceId)
+        if (ownerConfig?.disablePublicApi) {
+          return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+        }
       }
 
       userId = wf.userId

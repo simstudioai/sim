@@ -1,20 +1,21 @@
 import { db } from '@sim/db'
-import { member, organization, permissionGroup, permissionGroupMember, user } from '@sim/db/schema'
+import { permissionGroup, permissionGroupMember, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, count, desc, eq } from 'drizzle-orm'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
-import { hasAccessControlAccess } from '@/lib/billing'
+import { hasWorkspaceAccessControlAccess } from '@/lib/billing'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
 } from '@/lib/permission-groups/types'
+import { checkWorkspaceAccess, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
-const logger = createLogger('PermissionGroups')
+const logger = createLogger('WorkspacePermissionGroups')
 
 const configSchema = z.object({
   allowedIntegrations: z.array(z.string()).nullable().optional(),
@@ -27,12 +28,10 @@ const configSchema = z.object({
   hideSecretsTab: z.boolean().optional(),
   hideApiKeysTab: z.boolean().optional(),
   hideInboxTab: z.boolean().optional(),
-  hideEnvironmentTab: z.boolean().optional(),
   hideFilesTab: z.boolean().optional(),
   disableMcpTools: z.boolean().optional(),
   disableCustomTools: z.boolean().optional(),
   disableSkills: z.boolean().optional(),
-  hideTemplates: z.boolean().optional(),
   disableInvitations: z.boolean().optional(),
   disablePublicApi: z.boolean().optional(),
   hideDeployApi: z.boolean().optional(),
@@ -43,34 +42,28 @@ const configSchema = z.object({
 })
 
 const createSchema = z.object({
-  organizationId: z.string().min(1),
   name: z.string().trim().min(1).max(100),
   description: z.string().max(500).optional(),
   config: configSchema.optional(),
   autoAddNewMembers: z.boolean().optional(),
 })
 
-export async function GET(req: Request) {
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ workspaceId: string }> }
+) {
   const session = await getSession()
-
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { searchParams } = new URL(req.url)
-  const organizationId = searchParams.get('organizationId')
+  const { workspaceId } = await params
 
-  if (!organizationId) {
-    return NextResponse.json({ error: 'organizationId is required' }, { status: 400 })
+  const access = await checkWorkspaceAccess(workspaceId, session.user.id)
+  if (!access.exists) {
+    return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
   }
-
-  const membership = await db
-    .select({ id: member.id, role: member.role })
-    .from(member)
-    .where(and(eq(member.userId, session.user.id), eq(member.organizationId, organizationId)))
-    .limit(1)
-
-  if (membership.length === 0) {
+  if (!access.hasAccess) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -89,7 +82,7 @@ export async function GET(req: Request) {
     })
     .from(permissionGroup)
     .leftJoin(user, eq(permissionGroup.createdBy, user.id))
-    .where(eq(permissionGroup.organizationId, organizationId))
+    .where(eq(permissionGroup.workspaceId, workspaceId))
     .orderBy(desc(permissionGroup.createdAt))
 
   const groupsWithCounts = await Promise.all(
@@ -110,15 +103,24 @@ export async function GET(req: Request) {
   return NextResponse.json({ permissionGroups: groupsWithCounts })
 }
 
-export async function POST(req: Request) {
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ workspaceId: string }> }
+) {
   const session = await getSession()
-
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const { workspaceId } = await params
+
   try {
-    const hasAccess = await hasAccessControlAccess(session.user.id)
+    const isWorkspaceAdmin = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
+    if (!isWorkspaceAdmin) {
+      return NextResponse.json({ error: 'Admin permissions required' }, { status: 403 })
+    }
+
+    const hasAccess = await hasWorkspaceAccessControlAccess(session.user.id, workspaceId)
     if (!hasAccess) {
       return NextResponse.json(
         { error: 'Access Control is an Enterprise feature' },
@@ -127,36 +129,12 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const { organizationId, name, description, config, autoAddNewMembers } =
-      createSchema.parse(body)
-
-    const membership = await db
-      .select({ id: member.id, role: member.role })
-      .from(member)
-      .where(and(eq(member.userId, session.user.id), eq(member.organizationId, organizationId)))
-      .limit(1)
-
-    const role = membership[0]?.role
-    if (membership.length === 0 || (role !== 'admin' && role !== 'owner')) {
-      return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
-    }
-
-    const orgExists = await db
-      .select({ id: organization.id })
-      .from(organization)
-      .where(eq(organization.id, organizationId))
-      .limit(1)
-
-    if (orgExists.length === 0) {
-      return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
-    }
+    const { name, description, config, autoAddNewMembers } = createSchema.parse(body)
 
     const existingGroup = await db
       .select({ id: permissionGroup.id })
       .from(permissionGroup)
-      .where(
-        and(eq(permissionGroup.organizationId, organizationId), eq(permissionGroup.name, name))
-      )
+      .where(and(eq(permissionGroup.workspaceId, workspaceId), eq(permissionGroup.name, name)))
       .limit(1)
 
     if (existingGroup.length > 0) {
@@ -174,7 +152,7 @@ export async function POST(req: Request) {
     const now = new Date()
     const newGroup = {
       id: generateId(),
-      organizationId,
+      workspaceId,
       name,
       description: description || null,
       config: groupConfig,
@@ -191,7 +169,7 @@ export async function POST(req: Request) {
           .set({ autoAddNewMembers: false, updatedAt: now })
           .where(
             and(
-              eq(permissionGroup.organizationId, organizationId),
+              eq(permissionGroup.workspaceId, workspaceId),
               eq(permissionGroup.autoAddNewMembers, true)
             )
           )
@@ -201,12 +179,12 @@ export async function POST(req: Request) {
 
     logger.info('Created permission group', {
       permissionGroupId: newGroup.id,
-      organizationId,
+      workspaceId,
       userId: session.user.id,
     })
 
     recordAudit({
-      workspaceId: null,
+      workspaceId,
       actorId: session.user.id,
       action: AuditAction.PERMISSION_GROUP_CREATED,
       resourceType: AuditResourceType.PERMISSION_GROUP,
@@ -215,7 +193,7 @@ export async function POST(req: Request) {
       actorEmail: session.user.email ?? undefined,
       resourceName: name,
       description: `Created permission group "${name}"`,
-      metadata: { organizationId, autoAddNewMembers: autoAddNewMembers || false },
+      metadata: { workspaceId, autoAddNewMembers: autoAddNewMembers || false },
       request: req,
     })
 

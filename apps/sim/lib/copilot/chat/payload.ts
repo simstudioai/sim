@@ -59,13 +59,19 @@ interface BuildIntegrationToolSchemasOptions {
  * Build deferred integration tool schemas from the Sim tool registry.
  * Shared by the interactive chat payload builder and the non-interactive
  * block execution route so both paths send the same tool definitions to Go.
+ *
+ * When `workspaceId` is provided the user's workspace permission config is
+ * loaded once and used to skip any tool whose owning block is not in the
+ * workspace's `allowedIntegrations` allowlist. The resulting list is cached
+ * per `(userId, workspaceId, surface)` key so copilot turns reuse the filter.
  */
 export async function buildIntegrationToolSchemas(
   userId: string,
   messageId?: string,
-  options: BuildIntegrationToolSchemasOptions = { schemaSurface: 'copilot' }
+  options: BuildIntegrationToolSchemasOptions = { schemaSurface: 'copilot' },
+  workspaceId?: string
 ): Promise<ToolSchema[]> {
-  const cacheKey = `${userId}:${options.schemaSurface ?? 'copilot'}`
+  const cacheKey = `${userId}:${workspaceId ?? ''}:${options.schemaSurface ?? 'copilot'}`
   const now = Date.now()
   const cached = toolSchemaCache.get(cacheKey)
   if (cached?.value && cached.expiresAt > now) {
@@ -94,12 +100,49 @@ export async function buildIntegrationToolSchemas(
         })
       }
 
+      let allowedIntegrations: Set<string> | null = null
+      let toolIdToBlockType: Map<string, string> | null = null
+      if (workspaceId) {
+        try {
+          const [{ getUserPermissionConfig }, { registry: blockRegistry }] = await Promise.all([
+            import('@/ee/access-control/utils/permission-check'),
+            import('@/blocks/registry'),
+          ])
+          const permissionConfig = await getUserPermissionConfig(userId, workspaceId)
+          if (permissionConfig?.allowedIntegrations) {
+            allowedIntegrations = new Set(
+              permissionConfig.allowedIntegrations.map((i) => i.toLowerCase())
+            )
+            toolIdToBlockType = new Map()
+            for (const [blockType, blockConfig] of Object.entries(blockRegistry)) {
+              const access = (blockConfig as { tools?: { access?: string[] } }).tools?.access
+              if (!access) continue
+              for (const toolId of access) {
+                toolIdToBlockType.set(stripVersionSuffix(toolId), blockType.toLowerCase())
+              }
+            }
+          }
+        } catch (error) {
+          reqLogger.warn('Failed to load permission config for tool schema filter', {
+            userId,
+            workspaceId,
+            error: toError(error).message,
+          })
+        }
+      }
+
       for (const [toolId, toolConfig] of Object.entries(latestTools)) {
         try {
+          const strippedName = stripVersionSuffix(toolId)
+          if (allowedIntegrations && toolIdToBlockType) {
+            const owningBlock = toolIdToBlockType.get(strippedName)
+            if (owningBlock && !allowedIntegrations.has(owningBlock)) {
+              continue
+            }
+          }
           const userSchema = createUserToolSchema(toolConfig, {
             surface: options.schemaSurface ?? 'copilot',
           })
-          const strippedName = stripVersionSuffix(toolId)
           const catalogEntry = getToolEntry(strippedName)
           integrationTools.push({
             name: strippedName,
@@ -235,9 +278,12 @@ export async function buildCopilotRequestPayload(
   const payloadLogger = logger.withMetadata({ messageId: userMessageId })
 
   if (effectiveMode === 'build') {
-    integrationTools = await buildIntegrationToolSchemas(userId, userMessageId, {
-      schemaSurface: 'copilot',
-    })
+    integrationTools = await buildIntegrationToolSchemas(
+      userId,
+      userMessageId,
+      { schemaSurface: 'copilot' },
+      params.workspaceId
+    )
 
     // Discover MCP tools from workspace servers and include as deferred tools
     if (params.workspaceId) {

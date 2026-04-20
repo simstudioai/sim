@@ -119,8 +119,10 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       workflowState = fromDb.workflowState
     }
 
-    // Get permission config for the user
-    const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
+    const permissionConfig =
+      context?.userId && workspaceId
+        ? await getUserPermissionConfig(context.userId, workspaceId)
+        : null
 
     // Pre-validate credential and apiKey inputs before applying operations
     // This filters out invalid credentials and apiKeys for hosted models

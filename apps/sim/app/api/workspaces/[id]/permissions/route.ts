@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
+import { applyWorkspaceAutoAddGroup } from '@/lib/permission-groups/auto-add'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   getUsersWithPermissions,
@@ -150,6 +151,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     await db.transaction(async (tx) => {
       for (const update of body.updates) {
+        const isNew = !permLookup.has(update.userId)
+
         await tx
           .delete(permissions)
           .where(
@@ -169,6 +172,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           createdAt: new Date(),
           updatedAt: new Date(),
         })
+
+        if (isNew) {
+          await applyWorkspaceAutoAddGroup(tx, workspaceId, update.userId)
+        }
       }
     })
 

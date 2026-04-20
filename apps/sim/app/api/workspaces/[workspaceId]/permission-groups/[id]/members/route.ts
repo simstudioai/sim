@@ -1,51 +1,52 @@
 import { db } from '@sim/db'
-import { member, permissionGroup, permissionGroupMember, user } from '@sim/db/schema'
+import { permissionGroup, permissionGroupMember, permissions, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
-import { hasAccessControlAccess } from '@/lib/billing'
+import { hasWorkspaceAccessControlAccess } from '@/lib/billing'
+import { checkWorkspaceAccess, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
-const logger = createLogger('PermissionGroupMembers')
+const logger = createLogger('WorkspacePermissionGroupMembers')
 
-async function getPermissionGroupWithAccess(groupId: string, userId: string) {
+async function loadGroupInWorkspace(groupId: string, workspaceId: string) {
   const [group] = await db
     .select({
       id: permissionGroup.id,
       name: permissionGroup.name,
-      organizationId: permissionGroup.organizationId,
+      workspaceId: permissionGroup.workspaceId,
     })
     .from(permissionGroup)
-    .where(eq(permissionGroup.id, groupId))
+    .where(and(eq(permissionGroup.id, groupId), eq(permissionGroup.workspaceId, workspaceId)))
     .limit(1)
 
-  if (!group) return null
-
-  const [membership] = await db
-    .select({ role: member.role })
-    .from(member)
-    .where(and(eq(member.userId, userId), eq(member.organizationId, group.organizationId)))
-    .limit(1)
-
-  if (!membership) return null
-
-  return { group, role: membership.role }
+  return group ?? null
 }
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ workspaceId: string; id: string }> }
+) {
   const session = await getSession()
-
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { id } = await params
-  const result = await getPermissionGroupWithAccess(id, session.user.id)
+  const { workspaceId, id } = await params
 
-  if (!result) {
+  const access = await checkWorkspaceAccess(workspaceId, session.user.id)
+  if (!access.exists) {
+    return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+  }
+  if (!access.hasAccess) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const group = await loadGroupInWorkspace(id, workspaceId)
+  if (!group) {
     return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
   }
 
@@ -69,17 +70,24 @@ const addMemberSchema = z.object({
   userId: z.string().min(1),
 })
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ workspaceId: string; id: string }> }
+) {
   const session = await getSession()
-
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { id } = await params
+  const { workspaceId, id } = await params
 
   try {
-    const hasAccess = await hasAccessControlAccess(session.user.id)
+    const isWorkspaceAdmin = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
+    if (!isWorkspaceAdmin) {
+      return NextResponse.json({ error: 'Admin permissions required' }, { status: 403 })
+    }
+
+    const hasAccess = await hasWorkspaceAccessControlAccess(session.user.id, workspaceId)
     if (!hasAccess) {
       return NextResponse.json(
         { error: 'Access Control is an Enterprise feature' },
@@ -87,54 +95,60 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       )
     }
 
-    const result = await getPermissionGroupWithAccess(id, session.user.id)
-
-    if (!result) {
+    const group = await loadGroupInWorkspace(id, workspaceId)
+    if (!group) {
       return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
-    }
-
-    if (result.role !== 'admin' && result.role !== 'owner') {
-      return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
     }
 
     const body = await req.json()
     const { userId } = addMemberSchema.parse(body)
 
-    const [orgMember] = await db
-      .select({ id: member.id, email: user.email })
-      .from(member)
-      .innerJoin(user, eq(member.userId, user.id))
-      .where(and(eq(member.userId, userId), eq(member.organizationId, result.group.organizationId)))
+    const [workspaceMember] = await db
+      .select({ email: user.email })
+      .from(permissions)
+      .innerJoin(user, eq(permissions.userId, user.id))
+      .where(
+        and(
+          eq(permissions.userId, userId),
+          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityId, workspaceId)
+        )
+      )
       .limit(1)
 
-    if (!orgMember) {
+    if (!workspaceMember) {
       return NextResponse.json(
-        { error: 'User is not a member of this organization' },
+        { error: 'User does not have access to this workspace' },
         { status: 400 }
       )
     }
 
-    const [existingMembership] = await db
-      .select({
-        id: permissionGroupMember.id,
-        permissionGroupId: permissionGroupMember.permissionGroupId,
-      })
-      .from(permissionGroupMember)
-      .where(eq(permissionGroupMember.userId, userId))
-      .limit(1)
-
-    if (existingMembership?.permissionGroupId === id) {
-      return NextResponse.json(
-        { error: 'User is already in this permission group' },
-        { status: 409 }
-      )
-    }
-
     const newMember = await db.transaction(async (tx) => {
-      if (existingMembership) {
-        await tx
-          .delete(permissionGroupMember)
-          .where(eq(permissionGroupMember.id, existingMembership.id))
+      const existingInWorkspace = await tx
+        .select({
+          id: permissionGroupMember.id,
+          permissionGroupId: permissionGroupMember.permissionGroupId,
+        })
+        .from(permissionGroupMember)
+        .innerJoin(permissionGroup, eq(permissionGroupMember.permissionGroupId, permissionGroup.id))
+        .where(
+          and(
+            eq(permissionGroupMember.userId, userId),
+            eq(permissionGroup.workspaceId, workspaceId)
+          )
+        )
+
+      if (existingInWorkspace.some((row) => row.permissionGroupId === id)) {
+        throw new Error('ALREADY_IN_GROUP')
+      }
+
+      if (existingInWorkspace.length > 0) {
+        await tx.delete(permissionGroupMember).where(
+          inArray(
+            permissionGroupMember.id,
+            existingInWorkspace.map((row) => row.id)
+          )
+        )
       }
 
       const memberData = {
@@ -151,23 +165,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     logger.info('Added member to permission group', {
       permissionGroupId: id,
+      workspaceId,
       userId,
       assignedBy: session.user.id,
     })
 
     recordAudit({
-      workspaceId: null,
+      workspaceId,
       actorId: session.user.id,
       action: AuditAction.PERMISSION_GROUP_MEMBER_ADDED,
       resourceType: AuditResourceType.PERMISSION_GROUP,
       resourceId: id,
-      resourceName: result.group.name,
+      resourceName: group.name,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
-      description: `Added member ${userId} to permission group "${result.group.name}"`,
+      description: `Added member ${userId} to permission group "${group.name}"`,
       metadata: {
         targetUserId: userId,
-        targetEmail: orgMember.email ?? undefined,
+        targetEmail: workspaceMember.email ?? undefined,
         permissionGroupId: id,
       },
       request: req,
@@ -178,25 +193,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
     }
-    if (
-      error instanceof Error &&
-      error.message.includes('permission_group_member_user_id_unique')
-    ) {
-      return NextResponse.json({ error: 'User is already in a permission group' }, { status: 409 })
+    if (error instanceof Error && error.message === 'ALREADY_IN_GROUP') {
+      return NextResponse.json(
+        { error: 'User is already in this permission group' },
+        { status: 409 }
+      )
     }
     logger.error('Error adding member to permission group', error)
     return NextResponse.json({ error: 'Failed to add member' }, { status: 500 })
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ workspaceId: string; id: string }> }
+) {
   const session = await getSession()
-
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { id } = await params
+  const { workspaceId, id } = await params
   const { searchParams } = new URL(req.url)
   const memberId = searchParams.get('memberId')
 
@@ -205,7 +222,12 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   }
 
   try {
-    const hasAccess = await hasAccessControlAccess(session.user.id)
+    const isWorkspaceAdmin = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
+    if (!isWorkspaceAdmin) {
+      return NextResponse.json({ error: 'Admin permissions required' }, { status: 403 })
+    }
+
+    const hasAccess = await hasWorkspaceAccessControlAccess(session.user.id, workspaceId)
     if (!hasAccess) {
       return NextResponse.json(
         { error: 'Access Control is an Enterprise feature' },
@@ -213,20 +235,14 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       )
     }
 
-    const result = await getPermissionGroupWithAccess(id, session.user.id)
-
-    if (!result) {
+    const group = await loadGroupInWorkspace(id, workspaceId)
+    if (!group) {
       return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
-    }
-
-    if (result.role !== 'admin' && result.role !== 'owner') {
-      return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
     }
 
     const [memberToRemove] = await db
       .select({
         id: permissionGroupMember.id,
-        permissionGroupId: permissionGroupMember.permissionGroupId,
         userId: permissionGroupMember.userId,
         email: user.email,
       })
@@ -245,20 +261,21 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     logger.info('Removed member from permission group', {
       permissionGroupId: id,
+      workspaceId,
       memberId,
       userId: session.user.id,
     })
 
     recordAudit({
-      workspaceId: null,
+      workspaceId,
       actorId: session.user.id,
       action: AuditAction.PERMISSION_GROUP_MEMBER_REMOVED,
       resourceType: AuditResourceType.PERMISSION_GROUP,
       resourceId: id,
-      resourceName: result.group.name,
+      resourceName: group.name,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
-      description: `Removed member ${memberToRemove.userId} from permission group "${result.group.name}"`,
+      description: `Removed member ${memberToRemove.userId} from permission group "${group.name}"`,
       metadata: {
         targetUserId: memberToRemove.userId,
         targetEmail: memberToRemove.email ?? undefined,

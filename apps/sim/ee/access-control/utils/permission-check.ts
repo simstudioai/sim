@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
-import { member, permissionGroup, permissionGroupMember } from '@sim/db/schema'
+import { permissionGroup, permissionGroupMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
+import { and, asc, eq } from 'drizzle-orm'
+import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
 import {
   getAllowedIntegrationsFromEnv,
   isAccessControlEnabled,
@@ -100,24 +100,23 @@ function mergeEnvAllowlist(config: PermissionGroupConfig | null): PermissionGrou
   return { ...config, allowedIntegrations: merged }
 }
 
+/**
+ * Resolve the effective permission-group config for a user in the context of a
+ * specific workspace. Returns `null` when the workspace isn't on an enterprise
+ * plan or the user isn't a member of any permission group in that workspace.
+ *
+ * The env-level integration allowlist is always merged last so self-hosted
+ * deployments can constrain integrations without touching the DB.
+ */
 export async function getUserPermissionConfig(
-  userId: string
+  userId: string,
+  workspaceId: string
 ): Promise<PermissionGroupConfig | null> {
   if (!isHosted && !isAccessControlEnabled) {
     return mergeEnvAllowlist(null)
   }
 
-  const [membership] = await db
-    .select({ organizationId: member.organizationId })
-    .from(member)
-    .where(eq(member.userId, userId))
-    .limit(1)
-
-  if (!membership) {
-    return mergeEnvAllowlist(null)
-  }
-
-  const isEnterprise = await isOrganizationOnEnterprisePlan(membership.organizationId)
+  const isEnterprise = await isWorkspaceOnEnterprisePlan(workspaceId)
   if (!isEnterprise) {
     return mergeEnvAllowlist(null)
   }
@@ -127,11 +126,9 @@ export async function getUserPermissionConfig(
     .from(permissionGroupMember)
     .innerJoin(permissionGroup, eq(permissionGroupMember.permissionGroupId, permissionGroup.id))
     .where(
-      and(
-        eq(permissionGroupMember.userId, userId),
-        eq(permissionGroup.organizationId, membership.organizationId)
-      )
+      and(eq(permissionGroupMember.userId, userId), eq(permissionGroup.workspaceId, workspaceId))
     )
+    .orderBy(asc(permissionGroup.createdAt), asc(permissionGroup.id))
     .limit(1)
 
   if (!groupMembership) {
@@ -141,12 +138,18 @@ export async function getUserPermissionConfig(
   return mergeEnvAllowlist(parsePermissionGroupConfig(groupMembership.config))
 }
 
-export async function getPermissionConfig(
+/**
+ * Cache-aware wrapper around `getUserPermissionConfig`. When an
+ * `ExecutionContext` is provided, the resolved config is memoized on the
+ * context so repeated checks during a single workflow run share one DB hit.
+ */
+async function getPermissionConfig(
   userId: string | undefined,
+  workspaceId: string | undefined,
   ctx?: ExecutionContext
 ): Promise<PermissionGroupConfig | null> {
-  if (!userId) {
-    return null
+  if (!userId || !workspaceId) {
+    return mergeEnvAllowlist(null)
   }
 
   if (ctx) {
@@ -154,25 +157,26 @@ export async function getPermissionConfig(
       return ctx.permissionConfig ?? null
     }
 
-    const config = await getUserPermissionConfig(userId)
+    const config = await getUserPermissionConfig(userId, workspaceId)
     ctx.permissionConfig = config
     ctx.permissionConfigLoaded = true
     return config
   }
 
-  return getUserPermissionConfig(userId)
+  return getUserPermissionConfig(userId, workspaceId)
 }
 
 export async function validateModelProvider(
   userId: string | undefined,
+  workspaceId: string | undefined,
   model: string,
   ctx?: ExecutionContext
 ): Promise<void> {
-  if (!userId) {
+  if (!userId || !workspaceId) {
     return
   }
 
-  const config = await getPermissionConfig(userId, ctx)
+  const config = await getPermissionConfig(userId, workspaceId, ctx)
 
   if (!config || config.allowedModelProviders === null) {
     return
@@ -181,13 +185,19 @@ export async function validateModelProvider(
   const providerId = getProviderFromModel(model)
 
   if (!config.allowedModelProviders.includes(providerId)) {
-    logger.warn('Model provider blocked by permission group', { userId, model, providerId })
+    logger.warn('Model provider blocked by permission group', {
+      userId,
+      workspaceId,
+      model,
+      providerId,
+    })
     throw new ProviderNotAllowedError(providerId, model)
   }
 }
 
 export async function validateBlockType(
   userId: string | undefined,
+  workspaceId: string | undefined,
   blockType: string,
   ctx?: ExecutionContext
 ): Promise<void> {
@@ -195,7 +205,10 @@ export async function validateBlockType(
     return
   }
 
-  const config = userId ? await getPermissionConfig(userId, ctx) : mergeEnvAllowlist(null)
+  const config =
+    userId && workspaceId
+      ? await getPermissionConfig(userId, workspaceId, ctx)
+      : mergeEnvAllowlist(null)
 
   if (!config || config.allowedIntegrations === null) {
     return
@@ -208,7 +221,7 @@ export async function validateBlockType(
       blockedByEnv
         ? 'Integration blocked by env allowlist'
         : 'Integration blocked by permission group',
-      { userId, blockType }
+      { userId, workspaceId, blockType }
     )
     throw new IntegrationNotAllowedError(
       blockType,
@@ -219,114 +232,209 @@ export async function validateBlockType(
 
 export async function validateMcpToolsAllowed(
   userId: string | undefined,
+  workspaceId: string | undefined,
   ctx?: ExecutionContext
 ): Promise<void> {
-  if (!userId) {
+  if (!userId || !workspaceId) {
     return
   }
 
-  const config = await getPermissionConfig(userId, ctx)
+  const config = await getPermissionConfig(userId, workspaceId, ctx)
 
   if (!config) {
     return
   }
 
   if (config.disableMcpTools) {
-    logger.warn('MCP tools blocked by permission group', { userId })
+    logger.warn('MCP tools blocked by permission group', { userId, workspaceId })
     throw new McpToolsNotAllowedError()
   }
 }
 
 export async function validateCustomToolsAllowed(
   userId: string | undefined,
+  workspaceId: string | undefined,
   ctx?: ExecutionContext
 ): Promise<void> {
-  if (!userId) {
+  if (!userId || !workspaceId) {
     return
   }
 
-  const config = await getPermissionConfig(userId, ctx)
+  const config = await getPermissionConfig(userId, workspaceId, ctx)
 
   if (!config) {
     return
   }
 
   if (config.disableCustomTools) {
-    logger.warn('Custom tools blocked by permission group', { userId })
+    logger.warn('Custom tools blocked by permission group', { userId, workspaceId })
     throw new CustomToolsNotAllowedError()
   }
 }
 
 export async function validateSkillsAllowed(
   userId: string | undefined,
+  workspaceId: string | undefined,
   ctx?: ExecutionContext
 ): Promise<void> {
-  if (!userId) {
+  if (!userId || !workspaceId) {
     return
   }
 
-  const config = await getPermissionConfig(userId, ctx)
+  const config = await getPermissionConfig(userId, workspaceId, ctx)
 
   if (!config) {
     return
   }
 
   if (config.disableSkills) {
-    logger.warn('Skills blocked by permission group', { userId })
+    logger.warn('Skills blocked by permission group', { userId, workspaceId })
     throw new SkillsNotAllowedError()
   }
 }
 
 /**
- * Validates if the user is allowed to send invitations.
- * Also checks the global feature flag.
+ * Validates if the user is allowed to send invitations for the given workspace.
+ * Also checks the global feature flag. When `workspaceId` is omitted only the
+ * feature-flag check runs (no permission-group gate).
  */
-export async function validateInvitationsAllowed(userId: string | undefined): Promise<void> {
+export async function validateInvitationsAllowed(
+  userId: string | undefined,
+  workspaceId?: string
+): Promise<void> {
   const { isInvitationsDisabled } = await import('@/lib/core/config/feature-flags')
   if (isInvitationsDisabled) {
     logger.warn('Invitations blocked by feature flag')
     throw new InvitationsNotAllowedError()
   }
 
-  if (!userId) {
+  if (!userId || !workspaceId) {
     return
   }
 
-  const config = await getUserPermissionConfig(userId)
+  const config = await getUserPermissionConfig(userId, workspaceId)
 
   if (!config) {
     return
   }
 
   if (config.disableInvitations) {
-    logger.warn('Invitations blocked by permission group', { userId })
+    logger.warn('Invitations blocked by permission group', { userId, workspaceId })
     throw new InvitationsNotAllowedError()
   }
 }
 
 /**
- * Validates if the user is allowed to enable public API access.
- * Also checks the global feature flag.
+ * Validates if the user is allowed to enable public API access on the given
+ * workspace. Also checks the global feature flag. When `workspaceId` is
+ * omitted only the feature-flag check runs (no permission-group gate).
  */
-export async function validatePublicApiAllowed(userId: string | undefined): Promise<void> {
+export async function validatePublicApiAllowed(
+  userId: string | undefined,
+  workspaceId?: string
+): Promise<void> {
   const { isPublicApiDisabled } = await import('@/lib/core/config/feature-flags')
   if (isPublicApiDisabled) {
     logger.warn('Public API blocked by feature flag')
     throw new PublicApiNotAllowedError()
   }
 
-  if (!userId) {
+  if (!userId || !workspaceId) {
     return
   }
 
-  const config = await getUserPermissionConfig(userId)
+  const config = await getUserPermissionConfig(userId, workspaceId)
 
   if (!config) {
     return
   }
 
   if (config.disablePublicApi) {
-    logger.warn('Public API blocked by permission group', { userId })
+    logger.warn('Public API blocked by permission group', { userId, workspaceId })
     throw new PublicApiNotAllowedError()
+  }
+}
+
+export type ToolKind = 'mcp' | 'custom' | 'skill'
+
+export interface PermissionAssertion {
+  userId: string | undefined
+  workspaceId: string | undefined
+  model?: string
+  blockType?: string
+  toolKind?: ToolKind
+  ctx?: ExecutionContext
+}
+
+/**
+ * Unified entry point for workspace-scoped access control. Loads the user's
+ * permission config for `workspaceId` once and runs every applicable gate
+ * (model provider, block type, tool kind) against it, throwing the existing
+ * granular error classes on the first mismatch.
+ *
+ * Prefer this over calling the individual `validate*Allowed` helpers when
+ * gating a shared entry point like `executeTool` or an HTTP proxy, so a single
+ * callsite covers every future config field.
+ */
+export async function assertPermissionsAllowed(req: PermissionAssertion): Promise<void> {
+  const { userId, workspaceId, model, blockType, toolKind, ctx } = req
+
+  if (blockType === 'start_trigger') {
+    if (!model && !toolKind) {
+      return
+    }
+  }
+
+  const config =
+    userId && workspaceId
+      ? await getPermissionConfig(userId, workspaceId, ctx)
+      : mergeEnvAllowlist(null)
+
+  if (model && config && config.allowedModelProviders !== null) {
+    const providerId = getProviderFromModel(model)
+    if (!config.allowedModelProviders.includes(providerId)) {
+      logger.warn('Model provider blocked by permission group', {
+        userId,
+        workspaceId,
+        model,
+        providerId,
+      })
+      throw new ProviderNotAllowedError(providerId, model)
+    }
+  }
+
+  if (blockType && blockType !== 'start_trigger') {
+    if (config && config.allowedIntegrations !== null) {
+      if (!config.allowedIntegrations.includes(blockType.toLowerCase())) {
+        const envAllowlist = getAllowedIntegrationsFromEnv()
+        const blockedByEnv =
+          envAllowlist !== null && !envAllowlist.includes(blockType.toLowerCase())
+        logger.warn(
+          blockedByEnv
+            ? 'Integration blocked by env allowlist'
+            : 'Integration blocked by permission group',
+          { userId, workspaceId, blockType }
+        )
+        throw new IntegrationNotAllowedError(
+          blockType,
+          blockedByEnv ? 'blocked by server ALLOWED_INTEGRATIONS policy' : undefined
+        )
+      }
+    }
+  }
+
+  if (toolKind && config) {
+    if (toolKind === 'mcp' && config.disableMcpTools) {
+      logger.warn('MCP tools blocked by permission group', { userId, workspaceId })
+      throw new McpToolsNotAllowedError()
+    }
+    if (toolKind === 'custom' && config.disableCustomTools) {
+      logger.warn('Custom tools blocked by permission group', { userId, workspaceId })
+      throw new CustomToolsNotAllowedError()
+    }
+    if (toolKind === 'skill' && config.disableSkills) {
+      logger.warn('Skills blocked by permission group', { userId, workspaceId })
+      throw new SkillsNotAllowedError()
+    }
   }
 }

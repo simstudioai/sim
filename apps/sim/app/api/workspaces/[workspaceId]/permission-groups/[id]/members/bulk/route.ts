@@ -1,54 +1,54 @@
 import { db } from '@sim/db'
-import { member, permissionGroup, permissionGroupMember } from '@sim/db/schema'
+import { permissionGroup, permissionGroupMember, permissions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
-import { hasAccessControlAccess } from '@/lib/billing'
+import { hasWorkspaceAccessControlAccess } from '@/lib/billing'
+import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
-const logger = createLogger('PermissionGroupBulkMembers')
+const logger = createLogger('WorkspacePermissionGroupBulkMembers')
 
-async function getPermissionGroupWithAccess(groupId: string, userId: string) {
+async function loadGroupInWorkspace(groupId: string, workspaceId: string) {
   const [group] = await db
     .select({
       id: permissionGroup.id,
-      organizationId: permissionGroup.organizationId,
+      workspaceId: permissionGroup.workspaceId,
+      name: permissionGroup.name,
     })
     .from(permissionGroup)
-    .where(eq(permissionGroup.id, groupId))
+    .where(and(eq(permissionGroup.id, groupId), eq(permissionGroup.workspaceId, workspaceId)))
     .limit(1)
 
-  if (!group) return null
-
-  const [membership] = await db
-    .select({ role: member.role })
-    .from(member)
-    .where(and(eq(member.userId, userId), eq(member.organizationId, group.organizationId)))
-    .limit(1)
-
-  if (!membership) return null
-
-  return { group, role: membership.role }
+  return group ?? null
 }
 
 const bulkAddSchema = z.object({
   userIds: z.array(z.string()).optional(),
-  addAllOrgMembers: z.boolean().optional(),
+  addAllWorkspaceMembers: z.boolean().optional(),
 })
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ workspaceId: string; id: string }> }
+) {
   const session = await getSession()
-
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { id } = await params
+  const { workspaceId, id } = await params
 
   try {
-    const hasAccess = await hasAccessControlAccess(session.user.id)
+    const isWorkspaceAdmin = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
+    if (!isWorkspaceAdmin) {
+      return NextResponse.json({ error: 'Admin permissions required' }, { status: 403 })
+    }
+
+    const hasAccess = await hasWorkspaceAccessControlAccess(session.user.id, workspaceId)
     if (!hasAccess) {
       return NextResponse.json(
         { error: 'Access Control is an Enterprise feature' },
@@ -56,40 +56,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       )
     }
 
-    const result = await getPermissionGroupWithAccess(id, session.user.id)
-
-    if (!result) {
+    const group = await loadGroupInWorkspace(id, workspaceId)
+    if (!group) {
       return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
     }
 
-    if (result.role !== 'admin' && result.role !== 'owner') {
-      return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
-    }
-
     const body = await req.json()
-    const { userIds, addAllOrgMembers } = bulkAddSchema.parse(body)
+    const { userIds, addAllWorkspaceMembers } = bulkAddSchema.parse(body)
 
     let targetUserIds: string[] = []
 
-    if (addAllOrgMembers) {
-      const orgMembers = await db
-        .select({ userId: member.userId })
-        .from(member)
-        .where(eq(member.organizationId, result.group.organizationId))
+    if (addAllWorkspaceMembers) {
+      const workspaceMembers = await db
+        .select({ userId: permissions.userId })
+        .from(permissions)
+        .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId)))
 
-      targetUserIds = orgMembers.map((m) => m.userId)
+      targetUserIds = Array.from(new Set(workspaceMembers.map((m) => m.userId)))
     } else if (userIds && userIds.length > 0) {
+      const uniqueUserIds = Array.from(new Set(userIds))
       const validMembers = await db
-        .select({ userId: member.userId })
-        .from(member)
+        .select({ userId: permissions.userId })
+        .from(permissions)
         .where(
           and(
-            eq(member.organizationId, result.group.organizationId),
-            inArray(member.userId, userIds)
+            eq(permissions.entityType, 'workspace'),
+            eq(permissions.entityId, workspaceId),
+            inArray(permissions.userId, uniqueUserIds)
           )
         )
 
-      targetUserIds = validMembers.map((m) => m.userId)
+      targetUserIds = Array.from(new Set(validMembers.map((m) => m.userId)))
     }
 
     if (targetUserIds.length === 0) {
@@ -103,7 +100,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         permissionGroupId: permissionGroupMember.permissionGroupId,
       })
       .from(permissionGroupMember)
-      .where(inArray(permissionGroupMember.userId, targetUserIds))
+      .innerJoin(permissionGroup, eq(permissionGroupMember.permissionGroupId, permissionGroup.id))
+      .where(
+        and(
+          eq(permissionGroup.workspaceId, workspaceId),
+          inArray(permissionGroupMember.userId, targetUserIds)
+        )
+      )
 
     const alreadyInThisGroup = new Set(
       existingMemberships.filter((m) => m.permissionGroupId === id).map((m) => m.userId)
@@ -142,24 +145,34 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     logger.info('Bulk added members to permission group', {
       permissionGroupId: id,
+      workspaceId,
       addedCount: usersToAdd.length,
       movedCount,
       assignedBy: session.user.id,
+    })
+
+    recordAudit({
+      workspaceId,
+      actorId: session.user.id,
+      action: AuditAction.PERMISSION_GROUP_MEMBER_ADDED,
+      resourceType: AuditResourceType.PERMISSION_GROUP,
+      resourceId: id,
+      resourceName: group.name,
+      actorName: session.user.name ?? undefined,
+      actorEmail: session.user.email ?? undefined,
+      description: `Bulk added ${usersToAdd.length} member(s) to permission group "${group.name}"`,
+      metadata: {
+        permissionGroupId: id,
+        addedUserIds: usersToAdd,
+        movedCount,
+      },
+      request: req,
     })
 
     return NextResponse.json({ added: usersToAdd.length, moved: movedCount })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
-    }
-    if (
-      error instanceof Error &&
-      error.message.includes('permission_group_member_user_id_unique')
-    ) {
-      return NextResponse.json(
-        { error: 'One or more users are already in a permission group' },
-        { status: 409 }
-      )
     }
     logger.error('Error bulk adding members to permission group', error)
     return NextResponse.json({ error: 'Failed to add members' }, { status: 500 })

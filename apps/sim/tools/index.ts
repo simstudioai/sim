@@ -766,7 +766,27 @@ export async function executeTool(
 
     const scope = resolveToolScope(params, executionContext)
 
-    // Handle load_skill tool for agent skills progressive disclosure
+    const toolKind: 'skill' | 'custom' | 'mcp' | undefined =
+      normalizedToolId === 'load_skill'
+        ? 'skill'
+        : isCustomTool(normalizedToolId)
+          ? 'custom'
+          : isMcpTool(normalizedToolId)
+            ? 'mcp'
+            : undefined
+
+    if (toolKind && scope.userId && scope.workspaceId) {
+      const { assertPermissionsAllowed } = await import(
+        '@/ee/access-control/utils/permission-check'
+      )
+      await assertPermissionsAllowed({
+        userId: scope.userId,
+        workspaceId: scope.workspaceId,
+        toolKind,
+        ctx: executionContext,
+      })
+    }
+
     if (normalizedToolId === 'load_skill') {
       const skillName = params.skill_name
       if (!skillName || !scope.workspaceId) {
@@ -790,7 +810,6 @@ export async function executeTool(
       }
     }
 
-    // If it's a custom tool, use the async version
     if (isCustomTool(normalizedToolId)) {
       tool = await toolsUtilsServer.getToolAsync(normalizedToolId, {
         workflowId: scope.workflowId,

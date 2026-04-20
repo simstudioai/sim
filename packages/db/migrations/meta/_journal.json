@@ -1345,6 +1345,13 @@
       "when": 1776538528385,
       "tag": "0192_invitation_unification",
       "breakpoints": true
+    },
+    {
+      "idx": 193,
+      "version": "7",
+      "when": 1776724892309,
+      "tag": "0193_workspace_scoped_access_control",
+      "breakpoints": true
     }
   ]
 }

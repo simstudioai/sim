@@ -102,6 +102,21 @@ export async function POST(request: NextRequest) {
       if (!workspaceAccess.hasAccess) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
+
+      const { assertPermissionsAllowed, IntegrationNotAllowedError, ProviderNotAllowedError } =
+        await import('@/ee/access-control/utils/permission-check')
+      try {
+        await assertPermissionsAllowed({
+          userId: auth.userId,
+          workspaceId,
+          model,
+        })
+      } catch (err) {
+        if (err instanceof ProviderNotAllowedError || err instanceof IntegrationNotAllowedError) {
+          return NextResponse.json({ error: err.message }, { status: 403 })
+        }
+        throw err
+      }
     }
 
     let finalApiKey: string | undefined = apiKey

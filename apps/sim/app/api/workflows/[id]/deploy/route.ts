@@ -150,7 +150,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         '@/ee/access-control/utils/permission-check'
       )
       try {
-        await validatePublicApiAllowed(session?.user?.id)
+        await validatePublicApiAllowed(session?.user?.id, workflowData?.workspaceId ?? undefined)
       } catch (err) {
         if (err instanceof PublicApiNotAllowedError) {
           return createErrorResponse('Public API access is disabled', 403)

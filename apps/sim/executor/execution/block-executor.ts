@@ -106,7 +106,7 @@ export class BlockExecutor {
 
     try {
       if (!isSentinel && blockType) {
-        await validateBlockType(ctx.userId, blockType, ctx)
+        await validateBlockType(ctx.userId, ctx.workspaceId, blockType, ctx)
       }
 
       resolvedInputs = this.resolver.resolveInputs(ctx, node.id, block.config.params, block)

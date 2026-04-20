@@ -2602,9 +2602,9 @@ export const permissionGroup = pgTable(
   'permission_group',
   {
     id: text('id').primaryKey(),
-    organizationId: text('organization_id')
+    workspaceId: text('workspace_id')
       .notNull()
-      .references(() => organization.id, { onDelete: 'cascade' }),
+      .references(() => workspace.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     description: text('description'),
     config: jsonb('config').notNull().default('{}'),
@@ -2617,12 +2617,12 @@ export const permissionGroup = pgTable(
   },
   (table) => ({
     createdByIdx: index('permission_group_created_by_idx').on(table.createdBy),
-    orgNameUnique: uniqueIndex('permission_group_org_name_unique').on(
-      table.organizationId,
+    workspaceNameUnique: uniqueIndex('permission_group_workspace_name_unique').on(
+      table.workspaceId,
       table.name
     ),
-    autoAddNewMembersUnique: uniqueIndex('permission_group_org_auto_add_unique')
-      .on(table.organizationId)
+    autoAddNewMembersUnique: uniqueIndex('permission_group_workspace_auto_add_unique')
+      .on(table.workspaceId)
       .where(sql`auto_add_new_members = true`),
   })
 )
@@ -2642,7 +2642,10 @@ export const permissionGroupMember = pgTable(
   },
   (table) => ({
     permissionGroupIdIdx: index('permission_group_member_group_id_idx').on(table.permissionGroupId),
-    userIdUnique: uniqueIndex('permission_group_member_user_id_unique').on(table.userId),
+    groupUserUnique: uniqueIndex('permission_group_member_group_user_unique').on(
+      table.permissionGroupId,
+      table.userId
+    ),
   })
 )
 

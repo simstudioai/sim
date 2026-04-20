@@ -2,14 +2,13 @@
 
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useParams } from 'next/navigation'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { isAccessControlEnabled, isHosted } from '@/lib/core/config/feature-flags'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
 } from '@/lib/permission-groups/types'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
-import { useOrganizations } from '@/hooks/queries/organization'
 
 export interface PermissionConfigResult {
   config: PermissionGroupConfig
@@ -50,29 +49,24 @@ function intersectAllowlists(a: string[] | null, b: string[] | null): string[] |
 }
 
 export function usePermissionConfig(): PermissionConfigResult {
-  const accessControlDisabled = !isHosted && !isAccessControlEnabled
-  const { data: organizationsData } = useOrganizations()
-  const activeOrganization = organizationsData?.activeOrganization
+  const params = useParams()
+  const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
 
-  const { data: permissionData, isLoading: isPermissionLoading } = useUserPermissionConfig(
-    activeOrganization?.id
-  )
+  const { data: permissionData, isLoading: isPermissionLoading } =
+    useUserPermissionConfig(workspaceId)
   const { data: envAllowlistData, isLoading: isEnvAllowlistLoading } =
     useAllowedIntegrationsFromEnv()
 
   const isLoading = isPermissionLoading || isEnvAllowlistLoading
 
   const config = useMemo(() => {
-    if (accessControlDisabled) {
-      return DEFAULT_PERMISSION_GROUP_CONFIG
-    }
     if (!permissionData?.config) {
       return DEFAULT_PERMISSION_GROUP_CONFIG
     }
     return permissionData.config
-  }, [permissionData, accessControlDisabled])
+  }, [permissionData])
 
-  const isInPermissionGroup = !accessControlDisabled && !!permissionData?.permissionGroupId
+  const isInPermissionGroup = !!permissionData?.permissionGroupId
 
   const mergedAllowedIntegrations = useMemo(() => {
     const envAllowlist = envAllowlistData?.allowedIntegrations ?? null

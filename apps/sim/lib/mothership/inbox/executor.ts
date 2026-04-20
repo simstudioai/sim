@@ -166,7 +166,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       await Promise.all([
         fetchAttachments(),
         generateWorkspaceContext(ws.id, userId),
-        buildIntegrationToolSchemas(userId),
+        buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
         getUserEntityPermissions(userId, 'workspace', ws.id).catch(() => null),
       ])
     const { attachments, fileAttachments, storedAttachments } = attachmentResult

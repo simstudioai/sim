@@ -109,6 +109,32 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    if (validationType === 'hallucination' && model && workspaceId) {
+      const { assertPermissionsAllowed, ProviderNotAllowedError } = await import(
+        '@/ee/access-control/utils/permission-check'
+      )
+      try {
+        await assertPermissionsAllowed({
+          userId: auth.userId,
+          workspaceId,
+          model,
+        })
+      } catch (err) {
+        if (err instanceof ProviderNotAllowedError) {
+          return NextResponse.json({
+            success: true,
+            output: {
+              passed: false,
+              validationType,
+              input: input || '',
+              error: err.message,
+            },
+          })
+        }
+        throw err
+      }
+    }
+
     const inputStr = convertInputToString(input)
 
     logger.info(`[${requestId}] Executing validation locally`, {

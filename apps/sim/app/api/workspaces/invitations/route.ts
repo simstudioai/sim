@@ -68,13 +68,13 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await validateInvitationsAllowed(session.user.id)
-
     const { workspaceId, email, permission = 'read' } = await req.json()
 
     if (!workspaceId || !email) {
       return NextResponse.json({ error: 'Workspace ID and email are required' }, { status: 400 })
     }
+
+    await validateInvitationsAllowed(session.user.id, workspaceId)
 
     const validPermissions: PermissionType[] = ['admin', 'write', 'read']
     if (!validPermissions.includes(permission)) {

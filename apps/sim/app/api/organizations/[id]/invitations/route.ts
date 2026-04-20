@@ -209,6 +209,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           )
         }
 
+        await validateInvitationsAllowed(session.user.id, wsInvitation.workspaceId)
+
         validGrants.push({
           workspaceId: wsInvitation.workspaceId,
           permission: wsInvitation.permission,

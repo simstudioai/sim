@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     })
     const [workspaceContext, integrationTools, userPermission] = await Promise.all([
       generateWorkspaceContext(workspaceId, userId),
-      buildIntegrationToolSchemas(userId, messageId),
+      buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
       getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
     ])
 

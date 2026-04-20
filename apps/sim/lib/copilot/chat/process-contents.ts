@@ -85,7 +85,8 @@ export async function processContextsServer(
         return await processBlockMetadata(
           ctx.blockIds[0],
           ctx.label ? `@${ctx.label}` : '@',
-          userId
+          userId,
+          currentWorkspaceId
         )
       }
       if (ctx.kind === 'templates' && ctx.templateId) {
@@ -446,10 +447,12 @@ async function processKnowledgeFromDb(
 async function processBlockMetadata(
   blockId: string,
   tag: string,
-  userId?: string
+  userId?: string,
+  workspaceId?: string
 ): Promise<AgentContext | null> {
   try {
-    const permissionConfig = userId ? await getUserPermissionConfig(userId) : null
+    const permissionConfig =
+      userId && workspaceId ? await getUserPermissionConfig(userId, workspaceId) : null
     const allowedIntegrations =
       permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
     if (allowedIntegrations != null && !allowedIntegrations.includes(blockId.toLowerCase())) {
