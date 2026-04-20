@@ -58,6 +58,12 @@ export function createMockStripeEvent<T = unknown>(
 ): Stripe.Event {
   return {
     id: `evt_${type}`,
+    object: 'event',
+    api_version: '2024-06-20',
+    created: Math.floor(Date.now() / 1000),
+    livemode: false,
+    pending_webhooks: 0,
+    request: null,
     type,
     data: { object: object as unknown as Stripe.Event.Data.Object },
     ...overrides,
