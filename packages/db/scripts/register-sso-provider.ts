@@ -26,7 +26,7 @@
  * SAML Providers:
  *   SSO_SAML_ENTRY_POINT=https://your-idp/sso
  *   SSO_SAML_CERT=your-certificate-pem-string
- *   SSO_SAML_CALLBACK_URL=https://yourdomain.com/api/auth/sso/callback/provider-id
+ *   SSO_SAML_CALLBACK_URL=https://yourdomain.com/api/auth/sso/saml2/callback/provider-id
  *   SSO_SAML_SP_METADATA=<custom-sp-metadata-xml> (optional, auto-generated if not provided)
  *   SSO_SAML_IDP_METADATA=<idp-metadata-xml> (optional)
  *   SSO_SAML_AUDIENCE=https://yourdomain.com (optional, defaults to SSO_ISSUER)
@@ -242,7 +242,7 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
     ).replace(/\/$/, '')
 
     const callbackUrl =
-      process.env.SSO_SAML_CALLBACK_URL || `${appBaseUrl}/api/auth/sso/callback/${providerId}`
+      process.env.SSO_SAML_CALLBACK_URL || `${appBaseUrl}/api/auth/sso/saml2/callback/${providerId}`
 
     let spMetadata = process.env.SSO_SAML_SP_METADATA
     if (!spMetadata) {
@@ -252,6 +252,31 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
     <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${callbackUrl}" index="1"/>
   </md:SPSSODescriptor>
 </md:EntityDescriptor>`
+    }
+
+    const idpMetadataXml = process.env.SSO_SAML_IDP_METADATA
+    let computedIdpMetadata: string
+    if (idpMetadataXml) {
+      computedIdpMetadata = idpMetadataXml
+    } else {
+      const certBase64 = cert
+        .replace(/-----BEGIN CERTIFICATE-----/g, '')
+        .replace(/-----END CERTIFICATE-----/g, '')
+        .replace(/\s/g, '')
+      computedIdpMetadata = `<?xml version="1.0"?>
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${entryPoint}">
+  <IDPSSODescriptor WantAuthnRequestsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <KeyDescriptor use="signing">
+      <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+        <ds:X509Data>
+          <ds:X509Certificate>${certBase64}</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </KeyDescriptor>
+    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${entryPoint}"/>
+    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="${entryPoint}"/>
+  </IDPSSODescriptor>
+</EntityDescriptor>`
     }
 
     config.samlConfig = {
@@ -268,12 +293,9 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
         metadata: spMetadata,
         entityID: appBaseUrl,
       },
-    }
-    const idpMetadata = process.env.SSO_SAML_IDP_METADATA
-    if (idpMetadata) {
-      config.samlConfig.idpMetadata = {
-        metadata: idpMetadata,
-      }
+      idpMetadata: {
+        metadata: computedIdpMetadata,
+      },
     }
   }
 
@@ -598,8 +620,13 @@ async function registerSSOProvider(): Promise<boolean> {
 
     const baseUrl =
       process.env.NEXT_PUBLIC_APP_URL || process.env.BETTER_AUTH_URL || 'https://your-domain.com'
-    const callbackUrl = `${baseUrl}/api/auth/sso/callback/${ssoConfig.providerId}`
-    logger.info(`📋 Callback URL (configure this in your identity provider): ${callbackUrl}`)
+    const callbackPath =
+      ssoConfig.providerType === 'saml'
+        ? `api/auth/sso/saml2/callback/${ssoConfig.providerId}`
+        : `api/auth/sso/callback/${ssoConfig.providerId}`
+    logger.info(
+      `📋 Callback URL (configure this in your identity provider): ${baseUrl}/${callbackPath}`
+    )
 
     return true
   } catch (error) {

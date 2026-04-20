@@ -320,7 +320,8 @@ export function SSO() {
     })
   }
 
-  const callbackUrl = `${getBaseUrl()}/api/auth/sso/callback/${formData.providerId || existingProvider?.providerId || 'provider-id'}`
+  const isSaml = formData.providerType === 'saml'
+  const callbackUrl = `${getBaseUrl()}/api/auth/${isSaml ? 'sso/saml2/callback' : 'sso/callback'}/${formData.providerId || existingProvider?.providerId || 'provider-id'}`
 
   const copyToClipboard = async (url: string) => {
     try {
@@ -390,7 +391,7 @@ export function SSO() {
   }
 
   if (existingProvider && !isEditing) {
-    const providerCallbackUrl = `${getBaseUrl()}/api/auth/sso/callback/${existingProvider.providerId}`
+    const providerCallbackUrl = `${getBaseUrl()}/api/auth/${existingProvider.providerType === 'saml' ? 'sso/saml2/callback' : 'sso/callback'}/${existingProvider.providerId}`
 
     return (
       <div className='flex h-full flex-col gap-4.5'>
@@ -765,7 +766,7 @@ export function SSO() {
                       <FormField label='Callback URL Override' optional>
                         <Input
                           type='url'
-                          placeholder={`${getBaseUrl()}/api/auth/sso/callback/provider-id`}
+                          placeholder={`${getBaseUrl()}/api/auth/sso/saml2/callback/provider-id`}
                           value={formData.callbackUrl}
                           autoComplete='off'
                           autoCapitalize='none'

@@ -344,7 +344,7 @@ export async function POST(request: NextRequest) {
       } = body
 
       const computedCallbackUrl =
-        callbackUrl || `${getBaseUrl()}/api/auth/sso/callback/${providerId}`
+        callbackUrl || `${getBaseUrl()}/api/auth/sso/saml2/callback/${providerId}`
 
       const escapeXml = (str: string) =>
         str.replace(/[<>&"']/g, (c) => {
@@ -371,12 +371,37 @@ export async function POST(request: NextRequest) {
   </md:SPSSODescriptor>
 </md:EntityDescriptor>`
 
+      const certBase64 = cert
+        .replace(/-----BEGIN CERTIFICATE-----/g, '')
+        .replace(/-----END CERTIFICATE-----/g, '')
+        .replace(/\s/g, '')
+
+      const computedIdpMetadataXml =
+        idpMetadata ||
+        `<?xml version="1.0"?>
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${escapeXml(entryPoint)}">
+  <IDPSSODescriptor WantAuthnRequestsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <KeyDescriptor use="signing">
+      <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+        <ds:X509Data>
+          <ds:X509Certificate>${certBase64}</ds:X509Certificate>
+        </ds:X509Data>
+      </ds:KeyInfo>
+    </KeyDescriptor>
+    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${escapeXml(entryPoint)}"/>
+    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="${escapeXml(entryPoint)}"/>
+  </IDPSSODescriptor>
+</EntityDescriptor>`
+
       const samlConfig: any = {
         entryPoint,
         cert,
         callbackUrl: computedCallbackUrl,
         spMetadata: {
           metadata: spMetadataXml,
+        },
+        idpMetadata: {
+          metadata: computedIdpMetadataXml,
         },
         mapping,
       }
@@ -386,11 +411,6 @@ export async function POST(request: NextRequest) {
       if (signatureAlgorithm) samlConfig.signatureAlgorithm = signatureAlgorithm
       if (digestAlgorithm) samlConfig.digestAlgorithm = digestAlgorithm
       if (identifierFormat) samlConfig.identifierFormat = identifierFormat
-      if (idpMetadata) {
-        samlConfig.idpMetadata = {
-          metadata: idpMetadata,
-        }
-      }
 
       providerConfig.samlConfig = samlConfig
       providerConfig.mapping = undefined
