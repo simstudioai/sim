@@ -1,8 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ExternalLink, Loader2, RotateCcw } from 'lucide-react'
+import { ArrowLeftRight, ExternalLink, Loader2, RotateCcw } from 'lucide-react'
 import {
   Button,
   ButtonGroup,
@@ -20,13 +20,16 @@ import {
   ModalTabsList,
   ModalTabsTrigger,
   Skeleton,
+  Tooltip,
 } from '@/components/emcn'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
+import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/components/connector-selector-field'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { getDependsOnFields } from '@/blocks/utils'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
-import type { ConnectorConfig } from '@/connectors/types'
+import type { ConnectorConfig, ConnectorConfigField } from '@/connectors/types'
 import type { ConnectorData } from '@/hooks/queries/kb/connectors'
 import {
   useConnectorDocuments,
@@ -35,6 +38,7 @@ import {
   useUpdateConnector,
 } from '@/hooks/queries/kb/connectors'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
+import type { SelectorKey } from '@/hooks/selectors/types'
 
 const logger = createLogger('EditConnectorModal')
 
@@ -56,20 +60,30 @@ export function EditConnectorModal({
 }: EditConnectorModalProps) {
   const connectorConfig = CONNECTOR_REGISTRY[connector.connectorType] ?? null
 
-  const initialSourceConfig = useMemo(() => {
+  const [activeTab, setActiveTab] = useState('settings')
+  /**
+   * Seeds from the stored canonical config. For canonical-pair fields (selector +
+   * manual input), both field IDs get the same value so toggling preserves it.
+   */
+  const [sourceConfig, setSourceConfig] = useState<Record<string, string>>(() => {
     const config: Record<string, string> = {}
-    for (const [key, value] of Object.entries(connector.sourceConfig)) {
-      if (!INTERNAL_CONFIG_KEYS.has(key)) {
-        config[key] = String(value ?? '')
+    if (!connectorConfig) {
+      for (const [key, value] of Object.entries(connector.sourceConfig)) {
+        if (!INTERNAL_CONFIG_KEYS.has(key)) config[key] = String(value ?? '')
       }
+      return config
+    }
+    for (const field of connectorConfig.configFields) {
+      const canonicalId = field.canonicalParamId ?? field.id
+      if (INTERNAL_CONFIG_KEYS.has(canonicalId)) continue
+      const rawValue = connector.sourceConfig[canonicalId]
+      if (rawValue !== undefined) config[field.id] = String(rawValue ?? '')
     }
     return config
-  }, [connector.sourceConfig])
-
-  const [activeTab, setActiveTab] = useState('settings')
-  const [sourceConfig, setSourceConfig] = useState<Record<string, string>>(initialSourceConfig)
+  })
   const [syncInterval, setSyncInterval] = useState(connector.syncIntervalMinutes)
   const [error, setError] = useState<string | null>(null)
+  const [canonicalModes, setCanonicalModes] = useState<Record<string, 'basic' | 'advanced'>>({})
 
   const { mutate: updateConnector, isPending: isSaving } = useUpdateConnector()
 
@@ -77,13 +91,108 @@ export function EditConnectorModal({
   const subscriptionAccess = getSubscriptionAccessState(subscriptionResponse?.data)
   const hasMaxAccess = !isBillingEnabled || subscriptionAccess.hasUsableMaxAccess
 
+  const canonicalGroups = useMemo(() => {
+    if (!connectorConfig) return new Map<string, ConnectorConfigField[]>()
+    const groups = new Map<string, ConnectorConfigField[]>()
+    for (const field of connectorConfig.configFields) {
+      if (field.canonicalParamId) {
+        const existing = groups.get(field.canonicalParamId)
+        if (existing) existing.push(field)
+        else groups.set(field.canonicalParamId, [field])
+      }
+    }
+    return groups
+  }, [connectorConfig])
+
+  const dependentFieldIds = useMemo(() => {
+    if (!connectorConfig) return new Map<string, string[]>()
+    const map = new Map<string, string[]>()
+    for (const field of connectorConfig.configFields) {
+      const deps = getDependsOnFields(field.dependsOn)
+      for (const dep of deps) {
+        const existing = map.get(dep) ?? []
+        existing.push(field.id)
+        map.set(dep, existing)
+      }
+    }
+    for (const group of canonicalGroups.values()) {
+      const allDependents = new Set<string>()
+      for (const field of group) {
+        for (const dep of map.get(field.id) ?? []) {
+          allDependents.add(dep)
+          const depField = connectorConfig.configFields.find((f) => f.id === dep)
+          if (depField?.canonicalParamId) {
+            for (const sibling of canonicalGroups.get(depField.canonicalParamId) ?? []) {
+              allDependents.add(sibling.id)
+            }
+          }
+        }
+      }
+      if (allDependents.size > 0) {
+        for (const field of group) map.set(field.id, [...allDependents])
+      }
+    }
+    return map
+  }, [connectorConfig, canonicalGroups])
+
+  const isFieldVisible = (field: ConnectorConfigField): boolean => {
+    if (!field.canonicalParamId || !field.mode) return true
+    const activeMode = canonicalModes[field.canonicalParamId] ?? 'basic'
+    return field.mode === activeMode
+  }
+
+  const handleFieldChange = (fieldId: string, value: string) => {
+    setSourceConfig((prev) => {
+      const next = { ...prev, [fieldId]: value }
+      const toClear = dependentFieldIds.get(fieldId)
+      if (toClear) {
+        for (const depId of toClear) next[depId] = ''
+      }
+      return next
+    })
+  }
+
+  const toggleCanonicalMode = (canonicalId: string) => {
+    setCanonicalModes((prev) => ({
+      ...prev,
+      [canonicalId]: prev[canonicalId] === 'advanced' ? 'basic' : 'advanced',
+    }))
+  }
+
+  /**
+   * Collapse the canonical-pair state back to a flat map keyed by canonical IDs
+   * (matching what's stored in `connector.sourceConfig`).
+   */
+  const resolveSourceConfig = useCallback((): Record<string, string> => {
+    const resolved: Record<string, string> = {}
+    const processedCanonicals = new Set<string>()
+    if (!connectorConfig) return resolved
+
+    for (const field of connectorConfig.configFields) {
+      if (field.canonicalParamId) {
+        if (processedCanonicals.has(field.canonicalParamId)) continue
+        processedCanonicals.add(field.canonicalParamId)
+        const group = canonicalGroups.get(field.canonicalParamId)
+        if (!group) continue
+        const activeMode = canonicalModes[field.canonicalParamId] ?? 'basic'
+        const activeField = group.find((f) => f.mode === activeMode) ?? group[0]
+        const value = sourceConfig[activeField.id] ?? ''
+        resolved[field.canonicalParamId] = value
+      } else {
+        resolved[field.id] = sourceConfig[field.id] ?? ''
+      }
+    }
+    return resolved
+  }, [connectorConfig, canonicalGroups, canonicalModes, sourceConfig])
+
   const hasChanges = useMemo(() => {
     if (syncInterval !== connector.syncIntervalMinutes) return true
-    for (const [key, value] of Object.entries(sourceConfig)) {
+    const resolved = resolveSourceConfig()
+    for (const [key, value] of Object.entries(resolved)) {
       if (String(connector.sourceConfig[key] ?? '') !== value) return true
     }
     return false
-  }, [sourceConfig, syncInterval, connector.syncIntervalMinutes, connector.sourceConfig])
+  }, [resolveSourceConfig, syncInterval, connector.syncIntervalMinutes, connector.sourceConfig])
 
   const handleSave = () => {
     setError(null)
@@ -94,11 +203,12 @@ export function EditConnectorModal({
       updates.syncIntervalMinutes = syncInterval
     }
 
-    const configChanged = Object.entries(sourceConfig).some(
+    const resolved = resolveSourceConfig()
+    const configChanged = Object.entries(resolved).some(
       ([key, value]) => String(connector.sourceConfig[key] ?? '') !== value
     )
     if (configChanged) {
-      updates.sourceConfig = { ...connector.sourceConfig, ...sourceConfig }
+      updates.sourceConfig = { ...connector.sourceConfig, ...resolved }
     }
 
     if (Object.keys(updates).length === 0) {
@@ -144,10 +254,16 @@ export function EditConnectorModal({
               <SettingsTab
                 connectorConfig={connectorConfig}
                 sourceConfig={sourceConfig}
-                setSourceConfig={setSourceConfig}
+                credentialId={connector.credentialId}
+                canonicalGroups={canonicalGroups}
+                canonicalModes={canonicalModes}
+                onToggleCanonicalMode={toggleCanonicalMode}
+                onFieldChange={handleFieldChange}
+                isFieldVisible={isFieldVisible}
                 syncInterval={syncInterval}
                 setSyncInterval={setSyncInterval}
                 hasMaxAccess={hasMaxAccess}
+                isSaving={isSaving}
                 error={error}
               />
             </ModalTabsContent>
@@ -183,53 +299,102 @@ export function EditConnectorModal({
 interface SettingsTabProps {
   connectorConfig: ConnectorConfig | null
   sourceConfig: Record<string, string>
-  setSourceConfig: React.Dispatch<React.SetStateAction<Record<string, string>>>
+  credentialId: string | null
+  canonicalGroups: Map<string, ConnectorConfigField[]>
+  canonicalModes: Record<string, 'basic' | 'advanced'>
+  onToggleCanonicalMode: (canonicalId: string) => void
+  onFieldChange: (fieldId: string, value: string) => void
+  isFieldVisible: (field: ConnectorConfigField) => boolean
   syncInterval: number
   setSyncInterval: (v: number) => void
   hasMaxAccess: boolean
+  isSaving: boolean
   error: string | null
 }
 
 function SettingsTab({
   connectorConfig,
   sourceConfig,
-  setSourceConfig,
+  credentialId,
+  canonicalGroups,
+  canonicalModes,
+  onToggleCanonicalMode,
+  onFieldChange,
+  isFieldVisible,
   syncInterval,
   setSyncInterval,
   hasMaxAccess,
+  isSaving,
   error,
 }: SettingsTabProps) {
   return (
     <div className='flex flex-col gap-3'>
-      {connectorConfig?.configFields.map((field) => (
-        <div key={field.id} className='flex flex-col gap-2'>
-          <Label>
-            {field.title}
-            {field.required && <span className='ml-0.5 text-[var(--text-error)]'>*</span>}
-          </Label>
-          {field.description && (
-            <p className='text-[var(--text-muted)] text-xs'>{field.description}</p>
-          )}
-          {field.type === 'dropdown' && field.options ? (
-            <Combobox
-              size='sm'
-              options={field.options.map((opt) => ({
-                label: opt.label,
-                value: opt.id,
-              }))}
-              value={sourceConfig[field.id] || undefined}
-              onChange={(value) => setSourceConfig((prev) => ({ ...prev, [field.id]: value }))}
-              placeholder={field.placeholder || `Select ${field.title.toLowerCase()}`}
-            />
-          ) : (
-            <Input
-              value={sourceConfig[field.id] || ''}
-              onChange={(e) => setSourceConfig((prev) => ({ ...prev, [field.id]: e.target.value }))}
-              placeholder={field.placeholder}
-            />
-          )}
-        </div>
-      ))}
+      {connectorConfig?.configFields.map((field) => {
+        if (!isFieldVisible(field)) return null
+
+        const canonicalId = field.canonicalParamId
+        const hasCanonicalPair =
+          canonicalId && (canonicalGroups.get(canonicalId)?.length ?? 0) === 2
+
+        return (
+          <div key={field.id} className='flex flex-col gap-2'>
+            <div className='flex items-center justify-between'>
+              <Label>
+                {field.title}
+                {field.required && <span className='ml-0.5 text-[var(--text-error)]'>*</span>}
+              </Label>
+              {hasCanonicalPair && canonicalId && (
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <button
+                      type='button'
+                      className='flex h-[18px] w-[18px] items-center justify-center rounded-[3px] text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-3)] hover-hover:text-[var(--text-secondary)]'
+                      onClick={() => onToggleCanonicalMode(canonicalId)}
+                    >
+                      <ArrowLeftRight className='h-[12px] w-[12px]' />
+                    </button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='top'>
+                    {field.mode === 'basic' ? 'Switch to manual input' : 'Switch to selector'}
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              )}
+            </div>
+            {field.description && (
+              <p className='text-[var(--text-muted)] text-xs'>{field.description}</p>
+            )}
+            {field.type === 'selector' && field.selectorKey ? (
+              <ConnectorSelectorField
+                field={field as ConnectorConfigField & { selectorKey: SelectorKey }}
+                value={sourceConfig[field.id] || ''}
+                onChange={(value) => onFieldChange(field.id, value)}
+                credentialId={credentialId}
+                sourceConfig={sourceConfig}
+                configFields={connectorConfig.configFields}
+                canonicalModes={canonicalModes}
+                disabled={isSaving}
+              />
+            ) : field.type === 'dropdown' && field.options ? (
+              <Combobox
+                size='sm'
+                options={field.options.map((opt) => ({
+                  label: opt.label,
+                  value: opt.id,
+                }))}
+                value={sourceConfig[field.id] || undefined}
+                onChange={(value) => onFieldChange(field.id, value)}
+                placeholder={field.placeholder || `Select ${field.title.toLowerCase()}`}
+              />
+            ) : (
+              <Input
+                value={sourceConfig[field.id] || ''}
+                onChange={(e) => onFieldChange(field.id, e.target.value)}
+                placeholder={field.placeholder}
+              />
+            )}
+          </div>
+        )
+      })}
 
       <div className='flex flex-col gap-2'>
         <Label>Sync Frequency</Label>
