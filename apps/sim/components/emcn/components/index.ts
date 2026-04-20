@@ -124,6 +124,7 @@ export {
   SModalTabsTrigger,
   SModalTrigger,
 } from './s-modal/s-modal'
+export { SecretInput, type SecretInputProps } from './secret-input/secret-input'
 export { Skeleton } from './skeleton/skeleton'
 export { Slider, type SliderProps } from './slider/slider'
 export { Switch } from './switch/switch'
@@ -159,3 +160,4 @@ export {
   type TourTooltipPlacement,
   type TourTooltipProps,
 } from './tour-tooltip/tour-tooltip'
+export { Wizard, type WizardProps, type WizardStepProps } from './wizard/wizard'

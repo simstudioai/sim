@@ -411,6 +411,7 @@ describe.concurrent('Blocks Module', () => {
         'filter-builder',
         'sort-builder',
         'skill-input',
+        'modal',
       ]
 
       const blocks = getAllBlocks()
