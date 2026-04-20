@@ -522,16 +522,7 @@ export const servicenowConnector: ConnectorConfig = {
       ? 'sys_id,short_description,text,wiki,workflow_state,kb_category,kb_knowledge_base,number,author,sys_created_by,sys_updated_by,sys_updated_on,sys_created_on'
       : 'sys_id,number,short_description,description,state,priority,category,assigned_to,opened_by,close_notes,resolution_notes,sys_created_by,sys_updated_by,sys_updated_on,sys_created_on'
 
-    let instanceUrl: string
-    try {
-      instanceUrl = resolveServiceNowInstanceUrl(sourceConfig.instanceUrl as string)
-    } catch (error) {
-      logger.warn('Failed to validate ServiceNow instance URL', {
-        externalId,
-        error: toError(error).message,
-      })
-      return null
-    }
+    const instanceUrl = resolveServiceNowInstanceUrl(sourceConfig.instanceUrl as string)
 
     try {
       const { result } = await serviceNowApiGet(instanceUrl, tableName, authHeader, {
