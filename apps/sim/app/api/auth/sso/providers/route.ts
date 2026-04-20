@@ -19,11 +19,14 @@ export async function GET(request: NextRequest) {
       let verifiedOrganizationId: string | null = null
       if (organizationId) {
         const [membership] = await db
-          .select({ organizationId: member.organizationId })
+          .select({ organizationId: member.organizationId, role: member.role })
           .from(member)
           .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
           .limit(1)
         if (!membership) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+        if (membership.role !== 'owner' && membership.role !== 'admin') {
           return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
         }
         verifiedOrganizationId = membership.organizationId

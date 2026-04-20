@@ -116,11 +116,14 @@ export async function POST(request: NextRequest) {
 
     if (orgId) {
       const [membership] = await db
-        .select({ organizationId: member.organizationId })
+        .select({ organizationId: member.organizationId, role: member.role })
         .from(member)
         .where(and(eq(member.userId, session.user.id), eq(member.organizationId, orgId)))
         .limit(1)
       if (!membership) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      if (membership.role !== 'owner' && membership.role !== 'admin') {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
