@@ -64,13 +64,15 @@ export function createMockSqlOperators() {
  * are wired at module load time:
  *
  * - `select().from().where()` → returns a builder with `.limit` / `.orderBy` /
- *   `.returning` / `.groupBy` terminals
+ *   `.returning` / `.groupBy` / `.for` terminals
  * - `select().from().innerJoin()|leftJoin()` → returns the same where-builder
  * - `insert().values().returning()` / `update().set().where()` / `delete().where()`
  *
- * Terminals (`limit`, `orderBy`, `returning`, `groupBy`, `values`) default to
- * resolving `[]` (or `undefined` for `values`). Override per-test with
- * `dbChainMockFns.limit.mockResolvedValueOnce([...])`.
+ * Terminals (`limit`, `orderBy`, `returning`, `groupBy`, `for`, `values`)
+ * default to resolving `[]` (or `undefined` for `values`). Override per-test
+ * with `dbChainMockFns.limit.mockResolvedValueOnce([...])`. `for` mirrors
+ * drizzle's `.for('update')` row-lock terminal — override with
+ * `dbChainMockFns.for.mockResolvedValueOnce([...])`.
  *
  * `vi.clearAllMocks()` clears call history but preserves default wiring. Tests
  * that replace a wiring with `mockReturnValue(...)` (not `...Once`) must re-wire
@@ -93,11 +95,12 @@ const orderBy = vi.fn(() => Promise.resolve([] as unknown[]))
 const returning = vi.fn(() => Promise.resolve([] as unknown[]))
 const groupBy = vi.fn(() => Promise.resolve([] as unknown[]))
 const execute = vi.fn(() => Promise.resolve([] as unknown[]))
+const forClause = vi.fn(() => Promise.resolve([] as unknown[]))
 
 const onConflictDoUpdate = vi.fn(() => ({ returning }) as unknown as Promise<void>)
 const onConflictDoNothing = vi.fn(() => ({ returning }) as unknown as Promise<void>)
 
-const whereBuilder = () => ({ limit, orderBy, returning, groupBy })
+const whereBuilder = () => ({ limit, orderBy, returning, groupBy, for: forClause })
 const where = vi.fn(whereBuilder)
 
 const joinBuilder = (): { where: typeof where; innerJoin: any; leftJoin: any } => ({
@@ -134,6 +137,7 @@ export const dbChainMockFns = {
   leftJoin,
   groupBy,
   execute,
+  for: forClause,
   insert,
   values,
   onConflictDoUpdate,
@@ -173,6 +177,7 @@ export function resetDbChainMock(): void {
   returning.mockImplementation(() => Promise.resolve([] as unknown[]))
   groupBy.mockImplementation(() => Promise.resolve([] as unknown[]))
   execute.mockImplementation(() => Promise.resolve([] as unknown[]))
+  forClause.mockImplementation(() => Promise.resolve([] as unknown[]))
   transaction.mockImplementation(async (cb: (tx: typeof dbChainMock.db) => unknown) =>
     cb(dbChainMock.db)
   )

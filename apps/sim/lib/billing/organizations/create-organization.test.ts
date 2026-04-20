@@ -1,49 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { schemaMock } from '@sim/testing'
+import { dbChainMock, dbChainMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDbState, mockGenerateId } = vi.hoisted(() => ({
-  mockDbState: {
-    selectResults: [] as any[],
-    insertedOrganizations: [] as any[],
-    insertedMembers: [] as any[],
-  },
+const { mockGenerateId } = vi.hoisted(() => ({
   mockGenerateId: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    transaction: vi.fn(async (callback: any) => {
-      const tx = {
-        select: vi.fn().mockReturnValue({
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              limit: vi
-                .fn()
-                .mockImplementation(() => Promise.resolve(mockDbState.selectResults.shift() ?? [])),
-            }),
-          }),
-        }),
-        insert: vi.fn().mockReturnValue({
-          values: vi.fn().mockImplementation(async (values: Record<string, unknown>) => {
-            if ('slug' in values) {
-              mockDbState.insertedOrganizations.push(values)
-              return
-            }
-
-            mockDbState.insertedMembers.push(values)
-          }),
-        }),
-      }
-
-      return callback(tx)
-    }),
-  },
-}))
-
-vi.mock('@sim/db/schema', () => schemaMock)
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@sim/utils/id', () => ({
   generateId: mockGenerateId,
@@ -56,17 +21,20 @@ import {
   validateOrganizationSlugOrThrow,
 } from '@/lib/billing/organizations/create-organization'
 
+function insertedValuesFor(predicate: (values: Record<string, unknown>) => boolean) {
+  return dbChainMockFns.values.mock.calls
+    .map((call) => call[0] as Record<string, unknown>)
+    .filter(predicate)
+}
+
 describe('createOrganizationWithOwner', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDbState.selectResults = []
-    mockDbState.insertedOrganizations = []
-    mockDbState.insertedMembers = []
   })
 
   it('creates an organization with a Better Auth-compatible id prefix', async () => {
     mockGenerateId.mockReturnValueOnce('abc123').mockReturnValueOnce('member456')
-    mockDbState.selectResults = [[]]
+    dbChainMockFns.limit.mockResolvedValueOnce([])
 
     const result = await createOrganizationWithOwner({
       ownerUserId: 'user-1',
@@ -79,7 +47,7 @@ describe('createOrganizationWithOwner', () => {
       organizationId: 'org_abc123',
       memberId: 'member456',
     })
-    expect(mockDbState.insertedOrganizations).toEqual([
+    expect(insertedValuesFor((v) => 'slug' in v)).toEqual([
       expect.objectContaining({
         id: 'org_abc123',
         name: 'My Org',
@@ -87,7 +55,7 @@ describe('createOrganizationWithOwner', () => {
         metadata: { source: 'test' },
       }),
     ])
-    expect(mockDbState.insertedMembers).toEqual([
+    expect(insertedValuesFor((v) => !('slug' in v))).toEqual([
       expect.objectContaining({
         id: 'member456',
         userId: 'user-1',
@@ -99,7 +67,7 @@ describe('createOrganizationWithOwner', () => {
 
   it('throws a typed error when the organization slug is already taken', async () => {
     mockGenerateId.mockReturnValueOnce('abc123').mockReturnValueOnce('member456')
-    mockDbState.selectResults = [[{ id: 'existing-org' }]]
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'existing-org' }])
 
     await expect(
       createOrganizationWithOwner({
@@ -109,8 +77,7 @@ describe('createOrganizationWithOwner', () => {
       })
     ).rejects.toBeInstanceOf(OrganizationSlugTakenError)
 
-    expect(mockDbState.insertedOrganizations).toEqual([])
-    expect(mockDbState.insertedMembers).toEqual([])
+    expect(insertedValuesFor(() => true)).toEqual([])
   })
 
   it('rejects invalid organization slugs before writing anything', () => {

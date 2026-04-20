@@ -217,12 +217,15 @@ it('reads a row', async () => {
 ```
 
 **Default chains supported:**
-- `select()/selectDistinct()/selectDistinctOn() → from() → where()/innerJoin()/leftJoin() → where() → limit()/orderBy()/returning()/groupBy()`
+- `select()/selectDistinct()/selectDistinctOn() → from() → where()/innerJoin()/leftJoin() → where() → limit()/orderBy()/returning()/groupBy()/for()`
 - `insert() → values() → returning()/onConflictDoUpdate()/onConflictDoNothing()`
-- `update() → set() → where() → limit()/orderBy()/returning()`
-- `delete() → where() → limit()/orderBy()/returning()`
+- `update() → set() → where() → limit()/orderBy()/returning()/for()`
+- `delete() → where() → limit()/orderBy()/returning()/for()`
 - `db.execute()` resolves `[]`
 - `db.transaction(cb)` calls cb with `dbChainMock.db`
+
+`.for('update')` (Postgres row-level locking) is supported as a terminal on
+`where` builders. Override with `dbChainMockFns.for.mockResolvedValueOnce([...])`.
 
 All terminals default to `Promise.resolve([])`. Override per-test with `dbChainMockFns.<terminal>.mockResolvedValueOnce(...)`.
 
