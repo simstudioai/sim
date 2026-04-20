@@ -30,8 +30,9 @@ interface NoteJson {
  * is no SaaS domain to allowlist — the vault URL is fully user-controlled. We
  * defer to the shared `validateExternalUrl` policy:
  *   - hosted Sim: blocks localhost, private IPs, HTTP (forces HTTPS)
- *   - self-hosted Sim: allows localhost + HTTP, still blocks non-loopback
- *     private IPs and dangerous ports (22, 25, 3306, 5432, 6379, 27017, 9200)
+ *   - self-hosted Sim: allows http://localhost (built-in carve-out), still
+ *     blocks non-loopback private IPs and dangerous ports (22, 25, 3306,
+ *     5432, 6379, 27017, 9200)
  *
  * This does not defend against DNS rebinding; for hosted deployments the user
  * must expose the plugin through a public URL (tunnel, port-forward).
@@ -41,7 +42,7 @@ function resolveVaultEndpoint(rawUrl: string | undefined): string {
   if (url && !url.startsWith('https://') && !url.startsWith('http://')) {
     url = `https://${url}`
   }
-  const validation = validateExternalUrl(url, 'vaultUrl', { allowHttp: true })
+  const validation = validateExternalUrl(url, 'vaultUrl')
   if (!validation.isValid) {
     throw new Error(validation.error || 'Invalid vault URL')
   }
