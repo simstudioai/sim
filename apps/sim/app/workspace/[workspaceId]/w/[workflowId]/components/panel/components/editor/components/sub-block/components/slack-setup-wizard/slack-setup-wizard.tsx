@@ -3,18 +3,7 @@
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import { Check, ChevronRight, Clipboard, Info } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
-import {
-  Button,
-  Checkbox,
-  Input,
-  Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-  Tooltip,
-} from '@/components/emcn'
+import { Checkbox, Input, Label, Tooltip, Wizard } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
@@ -35,16 +24,6 @@ const GROUP_LABELS: Record<SlackCapabilityGroup, string> = {
 }
 
 const GROUP_ORDER: readonly SlackCapabilityGroup[] = ['trigger', 'action'] as const
-
-const STEP_TITLES = [
-  'Configure your bot',
-  'Create the app in Slack',
-  'Paste your Signing Secret',
-  'Install and paste your Bot Token',
-  'All set',
-] as const
-
-const STEP_COUNT = STEP_TITLES.length
 
 const MODAL_HEIGHT_CLASS = 'h-[580px]'
 
@@ -144,106 +123,53 @@ function WizardModal({ blockId, open, onOpenChange, isPreview, disabled }: Wizar
     [onOpenChange]
   )
 
-  const handleBack = useCallback(() => {
-    setStep((s) => Math.max(0, s - 1))
-  }, [])
-
-  const handleNext = useCallback(() => {
-    setStep((s) => Math.min(STEP_COUNT - 1, s + 1))
-  }, [])
-
-  const handleDone = useCallback(() => {
-    handleOpenChange(false)
-  }, [handleOpenChange])
-
   return (
-    <Modal open={open} onOpenChange={handleOpenChange}>
-      <ModalContent size='lg' className={MODAL_HEIGHT_CLASS}>
-        <ModalHeader>
-          <div className='flex items-baseline justify-between gap-3'>
-            <span>{STEP_TITLES[step]}</span>
-            <span className='font-normal text-[var(--text-muted)] text-xs'>
-              Step {step + 1} of {STEP_COUNT}
-            </span>
-          </div>
-        </ModalHeader>
-
-        <StepProgress current={step} />
-
-        <ModalBody>
-          {step === 0 && (
-            <StepConfigure
-              blockId={blockId}
-              appName={displayAppName}
-              onAppNameChange={(v) => {
-                if (!controlsDisabled) setAppName(v)
-              }}
-              selected={selected}
-              disabled={controlsDisabled}
-            />
-          )}
-          {step === 1 && <StepCreate manifestJson={manifestJson} canCopy={canCopy} />}
-          {step === 2 && (
-            <StepSecret
-              blockId={blockId}
-              value={signingSecret ?? ''}
-              onChange={(v) => {
-                if (!controlsDisabled) setSigningSecret(v)
-              }}
-              disabled={controlsDisabled}
-            />
-          )}
-          {step === 3 && (
-            <StepToken
-              blockId={blockId}
-              value={botToken ?? ''}
-              onChange={(v) => {
-                if (!controlsDisabled) setBotToken(v)
-              }}
-              disabled={controlsDisabled}
-            />
-          )}
-          {step === 4 && (
-            <StepDone hasSigningSecret={Boolean(signingSecret)} hasBotToken={Boolean(botToken)} />
-          )}
-        </ModalBody>
-
-        <ModalFooter>
-          <Button variant='default' onClick={handleBack} disabled={step === 0}>
-            Back
-          </Button>
-          {step < STEP_COUNT - 1 ? (
-            <Button variant='primary' onClick={handleNext}>
-              Next
-            </Button>
-          ) : (
-            <Button variant='primary' onClick={handleDone}>
-              Done
-            </Button>
-          )}
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
-  )
-}
-
-interface StepProgressProps {
-  current: number
-}
-
-function StepProgress({ current }: StepProgressProps) {
-  return (
-    <div className='flex gap-1.5 px-6 pb-4'>
-      {STEP_TITLES.map((title, i) => (
-        <div
-          key={title}
-          className={cn(
-            'h-1 flex-1 rounded-full transition-colors',
-            i <= current ? 'bg-[var(--brand-secondary)]' : 'bg-[var(--surface-5)]'
-          )}
+    <Wizard
+      open={open}
+      onOpenChange={handleOpenChange}
+      currentStep={step}
+      onStepChange={setStep}
+      size='lg'
+      height={MODAL_HEIGHT_CLASS}
+    >
+      <Wizard.Step title='Configure your bot'>
+        <StepConfigure
+          blockId={blockId}
+          appName={displayAppName}
+          onAppNameChange={(v) => {
+            if (!controlsDisabled) setAppName(v)
+          }}
+          selected={selected}
+          disabled={controlsDisabled}
         />
-      ))}
-    </div>
+      </Wizard.Step>
+      <Wizard.Step title='Create the app in Slack'>
+        <StepCreate manifestJson={manifestJson} canCopy={canCopy} />
+      </Wizard.Step>
+      <Wizard.Step title='Paste your Signing Secret'>
+        <StepSecret
+          blockId={blockId}
+          value={signingSecret ?? ''}
+          onChange={(v) => {
+            if (!controlsDisabled) setSigningSecret(v)
+          }}
+          disabled={controlsDisabled}
+        />
+      </Wizard.Step>
+      <Wizard.Step title='Install and paste your Bot Token'>
+        <StepToken
+          blockId={blockId}
+          value={botToken ?? ''}
+          onChange={(v) => {
+            if (!controlsDisabled) setBotToken(v)
+          }}
+          disabled={controlsDisabled}
+        />
+      </Wizard.Step>
+      <Wizard.Step title='All set'>
+        <StepDone hasSigningSecret={Boolean(signingSecret)} hasBotToken={Boolean(botToken)} />
+      </Wizard.Step>
+    </Wizard>
   )
 }
 

@@ -159,3 +159,4 @@ export {
   type TourTooltipPlacement,
   type TourTooltipProps,
 } from './tour-tooltip/tour-tooltip'
+export { Wizard, type WizardProps, type WizardStepProps } from './wizard/wizard'
