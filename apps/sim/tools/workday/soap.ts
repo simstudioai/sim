@@ -142,7 +142,7 @@ export function buildWsdlUrl(
     throw new Error(validation.error ?? 'Invalid tenantUrl')
   }
   const svc = WORKDAY_SERVICES[service]
-  const baseUrl = tenantUrl.replace(/\/$/, '')
+  const baseUrl = (validation.sanitized ?? tenantUrl).replace(/\/$/, '')
   return `${baseUrl}/ccx/service/${tenant}/${svc.name}/${svc.version}?wsdl`
 }
 
