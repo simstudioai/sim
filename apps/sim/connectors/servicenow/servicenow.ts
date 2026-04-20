@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { ServiceNowIcon } from '@/components/icons'
+import { validateServiceNowInstanceUrl } from '@/lib/core/security/input-validation'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
@@ -45,15 +46,23 @@ interface Incident extends ServiceNowRecord {
 }
 
 /**
- * Normalizes the instance URL to ensure it has the correct format.
+ * Normalizes and validates the ServiceNow instance URL.
+ *
+ * Prepends https:// if the scheme is missing, strips trailing slashes, then
+ * enforces a ServiceNow-owned domain allowlist to prevent SSRF — the instance
+ * URL is user-controlled and was previously fetched server-side with no
+ * validation.
  */
-function normalizeInstanceUrl(instanceUrl: string): string {
-  let url = instanceUrl.trim()
-  url = url.replace(/\/+$/, '')
-  if (!url.startsWith('https://') && !url.startsWith('http://')) {
+function resolveServiceNowInstanceUrl(rawUrl: string): string {
+  let url = (rawUrl ?? '').trim().replace(/\/+$/, '')
+  if (url && !url.startsWith('https://') && !url.startsWith('http://')) {
     url = `https://${url}`
   }
-  return url
+  const validation = validateServiceNowInstanceUrl(url)
+  if (!validation.isValid) {
+    throw new Error(validation.error || 'Invalid instance URL')
+  }
+  return validation.sanitized ?? url
 }
 
 /**
@@ -430,7 +439,7 @@ export const servicenowConnector: ConnectorConfig = {
     cursor?: string,
     _syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
-    const instanceUrl = normalizeInstanceUrl(sourceConfig.instanceUrl as string)
+    const instanceUrl = resolveServiceNowInstanceUrl(sourceConfig.instanceUrl as string)
     const contentType = (sourceConfig.contentType as string) || 'kb_knowledge'
     const maxItems = sourceConfig.maxItems ? Number(sourceConfig.maxItems) : DEFAULT_MAX_ITEMS
     const authHeader = buildAuthHeader(accessToken, sourceConfig)
@@ -504,7 +513,6 @@ export const servicenowConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
-    const instanceUrl = normalizeInstanceUrl(sourceConfig.instanceUrl as string)
     const contentType = (sourceConfig.contentType as string) || 'kb_knowledge'
     const authHeader = buildAuthHeader(accessToken, sourceConfig)
     const isKB = contentType === 'kb_knowledge'
@@ -513,6 +521,8 @@ export const servicenowConnector: ConnectorConfig = {
     const fields = isKB
       ? 'sys_id,short_description,text,wiki,workflow_state,kb_category,kb_knowledge_base,number,author,sys_created_by,sys_updated_by,sys_updated_on,sys_created_on'
       : 'sys_id,number,short_description,description,state,priority,category,assigned_to,opened_by,close_notes,resolution_notes,sys_created_by,sys_updated_by,sys_updated_on,sys_created_on'
+
+    const instanceUrl = resolveServiceNowInstanceUrl(sourceConfig.instanceUrl as string)
 
     try {
       const { result } = await serviceNowApiGet(instanceUrl, tableName, authHeader, {
@@ -568,7 +578,13 @@ export const servicenowConnector: ConnectorConfig = {
       return { valid: false, error: 'Max items must be a positive number' }
     }
 
-    const normalizedUrl = normalizeInstanceUrl(instanceUrl)
+    let normalizedUrl: string
+    try {
+      normalizedUrl = resolveServiceNowInstanceUrl(instanceUrl)
+    } catch (error) {
+      return { valid: false, error: toError(error).message }
+    }
+
     const authHeader = buildAuthHeader(accessToken, sourceConfig)
     const tableName = contentType === 'kb_knowledge' ? 'kb_knowledge' : 'incident'
 
@@ -585,8 +601,7 @@ export const servicenowConnector: ConnectorConfig = {
       )
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to connect to ServiceNow'
-      return { valid: false, error: message }
+      return { valid: false, error: toError(error).message || 'Failed to connect to ServiceNow' }
     }
   },
 
