@@ -1,13 +1,18 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { ObsidianIcon } from '@/components/icons'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import {
+  secureFetchWithPinnedIPAndRetry,
+  VALIDATE_RETRY_OPTIONS,
+} from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { joinTagArray, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('ObsidianConnector')
 
 const DOCS_PER_PAGE = 50
+const DEFAULT_VAULT_URL = 'https://127.0.0.1:27124'
 
 interface NoteJson {
   content: string
@@ -22,10 +27,31 @@ interface NoteJson {
 }
 
 /**
- * Normalizes the vault URL by removing trailing slashes.
+ * Normalizes the vault URL and resolves its hostname to a concrete IP that
+ * will be pinned for the lifetime of this request sequence.
+ *
+ * The Obsidian Local REST API plugin runs on the user's own machine — there
+ * is no Obsidian SaaS domain we can allowlist. For hosted Sim deployments the
+ * user must expose the plugin through a public URL (tunnel, port-forward).
+ * Because the hostname is fully user-controlled, we resolve DNS once through
+ * validateUrlWithDNS (which blocks private IPs/localhost in hosted mode,
+ * allows localhost in self-hosted mode, and rejects dangerous ports) and
+ * then reuse that IP on every outgoing fetch via secureFetchWithPinnedIP —
+ * this prevents DNS rebinding attacks where a malicious nameserver would
+ * otherwise swap in a private IP between validation and the actual request.
  */
-function normalizeVaultUrl(url: string): string {
-  return url.trim().replace(/\/+$/, '')
+async function resolveVaultEndpoint(
+  rawUrl: string | undefined
+): Promise<{ baseUrl: string; resolvedIP: string }> {
+  let url = (rawUrl || DEFAULT_VAULT_URL).trim().replace(/\/+$/, '')
+  if (url && !url.startsWith('https://') && !url.startsWith('http://')) {
+    url = `https://${url}`
+  }
+  const validation = await validateUrlWithDNS(url, 'vaultUrl', { allowHttp: true })
+  if (!validation.isValid || !validation.resolvedIP) {
+    throw new Error(validation.error || 'Invalid vault URL')
+  }
+  return { baseUrl: url, resolvedIP: validation.resolvedIP }
 }
 
 /**
@@ -34,21 +60,24 @@ function normalizeVaultUrl(url: string): string {
  */
 async function listDirectory(
   baseUrl: string,
+  resolvedIP: string,
   accessToken: string,
   dirPath: string,
-  retryOptions?: Parameters<typeof fetchWithRetry>[2]
+  retryOptions?: Parameters<typeof secureFetchWithPinnedIPAndRetry>[3]
 ): Promise<string[]> {
   const encodedDir = dirPath ? dirPath.split('/').map(encodeURIComponent).join('/') : ''
   const endpoint = encodedDir ? `${baseUrl}/vault/${encodedDir}/` : `${baseUrl}/vault/`
 
-  const response = await fetchWithRetry(
+  const response = await secureFetchWithPinnedIPAndRetry(
     endpoint,
+    resolvedIP,
     {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: 'application/json',
       },
+      allowHttp: true,
     },
     retryOptions
   )
@@ -68,9 +97,10 @@ const MAX_RECURSION_DEPTH = 20
 
 async function listVaultFiles(
   baseUrl: string,
+  resolvedIP: string,
   accessToken: string,
   folderPath?: string,
-  retryOptions?: Parameters<typeof fetchWithRetry>[2],
+  retryOptions?: Parameters<typeof secureFetchWithPinnedIPAndRetry>[3],
   depth = 0
 ): Promise<string[]> {
   if (depth > MAX_RECURSION_DEPTH) {
@@ -79,7 +109,7 @@ async function listVaultFiles(
   }
 
   const rootPath = folderPath || ''
-  const entries = await listDirectory(baseUrl, accessToken, rootPath, retryOptions)
+  const entries = await listDirectory(baseUrl, resolvedIP, accessToken, rootPath, retryOptions)
 
   const mdFiles: string[] = []
   const subDirs: string[] = []
@@ -96,7 +126,14 @@ async function listVaultFiles(
 
   for (const dir of subDirs) {
     try {
-      const nested = await listVaultFiles(baseUrl, accessToken, dir, retryOptions, depth + 1)
+      const nested = await listVaultFiles(
+        baseUrl,
+        resolvedIP,
+        accessToken,
+        dir,
+        retryOptions,
+        depth + 1
+      )
       mdFiles.push(...nested)
     } catch (error) {
       logger.warn('Failed to list subdirectory', {
@@ -114,18 +151,21 @@ async function listVaultFiles(
  */
 async function fetchNote(
   baseUrl: string,
+  resolvedIP: string,
   accessToken: string,
   filePath: string,
-  retryOptions?: Parameters<typeof fetchWithRetry>[2]
+  retryOptions?: Parameters<typeof secureFetchWithPinnedIPAndRetry>[3]
 ): Promise<NoteJson> {
-  const response = await fetchWithRetry(
+  const response = await secureFetchWithPinnedIPAndRetry(
     `${baseUrl}/vault/${filePath.split('/').map(encodeURIComponent).join('/')}`,
+    resolvedIP,
     {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: 'application/vnd.olrapi.note+json',
       },
+      allowHttp: true,
     },
     retryOptions
   )
@@ -183,15 +223,13 @@ export const obsidianConnector: ConnectorConfig = {
     cursor?: string,
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
-    const baseUrl = normalizeVaultUrl(
-      (sourceConfig.vaultUrl as string) || 'https://127.0.0.1:27124'
-    )
+    const { baseUrl, resolvedIP } = await resolveVaultEndpoint(sourceConfig.vaultUrl as string)
     const folderPath = (sourceConfig.folderPath as string) || ''
 
     let allFiles = syncContext?.allFiles as string[] | undefined
     if (!allFiles) {
       logger.info('Listing all vault files', { baseUrl, folderPath })
-      allFiles = await listVaultFiles(baseUrl, accessToken, folderPath || undefined)
+      allFiles = await listVaultFiles(baseUrl, resolvedIP, accessToken, folderPath || undefined)
       if (syncContext) {
         syncContext.allFiles = allFiles
       }
@@ -230,12 +268,10 @@ export const obsidianConnector: ConnectorConfig = {
     externalId: string,
     _syncContext?: Record<string, unknown>
   ): Promise<ExternalDocument | null> => {
-    const baseUrl = normalizeVaultUrl(
-      (sourceConfig.vaultUrl as string) || 'https://127.0.0.1:27124'
-    )
+    const { baseUrl, resolvedIP } = await resolveVaultEndpoint(sourceConfig.vaultUrl as string)
 
     try {
-      const note = await fetchNote(baseUrl, accessToken, externalId)
+      const note = await fetchNote(baseUrl, resolvedIP, accessToken, externalId)
       const content = note.content || ''
 
       return {
@@ -275,14 +311,24 @@ export const obsidianConnector: ConnectorConfig = {
       return { valid: false, error: 'Vault URL is required' }
     }
 
-    const baseUrl = normalizeVaultUrl(rawUrl)
+    let baseUrl: string
+    let resolvedIP: string
+    try {
+      const endpoint = await resolveVaultEndpoint(rawUrl)
+      baseUrl = endpoint.baseUrl
+      resolvedIP = endpoint.resolvedIP
+    } catch (error) {
+      return { valid: false, error: toError(error).message }
+    }
 
     try {
-      const response = await fetchWithRetry(
+      const response = await secureFetchWithPinnedIPAndRetry(
         `${baseUrl}/`,
+        resolvedIP,
         {
           method: 'GET',
           headers: { Authorization: `Bearer ${accessToken}` },
+          allowHttp: true,
         },
         VALIDATE_RETRY_OPTIONS
       )
@@ -302,6 +348,7 @@ export const obsidianConnector: ConnectorConfig = {
       if (folderPath.trim()) {
         const entries = await listDirectory(
           baseUrl,
+          resolvedIP,
           accessToken,
           folderPath.trim(),
           VALIDATE_RETRY_OPTIONS
@@ -313,8 +360,10 @@ export const obsidianConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to connect to Obsidian vault'
-      return { valid: false, error: message }
+      return {
+        valid: false,
+        error: toError(error).message || 'Failed to connect to Obsidian vault',
+      }
     }
   },
 
