@@ -3,7 +3,15 @@
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import { Check, ChevronRight, Clipboard, Info } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
-import { Checkbox, Input, Label, toast, Tooltip, Wizard } from '@/components/emcn'
+import {
+  Checkbox,
+  Input,
+  Label,
+  SecretInput,
+  toast,
+  Tooltip,
+  Wizard,
+} from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
@@ -343,7 +351,7 @@ function StepSecret({ blockId, value, onChange, disabled }: StepSecretProps) {
         </SubStep>
         <SubStep n={3}>Paste it into the field below.</SubStep>
       </SubStepList>
-      <SecretInput
+      <SecretField
         id={`${blockId}-wizard-signing-secret`}
         label='Signing Secret'
         value={value}
@@ -375,7 +383,7 @@ function StepToken({ blockId, value, onChange, disabled }: StepTokenProps) {
         </SubStep>
         <SubStep n={3}>Paste it into the field below.</SubStep>
       </SubStepList>
-      <SecretInput
+      <SecretField
         id={`${blockId}-wizard-bot-token`}
         label='Bot Token'
         value={value}
@@ -387,7 +395,7 @@ function StepToken({ blockId, value, onChange, disabled }: StepTokenProps) {
   )
 }
 
-interface SecretInputProps {
+interface SecretFieldProps {
   id: string
   label: string
   value: string
@@ -397,40 +405,23 @@ interface SecretInputProps {
 }
 
 /**
- * Password-style input that masks its value with bullets only while the
- * field is unfocused. Typing, pasting, and selection all see the real text
- * so users can verify what they just pasted before clicking Next.
- *
- * @remarks
- * Change events that fire while the field is blurred carry the bullet
- * string as their value (autofill, form resets, synthetic React events),
- * which would silently overwrite the stored secret with `•` characters.
- * We gate the `onChange` callback on `isFocused` so only real edits — made
- * while the user is interacting and the displayed value is the real text —
- * propagate to the store.
+ * Label + SecretInput pair used by the signing-secret and bot-token wizard
+ * steps. The masked-on-blur behavior lives in the emcn `SecretInput`
+ * primitive; this wrapper just pins the label/input composition the wizard
+ * reuses twice.
  */
-function SecretInput({ id, label, value, onChange, disabled, placeholder }: SecretInputProps) {
-  const [isFocused, setIsFocused] = useState<boolean>(false)
-  const displayValue = isFocused ? value : '•'.repeat(value.length)
-
+function SecretField({ id, label, value, onChange, disabled, placeholder }: SecretFieldProps) {
   return (
     <div className='space-y-1.5'>
       <Label htmlFor={id} className='font-medium text-[var(--text-secondary)] text-xs'>
         {label}
       </Label>
-      <Input
+      <SecretInput
         id={id}
-        type='text'
-        value={displayValue}
-        onChange={(e) => {
-          if (!isFocused) return
-          onChange(e.target.value)
-        }}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => setIsFocused(false)}
+        value={value}
+        onChange={onChange}
         disabled={disabled}
         placeholder={placeholder}
-        autoComplete='off'
         className='h-9 text-sm'
       />
     </div>
