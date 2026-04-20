@@ -133,6 +133,13 @@ export function SSO() {
       )
     }
   } else {
+    if (activeOrganization && !canManageSSO) {
+      return (
+        <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
+          Only organization owners and admins can configure Single Sign-On settings.
+        </div>
+      )
+    }
     if (
       !activeOrganization &&
       !isLoadingProviders &&

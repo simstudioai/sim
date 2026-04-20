@@ -1,4 +1,4 @@
-import { db, member } from '@sim/db'
+import { db, member, ssoProvider } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
     if (providerType === 'oidc') {
       const {
         clientId,
-        clientSecret,
+        clientSecret: rawClientSecret,
         scopes,
         pkce,
         authorizationEndpoint,
@@ -152,6 +152,31 @@ export async function POST(request: NextRequest) {
         userInfoEndpoint,
         jwksEndpoint,
       } = body
+
+      let clientSecret = rawClientSecret
+      if (rawClientSecret === REDACTED_MARKER) {
+        const [existing] = await db
+          .select({ oidcConfig: ssoProvider.oidcConfig })
+          .from(ssoProvider)
+          .where(eq(ssoProvider.providerId, providerId))
+          .limit(1)
+        if (!existing?.oidcConfig) {
+          return NextResponse.json(
+            { error: 'Cannot update: existing provider not found. Re-enter your client secret.' },
+            { status: 400 }
+          )
+        }
+        try {
+          clientSecret = JSON.parse(existing.oidcConfig).clientSecret
+        } catch {
+          return NextResponse.json(
+            {
+              error: 'Cannot update: failed to read existing secret. Re-enter your client secret.',
+            },
+            { status: 400 }
+          )
+        }
+      }
 
       const oidcConfig: any = {
         clientId,

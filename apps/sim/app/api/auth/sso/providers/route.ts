@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 
 const logger = createLogger('SSOProvidersRoute')
 
@@ -50,10 +51,21 @@ export async function GET(request: NextRequest) {
         .from(ssoProvider)
         .where(whereClause)
 
-      providers = results.map((provider) => ({
-        ...provider,
-        providerType: (provider.samlConfig ? 'saml' : 'oidc') as 'oidc' | 'saml',
-      }))
+      providers = results.map((provider) => {
+        let oidcConfig = provider.oidcConfig
+        if (oidcConfig) {
+          try {
+            const parsed = JSON.parse(oidcConfig)
+            parsed.clientSecret = REDACTED_MARKER
+            oidcConfig = JSON.stringify(parsed)
+          } catch {}
+        }
+        return {
+          ...provider,
+          oidcConfig,
+          providerType: (provider.samlConfig ? 'saml' : 'oidc') as 'oidc' | 'saml',
+        }
+      })
     } else {
       const results = await db
         .select({
