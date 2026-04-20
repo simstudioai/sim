@@ -58,7 +58,9 @@ export async function GET(request: NextRequest) {
             const parsed = JSON.parse(oidcConfig)
             parsed.clientSecret = REDACTED_MARKER
             oidcConfig = JSON.stringify(parsed)
-          } catch {}
+          } catch {
+            oidcConfig = null
+          }
         }
         return {
           ...provider,
