@@ -3,7 +3,7 @@
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import { Check, ChevronRight, Clipboard, Info } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
-import { Checkbox, Input, Label, Tooltip, Wizard } from '@/components/emcn'
+import { Checkbox, Input, Label, toast, Tooltip, Wizard } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
@@ -262,11 +262,15 @@ interface StepCreateProps {
 function StepCreate({ manifestJson, canCopy }: StepCreateProps) {
   const [copied, setCopied] = useState<boolean>(false)
 
-  const handleCopy = useCallback(() => {
+  const handleCopy = useCallback(async () => {
     if (!canCopy) return
-    navigator.clipboard.writeText(manifestJson)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(manifestJson)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error("Couldn't copy manifest — copy it manually from the developer console.")
+    }
   }, [canCopy, manifestJson])
 
   return (
