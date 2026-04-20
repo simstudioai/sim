@@ -1,9 +1,13 @@
 {
-  "name": "sim-doc-generator",
+  "name": "sim-scripts",
   "version": "1.0.0",
-  "description": "Documentation generator for Sim blocks",
+  "description": "Scripts for Sim Studio including documentation generation and key management",
   "type": "module",
   "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
   "dependencies": {
     "@types/node": "^24.5.1",
     "@types/react": "^19.1.13",
@@ -11,6 +15,7 @@
     "ts-node": "^10.9.2",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
+    "vitest": "^2.0.0",
     "yaml": "^2.8.1"
   }
 }

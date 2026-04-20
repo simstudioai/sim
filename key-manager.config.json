@@ -1,0 +1,120 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Configuration for the automated key management system",
+  "requiredKeys": [
+    {
+      "name": "DATABASE_URL",
+      "description": "PostgreSQL database connection string",
+      "pattern": "^postgresql://",
+      "required": true,
+      "inject": [".env", "docker-compose"]
+    },
+    {
+      "name": "BETTER_AUTH_SECRET",
+      "description": "Secret key for Better Auth authentication",
+      "pattern": "^[a-f0-9]{64}$",
+      "required": true,
+      "inject": [".env"]
+    },
+    {
+      "name": "BETTER_AUTH_URL",
+      "description": "Base URL for Better Auth",
+      "pattern": "^https?://",
+      "required": true,
+      "inject": [".env"]
+    },
+    {
+      "name": "NEXT_PUBLIC_APP_URL",
+      "description": "Public URL for Next.js application",
+      "pattern": "^https?://",
+      "required": true,
+      "inject": [".env"]
+    },
+    {
+      "name": "ENCRYPTION_KEY",
+      "description": "Encryption key for environment variables",
+      "pattern": "^[a-f0-9]{64}$",
+      "required": true,
+      "inject": [".env"]
+    },
+    {
+      "name": "INTERNAL_API_SECRET",
+      "description": "Secret for internal API routes",
+      "pattern": "^[a-f0-9]{64}$",
+      "required": true,
+      "inject": [".env"]
+    },
+    {
+      "name": "API_ENCRYPTION_KEY",
+      "description": "Encryption key for API keys",
+      "pattern": "^[a-f0-9]{64}$",
+      "required": true,
+      "inject": [".env"]
+    },
+    {
+      "name": "RESEND_API_KEY",
+      "description": "API key for Resend email service",
+      "required": false,
+      "inject": [".env"]
+    },
+    {
+      "name": "OLLAMA_URL",
+      "description": "URL for local Ollama server",
+      "pattern": "^https?://",
+      "required": false,
+      "inject": [".env"]
+    },
+    {
+      "name": "ADMIN_API_KEY",
+      "description": "API key for admin endpoints",
+      "pattern": "^[a-f0-9]{64}$",
+      "required": false,
+      "inject": [".env"]
+    },
+    {
+      "name": "AWS_REGION",
+      "description": "AWS region for deployment",
+      "required": false,
+      "inject": [".env"]
+    },
+    {
+      "name": "STRIPE_SECRET_KEY",
+      "description": "Stripe API secret key",
+      "required": false,
+      "inject": [".env"]
+    },
+    {
+      "name": "STRIPE_WEBHOOK_SECRET",
+      "description": "Stripe webhook secret",
+      "required": false,
+      "inject": [".env"]
+    }
+  ],
+  "externalSources": [
+    {
+      "name": "keyfinder",
+      "type": "api",
+      "description": "External key finder service for retrieving missing keys",
+      "authSecret": "KEYFINDER_SECRET",
+      "endpoint": "https://api.keyfinder.example/v1/keys"
+    }
+  ],
+  "injectionTargets": {
+    ".env": {
+      "path": ".env",
+      "format": "dotenv",
+      "template": ".env.example"
+    },
+    "docker-compose": {
+      "path": "docker-compose.prod.yml",
+      "format": "yaml",
+      "section": "services.app.environment"
+    }
+  },
+  "security": {
+    "maskInLogs": true,
+    "clearMemoryAfterUse": true,
+    "useGitHubSecretsMasking": true,
+    "rotationWarningDays": 90
+  }
+}
