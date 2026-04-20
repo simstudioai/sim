@@ -224,8 +224,12 @@ it('reads a row', async () => {
 - `db.execute()` resolves `[]`
 - `db.transaction(cb)` calls cb with `dbChainMock.db`
 
-`.for('update')` (Postgres row-level locking) is supported as a terminal on
-`where` builders. Override with `dbChainMockFns.for.mockResolvedValueOnce([...])`.
+`.for('update')` (Postgres row-level locking) is supported on `where`
+builders. It returns a thenable with `.limit` / `.orderBy` / `.returning` /
+`.groupBy` attached, so both `await .where().for('update')` (terminal) and
+`await .where().for('update').limit(1)` (chained) work. Override the terminal
+result with `dbChainMockFns.for.mockResolvedValueOnce([...])`; for the chained
+form, mock the downstream terminal (e.g. `dbChainMockFns.limit.mockResolvedValueOnce([...])`).
 
 All terminals default to `Promise.resolve([])`. Override per-test with `dbChainMockFns.<terminal>.mockResolvedValueOnce(...)`.
 
