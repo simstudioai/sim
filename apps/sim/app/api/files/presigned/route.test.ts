@@ -4,7 +4,7 @@
  * @vitest-environment node
  */
 
-import { authMock, authMockFns } from '@sim/testing'
+import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -44,8 +44,6 @@ const {
   mockGetStorageProviderUploads: vi.fn(),
   mockIsUsingCloudStorageUploads: vi.fn(),
 }))
-
-vi.mock('@/lib/auth', () => authMock)
 
 vi.mock('@/app/api/files/authorization', () => ({
   verifyFileAccess: mockVerifyFileAccess,

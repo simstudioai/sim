@@ -4,7 +4,6 @@
 
 import {
   databaseMock,
-  hybridAuthMock,
   hybridAuthMockFns,
   workflowsUtilsMock,
   workflowsUtilsMockFns,
@@ -27,8 +26,6 @@ const {
   mockWriteEvent: vi.fn(),
   mockCloseWriter: vi.fn(),
 }))
-
-vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
 
 vi.mock('@/lib/execution/cancellation', () => ({
   markExecutionCancelled: (...args: unknown[]) => mockMarkExecutionCancelled(...args),

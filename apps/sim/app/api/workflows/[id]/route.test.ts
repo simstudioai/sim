@@ -7,11 +7,8 @@
 
 import {
   auditMock,
-  authMock,
   envMock,
-  hybridAuthMock,
   hybridAuthMockFns,
-  requestUtilsMock,
   telemetryMock,
   workflowsOrchestrationMock,
   workflowsOrchestrationMockFns,
@@ -51,15 +48,9 @@ function mockGetSession(session: { user: { id: string } } | null) {
   }
 }
 
-vi.mock('@/lib/auth', () => authMock)
-
-vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
-
 vi.mock('@/lib/core/config/env', () => envMock)
 
 vi.mock('@/lib/core/telemetry', () => telemetryMock)
-
-vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
 vi.mock('@/lib/audit/log', () => auditMock)
 

@@ -6,31 +6,23 @@ import {
   createMockRequest,
   executionPreprocessingMock,
   executionPreprocessingMockFns,
+  hybridAuthMockFns,
   loggingSessionMock,
+  requestUtilsMockFns,
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckHybridAuth, mockEnqueue } = vi.hoisted(() => ({
-  mockCheckHybridAuth: vi.fn(),
+const { mockEnqueue } = vi.hoisted(() => ({
   mockEnqueue: vi.fn().mockResolvedValue('job-123'),
 }))
 
+const mockCheckHybridAuth = hybridAuthMockFns.mockCheckHybridAuth
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
 
 const mockAuthorizeWorkflowByWorkspacePermission =
   workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission
-
-vi.mock('@/lib/auth/hybrid', () => ({
-  checkHybridAuth: mockCheckHybridAuth,
-  hasExternalApiCredentials: vi.fn().mockReturnValue(true),
-  AuthType: {
-    SESSION: 'session',
-    API_KEY: 'api_key',
-    INTERNAL_JWT: 'internal_jwt',
-  },
-}))
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
@@ -44,10 +36,6 @@ vi.mock('@/lib/core/async-jobs', () => ({
     markJobFailed: vi.fn(),
   }),
   shouldExecuteInline: vi.fn().mockReturnValue(false),
-}))
-
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('req-12345678'),
 }))
 
 vi.mock('@/lib/core/utils/urls', () => ({
@@ -82,7 +70,9 @@ describe('workflow execute async route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
+    requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('req-12345678')
     workflowsUtilsMockFns.mockWorkflowHasResponseBlock.mockReturnValue(false)
+    hybridAuthMockFns.mockHasExternalApiCredentials.mockReturnValue(true)
 
     mockCheckHybridAuth.mockResolvedValue({
       success: true,

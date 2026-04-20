@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { authMock, authMockFns, schemaMock } from '@sim/testing'
+import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,16 +18,12 @@ const { mockSelect, mockFrom, mockWhere, mockLimit, mockUpdate, mockSet, mockUpd
     mockUpdateWhere: vi.fn(),
   }))
 
-vi.mock('@/lib/auth', () => authMock)
-
 vi.mock('@sim/db', () => ({
   db: {
     select: mockSelect,
     update: mockUpdate,
   },
 }))
-
-vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),

@@ -3,7 +3,7 @@
  *
  * @vitest-environment node
  */
-import { copilotHttpMock, copilotHttpMockFns, schemaMock } from '@sim/testing'
+import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockSelectDistinctOn, mockFrom, mockLeftJoin, mockWhere, mockOrderBy } = vi.hoisted(() => ({
@@ -19,8 +19,6 @@ vi.mock('@sim/db', () => ({
     selectDistinctOn: mockSelectDistinctOn,
   },
 }))
-
-vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),

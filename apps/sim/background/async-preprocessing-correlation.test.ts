@@ -3,34 +3,25 @@
  */
 
 import {
+  dbChainMock,
+  dbChainMockFns,
   executionPreprocessingMock,
   executionPreprocessingMockFns,
   LoggingSessionMock,
   loggingSessionMock,
+  resetDbChainMock,
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockTask,
-  mockDbUpdate,
-  mockDbSelect,
-  mockExecuteWorkflowCore,
-  mockGetScheduleTimeValues,
-  mockGetSubBlockValue,
-} = vi.hoisted(() => ({
-  mockTask: vi.fn((config) => config),
-  mockDbUpdate: vi.fn(() => ({
-    set: vi.fn(() => ({
-      where: vi.fn().mockResolvedValue(undefined),
-    })),
-  })),
-  mockDbSelect: vi.fn(),
-  mockExecuteWorkflowCore: vi.fn(),
-  mockGetScheduleTimeValues: vi.fn(),
-  mockGetSubBlockValue: vi.fn(),
-}))
+const { mockTask, mockExecuteWorkflowCore, mockGetScheduleTimeValues, mockGetSubBlockValue } =
+  vi.hoisted(() => ({
+    mockTask: vi.fn((config) => config),
+    mockExecuteWorkflowCore: vi.fn(),
+    mockGetScheduleTimeValues: vi.fn(),
+    mockGetSubBlockValue: vi.fn(),
+  }))
 
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
 const mockLoadDeployedWorkflowState = workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState
@@ -38,10 +29,7 @@ const mockLoadDeployedWorkflowState = workflowsPersistenceUtilsMockFns.mockLoadD
 vi.mock('@trigger.dev/sdk', () => ({ task: mockTask }))
 
 vi.mock('@sim/db', () => ({
-  db: {
-    update: mockDbUpdate,
-    select: mockDbSelect,
-  },
+  ...dbChainMock,
   workflow: {},
   workflowSchedule: {},
 }))
@@ -105,20 +93,15 @@ import { executeWorkflowJob } from './workflow-execution'
 describe('async preprocessing correlation threading', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDbSelect.mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue([
-            {
-              id: 'schedule-1',
-              workflowId: 'workflow-1',
-              status: 'active',
-              archivedAt: null,
-            },
-          ]),
-        }),
-      }),
-    })
+    resetDbChainMock()
+    dbChainMockFns.limit.mockResolvedValue([
+      {
+        id: 'schedule-1',
+        workflowId: 'workflow-1',
+        status: 'active',
+        archivedAt: null,
+      },
+    ])
     mockLoadDeployedWorkflowState.mockResolvedValue({
       blocks: {
         'schedule-block': {

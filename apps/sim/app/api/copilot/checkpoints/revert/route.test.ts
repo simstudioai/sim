@@ -3,13 +3,7 @@
  *
  * @vitest-environment node
  */
-import {
-  authMock,
-  authMockFns,
-  schemaMock,
-  workflowsUtilsMock,
-  workflowsUtilsMockFns,
-} from '@sim/testing'
+import { authMockFns, workflowsUtilsMock, workflowsUtilsMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -31,8 +25,6 @@ const {
   mockGetAccessibleCopilotChat: vi.fn(),
 }))
 
-vi.mock('@/lib/auth', () => authMock)
-
 vi.mock('@/lib/core/utils/urls', () => ({
   getBaseUrl: vi.fn(() => 'http://localhost:3000'),
   getInternalApiBaseUrl: vi.fn(() => 'http://localhost:3000'),
@@ -52,8 +44,6 @@ vi.mock('@sim/db', () => ({
     delete: mockDelete,
   },
 }))
-
-vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn((...conditions: unknown[]) => ({ conditions, type: 'and' })),

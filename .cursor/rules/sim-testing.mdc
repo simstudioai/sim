@@ -13,8 +13,12 @@ Use Vitest. Test files: `feature.ts` → `feature.test.ts`
 These modules are mocked globally — do NOT re-mock them in test files unless you need to override behavior:
 
 - `@sim/db` → `databaseMock`
+- `@sim/db/schema` → `schemaMock`
 - `drizzle-orm` → `drizzleOrmMock`
 - `@sim/logger` → `loggerMock`
+- `@/lib/auth` → `authMock`
+- `@/lib/auth/hybrid` → `hybridAuthMock` (with default session-delegating behavior)
+- `@/lib/core/utils/request` → `requestUtilsMock`
 - `@/stores/console/store`, `@/stores/terminal`, `@/stores/execution/store`
 - `@/blocks/registry`
 - `@trigger.dev/sdk`

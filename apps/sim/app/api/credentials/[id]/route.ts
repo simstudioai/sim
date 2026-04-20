@@ -10,8 +10,8 @@ import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import {
+  deleteWorkspaceEnvCredentials,
   syncPersonalEnvCredentialsForUser,
-  syncWorkspaceEnvCredentials,
 } from '@/lib/credentials/environment'
 import { captureServerEvent } from '@/lib/posthog/server'
 
@@ -317,10 +317,9 @@ export async function DELETE(
           set: { variables: current, updatedAt: new Date() },
         })
 
-      await syncWorkspaceEnvCredentials({
+      await deleteWorkspaceEnvCredentials({
         workspaceId: access.credential.workspaceId,
-        envKeys: Object.keys(current),
-        actingUserId: session.user.id,
+        removedKeys: [access.credential.envKey],
       })
 
       captureServerEvent(

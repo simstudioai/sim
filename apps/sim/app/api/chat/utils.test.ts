@@ -7,7 +7,6 @@ import {
   encryptionMock,
   encryptionMockFns,
   loggingSessionMock,
-  requestUtilsMock,
   workflowsUtilsMock,
 } from '@sim/testing'
 import type { NextResponse } from 'next/server'
@@ -47,8 +46,6 @@ vi.mock('@/lib/workflows/subblocks', () => ({
 }))
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
-
-vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
 vi.mock('@/lib/core/security/deployment', () => ({
   validateAuthToken: mockValidateAuthToken,

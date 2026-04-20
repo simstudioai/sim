@@ -7,7 +7,6 @@ import {
   executionPreprocessingMock,
   executionPreprocessingMockFns,
   featureFlagsMock,
-  schemaMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -28,8 +27,6 @@ vi.mock('@sim/db', () => ({
   workflow: {},
   workflowDeploymentVersion: {},
 }))
-
-vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(),

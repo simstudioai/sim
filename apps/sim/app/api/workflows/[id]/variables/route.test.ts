@@ -6,9 +6,7 @@
  */
 import {
   auditMock,
-  hybridAuthMock,
   hybridAuthMockFns,
-  requestUtilsMock,
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
@@ -17,11 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/audit/log', () => auditMock)
 
-vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
-
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
-
-vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 
 import { GET, POST } from '@/app/api/workflows/[id]/variables/route'
 

@@ -3,7 +3,6 @@
  */
 import {
   createEnvMock,
-  schemaMock,
   urlsMock,
   urlsMockFns,
   workflowsUtilsMock,
@@ -28,8 +27,6 @@ vi.mock('@sim/db', () => ({
     transaction: mockTransaction,
   },
 }))
-
-vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 

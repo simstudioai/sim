@@ -1,9 +1,5 @@
-import { schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db/schema', () => schemaMock)
-
 import { db } from '@sim/db'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   checkWorkspaceAccess,
   getManageableWorkspaces,

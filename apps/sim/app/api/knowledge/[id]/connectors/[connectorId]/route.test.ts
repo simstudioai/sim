@@ -5,12 +5,9 @@ import {
   auditMock,
   authOAuthUtilsMock,
   createMockRequest,
-  hybridAuthMock,
   hybridAuthMockFns,
   knowledgeApiUtilsMock,
   knowledgeApiUtilsMockFns,
-  requestUtilsMock,
-  schemaMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -40,10 +37,7 @@ const mockCheckAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseAccess
 const mockCheckWriteAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseWriteAccess
 
 vi.mock('@sim/db', () => ({ db: mockDbChain }))
-vi.mock('@sim/db/schema', () => schemaMock)
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
-vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
-vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
 vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
 vi.mock('@/connectors/registry', () => ({
   CONNECTOR_REGISTRY: {

@@ -5,7 +5,6 @@
  */
 import {
   auditMock,
-  authMock,
   authMockFns,
   createMockRequest,
   type MockUser,
@@ -39,7 +38,6 @@ const mockPerformDeleteFolder = workflowsOrchestrationMockFns.mockPerformDeleteF
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
 vi.mock('@/lib/audit/log', () => auditMock)
-vi.mock('@/lib/auth', () => authMock)
 vi.mock('@sim/logger', () => ({
   createLogger: vi.fn().mockReturnValue(mockLogger),
 }))

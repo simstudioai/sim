@@ -6,7 +6,7 @@
 import {
   redisConfigMock,
   redisConfigMockFns,
-  schemaMock,
+  requestUtilsMockFns,
   workflowsApiUtilsMock,
   workflowsApiUtilsMockFns,
 } from '@sim/testing'
@@ -28,7 +28,6 @@ const {
   mockRenderOTPEmail,
   mockAddCorsHeaders,
   mockSetChatAuthCookie,
-  mockGenerateRequestId,
   mockGetStorageMethod,
   mockZodParse,
   mockGetEnv,
@@ -53,7 +52,6 @@ const {
   const mockRenderOTPEmail = vi.fn()
   const mockAddCorsHeaders = vi.fn()
   const mockSetChatAuthCookie = vi.fn()
-  const mockGenerateRequestId = vi.fn()
   const mockGetStorageMethod = vi.fn()
   const mockZodParse = vi.fn()
   const mockGetEnv = vi.fn()
@@ -73,7 +71,6 @@ const {
     mockRenderOTPEmail,
     mockAddCorsHeaders,
     mockSetChatAuthCookie,
-    mockGenerateRequestId,
     mockGetStorageMethod,
     mockZodParse,
     mockGetEnv,
@@ -102,8 +99,6 @@ vi.mock('@sim/db', () => ({
     }),
   },
 }))
-
-vi.mock('@sim/db/schema', () => schemaMock)
 
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn((field: string, value: string) => ({ field, value, type: 'eq' })),
@@ -177,10 +172,6 @@ vi.mock('zod', () => {
   }
 })
 
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: mockGenerateRequestId,
-}))
-
 import { POST, PUT } from './route'
 
 describe('Chat OTP API Route', () => {
@@ -242,7 +233,7 @@ describe('Chat OTP API Route', () => {
       status,
     }))
 
-    mockGenerateRequestId.mockReturnValue('req-123')
+    requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('req-123')
 
     mockZodParse.mockImplementation((data: unknown) => data)
 
