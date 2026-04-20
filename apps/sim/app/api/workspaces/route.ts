@@ -102,10 +102,15 @@ export async function GET(request: Request) {
 
     await migrateExistingWorkflows(session.user.id, defaultWorkspace.id)
 
+    const refreshedCreationPolicy = await getWorkspaceCreationPolicy({
+      userId: session.user.id,
+      activeOrganizationId,
+    })
+
     return NextResponse.json({
       workspaces: [defaultWorkspace],
       lastActiveWorkspaceId,
-      creationPolicy,
+      creationPolicy: refreshedCreationPolicy,
     })
   }
 
