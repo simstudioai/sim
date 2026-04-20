@@ -73,6 +73,7 @@ export const AuditAction = {
   INVITATION_REJECTED: 'invitation.rejected',
   INVITATION_RESENT: 'invitation.resent',
   INVITATION_REVOKED: 'invitation.revoked',
+  INVITATION_UPDATED: 'invitation.updated',
 
   // Knowledge Base Connectors
   CONNECTOR_CREATED: 'connector.created',

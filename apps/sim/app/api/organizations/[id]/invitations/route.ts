@@ -395,12 +395,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     if (failedInvitations.length > 0) {
-      return NextResponse.json({
-        success: false,
-        error: 'Some invitation emails failed to send.',
-        message: `${sentInvitations.length} invitation(s) sent, ${failedInvitations.length} failed`,
-        data: responseData,
-      })
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Some invitation emails failed to send.',
+          message: `${sentInvitations.length} invitation(s) sent, ${failedInvitations.length} failed`,
+          data: responseData,
+        },
+        { status: 207 }
+      )
     }
 
     return NextResponse.json({

@@ -77,6 +77,7 @@ export const auditMock = {
     INVITATION_REJECTED: 'invitation.rejected',
     INVITATION_RESENT: 'invitation.resent',
     INVITATION_REVOKED: 'invitation.revoked',
+    INVITATION_UPDATED: 'invitation.updated',
     CONNECTOR_CREATED: 'connector.created',
     CONNECTOR_UPDATED: 'connector.updated',
     CONNECTOR_DELETED: 'connector.deleted',

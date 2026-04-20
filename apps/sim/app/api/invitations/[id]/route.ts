@@ -168,18 +168,21 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     })
 
+    const isOrgScoped = inv.kind === 'organization'
+    const primaryWorkspaceId = inv.grants[0]?.workspaceId ?? null
     recordAudit({
-      workspaceId: null,
+      workspaceId: isOrgScoped ? null : primaryWorkspaceId,
       actorId: session.user.id,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
-      action: AuditAction.ORG_INVITATION_UPDATED,
-      resourceType: AuditResourceType.ORGANIZATION,
-      resourceId: inv.organizationId ?? inv.id,
-      description: `Updated invitation for ${inv.email}`,
+      action: isOrgScoped ? AuditAction.ORG_INVITATION_UPDATED : AuditAction.INVITATION_UPDATED,
+      resourceType: isOrgScoped ? AuditResourceType.ORGANIZATION : AuditResourceType.WORKSPACE,
+      resourceId: isOrgScoped ? (inv.organizationId ?? inv.id) : (primaryWorkspaceId ?? inv.id),
+      description: `Updated ${inv.kind} invitation for ${inv.email}`,
       metadata: {
         invitationId: id,
         targetEmail: inv.email,
+        kind: inv.kind,
         roleUpdate: role ?? null,
         grantUpdates: grantsToApply,
       },
