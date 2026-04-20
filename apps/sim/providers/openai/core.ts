@@ -1,6 +1,6 @@
 import type { Logger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type OpenAI from 'openai'
-import { toError } from '@/lib/core/utils/helpers'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import type { Message, ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'

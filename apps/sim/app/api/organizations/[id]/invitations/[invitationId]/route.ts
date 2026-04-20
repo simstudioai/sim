@@ -14,7 +14,8 @@ import {
   workspaceInvitation,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray } from 'drizzle-orm'
+import { generateId } from '@sim/utils/id'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getEmailSubject, renderInvitationEmail } from '@/components/emails'
@@ -22,11 +23,11 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasAccessControlAccess } from '@/lib/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
-import { isOrgPlan, sqlIsPro } from '@/lib/billing/plan-helpers'
-import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { isPaid, sqlIsPro } from '@/lib/billing/plan-helpers'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
+import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 
@@ -328,8 +329,6 @@ export async function PUT(
       }
     }
 
-    let personalProToCancel: any = null
-
     await db.transaction(async (tx) => {
       await tx.update(invitation).set({ status }).where(eq(invitation.id, invitationId))
 
@@ -342,8 +341,7 @@ export async function PUT(
           createdAt: new Date(),
         })
 
-        // Snapshot Pro usage and cancel Pro subscription when joining a paid team
-        try {
+        {
           const orgSubs = await tx
             .select()
             .from(subscriptionTable)
@@ -356,7 +354,7 @@ export async function PUT(
             .limit(1)
 
           const orgSub = orgSubs[0]
-          const orgIsPaid = orgSub && isOrgPlan(orgSub.plan)
+          const orgIsPaid = orgSub && isPaid(orgSub.plan)
 
           if (orgIsPaid) {
             const userId = session.user.id
@@ -393,8 +391,9 @@ export async function PUT(
                   .update(userStats)
                   .set({
                     proPeriodCostSnapshot: currentProUsage,
-                    currentPeriodCost: '0', // Reset so new usage is attributed to team
-                    currentPeriodCopilotCost: '0', // Reset copilot cost for new period
+                    proPeriodCostSnapshotAt: new Date(),
+                    currentPeriodCost: '0',
+                    currentPeriodCopilotCost: '0',
                   })
                   .where(eq(userStats.userId, userId))
 
@@ -405,19 +404,48 @@ export async function PUT(
                 })
               }
 
-              // Mark for cancellation after transaction
-              if (personalPro.cancelAtPeriodEnd !== true) {
-                personalProToCancel = personalPro
+              if (personalPro.cancelAtPeriodEnd !== true && personalPro.stripeSubscriptionId) {
+                await tx
+                  .update(subscriptionTable)
+                  .set({ cancelAtPeriodEnd: true })
+                  .where(eq(subscriptionTable.id, personalPro.id))
+
+                await enqueueOutboxEvent(tx, OUTBOX_EVENT_TYPES.STRIPE_SYNC_CANCEL_AT_PERIOD_END, {
+                  stripeSubscriptionId: personalPro.stripeSubscriptionId,
+                  subscriptionId: personalPro.id,
+                  reason: 'member-joined-paid-org',
+                })
               }
             }
+
+            const storageRows = await tx
+              .select({ storageUsedBytes: userStats.storageUsedBytes })
+              .from(userStats)
+              .where(eq(userStats.userId, userId))
+              .for('update')
+              .limit(1)
+
+            const bytesToTransfer = storageRows[0]?.storageUsedBytes ?? 0
+            if (bytesToTransfer > 0) {
+              await tx
+                .update(organization)
+                .set({
+                  storageUsedBytes: sql`${organization.storageUsedBytes} + ${bytesToTransfer}`,
+                })
+                .where(eq(organization.id, organizationId))
+
+              await tx
+                .update(userStats)
+                .set({ storageUsedBytes: 0 })
+                .where(eq(userStats.userId, userId))
+
+              logger.info('Transferred personal storage bytes to org pool on join', {
+                userId,
+                organizationId,
+                bytes: bytesToTransfer,
+              })
+            }
           }
-        } catch (error) {
-          logger.error('Failed to handle Pro user joining team', {
-            userId: session.user.id,
-            organizationId,
-            error,
-          })
-          // Don't fail the whole invitation acceptance due to this
         }
 
         // Auto-assign to permission group if one has autoAddNewMembers enabled
@@ -554,44 +582,6 @@ export async function PUT(
             actingUserId: session.user.id,
           })
         }
-      }
-    }
-
-    // Handle Pro subscription cancellation after transaction commits
-    if (personalProToCancel) {
-      try {
-        const stripe = requireStripeClient()
-        if (personalProToCancel.stripeSubscriptionId) {
-          try {
-            await stripe.subscriptions.update(personalProToCancel.stripeSubscriptionId, {
-              cancel_at_period_end: true,
-            })
-          } catch (stripeError) {
-            logger.error('Failed to set cancel_at_period_end on Stripe for personal Pro', {
-              userId: session.user.id,
-              subscriptionId: personalProToCancel.id,
-              stripeSubscriptionId: personalProToCancel.stripeSubscriptionId,
-              error: stripeError,
-            })
-          }
-        }
-
-        await db
-          .update(subscriptionTable)
-          .set({ cancelAtPeriodEnd: true })
-          .where(eq(subscriptionTable.id, personalProToCancel.id))
-
-        logger.info('Auto-cancelled personal Pro at period end after joining paid team', {
-          userId: session.user.id,
-          personalSubscriptionId: personalProToCancel.id,
-          organizationId,
-        })
-      } catch (dbError) {
-        logger.error('Failed to update DB cancelAtPeriodEnd for personal Pro', {
-          userId: session.user.id,
-          subscriptionId: personalProToCancel.id,
-          error: dbError,
-        })
       }
     }
 

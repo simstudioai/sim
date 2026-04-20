@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -8,8 +9,10 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId } from '@/lib/core/utils/uuid'
-import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
+import {
+  createWorkspaceEnvCredentials,
+  deleteWorkspaceEnvCredentials,
+} from '@/lib/credentials/environment'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 
@@ -126,11 +129,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         set: { variables: merged, updatedAt: new Date() },
       })
 
-    await syncWorkspaceEnvCredentials({
-      workspaceId,
-      envKeys: Object.keys(merged),
-      actingUserId: userId,
-    })
+    const newKeys = Object.keys(variables).filter((k) => !(k in existingEncrypted))
+    await createWorkspaceEnvCredentials({ workspaceId, newKeys, actingUserId: userId })
 
     recordAudit({
       workspaceId,
@@ -215,11 +215,7 @@ export async function DELETE(
         set: { variables: current, updatedAt: new Date() },
       })
 
-    await syncWorkspaceEnvCredentials({
-      workspaceId,
-      envKeys: Object.keys(current),
-      actingUserId: userId,
-    })
+    await deleteWorkspaceEnvCredentials({ workspaceId, removedKeys: keys })
 
     recordAudit({
       workspaceId,

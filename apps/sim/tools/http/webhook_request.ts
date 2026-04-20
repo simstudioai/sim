@@ -1,5 +1,5 @@
 import { createHmac } from 'crypto'
-import { generateId } from '@/lib/core/utils/uuid'
+import { generateId } from '@sim/utils/id'
 import type { RequestResponse, WebhookRequestParams } from '@/tools/http/types'
 import type { ToolConfig } from '@/tools/types'
 

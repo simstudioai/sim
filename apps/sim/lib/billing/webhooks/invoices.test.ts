@@ -1,11 +1,12 @@
 /**
  * @vitest-environment node
  */
+import { urlsMock, urlsMockFns } from '@sim/testing'
 import type Stripe from 'stripe'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockBlockOrgMembers, mockDbSelect, mockLogger, mockUnblockOrgMembers, selectResponses } =
-  vi.hoisted(() => {
+const { mockBlockOrgMembers, mockDbSelect, mockUnblockOrgMembers, selectResponses } = vi.hoisted(
+  () => {
     const selectResponses: Array<{ limitResult?: unknown; whereResult?: unknown }> = []
     const mockDbSelect = vi.fn(() => {
       const nextResponse = selectResponses.shift()
@@ -31,48 +32,16 @@ const { mockBlockOrgMembers, mockDbSelect, mockLogger, mockUnblockOrgMembers, se
     return {
       mockBlockOrgMembers: vi.fn(),
       mockDbSelect,
-      mockLogger: {
-        debug: vi.fn(),
-        error: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-      },
       mockUnblockOrgMembers: vi.fn(),
       selectResponses,
     }
-  })
+  }
+)
 
 vi.mock('@sim/db', () => ({
   db: {
     select: mockDbSelect,
   },
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  member: {
-    organizationId: 'member.organizationId',
-    role: 'member.role',
-    userId: 'member.userId',
-  },
-  organization: {},
-  subscription: {
-    referenceId: 'subscription.referenceId',
-    stripeSubscriptionId: 'subscription.stripeSubscriptionId',
-  },
-  user: {
-    email: 'user.email',
-    id: 'user.id',
-    name: 'user.name',
-  },
-  userStats: {
-    billingBlocked: 'userStats.billingBlocked',
-    billingBlockedReason: 'userStats.billingBlockedReason',
-    userId: 'userStats.userId',
-  },
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn(() => mockLogger),
 }))
 
 vi.mock('drizzle-orm', () => ({
@@ -92,6 +61,7 @@ vi.mock('@/components/emails', () => ({
 
 vi.mock('@/lib/billing/core/billing', () => ({
   calculateSubscriptionOverage: vi.fn(),
+  isSubscriptionOrgScoped: vi.fn().mockResolvedValue(true),
 }))
 
 vi.mock('@/lib/billing/credits/balance', () => ({
@@ -119,9 +89,37 @@ vi.mock('@/lib/billing/stripe-client', () => ({
   requireStripeClient: vi.fn(),
 }))
 
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: vi.fn(() => 'https://sim.test'),
+vi.mock('@/lib/billing/stripe-payment-method', () => ({
+  resolveDefaultPaymentMethod: vi.fn(async () => ({
+    paymentMethodId: undefined,
+    collectionMethod: 'charge_automatically',
+  })),
+  getPaymentMethodId: vi.fn(),
+  getCustomerId: vi.fn(),
 }))
+
+vi.mock('@/lib/billing/subscriptions/utils', () => ({
+  ENTITLED_SUBSCRIPTION_STATUSES: ['active', 'trialing', 'past_due'],
+}))
+
+vi.mock('@/lib/billing/utils/decimal', () => ({
+  toDecimal: vi.fn((v: string | number | null | undefined) => {
+    if (v === null || v === undefined || v === '') return { toNumber: () => 0 }
+    return { toNumber: () => Number(v) }
+  }),
+  toNumber: vi.fn((d: { toNumber: () => number }) => d.toNumber()),
+}))
+
+vi.mock('@/lib/billing/webhooks/idempotency', () => ({
+  stripeWebhookIdempotency: {
+    executeWithIdempotency: vi.fn(
+      async (_provider: string, _identifier: string, operation: () => Promise<unknown>) =>
+        operation()
+    ),
+  },
+}))
+
+vi.mock('@/lib/core/utils/urls', () => urlsMock)
 
 vi.mock('@/lib/messaging/email/mailer', () => ({
   sendEmail: vi.fn(),
@@ -165,6 +163,7 @@ describe('invoice billing recovery', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     selectResponses.length = 0
+    urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
     mockBlockOrgMembers.mockResolvedValue(2)
     mockUnblockOrgMembers.mockResolvedValue(2)
   })

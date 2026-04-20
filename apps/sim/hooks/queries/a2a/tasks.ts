@@ -5,9 +5,9 @@
  */
 
 import type { Artifact, Message, TaskState } from '@a2a-js/sdk'
+import { generateId } from '@sim/utils/id'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { isTerminalState } from '@/lib/a2a/utils'
-import { generateId } from '@/lib/core/utils/uuid'
 
 /** A2A v0.3 JSON-RPC method names */
 const A2A_METHODS = {

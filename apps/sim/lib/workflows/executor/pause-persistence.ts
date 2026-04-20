@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@/lib/core/utils/helpers'
+import { toError } from '@sim/utils/errors'
 import type { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import type { ExecutionResult } from '@/executor/types'

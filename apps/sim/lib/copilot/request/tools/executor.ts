@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type {
   AsyncCompletionEnvelope,
   AsyncCompletionSignal,
@@ -40,7 +41,6 @@ import {
   type ToolCallState,
 } from '@/lib/copilot/request/types'
 import { ensureHandlersRegistered, executeTool } from '@/lib/copilot/tool-executor'
-import { toError } from '@/lib/core/utils/helpers'
 
 export { waitForToolCompletion } from '@/lib/copilot/request/tools/client'
 

@@ -1,13 +1,13 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import { taskPubSub } from '@/lib/copilot/tasks'
-import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('CopilotChatStopAPI')
 

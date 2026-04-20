@@ -1,32 +1,18 @@
 /**
  * @vitest-environment node
  */
+import { hybridAuthMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
 
-const {
-  mockCheckSessionOrInternalAuth,
-  mockCheckAccess,
-  mockBatchInsertRows,
-  mockReplaceTableRows,
-} = vi.hoisted(() => ({
-  mockCheckSessionOrInternalAuth: vi.fn(),
+const { mockCheckAccess, mockBatchInsertRows, mockReplaceTableRows } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
   mockBatchInsertRows: vi.fn(),
   mockReplaceTableRows: vi.fn(),
 }))
 
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
-}))
-
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('req-test-123'),
-}))
-
-vi.mock('@/lib/core/utils/uuid', () => ({
+vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn().mockReturnValue('deadbeefcafef00d'),
   generateShortId: vi.fn().mockReturnValue('short-id'),
 }))
@@ -118,7 +104,7 @@ async function callPost(form: FormData, { tableId }: { tableId: string } = { tab
 describe('POST /api/table/[tableId]/import-csv', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckSessionOrInternalAuth.mockResolvedValue({
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-1',
       authType: 'session',
@@ -131,7 +117,7 @@ describe('POST /api/table/[tableId]/import-csv', () => {
   })
 
   it('returns 401 when the user is not authenticated', async () => {
-    mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
       success: false,
       error: 'Authentication required',
     })

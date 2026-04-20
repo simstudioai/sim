@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { generateId } from '@sim/utils/id'
 import { Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -12,7 +13,6 @@ import {
 } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
 import { cn } from '@/lib/core/utils/cn'
-import { generateId } from '@/lib/core/utils/uuid'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
   checkTagTrigger,

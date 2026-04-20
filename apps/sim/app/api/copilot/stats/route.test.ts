@@ -3,54 +3,22 @@
  *
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { copilotHttpMock, copilotHttpMockFns, createEnvMock, createMockRequest } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAuthenticateCopilotRequestSessionOnly,
-  mockCreateUnauthorizedResponse,
-  mockCreateBadRequestResponse,
-  mockCreateInternalServerErrorResponse,
-  mockCreateRequestTracker,
-  mockFetch,
-} = vi.hoisted(() => ({
-  mockAuthenticateCopilotRequestSessionOnly: vi.fn(),
-  mockCreateUnauthorizedResponse: vi.fn(),
-  mockCreateBadRequestResponse: vi.fn(),
-  mockCreateInternalServerErrorResponse: vi.fn(),
-  mockCreateRequestTracker: vi.fn(),
+const { mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/request/http', () => ({
-  authenticateCopilotRequestSessionOnly: mockAuthenticateCopilotRequestSessionOnly,
-  createUnauthorizedResponse: mockCreateUnauthorizedResponse,
-  createBadRequestResponse: mockCreateBadRequestResponse,
-  createInternalServerErrorResponse: mockCreateInternalServerErrorResponse,
-  createRequestTracker: mockCreateRequestTracker,
-}))
+vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
 
 vi.mock('@/lib/copilot/constants', () => ({
   SIM_AGENT_API_URL_DEFAULT: 'https://agent.sim.example.com',
   SIM_AGENT_API_URL: 'https://agent.sim.example.com',
 }))
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: {
-    COPILOT_API_KEY: 'test-api-key',
-  },
-  getEnv: vi.fn((key: string) => {
-    const vals: Record<string, string | undefined> = {
-      COPILOT_API_KEY: 'test-api-key',
-    }
-    return vals[key]
-  }),
-  isTruthy: (value: string | boolean | number | undefined) =>
-    typeof value === 'string' ? value.toLowerCase() === 'true' || value === '1' : Boolean(value),
-  isFalsy: (value: string | boolean | number | undefined) =>
-    typeof value === 'string' ? value.toLowerCase() === 'false' || value === '0' : value === false,
-}))
+vi.mock('@/lib/core/config/env', () => createEnvMock({ COPILOT_API_KEY: 'test-api-key' }))
 
 import { POST } from '@/app/api/copilot/stats/route'
 
@@ -58,20 +26,6 @@ describe('Copilot Stats API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     global.fetch = mockFetch
-
-    mockCreateUnauthorizedResponse.mockReturnValue(
-      new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
-    )
-    mockCreateBadRequestResponse.mockImplementation(
-      (message: string) => new Response(JSON.stringify({ error: message }), { status: 400 })
-    )
-    mockCreateInternalServerErrorResponse.mockImplementation(
-      (message: string) => new Response(JSON.stringify({ error: message }), { status: 500 })
-    )
-    mockCreateRequestTracker.mockReturnValue({
-      requestId: 'test-request-id',
-      getDuration: vi.fn().mockReturnValue(100),
-    })
   })
 
   afterEach(() => {
@@ -80,7 +34,7 @@ describe('Copilot Stats API Route', () => {
 
   describe('POST', () => {
     it('should return 401 when user is not authenticated', async () => {
-      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: null,
         isAuthenticated: false,
       })
@@ -99,7 +53,7 @@ describe('Copilot Stats API Route', () => {
     })
 
     it('should successfully forward stats to Sim Agent', async () => {
-      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -139,7 +93,7 @@ describe('Copilot Stats API Route', () => {
     })
 
     it('should return 400 for invalid request body - missing messageId', async () => {
-      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -157,7 +111,7 @@ describe('Copilot Stats API Route', () => {
     })
 
     it('should return 400 for invalid request body - missing diffCreated', async () => {
-      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -175,7 +129,7 @@ describe('Copilot Stats API Route', () => {
     })
 
     it('should return 400 for invalid request body - missing diffAccepted', async () => {
-      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -193,7 +147,7 @@ describe('Copilot Stats API Route', () => {
     })
 
     it('should return 400 when upstream Sim Agent returns error', async () => {
-      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -217,7 +171,7 @@ describe('Copilot Stats API Route', () => {
     })
 
     it('should handle upstream error with message field', async () => {
-      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -241,7 +195,7 @@ describe('Copilot Stats API Route', () => {
     })
 
     it('should handle upstream error with no JSON response', async () => {
-      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -265,7 +219,7 @@ describe('Copilot Stats API Route', () => {
     })
 
     it('should handle network errors gracefully', async () => {
-      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -286,7 +240,7 @@ describe('Copilot Stats API Route', () => {
     })
 
     it('should handle JSON parsing errors in request body', async () => {
-      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })
@@ -307,7 +261,7 @@ describe('Copilot Stats API Route', () => {
     })
 
     it('should forward stats with diffCreated=false and diffAccepted=false', async () => {
-      mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
+      copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
         userId: 'user-123',
         isAuthenticated: true,
       })

@@ -1,9 +1,9 @@
 import dns from 'dns/promises'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import * as ipaddr from 'ipaddr.js'
 import { getAllowedMcpDomainsFromEnv } from '@/lib/core/config/feature-flags'
 import { isPrivateOrReservedIP } from '@/lib/core/security/input-validation.server'
-import { toError } from '@/lib/core/utils/helpers'
 import { createEnvVarPattern } from '@/executor/utils/reference-validation'
 
 const logger = createLogger('McpDomainCheck')

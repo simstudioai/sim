@@ -26,16 +26,17 @@
 import { db } from '@sim/db'
 import { organization, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateShortId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { addCredits } from '@/lib/billing/credits/balance'
 import { setUsageLimitForCredits } from '@/lib/billing/credits/purchase'
-import { isOrgPlan, isPaid } from '@/lib/billing/plan-helpers'
+import { isPaid } from '@/lib/billing/plan-helpers'
 import {
   ENTITLED_SUBSCRIPTION_STATUSES,
   getEffectiveSeats,
+  isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
-import { generateShortId } from '@/lib/core/utils/uuid'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -110,7 +111,8 @@ export const POST = withAdminAuth(async (request) => {
     const plan = userSubscription.plan
     let seats: number | null = null
 
-    if (isOrgPlan(plan)) {
+    // Route admin credits to the subscription's entity (org if org-scoped).
+    if (isOrgScopedSubscription(userSubscription, resolvedUserId)) {
       entityType = 'organization'
       entityId = userSubscription.referenceId
 

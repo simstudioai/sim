@@ -10,9 +10,9 @@ import {
   useRef,
 } from 'react'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { useRouter } from 'next/navigation'
 import { isMacPlatform } from '@/lib/core/utils/platform'
-import { generateId } from '@/lib/core/utils/uuid'
 
 const logger = createLogger('GlobalCommands')
 

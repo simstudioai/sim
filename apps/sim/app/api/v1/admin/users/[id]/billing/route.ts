@@ -21,10 +21,10 @@
 import { db } from '@sim/db'
 import { member, organization, subscription, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateShortId } from '@sim/utils/id'
 import { eq, or } from 'drizzle-orm'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { isOrgPlan } from '@/lib/billing/plan-helpers'
-import { generateShortId } from '@/lib/core/utils/uuid'
+import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -155,7 +155,7 @@ export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) =
       .limit(1)
 
     const userSubscription = await getHighestPrioritySubscription(userId)
-    const isTeamOrEnterpriseMember = userSubscription && isOrgPlan(userSubscription.plan)
+    const isOrgScopedMember = isOrgScopedSubscription(userSubscription, userId)
 
     const [orgMembership] = await db
       .select({ organizationId: member.organizationId })
@@ -168,9 +168,9 @@ export const PATCH = withAdminAuthParams<RouteParams>(async (request, context) =
     const warnings: string[] = []
 
     if (body.currentUsageLimit !== undefined) {
-      if (isTeamOrEnterpriseMember && orgMembership) {
+      if (isOrgScopedMember && orgMembership) {
         warnings.push(
-          'User is a team/enterprise member. Individual limits may be ignored in favor of organization limits.'
+          'User is on an org-scoped subscription. Individual limits are ignored in favor of organization limits.'
         )
       }
 

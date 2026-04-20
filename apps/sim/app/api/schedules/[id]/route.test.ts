@@ -3,48 +3,23 @@
  *
  * @vitest-environment node
  */
-import { auditMock, databaseMock, loggerMock, requestUtilsMock } from '@sim/testing'
+import {
+  auditMock,
+  authMockFns,
+  databaseMock,
+  workflowsUtilsMock,
+  workflowsUtilsMockFns,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockAuthorizeWorkflowByWorkspacePermission } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
-}))
-
-vi.mock('@/lib/workflows/utils', () => ({
-  authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflowByWorkspacePermission,
-}))
-
-vi.mock('@sim/db', () => databaseMock)
-
-vi.mock('@sim/db/schema', () => ({
-  workflow: { id: 'id', userId: 'userId', workspaceId: 'workspaceId' },
-  workflowSchedule: {
-    id: 'id',
-    workflowId: 'workflowId',
-    status: 'status',
-    cronExpression: 'cronExpression',
-    timezone: 'timezone',
-    sourceType: 'sourceType',
-    sourceWorkspaceId: 'sourceWorkspaceId',
-    archivedAt: 'archivedAt',
-  },
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(),
   eq: vi.fn(),
   isNull: vi.fn(),
 }))
-
-vi.mock('@/lib/core/utils/request', () => requestUtilsMock)
-
-vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/lib/audit/log', () => auditMock)
 
@@ -85,8 +60,8 @@ function mockDbChain(selectResults: unknown[][]) {
 describe('Schedule PUT API (Reactivate)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-    mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+    authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
       allowed: true,
       status: 200,
       workflow: { id: 'wf-1', workspaceId: 'ws-1' },
@@ -100,7 +75,7 @@ describe('Schedule PUT API (Reactivate)', () => {
 
   describe('Authentication', () => {
     it('returns 401 when user is not authenticated', async () => {
-      mockGetSession.mockResolvedValue(null)
+      authMockFns.mockGetSession.mockResolvedValue(null)
 
       const res = await PUT(createRequest({ action: 'reactivate' }), createParams('sched-1'))
 
@@ -150,7 +125,7 @@ describe('Schedule PUT API (Reactivate)', () => {
     })
 
     it('returns 404 when workflow does not exist for schedule', async () => {
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+      workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
         allowed: false,
         status: 404,
         workflow: null,
@@ -169,7 +144,7 @@ describe('Schedule PUT API (Reactivate)', () => {
 
   describe('Authorization', () => {
     it('returns 403 when user is not workflow owner', async () => {
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+      workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
         allowed: false,
         status: 403,
         workflow: { id: 'wf-1', workspaceId: null },
@@ -190,7 +165,7 @@ describe('Schedule PUT API (Reactivate)', () => {
     })
 
     it('returns 403 for workspace member with only read permission', async () => {
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+      workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
         allowed: false,
         status: 403,
         workflow: { id: 'wf-1', workspaceId: 'ws-1' },

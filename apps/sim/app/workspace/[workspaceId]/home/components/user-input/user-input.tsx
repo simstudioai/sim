@@ -158,6 +158,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     isLoading: isSending,
   })
   const hasFiles = files.attachedFiles.some((f) => !f.uploading && f.key)
+  const hasUploadingFiles = files.attachedFiles.some((f) => f.uploading)
 
   const contextManagement = useContextManagement({ message: value })
 
@@ -232,7 +233,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     setSelectedContexts: contextManagement.setSelectedContexts,
   })
 
-  const canSubmit = (value.trim().length > 0 || hasFiles) && !isSending
+  const canSubmit = (value.trim().length > 0 || hasFiles) && !isSending && !hasUploadingFiles
 
   const valueRef = useRef(value)
   valueRef.current = value
@@ -507,6 +508,8 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
 
       if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
         e.preventDefault()
+        // Mirror canSubmit's uploading guard; Enter reads refs, not rendered state.
+        if (filesRef.current.attachedFiles.some((f) => f.uploading)) return
         const hasSubmitPayload =
           valueRef.current.trim().length > 0 ||
           filesRef.current.attachedFiles.some((file) => !file.uploading && file.key)

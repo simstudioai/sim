@@ -1,4 +1,4 @@
-import { generateId } from '@/lib/core/utils/uuid'
+import { generateId } from '@sim/utils/id'
 /**
  * Generate a short request ID for correlation
  */

@@ -1,10 +1,7 @@
-import { loggerMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { SerializedBlock, SerializedLoop, SerializedWorkflow } from '@/serializer/types'
 import { EdgeConstructor } from './edges'
-
-vi.mock('@sim/logger', () => loggerMock)
 
 function createMockBlock(id: string, type = 'function', config: any = {}): SerializedBlock {
   return {

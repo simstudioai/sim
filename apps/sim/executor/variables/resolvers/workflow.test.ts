@@ -1,9 +1,6 @@
-import { loggerMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 import type { ResolutionContext } from './reference'
 import { WorkflowResolver } from './workflow'
-
-vi.mock('@sim/logger', () => loggerMock)
 
 vi.mock('@/lib/workflows/variables/variable-manager', () => ({
   VariableManager: {

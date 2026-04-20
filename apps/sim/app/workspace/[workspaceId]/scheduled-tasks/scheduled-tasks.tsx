@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { formatAbsoluteDate } from '@sim/utils/formatting'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -13,7 +14,6 @@ import {
   ModalHeader,
 } from '@/components/emcn'
 import { Calendar } from '@/components/emcn/icons'
-import { formatAbsoluteDate } from '@/lib/core/utils/formatting'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
 import type {
   FilterTag,

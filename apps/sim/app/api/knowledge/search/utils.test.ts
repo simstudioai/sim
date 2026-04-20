@@ -4,13 +4,11 @@
  *
  * @vitest-environment node
  */
-import { createEnvMock, databaseMock, loggerMock } from '@sim/testing'
+import { createEnvMock } from '@sim/testing'
 import { mockNextFetchResponse } from '@sim/testing/mocks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('drizzle-orm')
-vi.mock('@sim/logger', () => loggerMock)
-vi.mock('@sim/db', () => databaseMock)
 vi.mock('@/lib/knowledge/documents/utils', () => ({
   retryWithExponentialBackoff: (fn: any) => fn(),
 }))

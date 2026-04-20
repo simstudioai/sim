@@ -1,8 +1,9 @@
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import { toError } from '@/lib/core/utils/helpers'
 import { createMcpToolId } from '@/lib/mcp/utils'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { getAllBlocks } from '@/blocks'
@@ -456,7 +457,7 @@ export class AgentBlockHandler implements BlockHandler {
             logger.warn(
               `[AgentHandler] Session error discovering tools from ${serverId}, retrying (attempt ${attempt + 1})`
             )
-            await new Promise((r) => setTimeout(r, 100))
+            await sleep(100)
             continue
           }
           throw new Error(`Failed to discover tools: ${response.status} ${errorText}`)
@@ -475,7 +476,7 @@ export class AgentBlockHandler implements BlockHandler {
             `[AgentHandler] Retryable error discovering tools from ${serverId} (attempt ${attempt + 1}):`,
             error
           )
-          await new Promise((r) => setTimeout(r, 100))
+          await sleep(100)
           continue
         }
         throw error

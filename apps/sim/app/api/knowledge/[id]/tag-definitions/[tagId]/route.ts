@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { generateId } from '@/lib/core/utils/uuid'
 import { deleteTagDefinition } from '@/lib/knowledge/tags/service'
 import { checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 

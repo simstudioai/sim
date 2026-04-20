@@ -1,10 +1,17 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import {
+  auditMock,
+  createMockRequest,
+  hybridAuthMockFns,
+  knowledgeApiUtilsMock,
+  knowledgeApiUtilsMockFns,
+  requestUtilsMockFns,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckSession, mockCheckWriteAccess, mockDispatchSync, mockDbChain } = vi.hoisted(() => {
+const { mockDispatchSync, mockDbChain } = vi.hoisted(() => {
   const chain = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -15,39 +22,19 @@ const { mockCheckSession, mockCheckWriteAccess, mockDispatchSync, mockDbChain } 
     set: vi.fn().mockReturnThis(),
   }
   return {
-    mockCheckSession: vi.fn(),
-    mockCheckWriteAccess: vi.fn(),
     mockDispatchSync: vi.fn().mockResolvedValue(undefined),
     mockDbChain: chain,
   }
 })
 
+const mockCheckWriteAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseWriteAccess
+
 vi.mock('@sim/db', () => ({ db: mockDbChain }))
-vi.mock('@sim/db/schema', () => ({
-  knowledgeConnector: {
-    id: 'id',
-    knowledgeBaseId: 'knowledgeBaseId',
-    deletedAt: 'deletedAt',
-    status: 'status',
-  },
-}))
-vi.mock('@/app/api/knowledge/utils', () => ({
-  checkKnowledgeBaseWriteAccess: mockCheckWriteAccess,
-}))
-vi.mock('@/lib/auth/hybrid', () => ({
-  checkSessionOrInternalAuth: mockCheckSession,
-}))
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('test-req-id'),
-}))
+vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 vi.mock('@/lib/knowledge/connectors/sync-engine', () => ({
   dispatchSync: mockDispatchSync,
 }))
-vi.mock('@/lib/audit/log', () => ({
-  recordAudit: vi.fn(),
-  AuditAction: {},
-  AuditResourceType: {},
-}))
+vi.mock('@/lib/audit/log', () => auditMock)
 
 import { POST } from '@/app/api/knowledge/[id]/connectors/[connectorId]/sync/route'
 
@@ -56,6 +43,7 @@ describe('Connector Manual Sync API Route', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('test-req-id')
     mockDbChain.select.mockReturnThis()
     mockDbChain.from.mockReturnThis()
     mockDbChain.where.mockReturnThis()
@@ -66,7 +54,10 @@ describe('Connector Manual Sync API Route', () => {
   })
 
   it('returns 401 when unauthenticated', async () => {
-    mockCheckSession.mockResolvedValue({ success: false, userId: null })
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: false,
+      userId: null,
+    })
 
     const req = createMockRequest('POST')
     const response = await POST(req as never, { params: mockParams })
@@ -75,7 +66,10 @@ describe('Connector Manual Sync API Route', () => {
   })
 
   it('returns 404 when connector not found', async () => {
-    mockCheckSession.mockResolvedValue({ success: true, userId: 'user-1' })
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: true,
+      userId: 'user-1',
+    })
     mockCheckWriteAccess.mockResolvedValue({ hasAccess: true })
     mockDbChain.limit.mockResolvedValueOnce([])
 
@@ -86,7 +80,10 @@ describe('Connector Manual Sync API Route', () => {
   })
 
   it('returns 409 when connector is syncing', async () => {
-    mockCheckSession.mockResolvedValue({ success: true, userId: 'user-1' })
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+      success: true,
+      userId: 'user-1',
+    })
     mockCheckWriteAccess.mockResolvedValue({ hasAccess: true })
     mockDbChain.limit.mockResolvedValueOnce([{ id: 'conn-456', status: 'syncing' }])
 
@@ -97,7 +94,7 @@ describe('Connector Manual Sync API Route', () => {
   })
 
   it('dispatches sync on valid request', async () => {
-    mockCheckSession.mockResolvedValue({
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-1',
       userName: 'Test',

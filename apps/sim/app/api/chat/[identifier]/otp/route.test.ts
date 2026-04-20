@@ -3,6 +3,13 @@
  *
  * @vitest-environment node
  */
+import {
+  redisConfigMock,
+  redisConfigMockFns,
+  requestUtilsMockFns,
+  workflowsApiUtilsMock,
+  workflowsApiUtilsMockFns,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,7 +19,6 @@ const {
   mockRedisDel,
   mockRedisTtl,
   mockRedisEval,
-  mockGetRedisClient,
   mockRedisClient,
   mockDbSelect,
   mockDbInsert,
@@ -21,10 +27,7 @@ const {
   mockSendEmail,
   mockRenderOTPEmail,
   mockAddCorsHeaders,
-  mockCreateSuccessResponse,
-  mockCreateErrorResponse,
   mockSetChatAuthCookie,
-  mockGenerateRequestId,
   mockGetStorageMethod,
   mockZodParse,
   mockGetEnv,
@@ -41,7 +44,6 @@ const {
     ttl: mockRedisTtl,
     eval: mockRedisEval,
   }
-  const mockGetRedisClient = vi.fn()
   const mockDbSelect = vi.fn()
   const mockDbInsert = vi.fn()
   const mockDbDelete = vi.fn()
@@ -49,10 +51,7 @@ const {
   const mockSendEmail = vi.fn()
   const mockRenderOTPEmail = vi.fn()
   const mockAddCorsHeaders = vi.fn()
-  const mockCreateSuccessResponse = vi.fn()
-  const mockCreateErrorResponse = vi.fn()
   const mockSetChatAuthCookie = vi.fn()
-  const mockGenerateRequestId = vi.fn()
   const mockGetStorageMethod = vi.fn()
   const mockZodParse = vi.fn()
   const mockGetEnv = vi.fn()
@@ -63,7 +62,6 @@ const {
     mockRedisDel,
     mockRedisTtl,
     mockRedisEval,
-    mockGetRedisClient,
     mockRedisClient,
     mockDbSelect,
     mockDbInsert,
@@ -72,19 +70,18 @@ const {
     mockSendEmail,
     mockRenderOTPEmail,
     mockAddCorsHeaders,
-    mockCreateSuccessResponse,
-    mockCreateErrorResponse,
     mockSetChatAuthCookie,
-    mockGenerateRequestId,
     mockGetStorageMethod,
     mockZodParse,
     mockGetEnv,
   }
 })
 
-vi.mock('@/lib/core/config/redis', () => ({
-  getRedisClient: mockGetRedisClient,
-}))
+const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
+const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
+const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
+
+vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 
 vi.mock('@sim/db', () => ({
   db: {
@@ -100,26 +97,6 @@ vi.mock('@sim/db', () => ({
         update: mockDbUpdate,
       })
     }),
-  },
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  chat: {
-    id: 'id',
-    identifier: 'identifier',
-    authType: 'authType',
-    allowedEmails: 'allowedEmails',
-    title: 'title',
-    isActive: 'isActive',
-    archivedAt: 'archivedAt',
-  },
-  verification: {
-    id: 'id',
-    identifier: 'identifier',
-    value: 'value',
-    expiresAt: 'expiresAt',
-    createdAt: 'createdAt',
-    updatedAt: 'updatedAt',
   },
 }))
 
@@ -160,19 +137,7 @@ vi.mock('@/app/api/chat/utils', () => ({
   setChatAuthCookie: mockSetChatAuthCookie,
 }))
 
-vi.mock('@/app/api/workflows/utils', () => ({
-  createSuccessResponse: mockCreateSuccessResponse,
-  createErrorResponse: mockCreateErrorResponse,
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue({
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
+vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
 
 vi.mock('@/lib/core/config/env', () => ({
   env: {
@@ -206,10 +171,6 @@ vi.mock('zod', () => {
     },
   }
 })
-
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: mockGenerateRequestId,
-}))
 
 import { POST, PUT } from './route'
 
@@ -272,7 +233,7 @@ describe('Chat OTP API Route', () => {
       status,
     }))
 
-    mockGenerateRequestId.mockReturnValue('req-123')
+    requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('req-123')
 
     mockZodParse.mockImplementation((data: unknown) => data)
 

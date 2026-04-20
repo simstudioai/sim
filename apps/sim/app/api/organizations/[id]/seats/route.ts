@@ -13,6 +13,8 @@ import {
   hasUsableSubscriptionStatus,
   USABLE_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
+import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
+import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 
 const logger = createLogger('OrganizationSeatsAPI')
@@ -164,8 +166,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       userId: session.user.id,
     })
 
-    // Update the subscription item quantity using Stripe's recommended approach
-    // This will automatically prorate the billing
     const updatedSubscription = await stripe.subscriptions.update(
       orgSubscription.stripeSubscriptionId,
       {
@@ -176,19 +176,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           },
         ],
         proration_behavior: 'always_invoice',
-      }
+      },
+      { idempotencyKey: `seats-update:${orgSubscription.stripeSubscriptionId}:${newSeatCount}` }
     )
 
-    // Update our local database to reflect the change
-    // Note: This will also be updated via webhook, but we update immediately for UX
-    await db
-      .update(subscription)
-      .set({
-        seats: newSeatCount,
-      })
-      .where(eq(subscription.id, orgSubscription.id))
+    await syncSeatsFromStripeQuantity(
+      orgSubscription.id,
+      orgSubscription.seats,
+      updatedSubscription.items.data[0]?.quantity ?? newSeatCount
+    )
 
-    // Update orgUsageLimit to reflect new seat count (seats × basePrice as minimum)
     const { basePrice } = getPlanPricing(orgSubscription.plan)
     const newMinimumLimit = newSeatCount * basePrice
 
@@ -200,7 +197,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const currentOrgLimit =
       orgData.length > 0 && orgData[0].orgUsageLimit
-        ? Number.parseFloat(orgData[0].orgUsageLimit)
+        ? toNumber(toDecimal(orgData[0].orgUsageLimit))
         : 0
 
     // Update if new minimum is higher than current limit

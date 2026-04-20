@@ -1,4 +1,4 @@
-import { loggerMock } from '@sim/testing'
+import { featureFlagsMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 import {
   validateAirtableId,
@@ -26,10 +26,7 @@ import {
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { sanitizeForLogging } from '@/lib/core/security/redaction'
 
-vi.mock('@sim/logger', () => loggerMock)
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isHosted: false,
-}))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 describe('validatePathSegment', () => {
   describe('valid inputs', () => {

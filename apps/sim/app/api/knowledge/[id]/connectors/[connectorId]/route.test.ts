@@ -1,69 +1,44 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import {
+  auditMock,
+  authOAuthUtilsMock,
+  createMockRequest,
+  hybridAuthMockFns,
+  knowledgeApiUtilsMock,
+  knowledgeApiUtilsMockFns,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckSession, mockCheckAccess, mockCheckWriteAccess, mockDbChain, mockValidateConfig } =
-  vi.hoisted(() => {
-    const chain = {
-      select: vi.fn().mockReturnThis(),
-      from: vi.fn().mockReturnThis(),
-      where: vi.fn().mockReturnThis(),
-      orderBy: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockResolvedValue([]),
-      execute: vi.fn().mockResolvedValue(undefined),
-      transaction: vi.fn(),
-      insert: vi.fn().mockReturnThis(),
-      values: vi.fn().mockResolvedValue(undefined),
-      update: vi.fn().mockReturnThis(),
-      delete: vi.fn().mockReturnThis(),
-      set: vi.fn().mockReturnThis(),
-      returning: vi.fn().mockResolvedValue([]),
-    }
-    return {
-      mockCheckSession: vi.fn(),
-      mockCheckAccess: vi.fn(),
-      mockCheckWriteAccess: vi.fn(),
-      mockDbChain: chain,
-      mockValidateConfig: vi.fn(),
-    }
-  })
+const { mockDbChain, mockValidateConfig } = vi.hoisted(() => {
+  const chain = {
+    select: vi.fn().mockReturnThis(),
+    from: vi.fn().mockReturnThis(),
+    where: vi.fn().mockReturnThis(),
+    orderBy: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockResolvedValue([]),
+    execute: vi.fn().mockResolvedValue(undefined),
+    transaction: vi.fn(),
+    insert: vi.fn().mockReturnThis(),
+    values: vi.fn().mockResolvedValue(undefined),
+    update: vi.fn().mockReturnThis(),
+    delete: vi.fn().mockReturnThis(),
+    set: vi.fn().mockReturnThis(),
+    returning: vi.fn().mockResolvedValue([]),
+  }
+  return {
+    mockDbChain: chain,
+    mockValidateConfig: vi.fn(),
+  }
+})
+
+const mockCheckAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseAccess
+const mockCheckWriteAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseWriteAccess
 
 vi.mock('@sim/db', () => ({ db: mockDbChain }))
-vi.mock('@sim/db/schema', () => ({
-  document: {
-    id: 'id',
-    connectorId: 'connectorId',
-    fileUrl: 'fileUrl',
-    archivedAt: 'archivedAt',
-    deletedAt: 'deletedAt',
-  },
-  embedding: { documentId: 'documentId' },
-  knowledgeBase: { id: 'id', userId: 'userId' },
-  knowledgeConnector: {
-    id: 'id',
-    knowledgeBaseId: 'knowledgeBaseId',
-    archivedAt: 'archivedAt',
-    deletedAt: 'deletedAt',
-    connectorType: 'connectorType',
-    credentialId: 'credentialId',
-  },
-  knowledgeConnectorSyncLog: { connectorId: 'connectorId', startedAt: 'startedAt' },
-}))
-vi.mock('@/app/api/knowledge/utils', () => ({
-  checkKnowledgeBaseAccess: mockCheckAccess,
-  checkKnowledgeBaseWriteAccess: mockCheckWriteAccess,
-}))
-vi.mock('@/lib/auth/hybrid', () => ({
-  checkSessionOrInternalAuth: mockCheckSession,
-}))
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('test-req-id'),
-}))
-vi.mock('@/app/api/auth/oauth/utils', () => ({
-  refreshAccessTokenIfNeeded: vi.fn(),
-}))
+vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
+vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
 vi.mock('@/connectors/registry', () => ({
   CONNECTOR_REGISTRY: {
     jira: { validateConfig: mockValidateConfig },
@@ -75,11 +50,7 @@ vi.mock('@/lib/knowledge/tags/service', () => ({
 vi.mock('@/lib/knowledge/documents/service', () => ({
   deleteDocumentStorageFiles: vi.fn().mockResolvedValue(undefined),
 }))
-vi.mock('@/lib/audit/log', () => ({
-  recordAudit: vi.fn(),
-  AuditAction: {},
-  AuditResourceType: {},
-}))
+vi.mock('@/lib/audit/log', () => auditMock)
 
 import { DELETE, GET, PATCH } from '@/app/api/knowledge/[id]/connectors/[connectorId]/route'
 
@@ -105,7 +76,10 @@ describe('Knowledge Connector By ID API Route', () => {
 
   describe('GET', () => {
     it('returns 401 when unauthenticated', async () => {
-      mockCheckSession.mockResolvedValue({ success: false, userId: null })
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+        success: false,
+        userId: null,
+      })
 
       const req = createMockRequest('GET')
       const response = await GET(req, { params: mockParams })
@@ -114,7 +88,10 @@ describe('Knowledge Connector By ID API Route', () => {
     })
 
     it('returns 404 when KB not found', async () => {
-      mockCheckSession.mockResolvedValue({ success: true, userId: 'user-1' })
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+        success: true,
+        userId: 'user-1',
+      })
       mockCheckAccess.mockResolvedValue({ hasAccess: false, notFound: true })
 
       const req = createMockRequest('GET')
@@ -124,7 +101,10 @@ describe('Knowledge Connector By ID API Route', () => {
     })
 
     it('returns 404 when connector not found', async () => {
-      mockCheckSession.mockResolvedValue({ success: true, userId: 'user-1' })
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+        success: true,
+        userId: 'user-1',
+      })
       mockCheckAccess.mockResolvedValue({ hasAccess: true })
       mockDbChain.limit.mockResolvedValueOnce([])
 
@@ -135,7 +115,10 @@ describe('Knowledge Connector By ID API Route', () => {
     })
 
     it('returns connector with sync logs on success', async () => {
-      mockCheckSession.mockResolvedValue({ success: true, userId: 'user-1' })
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+        success: true,
+        userId: 'user-1',
+      })
       mockCheckAccess.mockResolvedValue({ hasAccess: true })
 
       const mockConnector = { id: 'conn-456', connectorType: 'jira', status: 'active' }
@@ -156,7 +139,10 @@ describe('Knowledge Connector By ID API Route', () => {
 
   describe('PATCH', () => {
     it('returns 401 when unauthenticated', async () => {
-      mockCheckSession.mockResolvedValue({ success: false, userId: null })
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+        success: false,
+        userId: null,
+      })
 
       const req = createMockRequest('PATCH', { status: 'paused' })
       const response = await PATCH(req, { params: mockParams })
@@ -165,7 +151,10 @@ describe('Knowledge Connector By ID API Route', () => {
     })
 
     it('returns 400 for invalid body', async () => {
-      mockCheckSession.mockResolvedValue({ success: true, userId: 'user-1' })
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+        success: true,
+        userId: 'user-1',
+      })
       mockCheckWriteAccess.mockResolvedValue({ hasAccess: true })
 
       const req = createMockRequest('PATCH', { syncIntervalMinutes: 'not a number' })
@@ -177,7 +166,10 @@ describe('Knowledge Connector By ID API Route', () => {
     })
 
     it('returns 404 when connector not found during sourceConfig validation', async () => {
-      mockCheckSession.mockResolvedValue({ success: true, userId: 'user-1' })
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+        success: true,
+        userId: 'user-1',
+      })
       mockCheckWriteAccess.mockResolvedValue({ hasAccess: true })
       mockDbChain.limit.mockResolvedValueOnce([])
 
@@ -188,7 +180,7 @@ describe('Knowledge Connector By ID API Route', () => {
     })
 
     it('returns 200 and updates status', async () => {
-      mockCheckSession.mockResolvedValue({
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
         success: true,
         userId: 'user-1',
         userName: 'Test',
@@ -214,7 +206,10 @@ describe('Knowledge Connector By ID API Route', () => {
 
   describe('DELETE', () => {
     it('returns 401 when unauthenticated', async () => {
-      mockCheckSession.mockResolvedValue({ success: false, userId: null })
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+        success: false,
+        userId: null,
+      })
 
       const req = createMockRequest('DELETE')
       const response = await DELETE(req, { params: mockParams })
@@ -223,7 +218,7 @@ describe('Knowledge Connector By ID API Route', () => {
     })
 
     it('returns 200 on successful hard-delete', async () => {
-      mockCheckSession.mockResolvedValue({
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
         success: true,
         userId: 'user-1',
         userName: 'Test',

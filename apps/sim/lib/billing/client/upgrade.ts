@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { client, useSession, useSubscription } from '@/lib/auth/auth-client'
-import { buildPlanName, isOrgPlan } from '@/lib/billing/plan-helpers'
+import { buildPlanName, getDisplayPlanName, isPaid } from '@/lib/billing/plan-helpers'
 import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { organizationKeys } from '@/hooks/queries/organization'
 
@@ -65,22 +65,23 @@ export function useSubscriptionUpgrade() {
           )
 
           if (existingOrg) {
-            // Check if this org already has an active team subscription
-            const existingTeamSub = allSubscriptions.find(
+            const existingOrgSub = allSubscriptions.find(
               (sub: any) =>
                 hasPaidSubscriptionStatus(sub.status) &&
                 sub.referenceId === existingOrg.id &&
-                isOrgPlan(sub.plan)
+                isPaid(sub.plan)
             )
 
-            if (existingTeamSub) {
-              logger.warn('Organization already has an active team subscription', {
+            if (existingOrgSub) {
+              logger.warn('Organization already has an active subscription', {
                 userId,
                 organizationId: existingOrg.id,
-                existingSubscriptionId: existingTeamSub.id,
+                existingSubscriptionId: existingOrgSub.id,
+                plan: existingOrgSub.plan,
               })
+              const existingPlanName = getDisplayPlanName(existingOrgSub.plan)
               throw new Error(
-                'This organization already has an active team subscription. Please manage it from the billing settings.'
+                `This organization is already on the ${existingPlanName} plan. Manage it from the billing settings.`
               )
             }
 

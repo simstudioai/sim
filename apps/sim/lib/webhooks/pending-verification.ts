@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { getRedisClient } from '@/lib/core/config/redis'
-import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('WebhookPendingVerification')
 

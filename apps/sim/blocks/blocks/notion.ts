@@ -1,5 +1,5 @@
+import { toError } from '@sim/utils/errors'
 import { NotionIcon } from '@/components/icons'
-import { toError } from '@/lib/core/utils/helpers'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector } from '@/blocks/utils'

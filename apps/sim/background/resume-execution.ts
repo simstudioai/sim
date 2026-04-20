@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { task } from '@trigger.dev/sdk'
-import { toError } from '@/lib/core/utils/helpers'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 
 const logger = createLogger('TriggerResumeExecution')

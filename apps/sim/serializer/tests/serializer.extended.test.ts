@@ -14,7 +14,7 @@ import {
   createStarterBlock,
   WorkflowBuilder,
 } from '@sim/testing'
-import { loggerMock, toolsUtilsMock } from '@sim/testing/mocks'
+import { toolsUtilsMock } from '@sim/testing/mocks'
 import { describe, expect, it, vi } from 'vitest'
 import { Serializer, WorkflowValidationError } from '@/serializer/index'
 import type { SerializedWorkflow } from '@/serializer/types'
@@ -228,7 +228,6 @@ vi.mock('@/blocks', () => ({
   getAllBlocks: () => Object.values(mockBlockConfigs),
 }))
 vi.mock('@/tools/utils', () => toolsUtilsMock)
-vi.mock('@sim/logger', () => loggerMock)
 
 describe('Serializer Extended Tests', () => {
   describe('WorkflowValidationError', () => {

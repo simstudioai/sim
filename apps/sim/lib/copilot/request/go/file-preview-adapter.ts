@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { MothershipStreamV1EventType } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
   createFilePreviewSession,
@@ -25,7 +26,6 @@ import {
   buildFilePreviewText,
   loadWorkspaceFileTextForPreview,
 } from '@/lib/copilot/tools/server/files/file-preview'
-import { toError } from '@/lib/core/utils/helpers'
 
 const logger = createLogger('CopilotFilePreviewAdapter')
 

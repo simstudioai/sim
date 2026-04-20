@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { formatRelativeTime } from '@sim/utils/formatting'
 import { ChevronDown, Paperclip, Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
@@ -13,7 +14,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import { Input } from '@/components/ui'
-import { formatRelativeTime } from '@/lib/core/utils/formatting'
 import { InboxTaskSkeleton } from '@/app/workspace/[workspaceId]/settings/components/inbox/inbox-skeleton'
 import type { InboxTaskItem } from '@/hooks/queries/inbox'
 import { useInboxConfig, useInboxTasks } from '@/hooks/queries/inbox'

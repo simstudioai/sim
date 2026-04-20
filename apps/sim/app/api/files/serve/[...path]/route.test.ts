@@ -3,11 +3,11 @@
  *
  * @vitest-environment node
  */
+import { hybridAuthMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockCheckSessionOrInternalAuth,
   mockVerifyFileAccess,
   mockReadFile,
   mockIsUsingCloudStorage,
@@ -27,7 +27,6 @@ const {
     }
   }
   return {
-    mockCheckSessionOrInternalAuth: vi.fn(),
     mockVerifyFileAccess: vi.fn(),
     mockReadFile: vi.fn(),
     mockIsUsingCloudStorage: vi.fn(),
@@ -46,11 +45,6 @@ vi.mock('fs/promises', () => ({
   readFile: mockReadFile,
   access: vi.fn().mockResolvedValue(undefined),
   stat: vi.fn().mockResolvedValue({ isFile: () => true, size: 100 }),
-}))
-
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkSessionOrInternalAuth: mockCheckSessionOrInternalAuth,
 }))
 
 vi.mock('@/app/api/files/authorization', () => ({
@@ -103,7 +97,7 @@ describe('File Serve API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockCheckSessionOrInternalAuth.mockResolvedValue({
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
       userId: 'test-user-id',
     })

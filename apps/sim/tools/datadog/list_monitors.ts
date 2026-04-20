@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import type { ListMonitorsParams, ListMonitorsResponse } from '@/tools/datadog/types'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('DatadogListMonitors')
 
 export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsResponse> = {
   id: 'datadog_list_monitors',
@@ -87,7 +90,7 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
 
       const queryString = queryParams.toString()
       const url = `https://api.${site}/api/v1/monitor${queryString ? `?${queryString}` : ''}`
-      console.log(
+      logger.info(
         '[Datadog List Monitors] URL:',
         url,
         'Site param:',

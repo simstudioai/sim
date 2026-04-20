@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
 import { credential } from '@sim/db/schema'
+import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { toError } from '@/lib/core/utils/helpers'
 
 export function executeManageCredential(
   rawParams: Record<string, unknown>,

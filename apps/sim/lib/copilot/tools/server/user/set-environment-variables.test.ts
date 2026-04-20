@@ -18,13 +18,6 @@ const {
   upsertWorkspaceEnvVarsMock: vi.fn(),
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    error: vi.fn(),
-  }),
-}))
-
 vi.mock('@/lib/copilot/tools/handlers/access', () => ({
   ensureWorkflowAccess: ensureWorkflowAccessMock,
   ensureWorkspaceAccess: ensureWorkspaceAccessMock,

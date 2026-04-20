@@ -1,15 +1,22 @@
 import { db } from '@sim/db'
-import { invitation, member, organization, user, userStats } from '@sim/db/schema'
+import {
+  invitation,
+  member,
+  organization,
+  subscription as subscriptionTable,
+  user,
+  userStats,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { generateId } from '@sim/utils/id'
+import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getEmailSubject, renderInvitationEmail } from '@/components/emails'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
-import { getUserUsageData } from '@/lib/billing/core/usage'
+import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
@@ -83,16 +90,32 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         .leftJoin(userStats, eq(user.id, userStats.userId))
         .where(eq(member.organizationId, organizationId))
 
-      const membersWithUsage = await Promise.all(
-        base.map(async (row) => {
-          const usage = await getUserUsageData(row.userId)
-          return {
-            ...row,
-            billingPeriodStart: usage.billingPeriodStart,
-            billingPeriodEnd: usage.billingPeriodEnd,
-          }
+      // The billing period is the same for every member — it comes from
+      // whichever subscription covers them. Fetch once and attach to
+      // every row instead of calling `getUserUsageData` per-member,
+      // which would run an O(N) pooled query for each of N rows.
+      const [orgSub] = await db
+        .select({
+          periodStart: subscriptionTable.periodStart,
+          periodEnd: subscriptionTable.periodEnd,
         })
-      )
+        .from(subscriptionTable)
+        .where(
+          and(
+            eq(subscriptionTable.referenceId, organizationId),
+            inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+          )
+        )
+        .limit(1)
+
+      const billingPeriodStart = orgSub?.periodStart ?? null
+      const billingPeriodEnd = orgSub?.periodEnd ?? null
+
+      const membersWithUsage = base.map((row) => ({
+        ...row,
+        billingPeriodStart,
+        billingPeriodEnd,
+      }))
 
       return NextResponse.json({
         success: true,

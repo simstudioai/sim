@@ -1,17 +1,10 @@
 /**
  * @vitest-environment node
  */
-import { loggerMock } from '@sim/testing'
+import { authOAuthUtilsMock, urlsMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/db', () => ({ db: {} }))
-vi.mock('@sim/db/schema', () => ({
-  document: {},
-  knowledgeBase: {},
-  knowledgeConnector: {},
-  knowledgeConnectorSyncLog: {},
-}))
-vi.mock('@sim/logger', () => loggerMock)
 vi.mock('drizzle-orm', () => ({
   and: vi.fn(),
   eq: vi.fn(),
@@ -19,14 +12,14 @@ vi.mock('drizzle-orm', () => ({
   isNull: vi.fn(),
   ne: vi.fn(),
 }))
-vi.mock('@/lib/core/utils/urls', () => ({ getInternalApiBaseUrl: vi.fn() }))
+vi.mock('@/lib/core/utils/urls', () => urlsMock)
 vi.mock('@/lib/knowledge/documents/service', () => ({
   hardDeleteDocuments: vi.fn(),
   isTriggerAvailable: vi.fn(),
   processDocumentAsync: vi.fn(),
 }))
 vi.mock('@/lib/uploads', () => ({ StorageService: {} }))
-vi.mock('@/app/api/auth/oauth/utils', () => ({ refreshAccessTokenIfNeeded: vi.fn() }))
+vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
 vi.mock('@/background/knowledge-connector-sync', () => ({
   knowledgeConnectorSync: { trigger: vi.fn() },
 }))

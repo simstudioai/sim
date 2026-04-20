@@ -3,7 +3,15 @@
  *
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import {
+  authMockFns,
+  createMockRequest,
+  hybridAuthMockFns,
+  permissionsMock,
+  permissionsMockFns,
+  workflowsUtilsMock,
+  workflowsUtilsMockFns,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,22 +26,8 @@ const {
   mockSet,
   mockDelete,
   mockLimit,
-  mockCheckSessionOrInternalAuth,
-  mockGetSession,
-  mockGetUserEntityPermissions,
   mockUpsertCustomTools,
-  mockAuthorizeWorkflowByWorkspacePermission,
-  mockLogger,
 } = vi.hoisted(() => {
-  const logger = {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-    fatal: vi.fn(),
-    child: vi.fn(),
-  }
   return {
     mockSelect: vi.fn(),
     mockFrom: vi.fn(),
@@ -45,14 +39,11 @@ const {
     mockSet: vi.fn(),
     mockDelete: vi.fn(),
     mockLimit: vi.fn(),
-    mockCheckSessionOrInternalAuth: vi.fn(),
-    mockGetSession: vi.fn(),
-    mockGetUserEntityPermissions: vi.fn(),
     mockUpsertCustomTools: vi.fn(),
-    mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
-    mockLogger: logger,
   }
 })
+
+const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
 const sampleTools = [
   {
@@ -163,36 +154,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  customTools: {
-    id: 'id',
-    workspaceId: 'workspaceId',
-    userId: 'userId',
-    title: 'title',
-  },
-  workflow: {
-    id: 'id',
-    workspaceId: 'workspaceId',
-    userId: 'userId',
-  },
-}))
-
-vi.mock('@/lib/auth', () => ({
-  getSession: (...args: unknown[]) => mockGetSession(...args),
-}))
-
-vi.mock('@/lib/auth/hybrid', () => ({
-  AuthType: { SESSION: 'session', API_KEY: 'api_key', INTERNAL_JWT: 'internal_jwt' },
-  checkSessionOrInternalAuth: (...args: unknown[]) => mockCheckSessionOrInternalAuth(...args),
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: (...args: unknown[]) => mockGetUserEntityPermissions(...args),
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue(mockLogger),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn().mockImplementation((field: unknown, value: unknown) => ({
@@ -217,18 +179,11 @@ vi.mock('drizzle-orm', () => ({
   desc: vi.fn().mockImplementation((field: unknown) => ({ field, operator: 'desc' })),
 }))
 
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('test-request-id'),
-}))
-
 vi.mock('@/lib/workflows/custom-tools/operations', () => ({
   upsertCustomTools: (...args: unknown[]) => mockUpsertCustomTools(...args),
 }))
 
-vi.mock('@/lib/workflows/utils', () => ({
-  authorizeWorkflowByWorkspacePermission: (...args: unknown[]) =>
-    mockAuthorizeWorkflowByWorkspacePermission(...args),
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 import { DELETE, GET, POST } from '@/app/api/tools/custom/route'
 
@@ -270,15 +225,15 @@ describe('Custom Tools API Routes', () => {
     mockSet.mockReturnValue({ where: mockWhere })
     mockDelete.mockReturnValue({ where: mockWhere })
 
-    mockGetSession.mockResolvedValue(mockSession)
-    mockCheckSessionOrInternalAuth.mockResolvedValue({
+    authMockFns.mockGetSession.mockResolvedValue(mockSession)
+    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-123',
       authType: 'session',
     })
     mockGetUserEntityPermissions.mockResolvedValue('admin')
     mockUpsertCustomTools.mockResolvedValue(sampleTools)
-    mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+    workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
       allowed: true,
       status: 200,
       workflow: { workspaceId: 'workspace-123' },
@@ -316,7 +271,7 @@ describe('Custom Tools API Routes', () => {
         'http://localhost:3000/api/tools/custom?workspaceId=workspace-123'
       )
 
-      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
         success: false,
         error: 'Unauthorized',
       })
@@ -346,7 +301,7 @@ describe('Custom Tools API Routes', () => {
    */
   describe('POST /api/tools/custom', () => {
     it('should reject unauthorized requests', async () => {
-      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
         success: false,
         error: 'Unauthorized',
       })
@@ -421,7 +376,7 @@ describe('Custom Tools API Routes', () => {
     })
 
     it('should prevent unauthorized deletion of user-scoped tool', async () => {
-      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
         success: true,
         userId: 'user-456',
         authType: 'session',
@@ -441,7 +396,7 @@ describe('Custom Tools API Routes', () => {
     })
 
     it('should reject unauthorized requests', async () => {
-      mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
         success: false,
         error: 'Unauthorized',
       })

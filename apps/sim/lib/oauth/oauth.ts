@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import {
   AirtableIcon,
   AsanaIcon,
@@ -51,7 +52,6 @@ import {
   ZoomIcon,
 } from '@/components/icons'
 import { env } from '@/lib/core/config/env'
-import { toError } from '@/lib/core/utils/helpers'
 import type { OAuthProviderConfig } from './types'
 
 const logger = createLogger('OAuth')

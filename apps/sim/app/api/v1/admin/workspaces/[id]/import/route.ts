@@ -26,9 +26,9 @@
 import { db } from '@sim/db'
 import { workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { generateId } from '@/lib/core/utils/uuid'
 import {
   extractWorkflowName,
   extractWorkflowsFromZip,

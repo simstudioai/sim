@@ -1,36 +1,17 @@
 /**
  * @vitest-environment node
  */
+import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  authenticateCopilotRequestSessionOnly,
-  createBadRequestResponse,
-  createInternalServerErrorResponse,
-  createNotFoundResponse,
-  createRequestTracker,
-  createUnauthorizedResponse,
   getAsyncToolCall,
   getRunSegment,
   upsertAsyncToolCall,
   completeAsyncToolCall,
   publishToolConfirmation,
 } = vi.hoisted(() => ({
-  authenticateCopilotRequestSessionOnly: vi.fn(),
-  createBadRequestResponse: vi.fn((message: string) =>
-    Response.json({ error: message }, { status: 400 })
-  ),
-  createInternalServerErrorResponse: vi.fn((message: string) =>
-    Response.json({ error: message }, { status: 500 })
-  ),
-  createNotFoundResponse: vi.fn((message: string) =>
-    Response.json({ error: message }, { status: 404 })
-  ),
-  createRequestTracker: vi.fn(() => ({ requestId: 'req-1', getDuration: () => 1 })),
-  createUnauthorizedResponse: vi.fn(() =>
-    Response.json({ error: 'Unauthorized' }, { status: 401 })
-  ),
   getAsyncToolCall: vi.fn(),
   getRunSegment: vi.fn(),
   upsertAsyncToolCall: vi.fn(),
@@ -38,14 +19,7 @@ const {
   publishToolConfirmation: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/request/http', () => ({
-  authenticateCopilotRequestSessionOnly,
-  createBadRequestResponse,
-  createInternalServerErrorResponse,
-  createNotFoundResponse,
-  createRequestTracker,
-  createUnauthorizedResponse,
-}))
+vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
 
 vi.mock('@/lib/copilot/async-runs/repository', () => ({
   getAsyncToolCall,
@@ -71,7 +45,7 @@ describe('Copilot Confirm API Route', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    authenticateCopilotRequestSessionOnly.mockResolvedValue({
+    copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
       isAuthenticated: true,
     })
@@ -90,7 +64,7 @@ describe('Copilot Confirm API Route', () => {
   }
 
   it('returns 401 when the session is unauthenticated', async () => {
-    authenticateCopilotRequestSessionOnly.mockResolvedValue({
+    copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: null,
       isAuthenticated: false,
     })

@@ -3,6 +3,7 @@
  *
  * @vitest-environment node
  */
+import { authMockFns, workflowsUtilsMock, workflowsUtilsMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,8 +14,6 @@ const {
   mockThen,
   mockDelete,
   mockDeleteWhere,
-  mockAuthorize,
-  mockGetSession,
   mockGetAccessibleCopilotChat,
 } = vi.hoisted(() => ({
   mockSelect: vi.fn(),
@@ -23,13 +22,7 @@ const {
   mockThen: vi.fn(),
   mockDelete: vi.fn(),
   mockDeleteWhere: vi.fn(),
-  mockAuthorize: vi.fn(),
-  mockGetSession: vi.fn(),
   mockGetAccessibleCopilotChat: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  getSession: mockGetSession,
 }))
 
 vi.mock('@/lib/core/utils/urls', () => ({
@@ -39,9 +32,7 @@ vi.mock('@/lib/core/utils/urls', () => ({
   getEmailDomain: vi.fn(() => 'localhost:3000'),
 }))
 
-vi.mock('@/lib/workflows/utils', () => ({
-  authorizeWorkflowByWorkspacePermission: mockAuthorize,
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/copilot/chat/lifecycle', () => ({
   getAccessibleCopilotChat: mockGetAccessibleCopilotChat,
@@ -51,19 +42,6 @@ vi.mock('@sim/db', () => ({
   db: {
     select: mockSelect,
     delete: mockDelete,
-  },
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  workflowCheckpoints: {
-    id: 'id',
-    userId: 'userId',
-    workflowId: 'workflowId',
-    workflowState: 'workflowState',
-  },
-  workflow: {
-    id: 'id',
-    userId: 'userId',
   },
 }))
 
@@ -83,9 +61,9 @@ describe('Copilot Checkpoints Revert API Route', () => {
 
     thenResults = []
 
-    mockGetSession.mockResolvedValue(null)
+    authMockFns.mockGetSession.mockResolvedValue(null)
 
-    mockAuthorize.mockResolvedValue({
+    workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
       allowed: true,
       status: 200,
     })
@@ -134,12 +112,12 @@ describe('Copilot Checkpoints Revert API Route', () => {
 
   /** Helper to set authenticated state */
   function setAuthenticated(user = { id: 'user-123', email: 'test@example.com' }) {
-    mockGetSession.mockResolvedValue({ user })
+    authMockFns.mockGetSession.mockResolvedValue({ user })
   }
 
   /** Helper to set unauthenticated state */
   function setUnauthenticated() {
-    mockGetSession.mockResolvedValue(null)
+    authMockFns.mockGetSession.mockResolvedValue(null)
   }
 
   describe('POST', () => {
@@ -273,7 +251,7 @@ describe('Copilot Checkpoints Revert API Route', () => {
       thenResults.push(mockCheckpoint) // Checkpoint found
       thenResults.push(mockWorkflow) // Workflow found but different user
 
-      mockAuthorize.mockResolvedValueOnce({
+      workflowsUtilsMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
         allowed: false,
         status: 403,
       })

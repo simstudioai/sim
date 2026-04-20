@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { toError } from '@/lib/core/utils/helpers'
 import { deleteSkill, listSkills, upsertSkills } from '@/lib/workflows/skills/operations'
 
 const logger = createLogger('CopilotToolExecutor')

@@ -45,19 +45,6 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  workflowExecutionLogs: {},
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
-
 vi.mock('drizzle-orm', () => ({
   eq: dbMocks.eq,
   sql: dbMocks.sql,

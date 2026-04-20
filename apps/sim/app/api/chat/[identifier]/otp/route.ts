@@ -2,6 +2,7 @@ import { randomInt } from 'crypto'
 import { db } from '@sim/db'
 import { chat, verification } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, gt, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
@@ -10,7 +11,6 @@ import { getRedisClient } from '@/lib/core/config/redis'
 import { addCorsHeaders, isEmailAllowed } from '@/lib/core/security/deployment'
 import { getStorageMethod } from '@/lib/core/storage'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId } from '@/lib/core/utils/uuid'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { setChatAuthCookie } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
@@ -303,8 +303,12 @@ export async function PUT(
     const deploymentResult = await db
       .select({
         id: chat.id,
+        title: chat.title,
+        description: chat.description,
+        customizations: chat.customizations,
         authType: chat.authType,
         password: chat.password,
+        outputConfigs: chat.outputConfigs,
       })
       .from(chat)
       .where(and(eq(chat.identifier, identifier), eq(chat.isActive, true), isNull(chat.archivedAt)))
@@ -350,7 +354,17 @@ export async function PUT(
 
     await deleteOTP(email, deployment.id)
 
-    const response = addCorsHeaders(createSuccessResponse({ authenticated: true }), request)
+    const response = addCorsHeaders(
+      createSuccessResponse({
+        id: deployment.id,
+        title: deployment.title,
+        description: deployment.description,
+        customizations: deployment.customizations,
+        authType: deployment.authType,
+        outputConfigs: deployment.outputConfigs,
+      }),
+      request
+    )
     setChatAuthCookie(response, deployment.id, deployment.authType, deployment.password)
 
     return response

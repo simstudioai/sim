@@ -1,51 +1,25 @@
 /**
  * @vitest-environment node
  */
+import { hybridAuthMockFns, workflowsUtilsMock, workflowsUtilsMockFns } from '@sim/testing'
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckHybridAuth,
-  mockGetJobQueue,
-  mockVerifyWorkflowAccess,
-  mockGetWorkflowById,
-  mockGetJob,
-} = vi.hoisted(() => ({
-  mockCheckHybridAuth: vi.fn(),
+const { mockGetJobQueue, mockVerifyWorkflowAccess, mockGetJob } = vi.hoisted(() => ({
   mockGetJobQueue: vi.fn(),
   mockVerifyWorkflowAccess: vi.fn(),
-  mockGetWorkflowById: vi.fn(),
   mockGetJob: vi.fn(),
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
-
-vi.mock('@/lib/auth/hybrid', () => ({
-  checkHybridAuth: mockCheckHybridAuth,
 }))
 
 vi.mock('@/lib/core/async-jobs', () => ({
   getJobQueue: mockGetJobQueue,
 }))
 
-vi.mock('@/lib/core/utils/request', () => ({
-  generateRequestId: vi.fn().mockReturnValue('request-1'),
-}))
-
 vi.mock('@/socket/middleware/permissions', () => ({
   verifyWorkflowAccess: mockVerifyWorkflowAccess,
 }))
 
-vi.mock('@/lib/workflows/utils', () => ({
-  getWorkflowById: mockGetWorkflowById,
-}))
+vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 import { GET } from './route'
 
@@ -61,7 +35,7 @@ describe('GET /api/jobs/[jobId]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockCheckHybridAuth.mockResolvedValue({
+    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({
       success: true,
       userId: 'user-1',
       apiKeyType: undefined,
@@ -69,7 +43,7 @@ describe('GET /api/jobs/[jobId]', () => {
     })
 
     mockVerifyWorkflowAccess.mockResolvedValue({ hasAccess: true })
-    mockGetWorkflowById.mockResolvedValue({
+    workflowsUtilsMockFns.mockGetWorkflowById.mockResolvedValue({
       id: 'workflow-1',
       workspaceId: 'workspace-1',
     })

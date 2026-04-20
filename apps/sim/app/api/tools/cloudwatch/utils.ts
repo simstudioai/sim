@@ -5,8 +5,8 @@ import {
   GetQueryResultsCommand,
   type ResultField,
 } from '@aws-sdk/client-cloudwatch-logs'
+import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
-import { sleep } from '@/lib/core/utils/helpers'
 
 interface AwsCredentials {
   region: string

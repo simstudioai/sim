@@ -3,6 +3,7 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import {
   keepPreviousData,
   skipToken,
@@ -10,7 +11,6 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
-import { generateId } from '@/lib/core/utils/uuid'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { deploymentKeys } from '@/hooks/queries/deployments'
 import { fetchDeploymentVersionState } from '@/hooks/queries/utils/fetch-deployment-version-state'

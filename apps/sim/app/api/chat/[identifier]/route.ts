@@ -1,12 +1,12 @@
 import { db } from '@sim/db'
 import { chat, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { addCorsHeaders, validateAuthToken } from '@/lib/core/security/deployment'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { generateId } from '@/lib/core/utils/uuid'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { ChatFiles } from '@/lib/uploads'
@@ -14,6 +14,26 @@ import { setChatAuthCookie, validateChatAuth } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('ChatIdentifierAPI')
+
+interface ChatConfigSource {
+  id: string
+  title: string
+  description: string | null
+  customizations: unknown
+  authType: string | null
+  outputConfigs: unknown
+}
+
+function toChatConfigResponse(deployment: ChatConfigSource) {
+  return {
+    id: deployment.id,
+    title: deployment.title,
+    description: deployment.description,
+    customizations: deployment.customizations,
+    authType: deployment.authType,
+    outputConfigs: deployment.outputConfigs,
+  }
+}
 
 const chatFileSchema = z.object({
   name: z.string().min(1, 'File name is required'),
@@ -66,6 +86,9 @@ export async function POST(
     const deploymentResult = await db
       .select({
         id: chat.id,
+        title: chat.title,
+        description: chat.description,
+        customizations: chat.customizations,
         workflowId: chat.workflowId,
         userId: chat.userId,
         isActive: chat.isActive,
@@ -139,7 +162,10 @@ export async function POST(
     const { input, password, email, conversationId, files } = parsedBody
 
     if ((password || email) && !input) {
-      const response = addCorsHeaders(createSuccessResponse({ authenticated: true }), request)
+      const response = addCorsHeaders(
+        createSuccessResponse(toChatConfigResponse(deployment)),
+        request
+      )
 
       setChatAuthCookie(response, deployment.id, deployment.authType, deployment.password)
 
@@ -346,17 +372,7 @@ export async function GET(
       authCookie &&
       validateAuthToken(authCookie.value, deployment.id, deployment.password)
     ) {
-      return addCorsHeaders(
-        createSuccessResponse({
-          id: deployment.id,
-          title: deployment.title,
-          description: deployment.description,
-          customizations: deployment.customizations,
-          authType: deployment.authType,
-          outputConfigs: deployment.outputConfigs,
-        }),
-        request
-      )
+      return addCorsHeaders(createSuccessResponse(toChatConfigResponse(deployment)), request)
     }
 
     const authResult = await validateChatAuth(requestId, deployment, request)
@@ -370,17 +386,7 @@ export async function GET(
       )
     }
 
-    return addCorsHeaders(
-      createSuccessResponse({
-        id: deployment.id,
-        title: deployment.title,
-        description: deployment.description,
-        customizations: deployment.customizations,
-        authType: deployment.authType,
-        outputConfigs: deployment.outputConfigs,
-      }),
-      request
-    )
+    return addCorsHeaders(createSuccessResponse(toChatConfigResponse(deployment)), request)
   } catch (error: any) {
     logger.error(`[${requestId}] Error fetching chat info:`, error)
     return addCorsHeaders(

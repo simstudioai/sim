@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { generateId, isValidUuid } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth/hybrid'
@@ -9,11 +11,9 @@ import {
   getTimeoutErrorMessage,
   isTimeoutError,
 } from '@/lib/core/execution-limits'
-import { toError } from '@/lib/core/utils/helpers'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { generateId, isValidUuid } from '@/lib/core/utils/uuid'
 import {
   buildNextCallChain,
   parseCallChain,

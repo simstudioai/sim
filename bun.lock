@@ -333,6 +333,15 @@
       "name": "@sim/tsconfig",
       "version": "0.0.0",
     },
+    "packages/utils": {
+      "name": "@sim/utils",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@sim/tsconfig": "workspace:*",
+        "typescript": "^5.7.3",
+        "vitest": "^3.0.8",
+      },
+    },
   },
   "trustedDependencies": [
     "ffmpeg-static",
@@ -1337,6 +1346,8 @@
     "@sim/testing": ["@sim/testing@workspace:packages/testing"],
 
     "@sim/tsconfig": ["@sim/tsconfig@workspace:packages/tsconfig"],
+
+    "@sim/utils": ["@sim/utils@workspace:packages/utils"],
 
     "@simplewebauthn/browser": ["@simplewebauthn/browser@13.3.0", "", {}, "sha512-BE/UWv6FOToAdVk0EokzkqQQDOWtNydYlY6+OrmiZ5SCNmb41VehttboTetUM3T/fr6EAFYVXjz4My2wg230rQ=="],
 

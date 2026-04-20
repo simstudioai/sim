@@ -1,4 +1,4 @@
-import { toError } from '@/lib/core/utils/helpers'
+import { toError } from '@sim/utils/errors'
 import type { NotionQueryDatabaseParams, NotionResponse } from '@/tools/notion/types'
 import { DATABASE_QUERY_RESULTS_OUTPUT, PAGINATION_OUTPUT_PROPERTIES } from '@/tools/notion/types'
 import { extractTitle, formatPropertyValue } from '@/tools/notion/utils'

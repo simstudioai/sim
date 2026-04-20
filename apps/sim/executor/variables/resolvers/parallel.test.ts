@@ -1,10 +1,7 @@
-import { loggerMock } from '@sim/testing'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { InvalidFieldError } from '@/executor/utils/block-reference'
 import { ParallelResolver } from './parallel'
 import type { ResolutionContext } from './reference'
-
-vi.mock('@sim/logger', () => loggerMock)
 
 interface BlockDef {
   id: string

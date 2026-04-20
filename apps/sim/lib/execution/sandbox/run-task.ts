@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { generateShortId } from '@/lib/core/utils/uuid'
+import { generateShortId } from '@sim/utils/id'
 import {
   executeInIsolatedVM,
   type IsolatedVMBrokerHandler,

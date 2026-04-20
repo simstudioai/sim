@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
 import { permissions, workflow, workflowFolder, workspace as workspaceTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
-import { generateId } from '@/lib/core/utils/uuid'
 import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 

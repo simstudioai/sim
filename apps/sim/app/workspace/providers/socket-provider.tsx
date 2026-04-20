@@ -11,10 +11,10 @@ import {
   useState,
 } from 'react'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { useParams } from 'next/navigation'
 import type { Socket } from 'socket.io-client'
 import { getSocketUrl } from '@/lib/core/utils/urls'
-import { generateId } from '@/lib/core/utils/uuid'
 import {
   type SocketJoinCommand,
   SocketJoinController,
