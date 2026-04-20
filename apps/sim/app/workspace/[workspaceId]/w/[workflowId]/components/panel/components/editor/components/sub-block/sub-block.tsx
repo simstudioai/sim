@@ -39,7 +39,6 @@ import {
   type SelectorOverrides,
   ShortInput,
   SkillInput,
-  SlackSetupWizard,
   SliderInput,
   SortBuilder,
   Switch,
@@ -51,6 +50,7 @@ import {
   VariablesInput,
   WorkflowSelectorInput,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
+import { MODAL_REGISTRY } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/modal-registry'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
@@ -1137,8 +1137,17 @@ function SubBlockComponent({
             }
           />
         )
-      case 'slack-setup-wizard':
-        return <SlackSetupWizard blockId={blockId} isPreview={isPreview} disabled={isDisabled} />
+      case 'modal': {
+        const ModalComponent = config.modalId ? MODAL_REGISTRY[config.modalId] : undefined
+        if (!ModalComponent) {
+          return (
+            <div className='text-[var(--text-error)] text-sm'>
+              Unknown modal: {String(config.modalId)}
+            </div>
+          )
+        }
+        return <ModalComponent blockId={blockId} isPreview={isPreview} disabled={isDisabled} />
+      }
       case 'messages-input':
         return (
           <MessagesInput

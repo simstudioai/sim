@@ -162,7 +162,7 @@ export type SubBlockType =
   | 'text' // Read-only text display
   | 'router-input' // Router route definitions with descriptions
   | 'table-selector' // Table selector with link to view table
-  | 'slack-setup-wizard' // Slack app setup wizard (manifest + credentials) in a modal
+  | 'modal' // Launches a modal component resolved via the client-side modal registry
 
 /**
  * Selector types that require display name hydration
@@ -330,6 +330,7 @@ export interface SubBlockConfig {
   hideWhenEnvSet?: string // Hide this subblock when the named NEXT_PUBLIC_ env var is truthy
   description?: string
   tooltip?: string // Tooltip text displayed via info icon next to the title
+  modalId?: string // Registry key when type is 'modal'; see sub-block/components/modal-registry.ts
   value?: (params: Record<string, any>) => string
   grouped?: boolean
   scrollable?: boolean

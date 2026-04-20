@@ -54,7 +54,8 @@ export const slackWebhookTrigger: TriggerConfig = {
     {
       id: 'setupWizard',
       title: 'Slack app setup',
-      type: 'slack-setup-wizard',
+      type: 'modal',
+      modalId: 'slack-setup-wizard',
       description: 'Walk through manifest creation, app install, and pasting credentials.',
       hideFromPreview: true,
       mode: 'trigger',

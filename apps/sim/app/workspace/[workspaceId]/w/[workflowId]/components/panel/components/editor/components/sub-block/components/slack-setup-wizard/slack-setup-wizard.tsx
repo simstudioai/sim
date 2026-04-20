@@ -339,23 +339,14 @@ function StepSecret({ blockId, value, onChange, disabled }: StepSecretProps) {
         </SubStep>
         <SubStep n={3}>Paste it into the field below.</SubStep>
       </SubStepList>
-      <div className='space-y-1.5'>
-        <Label
-          htmlFor={`${blockId}-wizard-signing-secret`}
-          className='font-medium text-[var(--text-secondary)] text-xs'
-        >
-          Signing Secret
-        </Label>
-        <Input
-          id={`${blockId}-wizard-signing-secret`}
-          type='password'
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={disabled}
-          placeholder='Paste your signing secret'
-          className='h-9 text-sm'
-        />
-      </div>
+      <SecretInput
+        id={`${blockId}-wizard-signing-secret`}
+        label='Signing Secret'
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        placeholder='Paste your signing secret'
+      />
     </div>
   )
 }
@@ -380,23 +371,53 @@ function StepToken({ blockId, value, onChange, disabled }: StepTokenProps) {
         </SubStep>
         <SubStep n={3}>Paste it into the field below.</SubStep>
       </SubStepList>
-      <div className='space-y-1.5'>
-        <Label
-          htmlFor={`${blockId}-wizard-bot-token`}
-          className='font-medium text-[var(--text-secondary)] text-xs'
-        >
-          Bot Token
-        </Label>
-        <Input
-          id={`${blockId}-wizard-bot-token`}
-          type='password'
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={disabled}
-          placeholder='xoxb-...'
-          className='h-9 text-sm'
-        />
-      </div>
+      <SecretInput
+        id={`${blockId}-wizard-bot-token`}
+        label='Bot Token'
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        placeholder='xoxb-...'
+      />
+    </div>
+  )
+}
+
+interface SecretInputProps {
+  id: string
+  label: string
+  value: string
+  onChange: (next: string) => void
+  disabled: boolean
+  placeholder?: string
+}
+
+/**
+ * Password-style input that masks its value with bullets only while the
+ * field is unfocused. Typing, pasting, and selection all see the real text
+ * so users can verify what they just pasted before clicking Next.
+ */
+function SecretInput({ id, label, value, onChange, disabled, placeholder }: SecretInputProps) {
+  const [isFocused, setIsFocused] = useState<boolean>(false)
+  const displayValue = isFocused ? value : '•'.repeat(value.length)
+
+  return (
+    <div className='space-y-1.5'>
+      <Label htmlFor={id} className='font-medium text-[var(--text-secondary)] text-xs'>
+        {label}
+      </Label>
+      <Input
+        id={id}
+        type='text'
+        value={displayValue}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        disabled={disabled}
+        placeholder={placeholder}
+        autoComplete='off'
+        className='h-9 text-sm'
+      />
     </div>
   )
 }

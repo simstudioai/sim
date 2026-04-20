@@ -68,18 +68,10 @@ export const SLACK_CAPABILITIES: readonly SlackCapability[] = [
     events: ['message.groups'],
   },
   {
-    id: 'trigger_public_channel_reaction',
-    label: 'Public channel reaction',
-    description: 'Trigger when emoji reactions are added or removed in public channels.',
-    defaultChecked: true,
-    group: 'trigger',
-    scopes: ['reactions:read'],
-    events: ['reaction_added', 'reaction_removed'],
-  },
-  {
-    id: 'trigger_any_reaction',
-    label: 'Reaction (any channel)',
-    description: 'Trigger on any emoji reaction your bot can see — public or private.',
+    id: 'trigger_reaction',
+    label: 'Reaction',
+    description:
+      'Trigger when an emoji reaction is added or removed anywhere the bot can see — public, private, or DM. Slack does not allow restricting the reactions scope by channel type.',
     defaultChecked: true,
     group: 'trigger',
     scopes: ['reactions:read'],
@@ -122,14 +114,6 @@ export const SLACK_CAPABILITIES: readonly SlackCapability[] = [
     events: [],
   },
 ] as const
-
-export const SLACK_TRIGGER_OPTIONS = SLACK_CAPABILITIES.filter((c) => c.group === 'trigger').map(
-  ({ id, label, description, defaultChecked }) => ({ id, label, description, defaultChecked })
-)
-
-export const SLACK_ACTION_OPTIONS = SLACK_CAPABILITIES.filter((c) => c.group === 'action').map(
-  ({ id, label, description, defaultChecked }) => ({ id, label, description, defaultChecked })
-)
 
 const WEBHOOK_URL_PLACEHOLDER = '<deploy workflow to generate webhook URL>'
 
