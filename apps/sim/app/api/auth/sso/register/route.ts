@@ -1,4 +1,6 @@
+import { db, member } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { auth, getSession } from '@/lib/auth'
@@ -111,6 +113,17 @@ export async function POST(request: NextRequest) {
 
     const body = parseResult.data
     const { providerId, issuer, domain, providerType, mapping, orgId } = body
+
+    if (orgId) {
+      const [membership] = await db
+        .select({ organizationId: member.organizationId })
+        .from(member)
+        .where(and(eq(member.userId, session.user.id), eq(member.organizationId, orgId)))
+        .limit(1)
+      if (!membership) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    }
 
     const headers: Record<string, string> = {}
     request.headers.forEach((value, key) => {
@@ -349,7 +362,7 @@ export async function POST(request: NextRequest) {
         })
 
       const spMetadataXml = `<?xml version="1.0" encoding="UTF-8"?>
-<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${escapeXml(issuer)}">
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${escapeXml(getBaseUrl())}">
   <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
     <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${escapeXml(computedCallbackUrl)}" index="1"/>
   </md:SPSSODescriptor>
@@ -436,7 +449,6 @@ export async function POST(request: NextRequest) {
       {
         error: 'Failed to register SSO provider',
         details: error instanceof Error ? error.message : 'Unknown error',
-        fullError: JSON.stringify(error),
       },
       { status: 500 }
     )
