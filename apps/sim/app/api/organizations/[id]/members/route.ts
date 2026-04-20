@@ -2,23 +2,27 @@ import { db } from '@sim/db'
 import {
   invitation,
   member,
-  organization,
   subscription as subscriptionTable,
   user,
   userStats,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { getEmailSubject, renderInvitationEmail } from '@/components/emails'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
-import { getBaseUrl } from '@/lib/core/utils/urls'
-import { sendEmail } from '@/lib/messaging/email/mailer'
+import {
+  cancelPendingInvitation,
+  createPendingInvitation,
+  sendInvitationEmail,
+} from '@/lib/invitations/send'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import {
+  InvitationsNotAllowedError,
+  validateInvitationsAllowed,
+} from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('OrganizationMembersAPI')
 
@@ -157,10 +161,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    await validateInvitationsAllowed(session.user.id)
+
     const { id: organizationId } = await params
     const { email, role = 'member' } = await request.json()
 
-    // Validate input
     if (!email) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 })
     }
@@ -253,61 +258,52 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       )
     }
 
-    // Create invitation
-    const invitationId = generateId()
-    const expiresAt = new Date()
-    expiresAt.setDate(expiresAt.getDate() + 7) // 7 days expiry
-
-    await db.insert(invitation).values({
-      id: invitationId,
+    const { invitationId, token } = await createPendingInvitation({
+      kind: 'organization',
       email: normalizedEmail,
       inviterId: session.user.id,
       organizationId,
-      role,
-      status: 'pending',
-      expiresAt,
-      createdAt: new Date(),
+      role: role as 'admin' | 'member',
+      grants: [],
     })
 
-    const organizationEntry = await db
-      .select({ name: organization.name })
-      .from(organization)
-      .where(eq(organization.id, organizationId))
-      .limit(1)
-
-    const inviter = await db
-      .select({ name: user.name })
+    const [inviterRow] = await db
+      .select({ name: user.name, email: user.email })
       .from(user)
       .where(eq(user.id, session.user.id))
       .limit(1)
+    const inviterName = inviterRow?.name || inviterRow?.email || 'A user'
 
-    const emailHtml = await renderInvitationEmail(
-      inviter[0]?.name || 'Someone',
-      organizationEntry[0]?.name || 'organization',
-      `${getBaseUrl()}/invite/organization?id=${invitationId}`
-    )
-
-    const emailResult = await sendEmail({
-      to: normalizedEmail,
-      subject: getEmailSubject('invitation'),
-      html: emailHtml,
-      emailType: 'transactional',
+    const emailResult = await sendInvitationEmail({
+      invitationId,
+      token,
+      kind: 'organization',
+      email: normalizedEmail,
+      inviterName,
+      organizationId,
+      organizationRole: role as 'admin' | 'member',
+      grants: [],
     })
 
-    if (emailResult.success) {
-      logger.info('Member invitation sent', {
+    if (!emailResult.success) {
+      logger.error('Failed to send organization invitation email', {
         email: normalizedEmail,
-        organizationId,
         invitationId,
-        role,
+        error: emailResult.error,
       })
-    } else {
-      logger.error('Failed to send invitation email', {
-        email: normalizedEmail,
-        error: emailResult.message,
-      })
-      // Don't fail the request if email fails
+      await cancelPendingInvitation(invitationId)
+      return NextResponse.json(
+        { error: emailResult.error || 'Failed to send invitation email' },
+        { status: 502 }
+      )
     }
+
+    logger.info('Member invitation sent', {
+      email: normalizedEmail,
+      organizationId,
+      invitationId,
+      role,
+    })
 
     recordAudit({
       workspaceId: null,
@@ -317,7 +313,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       resourceId: organizationId,
       actorName: session.user.name ?? undefined,
       actorEmail: session.user.email ?? undefined,
-      resourceName: organizationEntry[0]?.name ?? undefined,
       description: `Invited ${normalizedEmail} to organization as ${role}`,
       metadata: { invitationId, targetEmail: normalizedEmail, targetRole: role },
       request,
@@ -330,10 +325,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         invitationId,
         email: normalizedEmail,
         role,
-        expiresAt,
       },
     })
   } catch (error) {
+    if (error instanceof InvitationsNotAllowedError) {
+      return NextResponse.json({ error: error.message }, { status: 403 })
+    }
     logger.error('Failed to invite organization member', {
       organizationId: (await params).id,
       error,

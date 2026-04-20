@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { member, organization, subscription } from '@sim/db/schema'
+import { invitation, member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, count, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -106,17 +106,27 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
-    // Validate that we're not reducing below current member count
-    const memberCount = await db
-      .select({ userId: member.userId })
+    const [memberCountRow] = await db
+      .select({ count: count() })
       .from(member)
       .where(eq(member.organizationId, organizationId))
 
-    if (newSeatCount < memberCount.length) {
+    const [pendingCountRow] = await db
+      .select({ count: count() })
+      .from(invitation)
+      .where(and(eq(invitation.organizationId, organizationId), eq(invitation.status, 'pending')))
+
+    const memberCount = memberCountRow?.count ?? 0
+    const pendingCount = pendingCountRow?.count ?? 0
+    const occupiedSeats = memberCount + pendingCount
+
+    if (newSeatCount < occupiedSeats) {
       return NextResponse.json(
         {
-          error: `Cannot reduce seats below current member count (${memberCount.length})`,
-          currentMembers: memberCount.length,
+          error: `Cannot reduce seats below current occupancy (${memberCount} member${memberCount === 1 ? '' : 's'} + ${pendingCount} pending invite${pendingCount === 1 ? '' : 's'}). Cancel pending invites first or remove members.`,
+          currentMembers: memberCount,
+          pendingInvitations: pendingCount,
+          occupiedSeats,
         },
         { status: 400 }
       )

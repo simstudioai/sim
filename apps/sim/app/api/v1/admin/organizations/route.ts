@@ -24,8 +24,12 @@
 import { db } from '@sim/db'
 import { member, organization, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
 import { count, eq } from 'drizzle-orm'
+import {
+  createOrganizationWithOwner,
+  OrganizationSlugInvalidError,
+  OrganizationSlugTakenError,
+} from '@/lib/billing/organizations/create-organization'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -108,26 +112,10 @@ export const POST = withAdminAuth(async (request) => {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '')
 
-    const organizationId = generateId()
-    const memberId = generateId()
-    const now = new Date()
-
-    await db.transaction(async (tx) => {
-      await tx.insert(organization).values({
-        id: organizationId,
-        name,
-        slug,
-        createdAt: now,
-        updatedAt: now,
-      })
-
-      await tx.insert(member).values({
-        id: memberId,
-        userId: body.ownerId,
-        organizationId,
-        role: 'owner',
-        createdAt: now,
-      })
+    const { organizationId, memberId } = await createOrganizationWithOwner({
+      ownerUserId: body.ownerId,
+      name,
+      slug,
     })
 
     const [createdOrg] = await db
@@ -148,6 +136,16 @@ export const POST = withAdminAuth(async (request) => {
       memberId,
     })
   } catch (error) {
+    if (error instanceof OrganizationSlugInvalidError) {
+      return badRequestResponse(
+        'Organization slug can only contain lowercase letters, numbers, hyphens, and underscores.'
+      )
+    }
+
+    if (error instanceof OrganizationSlugTakenError) {
+      return badRequestResponse('This slug is already taken')
+    }
+
     logger.error('Admin API: Failed to create organization', { error })
     return internalErrorResponse('Failed to create organization')
   }

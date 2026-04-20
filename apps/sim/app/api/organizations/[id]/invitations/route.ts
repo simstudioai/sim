@@ -1,32 +1,22 @@
 import { db } from '@sim/db'
-import {
-  invitation,
-  member,
-  organization,
-  user,
-  type WorkspaceInvitationStatus,
-  workspace,
-  workspaceInvitation,
-} from '@sim/db/schema'
+import { invitation, member, organization, user, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, or } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import {
-  getEmailSubject,
-  renderBatchInvitationEmail,
-  renderInvitationEmail,
-} from '@/components/emails'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import {
   validateBulkInvitations,
   validateSeatAvailability,
 } from '@/lib/billing/validation/seat-management'
-import { getBaseUrl } from '@/lib/core/utils/urls'
-import { sendEmail } from '@/lib/messaging/email/mailer'
+import {
+  cancelPendingInvitation,
+  createPendingInvitation,
+  sendInvitationEmail,
+} from '@/lib/invitations/send'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
+import { isOrganizationWorkspace } from '@/lib/workspaces/policy'
 import {
   InvitationsNotAllowedError,
   validateInvitationsAllowed,
@@ -34,42 +24,35 @@ import {
 
 const logger = createLogger('OrganizationInvitations')
 
-interface WorkspaceInvitation {
+interface WorkspaceGrantPayload {
   workspaceId: string
   permission: 'admin' | 'write' | 'read'
 }
 
-/**
- * GET /api/organizations/[id]/invitations
- * Get all pending invitations for an organization
- */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getSession()
-
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { id: organizationId } = await params
 
-    const memberEntry = await db
+    const [memberEntry] = await db
       .select()
       .from(member)
       .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
       .limit(1)
 
-    if (memberEntry.length === 0) {
+    if (!memberEntry) {
       return NextResponse.json(
         { error: 'Forbidden - Not a member of this organization' },
         { status: 403 }
       )
     }
 
-    const userRole = memberEntry[0].role
-    const hasAdminAccess = ['owner', 'admin'].includes(userRole)
-
-    if (!hasAdminAccess) {
+    const userRole = memberEntry.role
+    if (!['owner', 'admin'].includes(userRole)) {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
@@ -77,6 +60,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .select({
         id: invitation.id,
         email: invitation.email,
+        kind: invitation.kind,
         role: invitation.role,
         status: invitation.status,
         expiresAt: invitation.expiresAt,
@@ -91,32 +75,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     return NextResponse.json({
       success: true,
-      data: {
-        invitations,
-        userRole,
-      },
+      data: { invitations, userRole },
     })
   } catch (error) {
-    logger.error('Failed to get organization invitations', {
-      organizationId: (await params).id,
-      error,
-    })
-
+    logger.error('Failed to get organization invitations', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
-/**
- * POST /api/organizations/[id]/invitations
- * Create organization invitations with optional validation and batch workspace invitations
- * Query parameters:
- * - ?validate=true - Only validate, don't send invitations
- * - ?batch=true - Include workspace invitations
- */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getSession()
-
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -130,7 +99,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const body = await request.json()
     const { email, emails, role = 'member', workspaceInvitations } = body
-
     const invitationEmails = email ? [email] : emails
 
     if (!invitationEmails || !Array.isArray(invitationEmails) || invitationEmails.length === 0) {
@@ -141,33 +109,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
     }
 
-    const memberEntry = await db
+    const [memberEntry] = await db
       .select()
       .from(member)
       .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
       .limit(1)
 
-    if (memberEntry.length === 0) {
+    if (!memberEntry) {
       return NextResponse.json(
         { error: 'Forbidden - Not a member of this organization' },
         { status: 403 }
       )
     }
 
-    if (!['owner', 'admin'].includes(memberEntry[0].role)) {
+    if (!['owner', 'admin'].includes(memberEntry.role)) {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
     }
 
     if (validateOnly) {
       const validationResult = await validateBulkInvitations(organizationId, invitationEmails)
-
-      logger.info('Invitation validation completed', {
-        organizationId,
-        userId: session.user.id,
-        emailCount: invitationEmails.length,
-        result: validationResult,
-      })
-
       return NextResponse.json({
         success: true,
         data: validationResult,
@@ -176,50 +136,42 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       })
     }
 
-    const seatValidation = await validateSeatAvailability(organizationId, invitationEmails.length)
-
-    if (!seatValidation.canInvite) {
-      return NextResponse.json(
-        {
-          error: seatValidation.reason,
-          seatInfo: {
-            currentSeats: seatValidation.currentSeats,
-            maxSeats: seatValidation.maxSeats,
-            availableSeats: seatValidation.availableSeats,
-            seatsRequested: invitationEmails.length,
-          },
-        },
-        { status: 400 }
-      )
-    }
-
-    const organizationEntry = await db
+    const [organizationEntry] = await db
       .select({ name: organization.name })
       .from(organization)
       .where(eq(organization.id, organizationId))
       .limit(1)
 
-    if (organizationEntry.length === 0) {
+    if (!organizationEntry) {
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
 
-    const processedEmails = invitationEmails
-      .map((email: string) => {
-        const normalized = email.trim().toLowerCase()
-        const validation = quickValidateEmail(normalized)
-        return validation.isValid ? normalized : null
-      })
-      .filter(Boolean) as string[]
+    const processedEmails = Array.from(
+      new Set(
+        invitationEmails
+          .map((raw: string) => {
+            const normalized = raw.trim().toLowerCase()
+            return quickValidateEmail(normalized).isValid ? normalized : null
+          })
+          .filter((email): email is string => !!email)
+      )
+    )
 
     if (processedEmails.length === 0) {
       return NextResponse.json({ error: 'No valid emails provided' }, { status: 400 })
     }
 
-    const validWorkspaceInvitations: WorkspaceInvitation[] = []
-    if (isBatch && workspaceInvitations && workspaceInvitations.length > 0) {
+    const validGrants: WorkspaceGrantPayload[] = []
+    if (isBatch) {
+      if (!Array.isArray(workspaceInvitations) || workspaceInvitations.length === 0) {
+        return NextResponse.json(
+          { error: 'Select at least one organization workspace for this invitation.' },
+          { status: 400 }
+        )
+      }
+
       for (const wsInvitation of workspaceInvitations) {
         const canInvite = await hasWorkspaceAdminAccess(session.user.id, wsInvitation.workspaceId)
-
         if (!canInvite) {
           return NextResponse.json(
             {
@@ -229,7 +181,38 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           )
         }
 
-        validWorkspaceInvitations.push(wsInvitation)
+        const [workspaceEntry] = await db
+          .select({
+            id: workspace.id,
+            organizationId: workspace.organizationId,
+            workspaceMode: workspace.workspaceMode,
+          })
+          .from(workspace)
+          .where(eq(workspace.id, wsInvitation.workspaceId))
+          .limit(1)
+
+        if (!workspaceEntry || !isOrganizationWorkspace(workspaceEntry)) {
+          return NextResponse.json(
+            {
+              error: `Workspace ${wsInvitation.workspaceId} is not an organization-owned workspace.`,
+            },
+            { status: 400 }
+          )
+        }
+
+        if (workspaceEntry.organizationId !== organizationId) {
+          return NextResponse.json(
+            {
+              error: `Workspace ${wsInvitation.workspaceId} does not belong to this organization.`,
+            },
+            { status: 400 }
+          )
+        }
+
+        validGrants.push({
+          workspaceId: wsInvitation.workspaceId,
+          permission: wsInvitation.permission,
+        })
       }
     }
 
@@ -238,33 +221,29 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .from(member)
       .innerJoin(user, eq(member.userId, user.id))
       .where(eq(member.organizationId, organizationId))
-
-    const existingEmails = existingMembers.map((m) => m.userEmail)
-    const newEmails = processedEmails.filter((email: string) => !existingEmails.includes(email))
+    const existingEmails = existingMembers.map((m) => m.userEmail.toLowerCase())
+    const newEmails = processedEmails.filter((email) => !existingEmails.includes(email))
 
     const existingInvitations = await db
       .select({ email: invitation.email })
       .from(invitation)
       .where(and(eq(invitation.organizationId, organizationId), eq(invitation.status, 'pending')))
-
-    const pendingEmails = existingInvitations.map((i) => i.email)
-    const emailsToInvite = newEmails.filter((email: string) => !pendingEmails.includes(email))
+    const pendingEmails = existingInvitations.map((i) => i.email.toLowerCase())
+    const emailsToInvite = newEmails.filter((email) => !pendingEmails.includes(email))
 
     if (emailsToInvite.length === 0) {
       const isSingleEmail = processedEmails.length === 1
-      const existingMembersEmails = processedEmails.filter((email: string) =>
+      const existingMembersEmails = processedEmails.filter((email) =>
         existingEmails.includes(email)
       )
-      const pendingInvitationEmails = processedEmails.filter((email: string) =>
+      const pendingInvitationEmails = processedEmails.filter((email) =>
         pendingEmails.includes(email)
       )
 
       if (isSingleEmail) {
         if (existingMembersEmails.length > 0) {
           return NextResponse.json(
-            {
-              error: 'Failed to send invitation. User is already a part of the organization.',
-            },
+            { error: 'Failed to send invitation. User is already a part of the organization.' },
             { status: 400 }
           )
         }
@@ -291,128 +270,79 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       )
     }
 
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
-    const invitationsToCreate = emailsToInvite.map((email: string) => ({
-      id: generateId(),
-      email,
-      inviterId: session.user.id,
-      organizationId,
-      role,
-      status: 'pending' as const,
-      expiresAt,
-      createdAt: new Date(),
-    }))
-
-    await db.insert(invitation).values(invitationsToCreate)
-
-    const workspaceInvitationIds: string[] = []
-    if (isBatch && validWorkspaceInvitations.length > 0) {
-      for (const email of emailsToInvite) {
-        const orgInviteForEmail = invitationsToCreate.find((inv) => inv.email === email)
-        for (const wsInvitation of validWorkspaceInvitations) {
-          const wsInvitationId = generateId()
-          const token = generateId()
-
-          await db.insert(workspaceInvitation).values({
-            id: wsInvitationId,
-            workspaceId: wsInvitation.workspaceId,
-            email,
-            inviterId: session.user.id,
-            role: 'member',
-            status: 'pending',
-            token,
-            permissions: wsInvitation.permission,
-            orgInvitationId: orgInviteForEmail?.id,
-            expiresAt,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          })
-
-          workspaceInvitationIds.push(wsInvitationId)
-        }
-      }
+    const seatValidation = await validateSeatAvailability(organizationId, emailsToInvite.length)
+    if (!seatValidation.canInvite) {
+      return NextResponse.json(
+        {
+          error: seatValidation.reason,
+          seatInfo: {
+            currentSeats: seatValidation.currentSeats,
+            maxSeats: seatValidation.maxSeats,
+            availableSeats: seatValidation.availableSeats,
+            seatsRequested: emailsToInvite.length,
+          },
+        },
+        { status: 400 }
+      )
     }
 
-    const inviter = await db
-      .select({ name: user.name })
+    const [inviterRow] = await db
+      .select({ name: user.name, email: user.email })
       .from(user)
       .where(eq(user.id, session.user.id))
       .limit(1)
+    const inviterName = inviterRow?.name || inviterRow?.email || 'A user'
+
+    const sentInvitations: Array<{ id: string; email: string }> = []
+    const failedInvitations: Array<{ email: string; error: string }> = []
 
     for (const email of emailsToInvite) {
-      const orgInvitation = invitationsToCreate.find((inv) => inv.email === email)
-      if (!orgInvitation) continue
-
-      let emailResult
-      if (isBatch && validWorkspaceInvitations.length > 0) {
-        const workspaceDetails = await db
-          .select({
-            id: workspace.id,
-            name: workspace.name,
-          })
-          .from(workspace)
-          .where(
-            inArray(
-              workspace.id,
-              validWorkspaceInvitations.map((w) => w.workspaceId)
-            )
-          )
-
-        const workspaceInvitationsWithNames = validWorkspaceInvitations.map((wsInv) => ({
-          workspaceId: wsInv.workspaceId,
-          workspaceName:
-            workspaceDetails.find((w) => w.id === wsInv.workspaceId)?.name || 'Unknown Workspace',
-          permission: wsInv.permission,
-        }))
-
-        const emailHtml = await renderBatchInvitationEmail(
-          inviter[0]?.name || 'Someone',
-          organizationEntry[0]?.name || 'organization',
-          role,
-          workspaceInvitationsWithNames,
-          `${getBaseUrl()}/invite/${orgInvitation.id}`
-        )
-
-        emailResult = await sendEmail({
-          to: email,
-          subject: getEmailSubject('batch-invitation'),
-          html: emailHtml,
-          emailType: 'transactional',
-        })
-      } else {
-        const emailHtml = await renderInvitationEmail(
-          inviter[0]?.name || 'Someone',
-          organizationEntry[0]?.name || 'organization',
-          `${getBaseUrl()}/invite/${orgInvitation.id}`
-        )
-
-        emailResult = await sendEmail({
-          to: email,
-          subject: getEmailSubject('invitation'),
-          html: emailHtml,
-          emailType: 'transactional',
-        })
-      }
-
-      if (!emailResult.success) {
-        logger.error('Failed to send invitation email', {
+      try {
+        const { invitationId, token } = await createPendingInvitation({
+          kind: 'organization',
           email,
-          error: emailResult.message,
+          inviterId: session.user.id,
+          organizationId,
+          role: role as 'admin' | 'member',
+          grants: validGrants,
+        })
+
+        const emailResult = await sendInvitationEmail({
+          invitationId,
+          token,
+          kind: 'organization',
+          email,
+          inviterName,
+          organizationId,
+          organizationRole: role as 'admin' | 'member',
+          grants: validGrants,
+        })
+
+        if (!emailResult.success) {
+          logger.error('Failed to send organization invitation email', {
+            email,
+            error: emailResult.error,
+          })
+          failedInvitations.push({
+            email,
+            error: emailResult.error || 'Unknown email delivery error',
+          })
+          await cancelPendingInvitation(invitationId)
+          continue
+        }
+
+        sentInvitations.push({ id: invitationId, email })
+      } catch (creationError) {
+        logger.error('Failed to create organization invitation', { email, error: creationError })
+        failedInvitations.push({
+          email,
+          error:
+            creationError instanceof Error ? creationError.message : 'Failed to create invitation',
         })
       }
     }
 
-    logger.info('Organization invitations created', {
-      organizationId,
-      invitedBy: session.user.id,
-      invitationCount: invitationsToCreate.length,
-      emails: emailsToInvite,
-      role,
-      isBatch,
-      workspaceInvitationCount: workspaceInvitationIds.length,
-    })
-
-    for (const inv of invitationsToCreate) {
+    for (const inv of sentInvitations) {
       recordAudit({
         workspaceId: null,
         actorId: session.user.id,
@@ -421,163 +351,71 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         resourceId: organizationId,
         actorName: session.user.name ?? undefined,
         actorEmail: session.user.email ?? undefined,
-        resourceName: organizationEntry[0]?.name,
+        resourceName: organizationEntry.name,
         description: `Invited ${inv.email} to organization as ${role}`,
         metadata: {
           invitationId: inv.id,
           targetEmail: inv.email,
           targetRole: role,
           isBatch,
-          workspaceInvitationCount: validWorkspaceInvitations.length,
+          workspaceGrantCount: validGrants.length,
         },
         request,
       })
     }
 
+    const sentEmails = sentInvitations.map((inv) => inv.email)
+    const responseData = {
+      invitationsSent: sentInvitations.length,
+      invitedEmails: sentEmails,
+      failedInvitations,
+      existingMembers: processedEmails.filter((email) => existingEmails.includes(email)),
+      pendingInvitations: processedEmails.filter((email) => pendingEmails.includes(email)),
+      invalidEmails: invitationEmails.filter(
+        (email: string) => !quickValidateEmail(email.trim().toLowerCase()).isValid
+      ),
+      workspaceGrantsPerInvite: validGrants.length,
+      seatInfo: {
+        seatsUsed: seatValidation.currentSeats + sentInvitations.length,
+        maxSeats: seatValidation.maxSeats,
+        availableSeats: seatValidation.availableSeats - sentInvitations.length,
+      },
+    }
+
+    if (failedInvitations.length > 0 && sentInvitations.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Failed to send invitation emails.',
+          message: 'No invitation emails could be delivered.',
+          data: responseData,
+        },
+        { status: 502 }
+      )
+    }
+
+    if (failedInvitations.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Some invitation emails failed to send.',
+          message: `${sentInvitations.length} invitation(s) sent, ${failedInvitations.length} failed`,
+          data: responseData,
+        },
+        { status: 207 }
+      )
+    }
+
     return NextResponse.json({
       success: true,
-      message: `${invitationsToCreate.length} invitation(s) sent successfully`,
-      data: {
-        invitationsSent: invitationsToCreate.length,
-        invitedEmails: emailsToInvite,
-        existingMembers: processedEmails.filter((email: string) => existingEmails.includes(email)),
-        pendingInvitations: processedEmails.filter((email: string) =>
-          pendingEmails.includes(email)
-        ),
-        invalidEmails: invitationEmails.filter(
-          (email: string) => !quickValidateEmail(email.trim().toLowerCase()).isValid
-        ),
-        workspaceInvitations: isBatch ? validWorkspaceInvitations.length : 0,
-        seatInfo: {
-          seatsUsed: seatValidation.currentSeats + invitationsToCreate.length,
-          maxSeats: seatValidation.maxSeats,
-          availableSeats: seatValidation.availableSeats - invitationsToCreate.length,
-        },
-      },
+      message: `${sentInvitations.length} invitation(s) sent successfully`,
+      data: responseData,
     })
   } catch (error) {
     if (error instanceof InvitationsNotAllowedError) {
       return NextResponse.json({ error: error.message }, { status: 403 })
     }
-
-    logger.error('Failed to create organization invitations', {
-      organizationId: (await params).id,
-      error,
-    })
-
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
-}
-
-/**
- * DELETE /api/organizations/[id]/invitations?invitationId=...
- * Cancel a pending invitation
- */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const session = await getSession()
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { id: organizationId } = await params
-    const url = new URL(request.url)
-    const invitationId = url.searchParams.get('invitationId')
-
-    if (!invitationId) {
-      return NextResponse.json(
-        { error: 'Invitation ID is required as query parameter' },
-        { status: 400 }
-      )
-    }
-
-    const memberEntry = await db
-      .select()
-      .from(member)
-      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
-      .limit(1)
-
-    if (memberEntry.length === 0) {
-      return NextResponse.json(
-        { error: 'Forbidden - Not a member of this organization' },
-        { status: 403 }
-      )
-    }
-
-    if (!['owner', 'admin'].includes(memberEntry[0].role)) {
-      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
-    }
-
-    const result = await db
-      .update(invitation)
-      .set({ status: 'cancelled' })
-      .where(
-        and(
-          eq(invitation.id, invitationId),
-          eq(invitation.organizationId, organizationId),
-          or(eq(invitation.status, 'pending'), eq(invitation.status, 'rejected'))
-        )
-      )
-      .returning()
-
-    if (result.length === 0) {
-      return NextResponse.json(
-        { error: 'Invitation not found or already processed' },
-        { status: 404 }
-      )
-    }
-
-    await db
-      .update(workspaceInvitation)
-      .set({ status: 'cancelled' as WorkspaceInvitationStatus })
-      .where(eq(workspaceInvitation.orgInvitationId, invitationId))
-
-    await db
-      .update(workspaceInvitation)
-      .set({ status: 'cancelled' as WorkspaceInvitationStatus })
-      .where(
-        and(
-          isNull(workspaceInvitation.orgInvitationId),
-          eq(workspaceInvitation.email, result[0].email),
-          eq(workspaceInvitation.status, 'pending' as WorkspaceInvitationStatus),
-          eq(workspaceInvitation.inviterId, session.user.id)
-        )
-      )
-
-    logger.info('Organization invitation cancelled', {
-      organizationId,
-      invitationId,
-      cancelledBy: session.user.id,
-      email: result[0].email,
-    })
-
-    recordAudit({
-      workspaceId: null,
-      actorId: session.user.id,
-      action: AuditAction.ORG_INVITATION_REVOKED,
-      resourceType: AuditResourceType.ORGANIZATION,
-      resourceId: organizationId,
-      actorName: session.user.name ?? undefined,
-      actorEmail: session.user.email ?? undefined,
-      description: `Revoked organization invitation for ${result[0].email}`,
-      metadata: { invitationId, targetEmail: result[0].email, targetRole: result[0].role },
-      request,
-    })
-
-    return NextResponse.json({
-      success: true,
-      message: 'Invitation cancelled successfully',
-    })
-  } catch (error) {
-    logger.error('Failed to cancel organization invitation', {
-      organizationId: (await params).id,
-      error,
-    })
-
+    logger.error('Failed to create organization invitations', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

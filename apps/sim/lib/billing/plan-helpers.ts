@@ -25,6 +25,10 @@ export function isPro(plan: string | null | undefined): boolean {
   return plan === 'pro' || plan.startsWith('pro_')
 }
 
+export function isMax(plan: string | null | undefined): boolean {
+  return isPro(plan) && getPlanTierCredits(plan) >= 25000
+}
+
 export function isTeam(plan: string | null | undefined): boolean {
   if (!plan) return false
   return plan === 'team' || plan.startsWith('team_')

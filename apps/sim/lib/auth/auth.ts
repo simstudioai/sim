@@ -39,15 +39,18 @@ import {
 } from '@/lib/auth/cimd'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
-import { syncSubscriptionPlan, writeBillingInterval } from '@/lib/billing/core/subscription'
+import {
+  getOrganizationIdForSubscriptionReference,
+  syncSubscriptionPlan,
+  writeBillingInterval,
+} from '@/lib/billing/core/subscription'
 import { handleNewUser } from '@/lib/billing/core/usage'
 import {
   ensureOrganizationForTeamSubscription,
   syncSubscriptionUsageLimits,
 } from '@/lib/billing/organization'
-import { isOrgPlan, isTeam } from '@/lib/billing/plan-helpers'
+import { isTeam } from '@/lib/billing/plan-helpers'
 import { getPlans, resolvePlanFromStripeSubscription } from '@/lib/billing/plans'
-import { hasPaidSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { syncSeatsFromStripeQuantity } from '@/lib/billing/validation/seat-management'
 import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
@@ -58,6 +61,7 @@ import {
   handleInvoicePaymentSucceeded,
 } from '@/lib/billing/webhooks/invoices'
 import {
+  handleOrganizationPlanDowngrade,
   handleSubscriptionCreated,
   handleSubscriptionDeleted,
 } from '@/lib/billing/webhooks/subscription'
@@ -170,6 +174,22 @@ export const auth = betterAuth({
     expiresIn: 30 * 24 * 60 * 60, // 30 days (how long a session can last overall)
     updateAge: 24 * 60 * 60, // 24 hours (how often to refresh the expiry)
     freshAge: 60 * 60, // 1 hour (or set to 0 to disable completely)
+  },
+  user: {
+    deleteUser: {
+      enabled: false,
+      beforeDelete: async (deletingUser) => {
+        const { isSoleOwnerOfPaidOrganization } = await import(
+          '@/lib/billing/organizations/membership'
+        )
+        const check = await isSoleOwnerOfPaidOrganization(deletingUser.id)
+        if (check.isBlocker) {
+          throw new Error(
+            `You are the owner of ${check.organizationName ?? 'an active paid organization'}. Transfer ownership before deleting your account.`
+          )
+        }
+      },
+    },
   },
   databaseHooks: {
     user: {
@@ -2961,10 +2981,11 @@ export const auth = betterAuth({
                   )
                 }
 
+                const referenceOrganizationId = await getOrganizationIdForSubscriptionReference(
+                  subscription.referenceId
+                )
                 const isUpgradeToTeam =
-                  isTeamPlan &&
-                  !isTeam(subscription.plan) &&
-                  !subscription.referenceId.startsWith('org_')
+                  isTeamPlan && !isTeam(subscription.plan) && referenceOrganizationId == null
 
                 const effectivePlanForTeamFeatures = planFromStripe ?? subscription.plan
 
@@ -2976,6 +2997,7 @@ export const auth = betterAuth({
                   isUpgradeToTeam,
                   isAnnual,
                   referenceId: subscription.referenceId,
+                  referenceOrganizationId,
                 })
 
                 if (!planFromStripe) {
@@ -3059,6 +3081,16 @@ export const auth = betterAuth({
                       error,
                     })
                   }
+                } else {
+                  await handleOrganizationPlanDowngrade(
+                    {
+                      id: resolvedSubscription.id,
+                      plan: effectivePlanForTeamFeatures ?? null,
+                      referenceId: resolvedSubscription.referenceId,
+                      status: resolvedSubscription.status ?? null,
+                    },
+                    event.id
+                  )
                 }
 
                 await writeBillingInterval(resolvedSubscription.id, isAnnual ? 'year' : 'month')
@@ -3156,21 +3188,8 @@ export const auth = betterAuth({
     ...(isOrganizationsEnabled
       ? [
           organization({
-            allowUserToCreateOrganization: async (user) => {
-              if (!isBillingEnabled) {
-                return true
-              }
-              const dbSubscriptions = await db
-                .select()
-                .from(schema.subscription)
-                .where(eq(schema.subscription.referenceId, user.id))
-
-              const hasTeamPlan = dbSubscriptions.some(
-                (sub) => hasPaidSubscriptionStatus(sub.status) && isOrgPlan(sub.plan)
-              )
-
-              return hasTeamPlan
-            },
+            allowUserToCreateOrganization: async () => false,
+            disableOrganizationDeletion: true,
             organizationCreation: {
               afterCreate: async ({ organization, user }) => {
                 logger.info('[organizationCreation.afterCreate] Organization created', {

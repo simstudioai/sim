@@ -7,32 +7,35 @@ import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { getPlanTierCredits, getPlanTierDollars } from '@/lib/billing/plan-helpers'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   generateSlug,
   getUsedSeats,
-  getUserRole,
   isAdminOrOwner,
   type Member,
 } from '@/lib/workspaces/organization'
 import {
   MemberInvitationCard,
   NoOrganizationView,
+  OrganizationRoster,
   RemoveMemberDialog,
-  TeamMembers,
   TeamSeats,
   TeamSeatsOverview,
+  TransferOwnershipDialog,
 } from '@/app/workspace/[workspaceId]/settings/components/team-management/components'
 import {
   useCreateOrganization,
   useInviteMember,
   useOrganization,
   useOrganizationBilling,
+  useOrganizationRoster,
   useOrganizationSubscription,
   useOrganizations,
   useRemoveMember,
+  useTransferOwnership,
   useUpdateSeats,
 } from '@/hooks/queries/organization'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
+import { useOpenBillingPortal, useSubscriptionData } from '@/hooks/queries/subscription'
 import { useAdminWorkspaces } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
@@ -64,8 +67,12 @@ export function TeamManagement() {
 
   const { data: organizationBillingData } = useOrganizationBilling(activeOrganization?.id || '')
 
+  const { data: roster, isLoading: isLoadingRoster } = useOrganizationRoster(activeOrganization?.id)
+
   const inviteMutation = useInviteMember()
   const removeMemberMutation = useRemoveMember()
+  const transferOwnershipMutation = useTransferOwnership()
+  const openBillingPortal = useOpenBillingPortal()
   const updateSeatsMutation = useUpdateSeats()
   const createOrgMutation = useCreateOrganization()
 
@@ -87,6 +94,8 @@ export function TeamManagement() {
     shouldReduceSeats: boolean
     isSelfRemoval?: boolean
   }>({ open: false, memberId: '', memberName: '', shouldReduceSeats: false })
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false)
+  const [transferPortalError, setTransferPortalError] = useState<string | null>(null)
   const [orgName, setOrgName] = useState('')
   const [orgSlug, setOrgSlug] = useState('')
   const [isAddSeatDialogOpen, setIsAddSeatDialogOpen] = useState(false)
@@ -94,10 +103,10 @@ export function TeamManagement() {
   const [isUpdatingSeats, setIsUpdatingSeats] = useState(false)
 
   const { data: adminWorkspaces = [], isLoading: isLoadingWorkspaces } = useAdminWorkspaces(
-    session?.user?.id
+    session?.user?.id,
+    activeOrganization?.id
   )
 
-  const userRole = getUserRole(organization, session?.user?.email)
   const adminOrOwner = isAdminOrOwner(organization, session?.user?.email)
   const usedSeats = getUsedSeats(organization)
   const totalSeats = organizationBillingData?.data?.totalSeats ?? 0
@@ -136,15 +145,16 @@ export function TeamManagement() {
   const handleInviteMember = useCallback(async () => {
     const validEmails = inviteEmails.filter((e) => e.isValid).map((e) => e.value)
     if (!session?.user || !activeOrganization?.id || validEmails.length === 0) return
+    if (selectedWorkspaces.length === 0) {
+      setShowWorkspaceInvite(true)
+      return
+    }
 
     try {
-      const workspaceInvitations =
-        selectedWorkspaces.length > 0
-          ? selectedWorkspaces.map((w) => ({
-              workspaceId: w.workspaceId,
-              permission: w.permission as 'admin' | 'write' | 'read',
-            }))
-          : undefined
+      const workspaceInvitations = selectedWorkspaces.map((w) => ({
+        workspaceId: w.workspaceId,
+        permission: w.permission as 'admin' | 'write' | 'read',
+      }))
 
       await inviteMutation.mutateAsync({
         emails: validEmails,
@@ -206,7 +216,7 @@ export function TeamManagement() {
 
   const confirmRemoveMember = useCallback(
     async (shouldReduceSeats = false) => {
-      const { memberId } = removeMemberDialog
+      const { memberId, isSelfRemoval } = removeMemberDialog
       if (!session?.user || !activeOrganization?.id || !memberId) return
 
       try {
@@ -221,32 +231,93 @@ export function TeamManagement() {
           memberName: '',
           shouldReduceSeats: false,
         })
+
+        if (isSelfRemoval) {
+          window.location.href = '/workspace'
+        }
       } catch (error) {
         logger.error('Failed to remove member', error)
       }
     },
-    [removeMemberDialog.memberId, session?.user?.id, activeOrganization?.id, removeMemberMutation]
+    [
+      removeMemberDialog.memberId,
+      removeMemberDialog.isSelfRemoval,
+      session?.user?.id,
+      activeOrganization?.id,
+      removeMemberMutation,
+    ]
   )
 
-  const handleReduceSeats = useCallback(async () => {
-    if (!session?.user || !activeOrganization?.id || !subscriptionData) return
-    if (checkEnterprisePlan(subscriptionData)) return
+  const handleTransferDialogOpenChange = useCallback(
+    (next: boolean) => {
+      setTransferDialogOpen(next)
+      if (!next) {
+        transferOwnershipMutation.reset()
+        setTransferPortalError(null)
+      }
+    },
+    [transferOwnershipMutation]
+  )
 
-    const currentSeats = subscriptionData.seats || 0
-    if (currentSeats <= 1) return
+  const handleOpenTransferDialog = useCallback(() => {
+    transferOwnershipMutation.reset()
+    setTransferPortalError(null)
+    setTransferDialogOpen(true)
+  }, [transferOwnershipMutation])
 
-    const { used: totalCount } = usedSeats
-    if (totalCount >= currentSeats) return
+  const handleConfirmTransfer = useCallback(
+    async (newOwnerUserId: string) => {
+      if (!activeOrganization?.id) return
 
-    try {
-      await updateSeatsMutation.mutateAsync({
-        orgId: activeOrganization?.id,
-        seats: currentSeats - 1,
-      })
-    } catch (error) {
-      logger.error('Failed to reduce seats', error)
-    }
-  }, [session?.user?.id, activeOrganization?.id, subscriptionData, usedSeats, updateSeatsMutation])
+      try {
+        const result = await transferOwnershipMutation.mutateAsync({
+          orgId: activeOrganization.id,
+          newOwnerUserId,
+          alsoLeave: true,
+        })
+
+        setTransferDialogOpen(false)
+
+        if (result.left) {
+          window.location.href = '/workspace'
+        }
+      } catch (error) {
+        logger.error('Failed to transfer ownership', error)
+      }
+    },
+    [activeOrganization?.id, transferOwnershipMutation]
+  )
+
+  const handleOpenTransferBillingPortal = useCallback(() => {
+    if (!activeOrganization?.id) return
+    setTransferPortalError(null)
+    const portalWindow = window.open('', '_blank')
+    openBillingPortal.mutate(
+      {
+        context: 'organization',
+        organizationId: activeOrganization.id,
+        returnUrl: `${getBaseUrl()}/workspace`,
+      },
+      {
+        onSuccess: (data) => {
+          if (portalWindow) {
+            portalWindow.location.href = data.url
+          } else {
+            window.location.href = data.url
+          }
+        },
+        onError: (error) => {
+          portalWindow?.close()
+          logger.error('Failed to open billing portal from transfer dialog', { error })
+          setTransferPortalError(
+            error instanceof Error
+              ? error.message
+              : 'Failed to open Stripe billing portal. Please try again.'
+          )
+        },
+      }
+    )
+  }, [activeOrganization?.id, openBillingPortal])
 
   const handleAddSeatDialog = useCallback(() => {
     if (subscriptionData && !checkEnterprisePlan(subscriptionData)) {
@@ -275,15 +346,6 @@ export function TeamManagement() {
       }
     },
     [subscriptionData, activeOrganization?.id, newSeatCount, updateSeatsMutation]
-  )
-
-  const confirmTeamUpgrade = useCallback(
-    async (seats: number) => {
-      if (!session?.user || !activeOrganization?.id) return
-      logger.info('Team upgrade requested', { seats, organizationId: activeOrganization?.id })
-      alert(`Team upgrade to ${seats} seats - integration needed`)
-    },
-    [session?.user?.id, activeOrganization?.id]
   )
 
   const queryError = orgError || subscriptionError
@@ -373,26 +435,24 @@ export function TeamManagement() {
     )
   }
 
+  if (!adminOrOwner) {
+    return null
+  }
+
   return (
     <div className='flex h-full flex-col gap-5'>
-      {/* Seats Overview - Full Width */}
-      {adminOrOwner && (
-        <div>
-          <TeamSeatsOverview
-            subscriptionData={subscriptionData || null}
-            isLoadingSubscription={isLoadingSubscription}
-            totalSeats={totalSeats}
-            usedSeats={usedSeats.used}
-            isLoading={isLoading}
-            onConfirmTeamUpgrade={confirmTeamUpgrade}
-            onReduceSeats={handleReduceSeats}
-            onAddSeatDialog={handleAddSeatDialog}
-          />
-        </div>
-      )}
+      <div>
+        <TeamSeatsOverview
+          subscriptionData={subscriptionData || null}
+          isLoadingSubscription={isLoadingSubscription}
+          totalSeats={totalSeats}
+          usedSeats={usedSeats.used}
+          isLoading={isLoading}
+          onAddSeatDialog={handleAddSeatDialog}
+        />
+      </div>
 
-      {/* Action: Invite New Members - hidden when invitations are disabled */}
-      {adminOrOwner && !isInvitationsDisabled && (
+      {!isInvitationsDisabled && (
         <div>
           <MemberInvitationCard
             inviteEmails={inviteEmails}
@@ -414,107 +474,31 @@ export function TeamManagement() {
         </div>
       )}
 
-      {/* Main Content: Team Members */}
-      <div>
-        <TeamMembers
-          organization={displayOrganization}
-          currentUserEmail={session?.user?.email ?? ''}
-          isAdminOrOwner={adminOrOwner}
-          onRemoveMember={handleRemoveMember}
-        />
-      </div>
+      <OrganizationRoster
+        organizationId={displayOrganization.id}
+        roster={roster ?? null}
+        isLoadingRoster={isLoadingRoster}
+        currentUserEmail={session?.user?.email ?? ''}
+        currentUserId={session?.user?.id ?? ''}
+        isAdminOrOwner={adminOrOwner}
+        onRemoveMember={handleRemoveMember}
+        onTransferOwnership={handleOpenTransferDialog}
+      />
 
-      {/* Additional Info - Subtle and collapsed */}
-      <div className='flex flex-col gap-2.5'>
-        {/* Single Organization Notice */}
-        {adminOrOwner && (
-          <div className='rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-3.5 py-2.5'>
-            <p className='text-[var(--text-muted)] text-small'>
-              <span className='font-medium'>Note:</span> Users can only be part of one organization
-              at a time.
-            </p>
-          </div>
-        )}
-
-        {/* Team Information */}
-        <details className='group overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-5)]'>
-          <summary className='flex cursor-pointer items-center justify-between px-3.5 py-2.5 font-medium text-[var(--text-primary)] text-base hover-hover:bg-[var(--surface-4)] group-open:rounded-b-none'>
-            <span>Team Information</span>
-            <svg
-              className='h-4 w-4 transition-transform group-open:rotate-180'
-              fill='none'
-              viewBox='0 0 24 24'
-              stroke='currentColor'
-            >
-              <path
-                strokeLinecap='round'
-                strokeLinejoin='round'
-                strokeWidth={2}
-                d='M19 9l-7 7-7-7'
-              />
-            </svg>
-          </summary>
-          <div className='flex flex-col gap-2 border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-3 text-small'>
-            <div className='flex justify-between'>
-              <span className='text-[var(--text-muted)]'>Team ID:</span>
-              <span className='font-mono text-[var(--text-primary)] text-micro'>
-                {displayOrganization.id}
-              </span>
-            </div>
-            <div className='flex justify-between'>
-              <span className='text-[var(--text-muted)]'>Created:</span>
-              <span className='text-[var(--text-primary)]'>
-                {new Date(displayOrganization.createdAt).toLocaleDateString()}
-              </span>
-            </div>
-            <div className='flex justify-between'>
-              <span className='text-[var(--text-muted)]'>Your Role:</span>
-              <span className='font-medium text-[var(--text-primary)] capitalize'>{userRole}</span>
-            </div>
-          </div>
-        </details>
-
-        {/* Team Billing Information (only show for Team Plan, not Enterprise) */}
-        {hasTeamPlan && !hasEnterprisePlan && (
-          <details className='group overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-5)]'>
-            <summary className='flex cursor-pointer items-center justify-between px-3.5 py-2.5 font-medium text-[var(--text-primary)] text-base hover-hover:bg-[var(--surface-4)] group-open:rounded-b-none'>
-              <span>Billing Information</span>
-              <svg
-                className='h-4 w-4 transition-transform group-open:rotate-180'
-                fill='none'
-                viewBox='0 0 24 24'
-                stroke='currentColor'
-              >
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  strokeWidth={2}
-                  d='M19 9l-7 7-7-7'
-                />
-              </svg>
-            </summary>
-            <div className='border-[var(--border-1)] border-t bg-[var(--surface-4)] px-3.5 py-3'>
-              <ul className='ml-4 flex list-disc flex-col gap-2 text-[var(--text-muted)] text-small'>
-                <li>
-                  Your team is billed a minimum of $
-                  {((subscriptionData?.seats ?? 0) * costPerSeat).toLocaleString()}/month for{' '}
-                  {subscriptionData?.seats ?? 0} licensed seats
-                </li>
-                <li>All team member usage is pooled together from a shared limit</li>
-                <li>
-                  When pooled usage exceeds the limit, all members are blocked from using the
-                  service
-                </li>
-                <li>You can increase the usage limit to allow for higher usage</li>
-                <li>
-                  Any usage beyond the minimum seat cost is billed as overage at the end of the
-                  billing period
-                </li>
-              </ul>
-            </div>
-          </details>
-        )}
-      </div>
+      <TransferOwnershipDialog
+        open={transferDialogOpen}
+        onOpenChange={handleTransferDialogOpenChange}
+        members={roster?.members ?? []}
+        isLoadingMembers={isLoadingRoster}
+        currentUserId={session?.user?.id ?? ''}
+        isSubmitting={transferOwnershipMutation.isPending}
+        error={transferOwnershipMutation.error}
+        portalError={transferPortalError}
+        hasPaidSubscription={Boolean(subscriptionData)}
+        isOpeningBillingPortal={openBillingPortal.isPending}
+        onConfirm={handleConfirmTransfer}
+        onOpenBillingPortal={handleOpenTransferBillingPortal}
+      />
 
       <RemoveMemberDialog
         open={removeMemberDialog.open}

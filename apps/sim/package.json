@@ -91,6 +91,7 @@
     "@react-email/components": "^0.0.34",
     "@react-email/render": "2.0.0",
     "@sim/logger": "workspace:*",
+    "@sim/utils": "workspace:*",
     "@socket.io/redis-adapter": "8.3.0",
     "@t3-oss/env-nextjs": "0.13.4",
     "@tanstack/react-query": "5.90.8",

@@ -169,6 +169,12 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
 
     if (existingMember) {
       if (existingMember.organizationId === organizationId) {
+        if (existingMember.role === 'owner') {
+          return badRequestResponse(
+            'Cannot change the owner role via this endpoint. Use POST /api/v1/admin/organizations/[id]/transfer-ownership instead.'
+          )
+        }
+
         if (existingMember.role !== body.role) {
           await db.update(member).set({ role: body.role }).where(eq(member.id, existingMember.id))
 

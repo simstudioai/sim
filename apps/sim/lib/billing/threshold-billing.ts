@@ -253,7 +253,10 @@ export async function checkAndBillOrganizationOverageThreshold(
 
     const owner = members.find((m) => m.role === 'owner')
     if (!owner) {
-      logger.error('No owner found for organization', { organizationId })
+      logger.error(
+        'Organization has no owner when running threshold billing — data integrity issue, skipping',
+        { organizationId }
+      )
       return
     }
 

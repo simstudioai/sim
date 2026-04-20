@@ -991,47 +991,88 @@ export const member = pgTable(
   })
 )
 
+export const invitationKindEnum = pgEnum('invitation_kind', ['organization', 'workspace'])
+
+export type InvitationKind = (typeof invitationKindEnum.enumValues)[number]
+
+export const invitationStatusEnum = pgEnum('invitation_status', [
+  'pending',
+  'accepted',
+  'rejected',
+  'cancelled',
+  'expired',
+])
+
+export type InvitationStatus = (typeof invitationStatusEnum.enumValues)[number]
+
 export const invitation = pgTable(
   'invitation',
   {
     id: text('id').primaryKey(),
+    kind: invitationKindEnum('kind').notNull().default('organization'),
     email: text('email').notNull(),
     inviterId: text('inviter_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    organizationId: text('organization_id')
-      .notNull()
-      .references(() => organization.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     role: text('role').notNull(),
-    status: text('status').notNull(),
+    status: invitationStatusEnum('status').notNull().default('pending'),
+    token: text('token').notNull().unique(),
     expiresAt: timestamp('expires_at').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
   (table) => ({
     emailIdx: index('invitation_email_idx').on(table.email),
     organizationIdIdx: index('invitation_organization_id_idx').on(table.organizationId),
+    statusIdx: index('invitation_status_idx').on(table.status),
+    pendingPerOrgEmailUnique: uniqueIndex('invitation_pending_email_org_unique')
+      .on(table.email, table.organizationId)
+      .where(sql`${table.status} = 'pending' AND ${table.organizationId} IS NOT NULL`),
   })
 )
 
-export const workspace = pgTable('workspace', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  color: text('color').notNull().default('#33C482'),
-  logoUrl: text('logo_url'),
-  ownerId: text('owner_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  billedAccountUserId: text('billed_account_user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'no action' }),
-  allowPersonalApiKeys: boolean('allow_personal_api_keys').notNull().default(true),
-  inboxEnabled: boolean('inbox_enabled').notNull().default(false),
-  inboxAddress: text('inbox_address'),
-  inboxProviderId: text('inbox_provider_id'),
-  archivedAt: timestamp('archived_at'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-})
+export const workspaceModeEnum = pgEnum('workspace_mode', [
+  'personal',
+  'organization',
+  'grandfathered_shared',
+])
+
+export type WorkspaceMode = (typeof workspaceModeEnum.enumValues)[number]
+
+export const workspace = pgTable(
+  'workspace',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    color: text('color').notNull().default('#33C482'),
+    logoUrl: text('logo_url'),
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'set null',
+    }),
+    workspaceMode: workspaceModeEnum('workspace_mode').notNull().default('grandfathered_shared'),
+    billedAccountUserId: text('billed_account_user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'no action' }),
+    allowPersonalApiKeys: boolean('allow_personal_api_keys').notNull().default(true),
+    inboxEnabled: boolean('inbox_enabled').notNull().default(false),
+    inboxAddress: text('inbox_address'),
+    inboxProviderId: text('inbox_provider_id'),
+    archivedAt: timestamp('archived_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    ownerIdIdx: index('workspace_owner_id_idx').on(table.ownerId),
+    organizationIdIdx: index('workspace_organization_id_idx').on(table.organizationId),
+    workspaceModeIdx: index('workspace_mode_idx').on(table.workspaceMode),
+  })
+)
 
 export const workspaceFile = pgTable(
   'workspace_file',
@@ -1095,33 +1136,28 @@ export const workspaceFiles = pgTable(
 
 export const permissionTypeEnum = pgEnum('permission_type', ['admin', 'write', 'read'])
 
-export const workspaceInvitationStatusEnum = pgEnum('workspace_invitation_status', [
-  'pending',
-  'accepted',
-  'rejected',
-  'cancelled',
-])
-
-export type WorkspaceInvitationStatus = (typeof workspaceInvitationStatusEnum.enumValues)[number]
-
-export const workspaceInvitation = pgTable('workspace_invitation', {
-  id: text('id').primaryKey(),
-  workspaceId: text('workspace_id')
-    .notNull()
-    .references(() => workspace.id, { onDelete: 'cascade' }),
-  email: text('email').notNull(),
-  inviterId: text('inviter_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  role: text('role').notNull().default('member'),
-  status: workspaceInvitationStatusEnum('status').notNull().default('pending'),
-  token: text('token').notNull().unique(),
-  permissions: permissionTypeEnum('permissions').notNull().default('admin'),
-  orgInvitationId: text('org_invitation_id'),
-  expiresAt: timestamp('expires_at').notNull(),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-})
+export const invitationWorkspaceGrant = pgTable(
+  'invitation_workspace_grant',
+  {
+    id: text('id').primaryKey(),
+    invitationId: text('invitation_id')
+      .notNull()
+      .references(() => invitation.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    permission: permissionTypeEnum('permission').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    invitationWorkspaceUnique: uniqueIndex('invitation_workspace_grant_unique').on(
+      table.invitationId,
+      table.workspaceId
+    ),
+    workspaceIdIdx: index('invitation_workspace_grant_workspace_id_idx').on(table.workspaceId),
+  })
+)
 
 export const permissions = pgTable(
   'permissions',

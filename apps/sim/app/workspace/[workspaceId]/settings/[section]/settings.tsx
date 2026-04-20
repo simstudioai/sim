@@ -189,7 +189,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
 
   const isAdminRole = session?.user?.role === 'admin'
   const effectiveSection =
-    !isBillingEnabled && (section === 'subscription' || section === 'team')
+    !isBillingEnabled && (section === 'subscription' || section === 'organization')
       ? 'general'
       : section === 'credential-sets' && !isCredentialSetsEnabled
         ? 'general'
@@ -219,7 +219,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'audit-logs' && <AuditLogs />}
       {effectiveSection === 'apikeys' && <ApiKeys />}
       {isBillingEnabled && effectiveSection === 'subscription' && <Subscription />}
-      {isBillingEnabled && effectiveSection === 'team' && <TeamManagement />}
+      {isBillingEnabled && effectiveSection === 'organization' && <TeamManagement />}
       {effectiveSection === 'sso' && <SSO />}
       {effectiveSection === 'whitelabeling' && <WhitelabelingSettings />}
       {effectiveSection === 'byok' && <BYOK />}

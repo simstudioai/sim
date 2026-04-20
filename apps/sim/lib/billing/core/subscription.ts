@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, subscription, user } from '@sim/db/schema'
+import { member, organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
@@ -34,6 +34,10 @@ export { getHighestPrioritySubscription }
 export interface SubscriptionMetadata {
   billingInterval?: 'month' | 'year'
   [key: string]: unknown
+}
+
+export interface HasPaidSubscriptionOptions {
+  onError?: 'assume-active' | 'throw'
 }
 
 /**
@@ -122,9 +126,14 @@ export async function getOrganizationSubscriptionUsable(organizationId: string) 
  * Check if a referenceId (user ID or org ID) has a paid subscription row.
  * Used for duplicate subscription prevention and transfer safety.
  *
- * Fails closed: returns true on error to prevent duplicate creation
+ * Fails closed by default: returns true on error to prevent duplicate creation.
  */
-export async function hasPaidSubscription(referenceId: string): Promise<boolean> {
+export async function hasPaidSubscription(
+  referenceId: string,
+  options: HasPaidSubscriptionOptions = {}
+): Promise<boolean> {
+  const { onError = 'assume-active' } = options
+
   try {
     const [activeSub] = await db
       .select({ id: subscription.id })
@@ -140,9 +149,42 @@ export async function hasPaidSubscription(referenceId: string): Promise<boolean>
     return !!activeSub
   } catch (error) {
     logger.error('Error checking active subscription', { error, referenceId })
-    // Fail closed: assume subscription exists to prevent duplicate creation
+
+    if (onError === 'throw') {
+      throw error
+    }
+
     return true
   }
+}
+
+export async function getOrganizationIdForSubscriptionReference(
+  referenceId: string
+): Promise<string | null> {
+  const [referencedOrganization] = await db
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.id, referenceId))
+    .limit(1)
+
+  if (referencedOrganization) {
+    return referencedOrganization.id
+  }
+
+  const [memberRecord] = await db
+    .select({
+      organizationId: member.organizationId,
+      role: member.role,
+    })
+    .from(member)
+    .where(eq(member.userId, referenceId))
+    .limit(1)
+
+  if (memberRecord && (memberRecord.role === 'owner' || memberRecord.role === 'admin')) {
+    return memberRecord.organizationId
+  }
+
+  return null
 }
 
 /**

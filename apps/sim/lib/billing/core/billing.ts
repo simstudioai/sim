@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { member, organization, subscription, userStats } from '@sim/db/schema'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import {
   getBillingInterval,
   getHighestPrioritySubscription,
@@ -48,6 +48,7 @@ export async function getOrganizationSubscription(organizationId: string) {
           inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
         )
       )
+      .orderBy(desc(subscription.periodStart), desc(subscription.id))
       .limit(1)
 
     return orgSubs.length > 0 ? orgSubs[0] : null

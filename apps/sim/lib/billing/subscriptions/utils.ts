@@ -94,8 +94,14 @@ export function getEffectiveSeats(subscription: any): number {
   }
 
   // Mirrors the Stripe subscription's `quantity`. For personal Pro this
-  // is null in practice, so `?? 0` returns 0.
-  if (isTeam(subscription.plan) || isPro(subscription.plan)) {
+  // is null in practice, so `?? 0` returns 0. For Team, fall back to 1
+  // while the seat value has not yet been synced from Stripe so invite
+  // and seat-validation flows don't transiently read as zero seats.
+  if (isTeam(subscription.plan)) {
+    return subscription.seats ?? (hasPaidSubscriptionStatus(subscription.status) ? 1 : 0)
+  }
+
+  if (isPro(subscription.plan)) {
     return subscription.seats ?? 0
   }
 

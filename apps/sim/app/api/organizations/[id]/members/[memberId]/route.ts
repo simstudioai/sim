@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
+import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import { getUserUsageData } from '@/lib/billing/core/usage'
 import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
 
@@ -193,15 +194,14 @@ export async function PUT(
       return NextResponse.json({ error: 'Cannot change owner role' }, { status: 400 })
     }
 
-    if (role === 'admin' && userMember[0].role !== 'owner') {
+    if (role === 'owner') {
       return NextResponse.json(
-        { error: 'Only owners can promote members to admin' },
-        { status: 403 }
+        {
+          error:
+            'Ownership transfer is not supported via this endpoint. Use POST /organizations/[id]/transfer-ownership instead.',
+        },
+        { status: 400 }
       )
-    }
-
-    if (targetMember[0].role === 'admin' && userMember[0].role !== 'owner') {
-      return NextResponse.json({ error: 'Only owners can change admin roles' }, { status: 403 })
     }
 
     const updatedMember = await db
@@ -322,6 +322,18 @@ export async function DELETE(
         return NextResponse.json({ error: result.error }, { status: 404 })
       }
       return NextResponse.json({ error: result.error }, { status: 500 })
+    }
+
+    if (session.user.id === targetUserId) {
+      try {
+        await setActiveOrganizationForCurrentSession(null)
+      } catch (clearError) {
+        logger.warn('Failed to clear active organization after self-removal', {
+          userId: session.user.id,
+          organizationId,
+          error: clearError,
+        })
+      }
     }
 
     logger.info('Organization member removed', {
