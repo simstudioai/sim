@@ -29,7 +29,7 @@ Go to **Settings → Enterprise → Single Sign-On** in your workspace.
 
 | Protocol | Use when |
 |----------|----------|
-| **OIDC** | Your IdP supports OpenID Connect — Okta, Azure AD (Entra ID), Auth0, Google Workspace |
+| **OIDC** | Your IdP supports OpenID Connect — Okta, Microsoft Entra ID, Auth0, Google Workspace |
 | **SAML 2.0** | Your IdP is SAML-only — ADFS, Shibboleth, or older enterprise IdPs |
 
 ### 3. Fill in the form
@@ -59,7 +59,7 @@ Go to **Settings → Enterprise → Single Sign-On** in your workspace.
 | Field | What to enter |
 |-------|--------------|
 | **Entry Point URL** | The IdP's SSO service URL where Sim sends authentication requests. |
-| **Identity Provider Certificate** | The PEM-format X.509 certificate from your IdP for verifying assertions. |
+| **Identity Provider Certificate** | The Base-64 encoded X.509 certificate from your IdP for verifying assertions. |
 
 ### 4. Copy the Callback URL
 
@@ -82,13 +82,13 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 
 ## Provider Guides
 
-<Tabs items={['Okta', 'Azure AD', 'Google Workspace', 'ADFS']}>
+<Tabs items={['Okta', 'Microsoft Entra ID', 'Google Workspace', 'ADFS']}>
 
 <Tab value="Okta">
 
 ### Okta (OIDC)
 
-**In Okta:**
+**In Okta** ([official docs](https://help.okta.com/en-us/content/topics/apps/apps_app_integration_wizard_oidc.htm)):
 
 1. Go to **Applications → Create App Integration**
 2. Select **OIDC - OpenID Connect**, then **Web Application**
@@ -97,8 +97,8 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
    https://simstudio.ai/api/auth/sso/callback/okta
    ```
 4. Under **Assignments**, grant access to the relevant users or groups
-5. Copy the **Client ID** and **Client Secret** from the app's General tab
-6. Copy the **Okta domain** from your account (e.g. `dev-1234567.okta.com`)
+5. Copy the **Client ID** and **Client Secret** from the app's **General** tab
+6. Your Okta domain is the hostname of your admin console, e.g. `dev-1234567.okta.com`
 
 **In Sim:**
 
@@ -111,20 +111,24 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 | Client ID | From Okta app |
 | Client Secret | From Okta app |
 
+<Callout type="info">
+  The issuer URL uses Okta's default authorization server (`/oauth2/default`), which is pre-configured on every Okta org. If you created a custom authorization server, replace `default` with your server name.
+</Callout>
+
 </Tab>
 
-<Tab value="Azure AD">
+<Tab value="Microsoft Entra ID">
 
-### Azure AD / Entra ID (OIDC)
+### Microsoft Entra ID (OIDC)
 
-**In Azure:**
+**In Azure** ([official docs](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app)):
 
-1. Go to **Azure Active Directory → App registrations → New registration**
-2. Set the **Redirect URI** (Web) to your Sim callback URL:
+1. Go to **Microsoft Entra ID → App registrations → New registration**
+2. Under **Redirect URI**, select **Web** and enter your Sim callback URL:
    ```
    https://simstudio.ai/api/auth/sso/callback/azure-ad
    ```
-3. After registration, go to **Certificates & secrets → New client secret** and copy the value
+3. After registration, go to **Certificates & secrets → New client secret** and copy the value immediately — it won't be shown again
 4. Go to **Overview** and copy the **Application (client) ID** and **Directory (tenant) ID**
 
 **In Sim:**
@@ -139,7 +143,7 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 | Client Secret | Secret value |
 
 <Callout type="info">
-  Replace `{tenant-id}` with your Directory (tenant) ID from Azure AD. Sim will auto-discover the token and JWKS endpoints from the issuer.
+  Replace `{tenant-id}` with your Directory (tenant) ID from the app's Overview page. Sim auto-discovers token and JWKS endpoints from the issuer.
 </Callout>
 
 </Tab>
@@ -148,7 +152,7 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 
 ### Google Workspace (OIDC)
 
-**In Google Cloud Console:**
+**In Google Cloud Console** ([official docs](https://developers.google.com/identity/openid-connect/openid-connect)):
 
 1. Go to **APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID**
 2. Set the application type to **Web application**
@@ -170,7 +174,7 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 | Client Secret | From Google Cloud Console |
 
 <Callout type="info">
-  To restrict sign-in to your Google Workspace domain only, set **Authorized domains** in the OAuth consent screen to your organization's domain.
+  To restrict sign-in to your Google Workspace domain, configure the OAuth consent screen and ensure your app is set to **Internal** (Workspace users only) under **User type**. Setting the app to Internal limits access to users within your Google Workspace organization.
 </Callout>
 
 </Tab>
@@ -179,21 +183,21 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 
 ### ADFS (SAML 2.0)
 
-**In ADFS:**
+**In ADFS** ([official docs](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/operations/create-a-relying-party-trust)):
 
 1. Open **AD FS Management → Relying Party Trusts → Add Relying Party Trust**
 2. Choose **Claims aware**, then **Enter data about the relying party manually**
-3. Set the **Relying party identifier** (Entity ID) to your Sim instance URL, e.g.:
+3. Set the **Relying party identifier** (Entity ID) to your Sim base URL:
    ```
    https://simstudio.ai
    ```
-   For self-hosted: use your instance's base URL (e.g. `https://sim.company.com`). This value goes in the **Issuer URL** field in Sim.
-4. Add an endpoint: **SAML Assertion Consumer Service** with the URL:
+   For self-hosted, use your instance's base URL (e.g. `https://sim.company.com`)
+4. Add an endpoint: **SAML Assertion Consumer Service** (HTTP POST) with the URL:
    ```
    https://simstudio.ai/api/auth/sso/callback/adfs
    ```
    For self-hosted: `https://sim.company.com/api/auth/sso/callback/adfs`
-5. Export the **Token-signing certificate** in PEM format from **Certificates**
+5. Export the **Token-signing certificate** from **Certificates**: right-click → **View Certificate → Details → Copy to File**, choose **Base-64 encoded X.509 (.CER)**. The `.cer` file is PEM-encoded — rename it to `.pem` before pasting its contents into Sim.
 6. Note the **ADFS Federation Service endpoint URL** (e.g. `https://adfs.company.com/adfs/ls`)
 
 **In Sim:**
@@ -205,7 +209,11 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 | Issuer URL | `https://simstudio.ai` |
 | Domain | `company.com` |
 | Entry Point URL | `https://adfs.company.com/adfs/ls` |
-| Certificate | PEM certificate from ADFS |
+| Certificate | Contents of the `.pem` file |
+
+<Callout type="info">
+  For ADFS, the **Issuer URL** field is the SP entity ID — the identifier ADFS uses to identify Sim as a relying party. It must match the **Relying party identifier** you registered in ADFS.
+</Callout>
 
 </Tab>
 
@@ -235,69 +243,10 @@ Users who sign in via SSO for the first time are automatically provisioned and a
 
 ---
 
-## Self-hosted setup
-
-Self-hosted deployments use environment variables instead of the billing/plan check.
-
-### Environment variables
-
-```bash
-# Required
-SSO_ENABLED=true
-NEXT_PUBLIC_SSO_ENABLED=true
-
-# Required if you want users auto-added to your organization on first SSO sign-in
-ORGANIZATIONS_ENABLED=true
-NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true
-```
-
-You can register providers through the **Settings UI** (same as cloud) or by running the registration script directly against your database.
-
-### Script-based registration
-
-Use this when you need to register an SSO provider without going through the UI — for example, during initial deployment or CI/CD automation.
-
-```bash
-# OIDC example (Okta)
-SSO_ENABLED=true \
-SSO_PROVIDER_TYPE=oidc \
-SSO_PROVIDER_ID=okta \
-SSO_ISSUER=https://dev-1234567.okta.com/oauth2/default \
-SSO_DOMAIN=company.com \
-SSO_USER_EMAIL=admin@company.com \
-SSO_OIDC_CLIENT_ID=your-client-id \
-SSO_OIDC_CLIENT_SECRET=your-client-secret \
-bun run packages/db/scripts/register-sso-provider.ts
-```
-
-```bash
-# SAML example (ADFS)
-SSO_ENABLED=true \
-SSO_PROVIDER_TYPE=saml \
-SSO_PROVIDER_ID=adfs \
-SSO_ISSUER=https://your-instance.com \
-SSO_DOMAIN=company.com \
-SSO_USER_EMAIL=admin@company.com \
-SSO_SAML_ENTRY_POINT=https://adfs.company.com/adfs/ls \
-SSO_SAML_CERT="-----BEGIN CERTIFICATE-----
-...
------END CERTIFICATE-----" \
-bun run packages/db/scripts/register-sso-provider.ts
-```
-
-The script outputs the callback URL to configure in your IdP once it completes.
-
-To remove a provider:
-
-```bash
-SSO_USER_EMAIL=admin@company.com \
-bun run packages/db/scripts/deregister-sso-provider.ts
-```
-
 <FAQ items={[
   {
     question: "Which SSO providers are supported?",
-    answer: "Any identity provider that supports OIDC or SAML 2.0. This includes Okta, Azure AD (Entra ID), Google Workspace, Auth0, OneLogin, JumpCloud, Ping Identity, ADFS, Shibboleth, and more."
+    answer: "Any identity provider that supports OIDC or SAML 2.0. This includes Okta, Microsoft Entra ID (Azure AD), Google Workspace, Auth0, OneLogin, JumpCloud, Ping Identity, ADFS, Shibboleth, and more."
   },
   {
     question: "What is the Domain field used for?",
@@ -328,3 +277,66 @@ bun run packages/db/scripts/deregister-sso-provider.ts
     answer: "Open Settings → Enterprise → Single Sign-On and click Edit. Update the fields and save. The existing provider configuration is replaced."
   }
 ]} />
+
+---
+
+## Self-hosted setup
+
+Self-hosted deployments use environment variables instead of the billing/plan check.
+
+### Environment variables
+
+```bash
+# Required
+SSO_ENABLED=true
+NEXT_PUBLIC_SSO_ENABLED=true
+
+# Required if you want users auto-added to your organization on first SSO sign-in
+ORGANIZATIONS_ENABLED=true
+NEXT_PUBLIC_ORGANIZATIONS_ENABLED=true
+```
+
+You can register providers through the **Settings UI** (same as cloud) or by running the registration script directly against your database.
+
+### Script-based registration
+
+Use this when you need to register an SSO provider without going through the UI — for example, during initial deployment or CI/CD automation.
+
+```bash
+# OIDC example (Okta)
+SSO_ENABLED=true \
+NEXT_PUBLIC_APP_URL=https://your-instance.com \
+SSO_PROVIDER_TYPE=oidc \
+SSO_PROVIDER_ID=okta \
+SSO_ISSUER=https://dev-1234567.okta.com/oauth2/default \
+SSO_DOMAIN=company.com \
+SSO_USER_EMAIL=admin@company.com \
+SSO_OIDC_CLIENT_ID=your-client-id \
+SSO_OIDC_CLIENT_SECRET=your-client-secret \
+bun run packages/db/scripts/register-sso-provider.ts
+```
+
+```bash
+# SAML example (ADFS)
+SSO_ENABLED=true \
+NEXT_PUBLIC_APP_URL=https://your-instance.com \
+SSO_PROVIDER_TYPE=saml \
+SSO_PROVIDER_ID=adfs \
+SSO_ISSUER=https://your-instance.com \
+SSO_DOMAIN=company.com \
+SSO_USER_EMAIL=admin@company.com \
+SSO_SAML_ENTRY_POINT=https://adfs.company.com/adfs/ls \
+SSO_SAML_CERT="-----BEGIN CERTIFICATE-----
+...
+-----END CERTIFICATE-----" \
+bun run packages/db/scripts/register-sso-provider.ts
+```
+
+The script outputs the callback URL to configure in your IdP once it completes.
+
+To remove a provider:
+
+```bash
+SSO_USER_EMAIL=admin@company.com \
+bun run packages/db/scripts/deregister-sso-provider.ts
+```
