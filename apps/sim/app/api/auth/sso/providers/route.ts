@@ -1,17 +1,42 @@
-import { db, ssoProvider } from '@sim/db'
+import { db, member, ssoProvider } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { eq } from 'drizzle-orm'
-import { NextResponse } from 'next/server'
+import { and, eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 
 const logger = createLogger('SSOProvidersRoute')
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await getSession()
+    const { searchParams } = new URL(request.url)
+    const organizationId = searchParams.get('organizationId')
 
     let providers
     if (session?.user?.id) {
+      const userId = session.user.id
+
+      let verifiedOrganizationId: string | null = null
+      if (organizationId) {
+        const [membership] = await db
+          .select({ organizationId: member.organizationId, role: member.role })
+          .from(member)
+          .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
+          .limit(1)
+        if (!membership) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+        if (membership.role !== 'owner' && membership.role !== 'admin') {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+        verifiedOrganizationId = membership.organizationId
+      }
+
+      const whereClause = verifiedOrganizationId
+        ? eq(ssoProvider.organizationId, verifiedOrganizationId)
+        : eq(ssoProvider.userId, userId)
+
       const results = await db
         .select({
           id: ssoProvider.id,
@@ -24,19 +49,25 @@ export async function GET() {
           organizationId: ssoProvider.organizationId,
         })
         .from(ssoProvider)
-        .where(eq(ssoProvider.userId, session.user.id))
+        .where(whereClause)
 
-      providers = results.map((provider) => ({
-        ...provider,
-        providerType:
-          provider.oidcConfig && provider.samlConfig
-            ? 'oidc'
-            : provider.oidcConfig
-              ? 'oidc'
-              : provider.samlConfig
-                ? 'saml'
-                : ('oidc' as 'oidc' | 'saml'),
-      }))
+      providers = results.map((provider) => {
+        let oidcConfig = provider.oidcConfig
+        if (oidcConfig) {
+          try {
+            const parsed = JSON.parse(oidcConfig)
+            parsed.clientSecret = REDACTED_MARKER
+            oidcConfig = JSON.stringify(parsed)
+          } catch {
+            oidcConfig = null
+          }
+        }
+        return {
+          ...provider,
+          oidcConfig,
+          providerType: (provider.samlConfig ? 'saml' : 'oidc') as 'oidc' | 'saml',
+        }
+      })
     } else {
       const results = await db
         .select({
