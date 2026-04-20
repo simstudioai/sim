@@ -157,9 +157,9 @@ const WizardRoot: React.FC<WizardProps> = ({
         </ModalHeader>
 
         <div className='flex gap-1.5 px-6 pb-4'>
-          {steps.map((step, i) => (
+          {steps.map((_step, i) => (
             <div
-              key={step.props.title}
+              key={i}
               className={cn(
                 'h-1 flex-1 rounded-full transition-colors',
                 i <= clamped ? 'bg-[var(--brand-secondary)]' : 'bg-[var(--surface-5)]'

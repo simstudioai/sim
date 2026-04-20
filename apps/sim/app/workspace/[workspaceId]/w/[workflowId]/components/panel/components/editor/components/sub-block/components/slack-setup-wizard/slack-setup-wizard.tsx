@@ -396,6 +396,14 @@ interface SecretInputProps {
  * Password-style input that masks its value with bullets only while the
  * field is unfocused. Typing, pasting, and selection all see the real text
  * so users can verify what they just pasted before clicking Next.
+ *
+ * @remarks
+ * Change events that fire while the field is blurred carry the bullet
+ * string as their value (autofill, form resets, synthetic React events),
+ * which would silently overwrite the stored secret with `•` characters.
+ * We gate the `onChange` callback on `isFocused` so only real edits — made
+ * while the user is interacting and the displayed value is the real text —
+ * propagate to the store.
  */
 function SecretInput({ id, label, value, onChange, disabled, placeholder }: SecretInputProps) {
   const [isFocused, setIsFocused] = useState<boolean>(false)
@@ -410,7 +418,10 @@ function SecretInput({ id, label, value, onChange, disabled, placeholder }: Secr
         id={id}
         type='text'
         value={displayValue}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          if (!isFocused) return
+          onChange(e.target.value)
+        }}
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
         disabled={disabled}
