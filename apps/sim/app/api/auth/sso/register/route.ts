@@ -403,7 +403,6 @@ export async function POST(request: NextRequest) {
         idpMetadata: {
           metadata: computedIdpMetadataXml,
         },
-        mapping,
       }
 
       if (audience) samlConfig.audience = audience
@@ -413,7 +412,6 @@ export async function POST(request: NextRequest) {
       if (identifierFormat) samlConfig.identifierFormat = identifierFormat
 
       providerConfig.samlConfig = samlConfig
-      providerConfig.mapping = undefined
     }
 
     logger.info('Calling Better Auth registerSSOProvider with config:', {

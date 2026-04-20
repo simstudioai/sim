@@ -241,19 +241,6 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
       ''
     ).replace(/\/$/, '')
 
-    const callbackUrl =
-      process.env.SSO_SAML_CALLBACK_URL || `${appBaseUrl}/api/auth/sso/saml2/callback/${providerId}`
-
-    let spMetadata = process.env.SSO_SAML_SP_METADATA
-    if (!spMetadata) {
-      spMetadata = `<?xml version="1.0" encoding="UTF-8"?>
-<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${appBaseUrl}">
-  <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
-    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${callbackUrl}" index="1"/>
-  </md:SPSSODescriptor>
-</md:EntityDescriptor>`
-    }
-
     const escapeXml = (str: string) =>
       str.replace(/[<>&"']/g, (c) => {
         switch (c) {
@@ -271,6 +258,19 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
             return c
         }
       })
+
+    const callbackUrl =
+      process.env.SSO_SAML_CALLBACK_URL || `${appBaseUrl}/api/auth/sso/saml2/callback/${providerId}`
+
+    let spMetadata = process.env.SSO_SAML_SP_METADATA
+    if (!spMetadata) {
+      spMetadata = `<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${escapeXml(appBaseUrl)}">
+  <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${escapeXml(callbackUrl)}" index="1"/>
+  </md:SPSSODescriptor>
+</md:EntityDescriptor>`
+    }
 
     const idpMetadataXml = process.env.SSO_SAML_IDP_METADATA
     let computedIdpMetadata: string

@@ -133,7 +133,12 @@ export function SSO() {
       )
     }
   } else {
-    if (!isLoadingProviders && isSSOProviderOwner === false && providers.length > 0) {
+    if (
+      !activeOrganization &&
+      !isLoadingProviders &&
+      isSSOProviderOwner === false &&
+      providers.length > 0
+    ) {
       return (
         <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-small'>
           Only the user who configured SSO can manage these settings.
