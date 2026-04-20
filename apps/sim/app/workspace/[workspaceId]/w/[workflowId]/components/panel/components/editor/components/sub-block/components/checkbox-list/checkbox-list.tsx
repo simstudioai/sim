@@ -11,8 +11,6 @@ interface CheckboxListOption {
 
 interface CheckboxListProps {
   blockId: string
-  subBlockId: string
-  title: string
   options: CheckboxListOption[]
   isPreview?: boolean
   subBlockValues?: Record<string, any>

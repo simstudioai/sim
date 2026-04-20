@@ -816,8 +816,6 @@ function SubBlockComponent({
         return (
           <CheckboxList
             blockId={blockId}
-            subBlockId={config.id}
-            title={config.title ?? ''}
             options={
               config.options as {
                 label: string
