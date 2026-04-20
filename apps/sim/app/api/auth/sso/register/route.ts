@@ -155,10 +155,13 @@ export async function POST(request: NextRequest) {
 
       let clientSecret = rawClientSecret
       if (rawClientSecret === REDACTED_MARKER) {
+        const ownerClause = orgId
+          ? and(eq(ssoProvider.providerId, providerId), eq(ssoProvider.organizationId, orgId))
+          : and(eq(ssoProvider.providerId, providerId), eq(ssoProvider.userId, session.user.id))
         const [existing] = await db
           .select({ oidcConfig: ssoProvider.oidcConfig })
           .from(ssoProvider)
-          .where(eq(ssoProvider.providerId, providerId))
+          .where(ownerClause)
           .limit(1)
         if (!existing?.oidcConfig) {
           return NextResponse.json(
