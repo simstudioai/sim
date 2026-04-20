@@ -235,12 +235,19 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
       return null
     }
 
-    const callbackUrl = process.env.SSO_SAML_CALLBACK_URL || `${issuer}/callback`
+    const appBaseUrl = (
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.BETTER_AUTH_URL ||
+      ''
+    ).replace(/\/$/, '')
+
+    const callbackUrl =
+      process.env.SSO_SAML_CALLBACK_URL || `${appBaseUrl}/api/auth/sso/callback/${providerId}`
 
     let spMetadata = process.env.SSO_SAML_SP_METADATA
     if (!spMetadata) {
       spMetadata = `<?xml version="1.0" encoding="UTF-8"?>
-<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${issuer}">
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${appBaseUrl}">
   <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
     <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${callbackUrl}" index="1"/>
   </md:SPSSODescriptor>
@@ -259,7 +266,7 @@ function buildSSOConfigFromEnv(): SSOProviderConfig | null {
       identifierFormat: process.env.SSO_SAML_IDENTIFIER_FORMAT,
       spMetadata: {
         metadata: spMetadata,
-        entityID: issuer,
+        entityID: appBaseUrl,
       },
     }
     const idpMetadata = process.env.SSO_SAML_IDP_METADATA
@@ -393,6 +400,18 @@ async function registerSSOProvider(): Promise<boolean> {
       new URL(ssoConfig.issuer)
     } catch {
       logger.error('Invalid issuer. Must be a valid URL:', ssoConfig.issuer)
+      return false
+    }
+
+    if (
+      ssoConfig.providerType === 'saml' &&
+      !process.env.SSO_SAML_CALLBACK_URL &&
+      !process.env.NEXT_PUBLIC_APP_URL &&
+      !process.env.BETTER_AUTH_URL
+    ) {
+      logger.error(
+        'NEXT_PUBLIC_APP_URL or BETTER_AUTH_URL is required to generate the SAML callback URL. Set one of these or provide SSO_SAML_CALLBACK_URL explicitly.'
+      )
       return false
     }
 
