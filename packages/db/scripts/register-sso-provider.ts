@@ -26,7 +26,7 @@
  * SAML Providers:
  *   SSO_SAML_ENTRY_POINT=https://your-idp/sso
  *   SSO_SAML_CERT=your-certificate-pem-string
- *   SSO_SAML_CALLBACK_URL=https://yourdomain.com/api/auth/sso/saml2/callback/provider-id
+ *   SSO_SAML_CALLBACK_URL=https://yourdomain.com/api/auth/sso/callback/provider-id
  *   SSO_SAML_SP_METADATA=<custom-sp-metadata-xml> (optional, auto-generated if not provided)
  *   SSO_SAML_IDP_METADATA=<idp-metadata-xml> (optional)
  *   SSO_SAML_AUDIENCE=https://yourdomain.com (optional, defaults to SSO_ISSUER)
