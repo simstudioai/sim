@@ -98,7 +98,7 @@ Send emails to multiple recipients using an SES template with per-recipient data
 | `secretAccessKey` | string | Yes | AWS secret access key |
 | `fromAddress` | string | Yes | Verified sender email address |
 | `templateName` | string | Yes | Name of the SES email template to use |
-| `destinations` | string | Yes | JSON array of destination objects with toAddresses \(string\[\]\) and templateData \(JSON string\) |
+| `destinations` | string | Yes | JSON array of destination objects with toAddresses \(string\[\]\) and optional templateData \(JSON string\); falls back to defaultTemplateData when omitted |
 | `defaultTemplateData` | string | No | Default JSON template data used when a destination does not specify its own |
 | `configurationSetName` | string | No | SES configuration set name for tracking |
 

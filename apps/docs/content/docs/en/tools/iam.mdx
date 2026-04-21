@@ -511,7 +511,7 @@ Simulate whether a user, role, or group is allowed to perform specific AWS actio
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `evaluationResults` | json | Simulation results per action: evalActionName, evalResourceName, evalDecision \(allowed/explicitDeny/implicitDeny\), matchedStatements, missingContextValues |
+| `evaluationResults` | json | Simulation results per action: evalActionName, evalResourceName, evalDecision \(allowed/explicitDeny/implicitDeny\), matchedStatements \(sourcePolicyId, sourcePolicyType\), missingContextValues |
 | `isTruncated` | boolean | Whether there are more results available |
 | `marker` | string | Pagination marker for the next page of results |
 | `count` | number | Number of evaluation results returned |
