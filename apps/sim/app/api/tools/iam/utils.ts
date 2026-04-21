@@ -441,7 +441,7 @@ export async function simulatePrincipalPolicy(
       statementId: s.StatementId ?? '',
       sourcePolicyId: s.SourcePolicyId ?? '',
     })),
-    missingContextValues: (r.MissingContextValues ?? []).map((v) => v.ContextKeyName ?? ''),
+    missingContextValues: (r.MissingContextValues ?? []).map((v) => String(v)),
   }))
 
   return {
