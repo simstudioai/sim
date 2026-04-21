@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ArrowLeft, ArrowLeftRight, Loader2, Plus, Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -180,10 +180,6 @@ export function AddConnectorModal({
     )
   }
 
-  const handleConnectNewAccount = useCallback(() => {
-    setShowOAuthModal(true)
-  }, [])
-
   const filteredEntries = useMemo(() => {
     const term = searchTerm.toLowerCase().trim()
     if (!term) return CONNECTOR_ENTRIES
@@ -291,9 +287,7 @@ export function AddConnectorModal({
                               : `Connect ${connectorConfig.name} account`,
                           value: '__connect_new__',
                           icon: Plus,
-                          onSelect: () => {
-                            void handleConnectNewAccount()
-                          },
+                          onSelect: () => setShowOAuthModal(true),
                         },
                       ]}
                       value={effectiveCredentialId ?? undefined}

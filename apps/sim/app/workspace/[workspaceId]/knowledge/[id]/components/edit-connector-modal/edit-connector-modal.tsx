@@ -67,8 +67,9 @@ export function EditConnectorModal({
   /**
    * Seeds from the stored canonical config. For canonical-pair fields (selector +
    * manual input), both field IDs get the same value so toggling preserves it.
+   * Captured once on mount; editing state is owned by the hook afterward.
    */
-  const initialSourceConfig = useMemo(() => {
+  const [initialSourceConfig] = useState<Record<string, string>>(() => {
     const config: Record<string, string> = {}
     if (!connectorConfig) {
       for (const [key, value] of Object.entries(connector.sourceConfig)) {
@@ -83,9 +84,7 @@ export function EditConnectorModal({
       if (rawValue !== undefined) config[field.id] = String(rawValue ?? '')
     }
     return config
-    // Seed once on mount; editing state is owned by the hook afterward
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  })
 
   const {
     sourceConfig,
