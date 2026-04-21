@@ -239,7 +239,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           </>
         )}
 
-        <PublicEnvScript />
+        <PublicEnvScript disableNextScript />
       </head>
       <body className={`${season.variable} font-season`} suppressHydrationWarning>
         {/* Google Tag Manager (noscript) — hosted only */}
