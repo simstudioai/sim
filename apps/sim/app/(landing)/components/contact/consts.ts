@@ -65,3 +65,18 @@ export type ContactRequestPayload = z.infer<typeof contactRequestSchema>
 export function getContactTopicLabel(value: ContactRequestPayload['topic']): string {
   return CONTACT_TOPIC_OPTIONS.find((option) => option.value === value)?.label ?? value
 }
+
+export type HelpEmailType = 'bug' | 'feedback' | 'feature_request' | 'other'
+
+export function mapContactTopicToHelpType(topic: ContactRequestPayload['topic']): HelpEmailType {
+  switch (topic) {
+    case 'feature_request':
+      return 'feature_request'
+    case 'support':
+      return 'bug'
+    case 'integration':
+      return 'feedback'
+    default:
+      return 'other'
+  }
+}

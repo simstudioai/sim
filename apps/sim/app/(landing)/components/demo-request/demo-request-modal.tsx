@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { cloneElement, isValidElement, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import {
   Combobox,
@@ -60,6 +60,10 @@ interface LandingFieldProps {
 
 function LandingField({ label, htmlFor, optional, error, children }: LandingFieldProps) {
   const errorId = error ? `${htmlFor}-error` : undefined
+  const describedChild =
+    errorId && isValidElement<{ 'aria-describedby'?: string; 'aria-invalid'?: boolean }>(children)
+      ? cloneElement(children, { 'aria-describedby': errorId, 'aria-invalid': true })
+      : children
   return (
     <div className='flex flex-col gap-1.5'>
       <label
@@ -69,7 +73,7 @@ function LandingField({ label, htmlFor, optional, error, children }: LandingFiel
         {label}
         {optional ? <span className='ml-1 text-[var(--text-muted)]'>(optional)</span> : null}
       </label>
-      {children}
+      {describedChild}
       {error ? (
         <p id={errorId} role='alert' className='text-[12px] text-[var(--text-error)]'>
           {error}

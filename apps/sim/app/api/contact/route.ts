@@ -12,6 +12,7 @@ import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import {
   contactRequestSchema,
   getContactTopicLabel,
+  mapContactTopicToHelpType,
 } from '@/app/(landing)/components/contact/consts'
 
 const logger = createLogger('ContactAPI')
@@ -53,10 +54,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       logger.warn(`[${requestId}] Invalid contact request data`, {
         errors: validationResult.error.format(),
       })
-      return NextResponse.json(
-        { error: 'Invalid request data', details: validationResult.error.format() },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Invalid request data' }, { status: 400 })
     }
 
     const { name, email, company, topic, subject, message } = validationResult.data
@@ -98,7 +96,10 @@ ${message}
     logger.info(`[${requestId}] Contact request email sent successfully`)
 
     try {
-      const confirmationHtml = await renderHelpConfirmationEmail('other', 0)
+      const confirmationHtml = await renderHelpConfirmationEmail(
+        mapContactTopicToHelpType(topic),
+        0
+      )
 
       await sendEmail({
         to: [email],

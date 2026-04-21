@@ -169,6 +169,7 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
       setSubmitStatus(null)
       setIsDragging(false)
       setIsProcessing(false)
+      helpMutation.reset()
       reset({
         subject: '',
         message: '',
