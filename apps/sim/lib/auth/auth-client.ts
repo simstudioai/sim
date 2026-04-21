@@ -15,8 +15,17 @@ import { isBillingEnabled, isOrganizationsEnabled } from '@/lib/core/config/feat
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { SessionContext, type SessionHookResult } from '@/app/_shell/providers/session-provider'
 
+function getAuthBaseUrl(): string {
+  try {
+    return getBaseUrl()
+  } catch (e) {
+    if (typeof window !== 'undefined') return window.location.origin
+    throw e
+  }
+}
+
 export const client = createAuthClient({
-  baseURL: getBaseUrl(),
+  baseURL: getAuthBaseUrl(),
   plugins: [
     adminClient(),
     emailOTPClient(),
