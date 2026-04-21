@@ -596,14 +596,20 @@ Return ONLY the expression - no explanations.`,
           secretAccessKey: params.secretAccessKey,
         }
 
-        // Table name (introspect uses introspectTableName, all others use tableName)
+        // Table name (introspect uses introspectTableName, all others use tableName).
+        // Legacy blocks stored both operations under 'tableName'; fall back to tableName
+        // for introspect if introspectTableName is not present (migration grace period).
         if (op === 'introspect') {
-          if (params.introspectTableName) result.tableName = params.introspectTableName
+          const tbl = params.introspectTableName || params.tableName
+          if (tbl) result.tableName = tbl
         } else {
           result.tableName = params.tableName
         }
 
-        // Operation-specific params — map unique subBlock IDs back to tool param names
+        // Operation-specific params — map unique subBlock IDs back to tool param names.
+        // Where a fallback to the legacy migrated ID is present (e.g. params.getKey as
+        // fallback for update/delete), it covers blocks saved before the subblock rename
+        // whose migration entry routed the shared old ID to the query/get slot.
         if (op === 'get') {
           const key = parseJson(params.getKey, 'key')
           if (key !== undefined) result.key = key
@@ -615,11 +621,20 @@ Return ONLY the expression - no explanations.`,
         if (op === 'put') {
           const item = parseJson(params.item, 'item')
           if (item !== undefined) result.item = item
-          if (params.putConditionExpression)
-            result.conditionExpression = params.putConditionExpression
-          const names = parseJson(params.putExpressionAttributeNames, 'expressionAttributeNames')
+          // conditionExpression: fall back to updateConditionExpression (legacy migration target)
+          const condExpr = params.putConditionExpression || params.updateConditionExpression
+          if (condExpr) result.conditionExpression = condExpr
+          // expressionAttributeNames: fall back to queryExpressionAttributeNames (legacy migration target)
+          const names = parseJson(
+            params.putExpressionAttributeNames || params.queryExpressionAttributeNames,
+            'expressionAttributeNames'
+          )
           if (names !== undefined) result.expressionAttributeNames = names
-          const values = parseJson(params.putExpressionAttributeValues, 'expressionAttributeValues')
+          // expressionAttributeValues: fall back to queryExpressionAttributeValues (legacy migration target)
+          const values = parseJson(
+            params.putExpressionAttributeValues || params.queryExpressionAttributeValues,
+            'expressionAttributeValues'
+          )
           if (values !== undefined) result.expressionAttributeValues = values
         }
 
@@ -644,28 +659,43 @@ Return ONLY the expression - no explanations.`,
         }
 
         if (op === 'scan') {
-          if (params.scanFilterExpression) result.filterExpression = params.scanFilterExpression
+          // filterExpression: fall back to queryFilterExpression (legacy migration target for 'filterExpression')
+          const filterExpr = params.scanFilterExpression || params.queryFilterExpression
+          if (filterExpr) result.filterExpression = filterExpr
           if (params.projectionExpression) result.projectionExpression = params.projectionExpression
-          const names = parseJson(params.scanExpressionAttributeNames, 'expressionAttributeNames')
+          // expressionAttributeNames: fall back to queryExpressionAttributeNames (legacy migration target)
+          const names = parseJson(
+            params.scanExpressionAttributeNames || params.queryExpressionAttributeNames,
+            'expressionAttributeNames'
+          )
           if (names !== undefined) result.expressionAttributeNames = names
+          // expressionAttributeValues: fall back to queryExpressionAttributeValues (legacy migration target)
           const values = parseJson(
-            params.scanExpressionAttributeValues,
+            params.scanExpressionAttributeValues || params.queryExpressionAttributeValues,
             'expressionAttributeValues'
           )
           if (values !== undefined) result.expressionAttributeValues = values
-          if (params.scanLimit) result.limit = Number.parseInt(String(params.scanLimit), 10)
+          // limit: fall back to queryLimit (legacy migration target for 'limit')
+          const lim = params.scanLimit || params.queryLimit
+          if (lim) result.limit = Number.parseInt(String(lim), 10)
           const esk = parseJson(params.scanExclusiveStartKey, 'exclusiveStartKey')
           if (esk !== undefined) result.exclusiveStartKey = esk
         }
 
         if (op === 'update') {
-          const key = parseJson(params.updateKey, 'key')
+          // key: fall back to getKey (legacy migration target for shared 'key' subblock)
+          const key = parseJson(params.updateKey || params.getKey, 'key')
           if (key !== undefined) result.key = key
           if (params.updateExpression) result.updateExpression = params.updateExpression
-          const names = parseJson(params.updateExpressionAttributeNames, 'expressionAttributeNames')
+          // expressionAttributeNames: fall back to queryExpressionAttributeNames (legacy migration target)
+          const names = parseJson(
+            params.updateExpressionAttributeNames || params.queryExpressionAttributeNames,
+            'expressionAttributeNames'
+          )
           if (names !== undefined) result.expressionAttributeNames = names
+          // expressionAttributeValues: fall back to queryExpressionAttributeValues (legacy migration target)
           const values = parseJson(
-            params.updateExpressionAttributeValues,
+            params.updateExpressionAttributeValues || params.queryExpressionAttributeValues,
             'expressionAttributeValues'
           )
           if (values !== undefined) result.expressionAttributeValues = values
@@ -674,14 +704,20 @@ Return ONLY the expression - no explanations.`,
         }
 
         if (op === 'delete') {
-          const key = parseJson(params.deleteKey, 'key')
+          // key: fall back to getKey (legacy migration target for shared 'key' subblock)
+          const key = parseJson(params.deleteKey || params.getKey, 'key')
           if (key !== undefined) result.key = key
           if (params.deleteConditionExpression)
             result.conditionExpression = params.deleteConditionExpression
-          const names = parseJson(params.deleteExpressionAttributeNames, 'expressionAttributeNames')
+          // expressionAttributeNames: fall back to queryExpressionAttributeNames (legacy migration target)
+          const names = parseJson(
+            params.deleteExpressionAttributeNames || params.queryExpressionAttributeNames,
+            'expressionAttributeNames'
+          )
           if (names !== undefined) result.expressionAttributeNames = names
+          // expressionAttributeValues: fall back to queryExpressionAttributeValues (legacy migration target)
           const values = parseJson(
-            params.deleteExpressionAttributeValues,
+            params.deleteExpressionAttributeValues || params.queryExpressionAttributeValues,
             'expressionAttributeValues'
           )
           if (values !== undefined) result.expressionAttributeValues = values
