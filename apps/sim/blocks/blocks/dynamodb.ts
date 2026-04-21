@@ -707,8 +707,10 @@ Return ONLY the expression - no explanations.`,
           // key: fall back to getKey (legacy migration target for shared 'key' subblock)
           const key = parseJson(params.deleteKey || params.getKey, 'key')
           if (key !== undefined) result.key = key
-          if (params.deleteConditionExpression)
-            result.conditionExpression = params.deleteConditionExpression
+          // conditionExpression: fall back to updateConditionExpression (legacy migration target for shared 'conditionExpression' subblock)
+          const deleteCondExpr =
+            params.deleteConditionExpression || params.updateConditionExpression
+          if (deleteCondExpr) result.conditionExpression = deleteCondExpr
           // expressionAttributeNames: fall back to queryExpressionAttributeNames (legacy migration target)
           const names = parseJson(
             params.deleteExpressionAttributeNames || params.queryExpressionAttributeNames,
