@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
+import { useMutation } from '@tanstack/react-query'
 import {
   Combobox,
   Input,
@@ -19,6 +20,7 @@ import {
   type DemoRequestPayload,
   demoRequestSchema,
 } from '@/app/(landing)/components/demo-request/consts'
+import { LandingField } from '@/app/(landing)/components/forms/landing-field'
 
 interface DemoRequestModalProps {
   children: React.ReactNode
@@ -49,136 +51,104 @@ const INITIAL_FORM_STATE: DemoRequestFormState = {
   details: '',
 }
 
-interface LandingFieldProps {
-  label: string
-  htmlFor: string
-  optional?: boolean
-  error?: string
-  children: React.ReactNode
-}
-
-function LandingField({ label, htmlFor, optional, error, children }: LandingFieldProps) {
-  return (
-    <div className='flex flex-col gap-1.5'>
-      <label
-        htmlFor={htmlFor}
-        className='font-[430] font-season text-[13px] text-[var(--text-secondary)] tracking-[0.02em]'
-      >
-        {label}
-        {optional ? <span className='ml-1 text-[var(--text-muted)]'>(optional)</span> : null}
-      </label>
-      {children}
-      {error ? <p className='text-[12px] text-[var(--text-error)]'>{error}</p> : null}
-    </div>
-  )
-}
-
 const LANDING_INPUT =
   'h-[32px] rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 font-[430] font-season text-[13.5px] text-[var(--text-primary)] transition-colors placeholder:text-[var(--text-muted)] outline-none'
+
+async function submitDemoRequest(payload: DemoRequestPayload) {
+  const response = await fetch('/api/demo-requests', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+
+  const result = (await response.json().catch(() => null)) as {
+    error?: string
+    message?: string
+  } | null
+
+  if (!response.ok) {
+    throw new Error(result?.error || 'Failed to submit demo request')
+  }
+
+  return result
+}
 
 export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalProps) {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<DemoRequestFormState>(INITIAL_FORM_STATE)
   const [errors, setErrors] = useState<DemoRequestErrors>({})
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitSuccess, setSubmitSuccess] = useState(false)
 
-  const resetForm = useCallback(() => {
+  const demoMutation = useMutation({
+    mutationFn: submitDemoRequest,
+    onSuccess: (_data, variables) => {
+      captureClientEvent('landing_demo_request_submitted', {
+        company_size: variables.companySize,
+      })
+      setSubmitSuccess(true)
+    },
+  })
+
+  function resetForm() {
     setForm(INITIAL_FORM_STATE)
     setErrors({})
-    setIsSubmitting(false)
-    setSubmitError(null)
     setSubmitSuccess(false)
-  }, [])
+    demoMutation.reset()
+  }
 
-  const handleOpenChange = useCallback(
-    (nextOpen: boolean) => {
-      setOpen(nextOpen)
-      resetForm()
-    },
-    [resetForm]
-  )
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen)
+    resetForm()
+  }
 
-  const updateField = useCallback(
-    <TField extends keyof DemoRequestFormState>(
-      field: TField,
-      value: DemoRequestFormState[TField]
-    ) => {
-      setForm((prev) => ({ ...prev, [field]: value }))
-      setErrors((prev) => {
-        if (!prev[field]) {
-          return prev
-        }
-
-        const nextErrors = { ...prev }
-        delete nextErrors[field]
-        return nextErrors
-      })
-      setSubmitError(null)
-      setSubmitSuccess(false)
-    },
-    []
-  )
-
-  const handleSubmit = useCallback(
-    async (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
-      setSubmitError(null)
-      setSubmitSuccess(false)
-
-      const parsed = demoRequestSchema.safeParse({
-        ...form,
-        phoneNumber: form.phoneNumber || undefined,
-      })
-
-      if (!parsed.success) {
-        const fieldErrors = parsed.error.flatten().fieldErrors
-        setErrors({
-          firstName: fieldErrors.firstName?.[0],
-          lastName: fieldErrors.lastName?.[0],
-          companyEmail: fieldErrors.companyEmail?.[0],
-          phoneNumber: fieldErrors.phoneNumber?.[0],
-          companySize: fieldErrors.companySize?.[0],
-          details: fieldErrors.details?.[0],
-        })
-        return
+  function updateField<TField extends keyof DemoRequestFormState>(
+    field: TField,
+    value: DemoRequestFormState[TField]
+  ) {
+    setForm((prev) => ({ ...prev, [field]: value }))
+    setErrors((prev) => {
+      if (!prev[field]) {
+        return prev
       }
+      const nextErrors = { ...prev }
+      delete nextErrors[field]
+      return nextErrors
+    })
+    if (demoMutation.isError) {
+      demoMutation.reset()
+    }
+  }
 
-      setIsSubmitting(true)
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (demoMutation.isPending) return
 
-      try {
-        const response = await fetch('/api/demo-requests', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(parsed.data),
-        })
+    const parsed = demoRequestSchema.safeParse({
+      ...form,
+      phoneNumber: form.phoneNumber || undefined,
+    })
 
-        const result = (await response.json().catch(() => null)) as {
-          error?: string
-          message?: string
-        } | null
+    if (!parsed.success) {
+      const fieldErrors = parsed.error.flatten().fieldErrors
+      setErrors({
+        firstName: fieldErrors.firstName?.[0],
+        lastName: fieldErrors.lastName?.[0],
+        companyEmail: fieldErrors.companyEmail?.[0],
+        phoneNumber: fieldErrors.phoneNumber?.[0],
+        companySize: fieldErrors.companySize?.[0],
+        details: fieldErrors.details?.[0],
+      })
+      return
+    }
 
-        if (!response.ok) {
-          throw new Error(result?.error || 'Failed to submit demo request')
-        }
+    demoMutation.mutate(parsed.data)
+  }
 
-        setSubmitSuccess(true)
-        captureClientEvent('landing_demo_request_submitted', {
-          company_size: parsed.data.companySize,
-        })
-      } catch (error) {
-        setSubmitError(
-          error instanceof Error
-            ? error.message
-            : 'Failed to submit demo request. Please try again.'
-        )
-      } finally {
-        setIsSubmitting(false)
-      }
-    },
-    [form, resetForm]
-  )
+  const submitError = demoMutation.isError
+    ? demoMutation.error instanceof Error
+      ? demoMutation.error.message
+      : 'Failed to submit demo request. Please try again.'
+    : null
 
   return (
     <Modal open={open} onOpenChange={handleOpenChange}>
@@ -284,14 +254,16 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
 
             <ModalFooter className='flex-col items-stretch gap-3 border-t-0 bg-transparent pt-0'>
               {submitError && (
-                <p className='font-season text-[13px] text-[var(--text-error)]'>{submitError}</p>
+                <p role='alert' className='font-season text-[13px] text-[var(--text-error)]'>
+                  {submitError}
+                </p>
               )}
               <button
                 type='submit'
-                disabled={isSubmitting}
+                disabled={demoMutation.isPending}
                 className='flex h-[32px] w-full items-center justify-center rounded-[5px] bg-[var(--text-primary)] font-[430] font-season text-[13.5px] text-[var(--bg)] transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50'
               >
-                {isSubmitting ? 'Submitting...' : 'Submit'}
+                {demoMutation.isPending ? 'Submitting...' : 'Submit'}
               </button>
             </ModalFooter>
           </form>
