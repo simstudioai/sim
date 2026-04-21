@@ -44,11 +44,11 @@ const DAY = 24
 export const CLEANUP_CONFIG = {
   'cleanup-logs': {
     column: 'logRetentionHours',
-    defaults: { free: 7 * DAY, pro: null, team: null, enterprise: null },
+    defaults: { free: 30 * DAY, pro: null, team: null, enterprise: null },
   },
   'cleanup-soft-deletes': {
     column: 'softDeleteRetentionHours',
-    defaults: { free: 7 * DAY, pro: 30 * DAY, team: 30 * DAY, enterprise: null },
+    defaults: { free: 30 * DAY, pro: 90 * DAY, team: 90 * DAY, enterprise: null },
   },
   'cleanup-tasks': {
     column: 'taskCleanupHours',

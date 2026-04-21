@@ -1,19 +1,14 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { Loader2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Button, Label } from '@/components/emcn'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Button, Combobox, toast } from '@/components/emcn'
+import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { SettingRow } from '@/ee/components/setting-row'
+import { DataRetentionSkeleton } from '@/ee/data-retention/components/data-retention-skeleton'
 import {
   useUpdateWorkspaceRetention,
   useWorkspaceRetention,
@@ -45,26 +40,6 @@ function daysToHours(days: string): number | null {
   return Number(days) * 24
 }
 
-interface SettingRowProps {
-  label: string
-  description?: string
-  children: React.ReactNode
-}
-
-function SettingRow({ label, description, children }: SettingRowProps) {
-  return (
-    <div className='flex flex-col gap-1.5'>
-      <Label className='text-[13px] text-[var(--text-primary)]'>{label}</Label>
-      {description && <p className='text-[12px] text-[var(--text-muted)]'>{description}</p>}
-      {children}
-    </div>
-  )
-}
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h3 className='mb-4 font-medium text-[15px] text-[var(--text-primary)]'>{children}</h3>
-}
-
 interface RetentionSelectProps {
   value: string
   onChange: (value: string) => void
@@ -73,22 +48,22 @@ interface RetentionSelectProps {
 function RetentionSelect({ value, onChange }: RetentionSelectProps) {
   const standard = DAY_OPTIONS.find((o) => o.value === value)
   const options = standard
-    ? DAY_OPTIONS
-    : [...DAY_OPTIONS, { value, label: `${value} days (custom)` } as const]
+    ? DAY_OPTIONS.map((o) => ({ value: o.value, label: o.label }))
+    : [
+        ...DAY_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+        { value, label: `${value} days (custom)` },
+      ]
 
   return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className='h-[36px] max-w-[200px] text-[13px]'>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((opt) => (
-          <SelectItem key={opt.value} value={opt.value} className='text-[13px]'>
-            {opt.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <div className='w-[200px]'>
+      <Combobox
+        value={value}
+        onChange={onChange}
+        options={options}
+        dropdownWidth='trigger'
+        className='h-[36px] text-[13px]'
+      />
+    </div>
   )
 }
 
@@ -103,22 +78,31 @@ export function DataRetentionSettings() {
   const [logDays, setLogDays] = useState('')
   const [softDeleteDays, setSoftDeleteDays] = useState('')
   const [taskCleanupDays, setTaskCleanupDays] = useState('')
+  const [savedLogDays, setSavedLogDays] = useState('')
+  const [savedSoftDeleteDays, setSavedSoftDeleteDays] = useState('')
+  const [savedTaskCleanupDays, setSavedTaskCleanupDays] = useState('')
   const [formInitialized, setFormInitialized] = useState(false)
 
-  const [saveError, setSaveError] = useState<string | null>(null)
-  const [saveSuccess, setSaveSuccess] = useState(false)
-
-  if (data && !formInitialized) {
-    setLogDays(hoursToDisplayDays(data.effective.logRetentionHours))
-    setSoftDeleteDays(hoursToDisplayDays(data.effective.softDeleteRetentionHours))
-    setTaskCleanupDays(hoursToDisplayDays(data.effective.taskCleanupHours))
+  useEffect(() => {
+    if (!data || formInitialized) return
+    const log = hoursToDisplayDays(data.effective.logRetentionHours)
+    const soft = hoursToDisplayDays(data.effective.softDeleteRetentionHours)
+    const task = hoursToDisplayDays(data.effective.taskCleanupHours)
+    setLogDays(log)
+    setSoftDeleteDays(soft)
+    setTaskCleanupDays(task)
+    setSavedLogDays(log)
+    setSavedSoftDeleteDays(soft)
+    setSavedTaskCleanupDays(task)
     setFormInitialized(true)
-  }
+  }, [data, formInitialized])
 
-  const handleSave = useCallback(async () => {
-    setSaveError(null)
-    setSaveSuccess(false)
+  const hasChanges =
+    logDays !== savedLogDays ||
+    softDeleteDays !== savedSoftDeleteDays ||
+    taskCleanupDays !== savedTaskCleanupDays
 
+  async function handleSave() {
     try {
       await updateMutation.mutateAsync({
         workspaceId,
@@ -128,26 +112,18 @@ export function DataRetentionSettings() {
           taskCleanupHours: daysToHours(taskCleanupDays),
         },
       })
-      setSaveSuccess(true)
-      setTimeout(() => setSaveSuccess(false), 3000)
+      setSavedLogDays(logDays)
+      setSavedSoftDeleteDays(softDeleteDays)
+      setSavedTaskCleanupDays(taskCleanupDays)
+      toast.success('Data retention settings saved.')
     } catch (error) {
-      logger.error('Failed to save data retention settings', { error })
-      setSaveError(toError(error).message)
+      const msg = toError(error).message
+      logger.error('Failed to save data retention settings', { error: msg })
+      toast.error(msg)
     }
-  }, [workspaceId, logDays, softDeleteDays, taskCleanupDays])
-
-  if (isLoading) {
-    return (
-      <div className='flex flex-col gap-8'>
-        {[...Array(3)].map((_, i) => (
-          <div key={i} className='flex flex-col gap-3'>
-            <div className='h-4 w-32 animate-pulse rounded bg-[var(--surface-3)]' />
-            <div className='h-9 w-full animate-pulse rounded-lg bg-[var(--surface-3)]' />
-          </div>
-        ))}
-      </div>
-    )
   }
+
+  if (isLoading) return <DataRetentionSkeleton />
 
   if (!data) {
     return (
@@ -157,7 +133,7 @@ export function DataRetentionSettings() {
     )
   }
 
-  if (!data.isEnterprise) {
+  if (isBillingEnabled && !data.isEnterprise) {
     return (
       <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
         Data retention is available on Enterprise plans only.
@@ -176,7 +152,9 @@ export function DataRetentionSettings() {
   return (
     <div className='flex flex-col gap-8'>
       <section>
-        <SectionTitle>Retention Periods</SectionTitle>
+        <h3 className='mb-4 font-medium text-[15px] text-[var(--text-primary)]'>
+          Retention Periods
+        </h3>
         <div className='flex flex-col gap-5'>
           <SettingRow
             label='Log retention'
@@ -199,21 +177,14 @@ export function DataRetentionSettings() {
         </div>
       </section>
 
-      <div className='flex items-center gap-3'>
-        <Button onClick={handleSave} disabled={updateMutation.isPending} className='text-[13px]'>
-          {updateMutation.isPending ? (
-            <>
-              <Loader2 className='mr-2 h-3.5 w-3.5 animate-spin' />
-              Saving…
-            </>
-          ) : (
-            'Save changes'
-          )}
+      <div className='flex items-center justify-end'>
+        <Button
+          variant='primary'
+          onClick={handleSave}
+          disabled={updateMutation.isPending || !hasChanges}
+        >
+          {updateMutation.isPending ? 'Saving...' : 'Save'}
         </Button>
-        {saveSuccess && (
-          <span className='text-[13px] text-green-500'>Settings saved successfully.</span>
-        )}
-        {saveError && <span className='text-[13px] text-red-500'>{saveError}</span>}
       </div>
     </div>
   )

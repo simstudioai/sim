@@ -10,6 +10,7 @@ import { CLEANUP_CONFIG } from '@/lib/billing/cleanup-dispatcher'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { isEnterprisePlan } from '@/lib/billing/core/subscription'
 import { getPlanType, type PlanCategory } from '@/lib/billing/plan-helpers'
+import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
@@ -81,7 +82,7 @@ export const GET = withRouteHandler(
 
       const plan = await resolveWorkspacePlan(ws.billedAccountUserId)
       const defaults = getPlanDefaults(plan)
-      const isEnterpriseWorkspace = plan === 'enterprise'
+      const isEnterpriseWorkspace = !isBillingEnabled || plan === 'enterprise'
 
       return NextResponse.json({
         success: true,
@@ -139,12 +140,14 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
       }
 
-      const hasEnterprise = await isEnterprisePlan(billedAccountUserId)
-      if (!hasEnterprise) {
-        return NextResponse.json(
-          { error: 'Data Retention configuration is available on Enterprise plans only' },
-          { status: 403 }
-        )
+      if (isBillingEnabled) {
+        const hasEnterprise = await isEnterprisePlan(billedAccountUserId)
+        if (!hasEnterprise) {
+          return NextResponse.json(
+            { error: 'Data Retention configuration is available on Enterprise plans only' },
+            { status: 403 }
+          )
+        }
       }
 
       const body = await request.json()

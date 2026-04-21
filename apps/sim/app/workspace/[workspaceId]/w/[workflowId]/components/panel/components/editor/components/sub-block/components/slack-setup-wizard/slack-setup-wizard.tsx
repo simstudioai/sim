@@ -58,14 +58,16 @@ export function SlackSetupWizard({
         onClick={() => setOpen(true)}
         disabled={launcherDisabled}
         className={cn(
-          'flex w-full items-center justify-between rounded-md border border-[var(--border-muted)] bg-[var(--surface-1)] px-3 py-2 text-left transition-colors',
+          'flex w-full items-center justify-between rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 text-left transition-colors',
           launcherDisabled
             ? 'cursor-not-allowed opacity-70'
-            : 'cursor-pointer hover-hover:bg-[var(--surface-hover)]'
+            : 'cursor-pointer hover-hover:bg-[var(--surface-6)]'
         )}
       >
-        <span className='font-medium text-[var(--text-primary)] text-sm'>Setup Slack App</span>
-        <ChevronRight className='h-4 w-4 text-[var(--text-muted)]' />
+        <span className='font-medium font-sans text-[var(--text-primary)] text-sm'>
+          Setup Slack App
+        </span>
+        <ChevronRight className='h-[14px] w-[14px] text-[var(--text-muted)]' />
       </button>
 
       <WizardModal
@@ -294,9 +296,9 @@ function StepCreate({ manifestJson, canCopy }: StepCreateProps) {
             </span>
             {canCopy &&
               (copied ? (
-                <Check className='h-3 w-3 text-[var(--text-success)]' />
+                <Check className='h-[12px] w-[12px] text-[var(--text-success)]' />
               ) : (
-                <Clipboard className='h-3 w-3 text-[var(--text-muted)]' />
+                <Clipboard className='h-[12px] w-[12px] text-[var(--text-muted)]' />
               ))}
           </button>
         </SubStep>
@@ -432,15 +434,11 @@ function StepDone({ hasSigningSecret, hasBotToken }: StepDoneProps) {
         Your Slack app is set up. Save the workflow and Slack will verify the webhook URL
         automatically.
       </p>
-      <SubStepList>
-        <SubStep n={1}>
-          <StatusRow label='Signing Secret' ok={hasSigningSecret} />
-        </SubStep>
-        <SubStep n={2}>
-          <StatusRow label='Bot Token' ok={hasBotToken} />
-        </SubStep>
-        <SubStep n={3}>Click Done and save this workflow.</SubStep>
-      </SubStepList>
+      <div className='flex flex-col gap-2'>
+        <StatusRow label='Signing Secret' ok={hasSigningSecret} />
+        <StatusRow label='Bot Token' ok={hasBotToken} />
+      </div>
+      <p className='text-[var(--text-secondary)] text-sm'>Click Done and save this workflow.</p>
     </div>
   )
 }
