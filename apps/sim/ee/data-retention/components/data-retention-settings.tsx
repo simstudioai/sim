@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
-import { Button, Combobox, Label, toast } from '@/components/emcn'
+import { Button, Combobox, toast } from '@/components/emcn'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { SettingRow } from '@/ee/components/setting-row'
 import { DataRetentionSkeleton } from '@/ee/data-retention/components/data-retention-skeleton'
 import {
   useUpdateWorkspaceRetention,
@@ -36,22 +37,6 @@ function hoursToDisplayDays(hours: number | null): string {
 function daysToHours(days: string): number | null {
   if (days === 'never') return null
   return Number(days) * 24
-}
-
-interface SettingRowProps {
-  label: string
-  description?: string
-  children: React.ReactNode
-}
-
-function SettingRow({ label, description, children }: SettingRowProps) {
-  return (
-    <div className='flex flex-col gap-1.5'>
-      <Label className='text-[13px] text-[var(--text-primary)]'>{label}</Label>
-      {description && <p className='text-[12px] text-[var(--text-muted)]'>{description}</p>}
-      {children}
-    </div>
-  )
 }
 
 interface RetentionSelectProps {

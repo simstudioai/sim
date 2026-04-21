@@ -1,12 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { Loader2, X } from 'lucide-react'
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
-import { Button, Input, Label, toast } from '@/components/emcn'
+import { Button, Input, Label, Skeleton, toast } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
@@ -14,6 +14,7 @@ import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
+import { SettingRow } from '@/ee/components/setting-row'
 import {
   useUpdateWhitelabelSettings,
   useWhitelabelSettings,
@@ -33,33 +34,24 @@ interface DropZoneProps {
 function DropZone({ onDrop, children, className }: DropZoneProps) {
   const [isDragging, setIsDragging] = useState(false)
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes('Files')) {
-      e.preventDefault()
-      setIsDragging(true)
-    }
-  }, [])
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-      setIsDragging(false)
-    }
-  }, [])
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      setIsDragging(false)
-      onDrop(e)
-    },
-    [onDrop]
-  )
-
   return (
     <div
       className={cn('relative', className)}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes('Files')) {
+          e.preventDefault()
+          setIsDragging(true)
+        }
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          setIsDragging(false)
+        }
+      }}
+      onDrop={(e) => {
+        setIsDragging(false)
+        onDrop(e)
+      }}
     >
       {children}
       {isDragging && (
@@ -81,22 +73,6 @@ interface ColorInputProps {
 function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorInputProps) {
   const isValidHex = !value || HEX_COLOR_REGEX.test(value)
 
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      let v = e.target.value.trim()
-      if (v && !v.startsWith('#')) {
-        v = `#${v}`
-      }
-      v = v.slice(0, 1) + v.slice(1).replace(/[^0-9a-fA-F]/g, '')
-      onChange(v.slice(0, 7))
-    },
-    [onChange]
-  )
-
-  const handleFocus = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
-    e.target.select()
-  }, [])
-
   return (
     <div className='flex flex-col gap-1.5'>
       <Label className='text-[13px] text-[var(--text-primary)]'>{label}</Label>
@@ -110,35 +86,28 @@ function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorIn
         </div>
         <Input
           value={value}
-          onChange={handleChange}
-          onFocus={handleFocus}
+          onChange={(e) => {
+            let v = e.target.value.trim()
+            if (v && !v.startsWith('#')) {
+              v = `#${v}`
+            }
+            v = v.slice(0, 1) + v.slice(1).replace(/[^0-9a-fA-F]/g, '')
+            onChange(v.slice(0, 7))
+          }}
+          onFocus={(e) => e.target.select()}
           placeholder={placeholder}
           className={cn(
             'h-[36px] font-mono text-[13px]',
-            !isValidHex && 'border-red-500 focus-visible:ring-red-500'
+            !isValidHex && 'border-[var(--text-error)] focus-visible:ring-[var(--text-error)]'
           )}
           maxLength={7}
         />
       </div>
       {!isValidHex && (
-        <p className='text-[12px] text-red-500'>Must be a valid hex color (e.g. #701ffc)</p>
+        <p className='text-[12px] text-[var(--text-error)]'>
+          Must be a valid hex color (e.g. #701ffc)
+        </p>
       )}
-    </div>
-  )
-}
-
-interface SettingRowProps {
-  label: string
-  description?: string
-  children: React.ReactNode
-}
-
-function SettingRow({ label, description, children }: SettingRowProps) {
-  return (
-    <div className='flex flex-col gap-1.5'>
-      <Label className='text-[13px] text-[var(--text-primary)]'>{label}</Label>
-      {description && <p className='text-[12px] text-[var(--text-muted)]'>{description}</p>}
-      {children}
     </div>
   )
 }
@@ -177,20 +146,53 @@ export function WhitelabelingSettings() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [wordmarkUrl, setWordmarkUrl] = useState<string | null>(null)
   const [formInitialized, setFormInitialized] = useState(false)
+  const [savedBrandName, setSavedBrandName] = useState('')
+  const [savedPrimaryColor, setSavedPrimaryColor] = useState('')
+  const [savedPrimaryHoverColor, setSavedPrimaryHoverColor] = useState('')
+  const [savedAccentColor, setSavedAccentColor] = useState('')
+  const [savedAccentHoverColor, setSavedAccentHoverColor] = useState('')
+  const [savedSupportEmail, setSavedSupportEmail] = useState('')
+  const [savedDocumentationUrl, setSavedDocumentationUrl] = useState('')
+  const [savedTermsUrl, setSavedTermsUrl] = useState('')
+  const [savedPrivacyUrl, setSavedPrivacyUrl] = useState('')
+  const [savedLogoUrl, setSavedLogoUrl] = useState<string | null>(null)
+  const [savedWordmarkUrl, setSavedWordmarkUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (!savedSettings || formInitialized) return
-    setBrandName(savedSettings.brandName ?? '')
-    setPrimaryColor(savedSettings.primaryColor ?? '')
-    setPrimaryHoverColor(savedSettings.primaryHoverColor ?? '')
-    setAccentColor(savedSettings.accentColor ?? '')
-    setAccentHoverColor(savedSettings.accentHoverColor ?? '')
-    setSupportEmail(savedSettings.supportEmail ?? '')
-    setDocumentationUrl(savedSettings.documentationUrl ?? '')
-    setTermsUrl(savedSettings.termsUrl ?? '')
-    setPrivacyUrl(savedSettings.privacyUrl ?? '')
-    setLogoUrl(savedSettings.logoUrl ?? null)
-    setWordmarkUrl(savedSettings.wordmarkUrl ?? null)
+    const brand = savedSettings.brandName ?? ''
+    const primary = savedSettings.primaryColor ?? ''
+    const primaryHover = savedSettings.primaryHoverColor ?? ''
+    const accent = savedSettings.accentColor ?? ''
+    const accentHover = savedSettings.accentHoverColor ?? ''
+    const support = savedSettings.supportEmail ?? ''
+    const docs = savedSettings.documentationUrl ?? ''
+    const terms = savedSettings.termsUrl ?? ''
+    const privacy = savedSettings.privacyUrl ?? ''
+    const logo = savedSettings.logoUrl ?? null
+    const wordmark = savedSettings.wordmarkUrl ?? null
+    setBrandName(brand)
+    setPrimaryColor(primary)
+    setPrimaryHoverColor(primaryHover)
+    setAccentColor(accent)
+    setAccentHoverColor(accentHover)
+    setSupportEmail(support)
+    setDocumentationUrl(docs)
+    setTermsUrl(terms)
+    setPrivacyUrl(privacy)
+    setLogoUrl(logo)
+    setWordmarkUrl(wordmark)
+    setSavedBrandName(brand)
+    setSavedPrimaryColor(primary)
+    setSavedPrimaryHoverColor(primaryHover)
+    setSavedAccentColor(accent)
+    setSavedAccentHoverColor(accentHover)
+    setSavedSupportEmail(support)
+    setSavedDocumentationUrl(docs)
+    setSavedTermsUrl(terms)
+    setSavedPrivacyUrl(privacy)
+    setSavedLogoUrl(logo)
+    setSavedWordmarkUrl(wordmark)
     setFormInitialized(true)
   }, [savedSettings, formInitialized])
 
@@ -212,18 +214,17 @@ export function WhitelabelingSettings() {
 
   const hasChanges =
     formInitialized &&
-    !!savedSettings &&
-    (brandName !== (savedSettings.brandName ?? '') ||
-      primaryColor !== (savedSettings.primaryColor ?? '') ||
-      primaryHoverColor !== (savedSettings.primaryHoverColor ?? '') ||
-      accentColor !== (savedSettings.accentColor ?? '') ||
-      accentHoverColor !== (savedSettings.accentHoverColor ?? '') ||
-      supportEmail !== (savedSettings.supportEmail ?? '') ||
-      documentationUrl !== (savedSettings.documentationUrl ?? '') ||
-      termsUrl !== (savedSettings.termsUrl ?? '') ||
-      privacyUrl !== (savedSettings.privacyUrl ?? '') ||
-      (logoUpload.previewUrl || null) !== savedSettings.logoUrl ||
-      (wordmarkUpload.previewUrl || null) !== savedSettings.wordmarkUrl)
+    (brandName !== savedBrandName ||
+      primaryColor !== savedPrimaryColor ||
+      primaryHoverColor !== savedPrimaryHoverColor ||
+      accentColor !== savedAccentColor ||
+      accentHoverColor !== savedAccentHoverColor ||
+      supportEmail !== savedSupportEmail ||
+      documentationUrl !== savedDocumentationUrl ||
+      termsUrl !== savedTermsUrl ||
+      privacyUrl !== savedPrivacyUrl ||
+      (logoUpload.previewUrl || null) !== savedLogoUrl ||
+      (wordmarkUpload.previewUrl || null) !== savedWordmarkUrl)
 
   async function handleSave() {
     if (!orgId) return
@@ -258,7 +259,17 @@ export function WhitelabelingSettings() {
 
     try {
       await updateSettings.mutateAsync({ orgId, settings })
-      setFormInitialized(false)
+      setSavedBrandName(brandName)
+      setSavedPrimaryColor(primaryColor)
+      setSavedPrimaryHoverColor(primaryHoverColor)
+      setSavedAccentColor(accentColor)
+      setSavedAccentHoverColor(accentHoverColor)
+      setSavedSupportEmail(supportEmail)
+      setSavedDocumentationUrl(documentationUrl)
+      setSavedTermsUrl(termsUrl)
+      setSavedPrivacyUrl(privacyUrl)
+      setSavedLogoUrl(logoUpload.previewUrl || null)
+      setSavedWordmarkUrl(wordmarkUpload.previewUrl || null)
       toast.success('Whitelabeling settings saved.')
     } catch (error) {
       logger.error('Failed to save whitelabel settings', { error })
@@ -295,10 +306,10 @@ export function WhitelabelingSettings() {
   if (isLoading) {
     return (
       <div className='flex flex-col gap-8'>
-        {[...Array(3)].map((_, i) => (
+        {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className='flex flex-col gap-3'>
-            <div className='h-4 w-32 animate-pulse rounded bg-[var(--surface-3)]' />
-            <div className='h-9 w-full animate-pulse rounded-lg bg-[var(--surface-3)]' />
+            <Skeleton className='h-[16px] w-[128px]' />
+            <Skeleton className='h-[36px] w-full rounded-lg' />
           </div>
         ))}
       </div>
