@@ -15,6 +15,9 @@ export interface DynamoDBGetParams extends DynamoDBConnectionConfig {
 export interface DynamoDBPutParams extends DynamoDBConnectionConfig {
   tableName: string
   item: Record<string, unknown>
+  conditionExpression?: string
+  expressionAttributeNames?: Record<string, string>
+  expressionAttributeValues?: Record<string, unknown>
 }
 
 export interface DynamoDBQueryParams extends DynamoDBConnectionConfig {
@@ -25,6 +28,8 @@ export interface DynamoDBQueryParams extends DynamoDBConnectionConfig {
   expressionAttributeValues?: Record<string, unknown>
   indexName?: string
   limit?: number
+  exclusiveStartKey?: Record<string, unknown>
+  scanIndexForward?: boolean
 }
 
 export interface DynamoDBScanParams extends DynamoDBConnectionConfig {
@@ -34,6 +39,7 @@ export interface DynamoDBScanParams extends DynamoDBConnectionConfig {
   expressionAttributeNames?: Record<string, string>
   expressionAttributeValues?: Record<string, unknown>
   limit?: number
+  exclusiveStartKey?: Record<string, unknown>
 }
 
 export interface DynamoDBUpdateParams extends DynamoDBConnectionConfig {
@@ -49,6 +55,8 @@ export interface DynamoDBDeleteParams extends DynamoDBConnectionConfig {
   tableName: string
   key: Record<string, unknown>
   conditionExpression?: string
+  expressionAttributeNames?: Record<string, string>
+  expressionAttributeValues?: Record<string, unknown>
 }
 
 export interface DynamoDBBaseResponse extends ToolResponse {
@@ -57,6 +65,7 @@ export interface DynamoDBBaseResponse extends ToolResponse {
     item?: Record<string, unknown>
     items?: Record<string, unknown>[]
     count?: number
+    lastEvaluatedKey?: Record<string, unknown>
   }
   error?: string
 }

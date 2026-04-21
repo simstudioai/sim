@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
@@ -16,8 +16,6 @@ const IntrospectSchema = z.object({
 })
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateId().slice(0, 8)
-
   try {
     const auth = await checkInternalAuth(request)
     if (!auth.success || !auth.userId) {
@@ -27,7 +25,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const body = await request.json()
     const params = IntrospectSchema.parse(body)
 
-    logger.info(`[${requestId}] Introspecting DynamoDB in region ${params.region}`)
+    logger.info(`Introspecting DynamoDB in region ${params.region}`)
 
     const client = createRawDynamoDBClient({
       region: params.region,
@@ -39,10 +37,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const { tables } = await listTables(client)
 
       if (params.tableName) {
-        logger.info(`[${requestId}] Describing table: ${params.tableName}`)
+        logger.info(`Describing table: ${params.tableName}`)
         const { tableDetails } = await describeTable(client, params.tableName)
 
-        logger.info(`[${requestId}] Table description completed for '${params.tableName}'`)
+        logger.info(`Table description completed for '${params.tableName}'`)
 
         return NextResponse.json({
           message: `Table '${params.tableName}' described successfully.`,
@@ -51,7 +49,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         })
       }
 
-      logger.info(`[${requestId}] Listed ${tables.length} tables`)
+      logger.info(`Listed ${tables.length} tables`)
 
       return NextResponse.json({
         message: `Found ${tables.length} table(s) in region '${params.region}'.`,
@@ -62,15 +60,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
+      logger.warn('Invalid request data', { errors: error.errors })
       return NextResponse.json(
         { error: 'Invalid request data', details: error.errors },
         { status: 400 }
       )
     }
 
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-    logger.error(`[${requestId}] DynamoDB introspection failed:`, error)
+    const errorMessage = toError(error).message || 'Unknown error occurred'
+    logger.error('DynamoDB introspection failed:', error)
 
     return NextResponse.json(
       { error: `DynamoDB introspection failed: ${errorMessage}` },

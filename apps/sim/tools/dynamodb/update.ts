@@ -5,7 +5,7 @@ export const updateTool: ToolConfig<DynamoDBUpdateParams, DynamoDBUpdateResponse
   id: 'dynamodb_update',
   name: 'DynamoDB Update',
   description: 'Update an item in a DynamoDB table',
-  version: '1.0',
+  version: '1.0.0',
 
   params: {
     region: {
@@ -33,7 +33,7 @@ export const updateTool: ToolConfig<DynamoDBUpdateParams, DynamoDBUpdateResponse
       description: 'DynamoDB table name (e.g., "Users", "Orders")',
     },
     key: {
-      type: 'object',
+      type: 'json',
       required: true,
       visibility: 'user-or-llm',
       description:
@@ -47,14 +47,14 @@ export const updateTool: ToolConfig<DynamoDBUpdateParams, DynamoDBUpdateResponse
         'Update expression (e.g., "SET #name = :name, age = :age" or "SET #count = #count + :inc")',
     },
     expressionAttributeNames: {
-      type: 'object',
+      type: 'json',
       required: false,
       visibility: 'user-or-llm',
       description:
         'Attribute name mappings for reserved words (e.g., {"#name": "name", "#count": "count"})',
     },
     expressionAttributeValues: {
-      type: 'object',
+      type: 'json',
       required: false,
       visibility: 'user-or-llm',
       description: 'Expression attribute values (e.g., {":name": "John", ":age": 30, ":inc": 1})',
@@ -110,6 +110,6 @@ export const updateTool: ToolConfig<DynamoDBUpdateParams, DynamoDBUpdateResponse
 
   outputs: {
     message: { type: 'string', description: 'Operation status message' },
-    item: { type: 'object', description: 'Updated item' },
+    item: { type: 'json', description: 'Updated item with all attributes', optional: true },
   },
 }

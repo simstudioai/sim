@@ -484,7 +484,7 @@
     "type": "dynamodb",
     "slug": "amazon-dynamodb",
     "name": "Amazon DynamoDB",
-    "description": "Connect to Amazon DynamoDB",
+    "description": "Get, put, query, scan, update, and delete items in Amazon DynamoDB tables",
     "longDescription": "Integrate Amazon DynamoDB into workflows. Supports Get, Put, Query, Scan, Update, Delete, and Introspect operations on DynamoDB tables.",
     "bgColor": "linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)",
     "iconName": "DynamoDBIcon",
@@ -1464,14 +1464,93 @@
       {
         "name": "Remove User from Group",
         "description": "Remove an IAM user from a group"
+      },
+      {
+        "name": "List Attached Role Policies",
+        "description": "List all managed policies attached to an IAM role"
+      },
+      {
+        "name": "List Attached User Policies",
+        "description": "List all managed policies attached to an IAM user"
+      },
+      {
+        "name": "Simulate Principal Policy",
+        "description": "Simulate whether a user, role, or group is allowed to perform specific AWS actions — useful for pre-flight access checks"
       }
     ],
-    "operationCount": 18,
+    "operationCount": 21,
     "triggers": [],
     "triggerCount": 0,
     "authType": "none",
     "category": "tools",
     "integrationTypes": ["developer-tools", "security"],
+    "tags": ["cloud", "identity"]
+  },
+  {
+    "type": "identity_center",
+    "slug": "aws-identity-center",
+    "name": "AWS Identity Center",
+    "description": "Manage temporary elevated access in AWS IAM Identity Center",
+    "longDescription": "Provision and revoke temporary access to AWS accounts via IAM Identity Center (SSO). Assign permission sets to users or groups, look up users by email, and list accounts and permission sets for access request workflows.",
+    "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
+    "iconName": "IdentityCenterIcon",
+    "docsUrl": "https://docs.sim.ai/tools/identity-center",
+    "operations": [
+      {
+        "name": "List Instances",
+        "description": "List all AWS IAM Identity Center instances in your account"
+      },
+      {
+        "name": "List Accounts",
+        "description": "List all AWS accounts in your organization"
+      },
+      {
+        "name": "Describe Account",
+        "description": "Retrieve details about a specific AWS account by its ID"
+      },
+      {
+        "name": "List Permission Sets",
+        "description": "List all permission sets defined in an IAM Identity Center instance"
+      },
+      {
+        "name": "Get User",
+        "description": "Look up a user in the Identity Store by email address"
+      },
+      {
+        "name": "Get Group",
+        "description": "Look up a group in the Identity Store by display name"
+      },
+      {
+        "name": "List Groups",
+        "description": "List all groups in the Identity Store"
+      },
+      {
+        "name": "Create Account Assignment",
+        "description": "Grant a user or group access to an AWS account via a permission set (temporary elevated access)"
+      },
+      {
+        "name": "Delete Account Assignment",
+        "description": "Revoke a user or group access to an AWS account by removing a permission set assignment"
+      },
+      {
+        "name": "Check Assignment Status",
+        "description": "Check the provisioning status of an account assignment creation request"
+      },
+      {
+        "name": "Check Assignment Deletion Status",
+        "description": "Check the deprovisioning status of an account assignment deletion request"
+      },
+      {
+        "name": "List Account Assignments",
+        "description": "List all account assignments for a specific user or group across all accounts"
+      }
+    ],
+    "operationCount": 12,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["security", "developer-tools"],
     "tags": ["cloud", "identity"]
   },
   {
@@ -1512,6 +1591,61 @@
     "category": "tools",
     "integrationTypes": ["developer-tools", "security"],
     "tags": ["cloud", "secrets-management"]
+  },
+  {
+    "type": "ses",
+    "slug": "aws-ses",
+    "name": "AWS SES",
+    "description": "Send emails and manage templates with AWS Simple Email Service",
+    "longDescription": "Integrate AWS SES v2 into the workflow. Send simple, templated, and bulk emails. Manage email templates and retrieve account sending quota and verified identity information.",
+    "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
+    "iconName": "SESIcon",
+    "docsUrl": "https://docs.sim.ai/tools/ses",
+    "operations": [
+      {
+        "name": "Send Email",
+        "description": "Send an email via AWS SES using simple or HTML content"
+      },
+      {
+        "name": "Send Templated Email",
+        "description": "Send an email using an SES email template with dynamic template data"
+      },
+      {
+        "name": "Send Bulk Email",
+        "description": "Send emails to multiple recipients using an SES template with per-recipient data"
+      },
+      {
+        "name": "List Identities",
+        "description": "List all verified email identities (email addresses and domains) in your SES account"
+      },
+      {
+        "name": "Get Account",
+        "description": "Get SES account sending quota and status information"
+      },
+      {
+        "name": "Create Template",
+        "description": "Create a new SES email template for use with templated email sending"
+      },
+      {
+        "name": "Get Template",
+        "description": "Retrieve the content and details of an SES email template"
+      },
+      {
+        "name": "List Templates",
+        "description": "List all SES email templates in your account"
+      },
+      {
+        "name": "Delete Template",
+        "description": "Delete an existing SES email template"
+      }
+    ],
+    "operationCount": 9,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationTypes": ["email", "analytics", "developer-tools"],
+    "tags": ["cloud", "marketing"]
   },
   {
     "type": "sts",

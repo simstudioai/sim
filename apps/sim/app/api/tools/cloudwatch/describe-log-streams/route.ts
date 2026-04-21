@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
@@ -29,31 +30,41 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const body = await request.json()
     const validatedData = DescribeLogStreamsSchema.parse(body)
 
+    logger.info(`Describing log streams for group: ${validatedData.logGroupName}`)
+
     const client = createCloudWatchLogsClient({
       region: validatedData.region,
       accessKeyId: validatedData.accessKeyId,
       secretAccessKey: validatedData.secretAccessKey,
     })
 
-    const result = await describeLogStreams(client, validatedData.logGroupName, {
-      prefix: validatedData.prefix,
-      limit: validatedData.limit,
-    })
+    try {
+      const result = await describeLogStreams(client, validatedData.logGroupName, {
+        prefix: validatedData.prefix,
+        limit: validatedData.limit,
+      })
 
-    return NextResponse.json({
-      success: true,
-      output: { logStreams: result.logStreams },
-    })
+      logger.info(`Successfully described ${result.logStreams.length} log streams`)
+
+      return NextResponse.json({
+        success: true,
+        output: { logStreams: result.logStreams },
+      })
+    } finally {
+      client.destroy()
+    }
   } catch (error) {
     if (error instanceof z.ZodError) {
+      logger.warn('Invalid request data', { errors: error.errors })
       return NextResponse.json(
         { error: error.errors[0]?.message ?? 'Invalid request' },
         { status: 400 }
       )
     }
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to describe CloudWatch log streams'
-    logger.error('DescribeLogStreams failed', { error: errorMessage })
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+    logger.error('DescribeLogStreams failed', { error: toError(error).message })
+    return NextResponse.json(
+      { error: `Failed to describe CloudWatch log streams: ${toError(error).message}` },
+      { status: 500 }
+    )
   }
 })

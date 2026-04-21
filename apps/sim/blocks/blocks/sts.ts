@@ -78,6 +78,15 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'policy',
+      title: 'Session Policy (JSON)',
+      type: 'long-input',
+      placeholder: '{"Version":"2012-10-17","Statement":[...]}',
+      condition: { field: 'operation', value: 'assume_role' },
+      required: false,
+      mode: 'advanced',
+    },
+    {
       id: 'externalId',
       title: 'External ID',
       type: 'short-input',
@@ -154,6 +163,7 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
               const parsed = Number.parseInt(String(durationSeconds), 10)
               if (!Number.isNaN(parsed)) result.durationSeconds = parsed
             }
+            if (rest.policy) result.policy = rest.policy
             if (rest.externalId) result.externalId = rest.externalId
             if (rest.serialNumber) result.serialNumber = rest.serialNumber
             if (rest.tokenCode) result.tokenCode = rest.tokenCode
@@ -184,7 +194,8 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
     secretAccessKey: { type: 'string', description: 'AWS secret access key' },
     roleArn: { type: 'string', description: 'ARN of the role to assume' },
     roleSessionName: { type: 'string', description: 'Session name for the assumed role' },
-    durationSeconds: { type: 'number', description: 'Session duration in seconds' },
+    durationSeconds: { type: 'string', description: 'Session duration in seconds' },
+    policy: { type: 'string', description: 'JSON IAM session policy to restrict permissions' },
     externalId: { type: 'string', description: 'External ID for cross-account access' },
     serialNumber: { type: 'string', description: 'MFA device serial number' },
     tokenCode: { type: 'string', description: 'MFA token code' },
@@ -193,43 +204,47 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
   outputs: {
     accessKeyId: {
       type: 'string',
-      description: 'Temporary access key ID',
+      description: 'Temporary access key ID (assume_role, get_session_token)',
     },
     secretAccessKey: {
       type: 'string',
-      description: 'Temporary secret access key',
+      description: 'Temporary secret access key (assume_role, get_session_token)',
     },
     sessionToken: {
       type: 'string',
-      description: 'Temporary session token',
+      description: 'Temporary session token (assume_role, get_session_token)',
     },
     expiration: {
       type: 'string',
-      description: 'Credential expiration timestamp',
+      description: 'Credential expiration timestamp (assume_role, get_session_token)',
     },
     assumedRoleArn: {
       type: 'string',
-      description: 'ARN of the assumed role',
+      description: 'ARN of the assumed role (assume_role only)',
     },
     assumedRoleId: {
       type: 'string',
-      description: 'Assumed role ID with session name',
-    },
-    account: {
-      type: 'string',
-      description: 'AWS account ID',
-    },
-    arn: {
-      type: 'string',
-      description: 'ARN of the calling entity',
-    },
-    userId: {
-      type: 'string',
-      description: 'Unique identifier of the calling entity',
+      description: 'Assumed role ID with session name (assume_role only)',
     },
     packedPolicySize: {
       type: 'number',
-      description: 'Percentage of allowed policy size used',
+      description: 'Percentage of allowed policy size used (assume_role only)',
+    },
+    sourceIdentity: {
+      type: 'string',
+      description: 'Source identity set on the role session (assume_role only)',
+    },
+    account: {
+      type: 'string',
+      description: 'AWS account ID (get_caller_identity, get_access_key_info)',
+    },
+    arn: {
+      type: 'string',
+      description: 'ARN of the calling entity (get_caller_identity only)',
+    },
+    userId: {
+      type: 'string',
+      description: 'Unique identifier of the calling entity (get_caller_identity only)',
     },
   },
 }

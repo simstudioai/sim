@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -55,10 +56,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         { status: 400 }
       )
     }
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     logger.error(`[${requestId}] Failed to add user to group:`, error)
     return NextResponse.json(
-      { error: `Failed to add user to group: ${errorMessage}` },
+      { error: `Failed to add user to group: ${toError(error).message}` },
       { status: 500 }
     )
   }

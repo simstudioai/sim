@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -12,9 +13,9 @@ const Schema = z.object({
   region: z.string().min(1, 'AWS region is required'),
   accessKeyId: z.string().min(1, 'AWS access key ID is required'),
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  pathPrefix: z.string().optional(),
-  maxItems: z.number().min(1).max(1000).optional(),
-  marker: z.string().optional(),
+  pathPrefix: z.string().optional().nullable(),
+  maxItems: z.number().min(1).max(1000).optional().nullable(),
+  marker: z.string().optional().nullable(),
 })
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
@@ -52,10 +53,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         { status: 400 }
       )
     }
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     logger.error(`[${requestId}] Failed to list IAM users:`, error)
     return NextResponse.json(
-      { error: `Failed to list IAM users: ${errorMessage}` },
+      { error: `Failed to list IAM users: ${toError(error).message}` },
       { status: 500 }
     )
   }

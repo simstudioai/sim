@@ -93,6 +93,7 @@ import { HuggingFaceBlock } from '@/blocks/blocks/huggingface'
 import { HumanInTheLoopBlock } from '@/blocks/blocks/human_in_the_loop'
 import { HunterBlock } from '@/blocks/blocks/hunter'
 import { IAMBlock } from '@/blocks/blocks/iam'
+import { IdentityCenterBlock } from '@/blocks/blocks/identity_center'
 import { ImageGeneratorBlock } from '@/blocks/blocks/image_generator'
 import { ImapBlock } from '@/blocks/blocks/imap'
 import { IncidentioBlock } from '@/blocks/blocks/incidentio'
@@ -174,6 +175,7 @@ import { SendGridBlock } from '@/blocks/blocks/sendgrid'
 import { SentryBlock } from '@/blocks/blocks/sentry'
 import { SerperBlock } from '@/blocks/blocks/serper'
 import { ServiceNowBlock } from '@/blocks/blocks/servicenow'
+import { SESBlock } from '@/blocks/blocks/ses'
 import { SftpBlock } from '@/blocks/blocks/sftp'
 import { SharepointBlock } from '@/blocks/blocks/sharepoint'
 import { ShopifyBlock } from '@/blocks/blocks/shopify'
@@ -334,6 +336,7 @@ export const registry: Record<string, BlockConfig> = {
   human_in_the_loop: HumanInTheLoopBlock,
   hunter: HunterBlock,
   iam: IAMBlock,
+  identity_center: IdentityCenterBlock,
   image_generator: ImageGeneratorBlock,
   imap: ImapBlock,
   incidentio: IncidentioBlock,
@@ -429,6 +432,7 @@ export const registry: Record<string, BlockConfig> = {
   smtp: SmtpBlock,
   spotify: SpotifyBlock,
   secrets_manager: SecretsManagerBlock,
+  ses: SESBlock,
   sqs: SQSBlock,
   ssh: SSHBlock,
   sts: STSBlock,

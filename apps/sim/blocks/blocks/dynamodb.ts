@@ -1,12 +1,14 @@
+import { toError } from '@sim/utils/errors'
 import { DynamoDBIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { DynamoDBIntrospectResponse, DynamoDBResponse } from '@/tools/dynamodb/types'
 
 export const DynamoDBBlock: BlockConfig<DynamoDBResponse | DynamoDBIntrospectResponse> = {
   type: 'dynamodb',
   name: 'Amazon DynamoDB',
-  description: 'Connect to Amazon DynamoDB',
+  description: 'Get, put, query, scan, update, and delete items in Amazon DynamoDB tables',
+  authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Amazon DynamoDB into workflows. Supports Get, Put, Query, Scan, Update, Delete, and Introspect operations on DynamoDB tables.',
   docsLink: 'https://docs.sim.ai/tools/dynamodb',
@@ -67,16 +69,15 @@ export const DynamoDBBlock: BlockConfig<DynamoDBResponse | DynamoDBIntrospectRes
       },
     },
     {
-      id: 'tableName',
+      id: 'introspectTableName',
       title: 'Table Name (Optional)',
       type: 'short-input',
       placeholder: 'Leave empty to list all tables',
       required: false,
       condition: { field: 'operation', value: 'introspect' },
     },
-    // Key field for get, update, delete operations
     {
-      id: 'key',
+      id: 'getKey',
       title: 'Key (JSON)',
       type: 'code',
       placeholder: '{\n  "pk": "user#123"\n}',
@@ -96,7 +97,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       },
     },
     {
-      id: 'key',
+      id: 'updateKey',
       title: 'Key (JSON)',
       type: 'code',
       placeholder: '{\n  "pk": "user#123"\n}',
@@ -116,7 +117,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       },
     },
     {
-      id: 'key',
+      id: 'deleteKey',
       title: 'Key (JSON)',
       type: 'code',
       placeholder: '{\n  "pk": "user#123"\n}',
@@ -135,7 +136,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
         generationType: 'json-object',
       },
     },
-    // Consistent read for get
     {
       id: 'consistentRead',
       title: 'Consistent Read',
@@ -146,8 +146,8 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       ],
       value: () => 'false',
       condition: { field: 'operation', value: 'get' },
+      mode: 'advanced',
     },
-    // Item for put operation
     {
       id: 'item',
       title: 'Item (JSON)',
@@ -167,7 +167,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
         generationType: 'json-object',
       },
     },
-    // Key condition expression for query
     {
       id: 'keyConditionExpression',
       title: 'Key Condition Expression',
@@ -189,7 +188,6 @@ Return ONLY the expression - no explanations.`,
         placeholder: 'Describe the key condition...',
       },
     },
-    // Update expression for update operation
     {
       id: 'updateExpression',
       title: 'Update Expression',
@@ -211,9 +209,8 @@ Return ONLY the expression - no explanations.`,
         placeholder: 'Describe what updates to make...',
       },
     },
-    // Filter expression for query and scan
     {
-      id: 'filterExpression',
+      id: 'queryFilterExpression',
       title: 'Filter Expression',
       type: 'short-input',
       placeholder: 'attribute_exists(email)',
@@ -233,7 +230,7 @@ Return ONLY the expression - no explanations.`,
       },
     },
     {
-      id: 'filterExpression',
+      id: 'scanFilterExpression',
       title: 'Filter Expression',
       type: 'short-input',
       placeholder: 'attribute_exists(email)',
@@ -252,7 +249,6 @@ Return ONLY the expression - no explanations.`,
         placeholder: 'Describe how to filter results...',
       },
     },
-    // Projection expression for scan
     {
       id: 'projectionExpression',
       title: 'Projection Expression',
@@ -260,9 +256,8 @@ Return ONLY the expression - no explanations.`,
       placeholder: 'pk, #name, email',
       condition: { field: 'operation', value: 'scan' },
     },
-    // Expression attribute names for query, scan, update
     {
-      id: 'expressionAttributeNames',
+      id: 'queryExpressionAttributeNames',
       title: 'Expression Attribute Names (JSON)',
       type: 'code',
       placeholder: '{\n  "#name": "name"\n}',
@@ -280,7 +275,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       },
     },
     {
-      id: 'expressionAttributeNames',
+      id: 'scanExpressionAttributeNames',
       title: 'Expression Attribute Names (JSON)',
       type: 'code',
       placeholder: '{\n  "#name": "name"\n}',
@@ -298,7 +293,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       },
     },
     {
-      id: 'expressionAttributeNames',
+      id: 'updateExpressionAttributeNames',
       title: 'Expression Attribute Names (JSON)',
       type: 'code',
       placeholder: '{\n  "#name": "name"\n}',
@@ -315,9 +310,44 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
         generationType: 'json-object',
       },
     },
-    // Expression attribute values for query, scan, update
     {
-      id: 'expressionAttributeValues',
+      id: 'putExpressionAttributeNames',
+      title: 'Expression Attribute Names (JSON)',
+      type: 'code',
+      placeholder: '{\n  "#name": "name"\n}',
+      condition: { field: 'operation', value: 'put' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate DynamoDB expression attribute names JSON based on the user's description.
+Map placeholder names (starting with #) to actual attribute names used in the condition expression.
+Example: {"#name": "name", "#status": "status"}
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the attribute name mappings...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'deleteExpressionAttributeNames',
+      title: 'Expression Attribute Names (JSON)',
+      type: 'code',
+      placeholder: '{\n  "#status": "status"\n}',
+      condition: { field: 'operation', value: 'delete' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate DynamoDB expression attribute names JSON based on the user's description.
+Map placeholder names (starting with #) to actual attribute names used in the condition expression.
+Example: {"#status": "status"}
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the attribute name mappings...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'queryExpressionAttributeValues',
       title: 'Expression Attribute Values (JSON)',
       type: 'code',
       placeholder: '{\n  ":pk": "user#123",\n  ":name": "Jane"\n}',
@@ -334,7 +364,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       },
     },
     {
-      id: 'expressionAttributeValues',
+      id: 'scanExpressionAttributeValues',
       title: 'Expression Attribute Values (JSON)',
       type: 'code',
       placeholder: '{\n  ":status": "active"\n}',
@@ -351,7 +381,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       },
     },
     {
-      id: 'expressionAttributeValues',
+      id: 'updateExpressionAttributeValues',
       title: 'Expression Attribute Values (JSON)',
       type: 'code',
       placeholder: '{\n  ":name": "Jane Doe"\n}',
@@ -367,36 +397,92 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
         generationType: 'json-object',
       },
     },
-    // Index name for query
+    {
+      id: 'putExpressionAttributeValues',
+      title: 'Expression Attribute Values (JSON)',
+      type: 'code',
+      placeholder: '{\n  ":expected": "value"\n}',
+      condition: { field: 'operation', value: 'put' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate DynamoDB expression attribute values JSON based on the user's description.
+Map placeholder values (starting with :) to actual values used in the condition expression.
+Example: {":expectedVersion": 3}
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the attribute values...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'deleteExpressionAttributeValues',
+      title: 'Expression Attribute Values (JSON)',
+      type: 'code',
+      placeholder: '{\n  ":status": "active"\n}',
+      condition: { field: 'operation', value: 'delete' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate DynamoDB expression attribute values JSON based on the user's description.
+Map placeholder values (starting with :) to actual values used in the condition expression.
+Example: {":status": "active", ":version": 3}
+
+Return ONLY valid JSON - no explanations, no markdown code blocks.`,
+        placeholder: 'Describe the attribute values...',
+        generationType: 'json-object',
+      },
+    },
     {
       id: 'indexName',
       title: 'Index Name',
       type: 'short-input',
       placeholder: 'GSI1',
       condition: { field: 'operation', value: 'query' },
+      mode: 'advanced',
     },
-    // Limit for query and scan
     {
-      id: 'limit',
+      id: 'queryLimit',
       title: 'Limit',
       type: 'short-input',
       placeholder: '100',
       condition: { field: 'operation', value: 'query' },
+      mode: 'advanced',
     },
     {
-      id: 'limit',
+      id: 'scanLimit',
       title: 'Limit',
       type: 'short-input',
       placeholder: '100',
       condition: { field: 'operation', value: 'scan' },
+      mode: 'advanced',
     },
-    // Condition expression for update and delete
     {
-      id: 'conditionExpression',
+      id: 'putConditionExpression',
+      title: 'Condition Expression',
+      type: 'short-input',
+      placeholder: 'attribute_not_exists(pk)',
+      condition: { field: 'operation', value: 'put' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a DynamoDB condition expression based on the user's description.
+Condition expressions prevent the operation if the condition is not met.
+Examples:
+- "attribute_not_exists(pk)" - Prevent overwriting an existing item
+- "#version = :expectedVersion" - Optimistic locking
+
+Return ONLY the expression - no explanations.`,
+        placeholder: 'Describe the condition that must be true...',
+      },
+    },
+    {
+      id: 'updateConditionExpression',
       title: 'Condition Expression',
       type: 'short-input',
       placeholder: 'attribute_exists(pk)',
       condition: { field: 'operation', value: 'update' },
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate a DynamoDB condition expression based on the user's description.
@@ -411,11 +497,12 @@ Return ONLY the expression - no explanations.`,
       },
     },
     {
-      id: 'conditionExpression',
+      id: 'deleteConditionExpression',
       title: 'Condition Expression',
       type: 'short-input',
       placeholder: 'attribute_exists(pk)',
       condition: { field: 'operation', value: 'delete' },
+      mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt: `Generate a DynamoDB condition expression based on the user's description.
@@ -427,6 +514,34 @@ Examples:
 Return ONLY the expression - no explanations.`,
         placeholder: 'Describe the condition that must be true...',
       },
+    },
+    {
+      id: 'queryExclusiveStartKey',
+      title: 'Exclusive Start Key (JSON)',
+      type: 'code',
+      placeholder: '{\n  "pk": "user#123"\n}',
+      condition: { field: 'operation', value: 'query' },
+      mode: 'advanced',
+    },
+    {
+      id: 'scanExclusiveStartKey',
+      title: 'Exclusive Start Key (JSON)',
+      type: 'code',
+      placeholder: '{\n  "pk": "user#123"\n}',
+      condition: { field: 'operation', value: 'scan' },
+      mode: 'advanced',
+    },
+    {
+      id: 'scanIndexForward',
+      title: 'Sort Order',
+      type: 'dropdown',
+      options: [
+        { label: 'Ascending (default)', id: 'true' },
+        { label: 'Descending', id: 'false' },
+      ],
+      value: () => 'true',
+      condition: { field: 'operation', value: 'query' },
+      mode: 'advanced',
     },
   ],
   tools: {
@@ -461,18 +576,6 @@ Return ONLY the expression - no explanations.`,
         }
       },
       params: (params) => {
-        const {
-          operation,
-          key,
-          item,
-          expressionAttributeNames,
-          expressionAttributeValues,
-          consistentRead,
-          limit,
-          ...rest
-        } = params
-
-        // Parse JSON fields
         const parseJson = (value: unknown, fieldName: string) => {
           if (!value) return undefined
           if (typeof value === 'object') return value
@@ -480,56 +583,108 @@ Return ONLY the expression - no explanations.`,
             try {
               return JSON.parse(value)
             } catch (parseError) {
-              const errorMsg =
-                parseError instanceof Error ? parseError.message : 'Unknown JSON error'
-              throw new Error(`Invalid JSON in ${fieldName}: ${errorMsg}`)
+              throw new Error(`Invalid JSON in ${fieldName}: ${toError(parseError).message}`)
             }
           }
           return undefined
         }
 
-        const parsedKey = parseJson(key, 'key')
-        const parsedItem = parseJson(item, 'item')
-        const parsedExpressionAttributeNames = parseJson(
-          expressionAttributeNames,
-          'expressionAttributeNames'
-        )
-        const parsedExpressionAttributeValues = parseJson(
-          expressionAttributeValues,
-          'expressionAttributeValues'
-        )
-
-        // Build connection config
-        const connectionConfig = {
-          region: rest.region,
-          accessKeyId: rest.accessKeyId,
-          secretAccessKey: rest.secretAccessKey,
-        }
-
-        // Build params object
+        const op = params.operation as string
         const result: Record<string, unknown> = {
-          ...connectionConfig,
-          tableName: rest.tableName,
+          region: params.region,
+          accessKeyId: params.accessKeyId,
+          secretAccessKey: params.secretAccessKey,
         }
 
-        if (parsedKey !== undefined) result.key = parsedKey
-        if (parsedItem !== undefined) result.item = parsedItem
-        if (rest.keyConditionExpression) result.keyConditionExpression = rest.keyConditionExpression
-        if (rest.updateExpression) result.updateExpression = rest.updateExpression
-        if (rest.filterExpression) result.filterExpression = rest.filterExpression
-        if (rest.projectionExpression) result.projectionExpression = rest.projectionExpression
-        if (parsedExpressionAttributeNames !== undefined) {
-          result.expressionAttributeNames = parsedExpressionAttributeNames
+        // Table name (introspect uses introspectTableName, all others use tableName)
+        if (op === 'introspect') {
+          if (params.introspectTableName) result.tableName = params.introspectTableName
+        } else {
+          result.tableName = params.tableName
         }
-        if (parsedExpressionAttributeValues !== undefined) {
-          result.expressionAttributeValues = parsedExpressionAttributeValues
+
+        // Operation-specific params — map unique subBlock IDs back to tool param names
+        if (op === 'get') {
+          const key = parseJson(params.getKey, 'key')
+          if (key !== undefined) result.key = key
+          if (params.consistentRead === 'true' || params.consistentRead === true) {
+            result.consistentRead = true
+          }
         }
-        if (rest.indexName) result.indexName = rest.indexName
-        if (limit) result.limit = Number.parseInt(String(limit), 10)
-        if (rest.conditionExpression) result.conditionExpression = rest.conditionExpression
-        // Handle consistentRead - dropdown sends 'true'/'false' strings or boolean
-        if (consistentRead === 'true' || consistentRead === true) {
-          result.consistentRead = true
+
+        if (op === 'put') {
+          const item = parseJson(params.item, 'item')
+          if (item !== undefined) result.item = item
+          if (params.putConditionExpression)
+            result.conditionExpression = params.putConditionExpression
+          const names = parseJson(params.putExpressionAttributeNames, 'expressionAttributeNames')
+          if (names !== undefined) result.expressionAttributeNames = names
+          const values = parseJson(params.putExpressionAttributeValues, 'expressionAttributeValues')
+          if (values !== undefined) result.expressionAttributeValues = values
+        }
+
+        if (op === 'query') {
+          if (params.keyConditionExpression)
+            result.keyConditionExpression = params.keyConditionExpression
+          if (params.queryFilterExpression) result.filterExpression = params.queryFilterExpression
+          const names = parseJson(params.queryExpressionAttributeNames, 'expressionAttributeNames')
+          if (names !== undefined) result.expressionAttributeNames = names
+          const values = parseJson(
+            params.queryExpressionAttributeValues,
+            'expressionAttributeValues'
+          )
+          if (values !== undefined) result.expressionAttributeValues = values
+          if (params.indexName) result.indexName = params.indexName
+          if (params.queryLimit) result.limit = Number.parseInt(String(params.queryLimit), 10)
+          const esk = parseJson(params.queryExclusiveStartKey, 'exclusiveStartKey')
+          if (esk !== undefined) result.exclusiveStartKey = esk
+          if (params.scanIndexForward === 'false' || params.scanIndexForward === false) {
+            result.scanIndexForward = false
+          }
+        }
+
+        if (op === 'scan') {
+          if (params.scanFilterExpression) result.filterExpression = params.scanFilterExpression
+          if (params.projectionExpression) result.projectionExpression = params.projectionExpression
+          const names = parseJson(params.scanExpressionAttributeNames, 'expressionAttributeNames')
+          if (names !== undefined) result.expressionAttributeNames = names
+          const values = parseJson(
+            params.scanExpressionAttributeValues,
+            'expressionAttributeValues'
+          )
+          if (values !== undefined) result.expressionAttributeValues = values
+          if (params.scanLimit) result.limit = Number.parseInt(String(params.scanLimit), 10)
+          const esk = parseJson(params.scanExclusiveStartKey, 'exclusiveStartKey')
+          if (esk !== undefined) result.exclusiveStartKey = esk
+        }
+
+        if (op === 'update') {
+          const key = parseJson(params.updateKey, 'key')
+          if (key !== undefined) result.key = key
+          if (params.updateExpression) result.updateExpression = params.updateExpression
+          const names = parseJson(params.updateExpressionAttributeNames, 'expressionAttributeNames')
+          if (names !== undefined) result.expressionAttributeNames = names
+          const values = parseJson(
+            params.updateExpressionAttributeValues,
+            'expressionAttributeValues'
+          )
+          if (values !== undefined) result.expressionAttributeValues = values
+          if (params.updateConditionExpression)
+            result.conditionExpression = params.updateConditionExpression
+        }
+
+        if (op === 'delete') {
+          const key = parseJson(params.deleteKey, 'key')
+          if (key !== undefined) result.key = key
+          if (params.deleteConditionExpression)
+            result.conditionExpression = params.deleteConditionExpression
+          const names = parseJson(params.deleteExpressionAttributeNames, 'expressionAttributeNames')
+          if (names !== undefined) result.expressionAttributeNames = names
+          const values = parseJson(
+            params.deleteExpressionAttributeValues,
+            'expressionAttributeValues'
+          )
+          if (values !== undefined) result.expressionAttributeValues = values
         }
 
         return result
@@ -542,18 +697,66 @@ Return ONLY the expression - no explanations.`,
     accessKeyId: { type: 'string', description: 'AWS access key ID' },
     secretAccessKey: { type: 'string', description: 'AWS secret access key' },
     tableName: { type: 'string', description: 'DynamoDB table name' },
-    key: { type: 'json', description: 'Primary key for get/update/delete operations' },
+    introspectTableName: {
+      type: 'string',
+      description: 'Optional table name for introspect operation',
+    },
+    getKey: { type: 'json', description: 'Primary key for get operation' },
+    updateKey: { type: 'json', description: 'Primary key for update operation' },
+    deleteKey: { type: 'json', description: 'Primary key for delete operation' },
     item: { type: 'json', description: 'Item to put into the table' },
     keyConditionExpression: { type: 'string', description: 'Key condition for query operations' },
     updateExpression: { type: 'string', description: 'Update expression for update operations' },
-    filterExpression: { type: 'string', description: 'Filter expression for query/scan' },
+    queryFilterExpression: { type: 'string', description: 'Filter expression for query' },
+    scanFilterExpression: { type: 'string', description: 'Filter expression for scan' },
     projectionExpression: { type: 'string', description: 'Attributes to retrieve in scan' },
-    expressionAttributeNames: { type: 'json', description: 'Attribute name mappings' },
-    expressionAttributeValues: { type: 'json', description: 'Expression attribute values' },
+    queryExpressionAttributeNames: {
+      type: 'json',
+      description: 'Attribute name mappings for query',
+    },
+    scanExpressionAttributeNames: { type: 'json', description: 'Attribute name mappings for scan' },
+    updateExpressionAttributeNames: {
+      type: 'json',
+      description: 'Attribute name mappings for update',
+    },
+    putExpressionAttributeNames: { type: 'json', description: 'Attribute name mappings for put' },
+    deleteExpressionAttributeNames: {
+      type: 'json',
+      description: 'Attribute name mappings for delete',
+    },
+    queryExpressionAttributeValues: {
+      type: 'json',
+      description: 'Expression attribute values for query',
+    },
+    scanExpressionAttributeValues: {
+      type: 'json',
+      description: 'Expression attribute values for scan',
+    },
+    updateExpressionAttributeValues: {
+      type: 'json',
+      description: 'Expression attribute values for update',
+    },
+    putExpressionAttributeValues: {
+      type: 'json',
+      description: 'Expression attribute values for put',
+    },
+    deleteExpressionAttributeValues: {
+      type: 'json',
+      description: 'Expression attribute values for delete',
+    },
     indexName: { type: 'string', description: 'Secondary index name for query' },
-    limit: { type: 'number', description: 'Maximum items to return' },
-    conditionExpression: { type: 'string', description: 'Condition for update/delete' },
+    queryLimit: { type: 'number', description: 'Maximum items to return for query' },
+    scanLimit: { type: 'number', description: 'Maximum items to return for scan' },
+    putConditionExpression: { type: 'string', description: 'Condition for put operation' },
+    updateConditionExpression: { type: 'string', description: 'Condition for update operation' },
+    deleteConditionExpression: { type: 'string', description: 'Condition for delete operation' },
     consistentRead: { type: 'string', description: 'Use strongly consistent read' },
+    queryExclusiveStartKey: { type: 'json', description: 'Pagination token for query' },
+    scanExclusiveStartKey: { type: 'json', description: 'Pagination token for scan' },
+    scanIndexForward: {
+      type: 'string',
+      description: 'Sort order for query: true for ascending, false for descending',
+    },
   },
   outputs: {
     message: {
@@ -571,6 +774,11 @@ Return ONLY the expression - no explanations.`,
     count: {
       type: 'number',
       description: 'Number of items returned',
+    },
+    lastEvaluatedKey: {
+      type: 'json',
+      description:
+        'Pagination token from query/scan — pass as exclusiveStartKey to fetch the next page',
     },
     tables: {
       type: 'array',

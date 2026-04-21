@@ -83,6 +83,10 @@ export const getSessionTokenTool: ToolConfig<STSGetSessionTokenParams, STSGetSes
       accessKeyId: { type: 'string', description: 'Temporary access key ID' },
       secretAccessKey: { type: 'string', description: 'Temporary secret access key' },
       sessionToken: { type: 'string', description: 'Temporary session token' },
-      expiration: { type: 'string', description: 'Credential expiration timestamp' },
+      expiration: {
+        type: 'string',
+        description: 'Credential expiration timestamp',
+        optional: true,
+      },
     },
   }

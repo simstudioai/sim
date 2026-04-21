@@ -13,3 +13,5 @@ export const dynamodbPutTool = putTool
 export const dynamodbQueryTool = queryTool
 export const dynamodbScanTool = scanTool
 export const dynamodbUpdateTool = updateTool
+
+export * from './types'
