@@ -15,8 +15,26 @@ import { isBillingEnabled, isOrganizationsEnabled } from '@/lib/core/config/feat
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { SessionContext, type SessionHookResult } from '@/app/_shell/providers/session-provider'
 
+/**
+ * On Next.js error-page renders (`<html id="__next_error__">`), scripts from the
+ * root layout — including the runtime env script that populates `window.__ENV`
+ * — are inserted but not executed by React (see vercel/next.js#63980, #82456).
+ * Calling `getBaseUrl()` here at module evaluation would then throw and cascade
+ * the error-page render into a blank "Application error" overlay. On the
+ * client, auth endpoints are same-origin, so `window.location.origin` is a
+ * correct fallback; server-side we still surface a genuine misconfig.
+ */
+function getAuthBaseUrl(): string {
+  try {
+    return getBaseUrl()
+  } catch (e) {
+    if (typeof window !== 'undefined') return window.location.origin
+    throw e
+  }
+}
+
 export const client = createAuthClient({
-  baseURL: getBaseUrl(),
+  baseURL: getAuthBaseUrl(),
   plugins: [
     adminClient(),
     emailOTPClient(),
