@@ -24,7 +24,8 @@ export function withRouteHandler<T>(handler: RouteHandler<T>): RouteHandler<T> {
     const requestId = generateRequestId()
     const startTime = Date.now()
     const method = request.method
-    const path = request.nextUrl?.pathname ?? new URL(request.url ?? '/', 'http://localhost').pathname
+    const path =
+      request.nextUrl?.pathname ?? new URL(request.url ?? '/', 'http://localhost').pathname
 
     return runWithRequestContext({ requestId, method, path }, async () => {
       let response: NextResponse | Response
