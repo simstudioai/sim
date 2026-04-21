@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
@@ -22,6 +21,7 @@ import {
   validateSchema,
   validateWorkspaceAccess,
 } from '@/app/api/v1/knowledge/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0

@@ -1,4 +1,4 @@
-import { createLogger } from '@sim/logger'
+import { createLogger, runWithRequestContext } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { task } from '@trigger.dev/sdk'
@@ -59,6 +59,7 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
   const executionId = correlation.executionId
   const requestId = correlation.requestId
 
+  return runWithRequestContext({ requestId }, async () => {
   logger.info(`[${requestId}] Starting workflow execution job: ${workflowId}`, {
     userId: payload.userId,
     triggerType: payload.triggerType,
@@ -194,6 +195,7 @@ export async function executeWorkflowJob(payload: WorkflowExecutionPayload) {
 
     throw error
   }
+  })
 }
 
 export const workflowExecutionTask = task({

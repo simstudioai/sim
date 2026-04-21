@@ -17,10 +17,11 @@ import {
 } from '@/lib/invitations/send'
 import { getWorkspaceWithOwner, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceInvitePolicy } from '@/lib/workspaces/policy'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('InvitationResendAPI')
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const POST = withRouteHandler(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params
   const session = await getSession()
 
@@ -153,4 +154,4 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     logger.error('Failed to resend invitation', { invitationId: id, error })
     return NextResponse.json({ error: 'Failed to resend invitation' }, { status: 500 })
   }
-}
+})

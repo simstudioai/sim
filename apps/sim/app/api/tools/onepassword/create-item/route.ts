@@ -12,6 +12,7 @@ import {
   toSdkCategory,
   toSdkFieldType,
 } from '../utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OnePasswordCreateItemAPI')
 

@@ -26,7 +26,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   return betterAuthGET(request)
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const url = new URL(request.url)
   const path = url.pathname.replace('/api/auth/', '')
 
@@ -38,4 +38,4 @@ export async function POST(request: NextRequest) {
   }
 
   return betterAuthPOST(request)
-}
+})

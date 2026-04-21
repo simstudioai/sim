@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getBaseModelProviders } from '@/providers/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const GET = withRouteHandler(async () => {
   try {

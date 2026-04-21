@@ -6,7 +6,6 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData } from '@/lib/table'
 import { updateRow } from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
@@ -15,6 +14,7 @@ import {
   checkWorkspaceScope,
   createRateLimitResponse,
 } from '@/app/api/v1/middleware'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('V1TableRowAPI')
 

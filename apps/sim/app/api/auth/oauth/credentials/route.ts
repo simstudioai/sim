@@ -6,7 +6,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
 import {
   getCanonicalScopesForProvider,
@@ -14,6 +13,7 @@ import {
 } from '@/lib/oauth/utils'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 

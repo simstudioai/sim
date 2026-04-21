@@ -5,8 +5,8 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { env } from '@/lib/core/config/env'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { isSensitiveKey, REDACTED_MARKER } from '@/lib/core/security/redaction'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ensureZodObject, normalizeUrl } from '@/app/api/tools/stagehand/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('StagehandAgentAPI')
 

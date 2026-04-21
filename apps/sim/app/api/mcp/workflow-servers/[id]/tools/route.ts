@@ -12,6 +12,7 @@ import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/util
 import { generateParameterSchemaForWorkflow } from '@/lib/mcp/workflow-mcp-sync'
 import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils.server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('WorkflowMcpToolsAPI')
 
@@ -24,7 +25,7 @@ interface RouteParams {
 /**
  * GET - List all tools for a workflow MCP server
  */
-export const GET = withRouteHandler(withMcpAuth<RouteParams>('read'))(
+export const GET = withRouteHandler(withMcpAuth<RouteParams>('read')(
   async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
     try {
       const { id: serverId } = await params
@@ -76,12 +77,12 @@ export const GET = withRouteHandler(withMcpAuth<RouteParams>('read'))(
       return createMcpErrorResponse(toError(error), 'Failed to list tools', 500)
     }
   }
-)
+))
 
 /**
  * POST - Add a workflow as a tool to an MCP server
  */
-export const POST = withRouteHandler(withMcpAuth<RouteParams>('write'))(
+export const POST = withRouteHandler(withMcpAuth<RouteParams>('write')(
   async (
     request: NextRequest,
     { userId, userName, userEmail, workspaceId, requestId },
@@ -237,4 +238,4 @@ export const POST = withRouteHandler(withMcpAuth<RouteParams>('write'))(
       return createMcpErrorResponse(toError(error), 'Failed to add tool', 500)
     }
   }
-)
+))

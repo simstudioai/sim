@@ -7,6 +7,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CredentialSetMemberships')
 

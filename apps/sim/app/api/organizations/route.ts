@@ -20,6 +20,7 @@ import {
   attachOwnedWorkspacesToOrganization,
   WorkspaceOrganizationMembershipConflictError,
 } from '@/lib/workspaces/organization-workspaces'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OrganizationsAPI')
 

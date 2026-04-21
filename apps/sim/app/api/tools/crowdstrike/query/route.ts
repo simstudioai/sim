@@ -9,6 +9,7 @@ import type {
   CrowdStrikeSensorAggregateBucket,
   CrowdStrikeSensorAggregateResult,
 } from '@/tools/crowdstrike/types'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CrowdStrikeIdentityProtectionAPI')
 
@@ -347,7 +348,7 @@ async function postCrowdStrikeJson(
   })
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
   const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
@@ -482,4 +483,4 @@ export async function POST(request: NextRequest) {
     logger.error(`[${requestId}] CrowdStrike request failed`, { error: message })
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
-}
+})

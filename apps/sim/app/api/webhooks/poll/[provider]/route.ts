@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
 import { pollProvider, VALID_POLLING_PROVIDERS } from '@/lib/webhooks/polling'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('PollingAPI')
 

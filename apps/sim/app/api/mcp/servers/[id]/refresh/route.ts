@@ -4,7 +4,6 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpServerStatusConfig, McpTool, McpToolSchema } from '@/lib/mcp/types'
@@ -13,6 +12,7 @@ import {
   createMcpSuccessResponse,
   MCP_TOOL_CORE_PARAMS,
 } from '@/lib/mcp/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('McpServerRefreshAPI')
 
@@ -155,9 +155,8 @@ async function syncToolSchemasToWorkflows(
   }
 }
 
-export const POST =
-  withRouteHandler(withMcpAuth < { id: string }) >
-  'read'(async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+export const POST = withRouteHandler(withMcpAuth<{ id: string })>('read')(
+  async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
     const { id: serverId } = await params
 
     try {
@@ -254,4 +253,5 @@ export const POST =
       logger.error(`[${requestId}] Error refreshing MCP server:`, error)
       return createMcpErrorResponse(toError(error), 'Failed to refresh MCP server', 500)
     }
-  })
+  }
+)

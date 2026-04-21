@@ -3,7 +3,6 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createSftpConnection,
   getFileType,
@@ -12,6 +11,7 @@ import {
   parsePermissions,
   sanitizePath,
 } from '@/app/api/tools/sftp/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 

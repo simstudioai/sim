@@ -38,6 +38,7 @@ import {
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 import { toAdminSubscription } from '@/app/api/v1/admin/types'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('AdminSubscriptionDetailAPI')
 
@@ -45,64 +46,53 @@ interface RouteParams {
   id: string
 }
 
-export const GET = withRouteHandler(
-  withAdminAuthParams<RouteParams>(async (_, context) => {
-    const { id: subscriptionId } = await context.params
+export const GET = withRouteHandler(withAdminAuthParams<RouteParams>(async (_, context) => {
+  const { id: subscriptionId } = await context.params
 
-    try {
-      const [subData] = await db
-        .select()
-        .from(subscription)
-        .where(eq(subscription.id, subscriptionId))
-        .limit(1)
+  try {
+    const [subData] = await db
+      .select()
+      .from(subscription)
+      .where(eq(subscription.id, subscriptionId))
+      .limit(1)
 
-      if (!subData) {
-        return notFoundResponse('Subscription')
-      }
-
-      logger.info(`Admin API: Retrieved subscription ${subscriptionId}`)
-
-      return singleResponse(toAdminSubscription(subData))
-    } catch (error) {
-      logger.error('Admin API: Failed to get subscription', { error, subscriptionId })
-      return internalErrorResponse('Failed to get subscription')
+    if (!subData) {
+      return notFoundResponse('Subscription')
     }
-  })
-)
 
-export const DELETE = withRouteHandler(
-  withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id: subscriptionId } = await context.params
-    const url = new URL(request.url)
-    const atPeriodEnd = url.searchParams.get('atPeriodEnd') === 'true'
-    const reason = url.searchParams.get('reason') || 'Admin cancellation (no reason provided)'
+    logger.info(`Admin API: Retrieved subscription ${subscriptionId}`)
 
-    try {
-      const [existing] = await db
-        .select()
-        .from(subscription)
-        .where(eq(subscription.id, subscriptionId))
-        .limit(1)
+    return singleResponse(toAdminSubscription(subData))
+  } catch (error) {
+    logger.error('Admin API: Failed to get subscription', { error, subscriptionId })
+    return internalErrorResponse('Failed to get subscription')
+  }
+}))
 
-      if (!existing) {
-        return notFoundResponse('Subscription')
-      }
+export const DELETE = withRouteHandler(withAdminAuthParams<RouteParams>(async (request, context) => {
+  const { id: subscriptionId } = await context.params
+  const url = new URL(request.url)
+  const atPeriodEnd = url.searchParams.get('atPeriodEnd') === 'true'
+  const reason = url.searchParams.get('reason') || 'Admin cancellation (no reason provided)'
 
-      if (existing.status === 'canceled') {
-        return badRequestResponse('Subscription is already canceled')
-      }
+  try {
+    const [existing] = await db
+      .select()
+      .from(subscription)
+      .where(eq(subscription.id, subscriptionId))
+      .limit(1)
 
-      if (!existing.stripeSubscriptionId) {
-        return badRequestResponse('Subscription has no Stripe subscription ID')
-      }
+    if (!existing) {
+      return notFoundResponse('Subscription')
+    }
 
-      const stripe = requireStripeClient()
+    if (existing.status === 'canceled') {
+      return badRequestResponse('Subscription is already canceled')
+    }
 
-      if (atPeriodEnd) {
-        // Schedule cancellation at period end
-        await stripe.subscriptions.update(existing.stripeSubscriptionId, {
-          cancel_at_period_end: true,
-        })
+    if (!existing.stripeSubscriptionId) {
+      return badRequestResponse('Subscription has no Stripe subscription ID')
+    }
 
     if (atPeriodEnd) {
       await db.transaction(async (tx) => {
@@ -132,14 +122,12 @@ export const DELETE = withRouteHandler(
 
       return singleResponse({
         success: true,
-        message: 'Subscription cancellation triggered. Webhook will complete cleanup.',
+        message: 'Subscription scheduled to cancel at period end.',
         subscriptionId,
         stripeSubscriptionId: existing.stripeSubscriptionId,
-        atPeriodEnd: false,
+        atPeriodEnd: true,
+        periodEnd: existing.periodEnd?.toISOString() ?? null,
       })
-    } catch (error) {
-      logger.error('Admin API: Failed to cancel subscription', { error, subscriptionId })
-      return internalErrorResponse('Failed to cancel subscription')
     }
 
     // Immediate cancellation — stays synchronous. Stripe's
@@ -172,4 +160,4 @@ export const DELETE = withRouteHandler(
     logger.error('Admin API: Failed to cancel subscription', { error, subscriptionId })
     return internalErrorResponse('Failed to cancel subscription')
   }
-})
+}))

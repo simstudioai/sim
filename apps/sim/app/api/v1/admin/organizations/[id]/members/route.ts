@@ -34,7 +34,6 @@ import { createLogger } from '@sim/logger'
 import { count, eq } from 'drizzle-orm'
 import { addUserToOrganization } from '@/lib/billing/organizations/membership'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   badRequestResponse,
@@ -49,6 +48,7 @@ import {
   createPaginationMeta,
   parsePaginationParams,
 } from '@/app/api/v1/admin/types'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('AdminOrganizationMembersAPI')
 
@@ -56,133 +56,63 @@ interface RouteParams {
   id: string
 }
 
-export const GET = withRouteHandler(
-  withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id: organizationId } = await context.params
-    const url = new URL(request.url)
-    const { limit, offset } = parsePaginationParams(url)
+export const GET = withRouteHandler(withAdminAuthParams<RouteParams>(async (request, context) => {
+  const { id: organizationId } = await context.params
+  const url = new URL(request.url)
+  const { limit, offset } = parsePaginationParams(url)
 
-    try {
-      const [orgData] = await db
-        .select({ id: organization.id })
-        .from(organization)
-        .where(eq(organization.id, organizationId))
-        .limit(1)
+  try {
+    const [orgData] = await db
+      .select({ id: organization.id })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+      .limit(1)
 
-      if (!orgData) {
-        return notFoundResponse('Organization')
-      }
-
-      const [countResult, membersData] = await Promise.all([
-        db.select({ count: count() }).from(member).where(eq(member.organizationId, organizationId)),
-        db
-          .select({
-            id: member.id,
-            userId: member.userId,
-            organizationId: member.organizationId,
-            role: member.role,
-            createdAt: member.createdAt,
-            userName: user.name,
-            userEmail: user.email,
-            currentPeriodCost: userStats.currentPeriodCost,
-            currentUsageLimit: userStats.currentUsageLimit,
-            lastActive: userStats.lastActive,
-            billingBlocked: userStats.billingBlocked,
-          })
-          .from(member)
-          .innerJoin(user, eq(member.userId, user.id))
-          .leftJoin(userStats, eq(member.userId, userStats.userId))
-          .where(eq(member.organizationId, organizationId))
-          .orderBy(member.createdAt)
-          .limit(limit)
-          .offset(offset),
-      ])
-
-      const total = countResult[0].count
-      const data: AdminMemberDetail[] = membersData.map((m) => ({
-        id: m.id,
-        userId: m.userId,
-        organizationId: m.organizationId,
-        role: m.role,
-        createdAt: m.createdAt.toISOString(),
-        userName: m.userName,
-        userEmail: m.userEmail,
-        currentPeriodCost: m.currentPeriodCost ?? '0',
-        currentUsageLimit: m.currentUsageLimit,
-        lastActive: m.lastActive?.toISOString() ?? null,
-        billingBlocked: m.billingBlocked ?? false,
-      }))
-
-      const pagination = createPaginationMeta(total, limit, offset)
-
-      logger.info(`Admin API: Listed ${data.length} members for organization ${organizationId}`)
-
-      return listResponse(data, pagination)
-    } catch (error) {
-      logger.error('Admin API: Failed to list organization members', { error, organizationId })
-      return internalErrorResponse('Failed to list organization members')
+    if (!orgData) {
+      return notFoundResponse('Organization')
     }
-  })
-)
 
-export const POST = withRouteHandler(
-  withAdminAuthParams<RouteParams>(async (request, context) => {
-    const { id: organizationId } = await context.params
-
-    try {
-      const body = await request.json()
-
-      if (!body.userId || typeof body.userId !== 'string') {
-        return badRequestResponse('userId is required')
-      }
-
-      if (!body.role || !['admin', 'member'].includes(body.role)) {
-        return badRequestResponse('role must be "admin" or "member"')
-      }
-
-      const [orgData] = await db
-        .select({ id: organization.id, name: organization.name })
-        .from(organization)
-        .where(eq(organization.id, organizationId))
-        .limit(1)
-
-      if (!orgData) {
-        return notFoundResponse('Organization')
-      }
-
-      const [userData] = await db
-        .select({ id: user.id, name: user.name, email: user.email })
-        .from(user)
-        .where(eq(user.id, body.userId))
-        .limit(1)
-
-      if (!userData) {
-        return notFoundResponse('User')
-      }
-
-      const [existingMember] = await db
+    const [countResult, membersData] = await Promise.all([
+      db.select({ count: count() }).from(member).where(eq(member.organizationId, organizationId)),
+      db
         .select({
           id: member.id,
+          userId: member.userId,
+          organizationId: member.organizationId,
           role: member.role,
           createdAt: member.createdAt,
-          organizationId: member.organizationId,
+          userName: user.name,
+          userEmail: user.email,
+          currentPeriodCost: userStats.currentPeriodCost,
+          currentUsageLimit: userStats.currentUsageLimit,
+          lastActive: userStats.lastActive,
+          billingBlocked: userStats.billingBlocked,
         })
         .from(member)
-        .where(eq(member.userId, body.userId))
-        .limit(1)
+        .innerJoin(user, eq(member.userId, user.id))
+        .leftJoin(userStats, eq(member.userId, userStats.userId))
+        .where(eq(member.organizationId, organizationId))
+        .orderBy(member.createdAt)
+        .limit(limit)
+        .offset(offset),
+    ])
 
-      if (existingMember) {
-        if (existingMember.organizationId === organizationId) {
-          if (existingMember.role !== body.role) {
-            await db.update(member).set({ role: body.role }).where(eq(member.id, existingMember.id))
+    const total = countResult[0].count
+    const data: AdminMemberDetail[] = membersData.map((m) => ({
+      id: m.id,
+      userId: m.userId,
+      organizationId: m.organizationId,
+      role: m.role,
+      createdAt: m.createdAt.toISOString(),
+      userName: m.userName,
+      userEmail: m.userEmail,
+      currentPeriodCost: m.currentPeriodCost ?? '0',
+      currentUsageLimit: m.currentUsageLimit,
+      lastActive: m.lastActive?.toISOString() ?? null,
+      billingBlocked: m.billingBlocked ?? false,
+    }))
 
-            logger.info(
-              `Admin API: Updated user ${body.userId} role in organization ${organizationId}`,
-              {
-                previousRole: existingMember.role,
-                newRole: body.role,
-              }
-            )
+    const pagination = createPaginationMeta(total, limit, offset)
 
     logger.info(`Admin API: Listed ${data.length} members for organization ${organizationId}`)
 
@@ -191,9 +121,9 @@ export const POST = withRouteHandler(
     logger.error('Admin API: Failed to list organization members', { error, organizationId })
     return internalErrorResponse('Failed to list organization members')
   }
-})
+}))
 
-export const POST = withAdminAuthParams<RouteParams>(async (request, context) => {
+export const POST = withRouteHandler(withAdminAuthParams<RouteParams>(async (request, context) => {
   const { id: organizationId } = await context.params
 
   try {
@@ -261,11 +191,11 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
             id: existingMember.id,
             userId: body.userId,
             organizationId,
-            role: existingMember.role,
+            role: body.role,
             createdAt: existingMember.createdAt.toISOString(),
             userName: userData.name,
             userEmail: userData.email,
-            action: 'already_member' as const,
+            action: 'updated' as const,
             billingActions: {
               proUsageSnapshotted: false,
               proCancelledAtPeriodEnd: false,
@@ -333,4 +263,4 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
     logger.error('Admin API: Failed to add organization member', { error, organizationId })
     return internalErrorResponse('Failed to add organization member')
   }
-})
+}))

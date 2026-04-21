@@ -6,10 +6,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { revokeWorkspaceCredentialMemberships } from '@/lib/credentials/access'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('WorkspaceMemberAPI')
 const deleteMemberSchema = z.object({
@@ -17,116 +17,95 @@ const deleteMemberSchema = z.object({
 })
 
 // DELETE /api/workspaces/members/[id] - Remove a member from a workspace
-export const DELETE = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id: userId } = await params
-    const session = await getSession()
+export const DELETE = withRouteHandler(async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  const { id: userId } = await params
+  const session = await getSession()
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  try {
+    // Get the workspace ID from the request body or URL
+    const body = deleteMemberSchema.parse(await req.json())
+    const { workspaceId } = body
+
+    const workspaceRow = await db
+      .select({ billedAccountUserId: workspace.billedAccountUserId })
+      .from(workspace)
+      .where(eq(workspace.id, workspaceId))
+      .limit(1)
+
+    if (!workspaceRow.length) {
+      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
     }
 
-    try {
-      // Get the workspace ID from the request body or URL
-      const body = deleteMemberSchema.parse(await req.json())
-      const { workspaceId } = body
+    if (workspaceRow[0].billedAccountUserId === userId) {
+      return NextResponse.json(
+        { error: 'Cannot remove the workspace billing account. Please reassign billing first.' },
+        { status: 400 }
+      )
+    }
 
-      const workspaceRow = await db
-        .select({ billedAccountUserId: workspace.billedAccountUserId })
-        .from(workspace)
-        .where(eq(workspace.id, workspaceId))
-        .limit(1)
-
-      if (!workspaceRow.length) {
-        return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
-      }
-
-      if (workspaceRow[0].billedAccountUserId === userId) {
-        return NextResponse.json(
-          { error: 'Cannot remove the workspace billing account. Please reassign billing first.' },
-          { status: 400 }
+    // Check if the user to be removed actually has permissions for this workspace
+    const userPermission = await db
+      .select()
+      .from(permissions)
+      .where(
+        and(
+          eq(permissions.userId, userId),
+          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityId, workspaceId)
         )
-      }
+      )
+      .then((rows) => rows[0])
 
-      // Check if the user to be removed actually has permissions for this workspace
-      const userPermission = await db
+    if (!userPermission) {
+      return NextResponse.json({ error: 'User not found in workspace' }, { status: 404 })
+    }
+
+    // Check if current user has admin access to this workspace
+    const hasAdminAccess = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
+    const isSelf = userId === session.user.id
+
+    if (!hasAdminAccess && !isSelf) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    }
+
+    // Prevent removing yourself if you're the last admin
+    if (isSelf && userPermission.permissionType === 'admin') {
+      const otherAdmins = await db
         .select()
         .from(permissions)
         .where(
           and(
-            eq(permissions.userId, userId),
             eq(permissions.entityType, 'workspace'),
-            eq(permissions.entityId, workspaceId)
+            eq(permissions.entityId, workspaceId),
+            eq(permissions.permissionType, 'admin')
           )
         )
-        .then((rows) => rows[0])
+        .then((rows) => rows.filter((row) => row.userId !== session.user.id))
 
-      if (!userPermission) {
-        return NextResponse.json({ error: 'User not found in workspace' }, { status: 404 })
-      }
-
-      // Check if current user has admin access to this workspace
-      const hasAdminAccess = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
-      const isSelf = userId === session.user.id
-
-      if (!hasAdminAccess && !isSelf) {
-        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-      }
-
-      // Prevent removing yourself if you're the last admin
-      if (isSelf && userPermission.permissionType === 'admin') {
-        const otherAdmins = await db
-          .select()
-          .from(permissions)
-          .where(
-            and(
-              eq(permissions.entityType, 'workspace'),
-              eq(permissions.entityId, workspaceId),
-              eq(permissions.permissionType, 'admin')
-            )
-          )
-          .then((rows) => rows.filter((row) => row.userId !== session.user.id))
-
-        if (otherAdmins.length === 0) {
-          return NextResponse.json(
-            { error: 'Cannot remove the last admin from a workspace' },
-            { status: 400 }
-          )
-        }
-      }
-
-      // Delete the user's permissions for this workspace
-      await db
-        .delete(permissions)
-        .where(
-          and(
-            eq(permissions.userId, userId),
-            eq(permissions.entityType, 'workspace'),
-            eq(permissions.entityId, workspaceId)
-          )
+      if (otherAdmins.length === 0) {
+        return NextResponse.json(
+          { error: 'Cannot remove the last admin from a workspace' },
+          { status: 400 }
         )
+      }
+    }
 
-      await revokeWorkspaceCredentialMemberships(workspaceId, userId)
-
-      captureServerEvent(
-        session.user.id,
-        'workspace_member_removed',
-        { workspace_id: workspaceId, is_self_removal: isSelf },
-        { groups: { workspace: workspaceId } }
+    // Delete the user's permissions for this workspace
+    await db
+      .delete(permissions)
+      .where(
+        and(
+          eq(permissions.userId, userId),
+          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityId, workspaceId)
+        )
       )
 
-      recordAudit({
-        workspaceId,
-        actorId: session.user.id,
-        actorName: session.user.name,
-        actorEmail: session.user.email,
-        action: AuditAction.MEMBER_REMOVED,
-        resourceType: AuditResourceType.WORKSPACE,
-        resourceId: workspaceId,
-        description: isSelf ? 'Left the workspace' : 'Removed a member from the workspace',
-        metadata: { removedUserId: userId, selfRemoval: isSelf },
-        request: req,
-      })
+    await revokeWorkspaceCredentialMemberships(workspaceId, userId)
 
     captureServerEvent(
       session.user.id,
@@ -157,4 +136,4 @@ export const DELETE = withRouteHandler(
     logger.error('Error removing workspace member:', error)
     return NextResponse.json({ error: 'Failed to remove workspace member' }, { status: 500 })
   }
-)
+})

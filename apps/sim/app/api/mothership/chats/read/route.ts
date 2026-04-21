@@ -10,6 +10,7 @@ import {
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('MarkTaskReadAPI')
 
@@ -17,7 +18,7 @@ const MarkReadSchema = z.object({
   chatId: z.string().min(1),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
     if (!isAuthenticated || !userId) {
@@ -40,4 +41,4 @@ export async function POST(request: NextRequest) {
     logger.error('Error marking task as read:', error)
     return createInternalServerErrorResponse('Failed to mark task as read')
   }
-}
+})

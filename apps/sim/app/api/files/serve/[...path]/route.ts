@@ -19,6 +19,7 @@ import {
   getContentType,
 } from '@/app/api/files/utils'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('FilesServeAPI')
 
@@ -108,10 +109,12 @@ function getWorkspaceIdForCompile(key: string): string | undefined {
   return parseWorkspaceFileKey(key) ?? undefined
 }
 
-export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) => {
-    try {
-      const { path } = await params
+export const GET = withRouteHandler(async (
+  request: NextRequest,
+  { params }: { params: Promise<{ path: string[] }> }
+) => {
+  try {
+    const { path } = await params
 
     if (!path || path.length === 0) {
       throw new FileNotFoundError('No file path provided')
@@ -136,54 +139,7 @@ export const GET = withRouteHandler(
       if (isUsingCloudStorage() || isCloudPath) {
         return await handleCloudProxyPublic(cloudKey, context)
       }
-
-      logger.info('File serve request:', { path })
-
-      const fullPath = path.join('/')
-      const isS3Path = path[0] === 's3'
-      const isBlobPath = path[0] === 'blob'
-      const isCloudPath = isS3Path || isBlobPath
-      const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
-
-      const isPublicByKeyPrefix =
-        cloudKey.startsWith('profile-pictures/') || cloudKey.startsWith('og-images/')
-
-      if (isPublicByKeyPrefix) {
-        const context = inferContextFromKey(cloudKey)
-        logger.info(`Serving public ${context}:`, { cloudKey })
-        if (isUsingCloudStorage() || isCloudPath) {
-          return await handleCloudProxyPublic(cloudKey, context)
-        }
-        return await handleLocalFilePublic(fullPath)
-      }
-
-      const raw = request.nextUrl.searchParams.get('raw') === '1'
-
-      const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-
-      if (!authResult.success || !authResult.userId) {
-        logger.warn('Unauthorized file access attempt', {
-          path,
-          error: authResult.error || 'Missing userId',
-        })
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const userId = authResult.userId
-
-      if (isUsingCloudStorage()) {
-        return await handleCloudProxy(cloudKey, userId, raw)
-      }
-
-      return await handleLocalFile(cloudKey, userId, raw)
-    } catch (error) {
-      logger.error('Error serving file:', error)
-
-      if (error instanceof FileNotFoundError) {
-        return createErrorResponse(error)
-      }
-
-      return createErrorResponse(error instanceof Error ? error : new Error('Failed to serve file'))
+      return await handleLocalFilePublic(fullPath)
     }
 
     const raw = request.nextUrl.searchParams.get('raw') === '1'
@@ -214,7 +170,7 @@ export const GET = withRouteHandler(
 
     return createErrorResponse(error instanceof Error ? error : new Error('Failed to serve file'))
   }
-)
+})
 
 async function handleLocalFile(
   filename: string,

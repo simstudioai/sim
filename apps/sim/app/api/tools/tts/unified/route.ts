@@ -18,6 +18,7 @@ import type {
   TtsResponse,
 } from '@/tools/tts/types'
 import { getFileExtension, getMimeType } from '@/tools/tts/types'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('TtsUnifiedProxyAPI')
 

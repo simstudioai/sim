@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { StorageContext } from '@/lib/uploads/config'
 import { USE_BLOB_STORAGE } from '@/lib/uploads/config'
 import {
@@ -10,6 +9,7 @@ import {
 } from '@/lib/uploads/core/storage-service'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { createErrorResponse } from '@/app/api/files/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('BatchPresignedUploadAPI')
 

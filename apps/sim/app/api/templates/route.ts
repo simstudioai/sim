@@ -20,6 +20,7 @@ import {
   sanitizeCredentials,
 } from '@/lib/workflows/credentials/credential-extractor'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('TemplatesAPI')
 

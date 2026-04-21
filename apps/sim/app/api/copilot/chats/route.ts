@@ -14,6 +14,7 @@ import {
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotChatsListAPI')
 

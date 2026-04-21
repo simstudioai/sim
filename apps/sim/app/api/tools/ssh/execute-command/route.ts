@@ -9,6 +9,7 @@ import {
   executeSSHCommand,
   sanitizeCommand,
 } from '@/app/api/tools/ssh/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SSHExecuteCommandAPI')
 

@@ -2,7 +2,6 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { EmailType } from '@/lib/messaging/email/mailer'
 import {
   getEmailPreferences,
@@ -11,6 +10,7 @@ import {
   updateEmailPreferences,
   verifyUnsubscribeToken,
 } from '@/lib/messaging/email/unsubscribe'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('UnsubscribeAPI')
 

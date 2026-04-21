@@ -13,6 +13,7 @@ import {
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('MothershipChatsAPI')
 

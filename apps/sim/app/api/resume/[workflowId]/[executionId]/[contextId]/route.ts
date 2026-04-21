@@ -16,6 +16,7 @@ import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 import type { ResumeExecutionPayload } from '@/background/resume-execution'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { SerializedSnapshot } from '@/executor/types'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('WorkflowResumeAPI')
 
@@ -38,14 +39,14 @@ function getStoredSnapshotConfig(pausedExecution: { executionSnapshot: unknown }
   }
 }
 
-export async function POST(
+export const POST = withRouteHandler(async (
   request: NextRequest,
   {
     params,
   }: {
     params: Promise<{ workflowId: string; executionId: string; contextId: string }>
   }
-) {
+) => {
   const { workflowId, executionId, contextId } = await params
 
   const access = await validateWorkflowAccess(request, workflowId, false)
@@ -81,16 +82,18 @@ export async function POST(
         { status: 500 }
       )
     }
-  ) => {
-    const { workflowId, executionId, contextId } = await params
+    userId = billedAccountUserId
+  }
 
-    // Allow resume from dashboard without requiring deployment
-    const access = await validateWorkflowAccess(request, workflowId, false)
-    if (access.error) {
-      return NextResponse.json({ error: access.error.message }, { status: access.error.status })
-    }
+  const resumeExecutionId = generateId()
+  const requestId = generateRequestId()
 
-    const workflow = access.workflow
+  logger.info(`[${requestId}] Preprocessing resume execution`, {
+    workflowId,
+    parentExecutionId: executionId,
+    resumeExecutionId,
+    userId,
+  })
 
   const preprocessResult = await preprocessExecution({
     workflowId,
@@ -105,49 +108,52 @@ export async function POST(
     workspaceId: workflow.workspaceId || undefined,
   })
 
-    const resumeInput = payload?.input ?? payload ?? {}
-    const isPersonalApiKeyCaller =
-      access.auth?.authType === AuthType.API_KEY && access.auth?.apiKeyType === 'personal'
-
-    let userId: string
-    if (isPersonalApiKeyCaller && access.auth?.userId) {
-      userId = access.auth.userId
-    } else {
-      const billedAccountUserId = await getWorkspaceBilledAccountUserId(workflow.workspaceId)
-      if (!billedAccountUserId) {
-        logger.error('Unable to resolve workspace billed account for resume execution', {
-          workflowId,
-          workspaceId: workflow.workspaceId,
-        })
-        return NextResponse.json(
-          { error: 'Unable to resolve billing account for this workspace' },
-          { status: 500 }
-        )
-      }
-      userId = billedAccountUserId
-    }
-
-    const resumeExecutionId = generateId()
-    const requestId = generateRequestId()
-
-    logger.info(`[${requestId}] Preprocessing resume execution`, {
+  if (!preprocessResult.success) {
+    logger.warn(`[${requestId}] Preprocessing failed for resume`, {
       workflowId,
       parentExecutionId: executionId,
-      resumeExecutionId,
+      error: preprocessResult.error?.message,
+      statusCode: preprocessResult.error?.statusCode,
+    })
+
+    return NextResponse.json(
+      {
+        error:
+          preprocessResult.error?.message ||
+          'Failed to validate resume execution. Please try again.',
+      },
+      { status: preprocessResult.error?.statusCode || 400 }
+    )
+  }
+
+  logger.info(`[${requestId}] Preprocessing passed, proceeding with resume`, {
+    workflowId,
+    parentExecutionId: executionId,
+    resumeExecutionId,
+    actorUserId: preprocessResult.actorUserId,
+  })
+
+  try {
+    const enqueueResult = await PauseResumeManager.enqueueOrStartResume({
+      executionId,
+      contextId,
+      resumeInput,
       userId,
     })
 
-    const preprocessResult = await preprocessExecution({
-      workflowId,
+    if (enqueueResult.status === 'queued') {
+      return NextResponse.json({
+        status: 'queued',
+        executionId: enqueueResult.resumeExecutionId,
+        queuePosition: enqueueResult.queuePosition,
+        message: 'Resume queued. It will run after current resumes finish.',
+      })
+    }
+
+    await setExecutionMeta(enqueueResult.resumeExecutionId, {
+      status: 'active',
       userId,
-      triggerType: 'manual', // Resume is a manual trigger
-      executionId: resumeExecutionId,
-      requestId,
-      checkRateLimit: false, // Manual triggers bypass rate limits
-      checkDeployment: false, // Resuming existing execution, deployment already checked
-      skipUsageLimits: true, // Resume is continuation of authorized execution - don't recheck limits
-      useAuthenticatedUserAsActor: isPersonalApiKeyCaller,
-      workspaceId: workflow.workspaceId || undefined,
+      workflowId,
     })
 
     const resumeArgs = {
@@ -257,148 +263,38 @@ export async function POST(
       logger.error('Failed to start resume execution', {
         workflowId,
         parentExecutionId: executionId,
-        error: preprocessResult.error?.message,
-        statusCode: preprocessResult.error?.statusCode,
-      })
-
-      return NextResponse.json(
-        {
-          error:
-            preprocessResult.error?.message ||
-            'Failed to validate resume execution. Please try again.',
-        },
-        { status: preprocessResult.error?.statusCode || 400 }
-      )
-    }
-
-    logger.info(`[${requestId}] Preprocessing passed, proceeding with resume`, {
-      workflowId,
-      parentExecutionId: executionId,
-      resumeExecutionId,
-      actorUserId: preprocessResult.actorUserId,
-    })
-
-    try {
-      const enqueueResult = await PauseResumeManager.enqueueOrStartResume({
-        executionId,
-        contextId,
-        resumeInput,
-        userId,
-      })
-
-      if (enqueueResult.status === 'queued') {
-        return NextResponse.json({
-          status: 'queued',
-          executionId: enqueueResult.resumeExecutionId,
-          queuePosition: enqueueResult.queuePosition,
-          message: 'Resume queued. It will run after current resumes finish.',
-        })
-      }
-
-      await setExecutionMeta(enqueueResult.resumeExecutionId, {
-        status: 'active',
-        userId,
-        workflowId,
-      })
-
-      const resumeArgs = {
-        resumeEntryId: enqueueResult.resumeEntryId,
         resumeExecutionId: enqueueResult.resumeExecutionId,
-        pausedExecution: enqueueResult.pausedExecution,
-        contextId: enqueueResult.contextId,
-        resumeInput: enqueueResult.resumeInput,
-        userId: enqueueResult.userId,
-      }
-
-      const isApiCaller = access.auth?.authType === AuthType.API_KEY
-
-      if (isApiCaller) {
-        const result = await PauseResumeManager.startResumeExecution(resumeArgs)
-
-        return NextResponse.json({
-          success: result.success,
-          status: result.status ?? (result.success ? 'completed' : 'failed'),
-          executionId: enqueueResult.resumeExecutionId,
-          output: result.output,
-          error: result.error,
-          metadata: result.metadata
-            ? {
-                duration: result.metadata.duration,
-                startTime: result.metadata.startTime,
-                endTime: result.metadata.endTime,
-              }
-            : undefined,
-        })
-      }
-
-      PauseResumeManager.startResumeExecution(resumeArgs).catch((error) => {
-        logger.error('Failed to start resume execution', {
-          workflowId,
-          parentExecutionId: executionId,
-          resumeExecutionId: enqueueResult.resumeExecutionId,
-          error,
-        })
-      })
-
-      return NextResponse.json({
-        status: 'started',
-        executionId: enqueueResult.resumeExecutionId,
-        message: 'Resume execution started.',
-      })
-    } catch (error: any) {
-      logger.error('Resume request failed', {
-        workflowId,
-        executionId,
-        contextId,
         error,
       })
-      return NextResponse.json(
-        { error: error.message || 'Failed to queue resume request' },
-        { status: 400 }
-      )
-    }
-  }
-)
+    })
 
-export const GET = withRouteHandler(
-  async (
-    request: NextRequest,
-    {
-      params,
-    }: {
-      params: Promise<{ workflowId: string; executionId: string; contextId: string }>
-    }
-  ) => {
-    const { workflowId, executionId, contextId } = await params
-
-    // Allow access without API key for browser-based UI (same as parent execution endpoint)
-    const access = await validateWorkflowAccess(request, workflowId, false)
-    if (access.error) {
-      return NextResponse.json({ error: access.error.message }, { status: access.error.status })
-    }
-
-    const detail = await PauseResumeManager.getPauseContextDetail({
+    return NextResponse.json({
+      status: 'started',
+      executionId: enqueueResult.resumeExecutionId,
+      message: 'Resume execution started.',
+    })
+  } catch (error: any) {
+    logger.error('Resume request failed', {
       workflowId,
       executionId,
       contextId,
+      error,
     })
-
-    if (!detail) {
-      return NextResponse.json({ error: 'Pause context not found' }, { status: 404 })
-    }
-
-    return NextResponse.json(detail)
+    return NextResponse.json(
+      { error: error.message || 'Failed to queue resume request' },
+      { status: 400 }
+    )
   }
-}
+})
 
-export async function GET(
+export const GET = withRouteHandler(async (
   request: NextRequest,
   {
     params,
   }: {
     params: Promise<{ workflowId: string; executionId: string; contextId: string }>
   }
-) {
+) => {
   const { workflowId, executionId, contextId } = await params
 
   const access = await validateWorkflowAccess(request, workflowId, false)
@@ -417,4 +313,4 @@ export async function GET(
   }
 
   return NextResponse.json(detail)
-}
+})

@@ -12,6 +12,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { expireStalePendingInvitationsForOrganization } from '@/lib/invitations/core'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OrganizationRosterAPI')
 
@@ -21,7 +22,7 @@ interface RosterWorkspaceAccess {
   permission: 'admin' | 'write' | 'read'
 }
 
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const GET = withRouteHandler(async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -179,4 +180,4 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     logger.error('Failed to fetch organization roster', { error })
     return NextResponse.json({ error: 'Failed to fetch organization roster' }, { status: 500 })
   }
-}
+})

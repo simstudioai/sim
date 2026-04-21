@@ -12,6 +12,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import type { ChatResource, ResourceType } from '@/lib/copilot/resources/persistence'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotChatResourcesAPI')
 

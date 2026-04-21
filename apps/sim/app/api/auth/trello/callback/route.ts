@@ -4,7 +4,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export const GET = withRouteHandler(async () => {
   const baseUrl = getBaseUrl()
 
   return new NextResponse(

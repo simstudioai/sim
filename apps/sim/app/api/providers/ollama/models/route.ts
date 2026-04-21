@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getOllamaUrl } from '@/lib/core/utils/urls'
 import type { ModelsObject } from '@/providers/ollama/types'
 import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OllamaModelsAPI')
 const OLLAMA_HOST = getOllamaUrl()

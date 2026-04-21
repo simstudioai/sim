@@ -9,6 +9,7 @@ import {
   normalizeSdkItemOverview,
   resolveCredentials,
 } from '../utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OnePasswordListItemsAPI')
 

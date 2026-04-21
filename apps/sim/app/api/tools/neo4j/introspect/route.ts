@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { createNeo4jDriver } from '@/app/api/tools/neo4j/utils'
 import type { Neo4jNodeSchema, Neo4jRelationshipSchema } from '@/tools/neo4j/types'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('Neo4jIntrospectAPI')
 

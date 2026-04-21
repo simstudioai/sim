@@ -4,55 +4,54 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { createExecutionEventWriter, setExecutionMeta } from '@/lib/execution/event-buffer'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CancelExecutionAPI')
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export const POST = withRouteHandler(
-  async (
-    req: NextRequest,
-    { params }: { params: Promise<{ id: string; executionId: string }> }
-  ) => {
-    const { id: workflowId, executionId } = await params
+export const POST = withRouteHandler(async (
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string; executionId: string }> }
+) => {
+  const { id: workflowId, executionId } = await params
 
-    try {
-      const auth = await checkHybridAuth(req, { requireWorkflowId: false })
-      if (!auth.success || !auth.userId) {
-        return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
-      }
+  try {
+    const auth = await checkHybridAuth(req, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+    }
 
-      const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
-        workflowId,
-        userId: auth.userId,
-        action: 'write',
-      })
-      if (!workflowAuthorization.allowed) {
-        return NextResponse.json(
-          { error: workflowAuthorization.message || 'Access denied' },
-          { status: workflowAuthorization.status }
-        )
-      }
+    const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId,
+      userId: auth.userId,
+      action: 'write',
+    })
+    if (!workflowAuthorization.allowed) {
+      return NextResponse.json(
+        { error: workflowAuthorization.message || 'Access denied' },
+        { status: workflowAuthorization.status }
+      )
+    }
 
-      if (
-        auth.apiKeyType === 'workspace' &&
-        workflowAuthorization.workflow?.workspaceId !== auth.workspaceId
-      ) {
-        return NextResponse.json(
-          { error: 'API key is not authorized for this workspace' },
-          { status: 403 }
-        )
-      }
+    if (
+      auth.apiKeyType === 'workspace' &&
+      workflowAuthorization.workflow?.workspaceId !== auth.workspaceId
+    ) {
+      return NextResponse.json(
+        { error: 'API key is not authorized for this workspace' },
+        { status: 403 }
+      )
+    }
 
-      logger.info('Cancel execution requested', { workflowId, executionId, userId: auth.userId })
+    logger.info('Cancel execution requested', { workflowId, executionId, userId: auth.userId })
 
     const cancellation = await markExecutionCancelled(executionId)
     const locallyAborted = abortManualExecution(executionId)
@@ -84,9 +83,6 @@ export const POST = withRouteHandler(
     } else {
       logger.warn('Execution cancellation was not durably recorded', {
         executionId,
-        redisAvailable: cancellation.reason !== 'redis_unavailable',
-        durablyRecorded: cancellation.durablyRecorded,
-        locallyAborted,
         reason: cancellation.reason,
       })
     }
@@ -138,4 +134,4 @@ export const POST = withRouteHandler(
       { status: 500 }
     )
   }
-)
+})

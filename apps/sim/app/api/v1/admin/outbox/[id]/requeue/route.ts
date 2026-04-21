@@ -5,6 +5,7 @@ import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('AdminOutboxRequeueAPI')
 
@@ -19,7 +20,7 @@ export const dynamic = 'force-dynamic'
  * requeued — completed/pending/processing rows are rejected to avoid
  * operator errors.
  */
-export const POST = withAdminAuthParams<{ id: string }>(async (_request, { params }) => {
+export const POST = withRouteHandler(withAdminAuthParams<{ id: string })>(async (_request, { params }) => {
   const { id } = await params
 
   try {

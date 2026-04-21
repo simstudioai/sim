@@ -2,12 +2,13 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { dispatchCleanupJobs } from '@/lib/billing/cleanup-dispatcher'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('TaskCleanupAPI')
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const authError = verifyCronAuth(request, 'task cleanup')
     if (authError) return authError
@@ -21,4 +22,4 @@ export async function GET(request: NextRequest) {
     logger.error('Failed to dispatch task cleanup jobs:', { error })
     return NextResponse.json({ error: 'Failed to dispatch task cleanup' }, { status: 500 })
   }
-}
+})

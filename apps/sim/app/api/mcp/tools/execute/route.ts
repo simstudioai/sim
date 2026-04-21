@@ -3,7 +3,6 @@ import type { NextRequest } from 'next/server'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getExecutionTimeout } from '@/lib/core/execution-limits'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { SIM_VIA_HEADER } from '@/lib/execution/call-chain'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
@@ -14,6 +13,7 @@ import {
   createMcpSuccessResponse,
   validateStringParam,
 } from '@/lib/mcp/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('McpToolExecutionAPI')
 
@@ -41,7 +41,7 @@ function hasType(prop: unknown): prop is SchemaProperty {
 /**
  * POST - Execute a tool on an MCP server
  */
-export const POST = withRouteHandler(withMcpAuth('read'))(
+export const POST = withRouteHandler(withMcpAuth('read')(
   async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       const body = getParsedBody(request) || (await request.json())
@@ -226,7 +226,7 @@ export const POST = withRouteHandler(withMcpAuth('read'))(
       return createMcpErrorResponse(new Error(message), message, status)
     }
   }
-)
+))
 
 function validateToolArguments(tool: McpTool, args: Record<string, unknown>): string | null {
   if (!tool.inputSchema) {

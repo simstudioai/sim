@@ -19,6 +19,7 @@ import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('WorkflowStateAPI')
 
@@ -119,42 +120,13 @@ const WorkflowStateSchema = z.object({
  * Fetch the current workflow state from normalized tables.
  * Used by the client after server-side edits (edit_workflow) to stay in sync.
  */
-export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id: workflowId } = await params
+export const GET = withRouteHandler(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  const { id: workflowId } = await params
 
-    try {
-      const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-      if (!auth.success || !auth.userId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const authorization = await authorizeWorkflowByWorkspacePermission({
-        workflowId,
-        userId: auth.userId,
-        action: 'read',
-      })
-      if (!authorization.allowed) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-
-      const normalized = await loadWorkflowFromNormalizedTables(workflowId)
-      if (!normalized) {
-        return NextResponse.json({ error: 'Workflow state not found' }, { status: 404 })
-      }
-
-      return NextResponse.json({
-        blocks: normalized.blocks,
-        edges: normalized.edges,
-        loops: normalized.loops || {},
-        parallels: normalized.parallels || {},
-      })
-    } catch (error) {
-      logger.error('Failed to fetch workflow state', {
-        workflowId,
-        error: error instanceof Error ? error.message : String(error),
-      })
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  try {
+    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const authorization = await authorizeWorkflowByWorkspacePermission({
@@ -184,28 +156,146 @@ export const GET = withRouteHandler(
     })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-)
+})
 
 /**
  * PUT /api/workflows/[id]/state
  * Save complete workflow state to normalized database tables
  */
-export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-    const startTime = Date.now()
-    const { id: workflowId } = await params
+export const PUT = withRouteHandler(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  const requestId = generateRequestId()
+  const startTime = Date.now()
+  const { id: workflowId } = await params
 
+  try {
+    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
+    if (!auth.success || !auth.userId) {
+      logger.warn(`[${requestId}] Unauthorized state update attempt for workflow ${workflowId}`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const userId = auth.userId
+
+    const body = await request.json()
+    const state = WorkflowStateSchema.parse(body)
+
+    const authorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId,
+      userId,
+      action: 'write',
+    })
+    const workflowData = authorization.workflow
+
+    if (!workflowData) {
+      logger.warn(`[${requestId}] Workflow ${workflowId} not found for state update`)
+      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+    }
+
+    const canUpdate = authorization.allowed
+
+    if (!canUpdate) {
+      logger.warn(
+        `[${requestId}] User ${userId} denied permission to update workflow state ${workflowId}`
+      )
+      return NextResponse.json(
+        { error: authorization.message || 'Access denied' },
+        { status: authorization.status || 403 }
+      )
+    }
+
+    // Sanitize custom tools in agent blocks before saving
+    const { blocks: sanitizedBlocks, warnings } = sanitizeAgentToolsInBlocks(
+      state.blocks as Record<string, BlockState>
+    )
+
+    // Save to normalized tables
+    // Ensure all required fields are present for WorkflowState type
+    // Filter out blocks without type or name before saving
+    const filteredBlocks = Object.entries(sanitizedBlocks).reduce(
+      (acc, [blockId, block]: [string, BlockState]) => {
+        if (block.type && block.name) {
+          // Ensure all required fields are present
+          acc[blockId] = {
+            ...block,
+            enabled: block.enabled !== undefined ? block.enabled : true,
+            horizontalHandles:
+              block.horizontalHandles !== undefined ? block.horizontalHandles : true,
+            height: block.height !== undefined ? block.height : 0,
+            subBlocks: block.subBlocks || {},
+            outputs: block.outputs || {},
+          }
+        }
+        return acc
+      },
+      {} as typeof state.blocks
+    )
+
+    const typedBlocks = filteredBlocks as Record<string, BlockState>
+    const validatedEdges = validateEdges(state.edges as WorkflowState['edges'], typedBlocks)
+    const validationWarnings = validatedEdges.dropped.map(
+      ({ edge, reason }) => `Dropped edge "${edge.id}": ${reason}`
+    )
+    const canonicalLoops = generateLoopBlocks(typedBlocks)
+    const canonicalParallels = generateParallelBlocks(typedBlocks)
+
+    const workflowState = {
+      blocks: filteredBlocks,
+      edges: validatedEdges.valid,
+      loops: canonicalLoops,
+      parallels: canonicalParallels,
+      lastSaved: state.lastSaved || Date.now(),
+      isDeployed: state.isDeployed || false,
+      deployedAt: state.deployedAt,
+    }
+
+    const saveResult = await saveWorkflowToNormalizedTables(
+      workflowId,
+      workflowState as WorkflowState
+    )
+
+    if (!saveResult.success) {
+      logger.error(`[${requestId}] Failed to save workflow ${workflowId} state:`, saveResult.error)
+      return NextResponse.json(
+        { error: 'Failed to save workflow state', details: saveResult.error },
+        { status: 500 }
+      )
+    }
+
+    // Extract and persist custom tools to database
     try {
-      const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-      if (!auth.success || !auth.userId) {
-        logger.warn(`[${requestId}] Unauthorized state update attempt for workflow ${workflowId}`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-      const userId = auth.userId
+      const workspaceId = workflowData.workspaceId
+      if (workspaceId) {
+        const { saved, errors } = await extractAndPersistCustomTools(
+          workflowState,
+          workspaceId,
+          userId
+        )
 
-      const body = await request.json()
-      const state = WorkflowStateSchema.parse(body)
+        if (saved > 0) {
+          logger.info(`[${requestId}] Persisted ${saved} custom tool(s) to database`, {
+            workflowId,
+          })
+        }
+
+        if (errors.length > 0) {
+          logger.warn(`[${requestId}] Some custom tools failed to persist`, { errors, workflowId })
+        }
+      } else {
+        logger.warn(
+          `[${requestId}] Workflow has no workspaceId, skipping custom tools persistence`,
+          {
+            workflowId,
+          }
+        )
+      }
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to persist custom tools`, { error, workflowId })
+    }
+
+    // Update workflow's lastSynced timestamp and variables if provided
+    const updateData: any = {
+      lastSynced: new Date(),
+      updatedAt: new Date(),
+    }
 
     // If variables are provided in the state, update them in the workflow record
     if (state.variables !== undefined) {
@@ -226,178 +316,37 @@ export const PUT = withRouteHandler(
         },
         body: JSON.stringify({ workflowId }),
       })
-      const workflowData = authorization.workflow
 
-      if (!workflowData) {
-        logger.warn(`[${requestId}] Workflow ${workflowId} not found for state update`)
-        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
-      }
-
-      const canUpdate = authorization.allowed
-
-      if (!canUpdate) {
+      if (!notifyResponse.ok) {
         logger.warn(
-          `[${requestId}] User ${userId} denied permission to update workflow state ${workflowId}`
-        )
-        return NextResponse.json(
-          { error: authorization.message || 'Access denied' },
-          { status: authorization.status || 403 }
+          `[${requestId}] Failed to notify Socket.IO server about workflow ${workflowId} update`
         )
       }
-
-      // Sanitize custom tools in agent blocks before saving
-      const { blocks: sanitizedBlocks, warnings } = sanitizeAgentToolsInBlocks(
-        state.blocks as Record<string, BlockState>
+    } catch (notificationError) {
+      logger.warn(
+        `[${requestId}] Error notifying Socket.IO server about workflow ${workflowId} update`,
+        notificationError
       )
-
-      // Save to normalized tables
-      // Ensure all required fields are present for WorkflowState type
-      // Filter out blocks without type or name before saving
-      const filteredBlocks = Object.entries(sanitizedBlocks).reduce(
-        (acc, [blockId, block]: [string, BlockState]) => {
-          if (block.type && block.name) {
-            // Ensure all required fields are present
-            acc[blockId] = {
-              ...block,
-              enabled: block.enabled !== undefined ? block.enabled : true,
-              horizontalHandles:
-                block.horizontalHandles !== undefined ? block.horizontalHandles : true,
-              height: block.height !== undefined ? block.height : 0,
-              subBlocks: block.subBlocks || {},
-              outputs: block.outputs || {},
-            }
-          }
-          return acc
-        },
-        {} as typeof state.blocks
-      )
-
-      const typedBlocks = filteredBlocks as Record<string, BlockState>
-      const validatedEdges = validateEdges(state.edges as WorkflowState['edges'], typedBlocks)
-      const validationWarnings = validatedEdges.dropped.map(
-        ({ edge, reason }) => `Dropped edge "${edge.id}": ${reason}`
-      )
-      const canonicalLoops = generateLoopBlocks(typedBlocks)
-      const canonicalParallels = generateParallelBlocks(typedBlocks)
-
-      const workflowState = {
-        blocks: filteredBlocks,
-        edges: validatedEdges.valid,
-        loops: canonicalLoops,
-        parallels: canonicalParallels,
-        lastSaved: state.lastSaved || Date.now(),
-        isDeployed: state.isDeployed || false,
-        deployedAt: state.deployedAt,
-      }
-
-      const saveResult = await saveWorkflowToNormalizedTables(
-        workflowId,
-        workflowState as WorkflowState
-      )
-
-      if (!saveResult.success) {
-        logger.error(
-          `[${requestId}] Failed to save workflow ${workflowId} state:`,
-          saveResult.error
-        )
-        return NextResponse.json(
-          { error: 'Failed to save workflow state', details: saveResult.error },
-          { status: 500 }
-        )
-      }
-
-      // Extract and persist custom tools to database
-      try {
-        const workspaceId = workflowData.workspaceId
-        if (workspaceId) {
-          const { saved, errors } = await extractAndPersistCustomTools(
-            workflowState,
-            workspaceId,
-            userId
-          )
-
-          if (saved > 0) {
-            logger.info(`[${requestId}] Persisted ${saved} custom tool(s) to database`, {
-              workflowId,
-            })
-          }
-
-          if (errors.length > 0) {
-            logger.warn(`[${requestId}] Some custom tools failed to persist`, {
-              errors,
-              workflowId,
-            })
-          }
-        } else {
-          logger.warn(
-            `[${requestId}] Workflow has no workspaceId, skipping custom tools persistence`,
-            {
-              workflowId,
-            }
-          )
-        }
-      } catch (error) {
-        logger.error(`[${requestId}] Failed to persist custom tools`, { error, workflowId })
-      }
-
-      // Update workflow's lastSynced timestamp and variables if provided
-      const updateData: any = {
-        lastSynced: new Date(),
-        updatedAt: new Date(),
-      }
-
-      // If variables are provided in the state, update them in the workflow record
-      if (state.variables !== undefined) {
-        updateData.variables = state.variables
-      }
-
-      await db.update(workflow).set(updateData).where(eq(workflow.id, workflowId))
-
-      const elapsed = Date.now() - startTime
-      logger.info(`[${requestId}] Successfully saved workflow ${workflowId} state in ${elapsed}ms`)
-
-      try {
-        const socketUrl = env.SOCKET_SERVER_URL || 'http://localhost:3002'
-        const notifyResponse = await fetch(`${socketUrl}/api/workflow-updated`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': env.INTERNAL_API_SECRET,
-          },
-          body: JSON.stringify({ workflowId }),
-        })
-
-        if (!notifyResponse.ok) {
-          logger.warn(
-            `[${requestId}] Failed to notify Socket.IO server about workflow ${workflowId} update`
-          )
-        }
-      } catch (notificationError) {
-        logger.warn(
-          `[${requestId}] Error notifying Socket.IO server about workflow ${workflowId} update`,
-          notificationError
-        )
-      }
-
-      return NextResponse.json(
-        { success: true, warnings: [...warnings, ...validationWarnings] },
-        { status: 200 }
-      )
-    } catch (error: any) {
-      const elapsed = Date.now() - startTime
-      logger.error(
-        `[${requestId}] Error saving workflow ${workflowId} state after ${elapsed}ms`,
-        error
-      )
-
-      if (error instanceof z.ZodError) {
-        return NextResponse.json(
-          { error: 'Invalid request body', details: error.errors },
-          { status: 400 }
-        )
-      }
-
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
+
+    return NextResponse.json(
+      { success: true, warnings: [...warnings, ...validationWarnings] },
+      { status: 200 }
+    )
+  } catch (error: any) {
+    const elapsed = Date.now() - startTime
+    logger.error(
+      `[${requestId}] Error saving workflow ${workflowId} state after ${elapsed}ms`,
+      error
+    )
+
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid request body', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-)
+})

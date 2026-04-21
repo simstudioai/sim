@@ -17,6 +17,7 @@ import {
   validateMapping,
 } from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('TableImportCSVExisting')
 
@@ -26,7 +27,7 @@ interface RouteParams {
   params: Promise<{ tableId: string }>
 }
 
-export async function POST(request: NextRequest, { params }: RouteParams) {
+export const POST = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()
   const { tableId } = await params
 
@@ -265,4 +266,4 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       { status: isClientError ? 400 : 500 }
     )
   }
-}
+})

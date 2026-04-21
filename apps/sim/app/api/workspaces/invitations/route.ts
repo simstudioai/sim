@@ -22,6 +22,7 @@ import {
   InvitationsNotAllowedError,
   validateInvitationsAllowed,
 } from '@/ee/access-control/utils/permission-check'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,7 +30,7 @@ const logger = createLogger('WorkspaceInvitationsAPI')
 
 type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 
-export async function GET(req: NextRequest) {
+export const GET = withRouteHandler(async (req: NextRequest) => {
   const session = await getSession()
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -61,7 +62,7 @@ export async function GET(req: NextRequest) {
   }
 })
 
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const session = await getSession()
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -297,4 +298,4 @@ export async function POST(req: NextRequest) {
     logger.error('Error creating workspace invitation:', error)
     return NextResponse.json({ error: 'Failed to create invitation' }, { status: 500 })
   }
-}
+})

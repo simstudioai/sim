@@ -9,6 +9,7 @@ import { getSession } from '@/lib/auth'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
 import type { OrganizationWhitelabelSettings } from '@/lib/branding/types'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('WhitelabelAPI')
 
@@ -57,7 +58,7 @@ const updateWhitelabelSchema = z.object({
  * Returns the organization's whitelabel settings.
  * Accessible by any member of the organization.
  */
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const GET = withRouteHandler(async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   try {
     const session = await getSession()
 
@@ -98,14 +99,14 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     logger.error('Failed to get whitelabel settings', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 /**
  * PUT /api/organizations/[id]/whitelabel
  * Updates the organization's whitelabel settings.
  * Requires enterprise plan and owner/admin role.
  */
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const PUT = withRouteHandler(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   try {
     const session = await getSession()
 
@@ -210,4 +211,4 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     logger.error('Failed to update whitelabel settings', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

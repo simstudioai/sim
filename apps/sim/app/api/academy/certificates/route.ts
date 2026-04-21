@@ -10,6 +10,7 @@ import type { CertificateMetadata } from '@/lib/academy/types'
 import { getSession } from '@/lib/auth'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('AcademyCertificatesAPI')
 

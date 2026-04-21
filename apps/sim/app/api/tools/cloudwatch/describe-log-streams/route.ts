@@ -2,8 +2,8 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createCloudWatchLogsClient, describeLogStreams } from '@/app/api/tools/cloudwatch/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CloudWatchDescribeLogStreams')
 

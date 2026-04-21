@@ -233,7 +233,12 @@ export class Logger {
 
     const reqCtx = getRequestContext()
     const effectiveMetadata = reqCtx
-      ? { requestId: reqCtx.requestId, ...this.metadata }
+      ? {
+          requestId: reqCtx.requestId,
+          method: reqCtx.method,
+          path: reqCtx.path,
+          ...this.metadata,
+        }
       : this.metadata
     const metadataEntries = Object.entries(effectiveMetadata).filter(([_, v]) => v !== undefined)
     const metadataStr =

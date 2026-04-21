@@ -5,10 +5,10 @@ import { toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('WorkflowMcpServerAPI')
 
@@ -21,7 +21,7 @@ interface RouteParams {
 /**
  * GET - Get a specific workflow MCP server with its tools
  */
-export const GET = withRouteHandler(withMcpAuth<RouteParams>('read'))(
+export const GET = withRouteHandler(withMcpAuth<RouteParams>('read')(
   async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
     try {
       const { id: serverId } = await params
@@ -68,12 +68,12 @@ export const GET = withRouteHandler(withMcpAuth<RouteParams>('read'))(
       return createMcpErrorResponse(toError(error), 'Failed to get workflow MCP server', 500)
     }
   }
-)
+))
 
 /**
  * PATCH - Update a workflow MCP server
  */
-export const PATCH = withRouteHandler(withMcpAuth<RouteParams>('write'))(
+export const PATCH = withRouteHandler(withMcpAuth<RouteParams>('write')(
   async (
     request: NextRequest,
     { userId, userName, userEmail, workspaceId, requestId },
@@ -147,12 +147,12 @@ export const PATCH = withRouteHandler(withMcpAuth<RouteParams>('write'))(
       return createMcpErrorResponse(toError(error), 'Failed to update workflow MCP server', 500)
     }
   }
-)
+))
 
 /**
  * DELETE - Delete a workflow MCP server and all its tools
  */
-export const DELETE = withRouteHandler(withMcpAuth<RouteParams>('admin'))(
+export const DELETE = withRouteHandler(withMcpAuth<RouteParams>('admin')(
   async (
     request: NextRequest,
     { userId, userName, userEmail, workspaceId, requestId },
@@ -198,4 +198,4 @@ export const DELETE = withRouteHandler(withMcpAuth<RouteParams>('admin'))(
       return createMcpErrorResponse(toError(error), 'Failed to delete workflow MCP server', 500)
     }
   }
-)
+))

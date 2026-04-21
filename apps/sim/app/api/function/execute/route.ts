@@ -21,6 +21,7 @@ import {
   createReferencePattern,
   createWorkflowVariablePattern,
 } from '@/executor/utils/reference-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
@@ -687,7 +688,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
   })
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
   const startTime = Date.now()
   let stdout = ''

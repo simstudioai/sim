@@ -5,6 +5,7 @@ import type { Client, SFTPWrapper } from 'ssh2'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { createSSHConnection, sanitizePath } from '@/app/api/tools/ssh/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SSHWriteFileContentAPI')
 

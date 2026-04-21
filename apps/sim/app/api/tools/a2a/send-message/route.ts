@@ -8,6 +8,7 @@ import { createA2AClient, extractTextContent, isTerminalState } from '@/lib/a2a/
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 

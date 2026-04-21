@@ -4,12 +4,13 @@ import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('TrelloAuthorize')
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export const GET = withRouteHandler(async () => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {

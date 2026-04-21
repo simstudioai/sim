@@ -21,6 +21,7 @@ import { readFilePreviewSessions } from '@/lib/copilot/request/session/file-prev
 import { type StreamBatchEvent, toStreamBatchEvent } from '@/lib/copilot/request/session/types'
 import { taskPubSub } from '@/lib/copilot/tasks'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('MothershipChatAPI')
 
@@ -33,23 +34,25 @@ const UpdateChatSchema = z
     message: 'At least one field must be provided',
   })
 
-export const GET = withRouteHandler(
-  async (_request: NextRequest, { params }: { params: Promise<{ chatId: string }> }) => {
-    try {
-      const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
-      if (!isAuthenticated || !userId) {
-        return createUnauthorizedResponse()
-      }
+export const GET = withRouteHandler(async (
+  _request: NextRequest,
+  { params }: { params: Promise<{ chatId: string }> }
+) => {
+  try {
+    const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
+    if (!isAuthenticated || !userId) {
+      return createUnauthorizedResponse()
+    }
 
-      const { chatId } = await params
-      if (!chatId) {
-        return createBadRequestResponse('chatId is required')
-      }
+    const { chatId } = await params
+    if (!chatId) {
+      return createBadRequestResponse('chatId is required')
+    }
 
-      const chat = await getAccessibleCopilotChat(chatId, userId)
-      if (!chat || chat.type !== 'mothership') {
-        return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
-      }
+    const chat = await getAccessibleCopilotChat(chatId, userId)
+    if (!chat || chat.type !== 'mothership') {
+      return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
+    }
 
     let streamSnapshot: {
       events: StreamBatchEvent[]
@@ -92,6 +95,7 @@ export const GET = withRouteHandler(
           error: toError(error).message,
         })
       }
+    }
 
     const normalizedMessages = Array.isArray(chat.messages)
       ? chat.messages
@@ -121,12 +125,12 @@ export const GET = withRouteHandler(
     logger.error('Error fetching mothership chat:', error)
     return createInternalServerErrorResponse('Failed to fetch chat')
   }
-}
+})
 
-export async function PATCH(
+export const PATCH = withRouteHandler(async (
   request: NextRequest,
   { params }: { params: Promise<{ chatId: string }> }
-) {
+) => {
   try {
     const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
     if (!isAuthenticated || !userId) {
@@ -169,156 +173,105 @@ export async function PATCH(
         id: copilotChats.id,
         workspaceId: copilotChats.workspaceId,
       })
-    } catch (error) {
-      logger.error('Error fetching mothership chat:', error)
-      return createInternalServerErrorResponse('Failed to fetch chat')
+
+    if (!updatedChat) {
+      return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
     }
-  }
-)
 
-export const PATCH = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ chatId: string }> }) => {
-    try {
-      const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
-      if (!isAuthenticated || !userId) {
-        return createUnauthorizedResponse()
-      }
-
-      const { chatId } = await params
-      if (!chatId) {
-        return createBadRequestResponse('chatId is required')
-      }
-
-      const body = await request.json()
-      const { title, isUnread } = UpdateChatSchema.parse(body)
-
-      const updates: Record<string, unknown> = {}
-
+    if (updatedChat.workspaceId) {
       if (title !== undefined) {
-        const now = new Date()
-        updates.title = title
-        updates.updatedAt = now
-        if (isUnread === undefined) {
-          updates.lastSeenAt = now
-        }
-      }
-      if (isUnread !== undefined) {
-        updates.lastSeenAt = isUnread ? null : sql`GREATEST(${copilotChats.updatedAt}, NOW())`
-      }
-
-      const [updatedChat] = await db
-        .update(copilotChats)
-        .set(updates)
-        .where(
-          and(
-            eq(copilotChats.id, chatId),
-            eq(copilotChats.userId, userId),
-            eq(copilotChats.type, 'mothership')
-          )
-        )
-        .returning({
-          id: copilotChats.id,
-          workspaceId: copilotChats.workspaceId,
-        })
-
-      if (!updatedChat) {
-        return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
-      }
-
-      if (updatedChat.workspaceId) {
-        if (title !== undefined) {
-          taskPubSub?.publishStatusChanged({
-            workspaceId: updatedChat.workspaceId,
-            chatId,
-            type: 'renamed',
-          })
-          captureServerEvent(
-            userId,
-            'task_renamed',
-            { workspace_id: updatedChat.workspaceId },
-            {
-              groups: { workspace: updatedChat.workspaceId },
-            }
-          )
-        }
-        if (isUnread === true) {
-          captureServerEvent(
-            userId,
-            'task_marked_unread',
-            { workspace_id: updatedChat.workspaceId },
-            {
-              groups: { workspace: updatedChat.workspaceId },
-            }
-          )
-        }
-      }
-
-      return NextResponse.json({ success: true })
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return createBadRequestResponse('Invalid request data')
-      }
-      logger.error('Error updating mothership chat:', error)
-      return createInternalServerErrorResponse('Failed to update chat')
-    }
-  }
-)
-
-export const DELETE = withRouteHandler(
-  async (_request: NextRequest, { params }: { params: Promise<{ chatId: string }> }) => {
-    try {
-      const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
-      if (!isAuthenticated || !userId) {
-        return createUnauthorizedResponse()
-      }
-
-      const { chatId } = await params
-      if (!chatId) {
-        return createBadRequestResponse('chatId is required')
-      }
-
-      const chat = await getAccessibleCopilotChat(chatId, userId)
-      if (!chat || chat.type !== 'mothership') {
-        return NextResponse.json({ success: true })
-      }
-
-      const [deletedChat] = await db
-        .delete(copilotChats)
-        .where(
-          and(
-            eq(copilotChats.id, chatId),
-            eq(copilotChats.userId, userId),
-            eq(copilotChats.type, 'mothership')
-          )
-        )
-        .returning({
-          workspaceId: copilotChats.workspaceId,
-        })
-
-      if (!deletedChat) {
-        return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
-      }
-
-      if (deletedChat.workspaceId) {
         taskPubSub?.publishStatusChanged({
-          workspaceId: deletedChat.workspaceId,
+          workspaceId: updatedChat.workspaceId,
           chatId,
-          type: 'deleted',
+          type: 'renamed',
         })
         captureServerEvent(
           userId,
-          'task_deleted',
-          { workspace_id: deletedChat.workspaceId },
+          'task_renamed',
+          { workspace_id: updatedChat.workspaceId },
           {
-            groups: { workspace: deletedChat.workspaceId },
+            groups: { workspace: updatedChat.workspaceId },
           }
         )
       }
-
-      return NextResponse.json({ success: true })
-    } catch (error) {
-      logger.error('Error deleting mothership chat:', error)
-      return createInternalServerErrorResponse('Failed to delete chat')
+      if (isUnread === true) {
+        captureServerEvent(
+          userId,
+          'task_marked_unread',
+          { workspace_id: updatedChat.workspaceId },
+          {
+            groups: { workspace: updatedChat.workspaceId },
+          }
+        )
+      }
     }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return createBadRequestResponse('Invalid request data')
+    }
+    logger.error('Error updating mothership chat:', error)
+    return createInternalServerErrorResponse('Failed to update chat')
   }
-)
+})
+
+export const DELETE = withRouteHandler(async (
+  _request: NextRequest,
+  { params }: { params: Promise<{ chatId: string }> }
+) => {
+  try {
+    const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
+    if (!isAuthenticated || !userId) {
+      return createUnauthorizedResponse()
+    }
+
+    const { chatId } = await params
+    if (!chatId) {
+      return createBadRequestResponse('chatId is required')
+    }
+
+    const chat = await getAccessibleCopilotChat(chatId, userId)
+    if (!chat || chat.type !== 'mothership') {
+      return NextResponse.json({ success: true })
+    }
+
+    const [deletedChat] = await db
+      .delete(copilotChats)
+      .where(
+        and(
+          eq(copilotChats.id, chatId),
+          eq(copilotChats.userId, userId),
+          eq(copilotChats.type, 'mothership')
+        )
+      )
+      .returning({
+        workspaceId: copilotChats.workspaceId,
+      })
+
+    if (!deletedChat) {
+      return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
+    }
+
+    if (deletedChat.workspaceId) {
+      taskPubSub?.publishStatusChanged({
+        workspaceId: deletedChat.workspaceId,
+        chatId,
+        type: 'deleted',
+      })
+      captureServerEvent(
+        userId,
+        'task_deleted',
+        { workspace_id: deletedChat.workspaceId },
+        {
+          groups: { workspace: deletedChat.workspaceId },
+        }
+      )
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    logger.error('Error deleting mothership chat:', error)
+    return createInternalServerErrorResponse('Failed to delete chat')
+  }
+})

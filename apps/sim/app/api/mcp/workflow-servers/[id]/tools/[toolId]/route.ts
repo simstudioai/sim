@@ -5,11 +5,11 @@ import { toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
 import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('WorkflowMcpToolAPI')
 
@@ -23,7 +23,7 @@ interface RouteParams {
 /**
  * GET - Get a specific tool
  */
-export const GET = withRouteHandler(withMcpAuth<RouteParams>('read'))(
+export const GET = withRouteHandler(withMcpAuth<RouteParams>('read')(
   async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
     try {
       const { id: serverId, toolId } = await params
@@ -68,12 +68,12 @@ export const GET = withRouteHandler(withMcpAuth<RouteParams>('read'))(
       return createMcpErrorResponse(toError(error), 'Failed to get tool', 500)
     }
   }
-)
+))
 
 /**
  * PATCH - Update a tool's configuration
  */
-export const PATCH = withRouteHandler(withMcpAuth<RouteParams>('write'))(
+export const PATCH = withRouteHandler(withMcpAuth<RouteParams>('write')(
   async (
     request: NextRequest,
     { userId, userName, userEmail, workspaceId, requestId },
@@ -165,12 +165,12 @@ export const PATCH = withRouteHandler(withMcpAuth<RouteParams>('write'))(
       return createMcpErrorResponse(toError(error), 'Failed to update tool', 500)
     }
   }
-)
+))
 
 /**
  * DELETE - Remove a tool from an MCP server
  */
-export const DELETE = withRouteHandler(withMcpAuth<RouteParams>('write'))(
+export const DELETE = withRouteHandler(withMcpAuth<RouteParams>('write')(
   async (
     request: NextRequest,
     { userId, userName, userEmail, workspaceId, requestId },
@@ -229,4 +229,4 @@ export const DELETE = withRouteHandler(withMcpAuth<RouteParams>('write'))(
       return createMcpErrorResponse(toError(error), 'Failed to delete tool', 500)
     }
   }
-)
+))

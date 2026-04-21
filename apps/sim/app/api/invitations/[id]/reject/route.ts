@@ -4,12 +4,13 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { rejectInvitation } from '@/lib/invitations/core'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('InvitationRejectAPI')
 
 const bodySchema = z.object({ token: z.string().min(1).optional() })
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const POST = withRouteHandler(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params
   const session = await getSession()
 
@@ -67,4 +68,4 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   })
 
   return NextResponse.json({ success: true })
-}
+})

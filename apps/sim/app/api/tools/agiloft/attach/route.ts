@@ -8,6 +8,7 @@ import { FileInputSchema, type RawFileInput } from '@/lib/uploads/utils/file-sch
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { agiloftLogin, agiloftLogout, buildAttachFileUrl } from '@/tools/agiloft/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +26,7 @@ const AgiloftAttachSchema = z.object({
   fileName: z.string().optional().nullable(),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -141,4 +142,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

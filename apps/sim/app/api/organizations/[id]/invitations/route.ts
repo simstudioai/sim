@@ -21,6 +21,7 @@ import {
   InvitationsNotAllowedError,
   validateInvitationsAllowed,
 } from '@/ee/access-control/utils/permission-check'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OrganizationInvitations')
 
@@ -29,14 +30,14 @@ interface WorkspaceGrantPayload {
   permission: 'admin' | 'write' | 'read'
 }
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const GET = withRouteHandler(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-      const { id: organizationId } = await params
+    const { id: organizationId } = await params
 
     const [memberEntry] = await db
       .select()
@@ -68,6 +69,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         inviterName: user.name,
         inviterEmail: user.email,
       })
+      .from(invitation)
+      .leftJoin(user, eq(invitation.inviterId, user.id))
+      .where(eq(invitation.organizationId, organizationId))
+      .orderBy(invitation.createdAt)
 
     return NextResponse.json({
       success: true,
@@ -77,33 +82,33 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     logger.error('Failed to get organization invitations', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-)
+})
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const POST = withRouteHandler(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-      await validateInvitationsAllowed(session.user.id)
+    await validateInvitationsAllowed(session.user.id)
 
-      const { id: organizationId } = await params
-      const url = new URL(request.url)
-      const validateOnly = url.searchParams.get('validate') === 'true'
-      const isBatch = url.searchParams.get('batch') === 'true'
+    const { id: organizationId } = await params
+    const url = new URL(request.url)
+    const validateOnly = url.searchParams.get('validate') === 'true'
+    const isBatch = url.searchParams.get('batch') === 'true'
 
     const body = await request.json()
     const { email, emails, role = 'member', workspaceInvitations } = body
     const invitationEmails = email ? [email] : emails
 
-      if (!invitationEmails || !Array.isArray(invitationEmails) || invitationEmails.length === 0) {
-        return NextResponse.json({ error: 'Email or emails array is required' }, { status: 400 })
-      }
+    if (!invitationEmails || !Array.isArray(invitationEmails) || invitationEmails.length === 0) {
+      return NextResponse.json({ error: 'Email or emails array is required' }, { status: 400 })
+    }
 
-      if (!['member', 'admin'].includes(role)) {
-        return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
-      }
+    if (!['member', 'admin'].includes(role)) {
+      return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
+    }
 
     const [memberEntry] = await db
       .select()
@@ -358,8 +363,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         },
         request,
       })
-
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
 
     const sentEmails = sentInvitations.map((inv) => inv.email)
@@ -416,4 +419,4 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     logger.error('Failed to create organization invitations', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-)
+})

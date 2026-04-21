@@ -11,6 +11,7 @@ import {
   removeUserFromOrganization,
   transferOrganizationOwnership,
 } from '@/lib/billing/organizations/membership'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('TransferOwnershipAPI')
 
@@ -19,7 +20,7 @@ const transferOwnershipSchema = z.object({
   alsoLeave: z.boolean().optional().default(false),
 })
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const POST = withRouteHandler(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -221,4 +222,4 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })
     return NextResponse.json({ error: 'Failed to transfer ownership' }, { status: 500 })
   }
-}
+})

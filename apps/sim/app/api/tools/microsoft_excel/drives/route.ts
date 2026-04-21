@@ -5,6 +5,7 @@ import { validatePathSegment, validateSharePointSiteId } from '@/lib/core/securi
 import { generateRequestId } from '@/lib/core/utils/request'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { GRAPH_ID_PATTERN } from '@/tools/microsoft_excel/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +23,7 @@ interface GraphDrive {
  * Used by the microsoft.excel.drives selector to let users pick
  * which drive contains their Excel file.
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -132,4 +133,4 @@ export async function POST(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching drives`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

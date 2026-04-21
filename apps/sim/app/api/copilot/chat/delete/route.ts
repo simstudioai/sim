@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
 import { taskPubSub } from '@/lib/copilot/tasks'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('DeleteChatAPI')
 

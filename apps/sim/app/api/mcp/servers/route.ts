@@ -21,6 +21,7 @@ import {
   generateMcpServerId,
 } from '@/lib/mcp/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('McpServersAPI')
 
@@ -29,7 +30,7 @@ export const dynamic = 'force-dynamic'
 /**
  * GET - List all registered MCP servers for the workspace
  */
-export const GET = withRouteHandler(withMcpAuth('read'))(
+export const GET = withRouteHandler(withMcpAuth('read')(
   async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       logger.info(`[${requestId}] Listing MCP servers for workspace ${workspaceId}`)
@@ -48,7 +49,7 @@ export const GET = withRouteHandler(withMcpAuth('read'))(
       return createMcpErrorResponse(toError(error), 'Failed to list MCP servers', 500)
     }
   }
-)
+))
 
 /**
  * POST - Register a new MCP server for the workspace (requires write permission)
@@ -60,7 +61,7 @@ export const GET = withRouteHandler(withMcpAuth('read'))(
  * If a server with the same ID already exists (same URL in same workspace),
  * it will be updated instead of creating a duplicate.
  */
-export const POST = withRouteHandler(withMcpAuth('write'))(
+export const POST = withRouteHandler(withMcpAuth('write')(
   async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
     try {
       const body = getParsedBody(request) || (await request.json())
@@ -220,12 +221,12 @@ export const POST = withRouteHandler(withMcpAuth('write'))(
       return createMcpErrorResponse(toError(error), 'Failed to register MCP server', 500)
     }
   }
-)
+))
 
 /**
  * DELETE - Delete an MCP server from the workspace (requires admin permission)
  */
-export const DELETE = withRouteHandler(withMcpAuth('admin'))(
+export const DELETE = withRouteHandler(withMcpAuth('admin')(
   async (request: NextRequest, { userId, userName, userEmail, workspaceId, requestId }) => {
     try {
       const { searchParams } = new URL(request.url)
@@ -293,4 +294,4 @@ export const DELETE = withRouteHandler(withMcpAuth('admin'))(
       return createMcpErrorResponse(toError(error), 'Failed to delete MCP server', 500)
     }
   }
-)
+))

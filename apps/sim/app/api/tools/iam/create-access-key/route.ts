@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { createAccessKey, createIAMClient } from '../utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('IAMCreateAccessKeyAPI')
 
@@ -14,7 +15,7 @@ const Schema = z.object({
   userName: z.string().optional(),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
   const auth = await checkInternalAuth(request)
@@ -59,4 +60,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

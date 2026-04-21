@@ -12,6 +12,7 @@ import { isEnterprisePlan } from '@/lib/billing/core/subscription'
 import { getPlanType, type PlanCategory } from '@/lib/billing/plan-helpers'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('DataRetentionAPI')
 
@@ -48,7 +49,7 @@ const updateRetentionSchema = z.object({
  * Returns the workspace's data retention config including plan defaults and
  * whether the workspace is on an enterprise plan.
  */
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const GET = withRouteHandler(async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -109,14 +110,14 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     logger.error('Failed to get data retention settings', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 /**
  * PUT /api/workspaces/[id]/data-retention
  * Updates the workspace's data retention settings.
  * Requires admin permission and enterprise plan.
  */
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const PUT = withRouteHandler(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -215,4 +216,4 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     logger.error('Failed to update data retention settings', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

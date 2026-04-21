@@ -23,6 +23,7 @@ import {
   InvitationsNotAllowedError,
   validateInvitationsAllowed,
 } from '@/ee/access-control/utils/permission-check'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OrganizationMembersAPI')
 
@@ -30,38 +31,53 @@ const logger = createLogger('OrganizationMembersAPI')
  * GET /api/organizations/[id]/members
  * Get organization members with optional usage data
  */
-export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    try {
-      const session = await getSession()
+export const GET = withRouteHandler(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  try {
+    const session = await getSession()
 
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-      const { id: organizationId } = await params
-      const url = new URL(request.url)
-      const includeUsage = url.searchParams.get('include') === 'usage'
+    const { id: organizationId } = await params
+    const url = new URL(request.url)
+    const includeUsage = url.searchParams.get('include') === 'usage'
 
-      // Verify user has access to this organization
-      const memberEntry = await db
-        .select()
-        .from(member)
-        .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
-        .limit(1)
+    // Verify user has access to this organization
+    const memberEntry = await db
+      .select()
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
+      .limit(1)
 
-      if (memberEntry.length === 0) {
-        return NextResponse.json(
-          { error: 'Forbidden - Not a member of this organization' },
-          { status: 403 }
-        )
-      }
+    if (memberEntry.length === 0) {
+      return NextResponse.json(
+        { error: 'Forbidden - Not a member of this organization' },
+        { status: 403 }
+      )
+    }
 
-      const userRole = memberEntry[0].role
-      const hasAdminAccess = ['owner', 'admin'].includes(userRole)
+    const userRole = memberEntry[0].role
+    const hasAdminAccess = ['owner', 'admin'].includes(userRole)
 
-      // Get organization members
-      const query = db
+    // Get organization members
+    const query = db
+      .select({
+        id: member.id,
+        userId: member.userId,
+        organizationId: member.organizationId,
+        role: member.role,
+        createdAt: member.createdAt,
+        userName: user.name,
+        userEmail: user.email,
+      })
+      .from(member)
+      .innerJoin(user, eq(member.userId, user.id))
+      .where(eq(member.organizationId, organizationId))
+
+    // Include usage data if requested and user has admin access
+    if (includeUsage && hasAdminAccess) {
+      const base = await db
         .select({
           id: member.id,
           userId: member.userId,
@@ -70,9 +86,13 @@ export const GET = withRouteHandler(
           createdAt: member.createdAt,
           userName: user.name,
           userEmail: user.email,
+          currentPeriodCost: userStats.currentPeriodCost,
+          currentUsageLimit: userStats.currentUsageLimit,
+          usageLimitUpdatedAt: userStats.usageLimitUpdatedAt,
         })
         .from(member)
         .innerJoin(user, eq(member.userId, user.id))
+        .leftJoin(userStats, eq(user.id, userStats.userId))
         .where(eq(member.organizationId, organizationId))
 
       // The billing period is the same for every member — it comes from
@@ -104,34 +124,43 @@ export const GET = withRouteHandler(
 
       return NextResponse.json({
         success: true,
-        data: members,
-        total: members.length,
+        data: membersWithUsage,
+        total: membersWithUsage.length,
         userRole,
         hasAdminAccess,
       })
-    } catch (error) {
-      logger.error('Failed to get organization members', {
-        organizationId: (await params).id,
-        error,
-      })
-
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
+
+    const members = await query
+
+    return NextResponse.json({
+      success: true,
+      data: members,
+      total: members.length,
+      userRole,
+      hasAdminAccess,
+    })
+  } catch (error) {
+    logger.error('Failed to get organization members', {
+      organizationId: (await params).id,
+      error,
+    })
+
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-)
+})
 
 /**
  * POST /api/organizations/[id]/members
  * Invite new member to organization
  */
-export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    try {
-      const session = await getSession()
+export const POST = withRouteHandler(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  try {
+    const session = await getSession()
 
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
     await validateInvitationsAllowed(session.user.id)
 
@@ -142,37 +171,93 @@ export const POST = withRouteHandler(
       return NextResponse.json({ error: 'Email is required' }, { status: 400 })
     }
 
-      if (!['admin', 'member'].includes(role)) {
-        return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
-      }
+    if (!['admin', 'member'].includes(role)) {
+      return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
+    }
 
-      // Validate and normalize email
-      const normalizedEmail = email.trim().toLowerCase()
-      const validation = quickValidateEmail(normalizedEmail)
-      if (!validation.isValid) {
+    // Validate and normalize email
+    const normalizedEmail = email.trim().toLowerCase()
+    const validation = quickValidateEmail(normalizedEmail)
+    if (!validation.isValid) {
+      return NextResponse.json(
+        { error: validation.reason || 'Invalid email format' },
+        { status: 400 }
+      )
+    }
+
+    // Verify user has admin access
+    const memberEntry = await db
+      .select()
+      .from(member)
+      .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
+      .limit(1)
+
+    if (memberEntry.length === 0) {
+      return NextResponse.json(
+        { error: 'Forbidden - Not a member of this organization' },
+        { status: 403 }
+      )
+    }
+
+    if (!['owner', 'admin'].includes(memberEntry[0].role)) {
+      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
+    }
+
+    // Check seat availability
+    const seatValidation = await validateSeatAvailability(organizationId, 1)
+    if (!seatValidation.canInvite) {
+      return NextResponse.json(
+        {
+          error: `Cannot invite member. Using ${seatValidation.currentSeats} of ${seatValidation.maxSeats} seats.`,
+          details: seatValidation,
+        },
+        { status: 400 }
+      )
+    }
+
+    // Check if user is already a member
+    const existingUser = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.email, normalizedEmail))
+      .limit(1)
+
+    if (existingUser.length > 0) {
+      const existingMember = await db
+        .select()
+        .from(member)
+        .where(
+          and(eq(member.organizationId, organizationId), eq(member.userId, existingUser[0].id))
+        )
+        .limit(1)
+
+      if (existingMember.length > 0) {
         return NextResponse.json(
-          { error: validation.reason || 'Invalid email format' },
+          { error: 'User is already a member of this organization' },
           { status: 400 }
         )
       }
+    }
 
-      // Verify user has admin access
-      const memberEntry = await db
-        .select()
-        .from(member)
-        .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
-        .limit(1)
-
-      if (memberEntry.length === 0) {
-        return NextResponse.json(
-          { error: 'Forbidden - Not a member of this organization' },
-          { status: 403 }
+    // Check for existing pending invitation
+    const existingInvitation = await db
+      .select()
+      .from(invitation)
+      .where(
+        and(
+          eq(invitation.organizationId, organizationId),
+          eq(invitation.email, normalizedEmail),
+          eq(invitation.status, 'pending')
         )
-      }
+      )
+      .limit(1)
 
-      if (!['owner', 'admin'].includes(memberEntry[0].role)) {
-        return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
-      }
+    if (existingInvitation.length > 0) {
+      return NextResponse.json(
+        { error: 'Pending invitation already exists for this email' },
+        { status: 400 }
+      )
+    }
 
     const { invitationId, token } = await createPendingInvitation({
       kind: 'organization',
@@ -252,76 +337,6 @@ export const POST = withRouteHandler(
       error,
     })
 
-      const organizationEntry = await db
-        .select({ name: organization.name })
-        .from(organization)
-        .where(eq(organization.id, organizationId))
-        .limit(1)
-
-      const inviter = await db
-        .select({ name: user.name })
-        .from(user)
-        .where(eq(user.id, session.user.id))
-        .limit(1)
-
-      const emailHtml = await renderInvitationEmail(
-        inviter[0]?.name || 'Someone',
-        organizationEntry[0]?.name || 'organization',
-        `${getBaseUrl()}/invite/organization?id=${invitationId}`
-      )
-
-      const emailResult = await sendEmail({
-        to: normalizedEmail,
-        subject: getEmailSubject('invitation'),
-        html: emailHtml,
-        emailType: 'transactional',
-      })
-
-      if (emailResult.success) {
-        logger.info('Member invitation sent', {
-          email: normalizedEmail,
-          organizationId,
-          invitationId,
-          role,
-        })
-      } else {
-        logger.error('Failed to send invitation email', {
-          email: normalizedEmail,
-          error: emailResult.message,
-        })
-        // Don't fail the request if email fails
-      }
-
-      recordAudit({
-        workspaceId: null,
-        actorId: session.user.id,
-        action: AuditAction.ORG_INVITATION_CREATED,
-        resourceType: AuditResourceType.ORGANIZATION,
-        resourceId: organizationId,
-        actorName: session.user.name ?? undefined,
-        actorEmail: session.user.email ?? undefined,
-        description: `Invited ${normalizedEmail} to organization as ${role}`,
-        metadata: { invitationId, targetEmail: normalizedEmail, targetRole: role },
-        request,
-      })
-
-      return NextResponse.json({
-        success: true,
-        message: `Invitation sent to ${normalizedEmail}`,
-        data: {
-          invitationId,
-          email: normalizedEmail,
-          role,
-          expiresAt,
-        },
-      })
-    } catch (error) {
-      logger.error('Failed to invite organization member', {
-        organizationId: (await params).id,
-        error,
-      })
-
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-    }
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-)
+})

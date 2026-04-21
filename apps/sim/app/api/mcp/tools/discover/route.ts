@@ -1,16 +1,16 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpToolDiscoveryResponse } from '@/lib/mcp/types'
 import { categorizeError, createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('McpToolDiscoveryAPI')
 
 export const dynamic = 'force-dynamic'
 
-export const GET = withRouteHandler(withMcpAuth('read'))(
+export const GET = withRouteHandler(withMcpAuth('read')(
   async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       const { searchParams } = new URL(request.url)
@@ -44,9 +44,9 @@ export const GET = withRouteHandler(withMcpAuth('read'))(
       return createMcpErrorResponse(new Error(message), 'Failed to discover MCP tools', status)
     }
   }
-)
+))
 
-export const POST = withRouteHandler(withMcpAuth('read'))(
+export const POST = withRouteHandler(withMcpAuth('read')(
   async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       const body = getParsedBody(request) || (await request.json())
@@ -100,4 +100,4 @@ export const POST = withRouteHandler(withMcpAuth('read'))(
       return createMcpErrorResponse(new Error(message), 'Failed to refresh tool discovery', status)
     }
   }
-)
+))

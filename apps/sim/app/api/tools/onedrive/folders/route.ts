@@ -12,8 +12,8 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OneDriveFoldersAPI')
 
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { MicrosoftGraphDriveItem } from '@/tools/onedrive/types'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 /**
  * Get folders from Microsoft OneDrive

@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { McpClient } from '@/lib/mcp/client'
 import {
   McpDnsResolutionError,
@@ -14,6 +13,7 @@ import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
 import type { McpTransport } from '@/lib/mcp/types'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('McpServerTestAPI')
 
@@ -66,7 +66,7 @@ function sanitizeConnectionError(error: unknown): string {
 /**
  * POST - Test connection to an MCP server before registering it
  */
-export const POST = withRouteHandler(withMcpAuth('write'))(
+export const POST = withRouteHandler(withMcpAuth('write')(
   async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       const body: TestConnectionRequest = getParsedBody(request) || (await request.json())
@@ -225,4 +225,4 @@ export const POST = withRouteHandler(withMcpAuth('write'))(
       return createMcpErrorResponse(toError(error), 'Failed to test server connection', 500)
     }
   }
-)
+))

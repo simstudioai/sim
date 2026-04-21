@@ -32,6 +32,7 @@ import {
 } from '@/app/api/v1/audit-logs/query'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('V1AuditLogsAPI')
 
@@ -59,7 +60,7 @@ const QueryParamsSchema = z.object({
   cursor: z.string().optional(),
 })
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
   try {

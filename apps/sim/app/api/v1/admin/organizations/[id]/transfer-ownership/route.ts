@@ -10,6 +10,7 @@ import {
   notFoundResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('AdminTransferOwnershipAPI')
 
@@ -17,7 +18,7 @@ interface RouteParams {
   id: string
 }
 
-export const POST = withAdminAuthParams<RouteParams>(async (request, context) => {
+export const POST = withRouteHandler(withAdminAuthParams<RouteParams>(async (request, context) => {
   const { id: organizationId } = await context.params
 
   try {
@@ -120,4 +121,4 @@ export const POST = withAdminAuthParams<RouteParams>(async (request, context) =>
     })
     return internalErrorResponse('Failed to transfer ownership')
   }
-})
+}))

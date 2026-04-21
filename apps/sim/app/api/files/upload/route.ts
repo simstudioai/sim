@@ -21,6 +21,7 @@ import {
   createOptionsResponse,
   InvalidRequestError,
 } from '@/app/api/files/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] as const
 

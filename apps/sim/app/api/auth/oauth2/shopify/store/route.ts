@@ -8,6 +8,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
 import { safeAccountInsert } from '@/app/api/auth/oauth/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('ShopifyStore')
 

@@ -13,6 +13,7 @@ import {
 } from '@/lib/workflows/persistence/utils'
 import { sanitizeForExport } from '@/lib/workflows/sanitization/json-sanitizer'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SuperUserImportWorkflow')
 

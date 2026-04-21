@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { filterBlacklistedModels, isProviderBlacklisted } from '@/providers/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OpenRouterModelsAPI')
 

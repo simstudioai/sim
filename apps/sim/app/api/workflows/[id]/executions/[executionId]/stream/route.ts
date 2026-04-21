@@ -4,7 +4,6 @@ import { sleep } from '@sim/utils/helpers'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   type ExecutionStreamStatus,
   getExecutionMeta,
@@ -12,6 +11,7 @@ import {
 } from '@/lib/execution/event-buffer'
 import { formatSSEEvent } from '@/lib/workflows/executor/execution-events'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('ExecutionStreamReconnectAPI')
 
@@ -25,30 +25,29 @@ function isTerminalStatus(status: ExecutionStreamStatus): boolean {
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export const GET = withRouteHandler(
-  async (
-    req: NextRequest,
-    { params }: { params: Promise<{ id: string; executionId: string }> }
-  ) => {
-    const { id: workflowId, executionId } = await params
+export const GET = withRouteHandler(async (
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string; executionId: string }> }
+) => {
+  const { id: workflowId, executionId } = await params
 
-    try {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-      const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
-        workflowId,
-        userId: session.user.id,
-        action: 'read',
-      })
-      if (!workflowAuthorization.allowed) {
-        return NextResponse.json(
-          { error: workflowAuthorization.message || 'Access denied' },
-          { status: workflowAuthorization.status }
-        )
-      }
+    const workflowAuthorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId,
+      userId: session.user.id,
+      action: 'read',
+    })
+    if (!workflowAuthorization.allowed) {
+      return NextResponse.json(
+        { error: workflowAuthorization.message || 'Access denied' },
+        { status: workflowAuthorization.status }
+      )
+    }
 
     const meta = await getExecutionMeta(executionId)
     if (!meta) {
@@ -59,35 +58,28 @@ export const GET = withRouteHandler(
       return NextResponse.json({ error: 'Run does not belong to this workflow' }, { status: 403 })
     }
 
-      const fromParam = req.nextUrl.searchParams.get('from')
-      const parsed = fromParam ? Number.parseInt(fromParam, 10) : 0
-      const fromEventId = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
+    const fromParam = req.nextUrl.searchParams.get('from')
+    const parsed = fromParam ? Number.parseInt(fromParam, 10) : 0
+    const fromEventId = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
 
-      logger.info('Reconnection stream requested', {
-        workflowId,
-        executionId,
-        fromEventId,
-        metaStatus: meta.status,
-      })
+    logger.info('Reconnection stream requested', {
+      workflowId,
+      executionId,
+      fromEventId,
+      metaStatus: meta.status,
+    })
 
-      const encoder = new TextEncoder()
+    const encoder = new TextEncoder()
 
-      let closed = false
+    let closed = false
 
-      const stream = new ReadableStream<Uint8Array>({
-        async start(controller) {
-          let lastEventId = fromEventId
-          const pollDeadline = Date.now() + MAX_POLL_DURATION_MS
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        let lastEventId = fromEventId
+        const pollDeadline = Date.now() + MAX_POLL_DURATION_MS
 
-          const enqueue = (text: string) => {
-            if (closed) return
-            try {
-              controller.enqueue(encoder.encode(text))
-            } catch {
-              closed = true
-            }
-          }
-
+        const enqueue = (text: string) => {
+          if (closed) return
           try {
             controller.enqueue(encoder.encode(text))
           } catch {
@@ -123,62 +115,20 @@ export const GET = withRouteHandler(
               lastEventId = entry.eventId
             }
 
-            const currentMeta = await getExecutionMeta(executionId)
-            if (!currentMeta || isTerminalStatus(currentMeta.status)) {
-              enqueue('data: [DONE]\n\n')
-              if (!closed) controller.close()
-              return
-            }
-
-            while (!closed && Date.now() < pollDeadline) {
-              await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
-              if (closed) return
-
-              const newEvents = await readExecutionEvents(executionId, lastEventId)
-              for (const entry of newEvents) {
+            const polledMeta = await getExecutionMeta(executionId)
+            if (!polledMeta || isTerminalStatus(polledMeta.status)) {
+              const finalEvents = await readExecutionEvents(executionId, lastEventId)
+              for (const entry of finalEvents) {
                 if (closed) return
                 entry.event.eventId = entry.eventId
                 enqueue(formatSSEEvent(entry.event))
                 lastEventId = entry.eventId
               }
-
-              const polledMeta = await getExecutionMeta(executionId)
-              if (!polledMeta || isTerminalStatus(polledMeta.status)) {
-                const finalEvents = await readExecutionEvents(executionId, lastEventId)
-                for (const entry of finalEvents) {
-                  if (closed) return
-                  entry.event.eventId = entry.eventId
-                  enqueue(formatSSEEvent(entry.event))
-                  lastEventId = entry.eventId
-                }
-                enqueue('data: [DONE]\n\n')
-                if (!closed) controller.close()
-                return
-              }
-            }
-
-            if (!closed) {
-              logger.warn('Reconnection stream poll deadline reached', { executionId })
               enqueue('data: [DONE]\n\n')
-              controller.close()
-            }
-          } catch (error) {
-            logger.error('Error in reconnection stream', {
-              executionId,
-              error: error instanceof Error ? error.message : String(error),
-            })
-            if (!closed) {
-              try {
-                controller.close()
-              } catch {}
+              if (!closed) controller.close()
+              return
             }
           }
-        },
-        cancel() {
-          closed = true
-          logger.info('Client disconnected from reconnection stream', { executionId })
-        },
-      })
 
           if (!closed) {
             logger.warn('Reconnection stream poll deadline reached', { executionId })
@@ -220,4 +170,4 @@ export const GET = withRouteHandler(
       { status: 500 }
     )
   }
-)
+})

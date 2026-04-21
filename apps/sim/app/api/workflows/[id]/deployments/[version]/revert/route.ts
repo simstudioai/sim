@@ -4,16 +4,17 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { performRevertToVersion } from '@/lib/workflows/orchestration'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('RevertToDeploymentVersionAPI')
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-export async function POST(
+export const POST = withRouteHandler(async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string; version: string }> }
-) {
+) => {
   const requestId = generateRequestId()
   const { id, version } = await params
 
@@ -57,4 +58,4 @@ export async function POST(
     logger.error('Error reverting to deployment version', error)
     return createErrorResponse(error.message || 'Failed to revert', 500)
   }
-)
+})

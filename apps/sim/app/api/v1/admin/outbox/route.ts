@@ -5,6 +5,7 @@ import { toError } from '@sim/utils/errors'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('AdminOutboxAPI')
 
@@ -25,7 +26,7 @@ export const dynamic = 'force-dynamic'
  *
  * Response includes aggregate counts by status for quick health read.
  */
-export const GET = withAdminAuth(async (request: NextRequest) => {
+export const GET = withRouteHandler(withAdminAuth(async (request: NextRequest) => {
   try {
     const { searchParams } = new URL(request.url)
     const validStatuses = ['pending', 'processing', 'completed', 'dead_letter'] as const
@@ -81,4 +82,4 @@ export const GET = withAdminAuth(async (request: NextRequest) => {
     logger.error('Failed to list outbox events', { error: toError(error).message })
     return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
   }
-})
+}))

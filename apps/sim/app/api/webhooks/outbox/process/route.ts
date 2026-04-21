@@ -5,6 +5,7 @@ import { verifyCronAuth } from '@/lib/auth/internal'
 import { billingOutboxHandlers } from '@/lib/billing/webhooks/outbox-handlers'
 import { processOutboxEvents } from '@/lib/core/outbox/service'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OutboxProcessorAPI')
 
@@ -15,7 +16,7 @@ const handlers = {
   ...billingOutboxHandlers,
 } as const
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -40,4 +41,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

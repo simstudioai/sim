@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { IncidentIOWidgetResponse, StatusResponse, StatusType } from '@/app/api/status/types'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('StatusAPI')
 

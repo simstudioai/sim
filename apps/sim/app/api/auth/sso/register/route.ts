@@ -12,6 +12,7 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SSORegisterRoute')
 

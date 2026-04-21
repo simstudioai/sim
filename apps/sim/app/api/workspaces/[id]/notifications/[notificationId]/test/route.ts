@@ -17,6 +17,7 @@ import { secureFetchWithValidation } from '@/lib/core/security/input-validation.
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('WorkspaceNotificationTestAPI')
 

@@ -4,12 +4,13 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateMondayNumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('MondayGroupsAPI')
 
-export async function POST(request: Request) {
+export const POST = withRouteHandler(async (request: Request) => {
   try {
     const requestId = generateRequestId()
     const body = await request.json()
@@ -90,4 +91,4 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
-}
+})

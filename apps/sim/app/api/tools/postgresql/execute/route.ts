@@ -8,6 +8,7 @@ import {
   executeQuery,
   validateQuery,
 } from '@/app/api/tools/postgresql/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('PostgreSQLExecuteAPI')
 

@@ -7,6 +7,7 @@ import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
 import type { VideoRequestBody } from '@/tools/video/types'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('VideoProxyAPI')
 

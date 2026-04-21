@@ -16,6 +16,7 @@ import {
 } from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
 import type { TranscriptSegment } from '@/tools/stt/types'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SttProxyAPI')
 

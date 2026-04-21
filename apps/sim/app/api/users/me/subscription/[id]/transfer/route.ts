@@ -11,6 +11,7 @@ import {
   ENTITLED_SUBSCRIPTION_STATUSES,
   hasPaidSubscriptionStatus,
 } from '@/lib/billing/subscriptions/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SubscriptionTransferAPI')
 
@@ -23,7 +24,7 @@ type TransferOutcome =
   | { kind: 'noop'; message: string }
   | { kind: 'success'; message: string }
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const POST = withRouteHandler(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   try {
     const subscriptionId = (await params).id
     const session = await getSession()
@@ -35,108 +36,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     let body
     try {
-      const subscriptionId = (await params).id
-      const session = await getSession()
-
-      if (!session?.user?.id) {
-        logger.warn('Unauthorized subscription transfer attempt')
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      let body
-      try {
-        body = await request.json()
-      } catch (_parseError) {
-        return NextResponse.json(
-          {
-            error: 'Invalid JSON in request body',
-          },
-          { status: 400 }
-        )
-      }
-
-      const validationResult = transferSubscriptionSchema.safeParse(body)
-      if (!validationResult.success) {
-        return NextResponse.json(
-          {
-            error: 'Invalid request parameters',
-            details: validationResult.error.format(),
-          },
-          { status: 400 }
-        )
-      }
-
-      const { organizationId } = validationResult.data
-      logger.info('Processing subscription transfer', { subscriptionId, organizationId })
-
-      const sub = await db
-        .select()
-        .from(subscription)
-        .where(eq(subscription.id, subscriptionId))
-        .then((rows) => rows[0])
-
-      if (!sub) {
-        return NextResponse.json({ error: 'Subscription not found' }, { status: 404 })
-      }
-
-      if (sub.referenceId !== session.user.id) {
-        return NextResponse.json(
-          { error: 'Unauthorized - subscription does not belong to user' },
-          { status: 403 }
-        )
-      }
-
-      const org = await db
-        .select()
-        .from(organization)
-        .where(eq(organization.id, organizationId))
-        .then((rows) => rows[0])
-
-      if (!org) {
-        return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
-      }
-
-      const mem = await db
-        .select()
-        .from(member)
-        .where(and(eq(member.userId, session.user.id), eq(member.organizationId, organizationId)))
-        .then((rows) => rows[0])
-
-      if (!mem || (mem.role !== 'owner' && mem.role !== 'admin')) {
-        return NextResponse.json(
-          { error: 'Unauthorized - user is not admin of organization' },
-          { status: 403 }
-        )
-      }
-
-      // Check if org already has an active subscription (prevent duplicates)
-      if (await hasPaidSubscription(organizationId)) {
-        return NextResponse.json(
-          { error: 'Organization already has an active subscription' },
-          { status: 409 }
-        )
-      }
-
-      await db
-        .update(subscription)
-        .set({ referenceId: organizationId })
-        .where(eq(subscription.id, subscriptionId))
-
-      logger.info('Subscription transfer completed', {
-        subscriptionId,
-        organizationId,
-        userId: session.user.id,
-      })
-
-      return NextResponse.json({
-        success: true,
-        message: 'Subscription transferred successfully',
-      })
-    } catch (error) {
-      logger.error('Error transferring subscription', {
-        error: error instanceof Error ? error.message : String(error),
-      })
-      return NextResponse.json({ error: 'Failed to transfer subscription' }, { status: 500 })
+      body = await request.json()
+    } catch (_parseError) {
+      return NextResponse.json(
+        {
+          error: 'Invalid JSON in request body',
+        },
+        { status: 400 }
+      )
     }
 
     const validationResult = transferSubscriptionSchema.safeParse(body)
@@ -256,4 +163,4 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })
     return NextResponse.json({ error: 'Failed to transfer subscription' }, { status: 500 })
   }
-)
+})

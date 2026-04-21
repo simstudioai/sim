@@ -7,9 +7,9 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('WorkspaceApiKeyAPI')
 
@@ -17,164 +17,76 @@ const UpdateKeySchema = z.object({
   name: z.string().min(1, 'Name is required'),
 })
 
-export const PUT = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string; keyId: string }> }) => {
-    const requestId = generateRequestId()
-    const { id: workspaceId, keyId } = await params
+export const PUT = withRouteHandler(async (
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; keyId: string }> }
+) => {
+  const requestId = generateRequestId()
+  const { id: workspaceId, keyId } = await params
 
-    try {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized workspace API key update attempt`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      logger.warn(`[${requestId}] Unauthorized workspace API key update attempt`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-      const userId = session.user.id
+    const userId = session.user.id
 
-      const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-      if (permission !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
+    const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+    if (permission !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
-      const body = await request.json()
-      const { name } = UpdateKeySchema.parse(body)
+    const body = await request.json()
+    const { name } = UpdateKeySchema.parse(body)
 
-      const existingKey = await db
-        .select()
-        .from(apiKey)
-        .where(
-          and(
-            eq(apiKey.workspaceId, workspaceId),
-            eq(apiKey.id, keyId),
-            eq(apiKey.type, 'workspace')
-          )
+    const existingKey = await db
+      .select()
+      .from(apiKey)
+      .where(
+        and(eq(apiKey.workspaceId, workspaceId), eq(apiKey.id, keyId), eq(apiKey.type, 'workspace'))
+      )
+      .limit(1)
+
+    if (existingKey.length === 0) {
+      return NextResponse.json({ error: 'API key not found' }, { status: 404 })
+    }
+
+    const conflictingKey = await db
+      .select()
+      .from(apiKey)
+      .where(
+        and(
+          eq(apiKey.workspaceId, workspaceId),
+          eq(apiKey.name, name),
+          eq(apiKey.type, 'workspace'),
+          not(eq(apiKey.id, keyId))
         )
-        .limit(1)
+      )
+      .limit(1)
 
-      if (existingKey.length === 0) {
-        return NextResponse.json({ error: 'API key not found' }, { status: 404 })
-      }
-
-      const conflictingKey = await db
-        .select()
-        .from(apiKey)
-        .where(
-          and(
-            eq(apiKey.workspaceId, workspaceId),
-            eq(apiKey.name, name),
-            eq(apiKey.type, 'workspace'),
-            not(eq(apiKey.id, keyId))
-          )
-        )
-        .limit(1)
-
-      if (conflictingKey.length > 0) {
-        return NextResponse.json(
-          { error: 'A workspace API key with this name already exists' },
-          { status: 400 }
-        )
-      }
-
-      const [updatedKey] = await db
-        .update(apiKey)
-        .set({
-          name,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(apiKey.workspaceId, workspaceId),
-            eq(apiKey.id, keyId),
-            eq(apiKey.type, 'workspace')
-          )
-        )
-        .returning({
-          id: apiKey.id,
-          name: apiKey.name,
-          createdAt: apiKey.createdAt,
-          updatedAt: apiKey.updatedAt,
-        })
-
-      recordAudit({
-        workspaceId,
-        actorId: userId,
-        action: AuditAction.API_KEY_UPDATED,
-        resourceType: AuditResourceType.API_KEY,
-        resourceId: keyId,
-        actorName: session.user.name ?? undefined,
-        actorEmail: session.user.email ?? undefined,
-        resourceName: name,
-        description: `Updated workspace API key: ${name}`,
-        request,
-      })
-
-      logger.info(`[${requestId}] Updated workspace API key: ${keyId} in workspace ${workspaceId}`)
-      return NextResponse.json({ key: updatedKey })
-    } catch (error: unknown) {
-      logger.error(`[${requestId}] Workspace API key PUT error`, error)
+    if (conflictingKey.length > 0) {
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Failed to update workspace API key' },
-        { status: 500 }
+        { error: 'A workspace API key with this name already exists' },
+        { status: 400 }
       )
     }
-  }
-)
 
-export const DELETE = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string; keyId: string }> }) => {
-    const requestId = generateRequestId()
-    const { id: workspaceId, keyId } = await params
-
-    try {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized workspace API key deletion attempt`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const userId = session.user.id
-
-      const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-      if (permission !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-
-      const deletedRows = await db
-        .delete(apiKey)
-        .where(
-          and(
-            eq(apiKey.workspaceId, workspaceId),
-            eq(apiKey.id, keyId),
-            eq(apiKey.type, 'workspace')
-          )
-        )
-        .returning({ id: apiKey.id, name: apiKey.name, lastUsed: apiKey.lastUsed })
-
-      if (deletedRows.length === 0) {
-        return NextResponse.json({ error: 'API key not found' }, { status: 404 })
-      }
-
-      const deletedKey = deletedRows[0]
-
-      captureServerEvent(
-        userId,
-        'api_key_revoked',
-        { workspace_id: workspaceId, key_name: deletedKey.name },
-        { groups: { workspace: workspaceId } }
+    const [updatedKey] = await db
+      .update(apiKey)
+      .set({
+        name,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(eq(apiKey.workspaceId, workspaceId), eq(apiKey.id, keyId), eq(apiKey.type, 'workspace'))
       )
-
-      recordAudit({
-        workspaceId,
-        actorId: userId,
-        action: AuditAction.API_KEY_REVOKED,
-        resourceType: AuditResourceType.API_KEY,
-        resourceId: keyId,
-        actorName: session.user.name ?? undefined,
-        actorEmail: session.user.email ?? undefined,
-        resourceName: deletedKey.name,
-        description: `Revoked workspace API key: ${deletedKey.name}`,
-        metadata: { lastUsed: deletedKey.lastUsed?.toISOString() ?? null },
-        request,
+      .returning({
+        id: apiKey.id,
+        name: apiKey.name,
+        createdAt: apiKey.createdAt,
+        updatedAt: apiKey.updatedAt,
       })
 
     recordAudit({
@@ -204,12 +116,12 @@ export const DELETE = withRouteHandler(
       { status: 500 }
     )
   }
-}
+})
 
-export async function DELETE(
+export const DELETE = withRouteHandler(async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string; keyId: string }> }
-) {
+) => {
   const requestId = generateRequestId()
   const { id: workspaceId, keyId } = await params
 
@@ -232,6 +144,10 @@ export async function DELETE(
       .where(
         and(eq(apiKey.workspaceId, workspaceId), eq(apiKey.id, keyId), eq(apiKey.type, 'workspace'))
       )
+      .returning({ id: apiKey.id, name: apiKey.name, lastUsed: apiKey.lastUsed })
+
+    if (deletedRows.length === 0) {
+      return NextResponse.json({ error: 'API key not found' }, { status: 404 })
     }
 
     const deletedKey = deletedRows[0]
@@ -270,4 +186,4 @@ export async function DELETE(
       { status: 500 }
     )
   }
-)
+})

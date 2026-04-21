@@ -22,6 +22,7 @@ import {
   WORKSPACE_MODE,
 } from '@/lib/workspaces/policy'
 import type { WorkspaceScope } from '@/lib/workspaces/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('Workspaces')
 
@@ -168,7 +169,7 @@ export const GET = withRouteHandler(async (request: Request) => {
     lastActiveWorkspaceId,
     creationPolicy,
   })
-}
+})
 
 // POST /api/workspaces - Create a new workspace
 export const POST = withRouteHandler(async (req: Request) => {

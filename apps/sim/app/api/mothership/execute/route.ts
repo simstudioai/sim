@@ -12,6 +12,7 @@ import {
   assertActiveWorkspaceAccess,
   getUserEntityPermissions,
 } from '@/lib/workspaces/permissions/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const maxDuration = 3600
 

@@ -16,6 +16,7 @@ import { Webhook } from 'svix'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { executeInboxTask } from '@/lib/mothership/inbox/executor'
 import type { AgentMailWebhookPayload, RejectionReason } from '@/lib/mothership/inbox/types'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('AgentMailWebhook')
 

@@ -8,8 +8,8 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CredentialSetInviteResend')
 
@@ -38,140 +38,110 @@ async function getCredentialSetWithAccess(credentialSetId: string, userId: strin
   return { set, role: membership.role }
 }
 
-export const POST = withRouteHandler(
-  async (
-    req: NextRequest,
-    { params }: { params: Promise<{ id: string; invitationId: string }> }
-  ) => {
-    const session = await getSession()
+export const POST = withRouteHandler(async (
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string; invitationId: string }> }
+) => {
+  const session = await getSession()
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Check plan access (team/enterprise) or env var override
+  const hasAccess = await hasCredentialSetsAccess(session.user.id)
+  if (!hasAccess) {
+    return NextResponse.json(
+      { error: 'Credential sets require a Team or Enterprise plan' },
+      { status: 403 }
+    )
+  }
+
+  const { id, invitationId } = await params
+
+  try {
+    const result = await getCredentialSetWithAccess(id, session.user.id)
+
+    if (!result) {
+      return NextResponse.json({ error: 'Credential set not found' }, { status: 404 })
     }
 
-    // Check plan access (team/enterprise) or env var override
-    const hasAccess = await hasCredentialSetsAccess(session.user.id)
-    if (!hasAccess) {
-      return NextResponse.json(
-        { error: 'Credential sets require a Team or Enterprise plan' },
-        { status: 403 }
+    if (result.role !== 'admin' && result.role !== 'owner') {
+      return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
+    }
+
+    const [invitation] = await db
+      .select()
+      .from(credentialSetInvitation)
+      .where(
+        and(
+          eq(credentialSetInvitation.id, invitationId),
+          eq(credentialSetInvitation.credentialSetId, id)
+        )
       )
+      .limit(1)
+
+    if (!invitation) {
+      return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
     }
 
-    const { id, invitationId } = await params
+    if (invitation.status !== 'pending') {
+      return NextResponse.json({ error: 'Only pending invitations can be resent' }, { status: 400 })
+    }
 
-    try {
-      const result = await getCredentialSetWithAccess(id, session.user.id)
+    // Update expiration
+    const newExpiresAt = new Date()
+    newExpiresAt.setDate(newExpiresAt.getDate() + 7)
 
-      if (!result) {
-        return NextResponse.json({ error: 'Credential set not found' }, { status: 404 })
-      }
+    await db
+      .update(credentialSetInvitation)
+      .set({ expiresAt: newExpiresAt })
+      .where(eq(credentialSetInvitation.id, invitationId))
 
-      if (result.role !== 'admin' && result.role !== 'owner') {
-        return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
-      }
+    const inviteUrl = `${getBaseUrl()}/credential-account/${invitation.token}`
 
-      const [invitation] = await db
-        .select()
-        .from(credentialSetInvitation)
-        .where(
-          and(
-            eq(credentialSetInvitation.id, invitationId),
-            eq(credentialSetInvitation.credentialSetId, id)
-          )
-        )
-        .limit(1)
+    // Send email if email address exists
+    if (invitation.email) {
+      try {
+        const [inviter] = await db
+          .select({ name: user.name })
+          .from(user)
+          .where(eq(user.id, session.user.id))
+          .limit(1)
 
-      if (!invitation) {
-        return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
-      }
+        const [org] = await db
+          .select({ name: organization.name })
+          .from(organization)
+          .where(eq(organization.id, result.set.organizationId))
+          .limit(1)
 
-      if (invitation.status !== 'pending') {
-        return NextResponse.json(
-          { error: 'Only pending invitations can be resent' },
-          { status: 400 }
-        )
-      }
+        const provider = (result.set.providerId as 'google-email' | 'outlook') || 'google-email'
+        const emailHtml = await renderPollingGroupInvitationEmail({
+          inviterName: inviter?.name || 'A team member',
+          organizationName: org?.name || 'your organization',
+          pollingGroupName: result.set.name,
+          provider,
+          inviteLink: inviteUrl,
+        })
 
-      // Update expiration
-      const newExpiresAt = new Date()
-      newExpiresAt.setDate(newExpiresAt.getDate() + 7)
+        const emailResult = await sendEmail({
+          to: invitation.email,
+          subject: getEmailSubject('polling-group-invitation'),
+          html: emailHtml,
+          emailType: 'transactional',
+        })
 
-      await db
-        .update(credentialSetInvitation)
-        .set({ expiresAt: newExpiresAt })
-        .where(eq(credentialSetInvitation.id, invitationId))
-
-      const inviteUrl = `${getBaseUrl()}/credential-account/${invitation.token}`
-
-      // Send email if email address exists
-      if (invitation.email) {
-        try {
-          const [inviter] = await db
-            .select({ name: user.name })
-            .from(user)
-            .where(eq(user.id, session.user.id))
-            .limit(1)
-
-          const [org] = await db
-            .select({ name: organization.name })
-            .from(organization)
-            .where(eq(organization.id, result.set.organizationId))
-            .limit(1)
-
-          const provider = (result.set.providerId as 'google-email' | 'outlook') || 'google-email'
-          const emailHtml = await renderPollingGroupInvitationEmail({
-            inviterName: inviter?.name || 'A team member',
-            organizationName: org?.name || 'your organization',
-            pollingGroupName: result.set.name,
-            provider,
-            inviteLink: inviteUrl,
+        if (!emailResult.success) {
+          logger.warn('Failed to resend invitation email', {
+            email: invitation.email,
+            error: emailResult.message,
           })
-
-          const emailResult = await sendEmail({
-            to: invitation.email,
-            subject: getEmailSubject('polling-group-invitation'),
-            html: emailHtml,
-            emailType: 'transactional',
-          })
-
-          if (!emailResult.success) {
-            logger.warn('Failed to resend invitation email', {
-              email: invitation.email,
-              error: emailResult.message,
-            })
-            return NextResponse.json({ error: 'Failed to send email' }, { status: 500 })
-          }
-        } catch (emailError) {
-          logger.error('Error sending invitation email', emailError)
           return NextResponse.json({ error: 'Failed to send email' }, { status: 500 })
         }
+      } catch (emailError) {
+        logger.error('Error sending invitation email', emailError)
+        return NextResponse.json({ error: 'Failed to send email' }, { status: 500 })
       }
-
-      logger.info('Resent credential set invitation', {
-        credentialSetId: id,
-        invitationId,
-        userId: session.user.id,
-      })
-
-      recordAudit({
-        workspaceId: null,
-        actorId: session.user.id,
-        actorName: session.user.name,
-        actorEmail: session.user.email,
-        action: AuditAction.CREDENTIAL_SET_INVITATION_RESENT,
-        resourceType: AuditResourceType.CREDENTIAL_SET,
-        resourceId: id,
-        resourceName: result.set.name,
-        description: `Resent credential set invitation to ${invitation.email}`,
-        metadata: { invitationId, targetEmail: invitation.email },
-        request: req,
-      })
-
-      return NextResponse.json({ success: true })
-    } catch (error) {
-      logger.error('Error resending invitation', error)
-      return NextResponse.json({ error: 'Failed to resend invitation' }, { status: 500 })
     }
 
     logger.info('Resent credential set invitation', {
@@ -204,4 +174,4 @@ export const POST = withRouteHandler(
     logger.error('Error resending invitation', error)
     return NextResponse.json({ error: 'Failed to resend invitation' }, { status: 500 })
   }
-)
+})

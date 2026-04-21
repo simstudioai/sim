@@ -12,6 +12,7 @@ import {
   executeScheduleJob,
   releaseScheduleLock,
 } from '@/background/schedule-execution'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 

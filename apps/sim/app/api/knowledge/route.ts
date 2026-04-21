@@ -5,7 +5,6 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createKnowledgeBase,
   getKnowledgeBases,
@@ -13,6 +12,7 @@ import {
   type KnowledgeBaseScope,
 } from '@/lib/knowledge/service'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('KnowledgeBaseAPI')
 

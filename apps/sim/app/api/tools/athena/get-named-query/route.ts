@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { createAthenaClient } from '@/app/api/tools/athena/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('AthenaGetNamedQuery')
 
@@ -14,7 +15,7 @@ const GetNamedQuerySchema = z.object({
   namedQueryId: z.string().min(1, 'Named query ID is required'),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkInternalAuth(request)
     if (!auth.success || !auth.userId) {
@@ -63,4 +64,4 @@ export async function POST(request: NextRequest) {
     logger.error('GetNamedQuery failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
-}
+})

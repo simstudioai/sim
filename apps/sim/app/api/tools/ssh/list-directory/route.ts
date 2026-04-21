@@ -10,6 +10,7 @@ import {
   parsePermissions,
   sanitizePath,
 } from '@/app/api/tools/ssh/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SSHListDirectoryAPI')
 

@@ -15,6 +15,7 @@ import { getServiceConfigByProviderId } from '@/lib/oauth'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { isValidEnvVarName } from '@/executor/constants'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CredentialsAPI')
 

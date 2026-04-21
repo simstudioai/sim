@@ -44,62 +44,74 @@ import {
   parsePaginationParams,
   toAdminOrganization,
 } from '@/app/api/v1/admin/types'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('AdminOrganizationsAPI')
 
-export const GET = withRouteHandler(
-  withAdminAuth(async (request) => {
-    const url = new URL(request.url)
-    const { limit, offset } = parsePaginationParams(url)
+export const GET = withRouteHandler(withAdminAuth(async (request) => {
+  const url = new URL(request.url)
+  const { limit, offset } = parsePaginationParams(url)
 
-    try {
-      const [countResult, organizations] = await Promise.all([
-        db.select({ total: count() }).from(organization),
-        db.select().from(organization).orderBy(organization.name).limit(limit).offset(offset),
-      ])
+  try {
+    const [countResult, organizations] = await Promise.all([
+      db.select({ total: count() }).from(organization),
+      db.select().from(organization).orderBy(organization.name).limit(limit).offset(offset),
+    ])
 
-      const total = countResult[0].total
-      const data: AdminOrganization[] = organizations.map(toAdminOrganization)
-      const pagination = createPaginationMeta(total, limit, offset)
+    const total = countResult[0].total
+    const data: AdminOrganization[] = organizations.map(toAdminOrganization)
+    const pagination = createPaginationMeta(total, limit, offset)
 
-      logger.info(`Admin API: Listed ${data.length} organizations (total: ${total})`)
+    logger.info(`Admin API: Listed ${data.length} organizations (total: ${total})`)
 
-      return listResponse(data, pagination)
-    } catch (error) {
-      logger.error('Admin API: Failed to list organizations', { error })
-      return internalErrorResponse('Failed to list organizations')
+    return listResponse(data, pagination)
+  } catch (error) {
+    logger.error('Admin API: Failed to list organizations', { error })
+    return internalErrorResponse('Failed to list organizations')
+  }
+}))
+
+export const POST = withRouteHandler(withAdminAuth(async (request) => {
+  try {
+    const body = await request.json()
+
+    if (!body.name || typeof body.name !== 'string' || body.name.trim().length === 0) {
+      return badRequestResponse('name is required')
     }
-  })
-)
 
-export const POST = withRouteHandler(
-  withAdminAuth(async (request) => {
-    try {
-      const body = await request.json()
+    if (!body.ownerId || typeof body.ownerId !== 'string') {
+      return badRequestResponse('ownerId is required')
+    }
 
-      if (!body.name || typeof body.name !== 'string' || body.name.trim().length === 0) {
-        return badRequestResponse('name is required')
-      }
+    const [ownerData] = await db
+      .select({ id: user.id, name: user.name })
+      .from(user)
+      .where(eq(user.id, body.ownerId))
+      .limit(1)
 
-      if (!body.ownerId || typeof body.ownerId !== 'string') {
-        return badRequestResponse('ownerId is required')
-      }
+    if (!ownerData) {
+      return notFoundResponse('Owner user')
+    }
 
-      const [ownerData] = await db
-        .select({ id: user.id, name: user.name })
-        .from(user)
-        .where(eq(user.id, body.ownerId))
-        .limit(1)
+    const [existingMembership] = await db
+      .select({ organizationId: member.organizationId })
+      .from(member)
+      .where(eq(member.userId, body.ownerId))
+      .limit(1)
 
-      if (!ownerData) {
-        return notFoundResponse('Owner user')
-      }
+    if (existingMembership) {
+      return badRequestResponse(
+        'User is already a member of another organization. Users can only belong to one organization at a time.'
+      )
+    }
 
-      const [existingMembership] = await db
-        .select({ organizationId: member.organizationId })
-        .from(member)
-        .where(eq(member.userId, body.ownerId))
-        .limit(1)
+    const name = body.name.trim()
+    const slug =
+      body.slug?.trim() ||
+      name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
 
     const { organizationId, memberId } = await createOrganizationWithOwner({
       ownerUserId: body.ownerId,
@@ -138,4 +150,4 @@ export const POST = withRouteHandler(
     logger.error('Admin API: Failed to create organization', { error })
     return internalErrorResponse('Failed to create organization')
   }
-})
+}))

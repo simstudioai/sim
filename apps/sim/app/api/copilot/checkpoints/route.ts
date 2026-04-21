@@ -13,6 +13,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('WorkflowCheckpointsAPI')
 

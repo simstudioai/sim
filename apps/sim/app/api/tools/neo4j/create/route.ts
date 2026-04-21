@@ -8,6 +8,7 @@ import {
   createNeo4jDriver,
   validateCypherQuery,
 } from '@/app/api/tools/neo4j/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('Neo4jCreateAPI')
 

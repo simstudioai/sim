@@ -46,6 +46,8 @@ export function withRouteHandler<T>(handler: RouteHandler<T>): RouteHandler<T> {
         logger.error('Server error response', { status, duration })
       } else if (status >= 400) {
         logger.warn('Client error response', { status, duration })
+      } else {
+        logger.info('OK', { status, duration })
       }
 
       response.headers.set('x-request-id', requestId)

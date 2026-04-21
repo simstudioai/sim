@@ -5,12 +5,13 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 import { getJsmFormsApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('JsmFormTemplatesAPI')
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const auth = await checkInternalAuth(request)
   if (!auth.success || !auth.userId) {
     return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
@@ -109,4 +110,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

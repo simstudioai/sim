@@ -4,12 +4,13 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { acceptInvitation } from '@/lib/invitations/core'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('InvitationAcceptAPI')
 
 const bodySchema = z.object({ token: z.string().min(1).optional() })
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const POST = withRouteHandler(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params
   const session = await getSession()
 
@@ -81,4 +82,4 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       acceptedWorkspaceIds: result.acceptedWorkspaceIds,
     },
   })
-}
+})

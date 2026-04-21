@@ -9,10 +9,11 @@ import { getSession } from '@/lib/auth'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { cancelInvitation, getInvitationById, normalizeEmail } from '@/lib/invitations/core'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('InvitationsAPI')
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const GET = withRouteHandler(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params
   const session = await getSession()
 
@@ -69,7 +70,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     logger.error('Failed to fetch invitation', { invitationId: id, error })
     return NextResponse.json({ error: 'Failed to fetch invitation' }, { status: 500 })
   }
-}
+})
 
 const patchSchema = z
   .object({
@@ -87,7 +88,7 @@ const patchSchema = z
     message: 'Provide a role or at least one grant update',
   })
 
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const PATCH = withRouteHandler(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params
   const session = await getSession()
 
@@ -194,12 +195,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     logger.error('Failed to update invitation', { invitationId: id, error })
     return NextResponse.json({ error: 'Failed to update invitation' }, { status: 500 })
   }
-}
+})
 
-export async function DELETE(
+export const DELETE = withRouteHandler(async (
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const { id } = await params
   const session = await getSession()
 
@@ -267,4 +268,4 @@ export async function DELETE(
     logger.error('Failed to cancel invitation', { invitationId: id, error })
     return NextResponse.json({ error: 'Failed to cancel invitation' }, { status: 500 })
   }
-}
+})

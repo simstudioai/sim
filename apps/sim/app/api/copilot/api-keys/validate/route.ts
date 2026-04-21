@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotApiKeysValidate')
 

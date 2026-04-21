@@ -33,6 +33,7 @@ import {
   authorizeWorkflowByWorkspacePermission,
   resolveWorkflowIdForUser,
 } from '@/lib/workflows/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotMcpAPI')
 const mcpRateLimiter = new RateLimiter()

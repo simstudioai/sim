@@ -8,12 +8,13 @@ import {
   buildOrgScopeCondition,
   queryAuditLogs,
 } from '@/app/api/v1/audit-logs/query'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('AuditLogsAPI')
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(request: Request) {
+export const GET = withRouteHandler(async (request: Request) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -68,4 +69,4 @@ export async function GET(request: Request) {
     logger.error('Audit logs fetch error', { error: message })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

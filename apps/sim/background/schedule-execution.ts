@@ -1,5 +1,5 @@
 import { db, jobExecutionLogs, workflow, workflowSchedule } from '@sim/db'
-import { createLogger } from '@sim/logger'
+import { createLogger, runWithRequestContext } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { task } from '@trigger.dev/sdk'
@@ -328,6 +328,7 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
   const now = new Date(payload.now)
   const scheduledFor = payload.scheduledFor ? new Date(payload.scheduledFor) : null
 
+  return runWithRequestContext({ requestId }, async () => {
   logger.info(`[${requestId}] Starting schedule execution`, {
     scheduleId: payload.scheduleId,
     workflowId: payload.workflowId,
@@ -654,6 +655,7 @@ export async function executeScheduleJob(payload: ScheduleExecutionPayload) {
       `Failed to release schedule ${payload.scheduleId} after unhandled error`
     )
   }
+  })
 }
 
 export type JobExecutionPayload = {
