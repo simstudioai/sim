@@ -9,6 +9,7 @@ import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { type AtomicClaimResult, billingIdempotency } from '@/lib/core/idempotency/service'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('BillingUpdateCostAPI')
 
@@ -28,7 +29,7 @@ const UpdateCostSchema = z.object({
  * POST /api/billing/update-cost
  * Update user cost with a pre-calculated cost value (internal API key auth required)
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
   const startTime = Date.now()
   let claim: AtomicClaimResult | null = null
@@ -201,4 +202,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

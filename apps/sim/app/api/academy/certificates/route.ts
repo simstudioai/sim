@@ -10,6 +10,7 @@ import type { CertificateMetadata } from '@/lib/academy/types'
 import { getSession } from '@/lib/auth'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('AcademyCertificatesAPI')
 
@@ -31,7 +32,7 @@ const IssueCertificateSchema = z.object({
  * Completion is client-attested: the client sends completed lesson IDs and the server
  * validates them against the full lesson list for the course.
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -150,7 +151,7 @@ export async function POST(req: NextRequest) {
     logger.error('Failed to issue certificate', { error })
     return NextResponse.json({ error: 'Failed to issue certificate' }, { status: 500 })
   }
-}
+})
 
 /**
  * GET /api/academy/certificates?certificateNumber=SIM-2026-00042
@@ -159,7 +160,7 @@ export async function POST(req: NextRequest) {
  * GET /api/academy/certificates?courseId=...
  * Authenticated endpoint for looking up the current user's certificate for a course.
  */
-export async function GET(req: NextRequest) {
+export const GET = withRouteHandler(async (req: NextRequest) => {
   try {
     const { searchParams } = new URL(req.url)
     const certificateNumber = searchParams.get('certificateNumber')
@@ -206,7 +207,7 @@ export async function GET(req: NextRequest) {
     logger.error('Failed to verify certificate', { error })
     return NextResponse.json({ error: 'Failed to verify certificate' }, { status: 500 })
   }
-}
+})
 
 /** Generates a human-readable certificate number, e.g. SIM-2026-A3K9XZ2P */
 function generateCertificateNumber(): string {

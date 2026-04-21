@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasAccessControlAccess } from '@/lib/billing'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
@@ -50,7 +51,7 @@ const createSchema = z.object({
   autoAddNewMembers: z.boolean().optional(),
 })
 
-export async function GET(req: Request) {
+export const GET = withRouteHandler(async (req: Request) => {
   const session = await getSession()
 
   if (!session?.user?.id) {
@@ -108,9 +109,9 @@ export async function GET(req: Request) {
   )
 
   return NextResponse.json({ permissionGroups: groupsWithCounts })
-}
+})
 
-export async function POST(req: Request) {
+export const POST = withRouteHandler(async (req: Request) => {
   const session = await getSession()
 
   if (!session?.user?.id) {
@@ -227,4 +228,4 @@ export async function POST(req: Request) {
     logger.error('Error creating permission group', error)
     return NextResponse.json({ error: 'Failed to create permission group' }, { status: 500 })
   }
-}
+})

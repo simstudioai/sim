@@ -1,7 +1,10 @@
 # Global Standards
 
 ## Logging
-Import `createLogger` from `sim/logger`. Use `logger.info`, `logger.warn`, `logger.error` instead of `console.log`.
+Import `createLogger` from `@sim/logger`. Use `logger.info`, `logger.warn`, `logger.error` instead of `console.log`. Inside API routes wrapped with `withRouteHandler`, loggers automatically include the request ID.
+
+## API Route Handlers
+All API route handlers must be wrapped with `withRouteHandler` from `@/lib/core/utils/with-route-handler`. Never export a bare `async function GET/POST/...` — always use `export const METHOD = withRouteHandler(...)`.
 
 ## Comments
 Use TSDoc for documentation. No `====` separators. No non-TSDoc comments.

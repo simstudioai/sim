@@ -3,6 +3,7 @@ import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createIAMClient, removeUserFromGroup } from '../utils'
 
 const logger = createLogger('IAMRemoveUserFromGroupAPI')
@@ -15,7 +16,7 @@ const Schema = z.object({
   groupName: z.string().min(1, 'Group name is required'),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
   const auth = await checkInternalAuth(request)
@@ -63,4 +64,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

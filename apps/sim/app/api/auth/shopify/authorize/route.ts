@@ -5,6 +5,7 @@ import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getScopesForService } from '@/lib/oauth/utils'
 
 const logger = createLogger('ShopifyAuthorize')
@@ -13,7 +14,7 @@ export const dynamic = 'force-dynamic'
 
 const SHOPIFY_SCOPES = getScopesForService('shopify').join(',')
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -208,4 +209,4 @@ export async function GET(request: NextRequest) {
     logger.error('Error initiating Shopify authorization:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

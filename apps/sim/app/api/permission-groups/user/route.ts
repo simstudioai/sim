@@ -4,9 +4,10 @@ import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { parsePermissionGroupConfig } from '@/lib/permission-groups/types'
 
-export async function GET(req: Request) {
+export const GET = withRouteHandler(async (req: Request) => {
   const session = await getSession()
 
   if (!session?.user?.id) {
@@ -69,4 +70,4 @@ export async function GET(req: Request) {
     groupName: groupMembership.groupName,
     config: parsePermissionGroupConfig(groupMembership.config),
   })
-}
+})

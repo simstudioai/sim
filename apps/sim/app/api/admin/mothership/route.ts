@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const ENV_URLS: Record<string, string | undefined> = {
   dev: env.MOTHERSHIP_DEV_URL,
@@ -38,7 +39,7 @@ async function isAdminRequestAuthorized() {
  * The request body (for POST) is forwarded as-is. Additional query params
  * (e.g. requestId for GET /traces) are forwarded.
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   if (!(await isAdminRequestAuthorized())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -87,9 +88,9 @@ export async function POST(req: NextRequest) {
       { status: 502 }
     )
   }
-}
+})
 
-export async function GET(req: NextRequest) {
+export const GET = withRouteHandler(async (req: NextRequest) => {
   if (!(await isAdminRequestAuthorized())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
@@ -141,4 +142,4 @@ export async function GET(req: NextRequest) {
       { status: 502 }
     )
   }
-}
+})

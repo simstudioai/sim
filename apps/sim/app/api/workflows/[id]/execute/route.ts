@@ -14,6 +14,7 @@ import {
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   buildNextCallChain,
   parseCallChain,
@@ -262,23 +263,25 @@ async function handleAsyncExecution(params: AsyncExecutionParams): Promise<NextR
  * Unified server-side workflow execution endpoint.
  * Supports both SSE streaming (for interactive/manual runs) and direct JSON responses (for background jobs).
  */
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const isSessionRequest = req.headers.has('cookie') && !hasExternalApiCredentials(req.headers)
-  if (isSessionRequest) {
-    return handleExecutePost(req, params)
-  }
+export const POST = withRouteHandler(
+  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const isSessionRequest = req.headers.has('cookie') && !hasExternalApiCredentials(req.headers)
+    if (isSessionRequest) {
+      return handleExecutePost(req, params)
+    }
 
-  const ticket = tryAdmit()
-  if (!ticket) {
-    return admissionRejectedResponse()
-  }
+    const ticket = tryAdmit()
+    if (!ticket) {
+      return admissionRejectedResponse()
+    }
 
-  try {
-    return await handleExecutePost(req, params)
-  } finally {
-    ticket.release()
+    try {
+      return await handleExecutePost(req, params)
+    } finally {
+      ticket.release()
+    }
   }
-}
+)
 
 async function handleExecutePost(
   req: NextRequest,

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateSharePointSiteId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
@@ -19,7 +20,7 @@ interface SharePointList {
   }
 }
 
-export async function POST(request: Request) {
+export const POST = withRouteHandler(async (request: Request) => {
   const requestId = generateRequestId()
 
   try {
@@ -88,4 +89,4 @@ export async function POST(request: Request) {
     logger.error(`[${requestId}] Error fetching lists from SharePoint`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

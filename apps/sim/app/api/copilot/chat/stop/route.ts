@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import { taskPubSub } from '@/lib/copilot/tasks'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotChatStopAPI')
 
@@ -63,7 +64,7 @@ const StopSchema = z.object({
  * The chat stream lock is intentionally left alone here; it is released only once
  * the aborted server stream actually unwinds.
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -145,4 +146,4 @@ export async function POST(req: NextRequest) {
     logger.error('Error stopping chat stream:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

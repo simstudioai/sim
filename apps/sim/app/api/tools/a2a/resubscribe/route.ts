@@ -12,6 +12,7 @@ import { z } from 'zod'
 import { createA2AClient, extractTextContent, isTerminalState } from '@/lib/a2a/utils'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('A2AResubscribeAPI')
 
@@ -23,7 +24,7 @@ const A2AResubscribeSchema = z.object({
   apiKey: z.string().optional(),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -116,4 +117,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

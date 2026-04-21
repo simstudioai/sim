@@ -9,6 +9,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const BodySchema = z.object({
   messageId: z.string(),
@@ -16,7 +17,7 @@ const BodySchema = z.object({
   diffAccepted: z.boolean(),
 })
 
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const tracker = createRequestTracker()
   try {
     const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
@@ -63,4 +64,4 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     return createInternalServerErrorResponse('Failed to forward copilot stats')
   }
-}
+})

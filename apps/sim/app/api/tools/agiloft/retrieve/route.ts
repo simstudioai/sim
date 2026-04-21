@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { agiloftLogin, agiloftLogout, buildRetrieveAttachmentUrl } from '@/tools/agiloft/utils'
 
 export const dynamic = 'force-dynamic'
@@ -21,7 +22,7 @@ const AgiloftRetrieveSchema = z.object({
   position: z.string().min(1, 'Position is required'),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -131,4 +132,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

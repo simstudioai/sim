@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasCredentialSetsAccess } from '@/lib/billing'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CredentialSet')
 
@@ -44,175 +45,185 @@ async function getCredentialSetWithAccess(credentialSetId: string, userId: strin
   return { set, role: membership.role }
 }
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession()
+export const GET = withRouteHandler(
+  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const session = await getSession()
 
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-  // Check plan access (team/enterprise) or env var override
-  const hasAccess = await hasCredentialSetsAccess(session.user.id)
-  if (!hasAccess) {
-    return NextResponse.json(
-      { error: 'Credential sets require a Team or Enterprise plan' },
-      { status: 403 }
-    )
-  }
+    // Check plan access (team/enterprise) or env var override
+    const hasAccess = await hasCredentialSetsAccess(session.user.id)
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Credential sets require a Team or Enterprise plan' },
+        { status: 403 }
+      )
+    }
 
-  const { id } = await params
-  const result = await getCredentialSetWithAccess(id, session.user.id)
-
-  if (!result) {
-    return NextResponse.json({ error: 'Credential set not found' }, { status: 404 })
-  }
-
-  return NextResponse.json({ credentialSet: result.set })
-}
-
-export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession()
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  // Check plan access (team/enterprise) or env var override
-  const hasAccess = await hasCredentialSetsAccess(session.user.id)
-  if (!hasAccess) {
-    return NextResponse.json(
-      { error: 'Credential sets require a Team or Enterprise plan' },
-      { status: 403 }
-    )
-  }
-
-  const { id } = await params
-
-  try {
+    const { id } = await params
     const result = await getCredentialSetWithAccess(id, session.user.id)
 
     if (!result) {
       return NextResponse.json({ error: 'Credential set not found' }, { status: 404 })
     }
 
-    if (result.role !== 'admin' && result.role !== 'owner') {
-      return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
+    return NextResponse.json({ credentialSet: result.set })
+  }
+)
+
+export const PUT = withRouteHandler(
+  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const session = await getSession()
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await req.json()
-    const updates = updateCredentialSetSchema.parse(body)
+    // Check plan access (team/enterprise) or env var override
+    const hasAccess = await hasCredentialSetsAccess(session.user.id)
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Credential sets require a Team or Enterprise plan' },
+        { status: 403 }
+      )
+    }
 
-    if (updates.name) {
-      const existingSet = await db
-        .select({ id: credentialSet.id })
-        .from(credentialSet)
-        .where(
-          and(
-            eq(credentialSet.organizationId, result.set.organizationId),
-            eq(credentialSet.name, updates.name)
+    const { id } = await params
+
+    try {
+      const result = await getCredentialSetWithAccess(id, session.user.id)
+
+      if (!result) {
+        return NextResponse.json({ error: 'Credential set not found' }, { status: 404 })
+      }
+
+      if (result.role !== 'admin' && result.role !== 'owner') {
+        return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
+      }
+
+      const body = await req.json()
+      const updates = updateCredentialSetSchema.parse(body)
+
+      if (updates.name) {
+        const existingSet = await db
+          .select({ id: credentialSet.id })
+          .from(credentialSet)
+          .where(
+            and(
+              eq(credentialSet.organizationId, result.set.organizationId),
+              eq(credentialSet.name, updates.name)
+            )
           )
-        )
+          .limit(1)
+
+        if (existingSet.length > 0 && existingSet[0].id !== id) {
+          return NextResponse.json(
+            { error: 'A credential set with this name already exists' },
+            { status: 409 }
+          )
+        }
+      }
+
+      await db
+        .update(credentialSet)
+        .set({
+          ...updates,
+          updatedAt: new Date(),
+        })
+        .where(eq(credentialSet.id, id))
+
+      const [updated] = await db
+        .select()
+        .from(credentialSet)
+        .where(eq(credentialSet.id, id))
         .limit(1)
 
-      if (existingSet.length > 0 && existingSet[0].id !== id) {
-        return NextResponse.json(
-          { error: 'A credential set with this name already exists' },
-          { status: 409 }
-        )
-      }
-    }
-
-    await db
-      .update(credentialSet)
-      .set({
-        ...updates,
-        updatedAt: new Date(),
+      recordAudit({
+        workspaceId: null,
+        actorId: session.user.id,
+        action: AuditAction.CREDENTIAL_SET_UPDATED,
+        resourceType: AuditResourceType.CREDENTIAL_SET,
+        resourceId: id,
+        actorName: session.user.name ?? undefined,
+        actorEmail: session.user.email ?? undefined,
+        resourceName: updated?.name ?? result.set.name,
+        description: `Updated credential set "${updated?.name ?? result.set.name}"`,
+        metadata: {
+          organizationId: result.set.organizationId,
+          providerId: result.set.providerId,
+          updatedFields: Object.keys(updates).filter(
+            (k) => updates[k as keyof typeof updates] !== undefined
+          ),
+        },
+        request: req,
       })
-      .where(eq(credentialSet.id, id))
 
-    const [updated] = await db.select().from(credentialSet).where(eq(credentialSet.id, id)).limit(1)
-
-    recordAudit({
-      workspaceId: null,
-      actorId: session.user.id,
-      action: AuditAction.CREDENTIAL_SET_UPDATED,
-      resourceType: AuditResourceType.CREDENTIAL_SET,
-      resourceId: id,
-      actorName: session.user.name ?? undefined,
-      actorEmail: session.user.email ?? undefined,
-      resourceName: updated?.name ?? result.set.name,
-      description: `Updated credential set "${updated?.name ?? result.set.name}"`,
-      metadata: {
-        organizationId: result.set.organizationId,
-        providerId: result.set.providerId,
-        updatedFields: Object.keys(updates).filter(
-          (k) => updates[k as keyof typeof updates] !== undefined
-        ),
-      },
-      request: req,
-    })
-
-    return NextResponse.json({ credentialSet: updated })
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
+      return NextResponse.json({ credentialSet: updated })
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
+      }
+      logger.error('Error updating credential set', error)
+      return NextResponse.json({ error: 'Failed to update credential set' }, { status: 500 })
     }
-    logger.error('Error updating credential set', error)
-    return NextResponse.json({ error: 'Failed to update credential set' }, { status: 500 })
   }
-}
+)
 
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession()
+export const DELETE = withRouteHandler(
+  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const session = await getSession()
 
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  // Check plan access (team/enterprise) or env var override
-  const hasAccess = await hasCredentialSetsAccess(session.user.id)
-  if (!hasAccess) {
-    return NextResponse.json(
-      { error: 'Credential sets require a Team or Enterprise plan' },
-      { status: 403 }
-    )
-  }
-
-  const { id } = await params
-
-  try {
-    const result = await getCredentialSetWithAccess(id, session.user.id)
-
-    if (!result) {
-      return NextResponse.json({ error: 'Credential set not found' }, { status: 404 })
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (result.role !== 'admin' && result.role !== 'owner') {
-      return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
+    // Check plan access (team/enterprise) or env var override
+    const hasAccess = await hasCredentialSetsAccess(session.user.id)
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Credential sets require a Team or Enterprise plan' },
+        { status: 403 }
+      )
     }
 
-    await db.delete(credentialSetMember).where(eq(credentialSetMember.credentialSetId, id))
-    await db.delete(credentialSet).where(eq(credentialSet.id, id))
+    const { id } = await params
 
-    logger.info('Deleted credential set', { credentialSetId: id, userId: session.user.id })
+    try {
+      const result = await getCredentialSetWithAccess(id, session.user.id)
 
-    recordAudit({
-      workspaceId: null,
-      actorId: session.user.id,
-      action: AuditAction.CREDENTIAL_SET_DELETED,
-      resourceType: AuditResourceType.CREDENTIAL_SET,
-      resourceId: id,
-      actorName: session.user.name ?? undefined,
-      actorEmail: session.user.email ?? undefined,
-      resourceName: result.set.name,
-      description: `Deleted credential set "${result.set.name}"`,
-      metadata: { organizationId: result.set.organizationId, providerId: result.set.providerId },
-      request: req,
-    })
+      if (!result) {
+        return NextResponse.json({ error: 'Credential set not found' }, { status: 404 })
+      }
 
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    logger.error('Error deleting credential set', error)
-    return NextResponse.json({ error: 'Failed to delete credential set' }, { status: 500 })
+      if (result.role !== 'admin' && result.role !== 'owner') {
+        return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
+      }
+
+      await db.delete(credentialSetMember).where(eq(credentialSetMember.credentialSetId, id))
+      await db.delete(credentialSet).where(eq(credentialSet.id, id))
+
+      logger.info('Deleted credential set', { credentialSetId: id, userId: session.user.id })
+
+      recordAudit({
+        workspaceId: null,
+        actorId: session.user.id,
+        action: AuditAction.CREDENTIAL_SET_DELETED,
+        resourceType: AuditResourceType.CREDENTIAL_SET,
+        resourceId: id,
+        actorName: session.user.name ?? undefined,
+        actorEmail: session.user.email ?? undefined,
+        resourceName: result.set.name,
+        description: `Deleted credential set "${result.set.name}"`,
+        metadata: { organizationId: result.set.organizationId, providerId: result.set.providerId },
+        request: req,
+      })
+
+      return NextResponse.json({ success: true })
+    } catch (error) {
+      logger.error('Error deleting credential set', error)
+      return NextResponse.json({ error: 'Failed to delete credential set' }, { status: 500 })
+    }
   }
-}
+)

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
 import { validateJson } from '@/lib/guardrails/validate_json'
 import { validatePII } from '@/lib/guardrails/validate_pii'
@@ -9,7 +10,7 @@ import { validateRegex } from '@/lib/guardrails/validate_regex'
 
 const logger = createLogger('GuardrailsValidateAPI')
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   logger.info(`[${requestId}] Guardrails validation request received`)
 
@@ -179,7 +180,7 @@ export async function POST(request: NextRequest) {
       },
     })
   }
-}
+})
 
 /**
  * Convert input to string for validation

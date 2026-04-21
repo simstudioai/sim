@@ -3,12 +3,13 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const GenerateApiKeySchema = z.object({
   name: z.string().min(1, 'Name is required').max(255, 'Name is too long'),
 })
 
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -61,4 +62,4 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     return NextResponse.json({ error: 'Failed to generate copilot API key' }, { status: 500 })
   }
-}
+})

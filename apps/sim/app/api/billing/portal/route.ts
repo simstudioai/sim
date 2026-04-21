@@ -8,10 +8,11 @@ import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('BillingPortal')
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const session = await getSession()
 
   try {
@@ -83,4 +84,4 @@ export async function POST(request: NextRequest) {
     logger.error('Failed to create billing portal session', { error })
     return NextResponse.json({ error: 'Failed to create billing portal session' }, { status: 500 })
   }
-}
+})

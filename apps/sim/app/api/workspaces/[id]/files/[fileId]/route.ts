@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   deleteWorkspaceFile,
   FileConflictError,
@@ -18,120 +19,126 @@ const logger = createLogger('WorkspaceFileAPI')
  * PATCH /api/workspaces/[id]/files/[fileId]
  * Rename a workspace file (requires write permission)
  */
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string; fileId: string }> }
-) {
-  const requestId = generateRequestId()
-  const { id: workspaceId, fileId } = await params
+export const PATCH = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) => {
+    const requestId = generateRequestId()
+    const { id: workspaceId, fileId } = await params
 
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    try {
+      const session = await getSession()
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
 
-    const userPermission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
-    if (userPermission !== 'admin' && userPermission !== 'write') {
-      logger.warn(
-        `[${requestId}] User ${session.user.id} lacks write permission for workspace ${workspaceId}`
+      const userPermission = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        workspaceId
       )
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+      if (userPermission !== 'admin' && userPermission !== 'write') {
+        logger.warn(
+          `[${requestId}] User ${session.user.id} lacks write permission for workspace ${workspaceId}`
+        )
+        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+      }
+
+      const body = await request.json()
+      const { name } = body
+
+      if (!name || typeof name !== 'string' || !name.trim()) {
+        return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+      }
+
+      const updatedFile = await renameWorkspaceFile(workspaceId, fileId, name)
+
+      logger.info(`[${requestId}] Renamed workspace file: ${fileId} to "${updatedFile.name}"`)
+
+      recordAudit({
+        workspaceId,
+        actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
+        action: AuditAction.FILE_UPDATED,
+        resourceType: AuditResourceType.FILE,
+        resourceId: fileId,
+        resourceName: updatedFile.name,
+        description: `Renamed file to "${updatedFile.name}"`,
+        request,
+      })
+
+      return NextResponse.json({
+        success: true,
+        file: updatedFile,
+      })
+    } catch (error) {
+      logger.error(`[${requestId}] Error renaming workspace file:`, error)
+      return NextResponse.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to rename file',
+        },
+        { status: error instanceof FileConflictError ? 409 : 500 }
+      )
     }
-
-    const body = await request.json()
-    const { name } = body
-
-    if (!name || typeof name !== 'string' || !name.trim()) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 })
-    }
-
-    const updatedFile = await renameWorkspaceFile(workspaceId, fileId, name)
-
-    logger.info(`[${requestId}] Renamed workspace file: ${fileId} to "${updatedFile.name}"`)
-
-    recordAudit({
-      workspaceId,
-      actorId: session.user.id,
-      actorName: session.user.name,
-      actorEmail: session.user.email,
-      action: AuditAction.FILE_UPDATED,
-      resourceType: AuditResourceType.FILE,
-      resourceId: fileId,
-      resourceName: updatedFile.name,
-      description: `Renamed file to "${updatedFile.name}"`,
-      request,
-    })
-
-    return NextResponse.json({
-      success: true,
-      file: updatedFile,
-    })
-  } catch (error) {
-    logger.error(`[${requestId}] Error renaming workspace file:`, error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to rename file',
-      },
-      { status: error instanceof FileConflictError ? 409 : 500 }
-    )
   }
-}
+)
 
 /**
  * DELETE /api/workspaces/[id]/files/[fileId]
  * Archive a workspace file (requires write permission)
  */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string; fileId: string }> }
-) {
-  const requestId = generateRequestId()
-  const { id: workspaceId, fileId } = await params
+export const DELETE = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string; fileId: string }> }) => {
+    const requestId = generateRequestId()
+    const { id: workspaceId, fileId } = await params
 
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    try {
+      const session = await getSession()
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
 
-    // Check workspace permissions (requires write)
-    const userPermission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
-    if (userPermission !== 'admin' && userPermission !== 'write') {
-      logger.warn(
-        `[${requestId}] User ${session.user.id} lacks write permission for workspace ${workspaceId}`
+      // Check workspace permissions (requires write)
+      const userPermission = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        workspaceId
       )
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+      if (userPermission !== 'admin' && userPermission !== 'write') {
+        logger.warn(
+          `[${requestId}] User ${session.user.id} lacks write permission for workspace ${workspaceId}`
+        )
+        return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+      }
+
+      await deleteWorkspaceFile(workspaceId, fileId)
+
+      logger.info(`[${requestId}] Archived workspace file: ${fileId}`)
+
+      recordAudit({
+        workspaceId,
+        actorId: session.user.id,
+        actorName: session.user.name,
+        actorEmail: session.user.email,
+        action: AuditAction.FILE_DELETED,
+        resourceType: AuditResourceType.FILE,
+        resourceId: fileId,
+        description: `Archived file "${fileId}"`,
+        request,
+      })
+
+      return NextResponse.json({
+        success: true,
+      })
+    } catch (error) {
+      logger.error(`[${requestId}] Error deleting workspace file:`, error)
+      return NextResponse.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to delete file',
+        },
+        { status: 500 }
+      )
     }
-
-    await deleteWorkspaceFile(workspaceId, fileId)
-
-    logger.info(`[${requestId}] Archived workspace file: ${fileId}`)
-
-    recordAudit({
-      workspaceId,
-      actorId: session.user.id,
-      actorName: session.user.name,
-      actorEmail: session.user.email,
-      action: AuditAction.FILE_DELETED,
-      resourceType: AuditResourceType.FILE,
-      resourceId: fileId,
-      description: `Archived file "${fileId}"`,
-      request,
-    })
-
-    return NextResponse.json({
-      success: true,
-    })
-  } catch (error) {
-    logger.error(`[${requestId}] Error deleting workspace file:`, error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to delete file',
-      },
-      { status: 500 }
-    )
   }
-}
+)

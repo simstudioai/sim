@@ -7,6 +7,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   executeJobInline,
   executeScheduleJob,
@@ -29,7 +30,7 @@ const dueFilter = (queuedAt: Date) =>
     )
   )
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   logger.info(`[${requestId}] Scheduled execution triggered at ${new Date().toISOString()}`)
 
@@ -215,4 +216,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error in scheduled execution handler`, error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-}
+})

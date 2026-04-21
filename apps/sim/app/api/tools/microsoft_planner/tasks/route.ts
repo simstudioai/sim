@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import type { PlannerTask } from '@/tools/microsoft_planner/types'
 
@@ -10,7 +11,7 @@ const logger = createLogger('MicrosoftPlannerTasksAPI')
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(request: Request) {
+export const POST = withRouteHandler(async (request: Request) => {
   const requestId = generateRequestId()
 
   try {
@@ -100,4 +101,4 @@ export async function POST(request: Request) {
     logger.error(`[${requestId}] Error fetching Microsoft Planner tasks:`, error)
     return NextResponse.json({ error: 'Failed to fetch tasks' }, { status: 500 })
   }
-}
+})

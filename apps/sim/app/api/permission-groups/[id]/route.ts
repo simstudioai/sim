@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { hasAccessControlAccess } from '@/lib/billing'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
@@ -77,205 +78,213 @@ async function getPermissionGroupWithAccess(groupId: string, userId: string) {
   return { group, role: membership.role }
 }
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession()
+export const GET = withRouteHandler(
+  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const session = await getSession()
 
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const { id } = await params
-  const result = await getPermissionGroupWithAccess(id, session.user.id)
-
-  if (!result) {
-    return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
-  }
-
-  return NextResponse.json({
-    permissionGroup: {
-      ...result.group,
-      config: parsePermissionGroupConfig(result.group.config),
-    },
-  })
-}
-
-export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession()
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const { id } = await params
-
-  try {
-    const hasAccess = await hasAccessControlAccess(session.user.id)
-    if (!hasAccess) {
-      return NextResponse.json(
-        { error: 'Access Control is an Enterprise feature' },
-        { status: 403 }
-      )
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { id } = await params
     const result = await getPermissionGroupWithAccess(id, session.user.id)
 
     if (!result) {
       return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
     }
-
-    if (result.role !== 'admin' && result.role !== 'owner') {
-      return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
-    }
-
-    const body = await req.json()
-    const updates = updateSchema.parse(body)
-
-    if (updates.name) {
-      const existingGroup = await db
-        .select({ id: permissionGroup.id })
-        .from(permissionGroup)
-        .where(
-          and(
-            eq(permissionGroup.organizationId, result.group.organizationId),
-            eq(permissionGroup.name, updates.name)
-          )
-        )
-        .limit(1)
-
-      if (existingGroup.length > 0 && existingGroup[0].id !== id) {
-        return NextResponse.json(
-          { error: 'A permission group with this name already exists' },
-          { status: 409 }
-        )
-      }
-    }
-
-    const currentConfig = parsePermissionGroupConfig(result.group.config)
-    const newConfig: PermissionGroupConfig = updates.config
-      ? { ...currentConfig, ...updates.config }
-      : currentConfig
-
-    const now = new Date()
-
-    await db.transaction(async (tx) => {
-      if (updates.autoAddNewMembers === true) {
-        await tx
-          .update(permissionGroup)
-          .set({ autoAddNewMembers: false, updatedAt: now })
-          .where(
-            and(
-              eq(permissionGroup.organizationId, result.group.organizationId),
-              eq(permissionGroup.autoAddNewMembers, true)
-            )
-          )
-      }
-
-      await tx
-        .update(permissionGroup)
-        .set({
-          ...(updates.name !== undefined && { name: updates.name }),
-          ...(updates.description !== undefined && { description: updates.description }),
-          ...(updates.autoAddNewMembers !== undefined && {
-            autoAddNewMembers: updates.autoAddNewMembers,
-          }),
-          config: newConfig,
-          updatedAt: now,
-        })
-        .where(eq(permissionGroup.id, id))
-    })
-
-    const [updated] = await db
-      .select()
-      .from(permissionGroup)
-      .where(eq(permissionGroup.id, id))
-      .limit(1)
-
-    recordAudit({
-      workspaceId: null,
-      actorId: session.user.id,
-      action: AuditAction.PERMISSION_GROUP_UPDATED,
-      resourceType: AuditResourceType.PERMISSION_GROUP,
-      resourceId: id,
-      actorName: session.user.name ?? undefined,
-      actorEmail: session.user.email ?? undefined,
-      resourceName: updated.name,
-      description: `Updated permission group "${updated.name}"`,
-      metadata: {
-        organizationId: result.group.organizationId,
-        updatedFields: Object.keys(updates).filter(
-          (k) => updates[k as keyof typeof updates] !== undefined
-        ),
-      },
-      request: req,
-    })
 
     return NextResponse.json({
       permissionGroup: {
-        ...updated,
-        config: parsePermissionGroupConfig(updated.config),
+        ...result.group,
+        config: parsePermissionGroupConfig(result.group.config),
       },
     })
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
-    }
-    logger.error('Error updating permission group', error)
-    return NextResponse.json({ error: 'Failed to update permission group' }, { status: 500 })
   }
-}
+)
 
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession()
+export const PUT = withRouteHandler(
+  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const session = await getSession()
 
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { id } = await params
+
+    try {
+      const hasAccess = await hasAccessControlAccess(session.user.id)
+      if (!hasAccess) {
+        return NextResponse.json(
+          { error: 'Access Control is an Enterprise feature' },
+          { status: 403 }
+        )
+      }
+
+      const result = await getPermissionGroupWithAccess(id, session.user.id)
+
+      if (!result) {
+        return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
+      }
+
+      if (result.role !== 'admin' && result.role !== 'owner') {
+        return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
+      }
+
+      const body = await req.json()
+      const updates = updateSchema.parse(body)
+
+      if (updates.name) {
+        const existingGroup = await db
+          .select({ id: permissionGroup.id })
+          .from(permissionGroup)
+          .where(
+            and(
+              eq(permissionGroup.organizationId, result.group.organizationId),
+              eq(permissionGroup.name, updates.name)
+            )
+          )
+          .limit(1)
+
+        if (existingGroup.length > 0 && existingGroup[0].id !== id) {
+          return NextResponse.json(
+            { error: 'A permission group with this name already exists' },
+            { status: 409 }
+          )
+        }
+      }
+
+      const currentConfig = parsePermissionGroupConfig(result.group.config)
+      const newConfig: PermissionGroupConfig = updates.config
+        ? { ...currentConfig, ...updates.config }
+        : currentConfig
+
+      const now = new Date()
+
+      await db.transaction(async (tx) => {
+        if (updates.autoAddNewMembers === true) {
+          await tx
+            .update(permissionGroup)
+            .set({ autoAddNewMembers: false, updatedAt: now })
+            .where(
+              and(
+                eq(permissionGroup.organizationId, result.group.organizationId),
+                eq(permissionGroup.autoAddNewMembers, true)
+              )
+            )
+        }
+
+        await tx
+          .update(permissionGroup)
+          .set({
+            ...(updates.name !== undefined && { name: updates.name }),
+            ...(updates.description !== undefined && { description: updates.description }),
+            ...(updates.autoAddNewMembers !== undefined && {
+              autoAddNewMembers: updates.autoAddNewMembers,
+            }),
+            config: newConfig,
+            updatedAt: now,
+          })
+          .where(eq(permissionGroup.id, id))
+      })
+
+      const [updated] = await db
+        .select()
+        .from(permissionGroup)
+        .where(eq(permissionGroup.id, id))
+        .limit(1)
+
+      recordAudit({
+        workspaceId: null,
+        actorId: session.user.id,
+        action: AuditAction.PERMISSION_GROUP_UPDATED,
+        resourceType: AuditResourceType.PERMISSION_GROUP,
+        resourceId: id,
+        actorName: session.user.name ?? undefined,
+        actorEmail: session.user.email ?? undefined,
+        resourceName: updated.name,
+        description: `Updated permission group "${updated.name}"`,
+        metadata: {
+          organizationId: result.group.organizationId,
+          updatedFields: Object.keys(updates).filter(
+            (k) => updates[k as keyof typeof updates] !== undefined
+          ),
+        },
+        request: req,
+      })
+
+      return NextResponse.json({
+        permissionGroup: {
+          ...updated,
+          config: parsePermissionGroupConfig(updated.config),
+        },
+      })
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
+      }
+      logger.error('Error updating permission group', error)
+      return NextResponse.json({ error: 'Failed to update permission group' }, { status: 500 })
+    }
   }
+)
 
-  const { id } = await params
+export const DELETE = withRouteHandler(
+  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const session = await getSession()
 
-  try {
-    const hasAccess = await hasAccessControlAccess(session.user.id)
-    if (!hasAccess) {
-      return NextResponse.json(
-        { error: 'Access Control is an Enterprise feature' },
-        { status: 403 }
-      )
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const result = await getPermissionGroupWithAccess(id, session.user.id)
+    const { id } = await params
 
-    if (!result) {
-      return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
+    try {
+      const hasAccess = await hasAccessControlAccess(session.user.id)
+      if (!hasAccess) {
+        return NextResponse.json(
+          { error: 'Access Control is an Enterprise feature' },
+          { status: 403 }
+        )
+      }
+
+      const result = await getPermissionGroupWithAccess(id, session.user.id)
+
+      if (!result) {
+        return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
+      }
+
+      if (result.role !== 'admin' && result.role !== 'owner') {
+        return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
+      }
+
+      await db.transaction(async (tx) => {
+        await tx
+          .delete(permissionGroupMember)
+          .where(eq(permissionGroupMember.permissionGroupId, id))
+        await tx.delete(permissionGroup).where(eq(permissionGroup.id, id))
+      })
+
+      logger.info('Deleted permission group', { permissionGroupId: id, userId: session.user.id })
+
+      recordAudit({
+        workspaceId: null,
+        actorId: session.user.id,
+        action: AuditAction.PERMISSION_GROUP_DELETED,
+        resourceType: AuditResourceType.PERMISSION_GROUP,
+        resourceId: id,
+        actorName: session.user.name ?? undefined,
+        actorEmail: session.user.email ?? undefined,
+        resourceName: result.group.name,
+        description: `Deleted permission group "${result.group.name}"`,
+        metadata: { organizationId: result.group.organizationId },
+        request: req,
+      })
+
+      return NextResponse.json({ success: true })
+    } catch (error) {
+      logger.error('Error deleting permission group', error)
+      return NextResponse.json({ error: 'Failed to delete permission group' }, { status: 500 })
     }
-
-    if (result.role !== 'admin' && result.role !== 'owner') {
-      return NextResponse.json({ error: 'Admin or owner permissions required' }, { status: 403 })
-    }
-
-    await db.transaction(async (tx) => {
-      await tx.delete(permissionGroupMember).where(eq(permissionGroupMember.permissionGroupId, id))
-      await tx.delete(permissionGroup).where(eq(permissionGroup.id, id))
-    })
-
-    logger.info('Deleted permission group', { permissionGroupId: id, userId: session.user.id })
-
-    recordAudit({
-      workspaceId: null,
-      actorId: session.user.id,
-      action: AuditAction.PERMISSION_GROUP_DELETED,
-      resourceType: AuditResourceType.PERMISSION_GROUP,
-      resourceId: id,
-      actorName: session.user.name ?? undefined,
-      actorEmail: session.user.email ?? undefined,
-      resourceName: result.group.name,
-      description: `Deleted permission group "${result.group.name}"`,
-      metadata: { organizationId: result.group.organizationId },
-      request: req,
-    })
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    logger.error('Error deleting permission group', error)
-    return NextResponse.json({ error: 'Failed to delete permission group' }, { status: 500 })
   }
-}
+)

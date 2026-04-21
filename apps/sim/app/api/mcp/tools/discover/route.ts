@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getParsedBody, withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpToolDiscoveryResponse } from '@/lib/mcp/types'
@@ -9,8 +10,8 @@ const logger = createLogger('McpToolDiscoveryAPI')
 
 export const dynamic = 'force-dynamic'
 
-export const GET = withMcpAuth('read')(
-  async (request: NextRequest, { userId, workspaceId, requestId }) => {
+export const GET = withRouteHandler(
+  withMcpAuth('read')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       const { searchParams } = new URL(request.url)
       const serverId = searchParams.get('serverId')
@@ -42,11 +43,11 @@ export const GET = withMcpAuth('read')(
       const { message, status } = categorizeError(error)
       return createMcpErrorResponse(new Error(message), 'Failed to discover MCP tools', status)
     }
-  }
+  })
 )
 
-export const POST = withMcpAuth('read')(
-  async (request: NextRequest, { userId, workspaceId, requestId }) => {
+export const POST = withRouteHandler(
+  withMcpAuth('read')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       const body = getParsedBody(request) || (await request.json())
       const { serverIds } = body
@@ -98,5 +99,5 @@ export const POST = withMcpAuth('read')(
       const { message, status } = categorizeError(error)
       return createMcpErrorResponse(new Error(message), 'Failed to refresh tool discovery', status)
     }
-  }
+  })
 )

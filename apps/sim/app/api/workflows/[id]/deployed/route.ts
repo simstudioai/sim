@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { NextRequest, NextResponse } from 'next/server'
 import { verifyInternalToken } from '@/lib/auth/internal'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { loadDeployedWorkflowState } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
@@ -16,48 +17,50 @@ function addNoCacheHeaders(response: NextResponse): NextResponse {
   return response
 }
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = generateRequestId()
-  const { id } = await params
+export const GET = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const requestId = generateRequestId()
+    const { id } = await params
 
-  try {
-    const authHeader = request.headers.get('authorization')
-    let isInternalCall = false
-
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1]
-      const verification = await verifyInternalToken(token)
-      isInternalCall = verification.valid
-    }
-
-    if (!isInternalCall) {
-      const { error } = await validateWorkflowPermissions(id, requestId, 'read')
-      if (error) {
-        const response = createErrorResponse(error.message, error.status)
-        return addNoCacheHeaders(response)
-      }
-    }
-
-    let deployedState = null
     try {
-      const data = await loadDeployedWorkflowState(id)
-      deployedState = {
-        blocks: data.blocks,
-        edges: data.edges,
-        loops: data.loops,
-        parallels: data.parallels,
-        variables: data.variables,
-      }
-    } catch (error) {
-      logger.warn(`[${requestId}] Failed to load deployed state for workflow ${id}`, { error })
-      deployedState = null
-    }
+      const authHeader = request.headers.get('authorization')
+      let isInternalCall = false
 
-    const response = createSuccessResponse({ deployedState })
-    return addNoCacheHeaders(response)
-  } catch (error: any) {
-    logger.error(`[${requestId}] Error fetching deployed state: ${id}`, error)
-    const response = createErrorResponse(error.message || 'Failed to fetch deployed state', 500)
-    return addNoCacheHeaders(response)
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1]
+        const verification = await verifyInternalToken(token)
+        isInternalCall = verification.valid
+      }
+
+      if (!isInternalCall) {
+        const { error } = await validateWorkflowPermissions(id, requestId, 'read')
+        if (error) {
+          const response = createErrorResponse(error.message, error.status)
+          return addNoCacheHeaders(response)
+        }
+      }
+
+      let deployedState = null
+      try {
+        const data = await loadDeployedWorkflowState(id)
+        deployedState = {
+          blocks: data.blocks,
+          edges: data.edges,
+          loops: data.loops,
+          parallels: data.parallels,
+          variables: data.variables,
+        }
+      } catch (error) {
+        logger.warn(`[${requestId}] Failed to load deployed state for workflow ${id}`, { error })
+        deployedState = null
+      }
+
+      const response = createSuccessResponse({ deployedState })
+      return addNoCacheHeaders(response)
+    } catch (error: any) {
+      logger.error(`[${requestId}] Error fetching deployed state: ${id}`, error)
+      const response = createErrorResponse(error.message || 'Failed to fetch deployed state', 500)
+      return addNoCacheHeaders(response)
+    }
   }
-}
+)

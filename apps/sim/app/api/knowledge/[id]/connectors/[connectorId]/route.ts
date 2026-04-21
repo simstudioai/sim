@@ -15,6 +15,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { hasLiveSyncAccess } from '@/lib/billing/core/subscription'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { deleteDocumentStorageFiles } from '@/lib/knowledge/documents/service'
 import { cleanupUnusedTagDefinitions } from '@/lib/knowledge/tags/service'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -35,7 +36,7 @@ const UpdateConnectorSchema = z.object({
 /**
  * GET /api/knowledge/[id]/connectors/[connectorId] - Get connector details with recent sync logs
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export const GET = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()
   const { id: knowledgeBaseId, connectorId } = await params
 
@@ -87,12 +88,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     logger.error(`[${requestId}] Error fetching connector`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 /**
  * PATCH /api/knowledge/[id]/connectors/[connectorId] - Update a connector
  */
-export async function PATCH(request: NextRequest, { params }: RouteParams) {
+export const PATCH = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()
   const { id: knowledgeBaseId, connectorId } = await params
 
@@ -286,12 +287,12 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     logger.error(`[${requestId}] Error updating connector`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 /**
  * DELETE /api/knowledge/[id]/connectors/[connectorId] - Hard-delete a connector
  */
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export const DELETE = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   const requestId = generateRequestId()
   const { id: knowledgeBaseId, connectorId } = await params
 
@@ -422,4 +423,4 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     logger.error(`[${requestId}] Error deleting connector`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

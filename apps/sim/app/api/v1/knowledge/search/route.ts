@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { ALL_TAG_SLOTS } from '@/lib/knowledge/constants'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
@@ -59,7 +60,7 @@ const SearchSchema = z
   )
 
 /** POST /api/v1/knowledge/search — Vector search across knowledge bases. */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const auth = await authenticateRequest(request, 'knowledge-search')
   if (auth instanceof NextResponse) return auth
   const { requestId, userId, rateLimit } = auth
@@ -265,4 +266,4 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return handleError(requestId, error, 'Failed to perform search')
   }
-}
+})

@@ -10,6 +10,7 @@ import { getSession } from '@/lib/auth'
 import { isDev } from '@/lib/core/config/feature-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getEmailDomain } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { notifySocketDeploymentChanged } from '@/lib/workflows/orchestration'
 import { deployWorkflow } from '@/lib/workflows/persistence/utils'
 import {
@@ -66,7 +67,7 @@ const formSchema = z.object({
   showBranding: z.boolean().optional().default(true),
 })
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
 
@@ -84,9 +85,9 @@ export async function GET(request: NextRequest) {
     logger.error('Error fetching form deployments:', error)
     return createErrorResponse(error.message || 'Failed to fetch form deployments', 500)
   }
-}
+})
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
 
@@ -231,4 +232,4 @@ export async function POST(request: NextRequest) {
     logger.error('Error creating form deployment:', error)
     return createErrorResponse(error.message || 'Failed to create form deployment', 500)
   }
-}
+})

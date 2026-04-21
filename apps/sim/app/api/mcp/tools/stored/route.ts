@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withMcpAuth } from '@/lib/mcp/middleware'
 import type { McpToolSchema, StoredMcpTool } from '@/lib/mcp/types'
 import { createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
@@ -12,8 +13,8 @@ const logger = createLogger('McpStoredToolsAPI')
 
 export const dynamic = 'force-dynamic'
 
-export const GET = withMcpAuth('read')(
-  async (request: NextRequest, { userId, workspaceId, requestId }) => {
+export const GET = withRouteHandler(
+  withMcpAuth('read')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
     try {
       logger.info(`[${requestId}] Fetching stored MCP tools for workspace ${workspaceId}`)
 
@@ -73,5 +74,5 @@ export const GET = withMcpAuth('read')(
       logger.error(`[${requestId}] Error fetching stored MCP tools:`, error)
       return createMcpErrorResponse(toError(error), 'Failed to fetch stored MCP tools', 500)
     }
-  }
+  })
 )

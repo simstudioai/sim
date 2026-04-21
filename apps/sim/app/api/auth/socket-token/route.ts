@@ -4,10 +4,11 @@ import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { isAuthDisabled } from '@/lib/core/config/feature-flags'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SocketTokenAPI')
 
-export async function POST() {
+export const POST = withRouteHandler(async () => {
   if (isAuthDisabled) {
     return NextResponse.json({ token: 'anonymous-socket-token' })
   }
@@ -42,4 +43,4 @@ export async function POST() {
     })
     return NextResponse.json({ error: 'Failed to generate token' }, { status: 500 })
   }
-}
+})

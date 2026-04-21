@@ -3,6 +3,7 @@ import { generateShortId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { pollProvider, VALID_POLLING_PROVIDERS } from '@/lib/webhooks/polling'
 
 const logger = createLogger('PollingAPI')
@@ -13,63 +14,65 @@ const LOCK_TTL_SECONDS = 180
 export const dynamic = 'force-dynamic'
 export const maxDuration = 180
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ provider: string }> }
-) {
-  const { provider } = await params
-  const requestId = generateShortId()
-
-  try {
-    const authError = verifyCronAuth(request, `${provider} webhook polling`)
-    if (authError) return authError
-
-    if (!VALID_POLLING_PROVIDERS.has(provider)) {
-      return NextResponse.json({ error: `Unknown polling provider: ${provider}` }, { status: 404 })
-    }
-
-    const LOCK_KEY = `${provider}-polling-lock`
-    let lockValue: string | undefined
+export const GET = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ provider: string }> }) => {
+    const { provider } = await params
+    const requestId = generateShortId()
 
     try {
-      lockValue = requestId
-      const locked = await acquireLock(LOCK_KEY, lockValue, LOCK_TTL_SECONDS)
-      if (!locked) {
+      const authError = verifyCronAuth(request, `${provider} webhook polling`)
+      if (authError) return authError
+
+      if (!VALID_POLLING_PROVIDERS.has(provider)) {
         return NextResponse.json(
-          {
-            success: true,
-            message: 'Polling already in progress – skipped',
-            requestId,
-            status: 'skip',
-          },
-          { status: 202 }
+          { error: `Unknown polling provider: ${provider}` },
+          { status: 404 }
         )
       }
 
-      const results = await pollProvider(provider)
+      const LOCK_KEY = `${provider}-polling-lock`
+      let lockValue: string | undefined
 
-      return NextResponse.json({
-        success: true,
-        message: `${provider} polling completed`,
-        requestId,
-        status: 'completed',
-        ...results,
-      })
-    } finally {
-      if (lockValue) {
-        await releaseLock(LOCK_KEY, lockValue).catch(() => {})
+      try {
+        lockValue = requestId
+        const locked = await acquireLock(LOCK_KEY, lockValue, LOCK_TTL_SECONDS)
+        if (!locked) {
+          return NextResponse.json(
+            {
+              success: true,
+              message: 'Polling already in progress – skipped',
+              requestId,
+              status: 'skip',
+            },
+            { status: 202 }
+          )
+        }
+
+        const results = await pollProvider(provider)
+
+        return NextResponse.json({
+          success: true,
+          message: `${provider} polling completed`,
+          requestId,
+          status: 'completed',
+          ...results,
+        })
+      } finally {
+        if (lockValue) {
+          await releaseLock(LOCK_KEY, lockValue).catch(() => {})
+        }
       }
+    } catch (error) {
+      logger.error(`Error during ${provider} polling (${requestId}):`, error)
+      return NextResponse.json(
+        {
+          success: false,
+          message: `${provider} polling failed`,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          requestId,
+        },
+        { status: 500 }
+      )
     }
-  } catch (error) {
-    logger.error(`Error during ${provider} polling (${requestId}):`, error)
-    return NextResponse.json(
-      {
-        success: false,
-        message: `${provider} polling failed`,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        requestId,
-      },
-      { status: 500 }
-    )
   }
-}
+)

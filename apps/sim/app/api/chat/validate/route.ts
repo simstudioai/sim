@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('ChatValidateAPI')
@@ -19,7 +20,7 @@ const validateQuerySchema = z.object({
 /**
  * GET endpoint to validate chat identifier availability
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const { searchParams } = new URL(request.url)
     const identifier = searchParams.get('identifier')
@@ -62,4 +63,4 @@ export async function GET(request: NextRequest) {
     logger.error('Error validating chat identifier:', error)
     return createErrorResponse(error.message || 'Failed to validate identifier', 500)
   }
-}
+})

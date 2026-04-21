@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
@@ -20,7 +21,7 @@ interface OutlookFolder {
   unreadItemCount?: number
 }
 
-export async function GET(request: Request) {
+export const GET = withRouteHandler(async (request: Request) => {
   try {
     const session = await getSession()
     const { searchParams } = new URL(request.url)
@@ -165,4 +166,4 @@ export async function GET(request: Request) {
       { status: 500 }
     )
   }
-}
+})

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { StorageContext } from '@/lib/uploads/config'
 import { deleteFile, hasCloudStorage } from '@/lib/uploads/core/storage-service'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
@@ -23,7 +24,7 @@ const logger = createLogger('FilesDeleteAPI')
 /**
  * Main API route handler for file deletion
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
 
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
     logger.error('Error parsing request:', error)
     return createErrorResponse(error instanceof Error ? error : new Error('Invalid request'))
   }
-}
+})
 
 /**
  * Extract storage key from file path
@@ -107,6 +108,6 @@ function extractStorageKeyFromPath(filePath: string): string {
 /**
  * Handle CORS preflight requests
  */
-export async function OPTIONS() {
+export const OPTIONS = withRouteHandler(async () => {
   return createOptionsResponse()
-}
+})

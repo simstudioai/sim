@@ -14,6 +14,7 @@ import { generateSkillsFromWorkflow } from '@/lib/a2a/agent-card'
 import { A2A_DEFAULT_CAPABILITIES } from '@/lib/a2a/constants'
 import { sanitizeAgentName } from '@/lib/a2a/utils'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { hasValidStartBlockInState } from '@/lib/workflows/triggers/trigger-utils'
@@ -26,7 +27,7 @@ export const dynamic = 'force-dynamic'
 /**
  * GET - List all A2A agents for a workspace
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
@@ -84,12 +85,12 @@ export async function GET(request: NextRequest) {
     logger.error('Error listing agents:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
 /**
  * POST - Create a new A2A agent from a workflow
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
@@ -217,4 +218,4 @@ export async function POST(request: NextRequest) {
     logger.error('Error creating agent:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

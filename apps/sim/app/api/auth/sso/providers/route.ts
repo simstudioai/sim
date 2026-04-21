@@ -4,10 +4,11 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SSOProvidersRoute')
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     const { searchParams } = new URL(request.url)
@@ -91,4 +92,4 @@ export async function GET(request: NextRequest) {
     logger.error('Failed to fetch SSO providers', { error })
     return NextResponse.json({ error: 'Failed to fetch SSO providers' }, { status: 500 })
   }
-}
+})

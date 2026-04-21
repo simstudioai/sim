@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createKnowledgeBase, getKnowledgeBases } from '@/lib/knowledge/service'
 import {
   authenticateRequest,
@@ -36,7 +37,7 @@ const CreateKBSchema = z.object({
 })
 
 /** GET /api/v1/knowledge — List knowledge bases in a workspace. */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const auth = await authenticateRequest(request, 'knowledge')
   if (auth instanceof NextResponse) return auth
   const { requestId, userId, rateLimit } = auth
@@ -65,10 +66,10 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     return handleError(requestId, error, 'Failed to list knowledge bases')
   }
-}
+})
 
 /** POST /api/v1/knowledge — Create a new knowledge base. */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const auth = await authenticateRequest(request, 'knowledge')
   if (auth instanceof NextResponse) return auth
   const { requestId, userId, rateLimit } = auth
@@ -120,4 +121,4 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return handleError(requestId, error, 'Failed to create knowledge base')
   }
-}
+})

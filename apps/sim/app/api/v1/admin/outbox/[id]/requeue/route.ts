@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 
 const logger = createLogger('AdminOutboxRequeueAPI')
@@ -19,45 +20,47 @@ export const dynamic = 'force-dynamic'
  * requeued — completed/pending/processing rows are rejected to avoid
  * operator errors.
  */
-export const POST = withAdminAuthParams<{ id: string }>(async (_request, { params }) => {
-  const { id } = await params
+export const POST = withRouteHandler(
+  withAdminAuthParams<{ id: string }>(async (_request, { params }) => {
+    const { id } = await params
 
-  try {
-    const result = await db
-      .update(outboxEvent)
-      .set({
-        status: 'pending',
-        attempts: 0,
-        lastError: null,
-        availableAt: new Date(),
-        lockedAt: null,
-        processedAt: null,
+    try {
+      const result = await db
+        .update(outboxEvent)
+        .set({
+          status: 'pending',
+          attempts: 0,
+          lastError: null,
+          availableAt: new Date(),
+          lockedAt: null,
+          processedAt: null,
+        })
+        .where(and(eq(outboxEvent.id, id), eq(outboxEvent.status, 'dead_letter')))
+        .returning({ id: outboxEvent.id, eventType: outboxEvent.eventType })
+
+      if (result.length === 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              'Event not found or not in dead_letter status. Only dead-lettered events can be requeued.',
+          },
+          { status: 404 }
+        )
+      }
+
+      logger.info('Requeued dead-lettered outbox event', {
+        eventId: result[0].id,
+        eventType: result[0].eventType,
       })
-      .where(and(eq(outboxEvent.id, id), eq(outboxEvent.status, 'dead_letter')))
-      .returning({ id: outboxEvent.id, eventType: outboxEvent.eventType })
 
-    if (result.length === 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            'Event not found or not in dead_letter status. Only dead-lettered events can be requeued.',
-        },
-        { status: 404 }
-      )
+      return NextResponse.json({
+        success: true,
+        requeued: result[0],
+      })
+    } catch (error) {
+      logger.error('Failed to requeue outbox event', { eventId: id, error: toError(error).message })
+      return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
     }
-
-    logger.info('Requeued dead-lettered outbox event', {
-      eventId: result[0].id,
-      eventType: result[0].eventType,
-    })
-
-    return NextResponse.json({
-      success: true,
-      requeued: result[0],
-    })
-  } catch (error) {
-    logger.error('Failed to requeue outbox event', { eventId: id, error: toError(error).message })
-    return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
-  }
-})
+  })
+)
