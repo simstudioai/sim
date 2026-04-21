@@ -152,7 +152,7 @@ export async function listIdentities(
   }
 ) {
   const command = new ListEmailIdentitiesCommand({
-    ...(params.pageSize ? { PageSize: params.pageSize } : {}),
+    ...(params.pageSize != null ? { PageSize: params.pageSize } : {}),
     ...(params.nextToken ? { NextToken: params.nextToken } : {}),
   })
 
