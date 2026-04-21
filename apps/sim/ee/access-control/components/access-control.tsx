@@ -64,6 +64,7 @@ interface AddMembersModalProps {
   setSelectedMemberIds: React.Dispatch<React.SetStateAction<Set<string>>>
   onAddMembers: () => void
   isAdding: boolean
+  errorMessage: string | null
 }
 
 function AddMembersModal({
@@ -74,6 +75,7 @@ function AddMembersModal({
   setSelectedMemberIds,
   onAddMembers,
   isAdding,
+  errorMessage,
 }: AddMembersModalProps) {
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -199,6 +201,9 @@ function AddMembersModal({
               </div>
             </div>
           )}
+          {errorMessage && (
+            <p className='mt-3 text-[var(--text-destructive)] text-xs'>{errorMessage}</p>
+          )}
         </ModalBody>
         <ModalFooter>
           <Button
@@ -289,6 +294,7 @@ export function AccessControl() {
   const [showConfigModal, setShowConfigModal] = useState(false)
   const [editingConfig, setEditingConfig] = useState<PermissionGroupConfig | null>(null)
   const [showAddMembersModal, setShowAddMembersModal] = useState(false)
+  const [addMembersError, setAddMembersError] = useState<string | null>(null)
   const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(() => new Set())
   const [providerSearchTerm, setProviderSearchTerm] = useState('')
   const [integrationSearchTerm, setIntegrationSearchTerm] = useState('')
@@ -628,11 +634,13 @@ export function AccessControl() {
 
   const handleOpenAddMembersModal = useCallback(() => {
     setSelectedMemberIds(new Set())
+    setAddMembersError(null)
     setShowAddMembersModal(true)
   }, [])
 
   const handleAddSelectedMembers = useCallback(async () => {
     if (!viewingGroup || !workspaceId || selectedMemberIds.size === 0) return
+    setAddMembersError(null)
     try {
       await bulkAddMembers.mutateAsync({
         workspaceId,
@@ -643,6 +651,9 @@ export function AccessControl() {
       setSelectedMemberIds(new Set())
     } catch (error) {
       logger.error('Failed to add members', error)
+      setAddMembersError(
+        error instanceof Error && error.message ? error.message : 'Failed to add members'
+      )
     }
   }, [viewingGroup, workspaceId, selectedMemberIds, bulkAddMembers])
 
@@ -1202,12 +1213,16 @@ export function AccessControl() {
 
         <AddMembersModal
           open={showAddMembersModal}
-          onOpenChange={setShowAddMembersModal}
+          onOpenChange={(open) => {
+            setShowAddMembersModal(open)
+            if (!open) setAddMembersError(null)
+          }}
           availableMembers={availableMembersToAdd}
           selectedMemberIds={selectedMemberIds}
           setSelectedMemberIds={setSelectedMemberIds}
           onAddMembers={handleAddSelectedMembers}
           isAdding={bulkAddMembers.isPending}
+          errorMessage={addMembersError}
         />
       </>
     )

@@ -262,6 +262,12 @@ export interface WorkspacePermissionsViewer {
    * workspace. Use this instead of scanning `users` for a `permissionType === 'admin'` row.
    */
   isAdmin: boolean
+  /**
+   * The viewer's effective permission level for this workspace. Resolves to `'admin'` whenever
+   * `isAdmin` is true (including owner / org-admin paths where no explicit permissions row exists),
+   * otherwise falls back to the user's explicit `permissions` row (`admin` | `write` | `read`).
+   */
+  permissionType: 'admin' | 'write' | 'read'
 }
 
 /** Workspace permissions data containing all users and their access levels. */

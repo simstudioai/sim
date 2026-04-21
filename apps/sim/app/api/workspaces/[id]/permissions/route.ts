@@ -13,8 +13,10 @@ import { applyWorkspaceAutoAddGroup } from '@/lib/permission-groups/auto-add'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   checkWorkspaceAccess,
+  getUserEntityPermissions,
   getUsersWithPermissions,
   hasWorkspaceAdminAccess,
+  type PermissionType,
 } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspacesPermissionsAPI')
@@ -48,22 +50,24 @@ export const GET = withRouteHandler(
       }
 
       const isAdmin = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
+      const access = await checkWorkspaceAccess(workspaceId, session.user.id)
 
-      let hasAccess = isAdmin
-      if (!hasAccess) {
-        const access = await checkWorkspaceAccess(workspaceId, session.user.id)
-        if (!access.exists) {
-          return NextResponse.json(
-            { error: 'Workspace not found or access denied' },
-            { status: 404 }
-          )
-        }
-        hasAccess = access.hasAccess
-      }
-
-      if (!hasAccess) {
+      if (!access.exists) {
         return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 404 })
       }
+
+      if (!isAdmin && !access.hasAccess) {
+        return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 404 })
+      }
+
+      const explicitPermission = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        workspaceId
+      )
+      const viewerPermissionType: PermissionType = isAdmin
+        ? 'admin'
+        : (explicitPermission ?? 'read')
 
       const result = await getUsersWithPermissions(workspaceId)
 
@@ -73,6 +77,7 @@ export const GET = withRouteHandler(
         viewer: {
           userId: session.user.id,
           isAdmin,
+          permissionType: viewerPermissionType,
         },
       })
     } catch (error) {
