@@ -1,11 +1,12 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { Loader2, X } from 'lucide-react'
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
-import { Button, Input, Label } from '@/components/emcn'
+import { Button, Input, Label, toast } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
@@ -177,10 +178,8 @@ export function WhitelabelingSettings() {
   const [wordmarkUrl, setWordmarkUrl] = useState<string | null>(null)
   const [formInitialized, setFormInitialized] = useState(false)
 
-  const [saveError, setSaveError] = useState<string | null>(null)
-  const [saveSuccess, setSaveSuccess] = useState(false)
-
-  if (savedSettings && !formInitialized) {
+  useEffect(() => {
+    if (!savedSettings || formInitialized) return
     setBrandName(savedSettings.brandName ?? '')
     setPrimaryColor(savedSettings.primaryColor ?? '')
     setPrimaryHoverColor(savedSettings.primaryHoverColor ?? '')
@@ -193,12 +192,12 @@ export function WhitelabelingSettings() {
     setLogoUrl(savedSettings.logoUrl ?? null)
     setWordmarkUrl(savedSettings.wordmarkUrl ?? null)
     setFormInitialized(true)
-  }
+  }, [savedSettings, formInitialized])
 
   const logoUpload = useProfilePictureUpload({
     currentImage: logoUrl,
     onUpload: (url) => setLogoUrl(url),
-    onError: (error) => setSaveError(error),
+    onError: (error) => toast.error(error),
     context: 'workspace-logos',
     workspaceId: params.workspaceId,
   })
@@ -206,16 +205,28 @@ export function WhitelabelingSettings() {
   const wordmarkUpload = useProfilePictureUpload({
     currentImage: wordmarkUrl,
     onUpload: (url) => setWordmarkUrl(url),
-    onError: (error) => setSaveError(error),
+    onError: (error) => toast.error(error),
     context: 'workspace-logos',
     workspaceId: params.workspaceId,
   })
 
-  const handleSave = useCallback(async () => {
-    if (!orgId) return
+  const hasChanges =
+    formInitialized &&
+    !!savedSettings &&
+    (brandName !== (savedSettings.brandName ?? '') ||
+      primaryColor !== (savedSettings.primaryColor ?? '') ||
+      primaryHoverColor !== (savedSettings.primaryHoverColor ?? '') ||
+      accentColor !== (savedSettings.accentColor ?? '') ||
+      accentHoverColor !== (savedSettings.accentHoverColor ?? '') ||
+      supportEmail !== (savedSettings.supportEmail ?? '') ||
+      documentationUrl !== (savedSettings.documentationUrl ?? '') ||
+      termsUrl !== (savedSettings.termsUrl ?? '') ||
+      privacyUrl !== (savedSettings.privacyUrl ?? '') ||
+      (logoUpload.previewUrl || null) !== savedSettings.logoUrl ||
+      (wordmarkUpload.previewUrl || null) !== savedSettings.wordmarkUrl)
 
-    setSaveError(null)
-    setSaveSuccess(false)
+  async function handleSave() {
+    if (!orgId) return
 
     const colorFields: Array<[string, string]> = [
       ['Primary color', primaryColor],
@@ -226,7 +237,7 @@ export function WhitelabelingSettings() {
 
     for (const [fieldName, value] of colorFields) {
       if (value && !HEX_COLOR_REGEX.test(value)) {
-        setSaveError(`${fieldName} must be a valid hex color (e.g. #701ffc)`)
+        toast.error(`${fieldName} must be a valid hex color (e.g. #701ffc)`)
         return
       }
     }
@@ -247,26 +258,13 @@ export function WhitelabelingSettings() {
 
     try {
       await updateSettings.mutateAsync({ orgId, settings })
-      setSaveSuccess(true)
-      setTimeout(() => setSaveSuccess(false), 3000)
+      setFormInitialized(false)
+      toast.success('Whitelabeling settings saved.')
     } catch (error) {
       logger.error('Failed to save whitelabel settings', { error })
-      setSaveError(error instanceof Error ? error.message : 'Failed to save settings')
+      toast.error(toError(error).message)
     }
-  }, [
-    orgId,
-    brandName,
-    logoUpload.previewUrl,
-    wordmarkUpload.previewUrl,
-    primaryColor,
-    primaryHoverColor,
-    accentColor,
-    accentHoverColor,
-    supportEmail,
-    documentationUrl,
-    termsUrl,
-    privacyUrl,
-  ])
+  }
 
   if (isBillingEnabled) {
     if (!activeOrganization) {
@@ -515,25 +513,14 @@ export function WhitelabelingSettings() {
         </div>
       </section>
 
-      <div className='flex items-center gap-3'>
+      <div className='flex items-center justify-end'>
         <Button
+          variant='primary'
           onClick={handleSave}
-          disabled={updateSettings.isPending || isUploading}
-          className='text-[13px]'
+          disabled={updateSettings.isPending || isUploading || !hasChanges}
         >
-          {updateSettings.isPending ? (
-            <>
-              <Loader2 className='mr-2 h-3.5 w-3.5 animate-spin' />
-              Saving…
-            </>
-          ) : (
-            'Save changes'
-          )}
+          {updateSettings.isPending ? 'Saving...' : 'Save'}
         </Button>
-        {saveSuccess && (
-          <span className='text-[13px] text-green-500'>Settings saved successfully.</span>
-        )}
-        {saveError && <span className='text-[13px] text-red-500'>{saveError}</span>}
       </div>
     </div>
   )

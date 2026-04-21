@@ -29,6 +29,7 @@ import {
   isCredentialSetsEnabled,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { AuditLogsSkeleton } from '@/ee/audit-logs/components/audit-logs-skeleton'
+import { DataRetentionSkeleton } from '@/ee/data-retention/components/data-retention-skeleton'
 
 /**
  * Generic skeleton fallback for sections without a dedicated skeleton.
@@ -174,7 +175,7 @@ const DataRetentionSettings = dynamic(
     import('@/ee/data-retention/components/data-retention-settings').then(
       (m) => m.DataRetentionSettings
     ),
-  { loading: () => <SettingsSectionSkeleton /> }
+  { loading: () => <DataRetentionSkeleton /> }
 )
 const WhitelabelingSettings = dynamic(
   () =>

@@ -79,6 +79,7 @@ const isAccessControlEnabled = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABL
 const isInboxEnabled = isTruthy(getEnv('NEXT_PUBLIC_INBOX_ENABLED'))
 const isWhitelabelingEnabled = isTruthy(getEnv('NEXT_PUBLIC_WHITELABELING_ENABLED'))
 const isAuditLogsEnabled = isTruthy(getEnv('NEXT_PUBLIC_AUDIT_LOGS_ENABLED'))
+const isDataRetentionEnabled = isTruthy(getEnv('NEXT_PUBLIC_DATA_RETENTION_ENABLED'))
 
 export const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 export { isCredentialSetsEnabled }
@@ -187,6 +188,7 @@ export const allNavigationItems: NavigationItem[] = [
     section: 'enterprise',
     requiresHosted: true,
     requiresEnterprise: true,
+    selfHostedOverride: isDataRetentionEnabled,
     showWhenLocked: true,
   },
   {
