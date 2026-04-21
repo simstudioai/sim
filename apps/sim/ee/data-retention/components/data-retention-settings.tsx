@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import { Button, Combobox, toast } from '@/components/emcn'
+import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { SettingRow } from '@/ee/components/setting-row'
 import { DataRetentionSkeleton } from '@/ee/data-retention/components/data-retention-skeleton'
@@ -132,7 +133,7 @@ export function DataRetentionSettings() {
     )
   }
 
-  if (!data.isEnterprise) {
+  if (isBillingEnabled && !data.isEnterprise) {
     return (
       <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
         Data retention is available on Enterprise plans only.
