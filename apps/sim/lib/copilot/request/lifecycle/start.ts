@@ -164,6 +164,15 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         const otelContext = activeOtelRoot.context
         let rootOutcome: CopilotLifecycleOutcome = RequestTraceV1Outcome.error
         let rootError: unknown
+        // `cancelReason` must be declared OUTSIDE the outer `try` so
+        // it remains in scope for the outer `finally` that calls
+        // `activeOtelRoot.finish(rootOutcome, rootError, cancelReason)`.
+        // `let` bindings declared inside a `try` block are NOT visible
+        // in the paired `finally`; referencing one there raises a
+        // TDZ ReferenceError, skipping `finish()`, leaving the root
+        // span never-ended, and making Tempo see every child as an
+        // orphan under a phantom parent. (Regression landed 2026-04-21.)
+        let cancelReason: CopilotRequestCancelReasonValue | undefined
         try {
           const requestSpan = collector.startSpan('Mothership Request', 'request', {
             streamId,
@@ -171,7 +180,6 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             runId,
           })
           let outcome: CopilotLifecycleOutcome = RequestTraceV1Outcome.error
-          let cancelReason: CopilotRequestCancelReasonValue | undefined
           let lifecycleResult:
             | {
                 usage?: { prompt: number; completion: number }
