@@ -4,6 +4,7 @@ import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/copilot/request/otel'
 import { acquireLock, getRedisClient, releaseLock } from '@/lib/core/config/redis'
+import { AbortReason } from './abort-reason'
 import { clearAbortMarker, hasAbortMarker, writeAbortMarker } from './buffer'
 
 const logger = createLogger('SessionAbort')
@@ -231,49 +232,28 @@ export async function abortActiveStream(streamId: string): Promise<boolean> {
   )
 }
 
+export type { AbortReasonValue } from './abort-reason'
 /**
- * Reason strings passed to `AbortController.abort(reason)` for every
- * Sim-originated cancel path. Exported so the lifecycle finalizer can
- * look at `signal.reason` and distinguish EXPLICIT stops (user hit the
- * Stop button) from client disconnects (tab closed, network dropped)
- * without guessing.
+ * `AbortReason` vocabulary and the `isExplicitStopReason` classifier
+ * live in a sibling zero-dependency module so the telemetry layer
+ * (`request/otel.ts`) can import them without creating a circular
+ * import back through `session/abort.ts`'s OTel-wrapped helpers.
  *
- * Why this matters: when the user clicks Stop, we fire
- * `abortController.abort(AbortReason.UserStop)` from
- * `abortActiveStream()`. That causes Sim's SSE writer to close, which
- * in turn makes the BROWSER's SSE reader see the stream end — which
- * fires the browser-side fetch AbortController and propagates back to
- * Sim as `publisher.markDisconnected()`. So on an explicit Stop you
- * observe BOTH "explicit reason" AND "client disconnected" — the
- * discriminator is the reason string, not the client flag.
+ * Context on why the distinction matters: when the user clicks Stop,
+ * we fire `abortController.abort(AbortReason.UserStop)` from
+ * `abortActiveStream()`. That causes Sim's SSE writer to close,
+ * which in turn makes the BROWSER's SSE reader see the stream end
+ * — which fires the browser-side fetch AbortController and
+ * propagates back to Sim as `publisher.markDisconnected()`. So on
+ * an explicit Stop you observe BOTH "explicit reason" AND
+ * "client disconnected" — the discriminator is the reason string,
+ * not the client flag.
  *
- * For any NEW abort path, add its reason here and in the
- * `isExplicitStopReason` helper so classification stays correct.
+ * For any NEW abort path, add its reason in `./abort-reason.ts` and
+ * update `isExplicitStopReason` if it should be classified as a user
+ * stop.
  */
-export const AbortReason = {
-  /** Same-process stop: browser→Sim→abortActiveStream. */
-  UserStop: 'user_stop:abortActiveStream',
-  /**
-   * Cross-process stop: the Sim node that holds the SSE didn't
-   * receive the Stop HTTP call, but it polled the Redis abort marker
-   * that the node that DID receive it wrote, and aborts on the poll.
-   */
-  RedisPoller: 'redis_abort_marker:poller',
-  /** Internal timeout on the outbound explicit-abort fetch to Go. */
-  ExplicitAbortFetchTimeout: 'timeout:go_explicit_abort_fetch',
-} as const
-
-export type AbortReasonValue = (typeof AbortReason)[keyof typeof AbortReason]
-
-/**
- * True iff `reason` indicates the user explicitly triggered the abort
- * (as opposed to an implicit client disconnect or server timeout).
- * Treated as a small closed vocabulary — any string not in
- * `AbortReason` is presumed non-explicit.
- */
-export function isExplicitStopReason(reason: unknown): boolean {
-  return reason === AbortReason.UserStop || reason === AbortReason.RedisPoller
-}
+export { AbortReason, isExplicitStopReason } from './abort-reason'
 
 const pollingStreams = new Set<string>()
 

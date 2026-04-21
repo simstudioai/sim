@@ -13,12 +13,15 @@ import {
 import { RequestTraceV1Outcome } from '@/lib/copilot/generated/request-trace-v1'
 import {
   CopilotBranchKind,
+  CopilotRequestCancelReason,
+  type CopilotRequestCancelReasonValue,
   CopilotSurface,
   CopilotTransport,
 } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { contextFromRequestHeaders } from '@/lib/copilot/request/go/propagation'
+import { isExplicitStopReason } from '@/lib/copilot/request/session/abort-reason'
 
 // OTel GenAI content-capture env var (spec:
 // https://opentelemetry.io/docs/specs/semconv/gen-ai/). Mirrored on
@@ -33,28 +36,35 @@ function isGenAIMessageCaptureEnabled(): boolean {
   return raw === 'true' || raw === '1' || raw === 'yes'
 }
 
-// True if `err` is an AbortSignal-fired cancellation (any runtime
-// flavor). Callers suppress ERROR status on cancel paths.
-export function isCancellationError(err: unknown): boolean {
+// True iff `err` represents the user explicitly clicking Stop — the
+// only cancellation we treat as expected (non-error).
+//
+// Policy across the codebase: an explicit user stop leaves span
+// status UNSET; every other cancellation (client tab close,
+// network drop, internal timeout, uncategorized abort) escalates
+// to `status=error` so it shows up on error dashboards. This is
+// the Sim mirror of `requestctx.IsExplicitUserStop` on the Go
+// side; keep the two semantically aligned.
+//
+// Detection modes:
+//
+//   - Plain-string reject value: `controller.abort('user_stop:...')`
+//     rejects fetch() with the reason STRING directly. Matches
+//     `isExplicitStopReason()` exactly (UserStop / RedisPoller).
+//   - DOMException / Error object: `controller.abort()` with no arg
+//     (or older runtimes) rejects with an AbortError whose `.cause`
+//     or `.message` may carry the reason. We inspect both.
+//
+// Anything that doesn't resolve to an explicit-stop reason (plain
+// AbortError with no identifiable cause, timeout-flavored aborts,
+// arbitrary Error instances) returns false and gets `status=error`.
+export function isExplicitUserStopError(err: unknown): boolean {
   if (err == null) return false
-  // `controller.abort(reason)` where `reason` is a plain string
-  // rejects fetch() with that string directly, not a DOMException.
-  // Our abort taxonomy uses `user_stop:*`, `redis_abort_marker:*`,
-  // `timeout:*` reason prefixes (see `request/session/abort.ts`), so
-  // treat those strings — and any fetch-abort-flavored message — as
-  // cancellation. Without this branch, a user Stop turns into a
-  // span with status=error even though nothing went wrong.
-  if (typeof err === 'string') {
-    return /aborted|AbortError|^user_stop:|^redis_abort_marker:|^timeout:/i.test(err)
-  }
+  if (typeof err === 'string') return isExplicitStopReason(err)
   if (typeof err === 'object') {
-    const e = err as { name?: unknown; code?: unknown; message?: unknown }
-    if (e.name === 'AbortError') return true
-    if (e.code === 'ABORT_ERR') return true
-    // Some wrappers stringify into the message but lose the name.
-    if (typeof e.message === 'string' && /aborted|AbortError/i.test(e.message)) {
-      return true
-    }
+    const e = err as { cause?: unknown; message?: unknown }
+    if (isExplicitStopReason(e.cause)) return true
+    if (typeof e.message === 'string' && isExplicitStopReason(e.message)) return true
   }
   return false
 }
@@ -77,11 +87,14 @@ export function isActionableErrorStatus(code: number): boolean {
   return code === 402 || code === 409 || code === 429
 }
 
-// Record exception + set ERROR only for real failures (cancels stay unset).
+// Record exception + set ERROR unless the error is an explicit user
+// stop (see `isExplicitUserStopError`). Every other cancellation —
+// client disconnect, internal timeout, uncategorized AbortError —
+// becomes a real error that the dashboards will surface.
 export function markSpanForError(span: Span, error: unknown): void {
   const asError = error instanceof Error ? error : new Error(String(error))
   span.recordException(asError)
-  if (!isCancellationError(error)) {
+  if (!isExplicitUserStopError(error)) {
     span.setStatus({
       code: SpanStatusCode.ERROR,
       message: error instanceof Error ? error.message : String(error),
@@ -398,7 +411,18 @@ interface CopilotOtelRequestShape {
 interface CopilotOtelRoot {
   span: Span
   context: Context
-  finish: (outcome?: CopilotLifecycleOutcome, error?: unknown) => void
+  /**
+   * Finalize the root span. `cancelReason`, when provided, decides
+   * whether a `cancelled` outcome leaves span status UNSET (for
+   * explicit user stops — our single non-error cancel class) or
+   * escalates to ERROR (client disconnect, unknown, etc.). Omit it
+   * for non-cancellation outcomes.
+   */
+  finish: (
+    outcome?: CopilotLifecycleOutcome,
+    error?: unknown,
+    cancelReason?: CopilotRequestCancelReasonValue
+  ) => void
   setInputMessages: (input: CopilotAgentInputMessages) => void
   setOutputMessages: (output: CopilotAgentOutputMessages) => void
   setRequestShape: (shape: CopilotOtelRequestShape) => void
@@ -430,23 +454,32 @@ export function startCopilotOtelRoot(
   const rootContext = trace.setSpan(parentContext, carrierSpan)
 
   let finished = false
-  const finish: CopilotOtelRoot['finish'] = (outcome, error) => {
+  const finish: CopilotOtelRoot['finish'] = (outcome, error, cancelReason) => {
     if (finished) return
     finished = true
     const resolvedOutcome = outcome ?? RequestTraceV1Outcome.success
     span.setAttribute(TraceAttr.CopilotRequestOutcome, resolvedOutcome)
+    // Policy: `explicit_stop` is the ONLY cancellation we treat as
+    // expected (status unset → dashboards see it as OK). Everything
+    // else — client_disconnect, unknown reason, bug-case cancels —
+    // escalates to ERROR so it shows up on error panels.
+    const isExplicitStop = cancelReason === CopilotRequestCancelReason.ExplicitStop
     if (error) {
       markSpanForError(span, error)
-      if (isCancellationError(error)) {
+      if (isExplicitStop || isExplicitUserStopError(error)) {
         span.setStatus({ code: SpanStatusCode.OK })
       }
-    } else if (
-      resolvedOutcome === RequestTraceV1Outcome.success ||
-      resolvedOutcome === RequestTraceV1Outcome.cancelled
-    ) {
-      // Cancelled = OK so dashboards keying off span status don't
-      // treat Stop as a failure. Detail lives on cancel_reason.
+    } else if (resolvedOutcome === RequestTraceV1Outcome.success) {
       span.setStatus({ code: SpanStatusCode.OK })
+    } else if (resolvedOutcome === RequestTraceV1Outcome.cancelled) {
+      if (isExplicitStop) {
+        span.setStatus({ code: SpanStatusCode.OK })
+      } else {
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: `cancelled: ${cancelReason ?? 'unknown'}`,
+        })
+      }
     }
     span.end()
   }

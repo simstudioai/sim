@@ -178,6 +178,22 @@ export async function runStreamLoop(
   // and the OTel read-loop span when the loop terminates. Kept as plain
   // JS variables (not span attrs) so incrementing them is free — we
   // only pay OTel cost once at span End().
+  //
+  // Idle-gap tracking is split two ways so we can tell apart
+  // upstream-silent from we-were-busy:
+  //
+  //   - `longestInboundGapMs`: biggest time between consecutive
+  //     `reader.read()` calls returning bytes. Upper bound on
+  //     "Go silent". Actually also includes Node waiting for main
+  //     thread free, so see dispatchMs below.
+  //   - `longestDispatchMs`: biggest time any single event handler
+  //     took between "event received" and "returned control". Upper
+  //     bound on "Sim was CPU-bound on a handler". If this is high
+  //     AND inbound gap is high at the same time, it's Sim. If only
+  //     inbound gap is high, it's upstream.
+  //   - `totalDispatchMs`: sum of all handler times. Helps gauge
+  //     whether handlers in aggregate ate a meaningful fraction of
+  //     the read loop.
   const counters = {
     bytes: 0,
     chunks: 0,
@@ -194,16 +210,16 @@ export async function runStreamLoop(
     } as Record<MothershipStreamV1EventType, number>,
     firstEventMs: undefined as number | undefined,
     lastChunkMs: performance.now(),
-    longestIdleGapMs: 0,
+    longestInboundGapMs: 0,
+    longestDispatchMs: 0,
+    totalDispatchMs: 0,
   }
   const bodyStart = performance.now()
   let endedOn: string = CopilotSseCloseReason.Terminal
 
   // Wrap the body's reader so we can track per-chunk bytes and the gap
   // between chunks. `processSSEStream` consumes this reader exactly as
-  // it would the raw one — no API changes there. The longest idle gap
-  // is the diagnostic signal for "silent TTFT" perceived hangs: a gap
-  // larger than the threshold means the user saw nothing for that long.
+  // it would the raw one — no API changes there.
   const IDLE_GAP_EVENT_THRESHOLD_MS = 10000
   const rawReader = response.body.getReader()
   const reader: ReadableStreamDefaultReader<Uint8Array> = {
@@ -212,7 +228,7 @@ export async function runStreamLoop(
       if (!result.done && result.value) {
         const now = performance.now()
         const gap = now - counters.lastChunkMs
-        if (gap > counters.longestIdleGapMs) counters.longestIdleGapMs = gap
+        if (gap > counters.longestInboundGapMs) counters.longestInboundGapMs = gap
         counters.lastChunkMs = now
         counters.chunks += 1
         counters.bytes += result.value.byteLength
@@ -236,138 +252,150 @@ export async function runStreamLoop(
 
   try {
     await processSSEStream(reader, decoder, abortSignal, async (raw) => {
-      if (counters.events === 0) {
-        counters.firstEventMs = Math.round(performance.now() - bodyStart)
-      }
-      counters.events += 1
-      if (abortSignal?.aborted) {
-        context.wasAborted = true
-        return true
-      }
-
-      const parsedEvent = parsePersistedStreamEventEnvelope(raw)
-      if (!parsedEvent.ok) {
-        const detail = [parsedEvent.message, ...(parsedEvent.errors ?? [])]
-          .filter(Boolean)
-          .join('; ')
-        const failureMessage = `Received invalid stream event on shared path: ${detail}`
-        context.errors.push(failureMessage)
-        logger.error('Received invalid stream event on shared path', {
-          reason: parsedEvent.reason,
-          message: parsedEvent.message,
-          errors: parsedEvent.errors,
-        })
-        throw new FatalSseEventError(failureMessage)
-      }
-
-      const envelope = parsedEvent.event
-      const streamEvent = eventToStreamEvent(envelope)
-      if (envelope.trace?.requestId) {
-        const goTraceId = envelope.trace.goTraceId || envelope.trace.requestId
-        context.trace.setGoTraceId(goTraceId)
-        options.onGoTraceId?.(goTraceId)
-      }
-
-      // Per-type counters for the copilot.sse.read_loop span. Bound set
-      // (8 types) so this can never blow up into high cardinality.
-      if (streamEvent.type in counters.eventsByType) {
-        counters.eventsByType[streamEvent.type as MothershipStreamV1EventType] += 1
-      }
-
-      if (shouldSkipToolCallEvent(streamEvent) || shouldSkipToolResultEvent(streamEvent)) {
-        return
-      }
-
-      await processFilePreviewStreamEvent({
-        streamId: envelope.stream.streamId,
-        streamEvent,
-        context,
-        execContext,
-        options,
-        state: filePreviewAdapterState,
-      })
-
+      // Track how long THIS handler invocation takes so we can tell
+      // apart "Go was silent" from "we were CPU-bound on a handler".
+      // `longestInboundGapMs` includes handler time (the next reader.read
+      // doesn't run until the previous handler returns), so dispatch
+      // time is the correction needed to isolate upstream silence.
+      const dispatchStart = performance.now()
       try {
-        await options.onEvent?.(streamEvent)
-      } catch (error) {
-        logger.warn('Failed to forward stream event', {
-          type: streamEvent.type,
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
+        if (counters.events === 0) {
+          counters.firstEventMs = Math.round(performance.now() - bodyStart)
+        }
+        counters.events += 1
+        if (abortSignal?.aborted) {
+          context.wasAborted = true
+          return true
+        }
 
-      // Yield a macrotask so Node.js flushes the HTTP response buffer to
-      // the browser. Microtask yields (await Promise.resolve()) are not
-      // enough — the I/O layer needs a full event loop tick to write.
-      await new Promise<void>((resolve) => setImmediate(resolve))
+        const parsedEvent = parsePersistedStreamEventEnvelope(raw)
+        if (!parsedEvent.ok) {
+          const detail = [parsedEvent.message, ...(parsedEvent.errors ?? [])]
+            .filter(Boolean)
+            .join('; ')
+          const failureMessage = `Received invalid stream event on shared path: ${detail}`
+          context.errors.push(failureMessage)
+          logger.error('Received invalid stream event on shared path', {
+            reason: parsedEvent.reason,
+            message: parsedEvent.message,
+            errors: parsedEvent.errors,
+          })
+          throw new FatalSseEventError(failureMessage)
+        }
 
-      if (options.onBeforeDispatch?.(streamEvent, context)) {
-        return context.streamComplete || undefined
-      }
+        const envelope = parsedEvent.event
+        const streamEvent = eventToStreamEvent(envelope)
+        if (envelope.trace?.requestId) {
+          const goTraceId = envelope.trace.goTraceId || envelope.trace.requestId
+          context.trace.setGoTraceId(goTraceId)
+          options.onGoTraceId?.(goTraceId)
+        }
 
-      if (isSubagentSpanStreamEvent(streamEvent)) {
-        const spanData = parseSubagentSpanData(streamEvent.payload.data)
-        const toolCallId = streamEvent.scope?.parentToolCallId || spanData?.toolCallId
-        const subagentName = streamEvent.payload.agent
-        const spanEvt = streamEvent.payload.event
-        const isPendingPause = spanData?.pending === true
-        if (spanEvt === MothershipStreamV1SpanLifecycleEvent.start) {
-          const lastParent = context.subAgentParentStack[context.subAgentParentStack.length - 1]
-          const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
-          if (toolCallId) {
-            if (lastParent !== toolCallId) {
-              context.subAgentParentStack.push(toolCallId)
-            }
-            context.subAgentParentToolCallId = toolCallId
-            context.subAgentContent[toolCallId] ??= ''
-            context.subAgentToolCalls[toolCallId] ??= []
-          }
-          if (
-            subagentName &&
-            !(
-              lastParent === toolCallId &&
-              lastBlock?.type === 'subagent' &&
-              lastBlock.content === subagentName
-            )
-          ) {
-            context.contentBlocks.push({
-              type: 'subagent',
-              content: subagentName,
-              timestamp: Date.now(),
-            })
-          }
+        // Per-type counters for the copilot.sse.read_loop span. Bound set
+        // (8 types) so this can never blow up into high cardinality.
+        if (streamEvent.type in counters.eventsByType) {
+          counters.eventsByType[streamEvent.type as MothershipStreamV1EventType] += 1
+        }
+
+        if (shouldSkipToolCallEvent(streamEvent) || shouldSkipToolResultEvent(streamEvent)) {
           return
         }
-        if (spanEvt === MothershipStreamV1SpanLifecycleEvent.end) {
-          if (isPendingPause) {
+
+        await processFilePreviewStreamEvent({
+          streamId: envelope.stream.streamId,
+          streamEvent,
+          context,
+          execContext,
+          options,
+          state: filePreviewAdapterState,
+        })
+
+        try {
+          await options.onEvent?.(streamEvent)
+        } catch (error) {
+          logger.warn('Failed to forward stream event', {
+            type: streamEvent.type,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
+
+        // Yield a macrotask so Node.js flushes the HTTP response buffer to
+        // the browser. Microtask yields (await Promise.resolve()) are not
+        // enough — the I/O layer needs a full event loop tick to write.
+        await new Promise<void>((resolve) => setImmediate(resolve))
+
+        if (options.onBeforeDispatch?.(streamEvent, context)) {
+          return context.streamComplete || undefined
+        }
+
+        if (isSubagentSpanStreamEvent(streamEvent)) {
+          const spanData = parseSubagentSpanData(streamEvent.payload.data)
+          const toolCallId = streamEvent.scope?.parentToolCallId || spanData?.toolCallId
+          const subagentName = streamEvent.payload.agent
+          const spanEvt = streamEvent.payload.event
+          const isPendingPause = spanData?.pending === true
+          if (spanEvt === MothershipStreamV1SpanLifecycleEvent.start) {
+            const lastParent = context.subAgentParentStack[context.subAgentParentStack.length - 1]
+            const lastBlock = context.contentBlocks[context.contentBlocks.length - 1]
+            if (toolCallId) {
+              if (lastParent !== toolCallId) {
+                context.subAgentParentStack.push(toolCallId)
+              }
+              context.subAgentParentToolCallId = toolCallId
+              context.subAgentContent[toolCallId] ??= ''
+              context.subAgentToolCalls[toolCallId] ??= []
+            }
+            if (
+              subagentName &&
+              !(
+                lastParent === toolCallId &&
+                lastBlock?.type === 'subagent' &&
+                lastBlock.content === subagentName
+              )
+            ) {
+              context.contentBlocks.push({
+                type: 'subagent',
+                content: subagentName,
+                timestamp: Date.now(),
+              })
+            }
             return
           }
-          if (context.subAgentParentStack.length > 0) {
-            context.subAgentParentStack.pop()
-          } else {
-            logger.warn('subagent end without matching start')
+          if (spanEvt === MothershipStreamV1SpanLifecycleEvent.end) {
+            if (isPendingPause) {
+              return
+            }
+            if (context.subAgentParentStack.length > 0) {
+              context.subAgentParentStack.pop()
+            } else {
+              logger.warn('subagent end without matching start')
+            }
+            context.subAgentParentToolCallId =
+              context.subAgentParentStack.length > 0
+                ? context.subAgentParentStack[context.subAgentParentStack.length - 1]
+                : undefined
+            return
           }
-          context.subAgentParentToolCallId =
-            context.subAgentParentStack.length > 0
-              ? context.subAgentParentStack[context.subAgentParentStack.length - 1]
-              : undefined
-          return
         }
-      }
 
-      if (handleSubagentRouting(streamEvent, context)) {
-        const handler = subAgentHandlers[streamEvent.type]
+        if (handleSubagentRouting(streamEvent, context)) {
+          const handler = subAgentHandlers[streamEvent.type]
+          if (handler) {
+            await handler(streamEvent, context, execContext, options)
+          }
+          return context.streamComplete || undefined
+        }
+
+        const handler = sseHandlers[streamEvent.type]
         if (handler) {
           await handler(streamEvent, context, execContext, options)
         }
         return context.streamComplete || undefined
+      } finally {
+        const dispatchMs = performance.now() - dispatchStart
+        counters.totalDispatchMs += dispatchMs
+        if (dispatchMs > counters.longestDispatchMs) counters.longestDispatchMs = dispatchMs
       }
-
-      const handler = sseHandlers[streamEvent.type]
-      if (handler) {
-        await handler(streamEvent, context, execContext, options)
-      }
-      return context.streamComplete || undefined
     })
 
     if (!context.streamComplete && !abortSignal?.aborted && !context.wasAborted) {
@@ -464,7 +492,9 @@ type SseReadLoopCounters = {
   events: number
   eventsByType: Record<MothershipStreamV1EventType, number>
   firstEventMs: number | undefined
-  longestIdleGapMs: number
+  longestInboundGapMs: number
+  longestDispatchMs: number
+  totalDispatchMs: number
 }
 
 /**
@@ -519,7 +549,9 @@ function stampSseReadLoopSpan(
       [TraceAttr.CopilotSseEventsRun]: counters.eventsByType.run,
       [TraceAttr.CopilotSseEventsError]: counters.eventsByType.error,
       [TraceAttr.CopilotSseEventsComplete]: counters.eventsByType.complete,
-      [TraceAttr.CopilotSseLongestIdleGapMs]: Math.round(counters.longestIdleGapMs),
+      [TraceAttr.CopilotSseLongestInboundGapMs]: Math.round(counters.longestInboundGapMs),
+      [TraceAttr.CopilotSseLongestDispatchMs]: Math.round(counters.longestDispatchMs),
+      [TraceAttr.CopilotSseTotalDispatchMs]: Math.round(counters.totalDispatchMs),
       [TraceAttr.CopilotSseCloseReason]: closeReason,
       [TraceAttr.CopilotSseExpectedTerminal]: opts.expectedTerminal,
       [TraceAttr.CopilotSseTerminalEventSeen]: terminalEventSeen,
@@ -538,9 +570,15 @@ function stampSseReadLoopSpan(
       startWall + counters.firstEventMs
     )
   }
-  if (counters.longestIdleGapMs >= opts.idleGapEventThresholdMs) {
+  // Fire the idle-gap event when the INBOUND gap (time between TCP
+  // reads returning bytes) exceeds the threshold. This is the
+  // "upstream was silent or Sim was CPU-bound" signal; dispatch time
+  // on its own doesn't warrant an event because it's within our
+  // control and visible on a dedicated attribute.
+  if (counters.longestInboundGapMs >= opts.idleGapEventThresholdMs) {
     span.addEvent(TraceEvent.CopilotSseIdleGapExceeded, {
-      [TraceAttr.CopilotSseLongestIdleGapMs]: Math.round(counters.longestIdleGapMs),
+      [TraceAttr.CopilotSseLongestInboundGapMs]: Math.round(counters.longestInboundGapMs),
+      [TraceAttr.CopilotSseLongestDispatchMs]: Math.round(counters.longestDispatchMs),
     })
   }
   if (terminalEventSeen) {

@@ -59,6 +59,15 @@ export async function orchestrateSubagentStream(
     TraceSpan.CopilotSubagentExecute,
     {
       [TraceAttr.SubagentId]: agentId,
+      // Sim-side entrypoint = MCP / headless subagent call. No parent
+      // agent (the caller is an external client); treat as depth 2 and
+      // mark as NOT nested so it aggregates with Go-side direct-child
+      // subagent spans on dashboards. Grandchildren are stamped
+      // depth=3 + nested=true in
+      // `agents/nested.go:executeNestedAgent`.
+      [TraceAttr.SubagentDepth]: 2,
+      [TraceAttr.SubagentNested]: false,
+      [TraceAttr.SubagentParentAgentId]: 'mcp',
       [TraceAttr.UserId]: options.userId,
       ...(options.simRequestId ? { [TraceAttr.SimRequestId]: options.simRequestId } : {}),
       ...(options.workflowId ? { [TraceAttr.WorkflowId]: options.workflowId } : {}),

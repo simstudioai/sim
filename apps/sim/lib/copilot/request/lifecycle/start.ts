@@ -171,6 +171,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             runId,
           })
           let outcome: CopilotLifecycleOutcome = RequestTraceV1Outcome.error
+          let cancelReason: CopilotRequestCancelReasonValue | undefined
           let lifecycleResult:
             | {
                 usage?: { prompt: number; completion: number }
@@ -260,7 +261,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
                 ? RequestTraceV1Outcome.cancelled
                 : RequestTraceV1Outcome.error
             if (outcome === RequestTraceV1Outcome.cancelled) {
-              recordCancelled()
+              cancelReason = recordCancelled()
             }
             // Pass the resolved outcome — not `signal.aborted` — so
             // `finalizeStream` classifies the same way we did above.
@@ -275,7 +276,7 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             const wasCancelled = abortController.signal.aborted || publisher.clientDisconnected
             outcome = wasCancelled ? RequestTraceV1Outcome.cancelled : RequestTraceV1Outcome.error
             if (outcome === RequestTraceV1Outcome.cancelled) {
-              recordCancelled(error instanceof Error ? error.message : String(error))
+              cancelReason = recordCancelled(error instanceof Error ? error.message : String(error))
             }
             if (publisher.clientDisconnected) {
               logger.info(`[${requestId}] Stream errored after client disconnect`, {
@@ -365,8 +366,11 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
         } finally {
           // `finish` is idempotent, so it's safe whether the POST
           // handler started the root (and may also call finish on an
-          // error path before the stream ran) or we did.
-          activeOtelRoot.finish(rootOutcome, rootError)
+          // error path before the stream ran) or we did. The cancel
+          // reason (if any) determines whether `cancelled` is an
+          // expected outcome (explicit_stop → status OK) or a real
+          // error (client_disconnect / unknown → status ERROR).
+          activeOtelRoot.finish(rootOutcome, rootError, cancelReason)
         }
       })
     },
