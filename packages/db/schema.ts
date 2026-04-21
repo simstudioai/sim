@@ -2678,6 +2678,9 @@ export const permissionGroupMember = pgTable(
     permissionGroupId: text('permission_group_id')
       .notNull()
       .references(() => permissionGroup.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -2688,6 +2691,10 @@ export const permissionGroupMember = pgTable(
     permissionGroupIdIdx: index('permission_group_member_group_id_idx').on(table.permissionGroupId),
     groupUserUnique: uniqueIndex('permission_group_member_group_user_unique').on(
       table.permissionGroupId,
+      table.userId
+    ),
+    workspaceUserUnique: uniqueIndex('permission_group_member_workspace_user_unique').on(
+      table.workspaceId,
       table.userId
     ),
   })

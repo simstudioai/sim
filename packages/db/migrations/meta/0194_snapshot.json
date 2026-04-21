@@ -1,5 +1,5 @@
 {
-  "id": "2b83a8e3-99b2-4ac1-ac93-fa25a416a2ef",
+  "id": "dce19071-748a-432a-86f3-6dd4021df35f",
   "prevId": "8caf2eaf-a548-4c7f-83ae-546b416c5d88",
   "version": "7",
   "dialect": "postgresql",
@@ -8584,6 +8584,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "user_id": {
           "name": "user_id",
           "type": "text",
@@ -8640,6 +8646,27 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "permission_group_member_workspace_user_unique": {
+          "name": "permission_group_member_workspace_user_unique",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -8648,6 +8675,15 @@
           "tableFrom": "permission_group_member",
           "tableTo": "permission_group",
           "columnsFrom": ["permission_group_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "permission_group_member_workspace_id_workspace_id_fk": {
+          "name": "permission_group_member_workspace_id_workspace_id_fk",
+          "tableFrom": "permission_group_member",
+          "tableTo": "workspace",
+          "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"

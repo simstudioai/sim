@@ -13,6 +13,19 @@ export function toError(value: unknown): Error {
  * Normalizes common Drizzle / `postgres` driver shapes and walks `cause` chains.
  */
 export function getPostgresErrorCode(error: unknown): string | undefined {
+  return readPgErrorField(error, 'code')
+}
+
+/**
+ * Returns the name of the PostgreSQL constraint that triggered the error (e.g. the unique index
+ * name on a `23505`), when present on a thrown value. Mirrors the field populated by the
+ * `postgres` / `pg` drivers, walking `cause` chains the same way as `getPostgresErrorCode`.
+ */
+export function getPostgresConstraintName(error: unknown): string | undefined {
+  return readPgErrorField(error, 'constraint_name') ?? readPgErrorField(error, 'constraint')
+}
+
+function readPgErrorField(error: unknown, field: string): string | undefined {
   const seen = new Set<unknown>()
   let current: unknown = error
 
@@ -23,9 +36,9 @@ export function getPostgresErrorCode(error: unknown): string | undefined {
     seen.add(current)
 
     if (typeof current === 'object') {
-      const code = (current as { code?: unknown }).code
-      if (typeof code === 'string') {
-        return code
+      const value = (current as Record<string, unknown>)[field]
+      if (typeof value === 'string') {
+        return value
       }
     }
 

@@ -54,6 +54,7 @@ export async function applyWorkspaceAutoAddGroup(
     await client.insert(permissionGroupMember).values({
       id: generateId(),
       permissionGroupId: autoAddGroup.id,
+      workspaceId,
       userId,
       assignedBy: null,
       assignedAt: new Date(),

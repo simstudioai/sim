@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { permissionGroup, permissionGroupMember, permissions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -9,6 +10,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { PERMISSION_GROUP_MEMBER_CONSTRAINTS } from '@/lib/permission-groups/types'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspacePermissionGroupBulkMembers')
@@ -141,6 +143,7 @@ export const POST = withRouteHandler(
         const newMembers = usersToAdd.map((userId) => ({
           id: generateId(),
           permissionGroupId: id,
+          workspaceId,
           userId,
           assignedBy: session.user.id,
           assignedAt: new Date(),
@@ -185,6 +188,21 @@ export const POST = withRouteHandler(
     } catch (error) {
       if (error instanceof z.ZodError) {
         return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
+      }
+      if (getPostgresErrorCode(error) === '23505') {
+        const constraint = getPostgresConstraintName(error)
+        if (
+          constraint === PERMISSION_GROUP_MEMBER_CONSTRAINTS.workspaceUser ||
+          constraint === PERMISSION_GROUP_MEMBER_CONSTRAINTS.groupUser
+        ) {
+          return NextResponse.json(
+            {
+              error:
+                'One or more users were concurrently added to a group in this workspace. Please refresh and try again.',
+            },
+            { status: 409 }
+          )
+        }
       }
       logger.error('Error bulk adding members to permission group', error)
       return NextResponse.json({ error: 'Failed to add members' }, { status: 500 })

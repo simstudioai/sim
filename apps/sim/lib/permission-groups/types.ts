@@ -1,5 +1,10 @@
 import { z } from 'zod'
 
+export const PERMISSION_GROUP_MEMBER_CONSTRAINTS = {
+  groupUser: 'permission_group_member_group_user_unique',
+  workspaceUser: 'permission_group_member_workspace_user_unique',
+} as const
+
 export const permissionGroupConfigSchema = z.object({
   allowedIntegrations: z.array(z.string()).nullable().optional(),
   allowedModelProviders: z.array(z.string()).nullable().optional(),
