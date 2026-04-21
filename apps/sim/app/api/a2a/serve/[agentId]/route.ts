@@ -19,6 +19,7 @@ import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { getClientIp } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { markExecutionCancelled } from '@/lib/execution/cancellation'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
@@ -71,298 +72,310 @@ function hasCallerAccessToTask(
 /**
  * GET - Returns the Agent Card (discovery document)
  */
-export async function GET(_request: NextRequest, { params }: { params: Promise<RouteParams> }) {
-  const { agentId } = await params
+export const GET = withRouteHandler(
+  async (_request: NextRequest, { params }: { params: Promise<RouteParams> }) => {
+    const { agentId } = await params
 
-  const redis = getRedisClient()
-  const cacheKey = `a2a:agent:${agentId}:card`
-
-  if (redis) {
-    try {
-      const cached = await redis.get(cacheKey)
-      if (cached) {
-        return NextResponse.json(JSON.parse(cached), {
-          headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'private, max-age=60',
-            'X-Cache': 'HIT',
-          },
-        })
-      }
-    } catch (err) {
-      logger.warn('Redis cache read failed', { agentId, error: err })
-    }
-  }
-
-  try {
-    const [agent] = await db
-      .select({
-        id: a2aAgent.id,
-        name: a2aAgent.name,
-        description: a2aAgent.description,
-        version: a2aAgent.version,
-        capabilities: a2aAgent.capabilities,
-        skills: a2aAgent.skills,
-        authentication: a2aAgent.authentication,
-        isPublished: a2aAgent.isPublished,
-      })
-      .from(a2aAgent)
-      .where(and(eq(a2aAgent.id, agentId), isNull(a2aAgent.archivedAt)))
-      .limit(1)
-
-    if (!agent) {
-      return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
-    }
-
-    if (!agent.isPublished) {
-      return NextResponse.json({ error: 'Agent not published' }, { status: 404 })
-    }
-
-    const baseUrl = getBaseUrl()
-    const brandConfig = getBrandConfig()
-
-    const authConfig = agent.authentication as { schemes?: string[] } | undefined
-    const schemes = authConfig?.schemes || []
-    const isPublic = schemes.includes('none')
-
-    const agentCard = {
-      protocolVersion: '0.3.0',
-      name: agent.name,
-      description: agent.description || '',
-      url: `${baseUrl}/api/a2a/serve/${agent.id}`,
-      version: agent.version,
-      preferredTransport: 'JSONRPC',
-      documentationUrl: `${baseUrl}/docs/a2a`,
-      provider: {
-        organization: brandConfig.name,
-        url: baseUrl,
-      },
-      capabilities: agent.capabilities,
-      skills: agent.skills || [],
-      ...(isPublic
-        ? {}
-        : {
-            securitySchemes: {
-              apiKey: {
-                type: 'apiKey' as const,
-                name: 'X-API-Key',
-                in: 'header' as const,
-                description: 'API key authentication',
-              },
-            },
-            security: [{ apiKey: [] }],
-          }),
-      defaultInputModes: ['text/plain', 'application/json'],
-      defaultOutputModes: ['text/plain', 'application/json'],
-    }
+    const redis = getRedisClient()
+    const cacheKey = `a2a:agent:${agentId}:card`
 
     if (redis) {
       try {
-        await redis.set(cacheKey, JSON.stringify(agentCard), 'EX', 60)
+        const cached = await redis.get(cacheKey)
+        if (cached) {
+          return NextResponse.json(JSON.parse(cached), {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'private, max-age=60',
+              'X-Cache': 'HIT',
+            },
+          })
+        }
       } catch (err) {
-        logger.warn('Redis cache write failed', { agentId, error: err })
+        logger.warn('Redis cache read failed', { agentId, error: err })
       }
     }
 
-    return NextResponse.json(agentCard, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'private, max-age=60',
-        'X-Cache': 'MISS',
-      },
-    })
-  } catch (error) {
-    logger.error('Error getting Agent Card:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    try {
+      const [agent] = await db
+        .select({
+          id: a2aAgent.id,
+          name: a2aAgent.name,
+          description: a2aAgent.description,
+          version: a2aAgent.version,
+          capabilities: a2aAgent.capabilities,
+          skills: a2aAgent.skills,
+          authentication: a2aAgent.authentication,
+          isPublished: a2aAgent.isPublished,
+        })
+        .from(a2aAgent)
+        .where(and(eq(a2aAgent.id, agentId), isNull(a2aAgent.archivedAt)))
+        .limit(1)
+
+      if (!agent) {
+        return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
+      }
+
+      if (!agent.isPublished) {
+        return NextResponse.json({ error: 'Agent not published' }, { status: 404 })
+      }
+
+      const baseUrl = getBaseUrl()
+      const brandConfig = getBrandConfig()
+
+      const authConfig = agent.authentication as { schemes?: string[] } | undefined
+      const schemes = authConfig?.schemes || []
+      const isPublic = schemes.includes('none')
+
+      const agentCard = {
+        protocolVersion: '0.3.0',
+        name: agent.name,
+        description: agent.description || '',
+        url: `${baseUrl}/api/a2a/serve/${agent.id}`,
+        version: agent.version,
+        preferredTransport: 'JSONRPC',
+        documentationUrl: `${baseUrl}/docs/a2a`,
+        provider: {
+          organization: brandConfig.name,
+          url: baseUrl,
+        },
+        capabilities: agent.capabilities,
+        skills: agent.skills || [],
+        ...(isPublic
+          ? {}
+          : {
+              securitySchemes: {
+                apiKey: {
+                  type: 'apiKey' as const,
+                  name: 'X-API-Key',
+                  in: 'header' as const,
+                  description: 'API key authentication',
+                },
+              },
+              security: [{ apiKey: [] }],
+            }),
+        defaultInputModes: ['text/plain', 'application/json'],
+        defaultOutputModes: ['text/plain', 'application/json'],
+      }
+
+      if (redis) {
+        try {
+          await redis.set(cacheKey, JSON.stringify(agentCard), 'EX', 60)
+        } catch (err) {
+          logger.warn('Redis cache write failed', { agentId, error: err })
+        }
+      }
+
+      return NextResponse.json(agentCard, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'private, max-age=60',
+          'X-Cache': 'MISS',
+        },
+      })
+    } catch (error) {
+      logger.error('Error getting Agent Card:', error)
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    }
   }
-}
+)
 
 /**
  * POST - Handle JSON-RPC requests
  */
-export async function POST(request: NextRequest, { params }: { params: Promise<RouteParams> }) {
-  const { agentId } = await params
+export const POST = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<RouteParams> }) => {
+    const { agentId } = await params
 
-  try {
-    const [agent] = await db
-      .select({
-        id: a2aAgent.id,
-        name: a2aAgent.name,
-        workflowId: a2aAgent.workflowId,
-        workspaceId: a2aAgent.workspaceId,
-        isPublished: a2aAgent.isPublished,
-        capabilities: a2aAgent.capabilities,
-        authentication: a2aAgent.authentication,
-      })
-      .from(a2aAgent)
-      .where(and(eq(a2aAgent.id, agentId), isNull(a2aAgent.archivedAt)))
-      .limit(1)
+    try {
+      const [agent] = await db
+        .select({
+          id: a2aAgent.id,
+          name: a2aAgent.name,
+          workflowId: a2aAgent.workflowId,
+          workspaceId: a2aAgent.workspaceId,
+          isPublished: a2aAgent.isPublished,
+          capabilities: a2aAgent.capabilities,
+          authentication: a2aAgent.authentication,
+        })
+        .from(a2aAgent)
+        .where(and(eq(a2aAgent.id, agentId), isNull(a2aAgent.archivedAt)))
+        .limit(1)
 
-    if (!agent) {
-      return NextResponse.json(
-        createError(null, A2A_ERROR_CODES.AGENT_UNAVAILABLE, 'Agent not found'),
-        { status: 404 }
-      )
-    }
-
-    if (!agent.isPublished) {
-      return NextResponse.json(
-        createError(null, A2A_ERROR_CODES.AGENT_UNAVAILABLE, 'Agent not published'),
-        { status: 404 }
-      )
-    }
-
-    const authSchemes = (agent.authentication as { schemes?: string[] })?.schemes || []
-    const requiresAuth = !authSchemes.includes('none')
-    let authenticatedUserId: string | null = null
-    let authenticatedAuthType: AuthResult['authType']
-    let authenticatedApiKeyType: AuthResult['apiKeyType']
-
-    if (requiresAuth) {
-      const auth = await checkHybridAuth(request, { requireWorkflowId: false })
-      if (!auth.success || !auth.userId) {
+      if (!agent) {
         return NextResponse.json(
-          createError(null, A2A_ERROR_CODES.AUTHENTICATION_REQUIRED, 'Unauthorized'),
-          { status: 401 }
-        )
-      }
-      authenticatedUserId = auth.userId
-      authenticatedAuthType = auth.authType
-      authenticatedApiKeyType = auth.apiKeyType
-
-      if (auth.apiKeyType === 'workspace' && auth.workspaceId !== agent.workspaceId) {
-        return NextResponse.json(
-          createError(null, A2A_ERROR_CODES.AUTHENTICATION_REQUIRED, 'Access denied'),
-          { status: 403 }
-        )
-      }
-
-      const workspaceAccess = await checkWorkspaceAccess(agent.workspaceId, authenticatedUserId)
-      if (!workspaceAccess.exists || !workspaceAccess.hasAccess) {
-        return NextResponse.json(
-          createError(null, A2A_ERROR_CODES.AUTHENTICATION_REQUIRED, 'Access denied'),
-          { status: 403 }
-        )
-      }
-    }
-
-    const [wf] = await db
-      .select({ isDeployed: workflow.isDeployed })
-      .from(workflow)
-      .where(and(eq(workflow.id, agent.workflowId), isNull(workflow.archivedAt)))
-      .limit(1)
-
-    if (!wf?.isDeployed) {
-      return NextResponse.json(
-        createError(null, A2A_ERROR_CODES.AGENT_UNAVAILABLE, 'Workflow is not deployed'),
-        { status: 400 }
-      )
-    }
-
-    const body = await request.json()
-
-    if (!isJSONRPCRequest(body)) {
-      return NextResponse.json(
-        createError(null, A2A_ERROR_CODES.INVALID_REQUEST, 'Invalid JSON-RPC request'),
-        { status: 400 }
-      )
-    }
-
-    const { id, method, params: rpcParams } = body
-    const requestApiKey = request.headers.get('X-API-Key')
-    const apiKey = authenticatedAuthType === AuthType.API_KEY ? requestApiKey : null
-    const isPersonalApiKeyCaller =
-      authenticatedAuthType === AuthType.API_KEY && authenticatedApiKeyType === 'personal'
-    const callerFingerprint = getCallerFingerprint(request, authenticatedUserId)
-    const billedUserId = await getWorkspaceBilledAccountUserId(agent.workspaceId)
-    if (!billedUserId) {
-      logger.error('Unable to resolve workspace billed account for A2A execution', {
-        agentId: agent.id,
-        workspaceId: agent.workspaceId,
-      })
-      return NextResponse.json(
-        createError(
-          id,
-          A2A_ERROR_CODES.INTERNAL_ERROR,
-          'Unable to resolve billing account for this workspace'
-        ),
-        { status: 500 }
-      )
-    }
-    const executionUserId =
-      isPersonalApiKeyCaller && authenticatedUserId ? authenticatedUserId : billedUserId
-
-    logger.info(`A2A request: ${method} for agent ${agentId}`)
-
-    switch (method) {
-      case A2A_METHODS.MESSAGE_SEND:
-        return handleMessageSend(
-          id,
-          agent,
-          rpcParams as MessageSendParams,
-          apiKey,
-          executionUserId,
-          callerFingerprint
-        )
-
-      case A2A_METHODS.MESSAGE_STREAM:
-        return handleMessageStream(
-          request,
-          id,
-          agent,
-          rpcParams as MessageSendParams,
-          apiKey,
-          executionUserId,
-          callerFingerprint
-        )
-
-      case A2A_METHODS.TASKS_GET:
-        return handleTaskGet(id, agent.id, rpcParams as TaskIdParams, callerFingerprint)
-
-      case A2A_METHODS.TASKS_CANCEL:
-        return handleTaskCancel(id, agent.id, rpcParams as TaskIdParams, callerFingerprint)
-
-      case A2A_METHODS.TASKS_RESUBSCRIBE:
-        return handleTaskResubscribe(
-          request,
-          id,
-          agent.id,
-          rpcParams as TaskIdParams,
-          callerFingerprint
-        )
-
-      case A2A_METHODS.PUSH_NOTIFICATION_SET:
-        return handlePushNotificationSet(
-          id,
-          agent.id,
-          rpcParams as PushNotificationSetParams,
-          callerFingerprint
-        )
-
-      case A2A_METHODS.PUSH_NOTIFICATION_GET:
-        return handlePushNotificationGet(id, agent.id, rpcParams as TaskIdParams, callerFingerprint)
-
-      case A2A_METHODS.PUSH_NOTIFICATION_DELETE:
-        return handlePushNotificationDelete(
-          id,
-          agent.id,
-          rpcParams as TaskIdParams,
-          callerFingerprint
-        )
-
-      default:
-        return NextResponse.json(
-          createError(id, A2A_ERROR_CODES.METHOD_NOT_FOUND, `Method not found: ${method}`),
+          createError(null, A2A_ERROR_CODES.AGENT_UNAVAILABLE, 'Agent not found'),
           { status: 404 }
         )
+      }
+
+      if (!agent.isPublished) {
+        return NextResponse.json(
+          createError(null, A2A_ERROR_CODES.AGENT_UNAVAILABLE, 'Agent not published'),
+          { status: 404 }
+        )
+      }
+
+      const authSchemes = (agent.authentication as { schemes?: string[] })?.schemes || []
+      const requiresAuth = !authSchemes.includes('none')
+      let authenticatedUserId: string | null = null
+      let authenticatedAuthType: AuthResult['authType']
+      let authenticatedApiKeyType: AuthResult['apiKeyType']
+
+      if (requiresAuth) {
+        const auth = await checkHybridAuth(request, { requireWorkflowId: false })
+        if (!auth.success || !auth.userId) {
+          return NextResponse.json(
+            createError(null, A2A_ERROR_CODES.AUTHENTICATION_REQUIRED, 'Unauthorized'),
+            { status: 401 }
+          )
+        }
+        authenticatedUserId = auth.userId
+        authenticatedAuthType = auth.authType
+        authenticatedApiKeyType = auth.apiKeyType
+
+        if (auth.apiKeyType === 'workspace' && auth.workspaceId !== agent.workspaceId) {
+          return NextResponse.json(
+            createError(null, A2A_ERROR_CODES.AUTHENTICATION_REQUIRED, 'Access denied'),
+            { status: 403 }
+          )
+        }
+
+        const workspaceAccess = await checkWorkspaceAccess(agent.workspaceId, authenticatedUserId)
+        if (!workspaceAccess.exists || !workspaceAccess.hasAccess) {
+          return NextResponse.json(
+            createError(null, A2A_ERROR_CODES.AUTHENTICATION_REQUIRED, 'Access denied'),
+            { status: 403 }
+          )
+        }
+      }
+
+      const [wf] = await db
+        .select({ isDeployed: workflow.isDeployed })
+        .from(workflow)
+        .where(and(eq(workflow.id, agent.workflowId), isNull(workflow.archivedAt)))
+        .limit(1)
+
+      if (!wf?.isDeployed) {
+        return NextResponse.json(
+          createError(null, A2A_ERROR_CODES.AGENT_UNAVAILABLE, 'Workflow is not deployed'),
+          { status: 400 }
+        )
+      }
+
+      const body = await request.json()
+
+      if (!isJSONRPCRequest(body)) {
+        return NextResponse.json(
+          createError(null, A2A_ERROR_CODES.INVALID_REQUEST, 'Invalid JSON-RPC request'),
+          { status: 400 }
+        )
+      }
+
+      const { id, method, params: rpcParams } = body
+      const requestApiKey = request.headers.get('X-API-Key')
+      const apiKey = authenticatedAuthType === AuthType.API_KEY ? requestApiKey : null
+      const isPersonalApiKeyCaller =
+        authenticatedAuthType === AuthType.API_KEY && authenticatedApiKeyType === 'personal'
+      const callerFingerprint = getCallerFingerprint(request, authenticatedUserId)
+      const billedUserId = await getWorkspaceBilledAccountUserId(agent.workspaceId)
+      if (!billedUserId) {
+        logger.error('Unable to resolve workspace billed account for A2A execution', {
+          agentId: agent.id,
+          workspaceId: agent.workspaceId,
+        })
+        return NextResponse.json(
+          createError(
+            id,
+            A2A_ERROR_CODES.INTERNAL_ERROR,
+            'Unable to resolve billing account for this workspace'
+          ),
+          { status: 500 }
+        )
+      }
+      const executionUserId =
+        isPersonalApiKeyCaller && authenticatedUserId ? authenticatedUserId : billedUserId
+
+      logger.info(`A2A request: ${method} for agent ${agentId}`)
+
+      switch (method) {
+        case A2A_METHODS.MESSAGE_SEND:
+          return handleMessageSend(
+            id,
+            agent,
+            rpcParams as MessageSendParams,
+            apiKey,
+            executionUserId,
+            callerFingerprint
+          )
+
+        case A2A_METHODS.MESSAGE_STREAM:
+          return handleMessageStream(
+            request,
+            id,
+            agent,
+            rpcParams as MessageSendParams,
+            apiKey,
+            executionUserId,
+            callerFingerprint
+          )
+
+        case A2A_METHODS.TASKS_GET:
+          return handleTaskGet(id, agent.id, rpcParams as TaskIdParams, callerFingerprint)
+
+        case A2A_METHODS.TASKS_CANCEL:
+          return handleTaskCancel(id, agent.id, rpcParams as TaskIdParams, callerFingerprint)
+
+        case A2A_METHODS.TASKS_RESUBSCRIBE:
+          return handleTaskResubscribe(
+            request,
+            id,
+            agent.id,
+            rpcParams as TaskIdParams,
+            callerFingerprint
+          )
+
+        case A2A_METHODS.PUSH_NOTIFICATION_SET:
+          return handlePushNotificationSet(
+            id,
+            agent.id,
+            rpcParams as PushNotificationSetParams,
+            callerFingerprint
+          )
+
+        case A2A_METHODS.PUSH_NOTIFICATION_GET:
+          return handlePushNotificationGet(
+            id,
+            agent.id,
+            rpcParams as TaskIdParams,
+            callerFingerprint
+          )
+
+        case A2A_METHODS.PUSH_NOTIFICATION_DELETE:
+          return handlePushNotificationDelete(
+            id,
+            agent.id,
+            rpcParams as TaskIdParams,
+            callerFingerprint
+          )
+
+        default:
+          return NextResponse.json(
+            createError(id, A2A_ERROR_CODES.METHOD_NOT_FOUND, `Method not found: ${method}`),
+            { status: 404 }
+          )
+      }
+    } catch (error) {
+      logger.error('Error handling A2A request:', error)
+      return NextResponse.json(
+        createError(null, A2A_ERROR_CODES.INTERNAL_ERROR, 'Internal error'),
+        {
+          status: 500,
+        }
+      )
     }
-  } catch (error) {
-    logger.error('Error handling A2A request:', error)
-    return NextResponse.json(createError(null, A2A_ERROR_CODES.INTERNAL_ERROR, 'Internal error'), {
-      status: 500,
-    })
   }
-}
+)
 
 async function getTaskForAgent(taskId: string, agentId: string, callerFingerprint?: string) {
   const [task] = await db.select().from(a2aTask).where(eq(a2aTask.id, taskId)).limit(1)

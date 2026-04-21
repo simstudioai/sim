@@ -6,6 +6,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { Filter, RowData, Sort, TableSchema } from '@/lib/table'
 import {
   batchInsertRows,
@@ -182,369 +183,403 @@ async function handleBatchInsert(
 }
 
 /** GET /api/v1/tables/[tableId]/rows — Query rows with filtering, sorting, pagination. */
-export async function GET(request: NextRequest, { params }: TableRowsRouteParams) {
-  const requestId = generateRequestId()
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'table-rows')
-    if (!rateLimit.allowed) {
-      return createRateLimitResponse(rateLimit)
-    }
-
-    const userId = rateLimit.userId!
-    const { tableId } = await params
-    const { searchParams } = new URL(request.url)
-
-    let filter: Record<string, unknown> | undefined
-    let sort: Sort | undefined
+export const GET = withRouteHandler(
+  async (request: NextRequest, { params }: TableRowsRouteParams) => {
+    const requestId = generateRequestId()
 
     try {
-      const filterParam = searchParams.get('filter')
-      const sortParam = searchParams.get('sort')
-      if (filterParam) {
-        filter = JSON.parse(filterParam) as Record<string, unknown>
+      const rateLimit = await checkRateLimit(request, 'table-rows')
+      if (!rateLimit.allowed) {
+        return createRateLimitResponse(rateLimit)
       }
-      if (sortParam) {
-        sort = JSON.parse(sortParam) as Sort
+
+      const userId = rateLimit.userId!
+      const { tableId } = await params
+      const { searchParams } = new URL(request.url)
+
+      let filter: Record<string, unknown> | undefined
+      let sort: Sort | undefined
+
+      try {
+        const filterParam = searchParams.get('filter')
+        const sortParam = searchParams.get('sort')
+        if (filterParam) {
+          filter = JSON.parse(filterParam) as Record<string, unknown>
+        }
+        if (sortParam) {
+          sort = JSON.parse(sortParam) as Sort
+        }
+      } catch {
+        return NextResponse.json({ error: 'Invalid filter or sort JSON' }, { status: 400 })
       }
-    } catch {
-      return NextResponse.json({ error: 'Invalid filter or sort JSON' }, { status: 400 })
-    }
 
-    const validated = QueryRowsSchema.parse({
-      workspaceId: searchParams.get('workspaceId'),
-      filter,
-      sort,
-      limit: searchParams.get('limit'),
-      offset: searchParams.get('offset'),
-    })
-
-    const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
-    if (scopeError) return scopeError
-
-    const accessResult = await checkAccess(tableId, userId, 'read')
-    if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
-
-    const { table } = accessResult
-
-    if (validated.workspaceId !== table.workspaceId) {
-      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-    }
-
-    const baseConditions = [
-      eq(userTableRows.tableId, tableId),
-      eq(userTableRows.workspaceId, validated.workspaceId),
-    ]
-
-    if (validated.filter) {
-      const filterClause = buildFilterClause(validated.filter as Filter, USER_TABLE_ROWS_SQL_NAME)
-      if (filterClause) {
-        baseConditions.push(filterClause)
-      }
-    }
-
-    let query = db
-      .select({
-        id: userTableRows.id,
-        data: userTableRows.data,
-        position: userTableRows.position,
-        createdAt: userTableRows.createdAt,
-        updatedAt: userTableRows.updatedAt,
+      const validated = QueryRowsSchema.parse({
+        workspaceId: searchParams.get('workspaceId'),
+        filter,
+        sort,
+        limit: searchParams.get('limit'),
+        offset: searchParams.get('offset'),
       })
-      .from(userTableRows)
-      .where(and(...baseConditions))
 
-    if (validated.sort) {
-      const schema = table.schema as TableSchema
-      const sortClause = buildSortClause(validated.sort, USER_TABLE_ROWS_SQL_NAME, schema.columns)
-      if (sortClause) {
-        query = query.orderBy(sortClause) as typeof query
+      const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+      if (scopeError) return scopeError
+
+      const accessResult = await checkAccess(tableId, userId, 'read')
+      if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
+
+      const { table } = accessResult
+
+      if (validated.workspaceId !== table.workspaceId) {
+        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
+      }
+
+      const baseConditions = [
+        eq(userTableRows.tableId, tableId),
+        eq(userTableRows.workspaceId, validated.workspaceId),
+      ]
+
+      if (validated.filter) {
+        const filterClause = buildFilterClause(validated.filter as Filter, USER_TABLE_ROWS_SQL_NAME)
+        if (filterClause) {
+          baseConditions.push(filterClause)
+        }
+      }
+
+      let query = db
+        .select({
+          id: userTableRows.id,
+          data: userTableRows.data,
+          position: userTableRows.position,
+          createdAt: userTableRows.createdAt,
+          updatedAt: userTableRows.updatedAt,
+        })
+        .from(userTableRows)
+        .where(and(...baseConditions))
+
+      if (validated.sort) {
+        const schema = table.schema as TableSchema
+        const sortClause = buildSortClause(validated.sort, USER_TABLE_ROWS_SQL_NAME, schema.columns)
+        if (sortClause) {
+          query = query.orderBy(sortClause) as typeof query
+        } else {
+          query = query.orderBy(userTableRows.position) as typeof query
+        }
       } else {
         query = query.orderBy(userTableRows.position) as typeof query
       }
-    } else {
-      query = query.orderBy(userTableRows.position) as typeof query
-    }
 
-    const countQuery = db
-      .select({ count: sql<number>`count(*)` })
-      .from(userTableRows)
-      .where(and(...baseConditions))
+      const countQuery = db
+        .select({ count: sql<number>`count(*)` })
+        .from(userTableRows)
+        .where(and(...baseConditions))
 
-    const [countResult, rows] = await Promise.all([
-      countQuery,
-      query.limit(validated.limit).offset(validated.offset),
-    ])
-    const totalCount = countResult[0].count
+      const [countResult, rows] = await Promise.all([
+        countQuery,
+        query.limit(validated.limit).offset(validated.offset),
+      ])
+      const totalCount = countResult[0].count
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        rows: rows.map((r) => ({
-          id: r.id,
-          data: r.data,
-          position: r.position,
-          createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
-          updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
-        })),
-        rowCount: rows.length,
-        totalCount: Number(totalCount),
-        limit: validated.limit,
-        offset: validated.offset,
-      },
-    })
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    logger.error(`[${requestId}] Error querying rows:`, error)
-    return NextResponse.json({ error: 'Failed to query rows' }, { status: 500 })
-  }
-}
-
-/** POST /api/v1/tables/[tableId]/rows — Insert row(s). Supports single or batch. */
-export async function POST(request: NextRequest, { params }: TableRowsRouteParams) {
-  const requestId = generateRequestId()
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'table-rows')
-    if (!rateLimit.allowed) {
-      return createRateLimitResponse(rateLimit)
-    }
-
-    const userId = rateLimit.userId!
-    const { tableId } = await params
-
-    let body: unknown
-    try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
-    }
-
-    if (
-      typeof body === 'object' &&
-      body !== null &&
-      'rows' in body &&
-      Array.isArray((body as Record<string, unknown>).rows)
-    ) {
-      const batchValidated = BatchInsertRowsSchema.parse(body)
-      const scopeError = checkWorkspaceScope(rateLimit, batchValidated.workspaceId)
-      if (scopeError) return scopeError
-      return handleBatchInsert(requestId, tableId, batchValidated, userId)
-    }
-
-    const validated = InsertRowSchema.parse(body)
-
-    const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
-    if (scopeError) return scopeError
-
-    const accessResult = await checkAccess(tableId, userId, 'write')
-    if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
-
-    const { table } = accessResult
-
-    if (validated.workspaceId !== table.workspaceId) {
-      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-    }
-
-    const rowData = validated.data as RowData
-
-    const validation = await validateRowData({
-      rowData,
-      schema: table.schema as TableSchema,
-      tableId,
-    })
-    if (!validation.valid) return validation.response
-
-    const row = await insertRow(
-      {
-        tableId,
-        data: rowData,
-        workspaceId: validated.workspaceId,
-        userId,
-      },
-      table,
-      requestId
-    )
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        row: {
-          id: row.id,
-          data: row.data,
-          position: row.position,
-          createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
-          updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
-        },
-        message: 'Row inserted successfully',
-      },
-    })
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    const errorMessage = toError(error).message
-
-    if (
-      errorMessage.includes('row limit') ||
-      errorMessage.includes('Insufficient capacity') ||
-      errorMessage.includes('Schema validation') ||
-      errorMessage.includes('must be unique') ||
-      errorMessage.includes('Row size exceeds')
-    ) {
-      return NextResponse.json({ error: errorMessage }, { status: 400 })
-    }
-
-    logger.error(`[${requestId}] Error inserting row:`, error)
-    return NextResponse.json({ error: 'Failed to insert row' }, { status: 500 })
-  }
-}
-
-/** PUT /api/v1/tables/[tableId]/rows — Bulk update rows by filter. */
-export async function PUT(request: NextRequest, { params }: TableRowsRouteParams) {
-  const requestId = generateRequestId()
-
-  try {
-    const rateLimit = await checkRateLimit(request, 'table-rows')
-    if (!rateLimit.allowed) {
-      return createRateLimitResponse(rateLimit)
-    }
-
-    const userId = rateLimit.userId!
-    const { tableId } = await params
-
-    let body: unknown
-    try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
-    }
-
-    const validated = UpdateRowsByFilterSchema.parse(body)
-
-    const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
-    if (scopeError) return scopeError
-
-    const accessResult = await checkAccess(tableId, userId, 'write')
-    if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
-
-    const { table } = accessResult
-
-    if (validated.workspaceId !== table.workspaceId) {
-      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-    }
-
-    const sizeValidation = validateRowSize(validated.data as RowData)
-    if (!sizeValidation.valid) {
-      return NextResponse.json(
-        { error: 'Validation error', details: sizeValidation.errors },
-        { status: 400 }
-      )
-    }
-
-    const result = await updateRowsByFilter(
-      {
-        tableId,
-        filter: validated.filter as Filter,
-        data: validated.data as RowData,
-        limit: validated.limit,
-        workspaceId: validated.workspaceId,
-      },
-      table,
-      requestId
-    )
-
-    if (result.affectedCount === 0) {
       return NextResponse.json({
         success: true,
         data: {
-          message: 'No rows matched the filter criteria',
-          updatedCount: 0,
+          rows: rows.map((r) => ({
+            id: r.id,
+            data: r.data,
+            position: r.position,
+            createdAt:
+              r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+            updatedAt:
+              r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
+          })),
+          rowCount: rows.length,
+          totalCount: Number(totalCount),
+          limit: validated.limit,
+          offset: validated.offset,
         },
       })
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return NextResponse.json(
+          { error: 'Validation error', details: error.errors },
+          { status: 400 }
+        )
+      }
+
+      logger.error(`[${requestId}] Error querying rows:`, error)
+      return NextResponse.json({ error: 'Failed to query rows' }, { status: 500 })
     }
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        message: 'Rows updated successfully',
-        updatedCount: result.affectedCount,
-        updatedRowIds: result.affectedRowIds,
-      },
-    })
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    const errorMessage = toError(error).message
-
-    if (
-      errorMessage.includes('Row size exceeds') ||
-      errorMessage.includes('Schema validation') ||
-      errorMessage.includes('must be unique') ||
-      errorMessage.includes('Unique constraint violation') ||
-      errorMessage.includes('Cannot set unique column') ||
-      errorMessage.includes('Filter is required')
-    ) {
-      return NextResponse.json({ error: errorMessage }, { status: 400 })
-    }
-
-    logger.error(`[${requestId}] Error updating rows by filter:`, error)
-    return NextResponse.json({ error: 'Failed to update rows' }, { status: 500 })
   }
-}
+)
+
+/** POST /api/v1/tables/[tableId]/rows — Insert row(s). Supports single or batch. */
+export const POST = withRouteHandler(
+  async (request: NextRequest, { params }: TableRowsRouteParams) => {
+    const requestId = generateRequestId()
+
+    try {
+      const rateLimit = await checkRateLimit(request, 'table-rows')
+      if (!rateLimit.allowed) {
+        return createRateLimitResponse(rateLimit)
+      }
+
+      const userId = rateLimit.userId!
+      const { tableId } = await params
+
+      let body: unknown
+      try {
+        body = await request.json()
+      } catch {
+        return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
+      }
+
+      if (
+        typeof body === 'object' &&
+        body !== null &&
+        'rows' in body &&
+        Array.isArray((body as Record<string, unknown>).rows)
+      ) {
+        const batchValidated = BatchInsertRowsSchema.parse(body)
+        const scopeError = checkWorkspaceScope(rateLimit, batchValidated.workspaceId)
+        if (scopeError) return scopeError
+        return handleBatchInsert(requestId, tableId, batchValidated, userId)
+      }
+
+      const validated = InsertRowSchema.parse(body)
+
+      const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+      if (scopeError) return scopeError
+
+      const accessResult = await checkAccess(tableId, userId, 'write')
+      if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
+
+      const { table } = accessResult
+
+      if (validated.workspaceId !== table.workspaceId) {
+        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
+      }
+
+      const rowData = validated.data as RowData
+
+      const validation = await validateRowData({
+        rowData,
+        schema: table.schema as TableSchema,
+        tableId,
+      })
+      if (!validation.valid) return validation.response
+
+      const row = await insertRow(
+        {
+          tableId,
+          data: rowData,
+          workspaceId: validated.workspaceId,
+          userId,
+        },
+        table,
+        requestId
+      )
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          row: {
+            id: row.id,
+            data: row.data,
+            position: row.position,
+            createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+            updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
+          },
+          message: 'Row inserted successfully',
+        },
+      })
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return NextResponse.json(
+          { error: 'Validation error', details: error.errors },
+          { status: 400 }
+        )
+      }
+
+      const errorMessage = toError(error).message
+
+      if (
+        errorMessage.includes('row limit') ||
+        errorMessage.includes('Insufficient capacity') ||
+        errorMessage.includes('Schema validation') ||
+        errorMessage.includes('must be unique') ||
+        errorMessage.includes('Row size exceeds')
+      ) {
+        return NextResponse.json({ error: errorMessage }, { status: 400 })
+      }
+
+      logger.error(`[${requestId}] Error inserting row:`, error)
+      return NextResponse.json({ error: 'Failed to insert row' }, { status: 500 })
+    }
+  }
+)
+
+/** PUT /api/v1/tables/[tableId]/rows — Bulk update rows by filter. */
+export const PUT = withRouteHandler(
+  async (request: NextRequest, { params }: TableRowsRouteParams) => {
+    const requestId = generateRequestId()
+
+    try {
+      const rateLimit = await checkRateLimit(request, 'table-rows')
+      if (!rateLimit.allowed) {
+        return createRateLimitResponse(rateLimit)
+      }
+
+      const userId = rateLimit.userId!
+      const { tableId } = await params
+
+      let body: unknown
+      try {
+        body = await request.json()
+      } catch {
+        return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
+      }
+
+      const validated = UpdateRowsByFilterSchema.parse(body)
+
+      const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+      if (scopeError) return scopeError
+
+      const accessResult = await checkAccess(tableId, userId, 'write')
+      if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
+
+      const { table } = accessResult
+
+      if (validated.workspaceId !== table.workspaceId) {
+        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
+      }
+
+      const sizeValidation = validateRowSize(validated.data as RowData)
+      if (!sizeValidation.valid) {
+        return NextResponse.json(
+          { error: 'Validation error', details: sizeValidation.errors },
+          { status: 400 }
+        )
+      }
+
+      const result = await updateRowsByFilter(
+        {
+          tableId,
+          filter: validated.filter as Filter,
+          data: validated.data as RowData,
+          limit: validated.limit,
+          workspaceId: validated.workspaceId,
+        },
+        table,
+        requestId
+      )
+
+      if (result.affectedCount === 0) {
+        return NextResponse.json({
+          success: true,
+          data: {
+            message: 'No rows matched the filter criteria',
+            updatedCount: 0,
+          },
+        })
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          message: 'Rows updated successfully',
+          updatedCount: result.affectedCount,
+          updatedRowIds: result.affectedRowIds,
+        },
+      })
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return NextResponse.json(
+          { error: 'Validation error', details: error.errors },
+          { status: 400 }
+        )
+      }
+
+      const errorMessage = toError(error).message
+
+      if (
+        errorMessage.includes('Row size exceeds') ||
+        errorMessage.includes('Schema validation') ||
+        errorMessage.includes('must be unique') ||
+        errorMessage.includes('Unique constraint violation') ||
+        errorMessage.includes('Cannot set unique column') ||
+        errorMessage.includes('Filter is required')
+      ) {
+        return NextResponse.json({ error: errorMessage }, { status: 400 })
+      }
+
+      logger.error(`[${requestId}] Error updating rows by filter:`, error)
+      return NextResponse.json({ error: 'Failed to update rows' }, { status: 500 })
+    }
+  }
+)
 
 /** DELETE /api/v1/tables/[tableId]/rows — Delete rows by filter or IDs. */
-export async function DELETE(request: NextRequest, { params }: TableRowsRouteParams) {
-  const requestId = generateRequestId()
+export const DELETE = withRouteHandler(
+  async (request: NextRequest, { params }: TableRowsRouteParams) => {
+    const requestId = generateRequestId()
 
-  try {
-    const rateLimit = await checkRateLimit(request, 'table-rows')
-    if (!rateLimit.allowed) {
-      return createRateLimitResponse(rateLimit)
-    }
-
-    const userId = rateLimit.userId!
-    const { tableId } = await params
-
-    let body: unknown
     try {
-      body = await request.json()
-    } catch {
-      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
-    }
+      const rateLimit = await checkRateLimit(request, 'table-rows')
+      if (!rateLimit.allowed) {
+        return createRateLimitResponse(rateLimit)
+      }
 
-    const validated = DeleteRowsRequestSchema.parse(body)
+      const userId = rateLimit.userId!
+      const { tableId } = await params
 
-    const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
-    if (scopeError) return scopeError
+      let body: unknown
+      try {
+        body = await request.json()
+      } catch {
+        return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
+      }
 
-    const accessResult = await checkAccess(tableId, userId, 'write')
-    if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
+      const validated = DeleteRowsRequestSchema.parse(body)
 
-    const { table } = accessResult
+      const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+      if (scopeError) return scopeError
 
-    if (validated.workspaceId !== table.workspaceId) {
-      return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
-    }
+      const accessResult = await checkAccess(tableId, userId, 'write')
+      if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
 
-    if ('rowIds' in validated) {
-      const result = await deleteRowsByIds(
-        { tableId, rowIds: validated.rowIds, workspaceId: validated.workspaceId },
+      const { table } = accessResult
+
+      if (validated.workspaceId !== table.workspaceId) {
+        return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
+      }
+
+      if ('rowIds' in validated) {
+        const result = await deleteRowsByIds(
+          { tableId, rowIds: validated.rowIds, workspaceId: validated.workspaceId },
+          requestId
+        )
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            message:
+              result.deletedCount === 0
+                ? 'No matching rows found for the provided IDs'
+                : 'Rows deleted successfully',
+            deletedCount: result.deletedCount,
+            deletedRowIds: result.deletedRowIds,
+            requestedCount: result.requestedCount,
+            ...(result.missingRowIds.length > 0 ? { missingRowIds: result.missingRowIds } : {}),
+          },
+        })
+      }
+
+      const result = await deleteRowsByFilter(
+        {
+          tableId,
+          filter: validated.filter as Filter,
+          limit: validated.limit,
+          workspaceId: validated.workspaceId,
+        },
         requestId
       )
 
@@ -552,53 +587,29 @@ export async function DELETE(request: NextRequest, { params }: TableRowsRoutePar
         success: true,
         data: {
           message:
-            result.deletedCount === 0
-              ? 'No matching rows found for the provided IDs'
+            result.affectedCount === 0
+              ? 'No rows matched the filter criteria'
               : 'Rows deleted successfully',
-          deletedCount: result.deletedCount,
-          deletedRowIds: result.deletedRowIds,
-          requestedCount: result.requestedCount,
-          ...(result.missingRowIds.length > 0 ? { missingRowIds: result.missingRowIds } : {}),
+          deletedCount: result.affectedCount,
+          deletedRowIds: result.affectedRowIds,
         },
       })
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return NextResponse.json(
+          { error: 'Validation error', details: error.errors },
+          { status: 400 }
+        )
+      }
+
+      const errorMessage = toError(error).message
+
+      if (errorMessage.includes('Filter is required')) {
+        return NextResponse.json({ error: errorMessage }, { status: 400 })
+      }
+
+      logger.error(`[${requestId}] Error deleting rows:`, error)
+      return NextResponse.json({ error: 'Failed to delete rows' }, { status: 500 })
     }
-
-    const result = await deleteRowsByFilter(
-      {
-        tableId,
-        filter: validated.filter as Filter,
-        limit: validated.limit,
-        workspaceId: validated.workspaceId,
-      },
-      requestId
-    )
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        message:
-          result.affectedCount === 0
-            ? 'No rows matched the filter criteria'
-            : 'Rows deleted successfully',
-        deletedCount: result.affectedCount,
-        deletedRowIds: result.affectedRowIds,
-      },
-    })
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    const errorMessage = toError(error).message
-
-    if (errorMessage.includes('Filter is required')) {
-      return NextResponse.json({ error: errorMessage }, { status: 400 })
-    }
-
-    logger.error(`[${requestId}] Error deleting rows:`, error)
-    return NextResponse.json({ error: 'Failed to delete rows' }, { status: 500 })
   }
-}
+)

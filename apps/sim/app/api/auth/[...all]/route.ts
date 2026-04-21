@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { createAnonymousGetSessionResponse, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { isAuthDisabled } from '@/lib/core/config/feature-flags'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +14,7 @@ function isBlockedOrganizationMutationPath(path: string): boolean {
   return path.startsWith('organization/') && !SAFE_ORGANIZATION_POST_PATHS.has(path)
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const url = new URL(request.url)
   const path = url.pathname.replace('/api/auth/', '')
 
@@ -23,9 +24,9 @@ export async function GET(request: NextRequest) {
   }
 
   return betterAuthGET(request)
-}
+})
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const url = new URL(request.url)
   const path = url.pathname.replace('/api/auth/', '')
 
@@ -37,4 +38,4 @@ export async function POST(request: NextRequest) {
   }
 
   return betterAuthPOST(request)
-}
+})

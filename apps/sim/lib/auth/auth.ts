@@ -2851,7 +2851,16 @@ export const auth = betterAuth({
       ],
     }),
     // Include SSO plugin when enabled
-    ...(env.SSO_ENABLED ? [sso()] : []),
+    ...(env.SSO_ENABLED
+      ? [
+          sso({
+            organizationProvisioning: {
+              disabled: false,
+              defaultRole: 'member',
+            },
+          }),
+        ]
+      : []),
     // Only include the Stripe plugin when billing is enabled
     ...(isBillingEnabled && stripeClient
       ? [

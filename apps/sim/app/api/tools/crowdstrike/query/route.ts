@@ -3,6 +3,7 @@ import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type {
   CrowdStrikeAggregateQuery,
   CrowdStrikeCloud,
@@ -347,7 +348,7 @@ async function postCrowdStrikeJson(
   })
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
   const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
@@ -482,4 +483,4 @@ export async function POST(request: NextRequest) {
     logger.error(`[${requestId}] CrowdStrike request failed`, { error: message })
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
-}
+})

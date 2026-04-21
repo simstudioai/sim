@@ -8,6 +8,7 @@ import { createA2AClient, extractTextContent, isTerminalState } from '@/lib/a2a/
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +31,7 @@ const A2ASendMessageSchema = z.object({
   apiKey: z.string().optional(),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -225,4 +226,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

@@ -5,6 +5,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('FormValidateAPI')
@@ -20,7 +21,7 @@ const validateQuerySchema = z.object({
 /**
  * GET endpoint to validate form identifier availability
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -68,4 +69,4 @@ export async function GET(request: NextRequest) {
     logger.error('Error validating form identifier:', error)
     return createErrorResponse(message, 500)
   }
-}
+})

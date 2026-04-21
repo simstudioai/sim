@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
@@ -35,7 +36,7 @@ const createWorkspaceSchema = z.object({
 })
 
 // Get all workspaces for the current user
-export async function GET(request: Request) {
+export const GET = withRouteHandler(async (request: Request) => {
   const session = await getSession()
 
   if (!session?.user?.id) {
@@ -168,10 +169,10 @@ export async function GET(request: Request) {
     lastActiveWorkspaceId,
     creationPolicy,
   })
-}
+})
 
 // POST /api/workspaces - Create a new workspace
-export async function POST(req: Request) {
+export const POST = withRouteHandler(async (req: Request) => {
   const session = await getSession()
 
   if (!session?.user?.id) {
@@ -243,7 +244,7 @@ export async function POST(req: Request) {
     logger.error('Error creating workspace:', error)
     return NextResponse.json({ error: 'Failed to create workspace' }, { status: 500 })
   }
-}
+})
 
 async function createDefaultWorkspace(
   userId: string,

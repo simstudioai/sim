@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   deleteWorkspaceFile,
   downloadWorkspaceFile,
@@ -29,7 +30,7 @@ interface FileRouteParams {
 }
 
 /** GET /api/v1/files/[fileId] — Download file content. */
-export async function GET(request: NextRequest, { params }: FileRouteParams) {
+export const GET = withRouteHandler(async (request: NextRequest, { params }: FileRouteParams) => {
   const requestId = generateRequestId()
 
   try {
@@ -87,73 +88,75 @@ export async function GET(request: NextRequest, { params }: FileRouteParams) {
     logger.error(`[${requestId}] Error downloading file:`, error)
     return NextResponse.json({ error: 'Failed to download file' }, { status: 500 })
   }
-}
+})
 
 /** DELETE /api/v1/files/[fileId] — Archive a file. */
-export async function DELETE(request: NextRequest, { params }: FileRouteParams) {
-  const requestId = generateRequestId()
+export const DELETE = withRouteHandler(
+  async (request: NextRequest, { params }: FileRouteParams) => {
+    const requestId = generateRequestId()
 
-  try {
-    const rateLimit = await checkRateLimit(request, 'file-detail')
-    if (!rateLimit.allowed) {
-      return createRateLimitResponse(rateLimit)
-    }
+    try {
+      const rateLimit = await checkRateLimit(request, 'file-detail')
+      if (!rateLimit.allowed) {
+        return createRateLimitResponse(rateLimit)
+      }
 
-    const userId = rateLimit.userId!
-    const { fileId } = await params
-    const { searchParams } = new URL(request.url)
+      const userId = rateLimit.userId!
+      const { fileId } = await params
+      const { searchParams } = new URL(request.url)
 
-    const validation = WorkspaceIdSchema.safeParse({
-      workspaceId: searchParams.get('workspaceId'),
-    })
-    if (!validation.success) {
-      return NextResponse.json(
-        { error: 'Validation error', details: validation.error.errors },
-        { status: 400 }
+      const validation = WorkspaceIdSchema.safeParse({
+        workspaceId: searchParams.get('workspaceId'),
+      })
+      if (!validation.success) {
+        return NextResponse.json(
+          { error: 'Validation error', details: validation.error.errors },
+          { status: 400 }
+        )
+      }
+
+      const { workspaceId } = validation.data
+
+      const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
+      if (scopeError) return scopeError
+
+      const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+      if (permission === null || permission === 'read') {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      }
+
+      const fileRecord = await getWorkspaceFile(workspaceId, fileId)
+      if (!fileRecord) {
+        return NextResponse.json({ error: 'File not found' }, { status: 404 })
+      }
+
+      await deleteWorkspaceFile(workspaceId, fileId)
+
+      logger.info(
+        `[${requestId}] Archived file: ${fileRecord.name} (${fileId}) from workspace ${workspaceId}`
       )
+
+      recordAudit({
+        workspaceId,
+        actorId: userId,
+        action: AuditAction.FILE_DELETED,
+        resourceType: AuditResourceType.FILE,
+        resourceId: fileId,
+        resourceName: fileRecord.name,
+        description: `Archived file "${fileRecord.name}" via API`,
+        metadata: { fileSize: fileRecord.size, fileType: fileRecord.type },
+        request,
+      })
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          message: 'File archived successfully',
+        },
+      })
+    } catch (error) {
+      logger.error(`[${requestId}] Error deleting file:`, error)
+      return NextResponse.json({ error: 'Failed to delete file' }, { status: 500 })
     }
-
-    const { workspaceId } = validation.data
-
-    const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
-    if (scopeError) return scopeError
-
-    const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-    if (permission === null || permission === 'read') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-    }
-
-    const fileRecord = await getWorkspaceFile(workspaceId, fileId)
-    if (!fileRecord) {
-      return NextResponse.json({ error: 'File not found' }, { status: 404 })
-    }
-
-    await deleteWorkspaceFile(workspaceId, fileId)
-
-    logger.info(
-      `[${requestId}] Archived file: ${fileRecord.name} (${fileId}) from workspace ${workspaceId}`
-    )
-
-    recordAudit({
-      workspaceId,
-      actorId: userId,
-      action: AuditAction.FILE_DELETED,
-      resourceType: AuditResourceType.FILE,
-      resourceId: fileId,
-      resourceName: fileRecord.name,
-      description: `Archived file "${fileRecord.name}" via API`,
-      metadata: { fileSize: fileRecord.size, fileType: fileRecord.type },
-      request,
-    })
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        message: 'File archived successfully',
-      },
-    })
-  } catch (error) {
-    logger.error(`[${requestId}] Error deleting file:`, error)
-    return NextResponse.json({ error: 'Failed to delete file' }, { status: 500 })
   }
-}
+)

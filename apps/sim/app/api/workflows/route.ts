@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
@@ -33,7 +34,7 @@ const CreateWorkflowSchema = z.object({
 })
 
 // GET /api/workflows - Get workflows for user (optionally filtered by workspaceId)
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   const startTime = Date.now()
   const url = new URL(request.url)
@@ -115,10 +116,10 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Workflow fetch error after ${elapsed}ms`, error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-}
+})
 
 // POST /api/workflows - Create a new workflow
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
   const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
   if (!auth.success || !auth.userId) {
@@ -334,4 +335,4 @@ export async function POST(req: NextRequest) {
     logger.error(`[${requestId}] Error creating workflow`, error)
     return NextResponse.json({ error: 'Failed to create workflow' }, { status: 500 })
   }
-}
+})

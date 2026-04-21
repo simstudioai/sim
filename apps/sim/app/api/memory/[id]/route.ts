@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('MemoryByIdAPI')
@@ -72,215 +73,223 @@ async function validateMemoryAccess(
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = generateRequestId()
-  const { id } = await params
+export const GET = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const requestId = generateRequestId()
+    const { id } = await params
 
-  try {
-    const url = new URL(request.url)
-    const workspaceId = url.searchParams.get('workspaceId')
-
-    const validation = memoryQuerySchema.safeParse({ workspaceId })
-    if (!validation.success) {
-      const errorMessage = validation.error.errors
-        .map((err) => `${err.path.join('.')}: ${err.message}`)
-        .join(', ')
-      return NextResponse.json(
-        { success: false, error: { message: errorMessage } },
-        { status: 400 }
-      )
-    }
-
-    const { workspaceId: validatedWorkspaceId } = validation.data
-
-    const accessCheck = await validateMemoryAccess(request, validatedWorkspaceId, requestId, 'read')
-    if ('error' in accessCheck) {
-      return accessCheck.error
-    }
-
-    const memories = await db
-      .select()
-      .from(memory)
-      .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
-      .orderBy(memory.createdAt)
-      .limit(1)
-
-    if (memories.length === 0) {
-      return NextResponse.json(
-        { success: false, error: { message: 'Memory not found' } },
-        { status: 404 }
-      )
-    }
-
-    const mem = memories[0]
-
-    logger.info(`[${requestId}] Memory retrieved: ${id} for workspace: ${validatedWorkspaceId}`)
-    return NextResponse.json(
-      { success: true, data: { conversationId: mem.key, data: mem.data } },
-      { status: 200 }
-    )
-  } catch (error: any) {
-    logger.error(`[${requestId}] Error retrieving memory`, { error })
-    return NextResponse.json(
-      { success: false, error: { message: error.message || 'Failed to retrieve memory' } },
-      { status: 500 }
-    )
-  }
-}
-
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const requestId = generateRequestId()
-  const { id } = await params
-
-  try {
-    const url = new URL(request.url)
-    const workspaceId = url.searchParams.get('workspaceId')
-
-    const validation = memoryQuerySchema.safeParse({ workspaceId })
-    if (!validation.success) {
-      const errorMessage = validation.error.errors
-        .map((err) => `${err.path.join('.')}: ${err.message}`)
-        .join(', ')
-      return NextResponse.json(
-        { success: false, error: { message: errorMessage } },
-        { status: 400 }
-      )
-    }
-
-    const { workspaceId: validatedWorkspaceId } = validation.data
-
-    const accessCheck = await validateMemoryAccess(
-      request,
-      validatedWorkspaceId,
-      requestId,
-      'write'
-    )
-    if ('error' in accessCheck) {
-      return accessCheck.error
-    }
-
-    const existingMemory = await db
-      .select({ id: memory.id })
-      .from(memory)
-      .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
-      .limit(1)
-
-    if (existingMemory.length === 0) {
-      return NextResponse.json(
-        { success: false, error: { message: 'Memory not found' } },
-        { status: 404 }
-      )
-    }
-
-    await db
-      .delete(memory)
-      .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
-
-    logger.info(`[${requestId}] Memory deleted: ${id} for workspace: ${validatedWorkspaceId}`)
-    return NextResponse.json(
-      { success: true, data: { message: 'Memory deleted successfully' } },
-      { status: 200 }
-    )
-  } catch (error: any) {
-    logger.error(`[${requestId}] Error deleting memory`, { error })
-    return NextResponse.json(
-      { success: false, error: { message: error.message || 'Failed to delete memory' } },
-      { status: 500 }
-    )
-  }
-}
-
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const requestId = generateRequestId()
-  const { id } = await params
-
-  try {
-    let validatedData
-    let validatedWorkspaceId
     try {
-      const body = await request.json()
-      const validation = memoryPutBodySchema.safeParse(body)
+      const url = new URL(request.url)
+      const workspaceId = url.searchParams.get('workspaceId')
 
+      const validation = memoryQuerySchema.safeParse({ workspaceId })
       if (!validation.success) {
         const errorMessage = validation.error.errors
           .map((err) => `${err.path.join('.')}: ${err.message}`)
           .join(', ')
         return NextResponse.json(
-          { success: false, error: { message: `Invalid request body: ${errorMessage}` } },
+          { success: false, error: { message: errorMessage } },
           { status: 400 }
         )
       }
 
-      validatedData = validation.data.data
-      validatedWorkspaceId = validation.data.workspaceId
-    } catch {
+      const { workspaceId: validatedWorkspaceId } = validation.data
+
+      const accessCheck = await validateMemoryAccess(
+        request,
+        validatedWorkspaceId,
+        requestId,
+        'read'
+      )
+      if ('error' in accessCheck) {
+        return accessCheck.error
+      }
+
+      const memories = await db
+        .select()
+        .from(memory)
+        .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
+        .orderBy(memory.createdAt)
+        .limit(1)
+
+      if (memories.length === 0) {
+        return NextResponse.json(
+          { success: false, error: { message: 'Memory not found' } },
+          { status: 404 }
+        )
+      }
+
+      const mem = memories[0]
+
+      logger.info(`[${requestId}] Memory retrieved: ${id} for workspace: ${validatedWorkspaceId}`)
       return NextResponse.json(
-        { success: false, error: { message: 'Invalid JSON in request body' } },
-        { status: 400 }
+        { success: true, data: { conversationId: mem.key, data: mem.data } },
+        { status: 200 }
+      )
+    } catch (error: any) {
+      logger.error(`[${requestId}] Error retrieving memory`, { error })
+      return NextResponse.json(
+        { success: false, error: { message: error.message || 'Failed to retrieve memory' } },
+        { status: 500 }
       )
     }
-
-    const accessCheck = await validateMemoryAccess(
-      request,
-      validatedWorkspaceId,
-      requestId,
-      'write'
-    )
-    if ('error' in accessCheck) {
-      return accessCheck.error
-    }
-
-    const existingMemories = await db
-      .select()
-      .from(memory)
-      .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
-      .limit(1)
-
-    if (existingMemories.length === 0) {
-      return NextResponse.json(
-        { success: false, error: { message: 'Memory not found' } },
-        { status: 404 }
-      )
-    }
-
-    const agentValidation = agentMemoryDataSchema.safeParse(validatedData)
-    if (!agentValidation.success) {
-      const errorMessage = agentValidation.error.errors
-        .map((err) => `${err.path.join('.')}: ${err.message}`)
-        .join(', ')
-      return NextResponse.json(
-        { success: false, error: { message: `Invalid agent memory data: ${errorMessage}` } },
-        { status: 400 }
-      )
-    }
-
-    const now = new Date()
-    await db
-      .update(memory)
-      .set({ data: validatedData, updatedAt: now })
-      .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
-
-    const updatedMemories = await db
-      .select()
-      .from(memory)
-      .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
-      .limit(1)
-
-    const mem = updatedMemories[0]
-
-    logger.info(`[${requestId}] Memory updated: ${id} for workspace: ${validatedWorkspaceId}`)
-    return NextResponse.json(
-      { success: true, data: { conversationId: mem.key, data: mem.data } },
-      { status: 200 }
-    )
-  } catch (error: any) {
-    logger.error(`[${requestId}] Error updating memory`, { error })
-    return NextResponse.json(
-      { success: false, error: { message: error.message || 'Failed to update memory' } },
-      { status: 500 }
-    )
   }
-}
+)
+
+export const DELETE = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const requestId = generateRequestId()
+    const { id } = await params
+
+    try {
+      const url = new URL(request.url)
+      const workspaceId = url.searchParams.get('workspaceId')
+
+      const validation = memoryQuerySchema.safeParse({ workspaceId })
+      if (!validation.success) {
+        const errorMessage = validation.error.errors
+          .map((err) => `${err.path.join('.')}: ${err.message}`)
+          .join(', ')
+        return NextResponse.json(
+          { success: false, error: { message: errorMessage } },
+          { status: 400 }
+        )
+      }
+
+      const { workspaceId: validatedWorkspaceId } = validation.data
+
+      const accessCheck = await validateMemoryAccess(
+        request,
+        validatedWorkspaceId,
+        requestId,
+        'write'
+      )
+      if ('error' in accessCheck) {
+        return accessCheck.error
+      }
+
+      const existingMemory = await db
+        .select({ id: memory.id })
+        .from(memory)
+        .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
+        .limit(1)
+
+      if (existingMemory.length === 0) {
+        return NextResponse.json(
+          { success: false, error: { message: 'Memory not found' } },
+          { status: 404 }
+        )
+      }
+
+      await db
+        .delete(memory)
+        .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
+
+      logger.info(`[${requestId}] Memory deleted: ${id} for workspace: ${validatedWorkspaceId}`)
+      return NextResponse.json(
+        { success: true, data: { message: 'Memory deleted successfully' } },
+        { status: 200 }
+      )
+    } catch (error: any) {
+      logger.error(`[${requestId}] Error deleting memory`, { error })
+      return NextResponse.json(
+        { success: false, error: { message: error.message || 'Failed to delete memory' } },
+        { status: 500 }
+      )
+    }
+  }
+)
+
+export const PUT = withRouteHandler(
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const requestId = generateRequestId()
+    const { id } = await params
+
+    try {
+      let validatedData
+      let validatedWorkspaceId
+      try {
+        const body = await request.json()
+        const validation = memoryPutBodySchema.safeParse(body)
+
+        if (!validation.success) {
+          const errorMessage = validation.error.errors
+            .map((err) => `${err.path.join('.')}: ${err.message}`)
+            .join(', ')
+          return NextResponse.json(
+            { success: false, error: { message: `Invalid request body: ${errorMessage}` } },
+            { status: 400 }
+          )
+        }
+
+        validatedData = validation.data.data
+        validatedWorkspaceId = validation.data.workspaceId
+      } catch {
+        return NextResponse.json(
+          { success: false, error: { message: 'Invalid JSON in request body' } },
+          { status: 400 }
+        )
+      }
+
+      const accessCheck = await validateMemoryAccess(
+        request,
+        validatedWorkspaceId,
+        requestId,
+        'write'
+      )
+      if ('error' in accessCheck) {
+        return accessCheck.error
+      }
+
+      const existingMemories = await db
+        .select()
+        .from(memory)
+        .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
+        .limit(1)
+
+      if (existingMemories.length === 0) {
+        return NextResponse.json(
+          { success: false, error: { message: 'Memory not found' } },
+          { status: 404 }
+        )
+      }
+
+      const agentValidation = agentMemoryDataSchema.safeParse(validatedData)
+      if (!agentValidation.success) {
+        const errorMessage = agentValidation.error.errors
+          .map((err) => `${err.path.join('.')}: ${err.message}`)
+          .join(', ')
+        return NextResponse.json(
+          { success: false, error: { message: `Invalid agent memory data: ${errorMessage}` } },
+          { status: 400 }
+        )
+      }
+
+      const now = new Date()
+      await db
+        .update(memory)
+        .set({ data: validatedData, updatedAt: now })
+        .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
+
+      const updatedMemories = await db
+        .select()
+        .from(memory)
+        .where(and(eq(memory.key, id), eq(memory.workspaceId, validatedWorkspaceId)))
+        .limit(1)
+
+      const mem = updatedMemories[0]
+
+      logger.info(`[${requestId}] Memory updated: ${id} for workspace: ${validatedWorkspaceId}`)
+      return NextResponse.json(
+        { success: true, data: { conversationId: mem.key, data: mem.data } },
+        { status: 200 }
+      )
+    } catch (error: any) {
+      logger.error(`[${requestId}] Error updating memory`, { error })
+      return NextResponse.json(
+        { success: false, error: { message: error.message || 'Failed to update memory' } },
+        { status: 500 }
+      )
+    }
+  }
+)

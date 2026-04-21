@@ -12,6 +12,7 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowCheckpointsAPI')
@@ -27,7 +28,7 @@ const CreateCheckpointSchema = z.object({
  * POST /api/copilot/checkpoints
  * Create a new checkpoint with JSON workflow state
  */
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const tracker = createRequestTracker()
 
   try {
@@ -117,13 +118,13 @@ export async function POST(req: NextRequest) {
     logger.error(`[${tracker.requestId}] Failed to create workflow checkpoint:`, error)
     return createInternalServerErrorResponse('Failed to create checkpoint')
   }
-}
+})
 
 /**
  * GET /api/copilot/checkpoints?chatId=xxx
  * Retrieve workflow checkpoints for a chat
  */
-export async function GET(req: NextRequest) {
+export const GET = withRouteHandler(async (req: NextRequest) => {
   const tracker = createRequestTracker()
 
   try {
@@ -174,4 +175,4 @@ export async function GET(req: NextRequest) {
     logger.error(`[${tracker.requestId}] Failed to fetch workflow checkpoints:`, error)
     return createInternalServerErrorResponse('Failed to fetch checkpoints')
   }
-}
+})

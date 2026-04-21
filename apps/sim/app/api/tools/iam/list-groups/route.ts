@@ -3,6 +3,7 @@ import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createIAMClient, listGroups } from '../utils'
 
 const logger = createLogger('IAMListGroupsAPI')
@@ -16,7 +17,7 @@ const Schema = z.object({
   marker: z.string().optional(),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
   const auth = await checkInternalAuth(request)
@@ -58,4 +59,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

@@ -28,6 +28,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
 
 const logger = createLogger('LogsAPI')
@@ -40,7 +41,7 @@ const QueryParamsSchema = LogFilterParamsSchema.extend({
   offset: z.coerce.number().optional().default(0),
 })
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -606,4 +607,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] logs fetch error`, error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-}
+})

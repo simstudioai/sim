@@ -4,10 +4,11 @@ import { and, asc, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { parsePermissionGroupConfig } from '@/lib/permission-groups/types'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
-export async function GET(req: Request) {
+export const GET = withRouteHandler(async (req: Request) => {
   const session = await getSession()
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -70,4 +71,4 @@ export async function GET(req: Request) {
     config: parsePermissionGroupConfig(groupMembership.config),
     entitled: true,
   })
-}
+})

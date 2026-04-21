@@ -1,0 +1,106 @@
+---
+title: Whitelabeling
+description: Replace Sim branding with your own logo, colors, and links
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
+import { Image } from '@/components/ui/image'
+
+Whitelabeling lets you replace Sim's default branding — logo, colors, and support links — with your own. Members of your organization see your brand instead of Sim's throughout the workspace.
+
+---
+
+## Setup
+
+### 1. Open Whitelabeling settings
+
+Go to **Settings → Enterprise → Whitelabeling** in your workspace.
+
+<Image src="/static/enterprise/whitelabeling.png" alt="Whitelabeling settings showing brand identity fields (Logo, Wordmark, Brand name), color pickers for primary and accent colors, and link fields for support email and documentation URL" width={900} height={500} />
+
+### 2. Configure brand identity
+
+| Field | Description |
+|-------|-------------|
+| **Logo** | Shown in the collapsed sidebar. Square image (PNG, JPEG, SVG, or WebP). Max 5 MB. |
+| **Wordmark** | Shown in the expanded sidebar. Wide image (PNG, JPEG, SVG, or WebP). Max 5 MB. |
+| **Brand name** | Replaces "Sim" in the sidebar and select UI elements. Max 64 characters. |
+
+
+### 3. Configure colors
+
+All colors must be valid hex values (e.g. `#701ffc`).
+
+| Field | Description |
+|-------|-------------|
+| **Primary color** | Main accent color used for buttons and active states. |
+| **Primary hover color** | Color shown when hovering over primary elements. |
+| **Accent color** | Secondary accent for highlights and secondary interactive elements. |
+| **Accent hover color** | Color shown when hovering over accent elements. |
+
+### 4. Configure links
+
+Replace Sim's default support and legal links with your own.
+
+| Field | Description |
+|-------|-------------|
+| **Support email** | Shown in help prompts. Must be a valid email address. |
+| **Documentation URL** | Link to your internal documentation. Must be a valid URL. |
+| **Terms of service URL** | Link to your terms page. Must be a valid URL. |
+| **Privacy policy URL** | Link to your privacy page. Must be a valid URL. |
+
+### 5. Save
+
+Click **Save changes**. The new branding is applied immediately for all members of your organization.
+
+---
+
+## What gets replaced
+
+Whitelabeling replaces the following visual elements:
+
+- **Sidebar logo and wordmark** — your uploaded images replace the Sim logo
+- **Brand name** — appears in the sidebar and select UI labels
+- **Primary and accent colors** — applied to buttons, active states, and highlights
+- **Support and legal links** — help prompts and footer links point to your URLs
+
+<Callout type="info">
+  Whitelabeling applies only to members of your organization. Public-facing pages (login, marketing) are not affected.
+</Callout>
+
+---
+
+<FAQ items={[
+  {
+    question: "Who can configure whitelabeling?",
+    answer: "Organization owners and admins can configure whitelabeling. On Sim Cloud, you must be on the Enterprise plan."
+  },
+  {
+    question: "What image formats are supported?",
+    answer: "PNG, JPEG, SVG, and WebP. Maximum file size is 5 MB for both the logo and wordmark."
+  },
+  {
+    question: "What is the difference between the logo and the wordmark?",
+    answer: "The logo is a square image shown in the collapsed sidebar. The wordmark is a wide image shown in the expanded sidebar alongside member names and navigation items."
+  },
+  {
+    question: "Do members outside my organization see the custom branding?",
+    answer: "No. Custom branding is scoped to your organization. Members see your branding when signed in to your organization's workspace."
+  }
+]} />
+
+---
+
+## Self-hosted setup
+
+Self-hosted deployments use environment variables instead of the billing/plan check.
+
+### Environment variables
+
+```bash
+WHITELABELING_ENABLED=true
+NEXT_PUBLIC_WHITELABELING_ENABLED=true
+```
+
+Once enabled, configure branding through **Settings → Enterprise → Whitelabeling** the same way as Sim Cloud.

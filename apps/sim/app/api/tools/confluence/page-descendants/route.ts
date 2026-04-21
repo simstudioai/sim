@@ -6,6 +6,7 @@ import {
   validateJiraCloudId,
   validatePaginationCursor,
 } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
@@ -17,7 +18,7 @@ export const dynamic = 'force-dynamic'
  * Get all descendants of a Confluence page recursively.
  * Uses GET /wiki/api/v2/pages/{id}/descendants
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
@@ -114,4 +115,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

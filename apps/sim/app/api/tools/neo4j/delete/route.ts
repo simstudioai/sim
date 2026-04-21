@@ -3,6 +3,7 @@ import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createNeo4jDriver, validateCypherQuery } from '@/app/api/tools/neo4j/utils'
 
 const logger = createLogger('Neo4jDeleteAPI')
@@ -19,7 +20,7 @@ const DeleteSchema = z.object({
   detach: z.boolean().optional().default(false),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
   let driver = null
   let session = null
@@ -107,4 +108,4 @@ export async function POST(request: NextRequest) {
       await driver.close()
     }
   }
-}
+})

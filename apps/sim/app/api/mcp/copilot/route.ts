@@ -29,6 +29,7 @@ import { DIRECT_TOOL_DEFS, SUBAGENT_TOOL_DEFS } from '@/lib/copilot/tools/mcp/de
 import { env } from '@/lib/core/config/env'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   authorizeWorkflowByWorkspacePermission,
   resolveWorkflowIdForUser,
@@ -526,14 +527,14 @@ async function handleMcpRequestWithSdk(
   }
 }
 
-export async function GET() {
+export const GET = withRouteHandler(async () => {
   // Return 405 to signal that server-initiated SSE notifications are not
   // supported.  Without this, clients like mcp-remote will repeatedly
   // reconnect trying to open an SSE stream, flooding the logs with GETs.
   return new NextResponse(null, { status: 405 })
-}
+})
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const hasAuth = request.headers.has('authorization') || request.headers.has('x-api-key')
 
   if (!hasAuth) {
@@ -566,9 +567,9 @@ export async function POST(request: NextRequest) {
       status: 500,
     })
   }
-}
+})
 
-export async function OPTIONS() {
+export const OPTIONS = withRouteHandler(async () => {
   return new NextResponse(null, {
     status: 204,
     headers: {
@@ -579,12 +580,12 @@ export async function OPTIONS() {
       'Access-Control-Max-Age': '86400',
     },
   })
-}
+})
 
-export async function DELETE(request: NextRequest) {
+export const DELETE = withRouteHandler(async (request: NextRequest) => {
   void request
   return NextResponse.json(createError(0, -32000, 'Method not allowed.'), { status: 405 })
-}
+})
 
 /**
  * Increment MCP copilot call counter in userStats (fire-and-forget).

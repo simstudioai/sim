@@ -12,12 +12,13 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OneDriveFoldersAPI')
 
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { MicrosoftGraphDriveItem } from '@/tools/onedrive/types'
 
 /**
  * Get folders from Microsoft OneDrive
  */
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
   try {
@@ -114,4 +115,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching folders from OneDrive`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})

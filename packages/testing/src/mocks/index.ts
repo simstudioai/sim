@@ -108,6 +108,14 @@ export {
 } from './socket.mock'
 // Storage mocks
 export { clearStorageMocks, createMockStorage, setupGlobalStorageMocks } from './storage.mock'
+// Stripe mocks
+export {
+  createMockStripeEvent,
+  stripeClientMock,
+  stripeClientMockFns,
+  stripePaymentMethodMock,
+  stripePaymentMethodMockFns,
+} from './stripe.mock'
 // Telemetry mocks
 export { telemetryMock } from './telemetry.mock'
 // URL mocks

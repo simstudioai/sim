@@ -3,6 +3,7 @@ import { generateShortId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { pollInactivityAlerts } from '@/lib/notifications/inactivity-polling'
 
 const logger = createLogger('InactivityAlertPoll')
@@ -12,7 +13,7 @@ export const maxDuration = 120
 const LOCK_KEY = 'inactivity-alert-polling-lock'
 const LOCK_TTL_SECONDS = 120
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateShortId()
   logger.info(`Inactivity alert polling triggered (${requestId})`)
 
@@ -63,4 +64,4 @@ export async function GET(request: NextRequest) {
       await releaseLock(LOCK_KEY, requestId).catch(() => {})
     }
   }
-}
+})

@@ -1,48 +1,20 @@
 /**
  * @vitest-environment node
  */
-import { schemaMock } from '@sim/testing'
+import { dbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockDbState,
   mockCreateOrganizationWithOwner,
   mockAttachOwnedWorkspacesToOrganization,
   mockGetOrganizationIdForSubscriptionReference,
 } = vi.hoisted(() => ({
-  mockDbState: {
-    selectResults: [] as any[],
-  },
   mockCreateOrganizationWithOwner: vi.fn(),
   mockAttachOwnedWorkspacesToOrganization: vi.fn(),
   mockGetOrganizationIdForSubscriptionReference: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn().mockImplementation(() => {
-      const chain: any = {}
-      chain.from = vi.fn().mockReturnValue(chain)
-      chain.where = vi.fn().mockReturnValue(chain)
-      chain.limit = vi
-        .fn()
-        .mockImplementation(() => Promise.resolve(mockDbState.selectResults.shift() ?? []))
-      chain.then = vi
-        .fn()
-        .mockImplementation((callback: (rows: any[]) => any) =>
-          Promise.resolve(callback(mockDbState.selectResults.shift() ?? []))
-        )
-      return chain
-    }),
-    update: vi.fn(),
-  },
-}))
-
-vi.mock('@sim/db/schema', () => schemaMock)
-
-vi.mock('@/lib/billing', () => ({
-  hasPaidSubscription: vi.fn(),
-}))
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/core/billing', () => ({
   getPlanPricing: vi.fn(),
@@ -74,7 +46,6 @@ import { ensureOrganizationForTeamSubscription } from '@/lib/billing/organizatio
 describe('ensureOrganizationForTeamSubscription', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDbState.selectResults = []
     mockGetOrganizationIdForSubscriptionReference.mockResolvedValue(null)
   })
 

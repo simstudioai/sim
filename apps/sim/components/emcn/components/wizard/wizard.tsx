@@ -147,25 +147,23 @@ const WizardRoot: React.FC<WizardProps> = ({
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
       <ModalContent size={size} className={height}>
-        <ModalHeader>
-          <div className='flex items-baseline justify-between gap-3'>
-            <span>{activeStep?.props.title}</span>
-            <span className='font-normal text-[var(--text-muted)] text-xs'>
-              Step {clamped + 1} of {total}
-            </span>
-          </div>
-        </ModalHeader>
+        <ModalHeader>{activeStep?.props.title}</ModalHeader>
 
-        <div className='flex gap-1.5 px-6 pb-4'>
-          {steps.map((_step, i) => (
-            <div
-              key={i}
-              className={cn(
-                'h-1 flex-1 rounded-full transition-colors',
-                i <= clamped ? 'bg-[var(--brand-secondary)]' : 'bg-[var(--surface-5)]'
-              )}
-            />
-          ))}
+        <div className='flex items-center justify-between px-4 pb-4'>
+          <div className='flex flex-1 gap-1.5'>
+            {steps.map((_step, i) => (
+              <div
+                key={i}
+                className={cn(
+                  'h-1 flex-1 rounded-full transition-colors',
+                  i <= clamped ? 'bg-[var(--brand-secondary)]' : 'bg-[var(--surface-5)]'
+                )}
+              />
+            ))}
+          </div>
+          <span className='ml-3 shrink-0 font-normal text-[var(--text-muted)] text-xs'>
+            {clamped + 1}/{total}
+          </span>
         </div>
 
         <ModalBody>{activeStep}</ModalBody>

@@ -28,6 +28,7 @@ export const featureFlagsMock = {
   isInboxEnabled: false,
   isWhitelabelingEnabled: false,
   isAuditLogsEnabled: false,
+  isDataRetentionEnabled: false,
   isE2bEnabled: false,
   isOllamaConfigured: false,
   isAzureConfigured: false,

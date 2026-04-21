@@ -8,6 +8,7 @@ import { getSession } from '@/lib/auth'
 import { getUserOrganization } from '@/lib/billing/organizations/membership'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { listInvitationsForWorkspaces, normalizeEmail } from '@/lib/invitations/core'
 import {
   cancelPendingInvitation,
@@ -29,7 +30,7 @@ const logger = createLogger('WorkspaceInvitationsAPI')
 
 type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 
-export async function GET(req: NextRequest) {
+export const GET = withRouteHandler(async (req: NextRequest) => {
   const session = await getSession()
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -59,9 +60,9 @@ export async function GET(req: NextRequest) {
     logger.error('Error fetching workspace invitations:', error)
     return NextResponse.json({ error: 'Failed to fetch invitations' }, { status: 500 })
   }
-}
+})
 
-export async function POST(req: NextRequest) {
+export const POST = withRouteHandler(async (req: NextRequest) => {
   const session = await getSession()
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -297,4 +298,4 @@ export async function POST(req: NextRequest) {
     logger.error('Error creating workspace invitation:', error)
     return NextResponse.json({ error: 'Failed to create invitation' }, { status: 500 })
   }
-}
+})

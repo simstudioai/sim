@@ -8,12 +8,12 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { hasPaidSubscription } from '@/lib/billing'
 import { getPlanPricing } from '@/lib/billing/core/billing'
 import { getOrganizationIdForSubscriptionReference } from '@/lib/billing/core/subscription'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
 import { isEnterprise, isOrgPlan, isPaid } from '@/lib/billing/plan-helpers'
+import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { attachOwnedWorkspacesToOrganization } from '@/lib/workspaces/organization-workspaces'
 
@@ -134,25 +134,74 @@ export async function ensureOrganizationForTeamSubscription(
   if (existingMembership.length > 0) {
     const membership = existingMembership[0]
     if (membership.role === 'owner' || membership.role === 'admin') {
-      // Check if org already has an active subscription (prevent duplicates)
-      if (await hasPaidSubscription(membership.organizationId)) {
-        logger.error('Organization already has an active subscription', {
-          userId,
-          organizationId: membership.organizationId,
-          newSubscriptionId: subscription.id,
-        })
-        throw new Error('Organization already has an active subscription')
-      }
+      /**
+       * Atomic duplicate-subscription check + referenceId transfer.
+       *
+       * Row-level locks (`FOR UPDATE`) on the subscription and target
+       * organization rows prevent a TOCTOU race between the "org has no
+       * paid subscription" check and the transfer write — which could
+       * otherwise let two concurrent webhook deliveries or org-creation
+       * flows both pass the check and attach two subscriptions to the
+       * same organization.
+       */
+      await db.transaction(async (tx) => {
+        const [lockedSub] = await tx
+          .select({
+            id: subscriptionTable.id,
+            referenceId: subscriptionTable.referenceId,
+          })
+          .from(subscriptionTable)
+          .where(eq(subscriptionTable.id, subscription.id))
+          .for('update')
+
+        if (!lockedSub) {
+          throw new Error(`Subscription ${subscription.id} not found during transfer`)
+        }
+
+        if (lockedSub.referenceId === membership.organizationId) {
+          return
+        }
+
+        const [lockedOrg] = await tx
+          .select({ id: organization.id })
+          .from(organization)
+          .where(eq(organization.id, membership.organizationId))
+          .for('update')
+
+        if (!lockedOrg) {
+          throw new Error(`Organization ${membership.organizationId} not found during transfer`)
+        }
+
+        const [existingOrgSub] = await tx
+          .select({ id: subscriptionTable.id })
+          .from(subscriptionTable)
+          .where(
+            and(
+              eq(subscriptionTable.referenceId, membership.organizationId),
+              inArray(subscriptionTable.status, ENTITLED_SUBSCRIPTION_STATUSES)
+            )
+          )
+          .limit(1)
+
+        if (existingOrgSub) {
+          logger.error('Organization already has an active subscription', {
+            userId,
+            organizationId: membership.organizationId,
+            newSubscriptionId: subscription.id,
+          })
+          throw new Error('Organization already has an active subscription')
+        }
+
+        await tx
+          .update(subscriptionTable)
+          .set({ referenceId: membership.organizationId })
+          .where(eq(subscriptionTable.id, subscription.id))
+      })
 
       logger.info('User already owns/admins an org, using it', {
         userId,
         organizationId: membership.organizationId,
       })
-
-      await db
-        .update(subscriptionTable)
-        .set({ referenceId: membership.organizationId })
-        .where(eq(subscriptionTable.id, subscription.id))
 
       await attachOwnedWorkspacesToOrganization({
         ownerUserId: userId,

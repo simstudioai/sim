@@ -1,34 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { schemaMock } from '@sim/testing'
+import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDbResults, mockFeatureFlags, mockGetOrganizationSubscription } = vi.hoisted(() => ({
-  mockDbResults: { value: [] as any[] },
+const { mockFeatureFlags, mockGetOrganizationSubscription } = vi.hoisted(() => ({
   mockFeatureFlags: { isBillingEnabled: false },
   mockGetOrganizationSubscription: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn().mockImplementation(() => {
-      const chain: any = {}
-      chain.from = vi.fn().mockReturnValue(chain)
-      chain.where = vi.fn().mockReturnValue(chain)
-      chain.limit = vi
-        .fn()
-        .mockImplementation(() => Promise.resolve(mockDbResults.value.shift() ?? []))
-      chain.then = vi.fn().mockImplementation((callback: (rows: any[]) => unknown) => {
-        const rows = mockDbResults.value.shift() ?? []
-        return Promise.resolve(callback(rows))
-      })
-      return chain
-    }),
-  },
-}))
-
-vi.mock('@sim/db/schema', () => schemaMock)
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/core/billing', () => ({
   getOrganizationSubscription: mockGetOrganizationSubscription,
@@ -56,16 +37,36 @@ vi.mock('@/lib/messaging/email/validation', () => ({
 
 import { getOrganizationSeatInfo } from '@/lib/billing/validation/seat-management'
 
+/**
+ * Queues the next N responses for `db.select().from(...).where(...)` calls,
+ * supporting both `.limit(1)` and directly-awaited `where` chains.
+ */
+function queueSelectResponses(responses: unknown[][]) {
+  const queue = [...responses]
+  dbChainMockFns.where.mockImplementation(() => {
+    const result = queue.shift() ?? []
+    const thenable = {
+      limit: vi.fn(() => Promise.resolve(result)),
+      orderBy: vi.fn(() => Promise.resolve(result)),
+      returning: vi.fn(() => Promise.resolve(result)),
+      groupBy: vi.fn(() => Promise.resolve(result)),
+      then: (onFulfilled: (rows: unknown) => unknown, onRejected?: (reason: unknown) => unknown) =>
+        Promise.resolve(result).then(onFulfilled, onRejected),
+    }
+    return thenable as unknown as ReturnType<typeof dbChainMockFns.where>
+  })
+}
+
 describe('getOrganizationSeatInfo', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDbResults.value = []
+    resetDbChainMock()
     mockFeatureFlags.isBillingEnabled = false
     mockGetOrganizationSubscription.mockResolvedValue(null)
   })
 
   it('returns unlimited seat info when billing is disabled', async () => {
-    mockDbResults.value = [[{ id: 'org-1', name: 'Acme' }], [{ count: 3 }], [{ count: 2 }]]
+    queueSelectResponses([[{ id: 'org-1', name: 'Acme' }], [{ count: 3 }], [{ count: 2 }]])
 
     const result = await getOrganizationSeatInfo('org-1')
 

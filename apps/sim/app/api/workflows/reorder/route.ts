@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkflowReorderAPI')
@@ -21,7 +22,7 @@ const ReorderSchema = z.object({
   ),
 })
 
-export async function PUT(req: NextRequest) {
+export const PUT = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
   const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
   if (!auth.success || !auth.userId) {
@@ -88,4 +89,4 @@ export async function PUT(req: NextRequest) {
     logger.error(`[${requestId}] Error reordering workflows`, error)
     return NextResponse.json({ error: 'Failed to reorder workflows' }, { status: 500 })
   }
-}
+})

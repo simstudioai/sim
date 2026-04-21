@@ -11,6 +11,7 @@ interface AvailableModel {
 }
 
 import { env } from '@/lib/core/config/env'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotModelsAPI')
 
@@ -30,7 +31,7 @@ function isRawAvailableModel(item: unknown): item is RawAvailableModel {
   )
 }
 
-export async function GET(_req: NextRequest) {
+export const GET = withRouteHandler(async (_req: NextRequest) => {
   const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
   if (!isAuthenticated || !userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -88,4 +89,4 @@ export async function GET(_req: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

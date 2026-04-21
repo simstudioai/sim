@@ -6,6 +6,7 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import {
   getExtensionFromMimeType,
@@ -58,7 +59,7 @@ interface ExcelRangeData {
   values?: unknown[][]
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -437,4 +438,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

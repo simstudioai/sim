@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getScopesForService } from '@/lib/oauth/utils'
 import {
   getServiceAccountToken,
@@ -18,7 +19,7 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('GmailLabelAPI')
 
-export async function GET(request: NextRequest) {
+export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
@@ -151,4 +152,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching Gmail label:`, error)
     return NextResponse.json({ error: 'Failed to fetch Gmail label' }, { status: 500 })
   }
-}
+})

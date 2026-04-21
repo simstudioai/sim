@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withMcpAuth } from '@/lib/mcp/middleware'
 import { mcpService } from '@/lib/mcp/service'
 import type { McpServerStatusConfig, McpTool, McpToolSchema } from '@/lib/mcp/types'
@@ -154,103 +155,107 @@ async function syncToolSchemasToWorkflows(
   }
 }
 
-export const POST = withMcpAuth<{ id: string }>('read')(
-  async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
-    const { id: serverId } = await params
-
-    try {
-      logger.info(`[${requestId}] Refreshing MCP server: ${serverId}`)
-
-      const [server] = await db
-        .select()
-        .from(mcpServers)
-        .where(
-          and(
-            eq(mcpServers.id, serverId),
-            eq(mcpServers.workspaceId, workspaceId),
-            isNull(mcpServers.deletedAt)
-          )
-        )
-        .limit(1)
-
-      if (!server) {
-        return createMcpErrorResponse(
-          new Error('Server not found or access denied'),
-          'Server not found',
-          404
-        )
-      }
-
-      let connectionStatus: 'connected' | 'disconnected' | 'error' = 'error'
-      let toolCount = 0
-      let lastError: string | null = null
-      let syncResult: SyncResult = { updatedCount: 0, updatedWorkflowIds: [] }
-      let discoveredTools: McpTool[] = []
-
-      const currentStatusConfig: McpServerStatusConfig =
-        (server.statusConfig as McpServerStatusConfig | null) ?? {
-          consecutiveFailures: 0,
-          lastSuccessfulDiscovery: null,
-        }
+export const POST = withRouteHandler(
+  withMcpAuth<{ id: string }>('read')(
+    async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+      const { id: serverId } = await params
 
       try {
-        discoveredTools = await mcpService.discoverServerTools(userId, serverId, workspaceId)
-        connectionStatus = 'connected'
-        toolCount = discoveredTools.length
-        logger.info(`[${requestId}] Discovered ${toolCount} tools from server ${serverId}`)
+        logger.info(`[${requestId}] Refreshing MCP server: ${serverId}`)
 
-        syncResult = await syncToolSchemasToWorkflows(
-          workspaceId,
-          serverId,
-          discoveredTools,
-          requestId,
-          { url: server.url ?? undefined, name: server.name ?? undefined }
-        )
-      } catch (error) {
-        connectionStatus = 'error'
-        lastError =
-          error instanceof Error ? error.message.split('\n')[0].slice(0, 200) : 'Connection failed'
-        logger.warn(`[${requestId}] Failed to connect to server ${serverId}:`, error)
-      }
+        const [server] = await db
+          .select()
+          .from(mcpServers)
+          .where(
+            and(
+              eq(mcpServers.id, serverId),
+              eq(mcpServers.workspaceId, workspaceId),
+              isNull(mcpServers.deletedAt)
+            )
+          )
+          .limit(1)
 
-      const now = new Date()
-      const newStatusConfig =
-        connectionStatus === 'connected'
-          ? { consecutiveFailures: 0, lastSuccessfulDiscovery: now.toISOString() }
-          : {
-              consecutiveFailures: currentStatusConfig.consecutiveFailures + 1,
-              lastSuccessfulDiscovery: currentStatusConfig.lastSuccessfulDiscovery,
-            }
+        if (!server) {
+          return createMcpErrorResponse(
+            new Error('Server not found or access denied'),
+            'Server not found',
+            404
+          )
+        }
 
-      const [refreshedServer] = await db
-        .update(mcpServers)
-        .set({
-          lastToolsRefresh: now,
-          connectionStatus,
-          lastError,
-          lastConnected: connectionStatus === 'connected' ? now : server.lastConnected,
+        let connectionStatus: 'connected' | 'disconnected' | 'error' = 'error'
+        let toolCount = 0
+        let lastError: string | null = null
+        let syncResult: SyncResult = { updatedCount: 0, updatedWorkflowIds: [] }
+        let discoveredTools: McpTool[] = []
+
+        const currentStatusConfig: McpServerStatusConfig =
+          (server.statusConfig as McpServerStatusConfig | null) ?? {
+            consecutiveFailures: 0,
+            lastSuccessfulDiscovery: null,
+          }
+
+        try {
+          discoveredTools = await mcpService.discoverServerTools(userId, serverId, workspaceId)
+          connectionStatus = 'connected'
+          toolCount = discoveredTools.length
+          logger.info(`[${requestId}] Discovered ${toolCount} tools from server ${serverId}`)
+
+          syncResult = await syncToolSchemasToWorkflows(
+            workspaceId,
+            serverId,
+            discoveredTools,
+            requestId,
+            { url: server.url ?? undefined, name: server.name ?? undefined }
+          )
+        } catch (error) {
+          connectionStatus = 'error'
+          lastError =
+            error instanceof Error
+              ? error.message.split('\n')[0].slice(0, 200)
+              : 'Connection failed'
+          logger.warn(`[${requestId}] Failed to connect to server ${serverId}:`, error)
+        }
+
+        const now = new Date()
+        const newStatusConfig =
+          connectionStatus === 'connected'
+            ? { consecutiveFailures: 0, lastSuccessfulDiscovery: now.toISOString() }
+            : {
+                consecutiveFailures: currentStatusConfig.consecutiveFailures + 1,
+                lastSuccessfulDiscovery: currentStatusConfig.lastSuccessfulDiscovery,
+              }
+
+        const [refreshedServer] = await db
+          .update(mcpServers)
+          .set({
+            lastToolsRefresh: now,
+            connectionStatus,
+            lastError,
+            lastConnected: connectionStatus === 'connected' ? now : server.lastConnected,
+            toolCount,
+            statusConfig: newStatusConfig,
+            updatedAt: now,
+          })
+          .where(eq(mcpServers.id, serverId))
+          .returning()
+
+        if (connectionStatus === 'connected') {
+          await mcpService.clearCache(workspaceId)
+        }
+
+        return createMcpSuccessResponse({
+          status: connectionStatus,
           toolCount,
-          statusConfig: newStatusConfig,
-          updatedAt: now,
+          lastConnected: refreshedServer?.lastConnected?.toISOString() || null,
+          error: lastError,
+          workflowsUpdated: syncResult.updatedCount,
+          updatedWorkflowIds: syncResult.updatedWorkflowIds,
         })
-        .where(eq(mcpServers.id, serverId))
-        .returning()
-
-      if (connectionStatus === 'connected') {
-        await mcpService.clearCache(workspaceId)
+      } catch (error) {
+        logger.error(`[${requestId}] Error refreshing MCP server:`, error)
+        return createMcpErrorResponse(toError(error), 'Failed to refresh MCP server', 500)
       }
-
-      return createMcpSuccessResponse({
-        status: connectionStatus,
-        toolCount,
-        lastConnected: refreshedServer?.lastConnected?.toISOString() || null,
-        error: lastError,
-        workflowsUpdated: syncResult.updatedCount,
-        updatedWorkflowIds: syncResult.updatedWorkflowIds,
-      })
-    } catch (error) {
-      logger.error(`[${requestId}] Error refreshing MCP server:`, error)
-      return createMcpErrorResponse(toError(error), 'Failed to refresh MCP server', 500)
     }
-  }
+  )
 )

@@ -1,11 +1,12 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { Loader2, X } from 'lucide-react'
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
-import { Button, Input, Label } from '@/components/emcn'
+import { Button, Input, Label, Skeleton, toast } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
@@ -13,6 +14,7 @@ import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
+import { SettingRow } from '@/ee/components/setting-row'
 import {
   useUpdateWhitelabelSettings,
   useWhitelabelSettings,
@@ -32,39 +34,28 @@ interface DropZoneProps {
 function DropZone({ onDrop, children, className }: DropZoneProps) {
   const [isDragging, setIsDragging] = useState(false)
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes('Files')) {
-      e.preventDefault()
-      setIsDragging(true)
-    }
-  }, [])
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-      setIsDragging(false)
-    }
-  }, [])
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      setIsDragging(false)
-      onDrop(e)
-    },
-    [onDrop]
-  )
-
   return (
     <div
       className={cn('relative', className)}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes('Files')) {
+          e.preventDefault()
+          setIsDragging(true)
+        }
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          setIsDragging(false)
+        }
+      }}
+      onDrop={(e) => {
+        setIsDragging(false)
+        onDrop(e)
+      }}
     >
       {children}
       {isDragging && (
-        <div className='pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg border-[1.5px] border-[var(--brand)] border-dashed bg-[color-mix(in_srgb,var(--brand)_8%,transparent)]'>
-          <span className='font-medium text-[12px] text-[var(--brand)]'>Drop image</span>
-        </div>
+        <div className='pointer-events-none absolute inset-0 z-10 rounded-lg border-[1.5px] border-[var(--brand)] border-dashed bg-[color-mix(in_srgb,var(--brand)_8%,transparent)]' />
       )}
     </div>
   )
@@ -80,22 +71,6 @@ interface ColorInputProps {
 function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorInputProps) {
   const isValidHex = !value || HEX_COLOR_REGEX.test(value)
 
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      let v = e.target.value.trim()
-      if (v && !v.startsWith('#')) {
-        v = `#${v}`
-      }
-      v = v.slice(0, 1) + v.slice(1).replace(/[^0-9a-fA-F]/g, '')
-      onChange(v.slice(0, 7))
-    },
-    [onChange]
-  )
-
-  const handleFocus = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
-    e.target.select()
-  }, [])
-
   return (
     <div className='flex flex-col gap-1.5'>
       <Label className='text-[13px] text-[var(--text-primary)]'>{label}</Label>
@@ -109,35 +84,28 @@ function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorIn
         </div>
         <Input
           value={value}
-          onChange={handleChange}
-          onFocus={handleFocus}
+          onChange={(e) => {
+            let v = e.target.value.trim()
+            if (v && !v.startsWith('#')) {
+              v = `#${v}`
+            }
+            v = v.slice(0, 1) + v.slice(1).replace(/[^0-9a-fA-F]/g, '')
+            onChange(v.slice(0, 7))
+          }}
+          onFocus={(e) => e.target.select()}
           placeholder={placeholder}
           className={cn(
             'h-[36px] font-mono text-[13px]',
-            !isValidHex && 'border-red-500 focus-visible:ring-red-500'
+            !isValidHex && 'border-[var(--text-error)] focus-visible:ring-[var(--text-error)]'
           )}
           maxLength={7}
         />
       </div>
       {!isValidHex && (
-        <p className='text-[12px] text-red-500'>Must be a valid hex color (e.g. #701ffc)</p>
+        <p className='text-[12px] text-[var(--text-error)]'>
+          Must be a valid hex color (e.g. #701ffc)
+        </p>
       )}
-    </div>
-  )
-}
-
-interface SettingRowProps {
-  label: string
-  description?: string
-  children: React.ReactNode
-}
-
-function SettingRow({ label, description, children }: SettingRowProps) {
-  return (
-    <div className='flex flex-col gap-1.5'>
-      <Label className='text-[13px] text-[var(--text-primary)]'>{label}</Label>
-      {description && <p className='text-[12px] text-[var(--text-muted)]'>{description}</p>}
-      {children}
     </div>
   )
 }
@@ -176,29 +144,60 @@ export function WhitelabelingSettings() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [wordmarkUrl, setWordmarkUrl] = useState<string | null>(null)
   const [formInitialized, setFormInitialized] = useState(false)
+  const [savedBrandName, setSavedBrandName] = useState('')
+  const [savedPrimaryColor, setSavedPrimaryColor] = useState('')
+  const [savedPrimaryHoverColor, setSavedPrimaryHoverColor] = useState('')
+  const [savedAccentColor, setSavedAccentColor] = useState('')
+  const [savedAccentHoverColor, setSavedAccentHoverColor] = useState('')
+  const [savedSupportEmail, setSavedSupportEmail] = useState('')
+  const [savedDocumentationUrl, setSavedDocumentationUrl] = useState('')
+  const [savedTermsUrl, setSavedTermsUrl] = useState('')
+  const [savedPrivacyUrl, setSavedPrivacyUrl] = useState('')
+  const [savedLogoUrl, setSavedLogoUrl] = useState<string | null>(null)
+  const [savedWordmarkUrl, setSavedWordmarkUrl] = useState<string | null>(null)
 
-  const [saveError, setSaveError] = useState<string | null>(null)
-  const [saveSuccess, setSaveSuccess] = useState(false)
-
-  if (savedSettings && !formInitialized) {
-    setBrandName(savedSettings.brandName ?? '')
-    setPrimaryColor(savedSettings.primaryColor ?? '')
-    setPrimaryHoverColor(savedSettings.primaryHoverColor ?? '')
-    setAccentColor(savedSettings.accentColor ?? '')
-    setAccentHoverColor(savedSettings.accentHoverColor ?? '')
-    setSupportEmail(savedSettings.supportEmail ?? '')
-    setDocumentationUrl(savedSettings.documentationUrl ?? '')
-    setTermsUrl(savedSettings.termsUrl ?? '')
-    setPrivacyUrl(savedSettings.privacyUrl ?? '')
-    setLogoUrl(savedSettings.logoUrl ?? null)
-    setWordmarkUrl(savedSettings.wordmarkUrl ?? null)
+  useEffect(() => {
+    if (!savedSettings || formInitialized) return
+    const brand = savedSettings.brandName ?? ''
+    const primary = savedSettings.primaryColor ?? ''
+    const primaryHover = savedSettings.primaryHoverColor ?? ''
+    const accent = savedSettings.accentColor ?? ''
+    const accentHover = savedSettings.accentHoverColor ?? ''
+    const support = savedSettings.supportEmail ?? ''
+    const docs = savedSettings.documentationUrl ?? ''
+    const terms = savedSettings.termsUrl ?? ''
+    const privacy = savedSettings.privacyUrl ?? ''
+    const logo = savedSettings.logoUrl ?? null
+    const wordmark = savedSettings.wordmarkUrl ?? null
+    setBrandName(brand)
+    setPrimaryColor(primary)
+    setPrimaryHoverColor(primaryHover)
+    setAccentColor(accent)
+    setAccentHoverColor(accentHover)
+    setSupportEmail(support)
+    setDocumentationUrl(docs)
+    setTermsUrl(terms)
+    setPrivacyUrl(privacy)
+    setLogoUrl(logo)
+    setWordmarkUrl(wordmark)
+    setSavedBrandName(brand)
+    setSavedPrimaryColor(primary)
+    setSavedPrimaryHoverColor(primaryHover)
+    setSavedAccentColor(accent)
+    setSavedAccentHoverColor(accentHover)
+    setSavedSupportEmail(support)
+    setSavedDocumentationUrl(docs)
+    setSavedTermsUrl(terms)
+    setSavedPrivacyUrl(privacy)
+    setSavedLogoUrl(logo)
+    setSavedWordmarkUrl(wordmark)
     setFormInitialized(true)
-  }
+  }, [savedSettings, formInitialized])
 
   const logoUpload = useProfilePictureUpload({
     currentImage: logoUrl,
     onUpload: (url) => setLogoUrl(url),
-    onError: (error) => setSaveError(error),
+    onError: (error) => toast.error(error),
     context: 'workspace-logos',
     workspaceId: params.workspaceId,
   })
@@ -206,16 +205,27 @@ export function WhitelabelingSettings() {
   const wordmarkUpload = useProfilePictureUpload({
     currentImage: wordmarkUrl,
     onUpload: (url) => setWordmarkUrl(url),
-    onError: (error) => setSaveError(error),
+    onError: (error) => toast.error(error),
     context: 'workspace-logos',
     workspaceId: params.workspaceId,
   })
 
-  const handleSave = useCallback(async () => {
-    if (!orgId) return
+  const hasChanges =
+    formInitialized &&
+    (brandName !== savedBrandName ||
+      primaryColor !== savedPrimaryColor ||
+      primaryHoverColor !== savedPrimaryHoverColor ||
+      accentColor !== savedAccentColor ||
+      accentHoverColor !== savedAccentHoverColor ||
+      supportEmail !== savedSupportEmail ||
+      documentationUrl !== savedDocumentationUrl ||
+      termsUrl !== savedTermsUrl ||
+      privacyUrl !== savedPrivacyUrl ||
+      (logoUpload.previewUrl || null) !== savedLogoUrl ||
+      (wordmarkUpload.previewUrl || null) !== savedWordmarkUrl)
 
-    setSaveError(null)
-    setSaveSuccess(false)
+  async function handleSave() {
+    if (!orgId) return
 
     const colorFields: Array<[string, string]> = [
       ['Primary color', primaryColor],
@@ -226,7 +236,7 @@ export function WhitelabelingSettings() {
 
     for (const [fieldName, value] of colorFields) {
       if (value && !HEX_COLOR_REGEX.test(value)) {
-        setSaveError(`${fieldName} must be a valid hex color (e.g. #701ffc)`)
+        toast.error(`${fieldName} must be a valid hex color (e.g. #701ffc)`)
         return
       }
     }
@@ -247,26 +257,23 @@ export function WhitelabelingSettings() {
 
     try {
       await updateSettings.mutateAsync({ orgId, settings })
-      setSaveSuccess(true)
-      setTimeout(() => setSaveSuccess(false), 3000)
+      setSavedBrandName(brandName)
+      setSavedPrimaryColor(primaryColor)
+      setSavedPrimaryHoverColor(primaryHoverColor)
+      setSavedAccentColor(accentColor)
+      setSavedAccentHoverColor(accentHoverColor)
+      setSavedSupportEmail(supportEmail)
+      setSavedDocumentationUrl(documentationUrl)
+      setSavedTermsUrl(termsUrl)
+      setSavedPrivacyUrl(privacyUrl)
+      setSavedLogoUrl(logoUpload.previewUrl || null)
+      setSavedWordmarkUrl(wordmarkUpload.previewUrl || null)
+      toast.success('Whitelabeling settings saved.')
     } catch (error) {
       logger.error('Failed to save whitelabel settings', { error })
-      setSaveError(error instanceof Error ? error.message : 'Failed to save settings')
+      toast.error(toError(error).message)
     }
-  }, [
-    orgId,
-    brandName,
-    logoUpload.previewUrl,
-    wordmarkUpload.previewUrl,
-    primaryColor,
-    primaryHoverColor,
-    accentColor,
-    accentHoverColor,
-    supportEmail,
-    documentationUrl,
-    termsUrl,
-    privacyUrl,
-  ])
+  }
 
   if (isBillingEnabled) {
     if (!activeOrganization) {
@@ -297,10 +304,10 @@ export function WhitelabelingSettings() {
   if (isLoading) {
     return (
       <div className='flex flex-col gap-8'>
-        {[...Array(3)].map((_, i) => (
+        {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className='flex flex-col gap-3'>
-            <div className='h-4 w-32 animate-pulse rounded bg-[var(--surface-3)]' />
-            <div className='h-9 w-full animate-pulse rounded-lg bg-[var(--surface-3)]' />
+            <Skeleton className='h-[16px] w-[128px]' />
+            <Skeleton className='h-[36px] w-full rounded-lg' />
           </div>
         ))}
       </div>
@@ -319,27 +326,29 @@ export function WhitelabelingSettings() {
               label='Logo'
               description='Shown in the collapsed sidebar. Square image recommended (PNG, JPEG, or SVG, max 5MB).'
             >
-              <DropZone onDrop={logoUpload.handleFileDrop} className='flex items-center gap-4'>
-                <button
-                  type='button'
-                  onClick={logoUpload.handleThumbnailClick}
-                  disabled={logoUpload.isUploading}
-                  className='group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
-                >
-                  {logoUpload.isUploading ? (
-                    <Loader2 className='h-5 w-5 animate-spin text-[var(--text-muted)]' />
-                  ) : logoUpload.previewUrl ? (
-                    <Image
-                      src={logoUpload.previewUrl}
-                      alt='Logo'
-                      fill
-                      className='object-contain p-1'
-                      unoptimized
-                    />
-                  ) : (
-                    <span className='text-[11px] text-[var(--text-muted)]'>Logo</span>
-                  )}
-                </button>
+              <div className='flex items-center gap-4'>
+                <DropZone onDrop={logoUpload.handleFileDrop}>
+                  <button
+                    type='button'
+                    onClick={logoUpload.handleThumbnailClick}
+                    disabled={logoUpload.isUploading}
+                    className='group relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
+                  >
+                    {logoUpload.isUploading ? (
+                      <Loader2 className='h-5 w-5 animate-spin text-[var(--text-muted)]' />
+                    ) : logoUpload.previewUrl ? (
+                      <Image
+                        src={logoUpload.previewUrl}
+                        alt='Logo'
+                        fill
+                        className='object-contain p-1'
+                        unoptimized
+                      />
+                    ) : (
+                      <span className='text-[11px] text-[var(--text-muted)]'>Logo</span>
+                    )}
+                  </button>
+                </DropZone>
                 <div className='flex gap-2'>
                   <Button
                     variant='outline'
@@ -368,34 +377,36 @@ export function WhitelabelingSettings() {
                   onChange={logoUpload.handleFileChange}
                   className='hidden'
                 />
-              </DropZone>
+              </div>
             </SettingRow>
 
             <SettingRow
               label='Wordmark'
               description='Shown in the expanded sidebar. Wide image recommended (PNG, JPEG, or SVG, max 5MB).'
             >
-              <DropZone onDrop={wordmarkUpload.handleFileDrop} className='flex items-center gap-4'>
-                <button
-                  type='button'
-                  onClick={wordmarkUpload.handleThumbnailClick}
-                  disabled={wordmarkUpload.isUploading}
-                  className='group relative flex h-16 w-40 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
-                >
-                  {wordmarkUpload.isUploading ? (
-                    <Loader2 className='h-5 w-5 animate-spin text-[var(--text-muted)]' />
-                  ) : wordmarkUpload.previewUrl ? (
-                    <Image
-                      src={wordmarkUpload.previewUrl}
-                      alt='Wordmark'
-                      fill
-                      className='object-contain p-2'
-                      unoptimized
-                    />
-                  ) : (
-                    <span className='text-[11px] text-[var(--text-muted)]'>Wordmark</span>
-                  )}
-                </button>
+              <div className='flex items-center gap-4'>
+                <DropZone onDrop={wordmarkUpload.handleFileDrop}>
+                  <button
+                    type='button'
+                    onClick={wordmarkUpload.handleThumbnailClick}
+                    disabled={wordmarkUpload.isUploading}
+                    className='group relative flex h-16 w-40 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
+                  >
+                    {wordmarkUpload.isUploading ? (
+                      <Loader2 className='h-5 w-5 animate-spin text-[var(--text-muted)]' />
+                    ) : wordmarkUpload.previewUrl ? (
+                      <Image
+                        src={wordmarkUpload.previewUrl}
+                        alt='Wordmark'
+                        fill
+                        className='object-contain p-2'
+                        unoptimized
+                      />
+                    ) : (
+                      <span className='text-[11px] text-[var(--text-muted)]'>Wordmark</span>
+                    )}
+                  </button>
+                </DropZone>
                 <div className='flex gap-2'>
                   <Button
                     variant='outline'
@@ -424,7 +435,7 @@ export function WhitelabelingSettings() {
                   onChange={wordmarkUpload.handleFileChange}
                   className='hidden'
                 />
-              </DropZone>
+              </div>
             </SettingRow>
           </div>
 
@@ -515,25 +526,14 @@ export function WhitelabelingSettings() {
         </div>
       </section>
 
-      <div className='flex items-center gap-3'>
+      <div className='flex items-center justify-end'>
         <Button
+          variant='primary'
           onClick={handleSave}
-          disabled={updateSettings.isPending || isUploading}
-          className='text-[13px]'
+          disabled={updateSettings.isPending || isUploading || !hasChanges}
         >
-          {updateSettings.isPending ? (
-            <>
-              <Loader2 className='mr-2 h-3.5 w-3.5 animate-spin' />
-              Saving…
-            </>
-          ) : (
-            'Save changes'
-          )}
+          {updateSettings.isPending ? 'Saving...' : 'Save'}
         </Button>
-        {saveSuccess && (
-          <span className='text-[13px] text-green-500'>Settings saved successfully.</span>
-        )}
-        {saveError && <span className='text-[13px] text-red-500'>{saveError}</span>}
       </div>
     </div>
   )

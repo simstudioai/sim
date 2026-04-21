@@ -4,6 +4,7 @@ import { sanitizeFileName } from '@/executor/constants'
 import '@/lib/uploads/core/setup.server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import type { StorageContext } from '@/lib/uploads/config'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -42,7 +43,7 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('FilesUploadAPI')
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -415,8 +416,8 @@ export async function POST(request: NextRequest) {
     logger.error('Error in file upload:', error)
     return createErrorResponse(error instanceof Error ? error : new Error('File upload failed'))
   }
-}
+})
 
-export async function OPTIONS() {
+export const OPTIONS = withRouteHandler(async () => {
   return createOptionsResponse()
-}
+})

@@ -16,6 +16,7 @@ import {
 } from '@/lib/billing/organizations/create-organization'
 import { isOrgPlan } from '@/lib/billing/plan-helpers'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   attachOwnedWorkspacesToOrganization,
   WorkspaceOrganizationMembershipConflictError,
@@ -23,7 +24,7 @@ import {
 
 const logger = createLogger('OrganizationsAPI')
 
-export async function GET() {
+export const GET = withRouteHandler(async () => {
   try {
     const session = await getSession()
 
@@ -64,9 +65,9 @@ export async function GET() {
 
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
-export async function POST(request: Request) {
+export const POST = withRouteHandler(async (request: Request) => {
   try {
     const session = await getSession()
 
@@ -289,4 +290,4 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
-}
+})

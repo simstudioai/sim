@@ -7,6 +7,7 @@ import {
   validateNumericId,
   validatePaginationCursor,
 } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { cleanHtmlContent, getConfluenceCloudId } from '@/tools/confluence/utils'
 import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 
@@ -19,7 +20,7 @@ export const dynamic = 'force-dynamic'
  * Uses GET /wiki/api/v2/pages/{id}/versions
  * and GET /wiki/api/v2/pages/{page-id}/versions/{version-number}
  */
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
@@ -210,4 +211,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createCloudWatchLogsClient } from '@/app/api/tools/cloudwatch/utils'
 
 const logger = createLogger('CloudWatchDescribeLogGroups')
@@ -18,7 +19,7 @@ const DescribeLogGroupsSchema = z.object({
   ),
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const auth = await checkSessionOrInternalAuth(request)
     if (!auth.success || !auth.userId) {
@@ -65,4 +66,4 @@ export async function POST(request: NextRequest) {
     logger.error('DescribeLogGroups failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
-}
+})

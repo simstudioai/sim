@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { MAX_EMAIL_RECIPIENTS, MAX_WORKFLOW_IDS } from '../constants'
@@ -119,7 +120,7 @@ async function getSubscription(notificationId: string, workspaceId: string) {
   return subscription
 }
 
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export const GET = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -164,9 +165,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     logger.error('Error fetching notification', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export const PUT = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -298,9 +299,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     logger.error('Error updating notification', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
 
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export const DELETE = withRouteHandler(async (request: NextRequest, { params }: RouteParams) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
@@ -370,4 +371,4 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     logger.error('Error deleting notification', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
+})
