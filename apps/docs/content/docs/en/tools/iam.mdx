@@ -68,7 +68,7 @@ Get detailed information about an IAM user
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `userName` | string | Yes | The name of the IAM user to retrieve |
+| `userName` | string | No | The name of the IAM user to retrieve \(defaults to the caller if omitted\) |
 
 #### Output
 
@@ -439,5 +439,81 @@ Remove an IAM user from a group
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
+
+### `iam_list_attached_role_policies`
+
+List all managed policies attached to an IAM role
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `roleName` | string | Yes | Name of the IAM role |
+| `pathPrefix` | string | No | Path prefix to filter policies \(e.g., /application/\) |
+| `maxItems` | number | No | Maximum number of policies to return \(1-1000\) |
+| `marker` | string | No | Pagination marker from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attachedPolicies` | json | List of attached policies with policyName and policyArn |
+| `isTruncated` | boolean | Whether there are more results available |
+| `marker` | string | Pagination marker for the next page of results |
+| `count` | number | Number of attached policies returned |
+
+### `iam_list_attached_user_policies`
+
+List all managed policies attached to an IAM user
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `userName` | string | Yes | Name of the IAM user |
+| `pathPrefix` | string | No | Path prefix to filter policies \(e.g., /application/\) |
+| `maxItems` | number | No | Maximum number of policies to return \(1-1000\) |
+| `marker` | string | No | Pagination marker from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attachedPolicies` | json | List of attached policies with policyName and policyArn |
+| `isTruncated` | boolean | Whether there are more results available |
+| `marker` | string | Pagination marker for the next page of results |
+| `count` | number | Number of attached policies returned |
+
+### `iam_simulate_principal_policy`
+
+Simulate whether a user, role, or group is allowed to perform specific AWS actions — useful for pre-flight access checks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `region` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `accessKeyId` | string | Yes | AWS access key ID |
+| `secretAccessKey` | string | Yes | AWS secret access key |
+| `policySourceArn` | string | Yes | ARN of the user, group, or role to simulate \(e.g., arn:aws:iam::123456789012:user/alice\) |
+| `actionNames` | string | Yes | Comma-separated list of AWS actions to simulate \(e.g., s3:GetObject,ec2:DescribeInstances\) |
+| `resourceArns` | string | No | Comma-separated list of resource ARNs to simulate against \(defaults to * if not provided\) |
+| `maxResults` | number | No | Maximum number of simulation results to return \(1-1000\) |
+| `marker` | string | No | Pagination marker from a previous request |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `evaluationResults` | json | Simulation results per action: evalActionName, evalResourceName, evalDecision \(allowed/explicitDeny/implicitDeny\), matchedStatements \(sourcePolicyId, sourcePolicyType\), missingContextValues |
+| `isTruncated` | boolean | Whether there are more results available |
+| `marker` | string | Pagination marker for the next page of results |
+| `count` | number | Number of evaluation results returned |
 
 

@@ -86,7 +86,27 @@ export const describeLogStreamsTool: ToolConfig<
   outputs: {
     logStreams: {
       type: 'array',
-      description: 'List of log streams with metadata',
+      description:
+        'List of log streams with metadata, sorted by last event time (most recent first) unless a prefix filter is applied',
+      items: {
+        type: 'object',
+        properties: {
+          logStreamName: { type: 'string', description: 'Log stream name' },
+          lastEventTimestamp: {
+            type: 'number',
+            description: 'Timestamp of the last log event in epoch milliseconds',
+          },
+          firstEventTimestamp: {
+            type: 'number',
+            description: 'Timestamp of the first log event in epoch milliseconds',
+          },
+          creationTime: {
+            type: 'number',
+            description: 'Stream creation time in epoch milliseconds',
+          },
+          storedBytes: { type: 'number', description: 'Total stored bytes' },
+        },
+      },
     },
   },
 }

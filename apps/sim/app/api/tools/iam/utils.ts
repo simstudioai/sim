@@ -1,4 +1,11 @@
-import type { Group, Policy, PolicyScopeType, Role, User } from '@aws-sdk/client-iam'
+import type {
+  AttachedPolicy,
+  Group,
+  Policy,
+  PolicyScopeType,
+  Role,
+  User,
+} from '@aws-sdk/client-iam'
 import {
   AddUserToGroupCommand,
   AttachRolePolicyCommand,
@@ -14,11 +21,14 @@ import {
   GetRoleCommand,
   GetUserCommand,
   IAMClient,
+  ListAttachedRolePoliciesCommand,
+  ListAttachedUserPoliciesCommand,
   ListGroupsCommand,
   ListPoliciesCommand,
   ListRolesCommand,
   ListUsersCommand,
   RemoveUserFromGroupCommand,
+  SimulatePrincipalPolicyCommand,
 } from '@aws-sdk/client-iam'
 import type { IAMConnectionConfig } from '@/tools/iam/types'
 
@@ -62,8 +72,8 @@ export async function listUsers(
   }
 }
 
-export async function getUser(client: IAMClient, userName: string) {
-  const command = new GetUserCommand({ UserName: userName })
+export async function getUser(client: IAMClient, userName?: string | null) {
+  const command = new GetUserCommand(userName ? { UserName: userName } : {})
   const response = await client.send(command)
   const user = response.User
 
@@ -337,4 +347,107 @@ export async function removeUserFromGroup(client: IAMClient, userName: string, g
     GroupName: groupName,
   })
   await client.send(command)
+}
+
+export async function listAttachedRolePolicies(
+  client: IAMClient,
+  roleName: string,
+  pathPrefix?: string | null,
+  maxItems?: number | null,
+  marker?: string | null
+) {
+  const command = new ListAttachedRolePoliciesCommand({
+    RoleName: roleName,
+    ...(pathPrefix ? { PathPrefix: pathPrefix } : {}),
+    ...(maxItems ? { MaxItems: maxItems } : {}),
+    ...(marker ? { Marker: marker } : {}),
+  })
+
+  const response = await client.send(command)
+  const attachedPolicies = (response.AttachedPolicies ?? []).map((p: AttachedPolicy) => ({
+    policyName: p.PolicyName ?? '',
+    policyArn: p.PolicyArn ?? '',
+  }))
+
+  return {
+    attachedPolicies,
+    isTruncated: response.IsTruncated ?? false,
+    marker: response.Marker ?? null,
+    count: attachedPolicies.length,
+  }
+}
+
+export async function listAttachedUserPolicies(
+  client: IAMClient,
+  userName: string,
+  pathPrefix?: string | null,
+  maxItems?: number | null,
+  marker?: string | null
+) {
+  const command = new ListAttachedUserPoliciesCommand({
+    UserName: userName,
+    ...(pathPrefix ? { PathPrefix: pathPrefix } : {}),
+    ...(maxItems ? { MaxItems: maxItems } : {}),
+    ...(marker ? { Marker: marker } : {}),
+  })
+
+  const response = await client.send(command)
+  const attachedPolicies = (response.AttachedPolicies ?? []).map((p: AttachedPolicy) => ({
+    policyName: p.PolicyName ?? '',
+    policyArn: p.PolicyArn ?? '',
+  }))
+
+  return {
+    attachedPolicies,
+    isTruncated: response.IsTruncated ?? false,
+    marker: response.Marker ?? null,
+    count: attachedPolicies.length,
+  }
+}
+
+export async function simulatePrincipalPolicy(
+  client: IAMClient,
+  policySourceArn: string,
+  actionNames: string,
+  resourceArns?: string | null,
+  maxResults?: number | null,
+  marker?: string | null
+) {
+  const actions = actionNames
+    .split(',')
+    .map((a) => a.trim())
+    .filter(Boolean)
+  const resources = resourceArns
+    ? resourceArns
+        .split(',')
+        .map((r) => r.trim())
+        .filter(Boolean)
+    : ['*']
+
+  const command = new SimulatePrincipalPolicyCommand({
+    PolicySourceArn: policySourceArn,
+    ActionNames: actions,
+    ResourceArns: resources,
+    ...(maxResults ? { MaxItems: maxResults } : {}),
+    ...(marker ? { Marker: marker } : {}),
+  })
+
+  const response = await client.send(command)
+  const evaluationResults = (response.EvaluationResults ?? []).map((r) => ({
+    evalActionName: r.EvalActionName ?? '',
+    evalResourceName: r.EvalResourceName ?? '',
+    evalDecision: r.EvalDecision ?? '',
+    matchedStatements: (r.MatchedStatements ?? []).map((s) => ({
+      sourcePolicyId: s.SourcePolicyId ?? '',
+      sourcePolicyType: s.SourcePolicyType ?? '',
+    })),
+    missingContextValues: (r.MissingContextValues ?? []).map((v) => String(v)),
+  }))
+
+  return {
+    evaluationResults,
+    isTruncated: response.IsTruncated ?? false,
+    marker: response.Marker ?? null,
+    count: evaluationResults.length,
+  }
 }

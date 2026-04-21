@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
@@ -12,16 +12,14 @@ const Schema = z.object({
   region: z.string().min(1, 'AWS region is required'),
   accessKeyId: z.string().min(1, 'AWS access key ID is required'),
   secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  scope: z.string().optional(),
-  onlyAttached: z.boolean().optional(),
-  pathPrefix: z.string().optional(),
-  maxItems: z.number().min(1).max(1000).optional(),
-  marker: z.string().optional(),
+  scope: z.string().optional().nullable(),
+  onlyAttached: z.boolean().optional().nullable(),
+  pathPrefix: z.string().optional().nullable(),
+  maxItems: z.number().int().min(1).max(1000).optional().nullable(),
+  marker: z.string().optional().nullable(),
 })
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateId().slice(0, 8)
-
   const auth = await checkInternalAuth(request)
   if (!auth.success || !auth.userId) {
     return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
@@ -31,7 +29,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const body = await request.json()
     const params = Schema.parse(body)
 
-    logger.info(`[${requestId}] Listing IAM policies`)
+    logger.info(`Listing IAM policies`)
 
     const client = createIAMClient({
       region: params.region,
@@ -48,23 +46,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         params.maxItems,
         params.marker
       )
-      logger.info(`[${requestId}] Successfully listed ${result.count} IAM policies`)
+      logger.info(`Successfully listed ${result.count} IAM policies`)
       return NextResponse.json(result)
     } finally {
       client.destroy()
     }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
+      logger.warn(`Invalid request data`, { errors: error.errors })
       return NextResponse.json(
         { error: 'Invalid request data', details: error.errors },
         { status: 400 }
       )
     }
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-    logger.error(`[${requestId}] Failed to list IAM policies:`, error)
+    logger.error(`Failed to list IAM policies:`, error)
     return NextResponse.json(
-      { error: `Failed to list IAM policies: ${errorMessage}` },
+      { error: `Failed to list IAM policies: ${toError(error).message}` },
       { status: 500 }
     )
   }

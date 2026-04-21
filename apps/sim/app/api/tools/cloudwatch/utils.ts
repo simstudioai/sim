@@ -143,7 +143,7 @@ export async function getLogEvents(
   }[]
 }> {
   const command = new GetLogEventsCommand({
-    logGroupIdentifier: logGroupName,
+    logGroupName,
     logStreamName,
     ...(options?.startTime !== undefined && { startTime: options.startTime * 1000 }),
     ...(options?.endTime !== undefined && { endTime: options.endTime * 1000 }),

@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
@@ -15,8 +15,6 @@ const GetCallerIdentitySchema = z.object({
 })
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateId().slice(0, 8)
-
   const auth = await checkInternalAuth(request)
   if (!auth.success || !auth.userId) {
     return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
@@ -26,7 +24,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const body = await request.json()
     const params = GetCallerIdentitySchema.parse(body)
 
-    logger.info(`[${requestId}] Getting caller identity`)
+    logger.info('Getting caller identity')
 
     const client = createSTSClient({
       region: params.region,
@@ -37,7 +35,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     try {
       const result = await getCallerIdentity(client)
 
-      logger.info(`[${requestId}] Caller identity retrieved successfully`)
+      logger.info('Caller identity retrieved successfully')
 
       return NextResponse.json(result)
     } finally {
@@ -45,18 +43,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
+      logger.warn('Invalid request data', { errors: error.errors })
       return NextResponse.json(
         { error: 'Invalid request data', details: error.errors },
         { status: 400 }
       )
     }
 
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-    logger.error(`[${requestId}] Failed to get caller identity:`, error)
+    logger.error('Failed to get caller identity', { error: toError(error).message })
 
     return NextResponse.json(
-      { error: `Failed to get caller identity: ${errorMessage}` },
+      { error: `Failed to get caller identity: ${toError(error).message}` },
       { status: 500 }
     )
   }
