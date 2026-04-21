@@ -7,6 +7,8 @@ import {
   getAllowedIntegrationsFromEnv,
   isAccessControlEnabled,
   isHosted,
+  isInvitationsDisabled,
+  isPublicApiDisabled,
 } from '@/lib/core/config/feature-flags'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
@@ -302,7 +304,6 @@ export async function validateInvitationsAllowed(
   userId: string | undefined,
   workspaceId?: string
 ): Promise<void> {
-  const { isInvitationsDisabled } = await import('@/lib/core/config/feature-flags')
   if (isInvitationsDisabled) {
     logger.warn('Invitations blocked by feature flag')
     throw new InvitationsNotAllowedError()
@@ -333,7 +334,6 @@ export async function validatePublicApiAllowed(
   userId: string | undefined,
   workspaceId?: string
 ): Promise<void> {
-  const { isPublicApiDisabled } = await import('@/lib/core/config/feature-flags')
   if (isPublicApiDisabled) {
     logger.warn('Public API blocked by feature flag')
     throw new PublicApiNotAllowedError()
