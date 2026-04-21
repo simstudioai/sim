@@ -122,11 +122,12 @@ export function EditConnectorModal({
     }
 
     const resolved = resolveSourceConfig()
-    const configChanged = Object.entries(resolved).some(
-      ([key, value]) => String(connector.sourceConfig[key] ?? '') !== value
-    )
-    if (configChanged) {
-      updates.sourceConfig = { ...connector.sourceConfig, ...resolved }
+    const changedEntries: Record<string, string> = {}
+    for (const [key, value] of Object.entries(resolved)) {
+      if (String(connector.sourceConfig[key] ?? '') !== value) changedEntries[key] = value
+    }
+    if (Object.keys(changedEntries).length > 0) {
+      updates.sourceConfig = { ...connector.sourceConfig, ...changedEntries }
     }
 
     if (Object.keys(updates).length === 0) {
