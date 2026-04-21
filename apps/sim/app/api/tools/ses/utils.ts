@@ -229,7 +229,7 @@ export async function listTemplates(
   }
 ) {
   const command = new ListEmailTemplatesCommand({
-    ...(params.pageSize ? { PageSize: params.pageSize } : {}),
+    ...(params.pageSize != null ? { PageSize: params.pageSize } : {}),
     ...(params.nextToken ? { NextToken: params.nextToken } : {}),
   })
 
