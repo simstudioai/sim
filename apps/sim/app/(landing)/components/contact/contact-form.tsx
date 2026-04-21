@@ -1,6 +1,6 @@
 'use client'
 
-import { cloneElement, isValidElement, useState } from 'react'
+import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Combobox, Input, Textarea } from '@/components/emcn'
 import { Check } from '@/components/emcn/icons'
@@ -11,6 +11,7 @@ import {
   type ContactRequestPayload,
   contactRequestSchema,
 } from '@/app/(landing)/components/contact/consts'
+import { LandingField } from '@/app/(landing)/components/forms/landing-field'
 
 type ContactField = keyof ContactRequestPayload
 type ContactErrors = Partial<Record<ContactField, string>>
@@ -37,39 +38,6 @@ const COMBOBOX_TOPICS = [...CONTACT_TOPIC_OPTIONS]
 
 const LANDING_INPUT =
   'h-[36px] rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-5)] px-3 font-[430] font-season text-[14px] text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)]'
-
-interface LandingFieldProps {
-  label: string
-  htmlFor: string
-  optional?: boolean
-  error?: string
-  children: React.ReactNode
-}
-
-function LandingField({ label, htmlFor, optional, error, children }: LandingFieldProps) {
-  const errorId = error ? `${htmlFor}-error` : undefined
-  const describedChild =
-    errorId && isValidElement<{ 'aria-describedby'?: string; 'aria-invalid'?: boolean }>(children)
-      ? cloneElement(children, { 'aria-describedby': errorId, 'aria-invalid': true })
-      : children
-  return (
-    <div className='flex flex-col gap-1.5'>
-      <label
-        htmlFor={htmlFor}
-        className='font-[430] font-season text-[13px] text-[var(--text-secondary)] tracking-[0.02em]'
-      >
-        {label}
-        {optional ? <span className='ml-1 text-[var(--text-muted)]'>(optional)</span> : null}
-      </label>
-      {describedChild}
-      {error ? (
-        <p id={errorId} role='alert' className='text-[12px] text-[var(--text-error)]'>
-          {error}
-        </p>
-      ) : null}
-    </div>
-  )
-}
 
 async function submitContactRequest(payload: ContactRequestPayload) {
   const response = await fetch('/api/contact', {
