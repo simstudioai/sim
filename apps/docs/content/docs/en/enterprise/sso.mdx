@@ -6,6 +6,7 @@ description: Configure SAML 2.0 or OIDC-based single sign-on for your organizati
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { FAQ } from '@/components/ui/faq'
+import { Image } from '@/components/ui/image'
 
 Single Sign-On lets your team sign in to Sim through your company's identity provider instead of managing separate passwords. Sim supports both OIDC and SAML 2.0.
 
@@ -33,6 +34,8 @@ Go to **Settings → Enterprise → Single Sign-On** in your workspace.
 | **SAML 2.0** | Your IdP is SAML-only — ADFS, Shibboleth, or older enterprise IdPs |
 
 ### 3. Fill in the form
+
+<Image src="/static/enterprise/sso-form.png" alt="Single Sign-On configuration form showing Provider Type (OIDC), Provider ID, Issuer URL, Domain, Client ID, Client Secret, Scopes, and Callback URL fields" width={900} height={500} />
 
 **Fields required for both protocols:**
 

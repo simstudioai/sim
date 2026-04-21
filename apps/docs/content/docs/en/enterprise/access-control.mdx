@@ -5,6 +5,7 @@ description: Restrict which models, blocks, and platform features each group of 
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { FAQ } from '@/components/ui/faq'
+import { Image } from '@/components/ui/image'
 
 Access Control lets organization admins define permission groups that restrict what each set of users can do — which AI model providers they can use, which workflow blocks they can place, and which platform features are visible to them. Restrictions are enforced both in the workflow executor and in Mothership.
 
@@ -35,6 +36,8 @@ When a user runs a workflow or uses Mothership, Sim reads their group's configur
 
 Go to **Settings → Enterprise → Access Control** in your workspace.
 
+<Image src="/static/enterprise/access-control-groups.png" alt="Access Control settings showing a list of permission groups: Contractors, Sales, Engineering, and Marketing, each with Details and Delete actions" width={900} height={500} />
+
 ### 2. Create a permission group
 
 Click **+ Create** and enter a name (required) and optional description. You can also enable **Auto-add new members** — when active, any new member who joins the organization is automatically added to this group. Only one group per organization can have this setting enabled at a time.
@@ -45,14 +48,18 @@ Click **Details** on a group, then open **Configure Permissions**. There are thr
 
 #### Model Providers
 
-Controls which AI model providers members of this group can use. The list shows all providers available in Sim.
+Controls which AI model providers members of this group can use.
+
+<Image src="/static/enterprise/access-control-model-providers.png" alt="Model Providers tab showing a grid of AI providers including Ollama, vLLM, OpenAI, Anthropic, Google, Azure OpenAI, and others with checkboxes to allow or restrict access" width={900} height={500} /> The list shows all providers available in Sim.
 
 - **All checked (default):** All providers are allowed.
 - **Subset checked:** Only the selected providers are allowed. Any workflow block or agent using a provider not on the list will fail at execution time.
 
 #### Blocks
 
-Controls which workflow blocks members can place and execute. Blocks are split into two sections: **Core Blocks** (Agent, API, Condition, Function, etc.) and **Tools** (all integration blocks).
+Controls which workflow blocks members can place and execute.
+
+<Image src="/static/enterprise/access-control-blocks.png" alt="Blocks tab showing Core Blocks (Agent, API, Condition, Function, Knowledge, etc.) and Tools (integrations like 1Password, A2A, Ahrefs, Airtable, and more) with checkboxes to allow or restrict each" width={900} height={500} /> Blocks are split into two sections: **Core Blocks** (Agent, API, Condition, Function, etc.) and **Tools** (all integration blocks).
 
 - **All checked (default):** All blocks are allowed.
 - **Subset checked:** Only the selected blocks are allowed. Workflows that already contain a disallowed block will fail when run — they are not automatically modified.
@@ -63,7 +70,9 @@ Controls which workflow blocks members can place and execute. Blocks are split i
 
 #### Platform
 
-Controls visibility of platform features and modules. Each checkbox maps to a specific feature; checking it hides or disables that feature for group members.
+Controls visibility of platform features and modules.
+
+<Image src="/static/enterprise/access-control-platform.png" alt="Platform tab showing feature toggles grouped by category: Sidebar (Knowledge Base, Tables, Templates), Workflow Panel (Copilot), Settings Tabs, Tools, Deploy Tabs, Features, Logs, and Collaboration" width={900} height={500} /> Each checkbox maps to a specific feature; checking it hides or disables that feature for group members.
 
 **Sidebar**
 
