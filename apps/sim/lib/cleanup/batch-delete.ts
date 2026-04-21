@@ -92,3 +92,28 @@ export async function batchDeleteByWorkspaceAndTimestamp({
 
   return result
 }
+
+/**
+ * Delete rows by an explicit list of IDs. Use this when the IDs were selected
+ * upstream (e.g., to drive external cleanup like S3 deletes or a backend API
+ * call) so the DB delete cannot drift from the upstream selection. Paired with
+ * `batchDeleteByWorkspaceAndTimestamp` for tables with no external side effects.
+ */
+export async function deleteRowsById(
+  tableDef: PgTable,
+  idCol: PgColumn,
+  ids: string[],
+  tableName: string
+): Promise<TableCleanupResult> {
+  const result: TableCleanupResult = { table: tableName, deleted: 0, failed: 0 }
+  if (ids.length === 0) return result
+  try {
+    const deleted = await db.delete(tableDef).where(inArray(idCol, ids)).returning({ id: idCol })
+    result.deleted = deleted.length
+    logger.info(`[${tableName}] Deleted ${deleted.length} rows`)
+  } catch (error) {
+    result.failed++
+    logger.error(`[${tableName}] Delete failed:`, { error })
+  }
+  return result
+}

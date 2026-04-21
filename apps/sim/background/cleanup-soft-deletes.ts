@@ -15,13 +15,12 @@ import {
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
 import { and, inArray, isNotNull, lt } from 'drizzle-orm'
-import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import { type CleanupJobPayload, resolveCleanupScope } from '@/lib/billing/cleanup-dispatcher'
 import {
   batchDeleteByWorkspaceAndTimestamp,
   DEFAULT_BATCH_SIZE,
   DEFAULT_MAX_BATCHES_PER_TABLE,
-  type TableCleanupResult,
+  deleteRowsById,
 } from '@/lib/cleanup/batch-delete'
 import { prepareChatCleanup } from '@/lib/cleanup/chat-cleanup'
 import type { StorageContext } from '@/lib/uploads'
@@ -110,25 +109,6 @@ async function cleanupWorkspaceFileStorage(
   )
 
   return stats
-}
-
-async function deleteRowsById(
-  tableDef: PgTable,
-  idCol: PgColumn,
-  ids: string[],
-  tableName: string
-): Promise<TableCleanupResult> {
-  const result: TableCleanupResult = { table: tableName, deleted: 0, failed: 0 }
-  if (ids.length === 0) return result
-  try {
-    const deleted = await db.delete(tableDef).where(inArray(idCol, ids)).returning({ id: idCol })
-    result.deleted = deleted.length
-    logger.info(`[${tableName}] Deleted ${deleted.length} rows`)
-  } catch (error) {
-    result.failed++
-    logger.error(`[${tableName}] Delete failed:`, { error })
-  }
-  return result
 }
 
 /**

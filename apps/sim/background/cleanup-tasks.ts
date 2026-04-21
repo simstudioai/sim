@@ -15,6 +15,7 @@ import {
   batchDeleteByWorkspaceAndTimestamp,
   DEFAULT_BATCH_SIZE,
   DEFAULT_MAX_BATCHES_PER_TABLE,
+  deleteRowsById,
   type TableCleanupResult,
 } from '@/lib/cleanup/batch-delete'
 import { prepareChatCleanup } from '@/lib/cleanup/chat-cleanup'
@@ -161,15 +162,14 @@ export async function runCleanupTasks(payload: CleanupJobPayload): Promise<void>
     tableName: `${label}/copilotRuns`,
   })
 
-  // Delete copilot chats (has workspaceId directly)
-  const chatsResult = await batchDeleteByWorkspaceAndTimestamp({
-    tableDef: copilotChats,
-    workspaceIdCol: copilotChats.workspaceId,
-    timestampCol: copilotChats.updatedAt,
-    workspaceIds,
-    retentionDate,
-    tableName: `${label}/copilotChats`,
-  })
+  // Delete copilot chats using the exact IDs collected above so the chat
+  // cleanup (S3 + copilot backend) and the DB delete can never disagree.
+  const chatsResult = await deleteRowsById(
+    copilotChats,
+    copilotChats.id,
+    doomedChatIds,
+    `${label}/copilotChats`
+  )
 
   // Delete mothership inbox tasks (has workspaceId directly)
   const inboxResult = await batchDeleteByWorkspaceAndTimestamp({
