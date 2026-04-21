@@ -5,8 +5,8 @@ import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
-import { getScopesForService } from '@/lib/oauth/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getScopesForService } from '@/lib/oauth/utils'
 
 const logger = createLogger('ShopifyAuthorize')
 

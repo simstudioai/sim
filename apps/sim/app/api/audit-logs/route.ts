@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { validateEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
 import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import {
@@ -8,7 +9,6 @@ import {
   buildOrgScopeCondition,
   queryAuditLogs,
 } from '@/app/api/v1/audit-logs/query'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('AuditLogsAPI')
 

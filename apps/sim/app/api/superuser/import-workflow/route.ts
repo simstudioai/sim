@@ -5,6 +5,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { verifyEffectiveSuperUser } from '@/lib/templates/permissions'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import {
@@ -13,7 +14,6 @@ import {
 } from '@/lib/workflows/persistence/utils'
 import { sanitizeForExport } from '@/lib/workflows/sanitization/json-sanitizer'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SuperUserImportWorkflow')
 

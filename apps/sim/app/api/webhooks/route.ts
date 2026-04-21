@@ -8,6 +8,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
@@ -21,7 +22,6 @@ import { mergeNonUserFields } from '@/lib/webhooks/utils'
 import { syncWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { extractCredentialSetId, isCredentialSetValue } from '@/executor/constants'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('WebhooksAPI')
 

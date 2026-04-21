@@ -5,8 +5,8 @@ import { and, eq, inArray, isNull, lte } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { dispatchSync } from '@/lib/knowledge/connectors/sync-engine'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { dispatchSync } from '@/lib/knowledge/connectors/sync-engine'
 
 export const dynamic = 'force-dynamic'
 

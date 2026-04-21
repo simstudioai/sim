@@ -3,13 +3,13 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createWorkdaySoapClient,
   extractRefId,
   normalizeSoapArray,
   type WorkdayWorkerSoap,
 } from '@/tools/workday/soap'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 

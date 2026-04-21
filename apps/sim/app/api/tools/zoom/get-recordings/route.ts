@@ -7,8 +7,8 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
 
 export const dynamic = 'force-dynamic'
 

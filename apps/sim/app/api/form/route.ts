@@ -10,6 +10,7 @@ import { getSession } from '@/lib/auth'
 import { isDev } from '@/lib/core/config/feature-flags'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { getEmailDomain } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { notifySocketDeploymentChanged } from '@/lib/workflows/orchestration'
 import { deployWorkflow } from '@/lib/workflows/persistence/utils'
 import {
@@ -17,7 +18,6 @@ import {
   DEFAULT_FORM_CUSTOMIZATIONS,
 } from '@/app/api/form/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('FormAPI')
 

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createKnowledgeBase, getKnowledgeBases } from '@/lib/knowledge/service'
 import {
   authenticateRequest,
@@ -10,7 +11,6 @@ import {
   validateSchema,
   validateWorkspaceAccess,
 } from '@/app/api/v1/knowledge/utils'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0

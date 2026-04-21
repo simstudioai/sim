@@ -3,8 +3,8 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 
 const logger = createLogger('TrelloAuthorize')
 

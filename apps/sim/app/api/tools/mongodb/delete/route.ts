@@ -3,8 +3,8 @@ import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { createMongoDBConnection, sanitizeCollectionName, validateFilter } from '../utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { createMongoDBConnection, sanitizeCollectionName, validateFilter } from '../utils'
 
 const logger = createLogger('MongoDBDeleteAPI')
 

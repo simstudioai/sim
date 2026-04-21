@@ -1,11 +1,11 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { StorageContext } from '@/lib/uploads/config'
 import { hasCloudStorage } from '@/lib/uploads/core/storage-service'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import { createErrorResponse, FileNotFoundError } from '@/app/api/files/utils'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('FileDownload')
 

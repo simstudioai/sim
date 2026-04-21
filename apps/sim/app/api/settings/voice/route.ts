@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { hasSTTService } from '@/lib/speech/config'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { hasSTTService } from '@/lib/speech/config'
 
 /**
  * Returns whether server-side STT is configured.

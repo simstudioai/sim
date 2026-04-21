@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   FileConflictError,
   getWorkspaceFile,
@@ -15,7 +16,6 @@ import {
   checkWorkspaceScope,
   createRateLimitResponse,
 } from '@/app/api/v1/middleware'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('V1FilesAPI')
 

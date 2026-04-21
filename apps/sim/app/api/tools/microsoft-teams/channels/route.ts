@@ -3,8 +3,8 @@ import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 

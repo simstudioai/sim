@@ -6,12 +6,12 @@ import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
 import { getEmailDomain } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import {
   getFromEmailAddress,
   NO_EMAIL_HEADER_CONTROL_CHARS_REGEX,
 } from '@/lib/messaging/email/utils'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('IntegrationRequestAPI')
 

@@ -7,8 +7,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
-import type { CreatorProfileDetails } from '@/app/_types/creator-profile'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import type { CreatorProfileDetails } from '@/app/_types/creator-profile'
 
 const logger = createLogger('CreatorProfilesAPI')
 

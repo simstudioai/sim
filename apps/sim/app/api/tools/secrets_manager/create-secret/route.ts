@@ -3,8 +3,8 @@ import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { createSecret, createSecretsManagerClient } from '../utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { createSecret, createSecretsManagerClient } from '../utils'
 
 const logger = createLogger('SecretsManagerCreateSecretAPI')
 

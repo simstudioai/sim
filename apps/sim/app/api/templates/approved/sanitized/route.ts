@@ -6,8 +6,8 @@ import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalApiKey } from '@/lib/copilot/request/http'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 
 const logger = createLogger('TemplatesSanitizedAPI')
 

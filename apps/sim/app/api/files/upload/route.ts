@@ -4,6 +4,7 @@ import { sanitizeFileName } from '@/executor/constants'
 import '@/lib/uploads/core/setup.server'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import type { StorageContext } from '@/lib/uploads/config'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -21,7 +22,6 @@ import {
   createOptionsResponse,
   InvalidRequestError,
 } from '@/app/api/files/utils'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] as const
 

@@ -12,9 +12,9 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import { taskPubSub } from '@/lib/copilot/tasks'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotChatsListAPI')
 

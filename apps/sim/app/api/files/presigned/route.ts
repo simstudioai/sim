@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CopilotFiles } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
 import { USE_BLOB_STORAGE } from '@/lib/uploads/config'
@@ -8,7 +9,6 @@ import { generatePresignedUploadUrl, hasCloudStorage } from '@/lib/uploads/core/
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { createErrorResponse } from '@/app/api/files/utils'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('PresignedUploadAPI')
 

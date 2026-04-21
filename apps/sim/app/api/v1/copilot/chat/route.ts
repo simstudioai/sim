@@ -5,9 +5,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getWorkflowById, resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import { authenticateV1Request } from '@/app/api/v1/auth'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const maxDuration = 3600
 

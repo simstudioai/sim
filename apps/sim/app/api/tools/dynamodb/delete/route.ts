@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { createDynamoDBClient, deleteItem } from '@/app/api/tools/dynamodb/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { createDynamoDBClient, deleteItem } from '@/app/api/tools/dynamodb/utils'
 
 const DeleteSchema = z.object({
   region: z.string().min(1, 'AWS region is required'),

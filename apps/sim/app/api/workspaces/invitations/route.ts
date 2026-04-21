@@ -8,6 +8,7 @@ import { getSession } from '@/lib/auth'
 import { getUserOrganization } from '@/lib/billing/organizations/membership'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { listInvitationsForWorkspaces, normalizeEmail } from '@/lib/invitations/core'
 import {
   cancelPendingInvitation,
@@ -22,7 +23,6 @@ import {
   InvitationsNotAllowedError,
   validateInvitationsAllowed,
 } from '@/ee/access-control/utils/permission-check'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 

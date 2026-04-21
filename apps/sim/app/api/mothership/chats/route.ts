@@ -11,9 +11,9 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import { taskPubSub } from '@/lib/copilot/tasks'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('MothershipChatsAPI')
 

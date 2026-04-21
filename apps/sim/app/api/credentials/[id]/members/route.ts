@@ -6,8 +6,8 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CredentialMembersAPI')
 

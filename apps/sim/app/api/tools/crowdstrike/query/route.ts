@@ -3,13 +3,13 @@ import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type {
   CrowdStrikeAggregateQuery,
   CrowdStrikeCloud,
   CrowdStrikeSensorAggregateBucket,
   CrowdStrikeSensorAggregateResult,
 } from '@/tools/crowdstrike/types'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CrowdStrikeIdentityProtectionAPI')
 

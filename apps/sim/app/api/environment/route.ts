@@ -9,9 +9,9 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncPersonalEnvCredentialsForUser } from '@/lib/credentials/environment'
 import type { EnvironmentVariable } from '@/lib/environment/api'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('EnvironmentAPI')
 

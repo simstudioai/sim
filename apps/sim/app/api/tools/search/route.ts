@@ -5,8 +5,8 @@ import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { SEARCH_TOOL_COST } from '@/lib/billing/constants'
 import { env } from '@/lib/core/config/env'
-import { executeTool } from '@/tools'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { executeTool } from '@/tools'
 
 const logger = createLogger('search')
 

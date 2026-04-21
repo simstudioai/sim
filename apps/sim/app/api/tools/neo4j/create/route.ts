@@ -3,12 +3,12 @@ import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   convertNeo4jTypesToJSON,
   createNeo4jDriver,
   validateCypherQuery,
 } from '@/app/api/tools/neo4j/utils'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('Neo4jCreateAPI')
 

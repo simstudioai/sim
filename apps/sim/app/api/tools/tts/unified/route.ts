@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateAlphanumericId } from '@/lib/core/security/input-validation'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { StorageService } from '@/lib/uploads'
 import type {
   AzureTtsParams,
@@ -18,7 +19,6 @@ import type {
   TtsResponse,
 } from '@/tools/tts/types'
 import { getFileExtension, getMimeType } from '@/tools/tts/types'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('TtsUnifiedProxyAPI')
 

@@ -8,6 +8,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 import { isInternalFileUrl, processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import {
@@ -15,7 +16,6 @@ import {
   resolveInternalFileUrl,
 } from '@/lib/uploads/utils/file-utils.server'
 import { convertUsageMetadata, extractTextContent } from '@/providers/google/utils'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 

@@ -13,9 +13,9 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
 import { isUuidV4 } from '@/executor/constants'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CheckpointRevertAPI')
 

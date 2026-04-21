@@ -3,9 +3,9 @@ import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { validateJiraCloudId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
 import { getJsmFormsApiBaseUrl, getJsmHeaders } from '@/tools/jsm/utils'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 

@@ -4,6 +4,7 @@ import type { SFTPWrapper } from 'ssh2'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createSftpConnection,
   getFileType,
@@ -12,7 +13,6 @@ import {
   sanitizePath,
   sftpIsDirectory,
 } from '@/app/api/tools/sftp/utils'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'
 

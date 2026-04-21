@@ -5,13 +5,13 @@ import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
 import { getEmailDomain } from '@/lib/core/utils/urls'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import {
   demoRequestSchema,
   getDemoRequestCompanySizeLabel,
 } from '@/app/(landing)/components/demo-request/consts'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('DemoRequestAPI')
 const rateLimiter = new RateLimiter()
