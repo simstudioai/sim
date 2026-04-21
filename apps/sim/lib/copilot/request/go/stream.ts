@@ -1,8 +1,14 @@
-import type { Context } from '@opentelemetry/api'
+import { type Context, SpanStatusCode } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/copilot/constants'
-import { MothershipStreamV1SpanLifecycleEvent } from '@/lib/copilot/generated/mothership-stream-v1'
+import {
+  type MothershipStreamV1EventType,
+  MothershipStreamV1SpanLifecycleEvent,
+} from '@/lib/copilot/generated/mothership-stream-v1'
+import { CopilotSseCloseReason } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
+import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import {
   buildPreviewContentUpdate,
@@ -17,6 +23,7 @@ import {
   sseHandlers,
   subAgentHandlers,
 } from '@/lib/copilot/request/handlers'
+import { getCopilotTracer } from '@/lib/copilot/request/otel'
 import {
   eventToStreamEvent,
   isSubagentSpanStreamEvent,
@@ -165,27 +172,74 @@ export async function runStreamLoop(
     url: fetchUrl,
     method: fetchOptions.method ?? 'GET',
   })
-  const bodyStart = performance.now()
-  let firstEventMs: number | undefined
-  let eventsReceived = 0
-  let endedOn = 'terminal'
 
-  const reader = response.body.getReader()
+  // Aggregate counters populated inline by the reader wrapper + onEvent
+  // dispatcher below and flushed to both the legacy TraceCollector span
+  // and the OTel read-loop span when the loop terminates. Kept as plain
+  // JS variables (not span attrs) so incrementing them is free — we
+  // only pay OTel cost once at span End().
+  const counters = {
+    bytes: 0,
+    chunks: 0,
+    events: 0,
+    eventsByType: {
+      session: 0,
+      text: 0,
+      tool: 0,
+      span: 0,
+      resource: 0,
+      run: 0,
+      error: 0,
+      complete: 0,
+    } as Record<MothershipStreamV1EventType, number>,
+    firstEventMs: undefined as number | undefined,
+    lastChunkMs: performance.now(),
+    longestIdleGapMs: 0,
+  }
+  const bodyStart = performance.now()
+  let endedOn: string = CopilotSseCloseReason.Terminal
+
+  // Wrap the body's reader so we can track per-chunk bytes and the gap
+  // between chunks. `processSSEStream` consumes this reader exactly as
+  // it would the raw one — no API changes there. The longest idle gap
+  // is the diagnostic signal for "silent TTFT" perceived hangs: a gap
+  // larger than the threshold means the user saw nothing for that long.
+  const IDLE_GAP_EVENT_THRESHOLD_MS = 10000
+  const rawReader = response.body.getReader()
+  const reader: ReadableStreamDefaultReader<Uint8Array> = {
+    async read() {
+      const result = await rawReader.read()
+      if (!result.done && result.value) {
+        const now = performance.now()
+        const gap = now - counters.lastChunkMs
+        if (gap > counters.longestIdleGapMs) counters.longestIdleGapMs = gap
+        counters.lastChunkMs = now
+        counters.chunks += 1
+        counters.bytes += result.value.byteLength
+      }
+      return result
+    },
+    cancel: (reason) => rawReader.cancel(reason),
+    releaseLock: () => rawReader.releaseLock(),
+    get closed() {
+      return rawReader.closed
+    },
+  }
   const decoder = new TextDecoder()
 
   const timeoutId = setTimeout(() => {
     context.errors.push('Request timed out')
     context.streamComplete = true
-    endedOn = 'timeout'
+    endedOn = CopilotSseCloseReason.Timeout
     reader.cancel().catch(() => {})
   }, timeout)
 
   try {
     await processSSEStream(reader, decoder, abortSignal, async (raw) => {
-      if (eventsReceived === 0) {
-        firstEventMs = Math.round(performance.now() - bodyStart)
+      if (counters.events === 0) {
+        counters.firstEventMs = Math.round(performance.now() - bodyStart)
       }
-      eventsReceived += 1
+      counters.events += 1
       if (abortSignal?.aborted) {
         context.wasAborted = true
         return true
@@ -212,6 +266,12 @@ export async function runStreamLoop(
         const goTraceId = envelope.trace.goTraceId || envelope.trace.requestId
         context.trace.setGoTraceId(goTraceId)
         options.onGoTraceId?.(goTraceId)
+      }
+
+      // Per-type counters for the copilot.sse.read_loop span. Bound set
+      // (8 types) so this can never blow up into high cardinality.
+      if (streamEvent.type in counters.eventsByType) {
+        counters.eventsByType[streamEvent.type as MothershipStreamV1EventType] += 1
       }
 
       if (shouldSkipToolCallEvent(streamEvent) || shouldSkipToolResultEvent(streamEvent)) {
@@ -319,44 +379,58 @@ export async function runStreamLoop(
         requestId: context.requestId,
         messageId: context.messageId,
       })
-      endedOn = 'closed_no_terminal'
+      endedOn = CopilotSseCloseReason.ClosedNoTerminal
       throw new CopilotBackendError(message, { status: 503 })
     }
   } catch (error) {
     if (error instanceof FatalSseEventError && !context.errors.includes(error.message)) {
       context.errors.push(error.message)
     }
-    if (endedOn === 'terminal') {
+    if (endedOn === CopilotSseCloseReason.Terminal) {
       endedOn =
         error instanceof CopilotBackendError
-          ? 'backend_error'
+          ? CopilotSseCloseReason.BackendError
           : error instanceof BillingLimitError
-            ? 'billing_limit'
-            : 'error'
+            ? CopilotSseCloseReason.BillingLimit
+            : CopilotSseCloseReason.Error
     }
     throw error
   } finally {
     if (abortSignal?.aborted) {
       context.wasAborted = true
       await reader.cancel().catch(() => {})
-      if (endedOn === 'terminal') {
-        endedOn = 'aborted'
+      if (endedOn === CopilotSseCloseReason.Terminal) {
+        endedOn = CopilotSseCloseReason.Aborted
       }
     }
     clearTimeout(timeoutId)
 
+    // Legacy TraceCollector span (consumed by the in-memory trace
+    // collector, kept for backwards compatibility with existing
+    // tooling). The real OTel span is stamped below.
     const bodyDurationMs = Math.round(performance.now() - bodyStart)
     bodySpan.attributes = {
       ...(bodySpan.attributes ?? {}),
-      eventsReceived,
-      firstEventMs,
+      eventsReceived: counters.events,
+      firstEventMs: counters.firstEventMs,
       endedOn,
       durationMs: bodyDurationMs,
     }
     context.trace.endSpan(
       bodySpan,
-      endedOn === 'terminal' ? 'ok' : endedOn === 'aborted' ? 'cancelled' : 'error'
+      endedOn === CopilotSseCloseReason.Terminal
+        ? 'ok'
+        : endedOn === CopilotSseCloseReason.Aborted
+          ? 'cancelled'
+          : 'error'
     )
+
+    // Real OTel span for Tempo/Grafana. Stamped aggregate-only so
+    // there is no per-chunk OTel cost — one span per read loop with
+    // integer counters, plus a bounded set of events.
+    stampSseReadLoopSpan(bodyStart, counters, endedOn, fetchUrl, pathname, {
+      idleGapEventThresholdMs: IDLE_GAP_EVENT_THRESHOLD_MS,
+    })
   }
 }
 
@@ -374,4 +448,92 @@ function estimateBodyBytes(body: BodyInit | null | undefined): number {
     return body.byteLength
   }
   return 0
+}
+
+type SseReadLoopCounters = {
+  bytes: number
+  chunks: number
+  events: number
+  eventsByType: Record<MothershipStreamV1EventType, number>
+  firstEventMs: number | undefined
+  longestIdleGapMs: number
+}
+
+/**
+ * Ship a one-shot `copilot.sse.read_loop` OTel span with the aggregate
+ * counters collected during the read loop. Uses `startTime` so the
+ * span's duration reflects the actual loop wall clock even though we
+ * only talk to OTel once at the end.
+ *
+ * Deliberately synchronous, no per-chunk span calls: total OTel cost
+ * per read loop is fixed (~10 attrs + up to 3 events), independent of
+ * chunk count.
+ */
+function stampSseReadLoopSpan(
+  startPerfMs: number,
+  counters: SseReadLoopCounters,
+  closeReason: string,
+  fetchUrl: string,
+  pathname: string,
+  opts: { idleGapEventThresholdMs: number }
+): void {
+  // Translate performance.now() values into wall-clock Date values so
+  // the span's timestamps land in real time (OTel accepts both, but we
+  // need to pair startTime with a matching "now" for .end()).
+  const nowPerf = performance.now()
+  const nowWall = Date.now()
+  const startWall = nowWall - (nowPerf - startPerfMs)
+
+  const tracer = getCopilotTracer()
+  const span = tracer.startSpan(TraceSpan.CopilotSseReadLoop, {
+    startTime: startWall,
+    attributes: {
+      [TraceAttr.HttpUrl]: fetchUrl,
+      [TraceAttr.HttpPath]: pathname,
+      [TraceAttr.CopilotSseBytesReceived]: counters.bytes,
+      [TraceAttr.CopilotSseChunksReceived]: counters.chunks,
+      [TraceAttr.CopilotSseEventsReceived]: counters.events,
+      [TraceAttr.CopilotSseEventsSession]: counters.eventsByType.session,
+      [TraceAttr.CopilotSseEventsText]: counters.eventsByType.text,
+      [TraceAttr.CopilotSseEventsTool]: counters.eventsByType.tool,
+      [TraceAttr.CopilotSseEventsSpan]: counters.eventsByType.span,
+      [TraceAttr.CopilotSseEventsResource]: counters.eventsByType.resource,
+      [TraceAttr.CopilotSseEventsRun]: counters.eventsByType.run,
+      [TraceAttr.CopilotSseEventsError]: counters.eventsByType.error,
+      [TraceAttr.CopilotSseEventsComplete]: counters.eventsByType.complete,
+      [TraceAttr.CopilotSseLongestIdleGapMs]: Math.round(counters.longestIdleGapMs),
+      [TraceAttr.CopilotSseCloseReason]: closeReason,
+      [TraceAttr.CopilotSseTerminalEventSeen]: counters.eventsByType.complete > 0,
+    },
+  })
+
+  if (counters.firstEventMs !== undefined) {
+    span.setAttribute(TraceAttr.CopilotSseFirstEventMs, counters.firstEventMs)
+    span.addEvent(TraceEvent.CopilotSseFirstEvent, {
+      [TraceAttr.CopilotSseFirstEventMs]: counters.firstEventMs,
+    })
+  }
+  if (counters.longestIdleGapMs >= opts.idleGapEventThresholdMs) {
+    span.addEvent(TraceEvent.CopilotSseIdleGapExceeded, {
+      [TraceAttr.CopilotSseLongestIdleGapMs]: Math.round(counters.longestIdleGapMs),
+    })
+  }
+  if (counters.eventsByType.complete > 0) {
+    span.addEvent(TraceEvent.CopilotSseTerminalEventReceived)
+  }
+
+  // Span status: only mark ERROR for real failures. User aborts and
+  // clean terminals stay UNSET so dashboards filtering `status=error`
+  // don't light up for normal cancellations.
+  if (
+    closeReason !== CopilotSseCloseReason.Terminal &&
+    closeReason !== CopilotSseCloseReason.Aborted
+  ) {
+    span.setStatus({
+      code: SpanStatusCode.ERROR,
+      message: `SSE read loop ended with reason: ${closeReason}`,
+    })
+  }
+
+  span.end(nowWall)
 }

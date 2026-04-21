@@ -141,7 +141,10 @@ export async function maybeWriteOutputToTable(
         })
         span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.Failed)
         span.addEvent(TraceEvent.CopilotTableError, {
-          [TraceAttr.ErrorMessage]: (err instanceof Error ? err.message : String(err)).slice(0, 500),
+          [TraceAttr.ErrorMessage]: (err instanceof Error ? err.message : String(err)).slice(
+            0,
+            500
+          ),
         })
         return {
           success: false,
@@ -288,7 +291,10 @@ export async function maybeWriteReadCsvToTable(
         })
         span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.Failed)
         span.addEvent(TraceEvent.CopilotTableError, {
-          [TraceAttr.ErrorMessage]: (err instanceof Error ? err.message : String(err)).slice(0, 500),
+          [TraceAttr.ErrorMessage]: (err instanceof Error ? err.message : String(err)).slice(
+            0,
+            500
+          ),
         })
         return {
           success: false,

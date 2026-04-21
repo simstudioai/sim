@@ -285,13 +285,8 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             // Demote to warn when the throw came from a user-initiated
             // cancel — it isn't an "unexpected" failure then, and the
             // error-level log pollutes alerting on normal Stop presses.
-            const logFn =
-              outcome === RequestTraceV1Outcome.cancelled ? logger.warn : logger.error
-            logFn.call(
-              logger,
-              `[${requestId}] Orchestration ended with ${outcome}:`,
-              error
-            )
+            const logFn = outcome === RequestTraceV1Outcome.cancelled ? logger.warn : logger.error
+            logFn.call(logger, `[${requestId}] Orchestration ended with ${outcome}:`, error)
 
             const syntheticResult = {
               success: false as const,

@@ -193,7 +193,8 @@ async function prepareImageForVision(
                 [TraceAttr.CopilotVfsResizeDimension]: dimension,
                 [TraceAttr.CopilotVfsResizeQuality]: quality,
                 [TraceAttr.CopilotVfsResizeOutputBytes]: transformed.buffer.length,
-                [TraceAttr.CopilotVfsResizeFitsBudget]: transformed.buffer.length <= MAX_IMAGE_READ_BYTES,
+                [TraceAttr.CopilotVfsResizeFitsBudget]:
+                  transformed.buffer.length <= MAX_IMAGE_READ_BYTES,
               })
 
               if (transformed.buffer.length <= MAX_IMAGE_READ_BYTES) {

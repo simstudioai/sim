@@ -191,6 +191,19 @@ export const CopilotResumeOutcome = {
 export type CopilotResumeOutcomeKey = keyof typeof CopilotResumeOutcome
 export type CopilotResumeOutcomeValue = (typeof CopilotResumeOutcome)[CopilotResumeOutcomeKey]
 
+export const CopilotSseCloseReason = {
+  Aborted: 'aborted',
+  BackendError: 'backend_error',
+  BillingLimit: 'billing_limit',
+  ClosedNoTerminal: 'closed_no_terminal',
+  Error: 'error',
+  Terminal: 'terminal',
+  Timeout: 'timeout',
+} as const
+
+export type CopilotSseCloseReasonKey = keyof typeof CopilotSseCloseReason
+export type CopilotSseCloseReasonValue = (typeof CopilotSseCloseReason)[CopilotSseCloseReasonKey]
+
 export const CopilotStopOutcome = {
   ChatNotFound: 'chat_not_found',
   InternalError: 'internal_error',

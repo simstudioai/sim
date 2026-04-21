@@ -12,6 +12,9 @@
 export const TraceEvent = {
   BedrockInvokeRetryWithoutImages: 'bedrock.invoke.retry_without_images',
   CopilotOutputFileError: 'copilot.output_file.error',
+  CopilotSseFirstEvent: 'copilot.sse.first_event',
+  CopilotSseIdleGapExceeded: 'copilot.sse.idle_gap_exceeded',
+  CopilotSseTerminalEventReceived: 'copilot.sse.terminal_event_received',
   CopilotTableError: 'copilot.table.error',
   CopilotVfsParseFailed: 'copilot.vfs.parse_failed',
   CopilotVfsResizeAttempt: 'copilot.vfs.resize_attempt',
@@ -31,6 +34,9 @@ export type TraceEventValue = (typeof TraceEvent)[TraceEventKey]
 export const TraceEventValues: readonly TraceEventValue[] = [
   'bedrock.invoke.retry_without_images',
   'copilot.output_file.error',
+  'copilot.sse.first_event',
+  'copilot.sse.idle_gap_exceeded',
+  'copilot.sse.terminal_event_received',
   'copilot.table.error',
   'copilot.vfs.parse_failed',
   'copilot.vfs.resize_attempt',

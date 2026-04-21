@@ -3533,9 +3533,7 @@ export function useChat(
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  ...(stopTraceparentSnapshot
-                    ? { traceparent: stopTraceparentSnapshot }
-                    : {}),
+                  ...(stopTraceparentSnapshot ? { traceparent: stopTraceparentSnapshot } : {}),
                 },
                 body: JSON.stringify({
                   streamId: sid,
