@@ -29,6 +29,7 @@ import {
   isCredentialSetsEnabled,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { AuditLogsSkeleton } from '@/ee/audit-logs/components/audit-logs-skeleton'
+import { DataRetentionSkeleton } from '@/ee/data-retention/components/data-retention-skeleton'
 
 /**
  * Generic skeleton fallback for sections without a dedicated skeleton.
@@ -174,7 +175,7 @@ const DataRetentionSettings = dynamic(
     import('@/ee/data-retention/components/data-retention-settings').then(
       (m) => m.DataRetentionSettings
     ),
-  { loading: () => <SettingsSectionSkeleton /> }
+  { loading: () => <DataRetentionSkeleton /> }
 )
 const WhitelabelingSettings = dynamic(
   () =>
@@ -215,7 +216,12 @@ export function SettingsPage({ section }: SettingsPageProps) {
   }, [effectiveSection, sessionLoading, posthog])
 
   return (
-    <div className={cn(effectiveSection === 'access-control' && 'flex h-full flex-col')}>
+    <div
+      className={cn(
+        (effectiveSection === 'access-control' || effectiveSection === 'recently-deleted') &&
+          'flex h-full flex-col'
+      )}
+    >
       <h2 className='mb-7 font-medium text-[22px] text-[var(--text-primary)]'>{label}</h2>
       {effectiveSection === 'general' && <General />}
       {effectiveSection === 'integrations' && <Integrations />}

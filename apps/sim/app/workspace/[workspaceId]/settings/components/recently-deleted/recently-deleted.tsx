@@ -4,8 +4,14 @@ import { useMemo, useState } from 'react'
 import { formatDate } from '@sim/utils/formatting'
 import { Folder, Search } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { Button, Combobox, SModalTabs, SModalTabsList, SModalTabsTrigger } from '@/components/emcn'
-import { Input } from '@/components/ui'
+import {
+  Button,
+  Combobox,
+  Input,
+  SModalTabs,
+  SModalTabsList,
+  SModalTabsTrigger,
+} from '@/components/emcn'
 import { workflowBorderColor } from '@/lib/workspaces/colors'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
@@ -356,7 +362,7 @@ export function RecentlyDeleted() {
       <div className='min-h-0 flex-1 overflow-y-auto'>
         {error ? (
           <div className='flex h-full flex-col items-center justify-center gap-2'>
-            <p className='text-[var(--error)] text-xs leading-tight dark:text-[var(--error)]'>
+            <p className='text-[var(--text-error)] text-xs leading-tight'>
               {error instanceof Error ? error.message : 'Failed to load deleted items'}
             </p>
           </div>
