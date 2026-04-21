@@ -238,6 +238,7 @@ export async function getUsersWithPermissions(workspaceId: string): Promise<
     userId: string
     email: string
     name: string
+    image: string | null
     permissionType: PermissionType
   }>
 > {
@@ -246,6 +247,7 @@ export async function getUsersWithPermissions(workspaceId: string): Promise<
       userId: user.id,
       email: user.email,
       name: user.name,
+      image: user.image,
       permissionType: permissions.permissionType,
     })
     .from(permissions)
@@ -264,6 +266,7 @@ export async function getUsersWithPermissions(workspaceId: string): Promise<
     userId: row.userId,
     email: row.email,
     name: row.name,
+    image: row.image ?? null,
     permissionType: row.permissionType,
   }))
 }

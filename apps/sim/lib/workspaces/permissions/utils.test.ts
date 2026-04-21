@@ -208,6 +208,7 @@ describe('Permission Utils', () => {
           userId: 'user1',
           email: 'alice@example.com',
           name: 'Alice Smith',
+          image: 'https://example.com/alice.png',
           permissionType: 'admin' as PermissionType,
         },
       ]
@@ -222,6 +223,7 @@ describe('Permission Utils', () => {
           userId: 'user1',
           email: 'alice@example.com',
           name: 'Alice Smith',
+          image: 'https://example.com/alice.png',
           permissionType: 'admin',
         },
       ])

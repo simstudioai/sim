@@ -484,10 +484,6 @@ export function DeployModal({
               {!permissionConfig.hideDeployChatbot && (
                 <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
               )}
-              {/* <ModalTabsTrigger value='form'>Form</ModalTabsTrigger> */}
-              {/* {!permissionConfig.hideDeployTemplate && (
-                <ModalTabsTrigger value='template'>Template</ModalTabsTrigger>
-              )} */}
             </ModalTabsList>
 
             <ModalBody className='min-h-0 flex-1'>

@@ -165,9 +165,10 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      await validateInvitationsAllowed(session.user.id)
-
       const { id: organizationId } = await params
+
+      await validateInvitationsAllowed(session.user.id, { organizationId })
+
       const { email, role = 'member' } = await request.json()
 
       if (!email) {

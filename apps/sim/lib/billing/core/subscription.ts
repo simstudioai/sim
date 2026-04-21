@@ -471,22 +471,30 @@ export async function hasSSOAccess(userId: string): Promise<boolean> {
 }
 
 /**
- * Check if user has access to Access Control (Permission Groups) feature
- * Returns true if:
- * - ACCESS_CONTROL_ENABLED env var is set (self-hosted override), OR
- * - User is admin/owner of an enterprise organization
- *
- * In non-production environments, returns true for convenience.
+ * Check whether a workspace is entitled to the Access Control (Permission Groups)
+ * feature. Entitlement follows the workspace's `billedAccountUserId`:
+ * - self-hosted override honored via ACCESS_CONTROL_ENABLED, OR
+ * - billing disabled, OR
+ * - the workspace belongs to an enterprise-plan organization (org-mode), OR
+ * - the billed user has an individual enterprise subscription (personal workspace).
  */
-export async function hasAccessControlAccess(userId: string): Promise<boolean> {
+export async function isWorkspaceOnEnterprisePlan(workspaceId: string): Promise<boolean> {
   try {
-    if (isAccessControlEnabled && !isHosted) {
-      return true
+    if (!isBillingEnabled) return true
+    if (isAccessControlEnabled && !isHosted) return true
+
+    const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
+    const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
+    if (!ws) return false
+
+    if (ws.organizationId) {
+      return isOrganizationOnEnterprisePlan(ws.organizationId)
     }
 
-    return isEnterpriseOrgAdminOrOwner(userId)
+    const billedSub = await getHighestPrioritySubscription(ws.billedAccountUserId)
+    return !!billedSub && checkEnterprisePlan(billedSub)
   } catch (error) {
-    logger.error('Error checking access control access', { error, userId })
+    logger.error('Error checking workspace enterprise plan status', { error, workspaceId })
     return false
   }
 }

@@ -37,6 +37,7 @@ import { generateId } from '@sim/utils/id'
 import { and, count, eq } from 'drizzle-orm'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
+import { applyWorkspaceAutoAddGroup } from '@/lib/permission-groups/auto-add'
 import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
@@ -228,6 +229,8 @@ export const POST = withRouteHandler(
         createdAt: now,
         updatedAt: now,
       })
+
+      await applyWorkspaceAutoAddGroup(db, workspaceId, body.userId)
 
       logger.info(`Admin API: Added user ${body.userId} to workspace ${workspaceId}`, {
         permissions: body.permissions,

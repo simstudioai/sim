@@ -13,6 +13,11 @@ import {
   refreshTokenIfNeeded,
   resolveOAuthAccountId,
 } from '@/app/api/auth/oauth/utils'
+import {
+  assertPermissionsAllowed,
+  IntegrationNotAllowedError,
+  ProviderNotAllowedError,
+} from '@/ee/access-control/utils/permission-check'
 import type { StreamingExecution } from '@/executor/types'
 import { executeProviderRequest } from '@/providers'
 
@@ -102,6 +107,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const workspaceAccess = await checkWorkspaceAccess(workspaceId, auth.userId)
       if (!workspaceAccess.hasAccess) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+
+      try {
+        await assertPermissionsAllowed({
+          userId: auth.userId,
+          workspaceId,
+          model,
+        })
+      } catch (err) {
+        if (err instanceof ProviderNotAllowedError || err instanceof IntegrationNotAllowedError) {
+          return NextResponse.json({ error: err.message }, { status: 403 })
+        }
+        throw err
       }
     }
 

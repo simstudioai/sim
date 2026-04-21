@@ -9,10 +9,14 @@ import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
+import { applyWorkspaceAutoAddGroup } from '@/lib/permission-groups/auto-add'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
+  checkWorkspaceAccess,
+  getUserEntityPermissions,
   getUsersWithPermissions,
   hasWorkspaceAdminAccess,
+  type PermissionType,
 } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspacesPermissionsAPI')
@@ -45,27 +49,36 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
-      const userPermission = await db
-        .select()
-        .from(permissions)
-        .where(
-          and(
-            eq(permissions.entityId, workspaceId),
-            eq(permissions.entityType, 'workspace'),
-            eq(permissions.userId, session.user.id)
-          )
-        )
-        .limit(1)
+      const isAdmin = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
+      const access = await checkWorkspaceAccess(workspaceId, session.user.id)
 
-      if (userPermission.length === 0) {
+      if (!access.exists) {
         return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 404 })
       }
+
+      if (!isAdmin && !access.hasAccess) {
+        return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 404 })
+      }
+
+      const explicitPermission = await getUserEntityPermissions(
+        session.user.id,
+        'workspace',
+        workspaceId
+      )
+      const viewerPermissionType: PermissionType = isAdmin
+        ? 'admin'
+        : (explicitPermission ?? 'read')
 
       const result = await getUsersWithPermissions(workspaceId)
 
       return NextResponse.json({
         users: result,
         total: result.length,
+        viewer: {
+          userId: session.user.id,
+          isAdmin,
+          permissionType: viewerPermissionType,
+        },
       })
     } catch (error) {
       logger.error('Error fetching workspace permissions:', error)
@@ -154,6 +167,8 @@ export const PATCH = withRouteHandler(
 
       await db.transaction(async (tx) => {
         for (const update of body.updates) {
+          const isNew = !permLookup.has(update.userId)
+
           await tx
             .delete(permissions)
             .where(
@@ -173,6 +188,10 @@ export const PATCH = withRouteHandler(
             createdAt: new Date(),
             updatedAt: new Date(),
           })
+
+          if (isNew) {
+            await applyWorkspaceAutoAddGroup(tx, workspaceId, update.userId)
+          }
         }
       })
 

@@ -1,6 +1,9 @@
+import { db } from '@sim/db'
+import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId, isValidUuid } from '@sim/utils/id'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth/hybrid'
@@ -48,6 +51,10 @@ import {
   workflowHasResponseBlock,
 } from '@/lib/workflows/utils'
 import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
+import {
+  PublicApiNotAllowedError,
+  validatePublicApiAllowed,
+} from '@/ee/access-control/utils/permission-check'
 import { normalizeName } from '@/executor/constants'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type {
@@ -312,31 +319,28 @@ async function handleExecutePost(
         return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
       }
 
-      const { db: dbClient, workflow: workflowTable } = await import('@sim/db')
-      const { eq } = await import('drizzle-orm')
-      const [wf] = await dbClient
+      const [wf] = await db
         .select({
           isPublicApi: workflowTable.isPublicApi,
           isDeployed: workflowTable.isDeployed,
           userId: workflowTable.userId,
+          workspaceId: workflowTable.workspaceId,
         })
         .from(workflowTable)
         .where(eq(workflowTable.id, workflowId))
         .limit(1)
 
-      if (!wf?.isPublicApi || !wf.isDeployed) {
+      if (!wf?.isPublicApi || !wf.isDeployed || !wf.workspaceId) {
         return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
       }
 
-      const { isPublicApiDisabled } = await import('@/lib/core/config/feature-flags')
-      if (isPublicApiDisabled) {
-        return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
-      }
-
-      const { getUserPermissionConfig } = await import('@/ee/access-control/utils/permission-check')
-      const ownerConfig = await getUserPermissionConfig(wf.userId)
-      if (ownerConfig?.disablePublicApi) {
-        return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+      try {
+        await validatePublicApiAllowed(wf.userId, wf.workspaceId)
+      } catch (err) {
+        if (err instanceof PublicApiNotAllowedError) {
+          return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
+        }
+        throw err
       }
 
       userId = wf.userId

@@ -184,6 +184,16 @@ export const PATCH = withRouteHandler(
           )
         }
 
+        if (existingWorkspace.workspaceMode === 'personal') {
+          return NextResponse.json(
+            {
+              error:
+                'Personal workspaces are always billed to their owner and cannot change billed account.',
+            },
+            { status: 400 }
+          )
+        }
+
         const candidateId = billedAccountUserId
 
         const isOwner = candidateId === existingWorkspace.ownerId

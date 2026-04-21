@@ -12,7 +12,7 @@ Sim Enterprise provides advanced features for organizations with enhanced securi
 
 ## Access Control
 
-Define permission groups to control what features and integrations team members can use.
+Define permission groups on a workspace to control what features and integrations its members can use. Permission groups are scoped to a single workspace — a user can belong to different groups (or no group) in different workspaces.
 
 ### Features
 
@@ -22,12 +22,12 @@ Define permission groups to control what features and integrations team members 
 
 ### Setup
 
-1. Navigate to **Settings** → **Access Control** in your workspace
+1. Navigate to **Settings** → **Access Control** in the workspace you want to manage
 2. Create a permission group with your desired restrictions
-3. Add team members to the permission group
+3. Add workspace members to the permission group
 
 <Callout type="info">
-  Users not assigned to any permission group have full access. Permission restrictions are enforced at both UI and execution time.
+  Any workspace admin on an Enterprise-entitled workspace can manage permission groups. Users not assigned to any group have full access. Permission restrictions are enforced at both UI and execution time, and apply to workflows based on the workflow's workspace.
 </Callout>
 
 ---
@@ -93,7 +93,7 @@ curl -X DELETE "https://your-instance/api/v1/admin/workspaces/{workspaceId}/memb
 
 ### Notes
 
-- Enabling `ACCESS_CONTROL_ENABLED` automatically enables organizations, as access control requires organization membership.
+- Access Control is scoped per workspace. Set `ACCESS_CONTROL_ENABLED` and `NEXT_PUBLIC_ACCESS_CONTROL_ENABLED` to enable it on every workspace in a self-hosted deployment, bypassing the Enterprise plan check.
 - When `DISABLE_INVITATIONS` is set, users cannot send invitations. Use the Admin API to manage workspace and organization memberships instead.
 
 <FAQ items={[
@@ -104,5 +104,5 @@ curl -X DELETE "https://your-instance/api/v1/admin/workspaces/{workspaceId}/memb
   { question: "Which SSO providers are supported?", answer: "Sim supports SAML 2.0 and OIDC protocols, which means it works with virtually any enterprise identity provider including Okta, Azure AD (Entra ID), Google Workspace, and OneLogin. Configuration is done through Settings in the workspace UI." },
   { question: "How do I manage users when invitations are disabled?", answer: "Use the Admin API with your admin API key. You can create organizations, add members to organizations with specific roles, add users to workspaces with defined permissions, and remove users. All management is done through REST API calls authenticated with the x-admin-key header." },
   { question: "Can I scale Sim horizontally for high availability?", answer: "The Docker Compose setup is designed for single-node deployments. For production scaling, you can deploy on Kubernetes with multiple application replicas behind a load balancer. The database can be scaled independently using managed PostgreSQL services. Redis can be configured for session and cache management across multiple instances." },
-  { question: "How do access control permission groups work?", answer: "Permission groups let you restrict which AI providers, workflow blocks, and platform features are available to specific team members. Users not assigned to any group have full access. Restrictions are enforced at both the UI level (hiding restricted options) and at execution time (blocking unauthorized operations). Enabling access control automatically enables organization management." },
+  { question: "How do access control permission groups work?", answer: "Permission groups are created per workspace and let you restrict which AI providers, workflow blocks, and platform features are available to specific members of that workspace. Each user can belong to at most one group per workspace (and different groups in different workspaces). Users not assigned to any group have full access. Restrictions are enforced at both the UI level (hiding restricted options) and at execution time (blocking unauthorized operations) — execution enforcement is based on the workflow's workspace. Any workspace admin on an Enterprise-entitled workspace can manage permission groups." },
 ]} />

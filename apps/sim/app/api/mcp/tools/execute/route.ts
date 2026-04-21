@@ -14,6 +14,10 @@ import {
   createMcpSuccessResponse,
   validateStringParam,
 } from '@/lib/mcp/utils'
+import {
+  assertPermissionsAllowed,
+  McpToolsNotAllowedError,
+} from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('McpToolExecutionAPI')
 
@@ -70,6 +74,19 @@ export const POST = withRouteHandler(
       if (!toolNameValidation.isValid) {
         logger.warn(`[${requestId}] Invalid toolName: ${toolName}`)
         return createMcpErrorResponse(new Error(toolNameValidation.error), 'Invalid toolName', 400)
+      }
+
+      try {
+        await assertPermissionsAllowed({
+          userId,
+          workspaceId,
+          toolKind: 'mcp',
+        })
+      } catch (err) {
+        if (err instanceof McpToolsNotAllowedError) {
+          return createMcpErrorResponse(err, err.message, 403)
+        }
+        throw err
       }
 
       logger.info(

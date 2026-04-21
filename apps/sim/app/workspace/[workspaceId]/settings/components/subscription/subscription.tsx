@@ -345,9 +345,10 @@ export function Subscription() {
   const isCritical = isBlocked || usage.percentUsed >= USAGE_THRESHOLDS.CRITICAL
 
   const billedAccountUserId = workspaceData?.settings?.workspace?.billedAccountUserId ?? null
+  const workspaceMode = workspaceData?.settings?.workspace?.workspaceMode ?? null
   const isOrganizationWorkspace =
-    workspaceData?.settings?.workspace?.organizationId != null &&
-    workspaceData?.settings?.workspace?.workspaceMode === 'organization'
+    workspaceData?.settings?.workspace?.organizationId != null && workspaceMode === 'organization'
+  const isGrandfatheredSharedWorkspace = workspaceMode === 'grandfathered_shared'
   const workspaceAdmins: WorkspaceAdmin[] =
     workspaceData?.permissions?.users?.filter(
       (user: WorkspaceAdmin) => user.permissionType === 'admin'
@@ -1073,7 +1074,7 @@ export function Subscription() {
               </>
             )}
 
-          {!isLoading && isTeamAdmin && !isOrganizationWorkspace && (
+          {!isLoading && isTeamAdmin && isGrandfatheredSharedWorkspace && (
             <div className='flex items-center justify-between gap-4'>
               <div className='flex items-center gap-1.5'>
                 <Label htmlFor='billed-account'>Billed Account</Label>

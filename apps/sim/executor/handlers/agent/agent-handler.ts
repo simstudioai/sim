@@ -64,7 +64,7 @@ export class AgentBlockHandler implements BlockHandler {
     const responseFormat = parseResponseFormat(filteredInputs.responseFormat)
     const model = filteredInputs.model || AGENT.DEFAULT_MODEL
 
-    await validateModelProvider(ctx.userId, model, ctx)
+    await validateModelProvider(ctx.userId, ctx.workspaceId, model, ctx)
 
     const providerId = getProviderFromModel(model)
     const formattedTools = await this.formatTools(
@@ -76,7 +76,7 @@ export class AgentBlockHandler implements BlockHandler {
     const skillInputs = filteredInputs.skills ?? []
     let skillMetadata: Array<{ name: string; description: string }> = []
     if (skillInputs.length > 0 && ctx.workspaceId) {
-      await validateSkillsAllowed(ctx.userId, ctx)
+      await validateSkillsAllowed(ctx.userId, ctx.workspaceId, ctx)
       skillMetadata = await resolveSkillMetadata(skillInputs, ctx.workspaceId)
       if (skillMetadata.length > 0) {
         const skillNames = skillMetadata.map((s) => s.name)
@@ -125,11 +125,11 @@ export class AgentBlockHandler implements BlockHandler {
     const hasCustomTools = tools.some((t) => t.type === 'custom-tool')
 
     if (hasMcpTools) {
-      await validateMcpToolsAllowed(ctx.userId, ctx)
+      await validateMcpToolsAllowed(ctx.userId, ctx.workspaceId, ctx)
     }
 
     if (hasCustomTools) {
-      await validateCustomToolsAllowed(ctx.userId, ctx)
+      await validateCustomToolsAllowed(ctx.userId, ctx.workspaceId, ctx)
     }
   }
 
@@ -212,7 +212,7 @@ export class AgentBlockHandler implements BlockHandler {
       otherTools.map(async (tool) => {
         try {
           if (tool.type && tool.type !== 'custom-tool') {
-            await validateBlockType(ctx.userId, tool.type, ctx)
+            await validateBlockType(ctx.userId, ctx.workspaceId, tool.type, ctx)
           }
           if (tool.type === 'custom-tool' && (tool.schema || tool.customToolId)) {
             return await this.createCustomTool(ctx, tool)

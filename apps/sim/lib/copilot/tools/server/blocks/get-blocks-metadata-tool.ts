@@ -113,12 +113,15 @@ export const getBlocksMetadataServerTool: BaseServerTool<
   outputSchema: GetBlocksMetadataResultSchema,
   async execute(
     { blockIds }: z.infer<typeof GetBlocksMetadataInputSchema>,
-    context?: { userId: string }
+    context?: { userId: string; workspaceId?: string }
   ): Promise<z.infer<typeof GetBlocksMetadataResultSchema>> {
     const logger = createLogger('GetBlocksMetadataServerTool')
     logger.debug('Executing get_blocks_metadata', { count: blockIds?.length })
 
-    const permissionConfig = context?.userId ? await getUserPermissionConfig(context.userId) : null
+    const permissionConfig =
+      context?.userId && context?.workspaceId
+        ? await getUserPermissionConfig(context.userId, context.workspaceId)
+        : null
     const allowedIntegrations =
       permissionConfig?.allowedIntegrations ?? getAllowedIntegrationsFromEnv()
 

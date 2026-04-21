@@ -942,6 +942,31 @@ export async function transferOrganizationOwnership(
 
       result.workspacesReassigned = ownerUpdate.length
 
+      const reassignedWorkspaceIds = Array.from(
+        new Set([...billedUpdate.map((w) => w.id), ...ownerUpdate.map((w) => w.id)])
+      )
+
+      if (reassignedWorkspaceIds.length > 0) {
+        const now = new Date()
+        await tx
+          .insert(permissions)
+          .values(
+            reassignedWorkspaceIds.map((workspaceId) => ({
+              id: generateId(),
+              userId: newOwnerUserId,
+              entityType: 'workspace' as const,
+              entityId: workspaceId,
+              permissionType: 'admin' as const,
+              createdAt: now,
+              updatedAt: now,
+            }))
+          )
+          .onConflictDoUpdate({
+            target: [permissions.userId, permissions.entityType, permissions.entityId],
+            set: { permissionType: 'admin', updatedAt: now },
+          })
+      }
+
       const [oldStats] = await tx
         .select({
           billedOverageThisPeriod: userStats.billedOverageThisPeriod,

@@ -7,6 +7,11 @@ import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
 import { validateJson } from '@/lib/guardrails/validate_json'
 import { validatePII } from '@/lib/guardrails/validate_pii'
 import { validateRegex } from '@/lib/guardrails/validate_regex'
+import { authorizeWorkflowByWorkspacePermission } from '@/lib/workflows/utils'
+import {
+  assertPermissionsAllowed,
+  ProviderNotAllowedError,
+} from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('GuardrailsValidateAPI')
 
@@ -39,7 +44,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       bedrockSecretKey,
       bedrockRegion,
       workflowId,
-      workspaceId,
       piiEntityTypes,
       piiMode,
       piiLanguage,
@@ -110,6 +114,64 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
+    let resolvedWorkspaceId: string | undefined
+
+    if (validationType === 'hallucination' && model) {
+      if (!workflowId || typeof workflowId !== 'string') {
+        return NextResponse.json({
+          success: true,
+          output: {
+            passed: false,
+            validationType,
+            input: input || '',
+            error:
+              'Workflow context is required for hallucination validation. Call this endpoint via a workflow execution, not directly.',
+          },
+        })
+      }
+
+      const authorization = await authorizeWorkflowByWorkspacePermission({
+        workflowId,
+        userId: auth.userId,
+        action: 'read',
+      })
+
+      if (!authorization.allowed || !authorization.workflow?.workspaceId) {
+        return NextResponse.json({
+          success: true,
+          output: {
+            passed: false,
+            validationType,
+            input: input || '',
+            error: authorization.message || 'Workflow not found or access denied.',
+          },
+        })
+      }
+
+      resolvedWorkspaceId = authorization.workflow.workspaceId
+
+      try {
+        await assertPermissionsAllowed({
+          userId: auth.userId,
+          workspaceId: resolvedWorkspaceId,
+          model,
+        })
+      } catch (err) {
+        if (err instanceof ProviderNotAllowedError) {
+          return NextResponse.json({
+            success: true,
+            output: {
+              passed: false,
+              validationType,
+              input: input || '',
+              error: err.message,
+            },
+          })
+        }
+        throw err
+      }
+    }
+
     const inputStr = convertInputToString(input)
 
     logger.info(`[${requestId}] Executing validation locally`, {
@@ -141,7 +203,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         bedrockRegion,
       },
       workflowId,
-      workspaceId,
+      resolvedWorkspaceId,
       piiEntityTypes,
       piiMode,
       piiLanguage,

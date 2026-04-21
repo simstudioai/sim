@@ -12,6 +12,10 @@ import {
   createErrorResponse,
   createSuccessResponse,
 } from '@/app/api/workflows/utils'
+import {
+  PublicApiNotAllowedError,
+  validatePublicApiAllowed,
+} from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('WorkflowDeployAPI')
 
@@ -154,11 +158,8 @@ export const PATCH = withRouteHandler(
       }
 
       if (isPublicApi) {
-        const { validatePublicApiAllowed, PublicApiNotAllowedError } = await import(
-          '@/ee/access-control/utils/permission-check'
-        )
         try {
-          await validatePublicApiAllowed(session?.user?.id)
+          await validatePublicApiAllowed(session?.user?.id, workflowData?.workspaceId ?? undefined)
         } catch (err) {
           if (err instanceof PublicApiNotAllowedError) {
             return createErrorResponse('Public API access is disabled', 403)

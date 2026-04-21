@@ -1352,6 +1352,13 @@
       "when": 1776725749082,
       "tag": "0193_lying_rocket_racer",
       "breakpoints": true
+    },
+    {
+      "idx": 194,
+      "version": "7",
+      "when": 1776800382630,
+      "tag": "0194_careless_pete_wisdom",
+      "breakpoints": true
     }
   ]
 }

@@ -5,8 +5,6 @@ import {
   invitation,
   invitationWorkspaceGrant,
   organization,
-  permissionGroup,
-  permissionGroupMember,
   permissions,
   user,
   workspace,
@@ -16,10 +14,10 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, lte } from 'drizzle-orm'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
-import { hasAccessControlAccess } from '@/lib/billing'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { ensureUserInOrganization } from '@/lib/billing/organizations/membership'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
+import { applyWorkspaceAutoAddGroup } from '@/lib/permission-groups/auto-add'
 
 const logger = createLogger('InvitationCore')
 
@@ -290,49 +288,6 @@ export async function acceptInvitation(
       .set({ status: 'accepted', updatedAt: new Date() })
       .where(eq(invitation.id, inv.id))
 
-    if (inv.organizationId) {
-      try {
-        const hasAccessControl = await hasAccessControlAccess(input.userId)
-        if (hasAccessControl) {
-          const [autoAddGroup] = await tx
-            .select({ id: permissionGroup.id, name: permissionGroup.name })
-            .from(permissionGroup)
-            .where(
-              and(
-                eq(permissionGroup.organizationId, inv.organizationId),
-                eq(permissionGroup.autoAddNewMembers, true)
-              )
-            )
-            .limit(1)
-
-          if (autoAddGroup) {
-            const [existingMember] = await tx
-              .select({ id: permissionGroupMember.id })
-              .from(permissionGroupMember)
-              .where(eq(permissionGroupMember.userId, input.userId))
-              .limit(1)
-
-            if (!existingMember) {
-              await tx.insert(permissionGroupMember).values({
-                id: generateId(),
-                permissionGroupId: autoAddGroup.id,
-                userId: input.userId,
-                assignedBy: null,
-                assignedAt: new Date(),
-              })
-            }
-          }
-        }
-      } catch (groupError) {
-        logger.error('Failed to auto-assign user to permission group', {
-          userId: input.userId,
-          organizationId: inv.organizationId,
-          invitationId: inv.id,
-          error: groupError,
-        })
-      }
-    }
-
     for (const grant of inv.grants) {
       const [existingPermission] = await tx
         .select({ id: permissions.id, permissionType: permissions.permissionType })
@@ -369,6 +324,8 @@ export async function acceptInvitation(
           updatedAt: new Date(),
         })
       }
+
+      await applyWorkspaceAutoAddGroup(tx, grant.workspaceId, input.userId)
 
       acceptedWorkspaceIds.push(grant.workspaceId)
     }
