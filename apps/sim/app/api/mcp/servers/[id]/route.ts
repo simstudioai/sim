@@ -24,9 +24,8 @@ export const dynamic = 'force-dynamic'
 /**
  * PATCH - Update an MCP server in the workspace (requires write or admin permission)
  */
-export const PATCH =
-  withRouteHandler(withMcpAuth < { id: string }) >
-  'write'(
+export const PATCH = withRouteHandler(
+  withMcpAuth<{ id: string }>('write')(
     async (
       request: NextRequest,
       { userId, userName, userEmail, workspaceId, requestId },
@@ -149,3 +148,4 @@ export const PATCH =
       }
     }
   )
+)
