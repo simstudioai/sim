@@ -140,6 +140,9 @@ export const workflowFolder = pgTable(
     ),
     parentSortIdx: index('workflow_folder_parent_sort_idx').on(table.parentId, table.sortOrder),
     archivedAtIdx: index('workflow_folder_archived_at_idx').on(table.archivedAt),
+    workspaceArchivedAtPartialIdx: index('workflow_folder_workspace_archived_partial_idx')
+      .on(table.workspaceId, table.archivedAt)
+      .where(sql`${table.archivedAt} IS NOT NULL`),
   })
 )
 
@@ -176,6 +179,9 @@ export const workflow = pgTable(
       .where(sql`${table.archivedAt} IS NULL`),
     folderSortIdx: index('workflow_folder_sort_idx').on(table.folderId, table.sortOrder),
     archivedAtIdx: index('workflow_archived_at_idx').on(table.archivedAt),
+    workspaceArchivedAtPartialIdx: index('workflow_workspace_archived_partial_idx')
+      .on(table.workspaceId, table.archivedAt)
+      .where(sql`${table.archivedAt} IS NOT NULL`),
   })
 )
 
@@ -543,7 +549,9 @@ export const workflowSchedule = pgTable(
         table.workflowId,
         table.deploymentVersionId
       ),
-      archivedAtIdx: index('workflow_schedule_archived_at_idx').on(table.archivedAt),
+      archivedAtPartialIdx: index('workflow_schedule_archived_at_partial_idx')
+        .on(table.archivedAt)
+        .where(sql`${table.archivedAt} IS NOT NULL`),
     }
   }
 )
@@ -620,7 +628,9 @@ export const webhook = pgTable(
       ),
       // Optimize queries for credential set webhooks
       credentialSetIdIdx: index('webhook_credential_set_id_idx').on(table.credentialSetId),
-      archivedAtIdx: index('webhook_archived_at_idx').on(table.archivedAt),
+      archivedAtPartialIdx: index('webhook_archived_at_partial_idx')
+        .on(table.archivedAt)
+        .where(sql`${table.archivedAt} IS NOT NULL`),
     }
   }
 )
@@ -899,7 +909,9 @@ export const chat = pgTable(
       identifierIdx: uniqueIndex('identifier_idx')
         .on(table.identifier)
         .where(sql`${table.archivedAt} IS NULL`),
-      archivedAtIdx: index('chat_archived_at_idx').on(table.archivedAt),
+      archivedAtPartialIdx: index('chat_archived_at_partial_idx')
+        .on(table.archivedAt)
+        .where(sql`${table.archivedAt} IS NOT NULL`),
     }
   }
 )
@@ -941,7 +953,9 @@ export const form = pgTable(
       .where(sql`${table.archivedAt} IS NULL`),
     workflowIdIdx: index('form_workflow_id_idx').on(table.workflowId),
     userIdIdx: index('form_user_id_idx').on(table.userId),
-    archivedAtIdx: index('form_archived_at_idx').on(table.archivedAt),
+    archivedAtPartialIdx: index('form_archived_at_partial_idx')
+      .on(table.archivedAt)
+      .where(sql`${table.archivedAt} IS NOT NULL`),
   })
 )
 
@@ -1063,6 +1077,9 @@ export const workspace = pgTable(
     inboxEnabled: boolean('inbox_enabled').notNull().default(false),
     inboxAddress: text('inbox_address'),
     inboxProviderId: text('inbox_provider_id'),
+    logRetentionHours: integer('log_retention_hours'),
+    softDeleteRetentionHours: integer('soft_delete_retention_hours'),
+    taskCleanupHours: integer('task_cleanup_hours'),
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -1095,6 +1112,9 @@ export const workspaceFile = pgTable(
     workspaceIdIdx: index('workspace_file_workspace_id_idx').on(table.workspaceId),
     keyIdx: index('workspace_file_key_idx').on(table.key),
     deletedAtIdx: index('workspace_file_deleted_at_idx').on(table.deletedAt),
+    workspaceDeletedAtPartialIdx: index('workspace_file_workspace_deleted_partial_idx')
+      .on(table.workspaceId, table.deletedAt)
+      .where(sql`${table.deletedAt} IS NOT NULL`),
   })
 )
 
@@ -1131,6 +1151,9 @@ export const workspaceFiles = pgTable(
     contextIdx: index('workspace_files_context_idx').on(table.context),
     chatIdIdx: index('workspace_files_chat_id_idx').on(table.chatId),
     deletedAtIdx: index('workspace_files_deleted_at_idx').on(table.deletedAt),
+    workspaceDeletedAtPartialIdx: index('workspace_files_workspace_deleted_partial_idx')
+      .on(table.workspaceId, table.deletedAt)
+      .where(sql`${table.deletedAt} IS NOT NULL`),
   })
 )
 
@@ -1226,6 +1249,9 @@ export const memory = pgTable(
         table.workspaceId,
         table.key
       ),
+      workspaceDeletedAtPartialIdx: index('memory_workspace_deleted_partial_idx')
+        .on(table.workspaceId, table.deletedAt)
+        .where(sql`${table.deletedAt} IS NOT NULL`),
     }
   }
 )
@@ -1268,6 +1294,9 @@ export const knowledgeBase = pgTable(
     userWorkspaceIdx: index('kb_user_workspace_idx').on(table.userId, table.workspaceId),
     // Index for soft delete filtering
     deletedAtIdx: index('kb_deleted_at_idx').on(table.deletedAt),
+    workspaceDeletedAtPartialIdx: index('kb_workspace_deleted_partial_idx')
+      .on(table.workspaceId, table.deletedAt)
+      .where(sql`${table.deletedAt} IS NOT NULL`),
     /** One active (non-deleted) name per workspace; matches user_table_definitions pattern */
     workspaceNameActiveUnique: uniqueIndex('kb_workspace_name_active_unique')
       .on(table.workspaceId, table.name)
@@ -1356,8 +1385,12 @@ export const document = pgTable(
       .where(sql`${table.deletedAt} IS NULL`),
     // Sync engine: load all active docs for a connector
     connectorIdIdx: index('doc_connector_id_idx').on(table.connectorId),
-    archivedAtIdx: index('doc_archived_at_idx').on(table.archivedAt),
-    deletedAtIdx: index('doc_deleted_at_idx').on(table.deletedAt),
+    archivedAtPartialIdx: index('doc_archived_at_partial_idx')
+      .on(table.archivedAt)
+      .where(sql`${table.archivedAt} IS NOT NULL`),
+    deletedAtPartialIdx: index('doc_deleted_at_partial_idx')
+      .on(table.deletedAt)
+      .where(sql`${table.deletedAt} IS NOT NULL`),
     // Text tag indexes
     tag1Idx: index('doc_tag1_idx').on(table.tag1),
     tag2Idx: index('doc_tag2_idx').on(table.tag2),
@@ -2077,11 +2110,10 @@ export const mcpServers = pgTable(
       table.enabled
     ),
 
-    // Soft delete pattern - workspace + not deleted
-    workspaceDeletedIdx: index('mcp_servers_workspace_deleted_idx').on(
-      table.workspaceId,
-      table.deletedAt
-    ),
+    // Soft delete pattern - workspace + not deleted (partial: only deleted rows)
+    workspaceDeletedIdx: index('mcp_servers_workspace_deleted_partial_idx')
+      .on(table.workspaceId, table.deletedAt)
+      .where(sql`${table.deletedAt} IS NOT NULL`),
   })
 )
 
@@ -2136,6 +2168,9 @@ export const workflowMcpServer = pgTable(
     workspaceIdIdx: index('workflow_mcp_server_workspace_id_idx').on(table.workspaceId),
     createdByIdx: index('workflow_mcp_server_created_by_idx').on(table.createdBy),
     deletedAtIdx: index('workflow_mcp_server_deleted_at_idx').on(table.deletedAt),
+    workspaceDeletedAtPartialIdx: index('workflow_mcp_server_workspace_deleted_partial_idx')
+      .on(table.workspaceId, table.deletedAt)
+      .where(sql`${table.deletedAt} IS NOT NULL`),
   })
 )
 
@@ -2166,7 +2201,9 @@ export const workflowMcpTool = pgTable(
     serverWorkflowUnique: uniqueIndex('workflow_mcp_tool_server_workflow_unique')
       .on(table.serverId, table.workflowId)
       .where(sql`${table.archivedAt} IS NULL`),
-    archivedAtIdx: index('workflow_mcp_tool_archived_at_idx').on(table.archivedAt),
+    archivedAtPartialIdx: index('workflow_mcp_tool_archived_at_partial_idx')
+      .on(table.archivedAt)
+      .where(sql`${table.archivedAt} IS NOT NULL`),
   })
 )
 
@@ -2235,6 +2272,9 @@ export const a2aAgent = pgTable(
       .on(table.workspaceId, table.workflowId)
       .where(sql`${table.archivedAt} IS NULL`),
     archivedAtIdx: index('a2a_agent_archived_at_idx').on(table.archivedAt),
+    workspaceArchivedAtPartialIdx: index('a2a_agent_workspace_archived_partial_idx')
+      .on(table.workspaceId, table.archivedAt)
+      .where(sql`${table.archivedAt} IS NOT NULL`),
   })
 )
 
@@ -2386,6 +2426,10 @@ export const usageLog = pgTable(
     sourceIdx: index('usage_log_source_idx').on(table.source),
     workspaceIdIdx: index('usage_log_workspace_id_idx').on(table.workspaceId),
     workflowIdIdx: index('usage_log_workflow_id_idx').on(table.workflowId),
+    workspaceCreatedAtIdx: index('usage_log_workspace_created_at_idx').on(
+      table.workspaceId,
+      table.createdAt
+    ),
   })
 )
 
@@ -2708,8 +2752,12 @@ export const knowledgeConnector = pgTable(
   (table) => ({
     knowledgeBaseIdIdx: index('kc_knowledge_base_id_idx').on(table.knowledgeBaseId),
     statusNextSyncIdx: index('kc_status_next_sync_idx').on(table.status, table.nextSyncAt),
-    archivedAtIdx: index('kc_archived_at_idx').on(table.archivedAt),
-    deletedAtIdx: index('kc_deleted_at_idx').on(table.deletedAt),
+    archivedAtPartialIdx: index('kc_archived_at_partial_idx')
+      .on(table.archivedAt)
+      .where(sql`${table.archivedAt} IS NOT NULL`),
+    deletedAtPartialIdx: index('kc_deleted_at_partial_idx')
+      .on(table.deletedAt)
+      .where(sql`${table.deletedAt} IS NOT NULL`),
   })
 )
 
@@ -2777,6 +2825,9 @@ export const userTableDefinitions = pgTable(
       .on(table.workspaceId, table.name)
       .where(sql`${table.archivedAt} IS NULL`),
     archivedAtIdx: index('user_table_def_archived_at_idx').on(table.archivedAt),
+    workspaceArchivedAtPartialIdx: index('user_table_def_workspace_archived_partial_idx')
+      .on(table.workspaceId, table.archivedAt)
+      .where(sql`${table.archivedAt} IS NOT NULL`),
   })
 )
 
