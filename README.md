@@ -135,6 +135,16 @@ Copilot is a Sim-managed service. To use Copilot on a self-hosted instance:
 
 See the [environment variables reference](https://docs.sim.ai/self-hosting/environment-variables) for the full list, or [`apps/sim/.env.example`](apps/sim/.env.example) for defaults.
 
+## Key Management
+
+Sim includes an automated key management system for securely handling API keys and secrets. See [Key Management Documentation](docs/KEY_MANAGEMENT.md) for details.
+
+Key features:
+- 🔍 Automatic discovery of required environment variables
+- 🔐 Secure storage in GitHub repository secrets
+- 💉 Smart injection into configuration files
+- 🧹 Automatic memory clearing after processing
+
 ## Tech Stack
 
 - **Framework**: [Next.js](https://nextjs.org/) (App Router)
