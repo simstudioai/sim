@@ -40,6 +40,8 @@ const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermiss
 vi.mock('@/lib/audit/log', () => auditMock)
 vi.mock('@sim/logger', () => ({
   createLogger: vi.fn().mockReturnValue(mockLogger),
+  runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
+  getRequestContext: () => undefined,
 }))
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@sim/db', () => ({

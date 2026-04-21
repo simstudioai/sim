@@ -23,9 +23,9 @@ export function withRouteHandler<T>(handler: RouteHandler<T>): RouteHandler<T> {
   return async (request: NextRequest, context: T) => {
     const requestId = generateRequestId()
     const startTime = Date.now()
-    const method = request.method
+    const method = request?.method ?? 'UNKNOWN'
     const path =
-      request.nextUrl?.pathname ?? new URL(request.url ?? '/', 'http://localhost').pathname
+      request?.nextUrl?.pathname ?? new URL(request?.url ?? '/', 'http://localhost').pathname
 
     return runWithRequestContext({ requestId, method, path }, async () => {
       let response: NextResponse | Response
@@ -36,22 +36,22 @@ export function withRouteHandler<T>(handler: RouteHandler<T>): RouteHandler<T> {
         const message = error instanceof Error ? error.message : 'Unknown error'
         logger.error('Unhandled route error', { duration, error: message })
         response = NextResponse.json({ error: 'Internal server error', requestId }, { status: 500 })
-        response.headers.set('x-request-id', requestId)
+        response?.headers?.set('x-request-id', requestId)
         return response
       }
 
-      const status = response.status
+      const status = response?.status ?? 0
       const duration = Date.now() - startTime
 
       if (status >= 500) {
         logger.error('Server error response', { status, duration })
       } else if (status >= 400) {
         logger.warn('Client error response', { status, duration })
-      } else {
+      } else if (status > 0) {
         logger.info('OK', { status, duration })
       }
 
-      response.headers.set('x-request-id', requestId)
+      response?.headers?.set('x-request-id', requestId)
       return response
     })
   }
