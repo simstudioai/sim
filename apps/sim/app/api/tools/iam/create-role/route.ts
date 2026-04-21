@@ -16,7 +16,7 @@ const Schema = z.object({
   assumeRolePolicyDocument: z.string().min(1, 'Assume role policy document is required'),
   description: z.string().optional().nullable(),
   path: z.string().optional().nullable(),
-  maxSessionDuration: z.number().min(3600).max(43200).optional().nullable(),
+  maxSessionDuration: z.number().int().min(3600).max(43200).optional().nullable(),
 })
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
