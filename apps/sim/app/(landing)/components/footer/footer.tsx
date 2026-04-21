@@ -31,6 +31,7 @@ const RESOURCES_LINKS: FooterItem[] = [
   { label: 'Partners', href: '/partners' },
   { label: 'Careers', href: 'https://jobs.ashbyhq.com/sim', external: true, externalArrow: true },
   { label: 'Changelog', href: '/changelog' },
+  { label: 'Contact', href: '/contact' },
 ]
 
 const BLOCK_LINKS: FooterItem[] = [
