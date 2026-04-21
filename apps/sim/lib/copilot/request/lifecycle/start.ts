@@ -378,7 +378,31 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
           // reason (if any) determines whether `cancelled` is an
           // expected outcome (explicit_stop → status OK) or a real
           // error (client_disconnect / unknown → status ERROR).
-          activeOtelRoot.finish(rootOutcome, rootError, cancelReason)
+          //
+          // Belt-and-suspenders: if `finish()` itself throws (e.g. an
+          // argument in the TDZ, a bad attribute, a regression in
+          // status-setting), fall back to `span.end()` directly. A
+          // root that never ends leaves every child orphaned in Tempo
+          // under a phantom parent; force-ending it keeps the trace
+          // shape intact even when the pretty-finalize path is
+          // broken. The error is logged so Loki greps surface the
+          // regression instead of it silently costing us trace
+          // fidelity for hours.
+          try {
+            activeOtelRoot.finish(rootOutcome, rootError, cancelReason)
+          } catch (finishError) {
+            logger.error(`[${requestId}] activeOtelRoot.finish threw; force-ending root span`, {
+              error: finishError instanceof Error ? finishError.message : String(finishError),
+            })
+            try {
+              activeOtelRoot.span.end()
+            } catch {
+              // Already ended or an OTel internal failure — nothing
+              // more we can do. The export pipe has already had its
+              // chance; swallow to avoid masking the original error
+              // path.
+            }
+          }
         }
       })
     },
