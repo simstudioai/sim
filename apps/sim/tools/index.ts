@@ -17,6 +17,7 @@ import { isUserFile } from '@/lib/core/utils/user-file'
 import { SIM_VIA_HEADER, serializeCallChain } from '@/lib/execution/call-chain'
 import { parseMcpToolId } from '@/lib/mcp/utils'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-check'
 import { isCustomTool, isMcpTool } from '@/executor/constants'
 import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext, UserFile } from '@/executor/types'
@@ -776,9 +777,6 @@ export async function executeTool(
             : undefined
 
     if (toolKind && scope.userId && scope.workspaceId) {
-      const { assertPermissionsAllowed } = await import(
-        '@/ee/access-control/utils/permission-check'
-      )
       await assertPermissionsAllowed({
         userId: scope.userId,
         workspaceId: scope.workspaceId,

@@ -7,44 +7,21 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
-import { hasWorkspaceAccessControlAccess } from '@/lib/billing'
+import { hasWorkspaceAccessControlAccess, isWorkspaceOnEnterprisePlan } from '@/lib/billing'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
+  permissionGroupConfigSchema,
 } from '@/lib/permission-groups/types'
 import { checkWorkspaceAccess, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspacePermissionGroups')
 
-const configSchema = z.object({
-  allowedIntegrations: z.array(z.string()).nullable().optional(),
-  allowedModelProviders: z.array(z.string()).nullable().optional(),
-  hideTraceSpans: z.boolean().optional(),
-  hideKnowledgeBaseTab: z.boolean().optional(),
-  hideTablesTab: z.boolean().optional(),
-  hideCopilot: z.boolean().optional(),
-  hideIntegrationsTab: z.boolean().optional(),
-  hideSecretsTab: z.boolean().optional(),
-  hideApiKeysTab: z.boolean().optional(),
-  hideInboxTab: z.boolean().optional(),
-  hideFilesTab: z.boolean().optional(),
-  disableMcpTools: z.boolean().optional(),
-  disableCustomTools: z.boolean().optional(),
-  disableSkills: z.boolean().optional(),
-  disableInvitations: z.boolean().optional(),
-  disablePublicApi: z.boolean().optional(),
-  hideDeployApi: z.boolean().optional(),
-  hideDeployMcp: z.boolean().optional(),
-  hideDeployA2a: z.boolean().optional(),
-  hideDeployChatbot: z.boolean().optional(),
-  hideDeployTemplate: z.boolean().optional(),
-})
-
 const createSchema = z.object({
   name: z.string().trim().min(1).max(100),
   description: z.string().max(500).optional(),
-  config: configSchema.optional(),
+  config: permissionGroupConfigSchema.optional(),
   autoAddNewMembers: z.boolean().optional(),
 })
 
@@ -65,6 +42,11 @@ export async function GET(
   }
   if (!access.hasAccess) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const entitled = await isWorkspaceOnEnterprisePlan(workspaceId)
+  if (!entitled) {
+    return NextResponse.json({ error: 'Access Control is an Enterprise feature' }, { status: 403 })
   }
 
   const groups = await db

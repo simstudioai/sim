@@ -12,6 +12,11 @@ import {
   refreshTokenIfNeeded,
   resolveOAuthAccountId,
 } from '@/app/api/auth/oauth/utils'
+import {
+  assertPermissionsAllowed,
+  IntegrationNotAllowedError,
+  ProviderNotAllowedError,
+} from '@/ee/access-control/utils/permission-check'
 import type { StreamingExecution } from '@/executor/types'
 import { executeProviderRequest } from '@/providers'
 
@@ -103,8 +108,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
 
-      const { assertPermissionsAllowed, IntegrationNotAllowedError, ProviderNotAllowedError } =
-        await import('@/ee/access-control/utils/permission-check')
       try {
         await assertPermissionsAllowed({
           userId: auth.userId,

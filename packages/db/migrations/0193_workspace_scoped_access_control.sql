@@ -3,6 +3,28 @@
 -- owned by that org; members are copied to each clone only if the user has
 -- workspace-level permissions on the target workspace.
 
+-- 0. Backfill workspace -> organization links for grandfathered workspaces whose
+--    billed account user is the sole owner of exactly one organization. This is a
+--    best-effort reconciliation: migration 0192 defaulted every pre-existing
+--    workspace to `grandfathered_shared` with `organization_id = NULL`, but many
+--    of those workspaces belong to users who own a single org. Without this link,
+--    the permission-group clone step below would drop all access control data for
+--    those workspaces. We only attach when ownership is unambiguous (user owns
+--    exactly one org) to avoid silently binding a workspace to the wrong org.
+UPDATE "workspace" w
+SET "organization_id" = owner_orgs."organization_id",
+    "workspace_mode" = 'organization'::"workspace_mode"
+FROM (
+  SELECT m."user_id", MIN(m."organization_id") AS "organization_id"
+  FROM "member" m
+  WHERE m."role" = 'owner'
+  GROUP BY m."user_id"
+  HAVING COUNT(*) = 1
+) AS owner_orgs
+WHERE w."organization_id" IS NULL
+  AND w."workspace_mode" = 'grandfathered_shared'
+  AND w."billed_account_user_id" = owner_orgs."user_id";--> statement-breakpoint
+
 -- 1. Add workspace_id as nullable so existing rows can coexist during the data migration.
 ALTER TABLE "permission_group" ADD COLUMN "workspace_id" text;--> statement-breakpoint
 ALTER TABLE "permission_group" ADD CONSTRAINT "permission_group_workspace_id_workspace_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspace"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -64,6 +86,10 @@ WHERE EXISTS (
   WHERE p."entity_type" = 'workspace'
     AND p."entity_id" = plan."workspace_id"
     AND p."user_id" = m."user_id"
+) OR EXISTS (
+  SELECT 1 FROM "workspace" w
+  WHERE w."id" = plan."workspace_id"
+    AND w."owner_id" = m."user_id"
 );--> statement-breakpoint
 
 -- 5. Delete legacy org-scoped rows now that clones exist.

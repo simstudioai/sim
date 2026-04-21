@@ -1,3 +1,29 @@
+import { z } from 'zod'
+
+export const permissionGroupConfigSchema = z.object({
+  allowedIntegrations: z.array(z.string()).nullable().optional(),
+  allowedModelProviders: z.array(z.string()).nullable().optional(),
+  hideTraceSpans: z.boolean().optional(),
+  hideKnowledgeBaseTab: z.boolean().optional(),
+  hideTablesTab: z.boolean().optional(),
+  hideCopilot: z.boolean().optional(),
+  hideIntegrationsTab: z.boolean().optional(),
+  hideSecretsTab: z.boolean().optional(),
+  hideApiKeysTab: z.boolean().optional(),
+  hideInboxTab: z.boolean().optional(),
+  hideFilesTab: z.boolean().optional(),
+  disableMcpTools: z.boolean().optional(),
+  disableCustomTools: z.boolean().optional(),
+  disableSkills: z.boolean().optional(),
+  disableInvitations: z.boolean().optional(),
+  disablePublicApi: z.boolean().optional(),
+  hideDeployApi: z.boolean().optional(),
+  hideDeployMcp: z.boolean().optional(),
+  hideDeployA2a: z.boolean().optional(),
+  hideDeployChatbot: z.boolean().optional(),
+  hideDeployTemplate: z.boolean().optional(),
+})
+
 export interface PermissionGroupConfig {
   allowedIntegrations: string[] | null
   allowedModelProviders: string[] | null

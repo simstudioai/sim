@@ -34,6 +34,7 @@ export async function GET(req: Request) {
       permissionGroupId: null,
       groupName: null,
       config: null,
+      entitled: false,
     })
   }
 
@@ -59,6 +60,7 @@ export async function GET(req: Request) {
       permissionGroupId: null,
       groupName: null,
       config: null,
+      entitled: true,
     })
   }
 
@@ -66,5 +68,6 @@ export async function GET(req: Request) {
     permissionGroupId: groupMembership.permissionGroupId,
     groupName: groupMembership.groupName,
     config: parsePermissionGroupConfig(groupMembership.config),
+    entitled: true,
   })
 }

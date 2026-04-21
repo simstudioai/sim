@@ -39,6 +39,7 @@ import {
   usePermissionGroups,
   useRemovePermissionGroupMember,
   useUpdatePermissionGroup,
+  useUserPermissionConfig,
 } from '@/ee/access-control/hooks/permission-groups'
 import { useBlacklistedProviders } from '@/hooks/queries/allowed-providers'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
@@ -255,6 +256,8 @@ export function AccessControl() {
   const { data: workspacePermissionsData, isPending: permsLoading } = useWorkspacePermissionsQuery(
     workspaceId ?? null
   )
+  const { data: userPermissionConfig, isPending: entitlementLoading } =
+    useUserPermissionConfig(workspaceId)
 
   const currentUserIsWorkspaceAdmin = useMemo(() => {
     if (!workspacePermissionsData || !session?.user?.id) return false
@@ -264,9 +267,10 @@ export function AccessControl() {
   }, [workspacePermissionsData, session?.user?.id])
 
   const accessControlEnabledLocally = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
-  const canManage = accessControlEnabledLocally || currentUserIsWorkspaceAdmin
+  const isEntitled = accessControlEnabledLocally || !!userPermissionConfig?.entitled
+  const canManage = isEntitled && currentUserIsWorkspaceAdmin
 
-  const isLoading = !workspaceId || groupsLoading || permsLoading
+  const isLoading = !workspaceId || groupsLoading || permsLoading || entitlementLoading
 
   const createPermissionGroup = useCreatePermissionGroup()
   const updatePermissionGroup = useUpdatePermissionGroup()

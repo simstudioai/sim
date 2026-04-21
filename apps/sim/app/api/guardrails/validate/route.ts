@@ -6,6 +6,10 @@ import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
 import { validateJson } from '@/lib/guardrails/validate_json'
 import { validatePII } from '@/lib/guardrails/validate_pii'
 import { validateRegex } from '@/lib/guardrails/validate_regex'
+import {
+  assertPermissionsAllowed,
+  ProviderNotAllowedError,
+} from '@/ee/access-control/utils/permission-check'
 
 const logger = createLogger('GuardrailsValidateAPI')
 
@@ -110,9 +114,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (validationType === 'hallucination' && model && workspaceId) {
-      const { assertPermissionsAllowed, ProviderNotAllowedError } = await import(
-        '@/ee/access-control/utils/permission-check'
-      )
       try {
         await assertPermissionsAllowed({
           userId: auth.userId,

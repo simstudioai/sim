@@ -7,7 +7,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
-import { hasWorkspaceAccessControlAccess } from '@/lib/billing'
+import { hasWorkspaceAccessControlAccess, isWorkspaceOnEnterprisePlan } from '@/lib/billing'
 import { checkWorkspaceAccess, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspacePermissionGroupMembers')
@@ -43,6 +43,11 @@ export async function GET(
   }
   if (!access.hasAccess) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const entitled = await isWorkspaceOnEnterprisePlan(workspaceId)
+  if (!entitled) {
+    return NextResponse.json({ error: 'Access Control is an Enterprise feature' }, { status: 403 })
   }
 
   const group = await loadGroupInWorkspace(id, workspaceId)

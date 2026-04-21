@@ -31,6 +31,7 @@ export interface UserPermissionConfig {
   permissionGroupId: string | null
   groupName: string | null
   config: PermissionGroupConfig | null
+  entitled: boolean
 }
 
 export const permissionGroupKeys = {
