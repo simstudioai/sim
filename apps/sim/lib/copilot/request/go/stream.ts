@@ -428,8 +428,16 @@ export async function runStreamLoop(
     // Real OTel span for Tempo/Grafana. Stamped aggregate-only so
     // there is no per-chunk OTel cost — one span per read loop with
     // integer counters, plus a bounded set of events.
+    //
+    // `context.streamComplete` is the caller-visible "this leg was
+    // supposed to be final" signal (set by the complete/error/run-end
+    // handlers). When it's true but we didn't see a terminal event on
+    // the wire, that's the real "disappeared response" bug — as
+    // opposed to a normal tool-pause leg which ends with
+    // streamComplete=false and terminal_event_seen=false and is fine.
     stampSseReadLoopSpan(bodyStart, counters, endedOn, fetchUrl, pathname, {
       idleGapEventThresholdMs: IDLE_GAP_EVENT_THRESHOLD_MS,
+      expectedTerminal: context.streamComplete,
     })
   }
 }
@@ -475,7 +483,7 @@ function stampSseReadLoopSpan(
   closeReason: string,
   fetchUrl: string,
   pathname: string,
-  opts: { idleGapEventThresholdMs: number }
+  opts: { idleGapEventThresholdMs: number; expectedTerminal: boolean }
 ): void {
   // Translate performance.now() values into wall-clock Date values so
   // the span's timestamps land in real time (OTel accepts both, but we
@@ -483,6 +491,16 @@ function stampSseReadLoopSpan(
   const nowPerf = performance.now()
   const nowWall = Date.now()
   const startWall = nowWall - (nowPerf - startPerfMs)
+
+  const terminalEventSeen = counters.eventsByType.complete > 0
+  // `terminal_event_missing` is the single-attribute dashboard signal
+  // for the "disappeared response" bug class: the caller considered
+  // this leg to be the final one (`context.streamComplete === true`)
+  // but no `complete` event arrived on the wire. Tool-pause legs have
+  // expectedTerminal=false and never trip this, so dashboards can
+  // filter on `{ .copilot.sse.terminal_event_missing = true }` without
+  // false positives.
+  const terminalEventMissing = opts.expectedTerminal && !terminalEventSeen
 
   const tracer = getCopilotTracer()
   const span = tracer.startSpan(TraceSpan.CopilotSseReadLoop, {
@@ -503,29 +521,43 @@ function stampSseReadLoopSpan(
       [TraceAttr.CopilotSseEventsComplete]: counters.eventsByType.complete,
       [TraceAttr.CopilotSseLongestIdleGapMs]: Math.round(counters.longestIdleGapMs),
       [TraceAttr.CopilotSseCloseReason]: closeReason,
-      [TraceAttr.CopilotSseTerminalEventSeen]: counters.eventsByType.complete > 0,
+      [TraceAttr.CopilotSseExpectedTerminal]: opts.expectedTerminal,
+      [TraceAttr.CopilotSseTerminalEventSeen]: terminalEventSeen,
+      [TraceAttr.CopilotSseTerminalEventMissing]: terminalEventMissing,
     },
   })
 
   if (counters.firstEventMs !== undefined) {
     span.setAttribute(TraceAttr.CopilotSseFirstEventMs, counters.firstEventMs)
-    span.addEvent(TraceEvent.CopilotSseFirstEvent, {
-      [TraceAttr.CopilotSseFirstEventMs]: counters.firstEventMs,
-    })
+    // Anchor the event to the moment the first SSE event was actually
+    // received (startWall + firstEventMs), not `now`, so a trace
+    // waterfall shows the diamond at the TTFT point — not at span end.
+    span.addEvent(
+      TraceEvent.CopilotSseFirstEvent,
+      { [TraceAttr.CopilotSseFirstEventMs]: counters.firstEventMs },
+      startWall + counters.firstEventMs
+    )
   }
   if (counters.longestIdleGapMs >= opts.idleGapEventThresholdMs) {
     span.addEvent(TraceEvent.CopilotSseIdleGapExceeded, {
       [TraceAttr.CopilotSseLongestIdleGapMs]: Math.round(counters.longestIdleGapMs),
     })
   }
-  if (counters.eventsByType.complete > 0) {
+  if (terminalEventSeen) {
     span.addEvent(TraceEvent.CopilotSseTerminalEventReceived)
   }
 
   // Span status: only mark ERROR for real failures. User aborts and
   // clean terminals stay UNSET so dashboards filtering `status=error`
-  // don't light up for normal cancellations.
-  if (
+  // don't light up for normal cancellations. Tool-pause legs (caller
+  // didn't set streamComplete) are NOT errors even though they have
+  // no complete event.
+  if (terminalEventMissing) {
+    span.setStatus({
+      code: SpanStatusCode.ERROR,
+      message: 'SSE read loop finished without terminal event (caller expected one)',
+    })
+  } else if (
     closeReason !== CopilotSseCloseReason.Terminal &&
     closeReason !== CopilotSseCloseReason.Aborted
   ) {
