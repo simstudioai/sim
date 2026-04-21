@@ -55,9 +55,7 @@ function DropZone({ onDrop, children, className }: DropZoneProps) {
     >
       {children}
       {isDragging && (
-        <div className='pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg border-[1.5px] border-[var(--brand)] border-dashed bg-[color-mix(in_srgb,var(--brand)_8%,transparent)]'>
-          <span className='font-medium text-[12px] text-[var(--brand)]'>Drop image</span>
-        </div>
+        <div className='pointer-events-none absolute inset-0 z-10 rounded-lg border-[1.5px] border-[var(--brand)] border-dashed bg-[color-mix(in_srgb,var(--brand)_8%,transparent)]' />
       )}
     </div>
   )
