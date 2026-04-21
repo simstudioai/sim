@@ -1,13 +1,13 @@
 import type { Metadata } from 'next'
 import { Badge } from '@/components/emcn'
 import { SITE_URL } from '@/lib/core/utils/urls'
-import { IntegrationCard } from './components/integration-card'
-import { IntegrationGrid } from './components/integration-grid'
-import { RequestIntegrationModal } from './components/request-integration-modal'
-import { blockTypeToIconMap } from './data/icon-mapping'
-import integrations from './data/integrations.json'
-import { POPULAR_WORKFLOWS } from './data/popular-workflows'
-import type { Integration } from './data/types'
+import { IntegrationCard } from '@/app/(landing)/integrations/components/integration-card'
+import { IntegrationGrid } from '@/app/(landing)/integrations/components/integration-grid'
+import { RequestIntegrationModal } from '@/app/(landing)/integrations/components/request-integration-modal'
+import { blockTypeToIconMap } from '@/app/(landing)/integrations/data/icon-mapping'
+import integrations from '@/app/(landing)/integrations/data/integrations.json'
+import { POPULAR_WORKFLOWS } from '@/app/(landing)/integrations/data/popular-workflows'
+import type { Integration } from '@/app/(landing)/integrations/data/types'
 
 const allIntegrations = integrations as Integration[]
 const INTEGRATION_COUNT = allIntegrations.length
