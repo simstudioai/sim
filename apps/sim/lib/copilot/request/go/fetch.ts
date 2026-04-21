@@ -2,7 +2,7 @@ import { type Context, context, SpanStatusCode, trace } from '@opentelemetry/api
 import { CopilotLeg } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { traceHeaders } from '@/lib/copilot/request/go/propagation'
-import { markSpanForError } from '@/lib/copilot/request/otel'
+import { isActionableErrorStatus, markSpanForError } from '@/lib/copilot/request/otel'
 
 // Lazy tracer resolution: module-level `trace.getTracer()` can be evaluated
 // before `instrumentation-node.ts` installs the TracerProvider under
@@ -80,7 +80,12 @@ export async function fetchGo(url: string, options: OutboundFetchOptions = {}): 
     if (contentLength > 0) {
       span.setAttribute(TraceAttr.HttpResponseContentLength, contentLength)
     }
-    if (response.status >= 400) {
+    // Only mark ERROR for actionable status codes. 4xx that represent
+    // normal auth/validation rejections (400/401/403/404/405/422/etc.)
+    // stay UNSET so error dashboards don't drown in expected rejection
+    // paths. See `isActionableErrorStatus` in Go's telemetry middleware
+    // for the mirror rule (5xx + 402/409/429).
+    if (isActionableErrorStatus(response.status)) {
       span.setStatus({
         code: SpanStatusCode.ERROR,
         message: `HTTP ${response.status}`,

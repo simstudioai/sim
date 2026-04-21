@@ -37,6 +37,16 @@ function isGenAIMessageCaptureEnabled(): boolean {
 // flavor). Callers suppress ERROR status on cancel paths.
 export function isCancellationError(err: unknown): boolean {
   if (err == null) return false
+  // `controller.abort(reason)` where `reason` is a plain string
+  // rejects fetch() with that string directly, not a DOMException.
+  // Our abort taxonomy uses `user_stop:*`, `redis_abort_marker:*`,
+  // `timeout:*` reason prefixes (see `request/session/abort.ts`), so
+  // treat those strings — and any fetch-abort-flavored message — as
+  // cancellation. Without this branch, a user Stop turns into a
+  // span with status=error even though nothing went wrong.
+  if (typeof err === 'string') {
+    return /aborted|AbortError|^user_stop:|^redis_abort_marker:|^timeout:/i.test(err)
+  }
   if (typeof err === 'object') {
     const e = err as { name?: unknown; code?: unknown; message?: unknown }
     if (e.name === 'AbortError') return true
@@ -47,6 +57,24 @@ export function isCancellationError(err: unknown): boolean {
     }
   }
   return false
+}
+
+/**
+ * True iff an HTTP response status code represents a real server-side
+ * problem (5xx) or a user-visible condition we want to alert on
+ * (402 Payment Required, 409 Conflict, 429 Too Many Requests).
+ *
+ * Everything else — in particular the 4xx flood from bot probes and
+ * expected auth/validation rejections — stays UNSET on the span so
+ * dashboards don't treat normal rejections as errors.
+ *
+ * Mirrored on the Go side in
+ * `copilot/internal/http/middleware/telemetry.go`. Keep the two in
+ * sync if you change the actionable set.
+ */
+export function isActionableErrorStatus(code: number): boolean {
+  if (code >= 500) return true
+  return code === 402 || code === 409 || code === 429
 }
 
 // Record exception + set ERROR only for real failures (cancels stay unset).
