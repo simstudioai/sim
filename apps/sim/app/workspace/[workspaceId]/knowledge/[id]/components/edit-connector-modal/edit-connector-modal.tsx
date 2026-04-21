@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { ArrowLeftRight, ExternalLink, Loader2, RotateCcw } from 'lucide-react'
 import {
@@ -26,8 +26,8 @@ import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
+import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
-import { getDependsOnFields } from '@/blocks/utils'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfig, ConnectorConfigField } from '@/connectors/types'
 import type { ConnectorData } from '@/hooks/queries/kb/connectors'
@@ -61,11 +61,14 @@ export function EditConnectorModal({
   const connectorConfig = CONNECTOR_REGISTRY[connector.connectorType] ?? null
 
   const [activeTab, setActiveTab] = useState('settings')
+  const [syncInterval, setSyncInterval] = useState(connector.syncIntervalMinutes)
+  const [error, setError] = useState<string | null>(null)
+
   /**
    * Seeds from the stored canonical config. For canonical-pair fields (selector +
    * manual input), both field IDs get the same value so toggling preserves it.
    */
-  const [sourceConfig, setSourceConfig] = useState<Record<string, string>>(() => {
+  const initialSourceConfig = useMemo(() => {
     const config: Record<string, string> = {}
     if (!connectorConfig) {
       for (const [key, value] of Object.entries(connector.sourceConfig)) {
@@ -80,117 +83,25 @@ export function EditConnectorModal({
       if (rawValue !== undefined) config[field.id] = String(rawValue ?? '')
     }
     return config
-  })
-  const [syncInterval, setSyncInterval] = useState(connector.syncIntervalMinutes)
-  const [error, setError] = useState<string | null>(null)
-  const [canonicalModes, setCanonicalModes] = useState<Record<string, 'basic' | 'advanced'>>({})
+    // Seed once on mount; editing state is owned by the hook afterward
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const {
+    sourceConfig,
+    canonicalModes,
+    canonicalGroups,
+    isFieldVisible,
+    handleFieldChange,
+    toggleCanonicalMode,
+    resolveSourceConfig,
+  } = useConnectorConfigFields({ connectorConfig, initialSourceConfig })
 
   const { mutate: updateConnector, isPending: isSaving } = useUpdateConnector()
 
   const { data: subscriptionResponse } = useSubscriptionData({ enabled: isBillingEnabled })
   const subscriptionAccess = getSubscriptionAccessState(subscriptionResponse?.data)
   const hasMaxAccess = !isBillingEnabled || subscriptionAccess.hasUsableMaxAccess
-
-  const canonicalGroups = useMemo(() => {
-    if (!connectorConfig) return new Map<string, ConnectorConfigField[]>()
-    const groups = new Map<string, ConnectorConfigField[]>()
-    for (const field of connectorConfig.configFields) {
-      if (field.canonicalParamId) {
-        const existing = groups.get(field.canonicalParamId)
-        if (existing) existing.push(field)
-        else groups.set(field.canonicalParamId, [field])
-      }
-    }
-    return groups
-  }, [connectorConfig])
-
-  const dependentFieldIds = useMemo(() => {
-    if (!connectorConfig) return new Map<string, string[]>()
-    const map = new Map<string, Set<string>>()
-    for (const field of connectorConfig.configFields) {
-      const deps = getDependsOnFields(field.dependsOn)
-      for (const dep of deps) {
-        const existing = map.get(dep) ?? new Set<string>()
-        existing.add(field.id)
-        if (field.canonicalParamId) {
-          for (const sibling of canonicalGroups.get(field.canonicalParamId) ?? []) {
-            existing.add(sibling.id)
-          }
-        }
-        map.set(dep, existing)
-      }
-    }
-    for (const group of canonicalGroups.values()) {
-      const allDependents = new Set<string>()
-      for (const field of group) {
-        for (const dep of map.get(field.id) ?? []) {
-          allDependents.add(dep)
-          const depField = connectorConfig.configFields.find((f) => f.id === dep)
-          if (depField?.canonicalParamId) {
-            for (const sibling of canonicalGroups.get(depField.canonicalParamId) ?? []) {
-              allDependents.add(sibling.id)
-            }
-          }
-        }
-      }
-      if (allDependents.size > 0) {
-        for (const field of group) map.set(field.id, new Set(allDependents))
-      }
-    }
-    const result = new Map<string, string[]>()
-    for (const [key, value] of map) result.set(key, [...value])
-    return result
-  }, [connectorConfig, canonicalGroups])
-
-  const isFieldVisible = (field: ConnectorConfigField): boolean => {
-    if (!field.canonicalParamId || !field.mode) return true
-    const activeMode = canonicalModes[field.canonicalParamId] ?? 'basic'
-    return field.mode === activeMode
-  }
-
-  const handleFieldChange = (fieldId: string, value: string) => {
-    setSourceConfig((prev) => {
-      const next = { ...prev, [fieldId]: value }
-      const toClear = dependentFieldIds.get(fieldId)
-      if (toClear) {
-        for (const depId of toClear) next[depId] = ''
-      }
-      return next
-    })
-  }
-
-  const toggleCanonicalMode = (canonicalId: string) => {
-    setCanonicalModes((prev) => ({
-      ...prev,
-      [canonicalId]: prev[canonicalId] === 'advanced' ? 'basic' : 'advanced',
-    }))
-  }
-
-  /**
-   * Collapse the canonical-pair state back to a flat map keyed by canonical IDs
-   * (matching what's stored in `connector.sourceConfig`).
-   */
-  const resolveSourceConfig = useCallback((): Record<string, string> => {
-    const resolved: Record<string, string> = {}
-    const processedCanonicals = new Set<string>()
-    if (!connectorConfig) return resolved
-
-    for (const field of connectorConfig.configFields) {
-      if (field.canonicalParamId) {
-        if (processedCanonicals.has(field.canonicalParamId)) continue
-        processedCanonicals.add(field.canonicalParamId)
-        const group = canonicalGroups.get(field.canonicalParamId)
-        if (!group) continue
-        const activeMode = canonicalModes[field.canonicalParamId] ?? 'basic'
-        const activeField = group.find((f) => f.mode === activeMode) ?? group[0]
-        const value = sourceConfig[activeField.id] ?? ''
-        resolved[field.canonicalParamId] = value
-      } else {
-        resolved[field.id] = sourceConfig[field.id] ?? ''
-      }
-    }
-    return resolved
-  }, [connectorConfig, canonicalGroups, canonicalModes, sourceConfig])
 
   const hasChanges = useMemo(() => {
     if (syncInterval !== connector.syncIntervalMinutes) return true
