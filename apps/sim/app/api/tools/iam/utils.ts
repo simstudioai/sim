@@ -438,8 +438,8 @@ export async function simulatePrincipalPolicy(
     evalResourceName: r.EvalResourceName ?? '',
     evalDecision: r.EvalDecision ?? '',
     matchedStatements: (r.MatchedStatements ?? []).map((s) => ({
-      statementId: s.StatementId ?? '',
       sourcePolicyId: s.SourcePolicyId ?? '',
+      sourcePolicyType: s.SourcePolicyType ?? '',
     })),
     missingContextValues: (r.MissingContextValues ?? []).map((v) => String(v)),
   }))

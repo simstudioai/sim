@@ -51,7 +51,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    logger.error('Failed to get access key info:', error)
+    logger.error('Failed to get access key info', { error: toError(error).message })
 
     return NextResponse.json(
       { error: `Failed to get access key info: ${toError(error).message}` },

@@ -67,16 +67,15 @@ export interface DynamoDBBaseResponse extends ToolResponse {
     count?: number
     lastEvaluatedKey?: Record<string, unknown>
   }
-  error?: string
 }
 
-export interface DynamoDBGetResponse extends DynamoDBBaseResponse {}
-export interface DynamoDBPutResponse extends DynamoDBBaseResponse {}
-export interface DynamoDBQueryResponse extends DynamoDBBaseResponse {}
-export interface DynamoDBScanResponse extends DynamoDBBaseResponse {}
-export interface DynamoDBUpdateResponse extends DynamoDBBaseResponse {}
-export interface DynamoDBDeleteResponse extends DynamoDBBaseResponse {}
-export interface DynamoDBResponse extends DynamoDBBaseResponse {}
+export type DynamoDBGetResponse = DynamoDBBaseResponse
+export type DynamoDBPutResponse = DynamoDBBaseResponse
+export type DynamoDBQueryResponse = DynamoDBBaseResponse
+export type DynamoDBScanResponse = DynamoDBBaseResponse
+export type DynamoDBUpdateResponse = DynamoDBBaseResponse
+export type DynamoDBDeleteResponse = DynamoDBBaseResponse
+export type DynamoDBResponse = DynamoDBBaseResponse
 
 export interface DynamoDBIntrospectParams extends DynamoDBConnectionConfig {
   tableName?: string
@@ -117,5 +116,4 @@ export interface DynamoDBIntrospectResponse extends ToolResponse {
     tables: string[]
     tableDetails?: DynamoDBTableSchema
   }
-  error?: string
 }

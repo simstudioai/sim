@@ -93,7 +93,7 @@ export async function listAccounts(
     arn: account.Arn ?? '',
     name: account.Name ?? '',
     email: account.Email ?? '',
-    status: account.State ?? account.Status ?? '',
+    status: account.State ?? '',
     joinedTimestamp: account.JoinedTimestamp?.toISOString() ?? null,
   }))
   return { accounts, nextToken: response.NextToken ?? null, count: accounts.length }
@@ -273,7 +273,7 @@ export async function describeAccount(client: OrganizationsClient, accountId: st
     arn: account?.Arn ?? '',
     name: account?.Name ?? '',
     email: account?.Email ?? '',
-    status: account?.State ?? account?.Status ?? '',
+    status: account?.State ?? '',
     joinedTimestamp: account?.JoinedTimestamp?.toISOString() ?? null,
   }
 }

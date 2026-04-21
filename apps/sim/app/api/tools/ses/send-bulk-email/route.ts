@@ -10,7 +10,7 @@ const logger = createLogger('SESSendBulkEmailAPI')
 
 const DestinationSchema = z.object({
   toAddresses: z.array(z.string().email()),
-  templateData: z.string(),
+  templateData: z.string().optional(),
 })
 
 const SendBulkEmailSchema = z.object({
@@ -34,7 +34,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const body = await request.json()
     const params = SendBulkEmailSchema.parse(body)
 
-    let destinations: Array<{ toAddresses: string[]; templateData: string }>
+    let destinations: Array<{ toAddresses: string[]; templateData?: string }>
     try {
       const parsed = JSON.parse(params.destinations)
       destinations = z.array(DestinationSchema).parse(parsed)

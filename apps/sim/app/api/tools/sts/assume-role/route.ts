@@ -66,7 +66,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    logger.error('Failed to assume role:', error)
+    logger.error('Failed to assume role', { error: toError(error).message })
 
     return NextResponse.json(
       { error: `Failed to assume role: ${toError(error).message}` },

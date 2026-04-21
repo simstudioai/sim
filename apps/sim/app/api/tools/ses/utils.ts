@@ -102,7 +102,7 @@ export async function sendBulkEmail(
   params: {
     fromAddress: string
     templateName: string
-    destinations: Array<{ toAddresses: string[]; templateData: string }>
+    destinations: Array<{ toAddresses: string[]; templateData?: string }>
     defaultTemplateData?: string | null
     configurationSetName?: string | null
   }
@@ -117,11 +117,15 @@ export async function sendBulkEmail(
     },
     BulkEmailEntries: params.destinations.map((dest) => ({
       Destination: { ToAddresses: dest.toAddresses },
-      ReplacementEmailContent: {
-        ReplacementTemplate: {
-          ReplacementTemplateData: dest.templateData,
-        },
-      },
+      ...(dest.templateData
+        ? {
+            ReplacementEmailContent: {
+              ReplacementTemplate: {
+                ReplacementTemplateData: dest.templateData,
+              },
+            },
+          }
+        : {}),
     })),
     ...(params.configurationSetName ? { ConfigurationSetName: params.configurationSetName } : {}),
   })

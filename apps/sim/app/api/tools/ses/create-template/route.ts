@@ -8,15 +8,20 @@ import { createSESClient, createTemplate } from '../utils'
 
 const logger = createLogger('SESCreateTemplateAPI')
 
-const CreateTemplateSchema = z.object({
-  region: z.string().min(1, 'AWS region is required'),
-  accessKeyId: z.string().min(1, 'AWS access key ID is required'),
-  secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
-  templateName: z.string().min(1, 'Template name is required'),
-  subjectPart: z.string().min(1, 'Subject is required'),
-  textPart: z.string().nullish(),
-  htmlPart: z.string().nullish(),
-})
+const CreateTemplateSchema = z
+  .object({
+    region: z.string().min(1, 'AWS region is required'),
+    accessKeyId: z.string().min(1, 'AWS access key ID is required'),
+    secretAccessKey: z.string().min(1, 'AWS secret access key is required'),
+    templateName: z.string().min(1, 'Template name is required'),
+    subjectPart: z.string().min(1, 'Subject is required'),
+    textPart: z.string().nullish(),
+    htmlPart: z.string().nullish(),
+  })
+  .refine((data) => data.textPart || data.htmlPart, {
+    message: 'At least one of textPart or htmlPart is required',
+    path: ['textPart'],
+  })
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const auth = await checkInternalAuth(request)

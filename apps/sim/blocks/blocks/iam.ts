@@ -661,7 +661,7 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
     evaluationResults: {
       type: 'json',
       description:
-        'Policy simulation results per action: evalActionName, evalResourceName, evalDecision (allowed/explicitDeny/implicitDeny), matchedStatements, missingContextValues',
+        'Policy simulation results per action: evalActionName, evalResourceName, evalDecision (allowed/explicitDeny/implicitDeny), matchedStatements (sourcePolicyId, sourcePolicyType), missingContextValues',
     },
   },
 }

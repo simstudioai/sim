@@ -43,7 +43,7 @@ export const sendBulkEmailTool: ToolConfig<SESSendBulkEmailParams, SESSendBulkEm
       required: true,
       visibility: 'user-or-llm',
       description:
-        'JSON array of destination objects with toAddresses (string[]) and templateData (JSON string)',
+        'JSON array of destination objects with toAddresses (string[]) and optional templateData (JSON string); falls back to defaultTemplateData when omitted',
     },
     defaultTemplateData: {
       type: 'string',

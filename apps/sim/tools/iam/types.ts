@@ -315,7 +315,7 @@ export interface IAMSimulatePrincipalPolicyResponse extends ToolResponse {
       evalActionName: string
       evalResourceName: string
       evalDecision: string
-      matchedStatements: Array<{ statementId: string; sourcePolicyId: string }>
+      matchedStatements: Array<{ sourcePolicyId: string; sourcePolicyType: string }>
       missingContextValues: string[]
     }>
     isTruncated: boolean

@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
@@ -20,8 +19,6 @@ const Schema = z.object({
 })
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
-  const requestId = generateId().slice(0, 8)
-
   const auth = await checkInternalAuth(request)
   if (!auth.success || !auth.userId) {
     return NextResponse.json({ error: auth.error || 'Unauthorized' }, { status: 401 })
@@ -31,7 +28,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const body = await request.json()
     const params = Schema.parse(body)
 
-    logger.info(`[${requestId}] Listing policies attached to IAM user "${params.userName}"`)
+    logger.info(`Listing policies attached to IAM user "${params.userName}"`)
 
     const client = createIAMClient({
       region: params.region,
@@ -47,22 +44,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         params.maxItems,
         params.marker
       )
-      logger.info(
-        `[${requestId}] Found ${result.count} policies attached to user "${params.userName}"`
-      )
+      logger.info(`Found ${result.count} policies attached to user "${params.userName}"`)
       return NextResponse.json(result)
     } finally {
       client.destroy()
     }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      logger.warn(`[${requestId}] Invalid request data`, { errors: error.errors })
+      logger.warn(`Invalid request data`, { errors: error.errors })
       return NextResponse.json(
         { error: 'Invalid request data', details: error.errors },
         { status: 400 }
       )
     }
-    logger.error(`[${requestId}] Failed to list attached user policies:`, error)
+    logger.error(`Failed to list attached user policies:`, error)
     return NextResponse.json(
       { error: `Failed to list attached user policies: ${toError(error).message}` },
       { status: 500 }

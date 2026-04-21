@@ -157,7 +157,7 @@ export const SESBlock: BlockConfig<ToolResponse> = {
       type: 'code',
       language: 'json',
       placeholder:
-        '[{"toAddresses": ["user1@example.com"], "templateData": "{\"name\": \"User 1\"}"}]',
+        '[{"toAddresses": ["user1@example.com"], "templateData": "{\"name\": \"User 1\"}"}, {"toAddresses": ["user2@example.com"]}]',
       condition: { field: 'operation', value: 'send_bulk_email' },
       required: { field: 'operation', value: 'send_bulk_email' },
     },
@@ -343,7 +343,7 @@ export const SESBlock: BlockConfig<ToolResponse> = {
             if (rest.configurationSetName) result.configurationSetName = rest.configurationSetName
             break
           case 'list_identities':
-            if (pageSize) {
+            if (pageSize != null) {
               const parsed = Number.parseInt(String(pageSize), 10)
               if (!Number.isNaN(parsed)) result.pageSize = parsed
             }
@@ -361,7 +361,7 @@ export const SESBlock: BlockConfig<ToolResponse> = {
             result.templateName = rest.templateName
             break
           case 'list_templates':
-            if (pageSize) {
+            if (pageSize != null) {
               const parsed = Number.parseInt(String(pageSize), 10)
               if (!Number.isNaN(parsed)) result.pageSize = parsed
             }

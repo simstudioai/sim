@@ -104,7 +104,7 @@ export const simulatePrincipalPolicyTool: ToolConfig<
     evaluationResults: {
       type: 'json',
       description:
-        'Simulation results per action: evalActionName, evalResourceName, evalDecision (allowed/explicitDeny/implicitDeny), matchedStatements, missingContextValues',
+        'Simulation results per action: evalActionName, evalResourceName, evalDecision (allowed/explicitDeny/implicitDeny), matchedStatements (sourcePolicyId, sourcePolicyType), missingContextValues',
     },
     isTruncated: {
       type: 'boolean',

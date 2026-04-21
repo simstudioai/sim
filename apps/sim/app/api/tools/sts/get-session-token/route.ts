@@ -58,7 +58,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    logger.error('Failed to get session token:', error)
+    logger.error('Failed to get session token', { error: toError(error).message })
 
     return NextResponse.json(
       { error: `Failed to get session token: ${toError(error).message}` },

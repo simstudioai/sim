@@ -50,7 +50,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    logger.error('Failed to get caller identity:', error)
+    logger.error('Failed to get caller identity', { error: toError(error).message })
 
     return NextResponse.json(
       { error: `Failed to get caller identity: ${toError(error).message}` },
