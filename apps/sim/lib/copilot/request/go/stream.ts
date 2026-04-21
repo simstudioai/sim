@@ -457,15 +457,21 @@ export async function runStreamLoop(
     // there is no per-chunk OTel cost — one span per read loop with
     // integer counters, plus a bounded set of events.
     //
-    // `context.streamComplete` is the caller-visible "this leg was
-    // supposed to be final" signal (set by the complete/error/run-end
-    // handlers). When it's true but we didn't see a terminal event on
-    // the wire, that's the real "disappeared response" bug — as
-    // opposed to a normal tool-pause leg which ends with
-    // streamComplete=false and terminal_event_seen=false and is fine.
+    // `expectedTerminal` = "the caller considered this leg the FINAL
+    // leg and genuinely expected a terminal event on the wire." We
+    // derive it from `context.streamComplete` MINUS the tool-pause
+    // case: when the server emits a `run.checkpoint_pause`, its
+    // handler also sets `streamComplete=true` to stop the read loop
+    // cleanly, but no `complete` SSE event is ever sent in that
+    // case — that's the tool-pause protocol, not a missing terminal.
+    // `awaitingAsyncContinuation` is set by the same handler, so
+    // its presence distinguishes "tool pause, no terminal expected"
+    // from "caller thought stream was done but server never said so"
+    // (= the real disappeared-response bug class).
+    const expectedTerminal = context.streamComplete && !context.awaitingAsyncContinuation
     stampSseReadLoopSpan(bodyStart, counters, endedOn, fetchUrl, pathname, {
       idleGapEventThresholdMs: IDLE_GAP_EVENT_THRESHOLD_MS,
-      expectedTerminal: context.streamComplete,
+      expectedTerminal,
     })
   }
 }
