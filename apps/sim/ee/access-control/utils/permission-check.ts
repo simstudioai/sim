@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { permissionGroup, permissionGroupMember } from '@sim/db/schema'
+import { permissionGroup, permissionGroupMember, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, sql } from 'drizzle-orm'
 import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
 import {
   getAllowedIntegrationsFromEnv,
@@ -296,32 +296,63 @@ export async function validateSkillsAllowed(
 }
 
 /**
- * Validates if the user is allowed to send invitations for the given workspace.
- * Also checks the global feature flag. When `workspaceId` is omitted only the
- * feature-flag check runs (no permission-group gate).
+ * Validates if the user is allowed to send invitations. Pass one of:
+ *  - `workspaceId` — workspace-scoped invite: block when the user's group in that workspace has
+ *    `disableInvitations`.
+ *  - `organizationId` — organization-level invite (no specific workspace target): block when the
+ *    user has `disableInvitations` set on their group in any organization-owned workspace. This
+ *    mirrors the pre-refactor behavior where `disableInvitations` was an organization-level
+ *    policy.
+ *  - neither — only the global feature flag is checked.
  */
 export async function validateInvitationsAllowed(
   userId: string | undefined,
-  workspaceId?: string
+  scope: string | { workspaceId?: string; organizationId?: string } = {}
 ): Promise<void> {
   if (isInvitationsDisabled) {
     logger.warn('Invitations blocked by feature flag')
     throw new InvitationsNotAllowedError()
   }
 
-  if (!userId || !workspaceId) {
+  if (!userId) {
     return
   }
 
-  const config = await getUserPermissionConfig(userId, workspaceId)
+  const { workspaceId, organizationId } =
+    typeof scope === 'string' ? { workspaceId: scope, organizationId: undefined } : scope
 
-  if (!config) {
+  if (workspaceId) {
+    const config = await getUserPermissionConfig(userId, workspaceId)
+    if (config?.disableInvitations) {
+      logger.warn('Invitations blocked by permission group', { userId, workspaceId })
+      throw new InvitationsNotAllowedError()
+    }
     return
   }
 
-  if (config.disableInvitations) {
-    logger.warn('Invitations blocked by permission group', { userId, workspaceId })
-    throw new InvitationsNotAllowedError()
+  if (organizationId) {
+    const [row] = await db
+      .select({ id: permissionGroup.id })
+      .from(permissionGroupMember)
+      .innerJoin(permissionGroup, eq(permissionGroupMember.permissionGroupId, permissionGroup.id))
+      .innerJoin(workspace, eq(permissionGroup.workspaceId, workspace.id))
+      .where(
+        and(
+          eq(permissionGroupMember.userId, userId),
+          eq(workspace.organizationId, organizationId),
+          sql`${permissionGroup.config} @> '{"disableInvitations": true}'::jsonb`
+        )
+      )
+      .limit(1)
+
+    if (row) {
+      logger.warn('Invitations blocked by permission group (organization-wide)', {
+        userId,
+        organizationId,
+        permissionGroupId: row.id,
+      })
+      throw new InvitationsNotAllowedError()
+    }
   }
 }
 

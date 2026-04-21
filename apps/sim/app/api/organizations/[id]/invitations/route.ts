@@ -94,9 +94,10 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      await validateInvitationsAllowed(session.user.id)
-
       const { id: organizationId } = await params
+
+      await validateInvitationsAllowed(session.user.id, { organizationId })
+
       const url = new URL(request.url)
       const validateOnly = url.searchParams.get('validate') === 'true'
       const isBatch = url.searchParams.get('batch') === 'true'

@@ -27,13 +27,13 @@ const createSchema = z.object({
 })
 
 export const GET = withRouteHandler(
-  async (_req: NextRequest, { params }: { params: Promise<{ workspaceId: string }> }) => {
+  async (_req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { workspaceId } = await params
+    const { id: workspaceId } = await params
 
     const access = await checkWorkspaceAccess(workspaceId, session.user.id)
     if (!access.exists) {
@@ -89,13 +89,13 @@ export const GET = withRouteHandler(
 )
 
 export const POST = withRouteHandler(
-  async (req: NextRequest, { params }: { params: Promise<{ workspaceId: string }> }) => {
+  async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { workspaceId } = await params
+    const { id: workspaceId } = await params
 
     try {
       const isWorkspaceAdmin = await hasWorkspaceAdminAccess(session.user.id, workspaceId)

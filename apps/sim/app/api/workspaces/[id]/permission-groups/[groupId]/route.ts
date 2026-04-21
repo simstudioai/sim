@@ -45,16 +45,13 @@ async function loadGroupInWorkspace(groupId: string, workspaceId: string) {
 }
 
 export const GET = withRouteHandler(
-  async (
-    _req: NextRequest,
-    { params }: { params: Promise<{ workspaceId: string; id: string }> }
-  ) => {
+  async (_req: NextRequest, { params }: { params: Promise<{ id: string; groupId: string }> }) => {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { workspaceId, id } = await params
+    const { id: workspaceId, groupId: id } = await params
 
     const access = await checkWorkspaceAccess(workspaceId, session.user.id)
     if (!access.exists) {
@@ -88,16 +85,13 @@ export const GET = withRouteHandler(
 )
 
 export const PUT = withRouteHandler(
-  async (
-    req: NextRequest,
-    { params }: { params: Promise<{ workspaceId: string; id: string }> }
-  ) => {
+  async (req: NextRequest, { params }: { params: Promise<{ id: string; groupId: string }> }) => {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { workspaceId, id } = await params
+    const { id: workspaceId, groupId: id } = await params
 
     try {
       const isWorkspaceAdmin = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
@@ -217,16 +211,13 @@ export const PUT = withRouteHandler(
 )
 
 export const DELETE = withRouteHandler(
-  async (
-    req: NextRequest,
-    { params }: { params: Promise<{ workspaceId: string; id: string }> }
-  ) => {
+  async (req: NextRequest, { params }: { params: Promise<{ id: string; groupId: string }> }) => {
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { workspaceId, id } = await params
+    const { id: workspaceId, groupId: id } = await params
 
     try {
       const isWorkspaceAdmin = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
