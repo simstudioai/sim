@@ -6,7 +6,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
-import { hasWorkspaceAccessControlAccess, isWorkspaceOnEnterprisePlan } from '@/lib/billing'
+import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   type PermissionGroupConfig,
@@ -105,8 +105,8 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'Admin permissions required' }, { status: 403 })
       }
 
-      const hasAccess = await hasWorkspaceAccessControlAccess(session.user.id, workspaceId)
-      if (!hasAccess) {
+      const entitled = await isWorkspaceOnEnterprisePlan(workspaceId)
+      if (!entitled) {
         return NextResponse.json(
           { error: 'Access Control is an Enterprise feature' },
           { status: 403 }
@@ -234,8 +234,8 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: 'Admin permissions required' }, { status: 403 })
       }
 
-      const hasAccess = await hasWorkspaceAccessControlAccess(session.user.id, workspaceId)
-      if (!hasAccess) {
+      const entitled = await isWorkspaceOnEnterprisePlan(workspaceId)
+      if (!entitled) {
         return NextResponse.json(
           { error: 'Access Control is an Enterprise feature' },
           { status: 403 }

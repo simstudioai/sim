@@ -12,7 +12,6 @@ export {
   hasCredentialSetsAccess,
   hasPaidSubscription,
   hasSSOAccess,
-  hasWorkspaceAccessControlAccess,
   isEnterpriseOrgAdminOrOwner,
   isEnterprisePlan as hasEnterprisePlan,
   isOrganizationOnEnterprisePlan,

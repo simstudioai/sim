@@ -253,10 +253,22 @@ export interface WorkspaceUser {
   permissionType: 'admin' | 'write' | 'read'
 }
 
+/** Viewer context for a workspace permissions response. */
+export interface WorkspacePermissionsViewer {
+  userId: string
+  /**
+   * Mirrors the server's `hasWorkspaceAdminAccess` check: true when the caller is the workspace
+   * owner, an explicit workspace admin, or an organization owner/admin of an organization-owned
+   * workspace. Use this instead of scanning `users` for a `permissionType === 'admin'` row.
+   */
+  isAdmin: boolean
+}
+
 /** Workspace permissions data containing all users and their access levels. */
 export interface WorkspacePermissions {
   users: WorkspaceUser[]
   total: number
+  viewer?: WorkspacePermissionsViewer
 }
 
 async function fetchWorkspacePermissions(

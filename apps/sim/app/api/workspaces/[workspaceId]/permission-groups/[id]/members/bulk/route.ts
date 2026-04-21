@@ -7,7 +7,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { AuditAction, AuditResourceType, recordAudit } from '@/lib/audit/log'
 import { getSession } from '@/lib/auth'
-import { hasWorkspaceAccessControlAccess } from '@/lib/billing'
+import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -50,8 +50,8 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Admin permissions required' }, { status: 403 })
       }
 
-      const hasAccess = await hasWorkspaceAccessControlAccess(session.user.id, workspaceId)
-      if (!hasAccess) {
+      const entitled = await isWorkspaceOnEnterprisePlan(workspaceId)
+      if (!entitled) {
         return NextResponse.json(
           { error: 'Access Control is an Enterprise feature' },
           { status: 403 }
@@ -97,36 +97,38 @@ export const POST = withRouteHandler(
         return NextResponse.json({ added: 0, moved: 0 })
       }
 
-      const existingMemberships = await db
-        .select({
-          id: permissionGroupMember.id,
-          userId: permissionGroupMember.userId,
-          permissionGroupId: permissionGroupMember.permissionGroupId,
-        })
-        .from(permissionGroupMember)
-        .innerJoin(permissionGroup, eq(permissionGroupMember.permissionGroupId, permissionGroup.id))
-        .where(
-          and(
-            eq(permissionGroup.workspaceId, workspaceId),
-            inArray(permissionGroupMember.userId, targetUserIds)
+      const { addedUserIds, movedCount } = await db.transaction(async (tx) => {
+        const existingMemberships = await tx
+          .select({
+            id: permissionGroupMember.id,
+            userId: permissionGroupMember.userId,
+            permissionGroupId: permissionGroupMember.permissionGroupId,
+          })
+          .from(permissionGroupMember)
+          .innerJoin(
+            permissionGroup,
+            eq(permissionGroupMember.permissionGroupId, permissionGroup.id)
           )
+          .where(
+            and(
+              eq(permissionGroup.workspaceId, workspaceId),
+              inArray(permissionGroupMember.userId, targetUserIds)
+            )
+          )
+
+        const alreadyInThisGroup = new Set(
+          existingMemberships.filter((m) => m.permissionGroupId === id).map((m) => m.userId)
+        )
+        const usersToAdd = targetUserIds.filter((uid) => !alreadyInThisGroup.has(uid))
+
+        if (usersToAdd.length === 0) {
+          return { addedUserIds: [] as string[], movedCount: 0 }
+        }
+
+        const membershipsToDelete = existingMemberships.filter(
+          (m) => m.permissionGroupId !== id && usersToAdd.includes(m.userId)
         )
 
-      const alreadyInThisGroup = new Set(
-        existingMemberships.filter((m) => m.permissionGroupId === id).map((m) => m.userId)
-      )
-      const usersToAdd = targetUserIds.filter((uid) => !alreadyInThisGroup.has(uid))
-
-      if (usersToAdd.length === 0) {
-        return NextResponse.json({ added: 0, moved: 0 })
-      }
-
-      const membershipsToDelete = existingMemberships.filter(
-        (m) => m.permissionGroupId !== id && usersToAdd.includes(m.userId)
-      )
-      const movedCount = membershipsToDelete.length
-
-      await db.transaction(async (tx) => {
         if (membershipsToDelete.length > 0) {
           await tx.delete(permissionGroupMember).where(
             inArray(
@@ -145,12 +147,18 @@ export const POST = withRouteHandler(
         }))
 
         await tx.insert(permissionGroupMember).values(newMembers)
+
+        return { addedUserIds: usersToAdd, movedCount: membershipsToDelete.length }
       })
+
+      if (addedUserIds.length === 0) {
+        return NextResponse.json({ added: 0, moved: 0 })
+      }
 
       logger.info('Bulk added members to permission group', {
         permissionGroupId: id,
         workspaceId,
-        addedCount: usersToAdd.length,
+        addedCount: addedUserIds.length,
         movedCount,
         assignedBy: session.user.id,
       })
@@ -164,16 +172,16 @@ export const POST = withRouteHandler(
         resourceName: group.name,
         actorName: session.user.name ?? undefined,
         actorEmail: session.user.email ?? undefined,
-        description: `Bulk added ${usersToAdd.length} member(s) to permission group "${group.name}"`,
+        description: `Bulk added ${addedUserIds.length} member(s) to permission group "${group.name}"`,
         metadata: {
           permissionGroupId: id,
-          addedUserIds: usersToAdd,
+          addedUserIds,
           movedCount,
         },
         request: req,
       })
 
-      return NextResponse.json({ added: usersToAdd.length, moved: movedCount })
+      return NextResponse.json({ added: addedUserIds.length, moved: movedCount })
     } catch (error) {
       if (error instanceof z.ZodError) {
         return NextResponse.json({ error: error.errors[0].message }, { status: 400 })

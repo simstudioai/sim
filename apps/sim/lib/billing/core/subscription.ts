@@ -500,33 +500,6 @@ export async function isWorkspaceOnEnterprisePlan(workspaceId: string): Promise<
 }
 
 /**
- * Check if a user can manage Access Control for a specific workspace:
- *  - self-hosted override via ACCESS_CONTROL_ENABLED, OR
- *  - caller has `admin` permission on the workspace, AND the workspace is on an enterprise plan.
- */
-export async function hasWorkspaceAccessControlAccess(
-  userId: string,
-  workspaceId: string
-): Promise<boolean> {
-  try {
-    const { hasWorkspaceAdminAccess } = await import('@/lib/workspaces/permissions/utils')
-    const isWorkspaceAdmin = await hasWorkspaceAdminAccess(userId, workspaceId)
-    if (!isWorkspaceAdmin) return false
-
-    if (isAccessControlEnabled && !isHosted) return true
-
-    return isWorkspaceOnEnterprisePlan(workspaceId)
-  } catch (error) {
-    logger.error('Error checking workspace access control access', {
-      error,
-      userId,
-      workspaceId,
-    })
-    return false
-  }
-}
-
-/**
  * Check if user has access to inbox (Sim Mailer) feature
  * Returns true if:
  * - INBOX_ENABLED env var is set, OR

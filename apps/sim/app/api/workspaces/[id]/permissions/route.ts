@@ -12,6 +12,7 @@ import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { applyWorkspaceAutoAddGroup } from '@/lib/permission-groups/auto-add'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
+  checkWorkspaceAccess,
   getUsersWithPermissions,
   hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
@@ -46,19 +47,21 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
-      const userPermission = await db
-        .select()
-        .from(permissions)
-        .where(
-          and(
-            eq(permissions.entityId, workspaceId),
-            eq(permissions.entityType, 'workspace'),
-            eq(permissions.userId, session.user.id)
-          )
-        )
-        .limit(1)
+      const isAdmin = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
 
-      if (userPermission.length === 0) {
+      let hasAccess = isAdmin
+      if (!hasAccess) {
+        const access = await checkWorkspaceAccess(workspaceId, session.user.id)
+        if (!access.exists) {
+          return NextResponse.json(
+            { error: 'Workspace not found or access denied' },
+            { status: 404 }
+          )
+        }
+        hasAccess = access.hasAccess
+      }
+
+      if (!hasAccess) {
         return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 404 })
       }
 
@@ -67,6 +70,10 @@ export const GET = withRouteHandler(
       return NextResponse.json({
         users: result,
         total: result.length,
+        viewer: {
+          userId: session.user.id,
+          isAdmin,
+        },
       })
     } catch (error) {
       logger.error('Error fetching workspace permissions:', error)

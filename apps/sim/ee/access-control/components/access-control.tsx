@@ -25,7 +25,6 @@ import {
   Switch,
 } from '@/components/emcn'
 import { Input as BaseInput } from '@/components/ui'
-import { useSession } from '@/lib/auth/auth-client'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getUserColor } from '@/lib/workspaces/colors'
@@ -245,7 +244,6 @@ function AccessControlSkeleton() {
 }
 
 export function AccessControl() {
-  const { data: session } = useSession()
   const params = useParams()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
 
@@ -259,12 +257,7 @@ export function AccessControl() {
   const { data: userPermissionConfig, isPending: entitlementLoading } =
     useUserPermissionConfig(workspaceId)
 
-  const currentUserIsWorkspaceAdmin = useMemo(() => {
-    if (!workspacePermissionsData || !session?.user?.id) return false
-    return workspacePermissionsData.users.some(
-      (u) => u.userId === session.user?.id && u.permissionType === 'admin'
-    )
-  }, [workspacePermissionsData, session?.user?.id])
+  const currentUserIsWorkspaceAdmin = workspacePermissionsData?.viewer?.isAdmin ?? false
 
   const accessControlEnabledLocally = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
   const isEntitled = accessControlEnabledLocally || !!userPermissionConfig?.entitled

@@ -188,6 +188,14 @@ export const auth = betterAuth({
             `You are the owner of ${check.organizationName ?? 'an active paid organization'}. Transfer ownership before deleting your account.`
           )
         }
+
+        const { reassignBilledAccountForUser } = await import('@/lib/workspaces/utils')
+        const { unresolved } = await reassignBilledAccountForUser(deletingUser.id)
+        if (unresolved.length > 0) {
+          throw new Error(
+            `Your account is the billing account for ${unresolved.length} workspace${unresolved.length === 1 ? '' : 's'} with no other admin to take it over. Add another admin to ${unresolved.length === 1 ? 'that workspace' : 'those workspaces'} or delete ${unresolved.length === 1 ? 'it' : 'them'} before deleting your account.`
+          )
+        }
       },
     },
   },
